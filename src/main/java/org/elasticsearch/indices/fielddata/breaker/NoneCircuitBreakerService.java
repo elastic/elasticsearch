@@ -27,13 +27,13 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 /**
  * Class that returns a breaker that never breaks
  */
-public class DummyCircuitBreakerService implements CircuitBreakerService {
+public class NoneCircuitBreakerService implements CircuitBreakerService {
 
-    private final ESLogger logger = Loggers.getLogger(DummyCircuitBreakerService.class);
+    private final ESLogger logger = Loggers.getLogger(NoneCircuitBreakerService.class);
 
     private final MemoryCircuitBreaker breaker = new MemoryCircuitBreaker(new ByteSizeValue(Long.MAX_VALUE), 0.0, logger);
 
-    public DummyCircuitBreakerService() {}
+    public NoneCircuitBreakerService() {}
 
     @Override
     public MemoryCircuitBreaker getBreaker() {

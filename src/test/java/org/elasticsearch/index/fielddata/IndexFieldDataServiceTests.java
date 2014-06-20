@@ -32,7 +32,7 @@ import org.elasticsearch.index.fielddata.plain.*;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.mapper.core.*;
-import org.elasticsearch.indices.fielddata.breaker.DummyCircuitBreakerService;
+import org.elasticsearch.indices.fielddata.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.index.service.StubIndexService;
 
@@ -49,7 +49,7 @@ public class IndexFieldDataServiceTests extends ElasticsearchTestCase {
 
     @SuppressWarnings("unchecked")
     public void testGetForFieldDefaults() {
-        final IndexFieldDataService ifdService = new IndexFieldDataService(new Index("test"), new DummyCircuitBreakerService());
+        final IndexFieldDataService ifdService = new IndexFieldDataService(new Index("test"), new NoneCircuitBreakerService());
         MapperService mapperService = MapperTestUtils.newMapperService(ifdService.index(), ImmutableSettings.Builder.EMPTY_SETTINGS);
         ifdService.setIndexService(new StubIndexService(mapperService));
         for (boolean docValues : Arrays.asList(true, false)) {
@@ -100,7 +100,7 @@ public class IndexFieldDataServiceTests extends ElasticsearchTestCase {
 
     @SuppressWarnings("unchecked")
     public void testByPassDocValues() {
-        final IndexFieldDataService ifdService = new IndexFieldDataService(new Index("test"), new DummyCircuitBreakerService());
+        final IndexFieldDataService ifdService = new IndexFieldDataService(new Index("test"), new NoneCircuitBreakerService());
         MapperService mapperService = MapperTestUtils.newMapperService(ifdService.index(), ImmutableSettings.Builder.EMPTY_SETTINGS);
         ifdService.setIndexService(new StubIndexService(mapperService));
         final BuilderContext ctx = new BuilderContext(null, new ContentPath(1));
@@ -133,7 +133,7 @@ public class IndexFieldDataServiceTests extends ElasticsearchTestCase {
     }
 
     public void testChangeFieldDataFormat() throws Exception {
-        final IndexFieldDataService ifdService = new IndexFieldDataService(new Index("test"), new DummyCircuitBreakerService());
+        final IndexFieldDataService ifdService = new IndexFieldDataService(new Index("test"), new NoneCircuitBreakerService());
         MapperService mapperService = MapperTestUtils.newMapperService(ifdService.index(), ImmutableSettings.Builder.EMPTY_SETTINGS);
         ifdService.setIndexService(new StubIndexService(mapperService));
         final BuilderContext ctx = new BuilderContext(null, new ContentPath(1));

@@ -45,7 +45,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
-import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
@@ -283,13 +282,13 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
     /**
      * A range filter based on the field data cache.
      */
-    public abstract Filter rangeFilter(IndexFieldDataService fieldData, Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context);
+    public abstract Filter rangeFilter(QueryParseContext parseContext, Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context);
 
     /**
      * A terms filter based on the field data cache for numeric fields.
      */
     @Override
-    public Filter termsFilter(IndexFieldDataService fieldDataService, List values, @Nullable QueryParseContext context) {
+    public Filter termsFilter(QueryParseContext fieldDataService, List values, @Nullable QueryParseContext context) {
         IndexNumericFieldData fieldData = fieldDataService.getForField(this);
         if (fieldData.getNumericType().isFloatingPoint()) {
             // create with initial size large enough to avoid rehashing

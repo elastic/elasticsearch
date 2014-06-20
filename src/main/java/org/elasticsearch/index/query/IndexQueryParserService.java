@@ -224,10 +224,14 @@ public class IndexQueryParserService extends AbstractIndexComponent {
     }
 
     public ParsedQuery parse(BytesReference source) throws ElasticsearchException {
+        return parse(cache.get(), source);
+    }
+
+    public ParsedQuery parse(QueryParseContext context, BytesReference source) throws ElasticsearchException {
         XContentParser parser = null;
         try {
             parser = XContentFactory.xContent(source).createParser(source);
-            return parse(cache.get(), parser);
+            return innerParse(context, parser);
         } catch (QueryParsingException e) {
             throw e;
         } catch (Exception e) {
@@ -243,7 +247,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         XContentParser parser = null;
         try {
             parser = XContentFactory.xContent(source).createParser(source);
-            return parse(cache.get(), parser);
+            return innerParse(cache.get(), parser);
         } catch (QueryParsingException e) {
             throw e;
         } catch (Exception e) {
@@ -256,8 +260,12 @@ public class IndexQueryParserService extends AbstractIndexComponent {
     }
 
     public ParsedQuery parse(XContentParser parser) {
+        return parse(cache.get(), parser);
+    }
+
+    public ParsedQuery parse(QueryParseContext context, XContentParser parser) {
         try {
-            return parse(cache.get(), parser);
+            return innerParse(context, parser);
         } catch (IOException e) {
             throw new QueryParsingException(index, "Failed to parse", e);
         }
@@ -325,7 +333,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         throw new QueryParsingException(index(), "Required query is missing");
     }
 
-    private ParsedQuery parse(QueryParseContext parseContext, XContentParser parser) throws IOException, QueryParsingException {
+    private ParsedQuery innerParse(QueryParseContext parseContext, XContentParser parser) throws IOException, QueryParsingException {
         parseContext.reset(parser);
         try {
             if (strict) {

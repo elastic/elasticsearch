@@ -86,6 +86,11 @@ One practical use for tag filtering is when an ec2 cluster contains many nodes t
 Though not dependent on actually using `ec2` as discovery (but still requires the cloud aws plugin installed), the plugin can automatically add node attributes relating to ec2 (for example, availability zone, that can be used with the awareness allocation feature). In order to enable it, set `cloud.node.auto_attributes` to `true` in the settings.
 
 
+### Using other EC2 endpoint
+
+If you are using any EC2 api compatible service, you can set the endpoint you want to use by setting `cloud.aws.ec2.endpoint`
+to your URL provider.
+
 ## S3 Repository
 
 The S3 repository is using S3 to store snapshots. The S3 repository can be created using the following command:
@@ -116,7 +121,7 @@ See [Generic Configuration](#generic-configuration) for details.
 
 Multiple S3 repositories can be created. If the buckets require different credentials, then define them as part of the repository settings.
 
-## Recommended S3 Permissions
+### Recommended S3 Permissions
 
 In order to restrict the Elasticsearch snapshot process to the minimum required resources, we recommend using Amazon IAM in conjunction with pre-existing S3 buckets. Here is an example policy which will allow the snapshot access to an S3 bucket named "snaps.example.com". This may be configured through the AWS IAM console, by creating a Custom Policy, and using a Policy Document similar to this (changing snaps.example.com to your bucket name).
 
@@ -200,6 +205,12 @@ The bucket needs to exist to register a repository for snapshots. If you did not
    ]
 }
 ```
+
+### Using other S3 endpoint
+
+If you are using any S3 api compatible service, you can set the endpoint you want to use by setting `cloud.aws.s3.endpoint`
+to your URL provider.
+
 
 ## Testing
 

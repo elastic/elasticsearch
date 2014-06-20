@@ -170,7 +170,7 @@ including:
                 during the update. You can use the `version` parameter to specify that the
                 document should only be updated if it's version matches the one specified.
                 By setting version type to `force` you can force the new version of the document
-                after update (use with care! with `force` there is no guaranty the document
+                after update (use with care! with `force` there is no guarantee the document
                 didn't change).Version types `external` & `external_gte` are not supported.
 
                 

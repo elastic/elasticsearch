@@ -56,3 +56,13 @@ java.lang.System#gc()
 
 @defaultMessage Use Long.compare instead we are on Java7
 com.google.common.primitives.Longs#compare(long,long)
+
+@defaultMessage Use Channels.* methods to write to channels. Do not write directly.
+java.nio.channels.WritableByteChannel#write(java.nio.ByteBuffer)
+java.nio.channels.FileChannel#write(java.nio.ByteBuffer, long)
+java.nio.channels.GatheringByteChannel#write(java.nio.ByteBuffer[], int, int)
+java.nio.channels.GatheringByteChannel#write(java.nio.ByteBuffer[])
+java.nio.channels.ReadableByteChannel#read(java.nio.ByteBuffer)
+java.nio.channels.ScatteringByteChannel#read(java.nio.ByteBuffer[])
+java.nio.channels.ScatteringByteChannel.read(java.nio.ByteBuffer[], int, int)
+java.nio.channels.FileChannel#read(java.nio.ByteBuffer, long)

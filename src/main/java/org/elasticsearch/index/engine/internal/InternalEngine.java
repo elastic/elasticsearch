@@ -751,7 +751,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
 
         // TODO: maybe we should just put a scheduled job in threadPool?
         // We check for pruning in each delete request, but we also prune here e.g. in case a delete burst comes in and then no more deletes
-        // for a long time:
+        // for a long time, and also to protect against wall-clock time shifts possibly preventing us from pruning:
         if (enableGcDeletes) {
             pruneDeletedTombstones();
         }

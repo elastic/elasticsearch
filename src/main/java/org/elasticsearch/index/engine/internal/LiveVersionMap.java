@@ -133,24 +133,6 @@ class LiveVersionMap implements ReferenceManager.RefreshListener {
         return tombstones.get(uid);
     }
 
-    private void updateRAM(BytesRef uid, VersionValue oldVersion, VersionValue newVersion) {
-        if (oldVersion != null) {
-            long bytes = BASE_BYTES_PER_ENTRY + uid.bytes.length + oldVersion.ramBytesUsed();
-            if (oldVersion.delete()) {
-                ramBytesUsedDeletes.addAndGet(-bytes);
-            } else {
-                ramBytesUsedAdds.addAndGet(-bytes);
-            }
-        }
-
-        long bytes = BASE_BYTES_PER_ENTRY + uid.bytes.length + newVersion.ramBytesUsed();
-        if (newVersion.delete()) {
-            ramBytesUsedDeletes.addAndGet(bytes);
-        } else {
-            ramBytesUsedAdds.addAndGet(bytes);
-        }
-    }
-
     /** Adds this uid/version to the pending adds map. */
     public void putUnderLock(BytesRef uid, VersionValue version) {
         VersionValue prev = current.put(uid, version);

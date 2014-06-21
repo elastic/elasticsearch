@@ -50,6 +50,7 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -91,8 +92,8 @@ public class SimpleThreadPoolTests extends ElasticsearchIntegrationTest {
         indexRandom(true, builders);
         int numSearches = randomIntBetween(2, 100);
         for (int i = 0; i < numSearches; i++) {
-            assertAllSuccessful(client().prepareSearch("idx").setQuery(QueryBuilders.termQuery("str_value", "s" + i)).get());
-            assertAllSuccessful(client().prepareSearch("idx").setQuery(QueryBuilders.termQuery("l_value", i)).get());
+            assertNoFailures(client().prepareSearch("idx").setQuery(QueryBuilders.termQuery("str_value", "s" + i)).get());
+            assertNoFailures(client().prepareSearch("idx").setQuery(QueryBuilders.termQuery("l_value", i)).get());
         }
         Set<String> threadNames = Sets.newHashSet();
         for (long l : threadBean.getAllThreadIds()) {

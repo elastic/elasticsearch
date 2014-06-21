@@ -19,8 +19,6 @@
 
 package org.elasticsearch.threadpool;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
@@ -33,35 +31,30 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.TestCluster;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.threadpool.ThreadPool.Names;
-import org.hamcrest.Matchers;
 import org.junit.Test;
 
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
+import java.lang.management.ThreadInfo;
 import java.lang.management.ThreadMXBean;
-import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.*;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
 import static org.hamcrest.Matchers.*;
 
 /**
  */
-@ClusterScope(scope= Scope.TEST, numDataNodes = 0, numClientNodes = 0)
+@ClusterScope(scope = Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class SimpleThreadPoolTests extends ElasticsearchIntegrationTest {
 
     @Override
@@ -74,7 +67,10 @@ public class SimpleThreadPoolTests extends ElasticsearchIntegrationTest {
         ThreadMXBean threadBean = ManagementFactory.getThreadMXBean();
         Set<String> preNodeStartThreadNames = Sets.newHashSet();
         for (long l : threadBean.getAllThreadIds()) {
-            preNodeStartThreadNames.add(threadBean.getThreadInfo(l).getThreadName());
+            ThreadInfo threadInfo = threadBean.getThreadInfo(l);
+            if (threadInfo != null) {
+                preNodeStartThreadNames.add(threadInfo.getThreadName());
+            }
         }
         logger.info("pre node threads are {}", preNodeStartThreadNames);
         String node = internalCluster().startNode();
@@ -87,7 +83,7 @@ public class SimpleThreadPoolTests extends ElasticsearchIntegrationTest {
                     .field("str_value", "s" + i)
                     .field("str_values", new String[]{"s" + (i * 2), "s" + (i * 2 + 1)})
                     .field("l_value", i)
-                    .field("l_values", new int[] {i * 2, i * 2 + 1})
+                    .field("l_values", new int[]{i * 2, i * 2 + 1})
                     .field("d_value", i)
                     .field("d_values", new double[]{i * 2, i * 2 + 1})
                     .endObject());
@@ -100,7 +96,10 @@ public class SimpleThreadPoolTests extends ElasticsearchIntegrationTest {
         }
         Set<String> threadNames = Sets.newHashSet();
         for (long l : threadBean.getAllThreadIds()) {
-            threadNames.add(threadBean.getThreadInfo(l).getThreadName());
+            ThreadInfo threadInfo = threadBean.getThreadInfo(l);
+            if (threadInfo != null) {
+                threadNames.add(threadInfo.getThreadName());
+            }
         }
         logger.info("post node threads are {}", threadNames);
         threadNames.removeAll(preNodeStartThreadNames);

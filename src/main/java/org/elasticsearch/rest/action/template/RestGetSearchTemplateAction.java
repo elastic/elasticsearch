@@ -50,7 +50,7 @@ public class RestGetSearchTemplateAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, Client client) {
         final GetRequest getRequest = new GetRequest(ScriptService.SCRIPT_INDEX, "mustache", request.param("id"));
         getRequest.listenerThreaded(false);
         getRequest.operationThreaded(true);

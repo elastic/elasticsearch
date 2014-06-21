@@ -64,17 +64,22 @@ public class RestPutSearchTemplateAction extends BaseRestHandler {
         controller.registerHandler(POST, "/_search/template/{id}", this);
         controller.registerHandler(PUT, "/_search/template/{id}", this);
 
-        controller.registerHandler(PUT, "/_search/template/{id}/_create", new CreateHandler());
-        controller.registerHandler(POST, "/_search/template/{id}/_create", new CreateHandler());
+        controller.registerHandler(PUT, "/_search/template/{id}/_create", new CreateHandler(settings, client));
+        controller.registerHandler(POST, "/_search/template/{id}/_create", new CreateHandler(settings, client));
     }
 
-    final class CreateHandler implements RestHandler {
+    final class CreateHandler extends BaseRestHandler {
+        protected CreateHandler(Settings settings, final Client client) {
+            super(settings, client);
+        }
+
         @Override
-        public void handleRequest(RestRequest request, RestChannel channel) {
+        public void handleRequest(RestRequest request, RestChannel channel, final Client client) {
             request.params().put("op_type", "create");
-            RestPutSearchTemplateAction.this.handleRequest(request, channel);
+            RestPutSearchTemplateAction.this.handleRequest(request, channel, client);
         }
     }
+
 
     private static void validate(BytesReference scriptBytes, ScriptService scriptService) throws IOException{
         XContentParser parser = XContentFactory.xContent(scriptBytes).createParser(scriptBytes);
@@ -91,7 +96,7 @@ public class RestPutSearchTemplateAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, Client client) {
         IndexRequest indexRequest = new IndexRequest(ScriptService.SCRIPT_INDEX, "mustache", request.param("id"));
         indexRequest.listenerThreaded(false);
         indexRequest.operationThreaded(true);

@@ -42,7 +42,7 @@ public class RestDeleteIndexedScriptAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, Client client) {
 
         DeleteRequest deleteRequest = new DeleteRequest(ScriptService.SCRIPT_INDEX, request.param("lang"), request.param("id"));
 

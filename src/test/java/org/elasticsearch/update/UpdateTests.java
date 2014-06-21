@@ -241,7 +241,7 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
         // external versioning
         client().prepareIndex("test", "type", "2").setSource("text", "value").setVersion(10).setVersionType(VersionType.EXTERNAL).get();
 
-	assertThrows(client().prepareUpdate("test", "type", "2").setInlineScript("ctx._source.text = 'v2'").setVersion(2).setVersionType(VersionType.EXTERNAL).execute(),
+        assertThrows(client().prepareUpdate("test", "type", "2").setInlineScript("ctx._source.text = 'v2'").setVersion(2).setVersionType(VersionType.EXTERNAL).execute(),
                 ActionRequestValidationException.class);
 
         // upserts - the combination with versions is a bit weird. Test are here to ensure we do not change our behavior unintentionally
@@ -253,7 +253,7 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
         assertThat((String) get.getSource().get("text"), equalTo("v0"));
 
         // With force version
-	client().prepareUpdate("test", "type", "4").setInlineScript("ctx._source.text = 'v2'").
+        client().prepareUpdate("test", "type", "4").setInlineScript("ctx._source.text = 'v2'").
                 setVersion(10).setVersionType(VersionType.FORCE).setUpsert("{ \"text\": \"v0\" }").get();
 
         get = get("test", "type", "4");

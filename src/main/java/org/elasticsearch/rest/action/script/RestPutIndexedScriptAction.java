@@ -59,8 +59,8 @@ public class RestPutIndexedScriptAction extends BaseRestHandler {
         controller.registerHandler(POST, "/_search/script/{lang}/{id}", this);
         controller.registerHandler(PUT, "/_search/script/{lang}/{id}", this);
 
-        controller.registerHandler(PUT, "/_search/script/{lang}/{id}/_create", new CreateHandler());
-        controller.registerHandler(POST, "/_search/script/{lang}/{id}/_create", new CreateHandler());
+        controller.registerHandler(PUT, "/_search/script/{lang}/{id}/_create", new CreateHandler(settings, client));
+        controller.registerHandler(POST, "/_search/script/{lang}/{id}/_create", new CreateHandler(settings, client));
     }
 
     @Inject
@@ -68,11 +68,15 @@ public class RestPutIndexedScriptAction extends BaseRestHandler {
         this.scriptService = scriptService;
     }
 
-    final class CreateHandler implements RestHandler {
+    final class CreateHandler extends BaseRestHandler {
+        protected CreateHandler(Settings settings, final Client client) {
+            super(settings, client);
+        }
+
         @Override
-        public void handleRequest(RestRequest request, RestChannel channel) {
+        public void handleRequest(RestRequest request, RestChannel channel, final Client client) {
             request.params().put("op_type", "create");
-            RestPutIndexedScriptAction.this.handleRequest(request, channel);
+            RestPutIndexedScriptAction.this.handleRequest(request, channel, client);
         }
     }
 
@@ -93,7 +97,7 @@ public class RestPutIndexedScriptAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, Client client) {
         String lang = request.param("lang");
         BytesReference scriptBytes = request.content();
 

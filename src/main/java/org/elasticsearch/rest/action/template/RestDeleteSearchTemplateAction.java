@@ -42,7 +42,7 @@ public class RestDeleteSearchTemplateAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, Client client) {
         final String id = request.param("id");
         DeleteRequest deleteRequest = new DeleteRequest(ScriptService.SCRIPT_INDEX, "mustache", id);
 

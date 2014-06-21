@@ -99,6 +99,22 @@ public class IndexRecoveryTests extends ElasticsearchIntegrationTest {
         assertThat(state.getStage(), not(equalTo(Stage.DONE)));
     }
 
+    private void slowDownRecovery() {
+        assertTrue(client().admin().cluster().prepareUpdateSettings()
+                .setTransientSettings(ImmutableSettings.builder()
+                        .put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC, "50b")
+                        .put(RecoverySettings.INDICES_RECOVERY_FILE_CHUNK_SIZE, "10b"))
+                .get().isAcknowledged());
+    }
+
+    private void restoreRecoverySpeed() {
+        assertTrue(client().admin().cluster().prepareUpdateSettings()
+                .setTransientSettings(ImmutableSettings.builder()
+                        .put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC, "20mb")
+                        .put(RecoverySettings.INDICES_RECOVERY_FILE_CHUNK_SIZE, "512kb"))
+                .get().isAcknowledged());
+    }
+
     @Test
     public void gatewayRecoveryTest() throws Exception {
         logger.info("--> start nodes");
@@ -199,7 +215,7 @@ public class IndexRecoveryTests extends ElasticsearchIntegrationTest {
         ensureGreen();
 
         logger.info("--> slowing down recoveries");
-        assertTrue(client().admin().cluster().prepareUpdateSettings().setTransientSettings("max_bytes_per_sec: 1").get().isAcknowledged());
+        slowDownRecovery();
 
         logger.info("--> move shard from: {} to: {}", nodeA, nodeB);
         client().admin().cluster().prepareReroute()
@@ -223,7 +239,7 @@ public class IndexRecoveryTests extends ElasticsearchIntegrationTest {
         validateIndexRecoveryState(nodeBResponses.get(0).recoveryState().getIndex());
 
         logger.info("--> speeding up recoveries");
-        assertTrue(client().admin().cluster().prepareUpdateSettings().setTransientSettings("max_bytes_per_sec: 60mb").get().isAcknowledged());
+        restoreRecoverySpeed();
 
         // wait for it to be finished
         ensureGreen();
@@ -246,7 +262,7 @@ public class IndexRecoveryTests extends ElasticsearchIntegrationTest {
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("3").get().isTimedOut());
 
         logger.info("--> slowing down recoveries");
-        assertTrue(client().admin().cluster().prepareUpdateSettings().setTransientSettings("max_bytes_per_sec: 1").get().isAcknowledged());
+        slowDownRecovery();
 
         logger.info("--> move replica shard from: {} to: {}", nodeA, nodeC);
         client().admin().cluster().prepareReroute()
@@ -269,30 +285,29 @@ public class IndexRecoveryTests extends ElasticsearchIntegrationTest {
         assertRecoveryState(nodeBResponses.get(0).recoveryState(), 0, Type.RELOCATION, Stage.DONE, nodeA, nodeB, false);
         validateIndexRecoveryState(nodeBResponses.get(0).recoveryState().getIndex());
 
-        assertOnGoingRecoveryState(nodeCResponses.get(0).recoveryState(), 0, Type.RELOCATION, nodeA, nodeC, false);
+        // relocations of replicas are marked as REPLICA and the source node is the node holding the primary (B)
+        assertOnGoingRecoveryState(nodeCResponses.get(0).recoveryState(), 0, Type.REPLICA, nodeB, nodeC, false);
         validateIndexRecoveryState(nodeCResponses.get(0).recoveryState().getIndex());
 
         logger.info("--> speeding up recoveries");
-        assertTrue(client().admin().cluster().prepareUpdateSettings().setTransientSettings("max_bytes_per_sec: 60mb").get().isAcknowledged());
+        restoreRecoverySpeed();
         ensureGreen();
 
         response = client().admin().indices().prepareRecoveries(INDEX_NAME).execute().actionGet();
         shardResponses = response.shardResponses().get(INDEX_NAME);
 
         nodeAResponses = findRecoveriesForTargetNode(nodeA, shardResponses);
-        assertThat(nodeAResponses.size(), equalTo(1));
+        assertThat(nodeAResponses.size(), equalTo(0));
         nodeBResponses = findRecoveriesForTargetNode(nodeB, shardResponses);
         assertThat(nodeBResponses.size(), equalTo(1));
         nodeCResponses = findRecoveriesForTargetNode(nodeC, shardResponses);
         assertThat(nodeCResponses.size(), equalTo(1));
 
-        assertRecoveryState(nodeAResponses.get(0).recoveryState(), 0, Type.REPLICA, Stage.DONE, nodeB, nodeA, false);
-        validateIndexRecoveryState(nodeAResponses.get(0).recoveryState().getIndex());
-
         assertRecoveryState(nodeBResponses.get(0).recoveryState(), 0, Type.RELOCATION, Stage.DONE, nodeA, nodeB, false);
         validateIndexRecoveryState(nodeBResponses.get(0).recoveryState().getIndex());
 
-        assertRecoveryState(nodeCResponses.get(0).recoveryState(), 0, Type.RELOCATION, Stage.DONE, nodeA, nodeC, false);
+        // relocations of replicas are marked as REPLICA and the source node is the node holding the primary (B)
+        assertRecoveryState(nodeCResponses.get(0).recoveryState(), 0, Type.REPLICA, Stage.DONE, nodeB, nodeC, false);
         validateIndexRecoveryState(nodeCResponses.get(0).recoveryState().getIndex());
     }
 

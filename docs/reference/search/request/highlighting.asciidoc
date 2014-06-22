@@ -31,6 +31,7 @@ be loaded and the relevant field will be extracted from it.
 The field name supports wildcard notation. For example, using `comment_*`
 will cause all fields that match the expression to be highlighted.
 
+[[postings-highlighter]]
 ==== Postings highlighter
 
 If `index_options` is set to `offsets` in the mapping the postings highlighter
@@ -71,7 +72,7 @@ the queries to be rewritten using a proper
 <<query-dsl-multi-term-rewrite,rewrite method>> that supports multi term
 extraction, which is a potentially expensive operation.
 
-
+[[fast-vector-highlighter]]
 ==== Fast vector highlighter
 
 If `term_vector` information is provided by setting `term_vector` to

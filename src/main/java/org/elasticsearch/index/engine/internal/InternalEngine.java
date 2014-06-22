@@ -751,10 +751,8 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
 
         // TODO: maybe we should just put a scheduled job in threadPool?
         // We check for pruning in each delete request, but we also prune here e.g. in case a delete burst comes in and then no more deletes
-        // for a long time, and also to protect against wall-clock time shifts possibly preventing us from pruning:
-        if (enableGcDeletes) {
-            pruneDeletedTombstones();
-        }
+        // for a long time:
+        maybePruneDeletedTombstones();
         versionMapRefreshPending.set(false);
     }
 
@@ -837,12 +835,20 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                             // so items added to current will still be around for realtime get
                             // when tans overrides it
                             translog.makeTransientCurrent();
+
                         } catch (Throwable e) {
                             translog.revertTransient();
                             throw new FlushFailedEngineException(shardId, e);
                         }
                     }
                 }
+
+                // We don't have to do this here; we do it defensively to make sure that even if wall clock time is misbehaving
+                // (e.g., moves backwards) we will at least still sometimes prune deleted tombstones:
+                if (enableGcDeletes) {
+                    pruneDeletedTombstones();
+                }
+
             } else if (flush.type() == Flush.Type.COMMIT) {
                 // note, its ok to just commit without cleaning the translog, its perfectly fine to replay a
                 // translog on an index that was opened on a committed point in time that is "in the future"
@@ -860,6 +866,13 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                         throw new FlushFailedEngineException(shardId, e);
                     }
                 }
+
+                // We don't have to do this here; we do it defensively to make sure that even if wall clock time is misbehaving
+                // (e.g., moves backwards) we will at least still sometimes prune deleted tombstones:
+                if (enableGcDeletes) {
+                    pruneDeletedTombstones();
+                }
+
             } else {
                 throw new ElasticsearchIllegalStateException("flush type [" + flush.type() + "] not supported");
             }

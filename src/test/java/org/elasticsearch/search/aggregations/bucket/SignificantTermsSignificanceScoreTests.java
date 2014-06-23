@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.bucket;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
@@ -387,7 +386,7 @@ public class SignificantTermsSignificanceScoreTests extends ElasticsearchIntegra
                 .addAggregation(new TermsBuilder("class").field("class").subAggregation(new SignificantTermsBuilder("mySignificantTerms")
                         .field("text")
                         .executionHint(randomExecutionHint())
-                        .significanceHeuristic(new MutualInformation.MutualInformationBuilder().setExcludeNegatives(false))
+                        .significanceHeuristic(new MutualInformation.MutualInformationBuilder().setIncludeNegatives(true))
                         .minDocCount(1).shardSize(1000).size(1000)))
                 .execute()
                 .actionGet();

@@ -35,19 +35,19 @@ public class MutualInformation implements SignificanceHeuristic {
 
     protected static final ParseField NAMES_FIELD = new ParseField("mutual_information");
 
-    protected static final ParseField EXCLUDE_NEGATIVES_FIELD = new ParseField("exclude_negatives");
+    protected static final ParseField INCLUDE_NEGATIVES_FIELD = new ParseField("include_negatives");
 
     /**
      * Mutual information does not differentiate between terms that are descriptive for subset or for
      * the background without the subset. We might want to filter out the terms that are appear much less often
      * in the subset than in the background without the subset.
      */
-    protected boolean excludeNegatives = false;
+    protected boolean includeNegatives = false;
 
     public static final SignificanceHeuristicStreams.Stream STREAM = new SignificanceHeuristicStreams.Stream() {
         @Override
         public SignificanceHeuristic readResult(StreamInput in) throws IOException {
-            return new MutualInformation().setExcludeNegatives(in.readBoolean());
+            return new MutualInformation().setIncludeNegatives(in.readBoolean());
         }
 
         @Override
@@ -98,7 +98,7 @@ public class MutualInformation implements SignificanceHeuristic {
             score = -1.0 * Float.MAX_VALUE;
         }
         // here we check if the term appears more often in subset than in background without subset.
-        if (excludeNegatives && N11 / N_1 < N10 / N_0) {
+        if (!includeNegatives && N11 / N_1 < N10 / N_0) {
             score = -1.0 * Float.MAX_VALUE;
         }
         return score;
@@ -130,12 +130,12 @@ public class MutualInformation implements SignificanceHeuristic {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(STREAM.getName());
-        out.writeBoolean(excludeNegatives);
+        out.writeBoolean(includeNegatives);
 
     }
 
-    public MutualInformation setExcludeNegatives(boolean excludeNegatives) {
-        this.excludeNegatives = excludeNegatives;
+    public MutualInformation setIncludeNegatives(boolean includeNegatives) {
+        this.includeNegatives = includeNegatives;
         return this;
     }
 
@@ -145,16 +145,16 @@ public class MutualInformation implements SignificanceHeuristic {
         public SignificanceHeuristic parse(XContentParser parser, EnumSet<ParseField.Flag> parseFlags) throws IOException, QueryParsingException {
             // check if deprecated name was used while not allowed
             NAMES_FIELD.match(parser.currentName(), parseFlags);
-            boolean excludeNegatives = false;
+            boolean includeNegatives = false;
             XContentParser.Token token = parser.nextToken();
             if (!token.equals(XContentParser.Token.END_OBJECT)) {
-                if (EXCLUDE_NEGATIVES_FIELD.match(parser.currentName(), parseFlags)) {
+                if (INCLUDE_NEGATIVES_FIELD.match(parser.currentName(), parseFlags)) {
                     parser.nextToken();
-                    excludeNegatives = parser.booleanValue();
+                    includeNegatives = parser.booleanValue();
                 }
             }
             parser.nextToken();
-            return new MutualInformation().setExcludeNegatives(excludeNegatives);
+            return new MutualInformation().setIncludeNegatives(includeNegatives);
         }
 
         @Override
@@ -165,16 +165,16 @@ public class MutualInformation implements SignificanceHeuristic {
 
     public static class MutualInformationBuilder implements SignificanceHeuristicBuilder {
 
-        boolean excludeNegatives = false;
+        boolean includeNegatives = true;
 
-        public MutualInformationBuilder setExcludeNegatives(boolean excludeNegatives) {
-            this.excludeNegatives = excludeNegatives;
+        public MutualInformationBuilder setIncludeNegatives(boolean includeNegatives) {
+            this.includeNegatives = includeNegatives;
             return this;
         }
 
         @Override
         public void toXContent(XContentBuilder builder) throws IOException {
-            builder.startObject(STREAM.getName()).field(EXCLUDE_NEGATIVES_FIELD.getPreferredName(), excludeNegatives).endObject();
+            builder.startObject(STREAM.getName()).field(INCLUDE_NEGATIVES_FIELD.getPreferredName(), includeNegatives).endObject();
         }
     }
 }

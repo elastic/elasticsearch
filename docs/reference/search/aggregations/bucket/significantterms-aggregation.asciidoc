@@ -292,11 +292,11 @@ Mutual information as described in "Information Retrieval", Manning et al., Chap
 --------------------------------------------------
 
 	 "mutual_information": {
-	      "exclude_negatives": false
+	      "include_negatives": true
 	 }
 --------------------------------------------------
 
-Mutual information does not differentiate between terms that are descriptive for the subset or for documents outside the subset. The significant terms therefore can contain terms that appear more or less frequent in the subset than outside the subset. To filter out the terms that appear less often in the subset than in documents outside the subset, `exclude_negatives` can be set to `true`. 
+Mutual information does not differentiate between terms that are descriptive for the subset or for documents outside the subset. The significant terms therefore can contain terms that appear more or less frequent in the subset than outside the subset. To filter out the terms that appear less often in the subset than in documents outside the subset, `include_negatives` can be set to `false`. 
 
  
 	

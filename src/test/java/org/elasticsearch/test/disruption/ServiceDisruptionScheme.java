@@ -37,6 +37,6 @@ public interface ServiceDisruptionScheme {
 
     public void testClusterClosed();
 
-    public TimeValue afterDisruptionTimeOut();
+    public TimeValue expectedTimeToHeal();
 
 }

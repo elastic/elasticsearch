@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test.disruption;
 
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.InternalTestCluster;
 
 public class NoOpDisruptionScheme implements ServiceDisruptionScheme {
@@ -56,5 +57,10 @@ public class NoOpDisruptionScheme implements ServiceDisruptionScheme {
     @Override
     public void testClusterClosed() {
 
+    }
+
+    @Override
+    public TimeValue afterDisruptionTimeOut() {
+        return TimeValue.timeValueSeconds(30);
     }
 }

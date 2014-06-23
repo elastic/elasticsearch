@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.test.disruption;
 
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.TestCluster;
 
 public interface ServiceDisruptionScheme {
 
@@ -36,5 +36,7 @@ public interface ServiceDisruptionScheme {
     public void stopDisrupting();
 
     public void testClusterClosed();
+
+    public TimeValue afterDisruptionTimeOut();
 
 }

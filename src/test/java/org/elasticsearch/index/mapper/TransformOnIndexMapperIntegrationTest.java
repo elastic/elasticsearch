@@ -109,6 +109,6 @@ public class TransformOnIndexMapperIntegrationTest extends ElasticsearchIntegrat
                 .put(ScriptService.DEFAULT_SCRIPTING_LANGUAGE_SETTING, "groovy")
                 // Set the refresh interval to super duper long so we can force realtime
                 // behavior.
-                .put(InternalIndexShard.INDEX_REFRESH_INTERVAL, "1s").build();
+                .put(InternalIndexShard.INDEX_REFRESH_INTERVAL, "120m").build();
     }
 }

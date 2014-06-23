@@ -20,6 +20,7 @@ package org.elasticsearch.test.disruption;
 
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.InternalTestCluster;
 
 import java.util.Random;
@@ -80,4 +81,8 @@ public abstract class SingleNodeDisruption implements ServiceDisruptionScheme {
         disruptedNode = null;
     }
 
+    @Override
+    public TimeValue afterDisruptionTimeOut() {
+        return TimeValue.timeValueSeconds(30);
+    }
 }

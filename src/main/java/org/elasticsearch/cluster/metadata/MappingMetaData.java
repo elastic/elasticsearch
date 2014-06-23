@@ -43,7 +43,7 @@ import java.util.Map;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 
 /**
- *
+ * Mapping configuration for a type.
  */
 public class MappingMetaData {
 

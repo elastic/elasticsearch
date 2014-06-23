@@ -696,6 +696,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
                     @Override
                     public void handleException(TransportException exp) {
+                        logger.trace("[{}] Transport failure during replica request [{}] ", exp, node, request);
                         if (!ignoreReplicaException(exp.unwrapCause())) {
                             logger.warn("Failed to perform " + transportAction + " on remote replica " + node + shardIt.shardId(), exp);
                             shardStateAction.shardFailed(shard, indexMetaData.getUUID(),
@@ -757,6 +758,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
     }
 
     private void failReplicaIfNeeded(String index, int shardId, Throwable t) {
+        logger.trace("failure on replica [{}][{}]", t, index, shardId);
         if (!ignoreReplicaException(t)) {
             IndexService indexService = indicesService.indexService(index);
             if (indexService == null) {

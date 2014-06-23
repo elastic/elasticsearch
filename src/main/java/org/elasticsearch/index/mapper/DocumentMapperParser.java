@@ -46,6 +46,7 @@ import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.similarity.SimilarityLookupService;
+import org.elasticsearch.script.ScriptService;
 
 import java.util.Iterator;
 import java.util.Map;
@@ -61,6 +62,7 @@ public class DocumentMapperParser extends AbstractIndexComponent {
     private final PostingsFormatService postingsFormatService;
     private final DocValuesFormatService docValuesFormatService;
     private final SimilarityLookupService similarityLookupService;
+    private final ScriptService scriptService;
 
     private final RootObjectMapper.TypeParser rootObjectTypeParser = new RootObjectMapper.TypeParser();
 
@@ -72,12 +74,13 @@ public class DocumentMapperParser extends AbstractIndexComponent {
 
     public DocumentMapperParser(Index index, @IndexSettings Settings indexSettings, AnalysisService analysisService,
                                 PostingsFormatService postingsFormatService, DocValuesFormatService docValuesFormatService,
-                                SimilarityLookupService similarityLookupService) {
+                                SimilarityLookupService similarityLookupService, ScriptService scriptService) {
         super(index, indexSettings);
         this.analysisService = analysisService;
         this.postingsFormatService = postingsFormatService;
         this.docValuesFormatService = docValuesFormatService;
         this.similarityLookupService = similarityLookupService;
+        this.scriptService = scriptService;
         MapBuilder<String, Mapper.TypeParser> typeParsersBuilder = new MapBuilder<String, Mapper.TypeParser>()
                 .put(ByteFieldMapper.CONTENT_TYPE, new ByteFieldMapper.TypeParser())
                 .put(ShortFieldMapper.CONTENT_TYPE, new ShortFieldMapper.TypeParser())
@@ -238,6 +241,22 @@ public class DocumentMapperParser extends AbstractIndexComponent {
                 }
                 docBuilder.indexAnalyzer(analyzer);
                 docBuilder.searchAnalyzer(analyzer);
+            } else if ("transform".equals(fieldName)) {
+                iterator.remove();
+                if (fieldNode instanceof Map) {
+                    // Script and a language
+                    Map<String, Object> transformConfig = (Map<String, Object>) fieldNode;
+                    docBuilder.transform(
+                            (String)transformConfig.remove("script"),
+                            (String)transformConfig.remove("lang"),
+                            (Map<String, Object>)transformConfig.remove("params"));
+                    if (!transformConfig.isEmpty()) {
+                        throw new MapperParsingException("Unrecognized fields in transform:  " + getRemainingFields(transformConfig));
+                    }
+                } else {
+                    // Just a String
+                    docBuilder.transform(fieldNode.toString(), null, null);
+                }
             } else {
                 Mapper.TypeParser typeParser = rootTypeParsers.get(fieldName);
                 if (typeParser != null) {
@@ -254,11 +273,7 @@ public class DocumentMapperParser extends AbstractIndexComponent {
         docBuilder.meta(attributes);
 
         if (!mapping.isEmpty()) {
-            StringBuilder remainingFields = new StringBuilder();
-            for (String key : mapping.keySet()) {
-                remainingFields.append(" [").append(key).append(" : ").append(mapping.get(key).toString()).append("]");
-            }
-            throw new MapperParsingException("Root type mapping not empty after parsing! Remaining fields:" + remainingFields.toString());
+            throw new MapperParsingException("Root type mapping not empty after parsing! Remaining fields:  " + getRemainingFields(mapping));
         }
         if (!docBuilder.hasIndexAnalyzer()) {
             docBuilder.indexAnalyzer(analysisService.defaultIndexAnalyzer());
@@ -274,6 +289,14 @@ public class DocumentMapperParser extends AbstractIndexComponent {
         // update the source with the generated one
         documentMapper.refreshSource();
         return documentMapper;
+    }
+
+    private String getRemainingFields(Map<String, ? extends Object> map) {
+        StringBuilder remainingFields = new StringBuilder();
+        for (String key : map.keySet()) {
+            remainingFields.append(" [").append(key).append(" : ").append(map.get(key).toString()).append("]");
+        }
+        return remainingFields.toString();
     }
 
     @SuppressWarnings({"unchecked"})
@@ -301,5 +324,9 @@ public class DocumentMapperParser extends AbstractIndexComponent {
             mapping = new Tuple<>(type, root);
         }
         return mapping;
+    }
+
+    public ScriptService scriptService() {
+        return scriptService;
     }
 }

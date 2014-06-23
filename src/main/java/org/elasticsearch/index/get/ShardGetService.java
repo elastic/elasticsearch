@@ -50,10 +50,8 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -98,8 +96,8 @@ public class ShardGetService extends AbstractIndexShardComponent {
         return this;
     }
 
-    public GetResult get(String type, String id, String[] gFields, boolean realtime, long version, VersionType versionType, FetchSourceContext fetchSourceContext)
-            throws ElasticsearchException {
+    public GetResult get(String type, String id, String[] gFields, boolean realtime, long version, VersionType versionType,
+            FetchSourceContext fetchSourceContext) throws ElasticsearchException {
         currentMetric.inc();
         try {
             long now = System.nanoTime();
@@ -218,7 +216,6 @@ public class ShardGetService extends AbstractIndexShardComponent {
 
                 // we can only load scripts that can run against the source
                 if (gFields != null && gFields.length > 0) {
-                    Map<String, Object> sourceAsMap = null;
                     for (String field : gFields) {
                         if (SourceFieldMapper.NAME.equals(field)) {
                             // dealt with when normalizing fetchSourceContext.
@@ -284,25 +281,34 @@ public class ShardGetService extends AbstractIndexShardComponent {
                     // We must first apply the field mapper filtering to make sure we get correct results
                     // in the case that the fetchSourceContext white lists something that's not included by the field mapper
 
-                    Map<String, Object> filteredSource = null;
+                    Map<String, Object> sourceAsMap = null;
                     XContentType sourceContentType = null;
-                    if (sourceFieldMapper.includes().length > 0 || sourceFieldMapper.excludes().length > 0) {
+                    if (fetchSourceContext.transformSource()) {
                         // TODO: The source might parsed and available in the sourceLookup but that one uses unordered maps so different. Do we care?
                         Tuple<XContentType, Map<String, Object>> typeMapTuple = XContentHelper.convertToMap(source.source, true);
                         sourceContentType = typeMapTuple.v1();
-                        filteredSource = XContentMapValues.filter(typeMapTuple.v2(), sourceFieldMapper.includes(), sourceFieldMapper.excludes());
+                        sourceAsMap = typeMapTuple.v2();
+                        sourceAsMap = docMapper.transformSourceAsMap(sourceAsMap);
                     }
-                    if (fetchSourceContext.includes().length > 0 || fetchSourceContext.excludes().length > 0) {
-                        if (filteredSource == null) {
+                    if (sourceFieldMapper.includes().length > 0 || sourceFieldMapper.excludes().length > 0) {
+                        if (sourceAsMap == null) {
                             Tuple<XContentType, Map<String, Object>> typeMapTuple = XContentHelper.convertToMap(source.source, true);
                             sourceContentType = typeMapTuple.v1();
-                            filteredSource = typeMapTuple.v2();
+                            sourceAsMap = typeMapTuple.v2();
                         }
-                        filteredSource = XContentMapValues.filter(filteredSource, fetchSourceContext.includes(), fetchSourceContext.excludes());
+                        sourceAsMap = XContentMapValues.filter(sourceAsMap, sourceFieldMapper.includes(), sourceFieldMapper.excludes());
                     }
-                    if (filteredSource != null) {
+                    if (fetchSourceContext.includes().length > 0 || fetchSourceContext.excludes().length > 0) {
+                        if (sourceAsMap == null) {
+                            Tuple<XContentType, Map<String, Object>> typeMapTuple = XContentHelper.convertToMap(source.source, true);
+                            sourceContentType = typeMapTuple.v1();
+                            sourceAsMap = typeMapTuple.v2();
+                        }
+                        sourceAsMap = XContentMapValues.filter(sourceAsMap, fetchSourceContext.includes(), fetchSourceContext.excludes());
+                    }
+                    if (sourceAsMap != null) {
                         try {
-                            sourceToBeReturned = XContentFactory.contentBuilder(sourceContentType).map(filteredSource).bytes();
+                            sourceToBeReturned = XContentFactory.contentBuilder(sourceContentType).map(sourceAsMap).bytes();
                         } catch (IOException e) {
                             throw new ElasticsearchException("Failed to get type [" + type + "] and id [" + id + "] with includes/excludes set", e);
                         }
@@ -381,15 +387,19 @@ public class ShardGetService extends AbstractIndexShardComponent {
 
         if (!fetchSourceContext.fetchSource()) {
             source = null;
-        } else if (fetchSourceContext.includes().length > 0 || fetchSourceContext.excludes().length > 0) {
-            Map<String, Object> filteredSource;
+        } else if (fetchSourceContext.transformSource() || fetchSourceContext.includes().length > 0 || fetchSourceContext.excludes().length > 0) {
+            Map<String, Object> sourceAsMap;
             XContentType sourceContentType = null;
             // TODO: The source might parsed and available in the sourceLookup but that one uses unordered maps so different. Do we care?
             Tuple<XContentType, Map<String, Object>> typeMapTuple = XContentHelper.convertToMap(source, true);
             sourceContentType = typeMapTuple.v1();
-            filteredSource = XContentMapValues.filter(typeMapTuple.v2(), fetchSourceContext.includes(), fetchSourceContext.excludes());
+            sourceAsMap = typeMapTuple.v2();
+            if (fetchSourceContext.transformSource()) {
+                sourceAsMap = docMapper.transformSourceAsMap(sourceAsMap);
+            }
+            sourceAsMap = XContentMapValues.filter(sourceAsMap, fetchSourceContext.includes(), fetchSourceContext.excludes());
             try {
-                source = XContentFactory.contentBuilder(sourceContentType).map(filteredSource).bytes();
+                source = XContentFactory.contentBuilder(sourceContentType).map(sourceAsMap).bytes();
             } catch (IOException e) {
                 throw new ElasticsearchException("Failed to get type [" + type + "] and id [" + id + "] with includes/excludes set", e);
             }

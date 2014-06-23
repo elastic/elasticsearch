@@ -21,6 +21,7 @@
 package org.elasticsearch.search.aggregations.bucket.significant.heuristics;
 
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -28,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParsingException;
 
 import java.io.IOException;
+import java.util.EnumSet;
 
 public class DefaultHeuristic implements SignificanceHeuristic {
 
@@ -108,7 +110,7 @@ public class DefaultHeuristic implements SignificanceHeuristic {
     public static class DefaultHeuristicParser implements SignificanceHeuristicParser {
 
         @Override
-        public SignificanceHeuristic parse(XContentParser parser) throws IOException, QueryParsingException {
+        public SignificanceHeuristic parse(XContentParser parser, EnumSet<ParseField.Flag> parseFlags) throws IOException, QueryParsingException {
             parser.nextToken();
             return new DefaultHeuristic();
         }

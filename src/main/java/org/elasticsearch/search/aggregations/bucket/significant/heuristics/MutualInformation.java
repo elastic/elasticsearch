@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParsingException;
 
 import java.io.IOException;
+import java.util.EnumSet;
 
 public class MutualInformation implements SignificanceHeuristic {
 
@@ -141,16 +142,13 @@ public class MutualInformation implements SignificanceHeuristic {
     public static class MutualInformationParser implements SignificanceHeuristicParser {
 
         @Override
-        public SignificanceHeuristic parse(XContentParser parser) throws IOException, QueryParsingException {
-            // this is to check if a deprecated name was used.
-            // TODO: must figure out where to get the flags from
-            NAMES_FIELD.match(parser.currentName(), ParseField.EMPTY_FLAGS);
+        public SignificanceHeuristic parse(XContentParser parser, EnumSet<ParseField.Flag> parseFlags) throws IOException, QueryParsingException {
+            // check if deprecated name was used while not allowed
+            NAMES_FIELD.match(parser.currentName(), parseFlags);
             boolean excludeNegatives = false;
             XContentParser.Token token = parser.nextToken();
             if (!token.equals(XContentParser.Token.END_OBJECT)) {
-                // this is to check if a deprecated name was used.
-                // TODO: must figure out where to get the flags from
-                if (EXCLUDE_NEGATIVES_FIELD.match(parser.currentName(), ParseField.EMPTY_FLAGS)) {
+                if (EXCLUDE_NEGATIVES_FIELD.match(parser.currentName(), parseFlags)) {
                     parser.nextToken();
                     excludeNegatives = parser.booleanValue();
                 }

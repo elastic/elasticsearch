@@ -19,8 +19,11 @@
 
 package org.elasticsearch.search.aggregations.bucket;
 
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -51,9 +54,7 @@ import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
-import static org.hamcrest.Matchers.closeTo;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
@@ -81,7 +82,8 @@ public class SignificantTermsSignificanceScoreTests extends ElasticsearchIntegra
     @Test
     public void testPlugin() throws Exception {
         String type = randomBoolean() ? "string" : "long";
-        index01Docs(type);
+        String settings = "{\"index.number_of_shards\": 1, \"index.number_of_replicas\": 0}";
+        index01Docs(type, settings);
         SearchResponse response = client().prepareSearch(INDEX_NAME).setTypes(DOC_TYPE)
                 .addAggregation(new TermsBuilder("class")
                         .field(CLASS_FIELD)
@@ -113,6 +115,75 @@ public class SignificantTermsSignificanceScoreTests extends ElasticsearchIntegra
 
     }
 
+    @Test
+    public void testDeprecatedNames() throws Exception {
+        String settings = "{\"index.query.parse.strict\": false}";
+        String type = randomBoolean() ? "string" : "long";
+        index01Docs(type, settings);
+        String deprecatedNameQuery = "{\n" +
+                "  \"aggs\": {\n" +
+                "    \"class\": {\n" +
+                "      \"terms\": {\n" +
+                "        \"field\": \"" + CLASS_FIELD + "\",\n" +
+                "        \"size\": 10\n" +
+                "      },\n" +
+                "      \"aggs\": {\n" +
+                "        \"sigTerms\": {\n" +
+                "          \"significant_terms\": {\n" +
+                "            \"field\": \"" + TEXT_FIELD + "\",\n" +
+                "            \"old_name\": {}\n" +
+                "          }\n" +
+                "        }\n" +
+                "      }\n" +
+                "    }\n" +
+                "  }\n" +
+                "}\n";
+
+        String newNameQuery = "{\n" +
+                "  \"aggs\": {\n" +
+                "    \"class\": {\n" +
+                "      \"terms\": {\n" +
+                "        \"field\": \"" + CLASS_FIELD + "\",\n" +
+                "        \"size\": 10\n" +
+                "      },\n" +
+                "      \"aggs\": {\n" +
+                "        \"sigTerms\": {\n" +
+                "          \"significant_terms\": {\n" +
+                "            \"field\": \"" + TEXT_FIELD + "\",\n" +
+                "            \"new_name\": {}\n" +
+                "          }\n" +
+                "        }\n" +
+                "      }\n" +
+                "    }\n" +
+                "  }\n" +
+                "}\n";
+
+        SearchResponse response = client().prepareSearch(INDEX_NAME).setTypes(DOC_TYPE).setSource(deprecatedNameQuery)
+                .execute()
+                .actionGet();
+        assertSearchResponse(response);
+        response = client().prepareSearch(INDEX_NAME).setTypes(DOC_TYPE).setSource(newNameQuery)
+                .execute()
+                .actionGet();
+        assertSearchResponse(response);
+        assertAcked(client().admin().indices().prepareDelete(INDEX_NAME));
+        settings = "{\"index.query.parse.strict\": true}";
+        type = randomBoolean() ? "string" : "long";
+        index01Docs(type, settings);
+        try {
+            client().prepareSearch(INDEX_NAME).setTypes(DOC_TYPE).setSource(deprecatedNameQuery)
+                    .execute()
+                    .actionGet();
+        } catch (SearchPhaseExecutionException e) {
+            assertThat(e.getDetailedMessage().indexOf("Deprecated field [old_name] used expected [new_name] instead"), greaterThan(-1));
+        }
+        response = client().prepareSearch(INDEX_NAME).setTypes(DOC_TYPE).setSource(newNameQuery)
+                .execute()
+                .actionGet();
+        assertSearchResponse(response);
+
+    }
+
     public static class CustomSignificanceHeuristicPlugin extends AbstractPlugin {
 
         @Override
@@ -127,6 +198,7 @@ public class SignificantTermsSignificanceScoreTests extends ElasticsearchIntegra
 
         public void onModule(SignificantTermsHeuristicModule significanceModule) {
             significanceModule.registerHeuristic(SimpleHeuristic.SimpleHeuristicParser.class, SimpleHeuristic.STREAM);
+            significanceModule.registerHeuristic(HeuristicWithDeprecatedNames.HeuristicWithDeprecatedNamesParser.class, HeuristicWithDeprecatedNames.STREAM);
         }
 
     }
@@ -171,7 +243,7 @@ public class SignificantTermsSignificanceScoreTests extends ElasticsearchIntegra
         public static class SimpleHeuristicParser implements SignificanceHeuristicParser {
 
             @Override
-            public SignificanceHeuristic parse(XContentParser parser) throws IOException, QueryParsingException {
+            public SignificanceHeuristic parse(XContentParser parser, EnumSet<ParseField.Flag> context) throws IOException, QueryParsingException {
                 parser.nextToken();
                 return new SimpleHeuristic();
             }
@@ -191,11 +263,71 @@ public class SignificantTermsSignificanceScoreTests extends ElasticsearchIntegra
         }
     }
 
+
+    public static class HeuristicWithDeprecatedNames implements SignificanceHeuristic {
+
+        protected static final ParseField NAMES_FIELD = new ParseField("new_name", "old_name");
+
+        public static final SignificanceHeuristicStreams.Stream STREAM = new SignificanceHeuristicStreams.Stream() {
+            @Override
+            public SignificanceHeuristic readResult(StreamInput in) throws IOException {
+                return readFrom(in);
+            }
+
+            @Override
+            public String getName() {
+                return NAMES_FIELD.getPreferredName();
+            }
+        };
+
+        public static SignificanceHeuristic readFrom(StreamInput in) throws IOException {
+            return new SimpleHeuristic();
+        }
+
+
+        @Override
+        public double getScore(long subsetFreq, long subsetSize, long supersetFreq, long supersetSize) {
+            return 10.0;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(STREAM.getName());
+        }
+
+        public static class HeuristicWithDeprecatedNamesParser implements SignificanceHeuristicParser {
+
+            @Override
+            public SignificanceHeuristic parse(XContentParser parser, EnumSet<ParseField.Flag> parseFlags) throws IOException, QueryParsingException {
+
+                // this is to check if a deprecated name was used.
+                NAMES_FIELD.match(parser.currentName(), parseFlags);
+                parser.nextToken();
+                return new HeuristicWithDeprecatedNames();
+            }
+
+            @Override
+            public String[] getNames() {
+                return NAMES_FIELD.getAllNamesIncludedDeprecated();
+            }
+        }
+
+        public static class HeuristicWithDeprecatedNamesBuilder implements SignificanceHeuristicBuilder {
+
+            @Override
+            public void toXContent(XContentBuilder builder) throws IOException {
+                builder.startObject(STREAM.getName()).endObject();
+            }
+        }
+    }
+
+
     @Test
     public void testXContentResponse() throws Exception {
-        cluster().wipeIndices(INDEX_NAME);
+
         String type = randomBoolean() ? "string" : "long";
-        index01Docs(type);
+        String settings = "{\"index.number_of_shards\": 1, \"index.number_of_replicas\": 0}";
+        index01Docs(type, settings);
         SearchResponse response = client().prepareSearch(INDEX_NAME).setTypes(DOC_TYPE)
                 .addAggregation(new TermsBuilder("class").field(CLASS_FIELD).subAggregation(new SignificantTermsBuilder("sig_terms").field(TEXT_FIELD)))
                 .execute()
@@ -225,9 +357,9 @@ public class SignificantTermsSignificanceScoreTests extends ElasticsearchIntegra
 
     }
 
-    private void index01Docs(String type) throws ExecutionException, InterruptedException {
+    private void index01Docs(String type, String settings) throws ExecutionException, InterruptedException {
         String mappings = "{\"doc\": {\"properties\":{\"text\": {\"type\":\"" + type + "\"}}}}";
-        assertAcked(prepareCreate(INDEX_NAME).setSettings(SETTING_NUMBER_OF_SHARDS, 1, SETTING_NUMBER_OF_REPLICAS, 0).addMapping("doc", mappings));
+        assertAcked(prepareCreate(INDEX_NAME).setSettings(settings).addMapping("doc", mappings));
         String[] gb = {"0", "1"};
         List<IndexRequestBuilder> indexRequestBuilderList = new ArrayList<>();
         indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME, DOC_TYPE, "1")

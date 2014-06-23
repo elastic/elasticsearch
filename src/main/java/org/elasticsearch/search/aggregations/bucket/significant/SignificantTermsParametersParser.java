@@ -32,6 +32,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.EnumSet;
 
 
 public class SignificantTermsParametersParser extends AbstractTermsParametersParser {
@@ -59,12 +60,17 @@ public class SignificantTermsParametersParser extends AbstractTermsParametersPar
 
     @Override
     public void parseSpecial(String aggregationName, XContentParser parser, SearchContext context, XContentParser.Token token, String currentFieldName) throws IOException {
-
+        EnumSet<ParseField.Flag> parseFlags = ParseField.EMPTY_FLAGS;
+        boolean strict = context.indexShard().indexService().settingsService().getSettings().getAsBoolean("index.query.parse.strict", false);
+        if (strict) {
+            parseFlags = EnumSet.of(ParseField.Flag.STRICT);
+        }
+        // this is to check if a deprecated name was used.
         if (token == XContentParser.Token.START_OBJECT) {
             SignificanceHeuristicParser significanceHeuristicParser = significanceHeuristicParserMapper.get(currentFieldName);
             if (significanceHeuristicParser != null) {
-                significanceHeuristic = significanceHeuristicParser.parse(parser);
-            } else if (BACKGROUND_FILTER.match(currentFieldName)) {
+                significanceHeuristic = significanceHeuristicParser.parse(parser, parseFlags);
+            } else if (BACKGROUND_FILTER.match(currentFieldName, parseFlags)) {
                 filter = context.queryParserService().parseInnerFilter(parser).filter();
             } else {
                 throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");

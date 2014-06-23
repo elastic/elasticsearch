@@ -22,9 +22,9 @@ import com.google.common.collect.ImmutableList;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.TestCluster;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
 
@@ -195,5 +195,10 @@ public abstract class NetworkPartition implements ServiceDisruptionScheme {
                                     DiscoveryNode node2, MockTransportService transportService2) {
         transportService1.clearRule(node2);
         transportService2.clearRule(node1);
+    }
+
+    @Override
+    public TimeValue afterDisruptionTimeOut() {
+        return TimeValue.timeValueSeconds(30);
     }
 }

@@ -1,9 +1,6 @@
 [[front-ends]]
 == Front Ends
 
-* https://chrome.google.com/webstore/detail/sense/doinijnbnggojdlcjifpdckfokbbfpbo[Sense]:
-  Chrome curl-like plugin for running requests against an Elasticsearch node
-
 * https://github.com/mobz/elasticsearch-head[elasticsearch-head]: 
   A web front end for an Elasticsearch cluster.
 

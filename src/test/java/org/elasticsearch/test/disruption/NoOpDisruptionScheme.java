@@ -60,7 +60,7 @@ public class NoOpDisruptionScheme implements ServiceDisruptionScheme {
     }
 
     @Override
-    public TimeValue afterDisruptionTimeOut() {
-        return TimeValue.timeValueSeconds(30);
+    public TimeValue expectedTimeToHeal() {
+        return TimeValue.timeValueSeconds(0);
     }
 }

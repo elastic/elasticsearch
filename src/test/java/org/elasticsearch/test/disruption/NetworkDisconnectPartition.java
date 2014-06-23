@@ -19,6 +19,7 @@
 package org.elasticsearch.test.disruption;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.transport.MockTransportService;
 
 import java.util.Random;
@@ -49,5 +50,10 @@ public class NetworkDisconnectPartition extends NetworkPartition {
                          DiscoveryNode node2, MockTransportService transportService2) {
         transportService1.addFailToSendNoConnectRule(node2);
         transportService2.addFailToSendNoConnectRule(node1);
+    }
+
+    @Override
+    public TimeValue expectedTimeToHeal() {
+        return TimeValue.timeValueSeconds(0);
     }
 }

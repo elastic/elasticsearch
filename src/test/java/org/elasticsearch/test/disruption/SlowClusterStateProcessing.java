@@ -107,6 +107,11 @@ public class SlowClusterStateProcessing extends SingleNodeDisruption {
         return true;
     }
 
+    @Override
+    public TimeValue expectedTimeToHeal() {
+        return TimeValue.timeValueSeconds(delayDurationMax + intervalBetweenDelaysMax);
+    }
+
     class BackgroundWorker implements Runnable {
 
         @Override

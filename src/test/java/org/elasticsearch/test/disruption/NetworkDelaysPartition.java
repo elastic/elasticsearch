@@ -86,7 +86,7 @@ public class NetworkDelaysPartition extends NetworkPartition {
     }
 
     @Override
-    public TimeValue afterDisruptionTimeOut() {
-        return TimeValue.timeValueMillis(delayMax + super.afterDisruptionTimeOut().millis());
+    public TimeValue expectedTimeToHeal() {
+        return TimeValue.timeValueMillis(delayMax);
     }
 }

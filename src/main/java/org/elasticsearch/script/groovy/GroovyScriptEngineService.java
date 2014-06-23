@@ -24,7 +24,16 @@ import groovy.lang.GroovyClassLoader;
 import groovy.lang.Script;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Scorer;
+import org.codehaus.groovy.ast.ClassCodeExpressionTransformer;
+import org.codehaus.groovy.ast.ClassNode;
+import org.codehaus.groovy.ast.expr.ConstantExpression;
+import org.codehaus.groovy.ast.expr.Expression;
+import org.codehaus.groovy.classgen.GeneratorContext;
+import org.codehaus.groovy.control.CompilationFailedException;
+import org.codehaus.groovy.control.CompilePhase;
 import org.codehaus.groovy.control.CompilerConfiguration;
+import org.codehaus.groovy.control.SourceUnit;
+import org.codehaus.groovy.control.customizers.CompilationCustomizer;
 import org.codehaus.groovy.control.customizers.ImportCustomizer;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -37,6 +46,7 @@ import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
@@ -64,6 +74,8 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
         if (this.sandboxed) {
             config.addCompilationCustomizers(GroovySandboxExpressionChecker.getSecureASTCustomizer(settings));
         }
+        // Add BigDecimal -> Double transformer
+        config.addCompilationCustomizers(new GroovyBigDecimalTransformer(CompilePhase.CONVERSION));
         this.loader = new GroovyClassLoader(settings.getClassLoader(), config);
     }
 
@@ -282,6 +294,51 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
                 return value;
             }
         }
+    }
 
+    /**
+     * A compilation customizer that is used to transform a number like 1.23,
+     * which would normally be a BigDecimal, into a double value.
+     */
+    private class GroovyBigDecimalTransformer extends CompilationCustomizer {
+
+        private GroovyBigDecimalTransformer(CompilePhase phase) {
+            super(phase);
+        }
+
+        @Override
+        public void call(final SourceUnit source, final GeneratorContext context, final ClassNode classNode) throws CompilationFailedException {
+            new BigDecimalExpressionTransformer(source).visitClass(classNode);
+        }
+    }
+
+    /**
+     * Groovy expression transformer that converts BigDecimals to doubles
+     */
+    private class BigDecimalExpressionTransformer extends ClassCodeExpressionTransformer {
+
+        private final SourceUnit source;
+
+        private BigDecimalExpressionTransformer(SourceUnit source) {
+            this.source = source;
+        }
+
+        @Override
+        protected SourceUnit getSourceUnit() {
+            return this.source;
+        }
+
+        @Override
+        public Expression transform(Expression expr) {
+            Expression newExpr = expr;
+            if (expr instanceof ConstantExpression) {
+                ConstantExpression constExpr = (ConstantExpression) expr;
+                Object val = constExpr.getValue();
+                if (val != null && val instanceof BigDecimal) {
+                    newExpr = new ConstantExpression(((BigDecimal) val).doubleValue());
+                }
+            }
+            return super.transform(newExpr);
+        }
     }
 }

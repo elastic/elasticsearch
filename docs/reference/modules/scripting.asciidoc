@@ -391,16 +391,6 @@ or underflow.
 |=======================================================================
 
 [float]
-=== Floating point numbers in Groovy
-
-When using floating-point literals in Groovy scripts, Groovy will automatically
-use BigDecimal instead of a floating point equivalent to support the
-'least-surprising' approach to literal math operations. To use a floating-point
-number instead, use the specific suffix on the number (ie, instead of 1.2, use
-1.2f). See the http://groovy.codehaus.org/Groovy+Math[Groovy Math] page for more
-information.
-
-[float]
 === Arithmetic precision in MVEL
 
 When dividing two numbers using MVEL based scripts, the engine tries to

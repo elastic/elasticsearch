@@ -30,7 +30,7 @@ import java.util.EnumSet;
 
 public interface SignificanceHeuristicParser {
 
-    public SignificanceHeuristic parse(XContentParser parser, EnumSet<ParseField.Flag> parseFlags) throws IOException, QueryParsingException;
+    public SignificanceHeuristic parse(XContentParser parser) throws IOException, QueryParsingException;
 
     public String[] getNames();
 }

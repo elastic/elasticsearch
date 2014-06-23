@@ -111,76 +111,6 @@ public class SignificantTermsSignificanceScoreTests extends ElasticsearchIntegra
             sigBucket = bucketIterator.next();
             assertThat(sigBucket.getSignificanceScore(), closeTo(1.0, 1.e-8));
         }
-
-    }
-
-    @Test
-    public void testDeprecatedNames() throws Exception {
-        String settings = "{\"index.query.parse.strict\": false}";
-        String type = randomBoolean() ? "string" : "long";
-        index01Docs(type, settings);
-        String deprecatedNameQuery = "{\n" +
-                "  \"aggs\": {\n" +
-                "    \"class\": {\n" +
-                "      \"terms\": {\n" +
-                "        \"field\": \"" + CLASS_FIELD + "\",\n" +
-                "        \"size\": 10\n" +
-                "      },\n" +
-                "      \"aggs\": {\n" +
-                "        \"sigTerms\": {\n" +
-                "          \"significant_terms\": {\n" +
-                "            \"field\": \"" + TEXT_FIELD + "\",\n" +
-                "            \"old_name\": {}\n" +
-                "          }\n" +
-                "        }\n" +
-                "      }\n" +
-                "    }\n" +
-                "  }\n" +
-                "}\n";
-
-        String newNameQuery = "{\n" +
-                "  \"aggs\": {\n" +
-                "    \"class\": {\n" +
-                "      \"terms\": {\n" +
-                "        \"field\": \"" + CLASS_FIELD + "\",\n" +
-                "        \"size\": 10\n" +
-                "      },\n" +
-                "      \"aggs\": {\n" +
-                "        \"sigTerms\": {\n" +
-                "          \"significant_terms\": {\n" +
-                "            \"field\": \"" + TEXT_FIELD + "\",\n" +
-                "            \"new_name\": {}\n" +
-                "          }\n" +
-                "        }\n" +
-                "      }\n" +
-                "    }\n" +
-                "  }\n" +
-                "}\n";
-
-        SearchResponse response = client().prepareSearch(INDEX_NAME).setTypes(DOC_TYPE).setSource(deprecatedNameQuery)
-                .execute()
-                .actionGet();
-        assertSearchResponse(response);
-        response = client().prepareSearch(INDEX_NAME).setTypes(DOC_TYPE).setSource(newNameQuery)
-                .execute()
-                .actionGet();
-        assertSearchResponse(response);
-        assertAcked(client().admin().indices().prepareDelete(INDEX_NAME));
-        settings = "{\"index.query.parse.strict\": true}";
-        type = randomBoolean() ? "string" : "long";
-        index01Docs(type, settings);
-        try {
-            client().prepareSearch(INDEX_NAME).setTypes(DOC_TYPE).setSource(deprecatedNameQuery)
-                    .execute()
-                    .actionGet();
-        } catch (SearchPhaseExecutionException e) {
-            assertThat(e.getDetailedMessage().indexOf("Deprecated field [old_name] used expected [new_name] instead"), greaterThan(-1));
-        }
-        response = client().prepareSearch(INDEX_NAME).setTypes(DOC_TYPE).setSource(newNameQuery)
-                .execute()
-                .actionGet();
-        assertSearchResponse(response);
-
     }
 
     public static class CustomSignificanceHeuristicPlugin extends AbstractPlugin {
@@ -197,9 +127,7 @@ public class SignificantTermsSignificanceScoreTests extends ElasticsearchIntegra
 
         public void onModule(SignificantTermsHeuristicModule significanceModule) {
             significanceModule.registerHeuristic(SimpleHeuristic.SimpleHeuristicParser.class, SimpleHeuristic.STREAM);
-            significanceModule.registerHeuristic(HeuristicWithDeprecatedNames.HeuristicWithDeprecatedNamesParser.class, HeuristicWithDeprecatedNames.STREAM);
         }
-
     }
 
     public static class SimpleHeuristic implements SignificanceHeuristic {
@@ -242,7 +170,7 @@ public class SignificantTermsSignificanceScoreTests extends ElasticsearchIntegra
         public static class SimpleHeuristicParser implements SignificanceHeuristicParser {
 
             @Override
-            public SignificanceHeuristic parse(XContentParser parser, EnumSet<ParseField.Flag> context) throws IOException, QueryParsingException {
+            public SignificanceHeuristic parse(XContentParser parser) throws IOException, QueryParsingException {
                 parser.nextToken();
                 return new SimpleHeuristic();
             }
@@ -254,64 +182,6 @@ public class SignificantTermsSignificanceScoreTests extends ElasticsearchIntegra
         }
 
         public static class SimpleHeuristicBuilder implements SignificanceHeuristicBuilder {
-
-            @Override
-            public void toXContent(XContentBuilder builder) throws IOException {
-                builder.startObject(STREAM.getName()).endObject();
-            }
-        }
-    }
-
-
-    public static class HeuristicWithDeprecatedNames implements SignificanceHeuristic {
-
-        protected static final ParseField NAMES_FIELD = new ParseField("new_name", "old_name");
-
-        public static final SignificanceHeuristicStreams.Stream STREAM = new SignificanceHeuristicStreams.Stream() {
-            @Override
-            public SignificanceHeuristic readResult(StreamInput in) throws IOException {
-                return readFrom(in);
-            }
-
-            @Override
-            public String getName() {
-                return NAMES_FIELD.getPreferredName();
-            }
-        };
-
-        public static SignificanceHeuristic readFrom(StreamInput in) throws IOException {
-            return new SimpleHeuristic();
-        }
-
-
-        @Override
-        public double getScore(long subsetFreq, long subsetSize, long supersetFreq, long supersetSize) {
-            return 10.0;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(STREAM.getName());
-        }
-
-        public static class HeuristicWithDeprecatedNamesParser implements SignificanceHeuristicParser {
-
-            @Override
-            public SignificanceHeuristic parse(XContentParser parser, EnumSet<ParseField.Flag> parseFlags) throws IOException, QueryParsingException {
-
-                // this is to check if a deprecated name was used.
-                NAMES_FIELD.match(parser.currentName(), parseFlags);
-                parser.nextToken();
-                return new HeuristicWithDeprecatedNames();
-            }
-
-            @Override
-            public String[] getNames() {
-                return NAMES_FIELD.getAllNamesIncludedDeprecated();
-            }
-        }
-
-        public static class HeuristicWithDeprecatedNamesBuilder implements SignificanceHeuristicBuilder {
 
             @Override
             public void toXContent(XContentBuilder builder) throws IOException {

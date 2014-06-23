@@ -142,13 +142,12 @@ public class MutualInformation implements SignificanceHeuristic {
     public static class MutualInformationParser implements SignificanceHeuristicParser {
 
         @Override
-        public SignificanceHeuristic parse(XContentParser parser, EnumSet<ParseField.Flag> parseFlags) throws IOException, QueryParsingException {
-            // check if deprecated name was used while not allowed
-            NAMES_FIELD.match(parser.currentName(), parseFlags);
+        public SignificanceHeuristic parse(XContentParser parser) throws IOException, QueryParsingException {
+            NAMES_FIELD.match(parser.currentName(), ParseField.EMPTY_FLAGS);
             boolean includeNegatives = false;
             XContentParser.Token token = parser.nextToken();
             if (!token.equals(XContentParser.Token.END_OBJECT)) {
-                if (INCLUDE_NEGATIVES_FIELD.match(parser.currentName(), parseFlags)) {
+                if (INCLUDE_NEGATIVES_FIELD.match(parser.currentName(), ParseField.EMPTY_FLAGS)) {
                     parser.nextToken();
                     includeNegatives = parser.booleanValue();
                 }

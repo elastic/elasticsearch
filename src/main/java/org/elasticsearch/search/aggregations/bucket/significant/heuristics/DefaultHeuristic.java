@@ -110,7 +110,7 @@ public class DefaultHeuristic implements SignificanceHeuristic {
     public static class DefaultHeuristicParser implements SignificanceHeuristicParser {
 
         @Override
-        public SignificanceHeuristic parse(XContentParser parser, EnumSet<ParseField.Flag> parseFlags) throws IOException, QueryParsingException {
+        public SignificanceHeuristic parse(XContentParser parser) throws IOException, QueryParsingException {
             parser.nextToken();
             return new DefaultHeuristic();
         }

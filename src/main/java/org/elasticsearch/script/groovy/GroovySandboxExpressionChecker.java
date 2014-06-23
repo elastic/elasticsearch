@@ -23,6 +23,7 @@ import com.google.common.collect.ImmutableSet;
 import org.codehaus.groovy.ast.ClassNode;
 import org.codehaus.groovy.ast.expr.ConstructorCallExpression;
 import org.codehaus.groovy.ast.expr.Expression;
+import org.codehaus.groovy.ast.expr.GStringExpression;
 import org.codehaus.groovy.ast.expr.MethodCallExpression;
 import org.codehaus.groovy.control.customizers.SecureASTCustomizer;
 import org.elasticsearch.common.settings.Settings;
@@ -115,7 +116,11 @@ public class GroovySandboxExpressionChecker implements SecureASTCustomizer.Expre
     public boolean isAuthorized(Expression expression) {
         if (expression instanceof MethodCallExpression) {
             MethodCallExpression mce = (MethodCallExpression) expression;
-            if (methodBlacklist.contains(mce.getMethodAsString())) {
+            String methodName = mce.getMethodAsString();
+            if (methodBlacklist.contains(methodName)) {
+                return false;
+            } else if (methodName == null && mce.getMethod() instanceof GStringExpression) {
+                // We do not allow GStrings for method invocation, they are a security risk
                 return false;
             }
         } else if (expression instanceof ConstructorCallExpression) {

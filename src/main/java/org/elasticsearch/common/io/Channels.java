@@ -123,8 +123,8 @@ public abstract class Channels {
      * @throws IOException
      */
     public static void writeToChannel(ByteBuffer byteBuffer, WritableByteChannel channel) throws IOException {
-        if (byteBuffer.isDirect()) {
-            while (byteBuffer.hasRemaining()) ;
+        if (byteBuffer.isDirect() || (byteBuffer.remaining() <= WRITE_CHUNK_SIZE)) {
+            while (byteBuffer.hasRemaining())
             {
                 channel.write(byteBuffer);
             }

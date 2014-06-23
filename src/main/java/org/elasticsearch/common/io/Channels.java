@@ -123,9 +123,25 @@ public abstract class Channels {
      * @throws IOException
      */
     public static void writeToChannel(ByteBuffer byteBuffer, WritableByteChannel channel) throws IOException {
-        do {
-            channel.write(byteBuffer);
+        if (byteBuffer.isDirect()) {
+            while (byteBuffer.hasRemaining()) ;
+            {
+                channel.write(byteBuffer);
+            }
+        } else {
+            ByteBuffer tmpBuffer = byteBuffer.duplicate();
+            try {
+                while (byteBuffer.hasRemaining()) {
+                    tmpBuffer.limit(Math.min(byteBuffer.limit(), tmpBuffer.position() + WRITE_CHUNK_SIZE));
+                    while (tmpBuffer.hasRemaining()) {
+                        channel.write(tmpBuffer);
+                    }
+                    byteBuffer.position(tmpBuffer.position());
+                }
+            } finally {
+                // make sure we update byteBuffer to indicate how far we came..
+                byteBuffer.position(tmpBuffer.position());
+            }
         }
-        while (byteBuffer.position() != byteBuffer.limit());
     }
 }

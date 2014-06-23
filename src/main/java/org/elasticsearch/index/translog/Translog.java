@@ -507,8 +507,11 @@ public interface Translog extends IndexShardComponent, CloseableIndexComponent {
                 if (version >= 6) {
                     this.versionType = VersionType.fromValue(in.readByte());
                 }
-            } catch (Throwable t) {
-                throw new ElasticsearchException("failed to read [" + type + "][" + id + "]", t);
+            } catch (Exception e) {
+                if (e instanceof InterruptedException) {
+                    Thread.currentThread().interrupt();
+                }
+                throw new ElasticsearchException("failed to read [" + type + "][" + id + "]", e);
             }
 
             assert versionType.validateVersionForWrites(version);

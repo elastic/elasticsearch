@@ -23,8 +23,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.single.shard.SingleShardOperationRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.index.VersionType;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 
 /**
@@ -95,10 +95,8 @@ public class GetRequestBuilder extends SingleShardOperationRequestBuilder<GetReq
     }
 
     /**
-     * Indicates whether the response should contain the stored _source
-     *
-     * @param fetch
-     * @return
+     * Indicates whether the response should contain the stored _source.
+     * @return this for chaining
      */
     public GetRequestBuilder setFetchSource(boolean fetch) {
         FetchSourceContext context = request.fetchSourceContext();
@@ -108,6 +106,23 @@ public class GetRequestBuilder extends SingleShardOperationRequestBuilder<GetReq
         else {
             context.fetchSource(fetch);
         }
+        return this;
+    }
+
+    /**
+     * Should the source be transformed using the script to used at index time
+     * (if any)? Note that calling this without having called setFetchSource
+     * will automatically turn on source fetching.
+     *
+     * @return this for chaining
+     */
+    public GetRequestBuilder setTransformSource(boolean transform) {
+        FetchSourceContext context = request.fetchSourceContext();
+        if (context == null) {
+            context = new FetchSourceContext(true);
+            request.fetchSourceContext(context);
+        }
+        context.transformSource(transform);
         return this;
     }
 

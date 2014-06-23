@@ -34,28 +34,19 @@ import org.apache.lucene.codecs.memory.MemoryPostingsFormat;
 import org.apache.lucene.codecs.perfield.PerFieldPostingsFormat;
 import org.apache.lucene.codecs.pulsing.Pulsing41PostingsFormat;
 import org.apache.lucene.codecs.simpletext.SimpleTextCodec;
-import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.Injector;
-import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexNameModule;
-import org.elasticsearch.index.analysis.AnalysisModule;
 import org.elasticsearch.index.codec.docvaluesformat.*;
 import org.elasticsearch.index.codec.postingsformat.*;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.MapperServiceModule;
 import org.elasticsearch.index.mapper.internal.IdFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.mapper.internal.VersionFieldMapper;
-import org.elasticsearch.index.settings.IndexSettingsModule;
-import org.elasticsearch.index.similarity.SimilarityModule;
-import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
-import org.elasticsearch.indices.fielddata.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.test.ElasticsearchLuceneTestCase;
+import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -72,6 +63,11 @@ public class CodecTests extends ElasticsearchLuceneTestCase {
     public void setUp() throws Exception {
         super.setUp();
         forceDefaultCodec(); // we test against default codec so never get a random one here!
+    }
+
+    @After
+    public void cleanup() {
+        ElasticsearchSingleNodeTest.cleanup();
     }
 
     @Test
@@ -409,23 +405,8 @@ public class CodecTests extends ElasticsearchLuceneTestCase {
     }
 
     private static CodecService createCodecService(Settings settings) {
-        Index index = new Index("test");
-        Injector injector = new ModulesBuilder()
-                .add(new SettingsModule(settings))
-                .add(new IndexNameModule(index))
-                .add(new IndexSettingsModule(index, settings))
-                .add(new SimilarityModule(settings))
-                .add(new CodecModule(settings))
-                .add(new MapperServiceModule())
-                .add(new AnalysisModule(settings))
-                .add(new AbstractModule() {
-                    @Override
-                    protected void configure() {
-                        bind(CircuitBreakerService.class).to(NoneCircuitBreakerService.class);
-                    }
-                })
-                .createInjector();
-        return injector.getInstance(CodecService.class);
+        IndexService indexService = ElasticsearchSingleNodeTest.createIndex("test", settings);
+        return indexService.injector().getInstance(CodecService.class);
     }
 
 }

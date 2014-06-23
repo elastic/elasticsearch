@@ -85,4 +85,8 @@ public class NetworkDelaysPartition extends NetworkPartition {
         return "network delays for [" + duration + "]";
     }
 
+    @Override
+    public TimeValue afterDisruptionTimeOut() {
+        return TimeValue.timeValueMillis(delayMax + super.afterDisruptionTimeOut().millis());
+    }
 }

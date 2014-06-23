@@ -49,14 +49,18 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
 
     private static final Node node = newNode();
 
-    @After
-    public void after() {
+    public static void cleanup() {
         node.client().admin().indices().prepareDelete("*").get();
         MetaData metaData = node.client().admin().cluster().prepareState().get().getState().getMetaData();
         assertThat("test leaves persistent cluster metadata behind: " + metaData.persistentSettings().getAsMap(),
                 metaData.persistentSettings().getAsMap().size(), equalTo(0));
         assertThat("test leaves transient cluster metadata behind: " + metaData.transientSettings().getAsMap(),
                 metaData.transientSettings().getAsMap().size(), equalTo(0));
+    }
+
+    @After
+    public void after() {
+        cleanup();
     }
 
     private static Node newNode() {

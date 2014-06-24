@@ -27,6 +27,17 @@ field.  Example:
 }
 --------------------------------------------------
 
+Its also possible to specify transform in short form which uses the
+default scripting language and no parameters:
+[source,js]
+--------------------------------------------------
+{
+    "example" : {
+        "transform" : "source['suggest'] = source['content']"
+    }
+}
+--------------------------------------------------
+
 Because the result isn't stored in the source it can't be fetched by
 source filtering.  It can be highlighted if it is marked as stored.
 

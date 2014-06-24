@@ -96,8 +96,8 @@ public class ShardGetService extends AbstractIndexShardComponent {
         return this;
     }
 
-    public GetResult get(String type, String id, String[] gFields, boolean realtime, long version, VersionType versionType,
-            FetchSourceContext fetchSourceContext) throws ElasticsearchException {
+    public GetResult get(String type, String id, String[] gFields, boolean realtime, long version, VersionType versionType, FetchSourceContext fetchSourceContext)
+            throws ElasticsearchException {
         currentMetric.inc();
         try {
             long now = System.nanoTime();

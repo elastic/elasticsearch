@@ -244,7 +244,7 @@ public class DocumentMapperParser extends AbstractIndexComponent {
             } else if ("transform".equals(fieldName)) {
                 iterator.remove();
                 if (fieldNode instanceof Map) {
-                    // Script and a language
+                    // Long form allows script, language, and parameters.
                     Map<String, Object> transformConfig = (Map<String, Object>) fieldNode;
                     docBuilder.transform(
                             (String)transformConfig.remove("script"),
@@ -254,7 +254,7 @@ public class DocumentMapperParser extends AbstractIndexComponent {
                         throw new MapperParsingException("Unrecognized fields in transform:  " + getRemainingFields(transformConfig));
                     }
                 } else {
-                    // Just a String
+                    // Short form only allows script and uses default language.
                     docBuilder.transform(fieldNode.toString(), null, null);
                 }
             } else {

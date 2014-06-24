@@ -823,7 +823,15 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     private synchronized void reset(boolean wipeData) throws IOException {
+        TimeValue expectedHealingTime = activeDisruptionScheme != null ? activeDisruptionScheme.expectedTimeToHeal() : null;
         clearDisruptionScheme();
+        if (expectedHealingTime != null && expectedHealingTime.millis() > 0) {
+            try {
+                Thread.sleep(expectedHealingTime.millis());
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
         resetClients(); /* reset all clients - each test gets its own client based on the Random instance created above. */
         if (wipeData) {
             wipeDataDirectories();

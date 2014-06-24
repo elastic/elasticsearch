@@ -61,3 +61,12 @@ org.apache.lucene.document.Field#<init>(java.lang.String,java.lang.String,org.ap
 
 @defaultMessage Use XNativeFSLockFactory instead of the buggy NativeFSLockFactory see LUCENE-5738 - remove once Lucene 4.9 is released
 org.apache.lucene.store.NativeFSLockFactory
+
+@defaultMessage Use Channels.* methods to write to channels. Do not write directly.
+java.nio.channels.WritableByteChannel#write(java.nio.ByteBuffer)
+java.nio.channels.FileChannel#write(java.nio.ByteBuffer, long)
+java.nio.channels.GatheringByteChannel#write(java.nio.ByteBuffer[], int, int)
+java.nio.channels.GatheringByteChannel#write(java.nio.ByteBuffer[])
+java.nio.channels.ReadableByteChannel#read(java.nio.ByteBuffer)
+java.nio.channels.ScatteringByteChannel#read(java.nio.ByteBuffer[])
+java.nio.channels.FileChannel#read(java.nio.ByteBuffer, long)

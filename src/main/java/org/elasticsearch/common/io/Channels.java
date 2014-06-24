@@ -74,6 +74,65 @@ public abstract class Channels {
         assert length == 0;
     }
 
+    public static int readFromFileChannel(FileChannel channel, long channelPosition, ByteBuffer dest) throws IOException {
+        int bytesRead = 0;
+        if (dest.isDirect() || (dest.remaining() < READ_CHUNK_SIZE)) {
+            while (dest.hasRemaining()) {
+                int read = channel.read(dest, channelPosition);
+                if (read < 0) {
+                    return read;
+                }
+
+                assert read > 0 : "FileChannel.read with non zero-length bb.remaining() must always read at least one byte (FileChannel is in blocking mode, see spec of ReadableByteChannel)";
+
+                bytesRead += read;
+                channelPosition += read;
+            }
+        } else {
+
+            ByteBuffer tmpBuffer = dest.duplicate();
+            try {
+                while (dest.hasRemaining()) {
+                    tmpBuffer.limit(Math.min(dest.limit(), tmpBuffer.position() + READ_CHUNK_SIZE));
+                    while (tmpBuffer.hasRemaining()) {
+                        int read = channel.read(dest);
+                        if (read < 0) {
+                            return read;
+                        }
+
+                        assert read > 0 : "FileChannel.read with non zero-length bb.remaining() must always read at least one byte (FileChannel is in blocking mode, see spec of ReadableByteChannel)";
+
+                        bytesRead += read;
+                    }
+                    dest.position(tmpBuffer.position());
+                }
+            } finally {
+                // make sure we update byteBuffer to indicate how far we came..
+                dest.position(tmpBuffer.position());
+            }
+        }
+        return bytesRead;
+    }
+
+
+    private int readSingleChunk(FileChannel channel, long channelPosition, ByteBuffer dest) throws IOException {
+        int bytesRead = 0;
+        while (dest.hasRemaining()) {
+            int read = channel.read(dest, channelPosition);
+            if (read < 0) {
+                return read;
+            }
+
+            assert read > 0 : "FileChannel.read with non zero-length bb.remaining() must always read at least one byte (FileChannel is in blocking mode, see spec of ReadableByteChannel)";
+
+            bytesRead += read;
+            channelPosition += read;
+        }
+        return bytesRead;
+    }
+
+
+
     /**
      * Copies bytes from source {@link org.jboss.netty.buffer.ChannelBuffer} to a {@link java.nio.channels.GatheringByteChannel}
      *
@@ -112,7 +171,7 @@ public abstract class Channels {
             written = channel.write(buffer);
             length -= written;
         }
-        assert length == 0;
+        assert length == 0 : "wrote more then expected bytes (length=" + length + ")";
     }
 
     /**

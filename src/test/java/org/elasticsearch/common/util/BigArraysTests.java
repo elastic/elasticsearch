@@ -36,7 +36,7 @@ import java.util.Arrays;
 public class BigArraysTests extends ElasticsearchTestCase {
 
     public static BigArrays randombigArrays() {
-        final PageCacheRecycler recycler = randomBoolean() ? null : new MockPageCacheRecycler(ImmutableSettings.EMPTY, new ThreadPool());
+        final PageCacheRecycler recycler = randomBoolean() ? null : new MockPageCacheRecycler(ImmutableSettings.EMPTY, new ThreadPool("BigArraysTests"));
         return new MockBigArrays(ImmutableSettings.EMPTY, recycler);
     }
 

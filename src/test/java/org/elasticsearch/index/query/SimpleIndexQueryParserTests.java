@@ -33,7 +33,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.cache.recycler.CacheRecyclerModule;
 import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.inject.AbstractModule;
@@ -110,6 +109,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchTestCase {
     public static void setupQueryParser() throws IOException {
         Settings settings = ImmutableSettings.settingsBuilder()
                 .put("index.cache.filter.type", "none")
+                .put("name", "SimpleIndexQueryParserTests")
                 .build();
         Index index = new Index("test");
         injector = new ModulesBuilder().add(

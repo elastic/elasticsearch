@@ -220,3 +220,13 @@ All the disable allocation settings have been deprecated in favour for
 
 Logger values can also be updated by setting `logger.` prefix. More
 settings will be allowed to be updated.
+
+[float]
+=== Field data circuit breaker
+
+`indices.fielddata.breaker.limit`::
+     See <<index-modules-fielddata>>
+
+`indices.fielddata.breaker.overhead`::
+     See <<index-modules-fielddata>>
+

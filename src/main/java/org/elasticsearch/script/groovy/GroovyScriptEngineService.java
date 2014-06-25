@@ -35,9 +35,11 @@ import org.codehaus.groovy.control.CompilerConfiguration;
 import org.codehaus.groovy.control.SourceUnit;
 import org.codehaus.groovy.control.customizers.CompilationCustomizer;
 import org.codehaus.groovy.control.customizers.ImportCustomizer;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptEngineService;
@@ -106,7 +108,14 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
 
     @Override
     public Object compile(String script) {
-        return loader.parseClass(script, generateScriptName());
+        try {
+            return loader.parseClass(script, generateScriptName());
+        } catch (Throwable e) {
+            if (logger.isTraceEnabled()) {
+                logger.trace("exception compiling Groovy script:", e);
+            }
+            throw new GroovyScriptCompilationException(ExceptionsHelper.detailedMessage(e));
+        }
     }
 
     /**
@@ -129,7 +138,7 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
             if (vars != null) {
                 allVars.putAll(vars);
             }
-            return new GroovyScript(createScript(compiledScript, allVars));
+            return new GroovyScript(createScript(compiledScript, allVars), this.logger);
         } catch (Exception e) {
             throw new ScriptException("failed to build executable script", e);
         }
@@ -145,7 +154,7 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
                 allVars.putAll(vars);
             }
             Script scriptObject = createScript(compiledScript, allVars);
-            return new GroovyScript(scriptObject, lookup);
+            return new GroovyScript(scriptObject, lookup, this.logger);
         } catch (Exception e) {
             throw new ScriptException("failed to build search script", e);
         }
@@ -180,14 +189,16 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
         private final SearchLookup lookup;
         private final Map<String, Object> variables;
         private final UpdateableFloat score;
+        private final ESLogger logger;
 
-        public GroovyScript(Script script) {
-            this(script, null);
+        public GroovyScript(Script script, ESLogger logger) {
+            this(script, null, logger);
         }
 
-        public GroovyScript(Script script, SearchLookup lookup) {
+        public GroovyScript(Script script, SearchLookup lookup, ESLogger logger) {
             this.script = script;
             this.lookup = lookup;
+            this.logger = logger;
             this.variables = script.getBinding().getVariables();
             this.score = new UpdateableFloat(0);
             // Add the _score variable, which will be updated per-document by
@@ -237,7 +248,14 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
 
         @Override
         public Object run() {
-            return script.run();
+            try {
+                return script.run();
+            } catch (Throwable e) {
+                if (logger.isTraceEnabled()) {
+                    logger.trace("exception running Groovy script", e);
+                }
+                throw new GroovyScriptExecutionException(ExceptionsHelper.detailedMessage(e));
+            }
         }
 
         @Override

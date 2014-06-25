@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.engine.internal;
 
-import org.apache.log4j.Appender;
 import org.apache.log4j.AppenderSkeleton;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
@@ -116,7 +115,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
                 .put(InternalEngine.INDEX_COMPOUND_ON_FLUSH, getRandom().nextBoolean())
                 .put(InternalEngine.INDEX_GC_DELETES, "1h") // make sure this doesn't kick in on us
                 .build(); // TODO randomize more settings
-        threadPool = new ThreadPool();
+        threadPool = new ThreadPool(getClass().getName());
         store = createStore();
         store.deleteContent();
         storeReplica = createStoreReplica();

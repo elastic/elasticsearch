@@ -39,10 +39,10 @@ import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.functionscore.FunctionScoreModule;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.similarity.SimilarityModule;
-import org.elasticsearch.indices.query.IndicesQueriesModule;
-import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.fielddata.breaker.DummyCircuitBreakerService;
+import org.elasticsearch.indices.query.IndicesQueriesModule;
+import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
@@ -57,7 +57,7 @@ public class IndexQueryParserPluginTests extends ElasticsearchTestCase {
 
     @Test
     public void testCustomInjection() {
-        Settings settings = ImmutableSettings.Builder.EMPTY_SETTINGS;
+        Settings settings = ImmutableSettings.builder().put("name", "testCustomInjection").build();
 
         IndexQueryParserModule queryParserModule = new IndexQueryParserModule(settings);
         queryParserModule.addProcessor(new IndexQueryParserModule.QueryParsersProcessor() {

@@ -91,13 +91,16 @@ public class ThreadPool extends AbstractComponent {
 
     private final EstimatedTimeThread estimatedTimeThread;
 
-    public ThreadPool() {
-        this(ImmutableSettings.Builder.EMPTY_SETTINGS, null);
+
+    public ThreadPool(String name) {
+        this(ImmutableSettings.builder().put("name", name).build(), null);
     }
 
     @Inject
     public ThreadPool(Settings settings, @Nullable NodeSettingsService nodeSettingsService) {
         super(settings);
+
+        assert settings.get("name") != null : "ThreadPool's settings should contain a name";
 
         Map<String, Settings> groupSettings = settings.getGroups(THREADPOOL_GROUP);
 

@@ -7,7 +7,7 @@ via a regular expression. Accepts the following settings:
 [cols="<,<",options="header",]
 |======================================================================
 |Setting |Description
-|`pattern` |The regular expression pattern, defaults to `\\W+`.
+|`pattern` |The regular expression pattern, defaults to `\W+`.
 |`flags` |The regular expression flags.
 |`group` |Which group to extract into tokens. Defaults to `-1` (split).
 |======================================================================
@@ -19,11 +19,11 @@ not the tokens themselves.
 >= 0 selects the matching group as the token. For example, if you have:
 
 ------------------------
-pattern = \\'([^\']+)\\'
+pattern = '([^']+)'
 group   = 0
 input   = aaa 'bbb' 'ccc'
 ------------------------
 
-the output will be two tokens: 'bbb' and 'ccc' (including the ' marks).
-With the same input but using group=1, the output would be: bbb and ccc
-(no ' marks).
+the output will be two tokens: `'bbb'` and `'ccc'` (including the `'` 
+marks). With the same input but using group=1, the output would be: 
+`bbb` and `ccc` (no `'` marks).

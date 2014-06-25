@@ -29,7 +29,6 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.groovy.GroovyScriptEngineService;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
-import org.elasticsearch.script.mvel.MvelScriptEngineService;
 
 import java.util.List;
 import java.util.Map;
@@ -84,13 +83,6 @@ public class ScriptModule extends AbstractModule {
             multibinder.addBinding().to(GroovyScriptEngineService.class);
         } catch (Throwable t) {
             Loggers.getLogger(ScriptService.class, settings).debug("failed to load groovy", t);
-        }
-
-        try {
-            settings.getClassLoader().loadClass("org.mvel2.MVEL");
-            multibinder.addBinding().to(MvelScriptEngineService.class);
-        } catch (Throwable t) {
-            Loggers.getLogger(ScriptService.class, settings).debug("failed to load mvel", t);
         }
         
         try {

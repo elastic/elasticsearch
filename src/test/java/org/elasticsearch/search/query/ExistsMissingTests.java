@@ -33,6 +33,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Locale;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
@@ -41,16 +42,19 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSear
 public class ExistsMissingTests extends ElasticsearchIntegrationTest {
 
     public void testExistsMissing() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("idx").addMapping("type", XContentBuilder.builder(JsonXContent.jsonXContent)
+
+        XContentBuilder mapping = XContentBuilder.builder(JsonXContent.jsonXContent)
                 .startObject()
-                    .startObject("type")
-                        .startObject(FieldNamesFieldMapper.NAME)
-                            // by setting randomly index to no we also test the pre-1.3 behavior
-                            .field("index", randomFrom("no", "not_analyzed"))
-                            .field("store", randomFrom("no", "yes"))
-                        .endObject()
-                    .endObject()
-                .endObject()));
+                .startObject("type")
+                .startObject(FieldNamesFieldMapper.NAME)
+                        // by setting randomly index to no we also test the pre-1.3 behavior
+                .field("index", randomFrom("no", "not_analyzed"))
+                .field("store", randomFrom("no", "yes"))
+                .endObject()
+                .endObject()
+                .endObject();
+
+        assertAcked(client().admin().indices().prepareCreate("idx").addMapping("type", mapping));
             @SuppressWarnings("unchecked")
             Map<String, Object>[] sources = new Map[] {
                     // simple property
@@ -86,12 +90,12 @@ public class ExistsMissingTests extends ElasticsearchIntegrationTest {
             // exists
             SearchResponse resp = client().prepareSearch("idx").setQuery(QueryBuilders.filteredQuery(QueryBuilders.matchAllQuery(), FilterBuilders.existsFilter(fieldName))).execute().actionGet();
             assertSearchResponse(resp);
-            assertEquals(count, resp.getHits().totalHits());
+            assertEquals(String.format(Locale.ROOT, "exists(%s, %d) mapping: %s", fieldName, count, mapping.string()), count, resp.getHits().totalHits());
 
             // missing
             resp = client().prepareSearch("idx").setQuery(QueryBuilders.filteredQuery(QueryBuilders.matchAllQuery(), FilterBuilders.missingFilter(fieldName))).execute().actionGet();
             assertSearchResponse(resp);
-            assertEquals(numDocs - count, resp.getHits().totalHits());
+            assertEquals(String.format(Locale.ROOT, "missing(%s, %d) mapping: %s", fieldName, count, mapping.string()), numDocs - count, resp.getHits().totalHits());
         }
     }
 

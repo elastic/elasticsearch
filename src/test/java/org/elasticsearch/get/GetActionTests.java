@@ -19,14 +19,11 @@
 
 package org.elasticsearch.get;
 
-import com.google.common.base.Predicate;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
-import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
-import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetRequest;
@@ -42,9 +39,7 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
-import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.client.Requests.clusterHealthRequest;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -803,7 +798,7 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
                 .setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1))
                 .addMapping("my-type2", jsonBuilder().startObject().startObject("my-type2").startObject("properties")
                         .startObject("field1").field("type", "object")
-                            .startObject("field2").field("type", "object")
+                        .startObject("field2").field("type", "object")
                                 .startObject("field3").field("type", "object")
                                     .startObject("field4").field("type", "string").field("store", "yes")
                                 .endObject()
@@ -859,23 +854,11 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
 
         logger.info("waiting for recoveries to complete");
 
-        // Flush fails if shard has ongoing recoveries
-        awaitBusy(new Predicate<Object>() {
-            @Override
-            public boolean apply(Object input) {
-                RecoveryResponse response = client().admin().indices().prepareRecoveries("my-index").setActiveOnly(true).get();
-                for (Map.Entry<String, List<ShardRecoveryResponse>> entry : response.shardResponses().entrySet()) {
-                    if (!entry.getValue().isEmpty()) {
-                        return false;
-                    }
-                }
-                return true;
-            }
-        }, 1 , TimeUnit.MINUTES);
+        // Flush fails if shard has ongoing recoveries, make sure the cluster is settled down
+        ensureGreen();
 
         logger.info("flushing");
         FlushResponse flushResponse = client().admin().indices().prepareFlush("my-index").setForce(true).get();
-        // the flush must at least succeed on one shard and not all shards, because we don't wait for yellow/green
         if (flushResponse.getSuccessfulShards() == 0) {
             StringBuilder sb = new StringBuilder("failed to flush at least one shard. total shards [")
                     .append(flushResponse.getTotalShards()).append("], failed shards: [").append(flushResponse.getFailedShards()).append("]");

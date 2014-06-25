@@ -19,19 +19,20 @@
 
 package org.elasticsearch.cluster.ack;
 
+import org.elasticsearch.common.unit.TimeValue;
+
 /**
- * Listener used for cluster state updates processing
- * Supports acknowledgement logic
+ * Identifies a cluster state update request with acknowledgement support
  */
-public interface ClusterStateUpdateListener {
+public interface AckedRequest {
 
     /**
-     * Called when the cluster state update is acknowledged
+     * Returns the acknowledgement timeout
      */
-    void onResponse(ClusterStateUpdateResponse response);
+    TimeValue ackTimeout();
 
     /**
-     * Called when any error is thrown during the cluster state update processing
+     * Returns the timeout for the request to be completed on the master node
      */
-    void onFailure(Throwable t);
+    TimeValue masterNodeTimeout();
 }

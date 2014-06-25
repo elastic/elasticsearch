@@ -80,21 +80,24 @@ public class ScriptModule extends AbstractModule {
         multibinder.addBinding().to(NativeScriptEngineService.class);
 
         try {
+            settings.getClassLoader().loadClass("groovy.lang.GroovyClassLoader");
             multibinder.addBinding().to(GroovyScriptEngineService.class);
         } catch (Throwable t) {
-            Loggers.getLogger(GroovyScriptEngineService.class).debug("failed to load groovy", t);
+            Loggers.getLogger(ScriptService.class, settings).debug("failed to load groovy", t);
         }
 
         try {
+            settings.getClassLoader().loadClass("org.mvel2.MVEL");
             multibinder.addBinding().to(MvelScriptEngineService.class);
         } catch (Throwable t) {
-            Loggers.getLogger(MvelScriptEngineService.class).debug("failed to load mvel", t);
+            Loggers.getLogger(ScriptService.class, settings).debug("failed to load mvel", t);
         }
         
         try {
+            settings.getClassLoader().loadClass("com.github.mustachejava.Mustache");
             multibinder.addBinding().to(MustacheScriptEngineService.class);
         } catch (Throwable t) {
-            Loggers.getLogger(MustacheScriptEngineService.class).debug("failed to load mustache", t);
+            Loggers.getLogger(ScriptService.class, settings).debug("failed to load mustache", t);
         }
 
         for (Class<? extends ScriptEngineService> scriptEngine : scriptEngines) {

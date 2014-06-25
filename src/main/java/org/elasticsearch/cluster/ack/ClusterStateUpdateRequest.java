@@ -25,7 +25,7 @@ import org.elasticsearch.common.unit.TimeValue;
  * Base class to be used when needing to update the cluster state
  * Contains the basic fields that are always needed
  */
-public abstract class ClusterStateUpdateRequest<T extends ClusterStateUpdateRequest<T>> {
+public abstract class ClusterStateUpdateRequest<T extends ClusterStateUpdateRequest<T>> implements AckedRequest {
 
     private TimeValue ackTimeout;
     private TimeValue masterNodeTimeout;

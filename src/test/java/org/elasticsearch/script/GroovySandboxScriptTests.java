@@ -55,6 +55,10 @@ public class GroovySandboxScriptTests extends ElasticsearchIntegrationTest {
         testFailure("d = new DateTime(); d.getClass().getDeclaredMethod(\\\"plus\\\").setAccessible(true)",
                 "Expression [MethodCallExpression] is not allowed: d.getClass()");
 
+        testFailure("d = new DateTime(); d.\\\"${'get' + 'Class'}\\\"()." +
+                        "\\\"${'getDeclared' + 'Method'}\\\"(\\\"now\\\").\\\"${'set' + 'Accessible'}\\\"(false)",
+                "Expression [MethodCallExpression] is not allowed: d.$(get + Class)().$(getDeclared + Method)(now).$(set + Accessible)(false)");
+
         testFailure("Class.forName(\\\"DateTime\\\").getDeclaredMethod(\\\"plus\\\").setAccessible(true)",
                 "Method calls not allowed on [java.lang.Class]");
 
@@ -79,6 +83,9 @@ public class GroovySandboxScriptTests extends ElasticsearchIntegrationTest {
                 "Importing [java.util.concurrent.ThreadPoolExecutor] is not allowed");
 
         testFailure("s = new java.net.URL();", "Expression [ConstructorCallExpression] is not allowed: new java.net.URL()");
+
+        testFailure("def methodName = 'ex'; Runtime.\\\"${'get' + 'Runtime'}\\\"().\\\"${methodName}ec\\\"(\\\"touch /tmp/gotcha2\\\")",
+                "Expression [MethodCallExpression] is not allowed: java.lang.Runtime.$(get + Runtime)().$methodNameec(touch /tmp/gotcha2)");
     }
 
     public void testSuccess(String script) {

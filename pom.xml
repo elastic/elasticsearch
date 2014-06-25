@@ -48,10 +48,6 @@
             <id>Codehaus Snapshots</id>
             <url>http://repository.codehaus.org/</url>
         </repository>
-        <repository>
-            <id>Release candidate</id>
-            <url>http://people.apache.org/~rmuir/staging_area/lucene_solr_4_9_0_r1604085/lucene/maven/</url>
-        </repository>
     </repositories>
 
     <dependencies>

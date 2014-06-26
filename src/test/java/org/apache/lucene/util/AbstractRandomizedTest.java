@@ -31,6 +31,7 @@ import com.carrotsearch.randomizedtesting.rules.NoInstanceHooksOverridesRule;
 import com.carrotsearch.randomizedtesting.rules.StaticFieldsInvariantRule;
 import com.carrotsearch.randomizedtesting.rules.SystemPropertiesInvariantRule;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -401,6 +402,15 @@ public abstract class AbstractRandomizedTest extends RandomizedTest {
      */
     public String getTestName() {
         return threadAndTestNameRule.testMethodName;
+    }
+
+    static {
+        String nodeLocal = System.getProperty("es.node.mode", System.getProperty("es.node.local", ""));
+        if (Strings.isEmpty(nodeLocal)) {
+            // we default to local mode to speed up tests running in IDEs etc.
+            // compared to a mvn default value this will also work if executed from an IDE.
+            System.setProperty("es.node.mode", "local");
+        }
     }
 
 }

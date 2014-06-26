@@ -19,9 +19,8 @@
 
 package org.elasticsearch.index.store.fs;
 
-import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.LockFactory;
-import org.apache.lucene.store.SimpleFSDirectory;
+import com.google.common.collect.Sets;
+import org.apache.lucene.store.*;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -30,18 +29,26 @@ import org.elasticsearch.index.store.IndexStore;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Set;
 
 /**
  */
-public class SimpleFsDirectoryService extends FsDirectoryService {
+public class DefaultFsDirectoryService extends FsDirectoryService {
+    /*
+     * We are mmapping docvalues as well as term dictionaries, all other files are served through NIOFS
+     * this provides good random access performance while not creating unnecessary mmaps for files like stored
+     * fields etc.
+     */
+    private static final Set<String> PRIMARY_EXTENSIONS = Collections.unmodifiableSet(Sets.newHashSet("dvd", "tim"));
 
     @Inject
-    public SimpleFsDirectoryService(ShardId shardId, @IndexSettings Settings indexSettings, IndexStore indexStore) {
+    public DefaultFsDirectoryService(ShardId shardId, @IndexSettings Settings indexSettings, IndexStore indexStore) {
         super(shardId, indexSettings, indexStore);
     }
 
     @Override
     protected Directory newFSDirectory(File location, LockFactory lockFactory) throws IOException {
-        return new SimpleFSDirectory(location, lockFactory);
+        return new FileSwitchDirectory(PRIMARY_EXTENSIONS, new MMapDirectory(location, lockFactory), new NIOFSDirectory(location, lockFactory), true);
     }
 }

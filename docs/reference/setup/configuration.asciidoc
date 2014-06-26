@@ -51,7 +51,7 @@ curl localhost:9200/_nodes/process?pretty
 [[vm-max-map-count]]
 ==== Virtual memory
 
-Elasticsearch uses <<mmapfs,`mmapfs`>> by default to store its indices.  The default
+Elasticsearch uses a <<default_fs,`hybrid mmapfs / niofs`>> directory by default to store its indices.  The default
 operating system limits on mmap counts is likely to be too low, which may
 result in out of memory exceptions.  On Linux, you can increase the limits by
 running the following command as `root`:

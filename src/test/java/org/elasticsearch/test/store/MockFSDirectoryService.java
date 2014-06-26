@@ -22,7 +22,6 @@ package org.elasticsearch.test.store;
 import com.google.common.base.Charsets;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.LockFactory;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
@@ -82,7 +81,7 @@ public class MockFSDirectoryService extends FsDirectoryService {
     }
     
     @Override
-    protected synchronized FSDirectory newFSDirectory(File location, LockFactory lockFactory) throws IOException {
+    protected synchronized Directory newFSDirectory(File location, LockFactory lockFactory) throws IOException {
         throw new UnsupportedOperationException();
     }
 

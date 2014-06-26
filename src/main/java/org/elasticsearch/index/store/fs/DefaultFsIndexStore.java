@@ -19,29 +19,27 @@
 
 package org.elasticsearch.index.store.fs;
 
-import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.LockFactory;
-import org.apache.lucene.store.SimpleFSDirectory;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.store.IndexStore;
-
-import java.io.File;
-import java.io.IOException;
+import org.elasticsearch.index.store.DirectoryService;
+import org.elasticsearch.indices.store.IndicesStore;
 
 /**
+ *
  */
-public class SimpleFsDirectoryService extends FsDirectoryService {
+public final class DefaultFsIndexStore extends FsIndexStore {
 
     @Inject
-    public SimpleFsDirectoryService(ShardId shardId, @IndexSettings Settings indexSettings, IndexStore indexStore) {
-        super(shardId, indexSettings, indexStore);
+    public DefaultFsIndexStore(Index index, @IndexSettings Settings indexSettings, IndexService indexService, IndicesStore indicesStore, NodeEnvironment nodeEnv) {
+        super(index, indexSettings, indexService, indicesStore, nodeEnv);
     }
 
     @Override
-    protected Directory newFSDirectory(File location, LockFactory lockFactory) throws IOException {
-        return new SimpleFSDirectory(location, lockFactory);
+    public Class<? extends DirectoryService> shardDirectory() {
+        return DefaultFsDirectoryService.class;
     }
 }

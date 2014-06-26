@@ -31,10 +31,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.IndexStore;
-import org.elasticsearch.index.store.fs.FsDirectoryService;
-import org.elasticsearch.index.store.fs.MmapFsDirectoryService;
-import org.elasticsearch.index.store.fs.NioFsDirectoryService;
-import org.elasticsearch.index.store.fs.SimpleFsDirectoryService;
+import org.elasticsearch.index.store.fs.*;
 import org.elasticsearch.index.store.ram.RamDirectoryService;
 
 import java.io.IOException;
@@ -107,13 +104,15 @@ public class MockDirectoryHelper {
         } else if (Constants.WINDOWS) {
             return new SimpleFsDirectoryService(shardId, indexSettings, indexStore);
         }
-        switch (random.nextInt(3)) {
-        case 1:
-            return new MmapFsDirectoryService(shardId, indexSettings, indexStore);
-        case 0:
-            return new SimpleFsDirectoryService(shardId, indexSettings, indexStore);
-        default:
-            return new NioFsDirectoryService(shardId, indexSettings, indexStore);
+        switch (random.nextInt(4)) {
+            case 2:
+                return new DefaultFsDirectoryService(shardId, indexSettings, indexStore);
+            case 1:
+                return new MmapFsDirectoryService(shardId, indexSettings, indexStore);
+            case 0:
+                return new SimpleFsDirectoryService(shardId, indexSettings, indexStore);
+            default:
+                return new NioFsDirectoryService(shardId, indexSettings, indexStore);
         }
     }
 

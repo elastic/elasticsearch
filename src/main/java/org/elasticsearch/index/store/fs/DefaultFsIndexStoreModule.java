@@ -19,29 +19,16 @@
 
 package org.elasticsearch.index.store.fs;
 
-import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.LockFactory;
-import org.apache.lucene.store.SimpleFSDirectory;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.index.store.IndexStore;
 
-import java.io.File;
-import java.io.IOException;
-
 /**
+ *
  */
-public class SimpleFsDirectoryService extends FsDirectoryService {
-
-    @Inject
-    public SimpleFsDirectoryService(ShardId shardId, @IndexSettings Settings indexSettings, IndexStore indexStore) {
-        super(shardId, indexSettings, indexStore);
-    }
+public class DefaultFsIndexStoreModule extends AbstractModule {
 
     @Override
-    protected Directory newFSDirectory(File location, LockFactory lockFactory) throws IOException {
-        return new SimpleFSDirectory(location, lockFactory);
+    protected void configure() {
+        bind(IndexStore.class).to(DefaultFsIndexStore.class).asEagerSingleton();
     }
 }

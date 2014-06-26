@@ -57,8 +57,8 @@ using the index update settings API dynamically.
 File system based storage is the default storage used. There are
 different implementations or _storage types_. The best one for the
 operating environment will be automatically chosen: `mmapfs` on
-Solaris/Linux/Windows 64bit, `simplefs` on Windows 32bit, and
-`niofs` for the rest.
+Windows 64bit, `simplefs` on Windows 32bit, and `default` 
+(hybrid `niofs` and `mmapfs`) for the rest.
 
 This can be overridden for all indices by adding this to the
 `config/elasticsearch.yml` file:
@@ -111,6 +111,17 @@ mapping uses up a portion of the virtual memory address space in your
 process equal to the size of the file being mapped. Before using this
 class, be sure your have plenty of virtual address space.
 See <<vm-max-map-count>>
+
+[[default_fs]]
+[float]
+==== Hybrid MMap / NIO FS coming[1.3.0]
+
+The `default` type stores the shard index on the file system depending on
+the file type by mapping a file into memory (mmap) or using Java NIO. Currently
+only the Lucene term dictionary and doc values files are memory mapped to reduce
+the impact on the operating system. All other files are opened using Lucene `NIOFSDirectory`.
+Address space settings (<<vm-map-map-count>>) might also apply if your term
+dictionaries are large.
 
 [float]
 [[store-memory]]

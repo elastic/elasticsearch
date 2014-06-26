@@ -23,6 +23,7 @@ import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
 
 import java.io.IOException;
@@ -88,6 +89,11 @@ public class ApplyAcceptedDocsFilter extends Filter {
         @Override
         public boolean isCacheable() {
             return innerSet.isCacheable();
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            return RamUsageEstimator.NUM_BYTES_OBJECT_REF + innerSet.ramBytesUsed();
         }
 
         @Override
@@ -201,6 +207,11 @@ public class ApplyAcceptedDocsFilter extends Filter {
         @Override
         public boolean isCacheable() {
             return delegate.isCacheable();
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            return RamUsageEstimator.NUM_BYTES_OBJECT_REF + delegate.ramBytesUsed();
         }
     }
 }

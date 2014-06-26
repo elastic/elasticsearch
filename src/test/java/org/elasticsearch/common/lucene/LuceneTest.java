@@ -17,13 +17,13 @@
  * under the License.
  */
 package org.elasticsearch.common.lucene;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.core.IsEqual.equalTo;
-
 import org.apache.lucene.util.Version;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.junit.Test;
+
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.core.IsEqual.equalTo;
 
 /**
  * 
@@ -43,7 +43,7 @@ public class LuceneTest {
         assertThat(Lucene.parseVersion(null, Lucene.VERSION, null), equalTo(Lucene.VERSION));
         for (int i = 0; i < values.length-1; i++) {
             // this should fail if the lucene version is not mapped as a string in Lucene.java
-            assertThat(Lucene.parseVersion(values[i].name().replaceFirst("^LUCENE_(\\d)(\\d)$", "$1.$2"), Version.LUCENE_CURRENT, logger), equalTo(values[i]));
+            assertThat(Lucene.parseVersion(values[i].name().replaceFirst("^LUCENE_(\\d)_?(\\d)$", "$1.$2"), Version.LUCENE_CURRENT, logger), equalTo(values[i]));
         }
     }
 }

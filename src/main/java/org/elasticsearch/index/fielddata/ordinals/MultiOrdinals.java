@@ -77,7 +77,8 @@ public class MultiOrdinals extends Ordinals {
         assert ords.size() == builder.getTotalNumOrds() : ords.size() + " != " + builder.getTotalNumOrds();
     }
 
-    public long getMemorySizeInBytes() {
+    @Override
+    public long ramBytesUsed() {
         return endOffsets.ramBytesUsed() + ords.ramBytesUsed();
     }
 

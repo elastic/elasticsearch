@@ -376,7 +376,7 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
         }
 
         @Override
-        public TokenStream tokenStream(Analyzer analyzer) throws IOException {
+        public TokenStream tokenStream(Analyzer analyzer, TokenStream previous) throws IOException {
             if (fieldType().indexed()) {
                 return mapper.popCachedStream().setIntValue(number);
             }

@@ -19,15 +19,14 @@
 
 package org.elasticsearch.index.fielddata.ordinals;
 
+import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.BytesValues;
-
-
 
 /**
  * A thread safe ordinals abstraction. Ordinals can only be positive integers.
  */
-public abstract class Ordinals {
+public abstract class Ordinals implements Accountable {
 
     public static final ValuesHolder NO_VALUES = new ValuesHolder() {
         @Override
@@ -39,7 +38,7 @@ public abstract class Ordinals {
     /**
      * The memory size this ordinals take.
      */
-    public abstract long getMemorySizeInBytes();
+    public abstract long ramBytesUsed();
 
     public abstract BytesValues.WithOrdinals ordinals(ValuesHolder values);
 

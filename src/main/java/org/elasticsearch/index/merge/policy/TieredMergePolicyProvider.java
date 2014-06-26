@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.merge.policy;
 
-import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.TieredMergePolicy;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.inject.Inject;
@@ -204,13 +203,6 @@ public class TieredMergePolicyProvider extends AbstractMergePolicyProvider<Tiere
         public void close() {
             super.close();
             provider.policies.remove(this);
-        }
-        
-        @Override
-        public MergePolicy clone() {
-            // Lucene IW makes a clone internally but since we hold on to this instance 
-            // the clone will just be the identity.
-            return this;
         }
     }
 }

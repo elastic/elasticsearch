@@ -90,22 +90,8 @@ public class BufferedChecksumIndexOutput extends BufferedIndexOutput {
     }
 
     @Override
-    public void seek(long pos) throws IOException {
-        // seek might be called on files, which means that the checksum is not file checksum
-        // but a checksum of the bytes written to this stream, which is the same for each
-        // type of file in lucene
-        super.seek(pos);
-        delegate.seek(pos);
-    }
-
-    @Override
     public long length() throws IOException {
         return delegate.length();
-    }
-
-    @Override
-    public void setLength(long length) throws IOException {
-        delegate.setLength(length);
     }
 
     @Override

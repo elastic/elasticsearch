@@ -532,22 +532,6 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
         }
 
         @Override
-        public IndexInputSlicer createSlicer(String name, IOContext context) throws IOException {
-            ensureOpen();
-            StoreFileMetaData metaData = filesMetadata.get(name);
-            if (metaData == null) {
-                throw new FileNotFoundException(name);
-            }
-            // Only for backward comp. since we now use Lucene codec compression
-            if (name.endsWith(".fdt") || name.endsWith(".tvf")) {
-                // rely on the slicer from the base class that uses an input, since they might be compressed...
-                // note, it seems like slicers are only used in compound file format..., so not relevant for now
-                return super.createSlicer(name, context);
-            }
-            return metaData.directory().createSlicer(name, context);
-        }
-
-        @Override
         public void close() throws IOException {
             assert false : "Nobody should close this directory except of the Store itself";
         }
@@ -691,18 +675,8 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
         }
 
         @Override
-        public void seek(long pos) throws IOException {
-            out.seek(pos);
-        }
-
-        @Override
         public long length() throws IOException {
             return out.length();
-        }
-
-        @Override
-        public void setLength(long length) throws IOException {
-            out.setLength(length);
         }
 
         @Override

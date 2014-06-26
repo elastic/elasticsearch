@@ -270,8 +270,8 @@ public class MockBigArrays extends BigArrays {
             return getDelegate().size();
         }
 
-        public long sizeInBytes() {
-            return in.sizeInBytes();
+        public long ramBytesUsed() {
+            return in.ramBytesUsed();
         }
 
         public void close() {

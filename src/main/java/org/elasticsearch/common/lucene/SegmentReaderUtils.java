@@ -21,7 +21,6 @@ package org.elasticsearch.common.lucene;
 import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.FilterAtomicReader;
 import org.apache.lucene.index.SegmentReader;
-import org.apache.lucene.util.Version;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.Nullable;
 
@@ -45,17 +44,9 @@ public class SegmentReaderUtils {
         return internalSegmentReader(reader, false);
     }
 
-    static {
-        assert Version.LUCENE_48.onOrAfter(Lucene.VERSION) : "Use AtomicReader.addCoreClosedListener instead of trying to unwrap the atomic reader: https://issues.apache.org/jira/browse/LUCENE-5701";
-    }
-
     public static boolean registerCoreListener(AtomicReader reader, SegmentReader.CoreClosedListener listener) {
-        SegmentReader segReader = SegmentReaderUtils.segmentReaderOrNull(reader);
-        if (segReader != null) {
-            segReader.addCoreClosedListener(listener);
-            return true;
-        }
-        return false;
+        reader.addCoreClosedListener(listener);
+        return true;
     }
 
     private static SegmentReader internalSegmentReader(AtomicReader reader, boolean fail) {

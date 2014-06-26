@@ -85,7 +85,7 @@ public class GeoPointCompressedIndexFieldData extends AbstractGeoPointIndexField
         NonEstimatingEstimator estimator = new NonEstimatingEstimator(breakerService.getBreaker());
         if (terms == null) {
             data = new Empty();
-            estimator.afterLoad(null, data.getMemorySizeInBytes());
+            estimator.afterLoad(null, data.ramBytesUsed());
             return data;
         }
         final long initialSize;
@@ -147,7 +147,7 @@ public class GeoPointCompressedIndexFieldData extends AbstractGeoPointIndexField
             return data;
         } finally {
             if (success) {
-                estimator.afterLoad(null, data.getMemorySizeInBytes());
+                estimator.afterLoad(null, data.ramBytesUsed());
             }
 
         }

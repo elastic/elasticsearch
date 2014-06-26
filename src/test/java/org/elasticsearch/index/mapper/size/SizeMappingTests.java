@@ -28,7 +28,6 @@ import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
 public class SizeMappingTests extends ElasticsearchTestCase {
@@ -48,7 +47,7 @@ public class SizeMappingTests extends ElasticsearchTestCase {
         ParsedDocument doc = docMapper.parse(SourceToParse.source(source).type("type").id("1"));
 
         assertThat(doc.rootDoc().getField("_size").fieldType().stored(), equalTo(false));
-        assertThat(doc.rootDoc().getField("_size").tokenStream(docMapper.indexAnalyzer()), notNullValue());
+        assertThat(doc.rootDoc().getField("_size").tokenStream(docMapper.indexAnalyzer(), null), notNullValue());
     }
 
     @Test
@@ -66,7 +65,7 @@ public class SizeMappingTests extends ElasticsearchTestCase {
         ParsedDocument doc = docMapper.parse(SourceToParse.source(source).type("type").id("1"));
 
         assertThat(doc.rootDoc().getField("_size").fieldType().stored(), equalTo(true));
-        assertThat(doc.rootDoc().getField("_size").tokenStream(docMapper.indexAnalyzer()), notNullValue());
+        assertThat(doc.rootDoc().getField("_size").tokenStream(docMapper.indexAnalyzer(), null), notNullValue());
     }
 
     @Test

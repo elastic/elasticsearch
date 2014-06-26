@@ -20,6 +20,7 @@
 package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.DocValues;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.Nullable;
@@ -56,7 +57,7 @@ public class BytesBinaryDVIndexFieldData extends DocValuesIndexFieldData impleme
     @Override
     public BytesBinaryDVAtomicFieldData load(AtomicReaderContext context) {
         try {
-            return new BytesBinaryDVAtomicFieldData(context.reader().getBinaryDocValues(fieldNames.indexName()));
+            return new BytesBinaryDVAtomicFieldData(DocValues.getBinary(context.reader(), fieldNames.indexName()));
         } catch (IOException e) {
             throw new ElasticsearchIllegalStateException("Cannot load doc values", e);
         }

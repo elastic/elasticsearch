@@ -315,11 +315,6 @@ public abstract class NumericRangeFieldDataFilter<T> extends Filter {
             this.inclusiveUpperPoint = inclusiveUpperPoint; 
             this.values = values;
         }
-        
-        @Override
-        public boolean isCacheable() {
-            return true;
-        }
 
         @Override
         protected boolean matchDoc(int doc) {
@@ -345,11 +340,6 @@ public abstract class NumericRangeFieldDataFilter<T> extends Filter {
             this.inclusiveLowerPoint = inclusiveLowerPoint;
             this.inclusiveUpperPoint = inclusiveUpperPoint; 
             this.values = values;
-        }
-        
-        @Override
-        public boolean isCacheable() {
-            return true;
         }
 
         @Override

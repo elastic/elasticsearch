@@ -33,7 +33,6 @@ import org.apache.lucene.search.suggest.analyzing.AnalyzingSuggester;
 import org.apache.lucene.search.suggest.analyzing.XAnalyzingSuggester;
 import org.apache.lucene.store.*;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.LineFileDocs;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.codec.postingsformat.Elasticsearch090PostingsFormat;
@@ -309,7 +308,7 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
         IndexOutput output = dir.createOutput("foo.txt", IOContext.DEFAULT);
         FieldsConsumer consumer = provider.consumer(output);
         FieldInfo fieldInfo = new FieldInfo("foo", true, 1, false, true, true, IndexOptions.DOCS_AND_FREQS_AND_POSITIONS,
-                DocValuesType.SORTED, DocValuesType.BINARY, new HashMap<String, String>());
+                DocValuesType.SORTED, DocValuesType.BINARY, -1, new HashMap<String, String>());
         TermsConsumer addField = consumer.addField(fieldInfo);
         addField.finish(0, 0, 0);
         consumer.close();
@@ -328,7 +327,7 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
         IndexOutput output = dir.createOutput("foo.txt", IOContext.DEFAULT);
         FieldsConsumer consumer = provider.consumer(output);
         FieldInfo fieldInfo = new FieldInfo("foo", true, 1, false, true, true, IndexOptions.DOCS_AND_FREQS_AND_POSITIONS,
-                DocValuesType.SORTED, DocValuesType.BINARY, new HashMap<String, String>());
+                DocValuesType.SORTED, DocValuesType.BINARY, -1, new HashMap<String, String>());
         TermsConsumer addField = consumer.addField(fieldInfo);
 
         PostingsConsumer postingsConsumer = addField.startTerm(new BytesRef("foofightersgenerator"));

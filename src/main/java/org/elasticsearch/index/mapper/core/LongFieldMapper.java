@@ -357,7 +357,7 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
         }
 
         @Override
-        public TokenStream tokenStream(Analyzer analyzer) throws IOException {
+        public TokenStream tokenStream(Analyzer analyzer, TokenStream previous) throws IOException {
             if (fieldType().indexed()) {
                 return mapper.popCachedStream().setLongValue(number);
             }

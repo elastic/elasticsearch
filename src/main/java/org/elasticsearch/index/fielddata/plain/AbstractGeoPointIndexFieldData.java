@@ -39,7 +39,7 @@ abstract class AbstractGeoPointIndexFieldData extends AbstractIndexFieldData<Ato
     protected static class Empty extends AtomicGeoPointFieldData<ScriptDocValues> {
 
         @Override
-        public long getMemorySizeInBytes() {
+        public long ramBytesUsed() {
             return 0;
         }
 

@@ -22,7 +22,6 @@ package org.elasticsearch.index.mapper.internal;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
-import org.apache.lucene.document.XStringField;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.TermFilter;
@@ -178,7 +177,7 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements Inte
         if (!fieldType.indexed() && !fieldType.stored()) {
             return;
         }
-        fields.add(new XStringField(names.indexName(), context.type(), fieldType));
+        fields.add(new Field(names.indexName(), context.type(), fieldType));
         if (hasDocValues()) {
             fields.add(new SortedSetDocValuesField(names.indexName(), new BytesRef(context.type())));
         }

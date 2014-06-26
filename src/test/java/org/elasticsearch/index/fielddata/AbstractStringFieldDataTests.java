@@ -33,10 +33,7 @@ import org.apache.lucene.search.*;
 import org.apache.lucene.search.join.FixedBitSetCachingWrapperFilter;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.join.ToParentBlockJoinQuery;
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.OpenBitSet;
-import org.apache.lucene.util.TestUtil;
-import org.apache.lucene.util.UnicodeUtil;
+import org.apache.lucene.util.*;
 import org.elasticsearch.common.lucene.search.NotFilter;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -546,7 +543,7 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
         assertThat(indicesFieldDataCache.getCache().size(), equalTo(4l));
 
         IndexFieldData.WithOrdinals cachedInstace = null;
-        for (RamUsage ramUsage : indicesFieldDataCache.getCache().asMap().values()) {
+        for (Accountable ramUsage : indicesFieldDataCache.getCache().asMap().values()) {
             if (ramUsage instanceof IndexFieldData.WithOrdinals) {
                 cachedInstace = (IndexFieldData.WithOrdinals) ramUsage;
                 break;

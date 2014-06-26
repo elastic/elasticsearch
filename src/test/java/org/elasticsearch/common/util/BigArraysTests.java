@@ -335,11 +335,11 @@ public class BigArraysTests extends ElasticsearchTestCase {
             Method create = BigArrays.class.getMethod("new" + type + "Array", long.class);
             final int size = scaledRandomIntBetween(5, 1 << 16);
             BigArray array = (BigArray) create.invoke(bigArrays, size);
-            assertEquals(array.sizeInBytes(), bigArrays.sizeInBytes());
+            assertEquals(array.ramBytesUsed(), bigArrays.sizeInBytes());
             Method resize = BigArrays.class.getMethod("resize", array.getClass().getInterfaces()[0], long.class);
             int newSize = scaledRandomIntBetween(5, 1 << 16);
             array = (BigArray) resize.invoke(bigArrays, array, newSize);
-            assertEquals(array.sizeInBytes(), bigArrays.sizeInBytes());
+            assertEquals(array.ramBytesUsed(), bigArrays.sizeInBytes());
             array.close();
             assertEquals(0, bigArrays.sizeInBytes());
         }
@@ -370,7 +370,7 @@ public class BigArraysTests extends ElasticsearchTestCase {
             Method resize = BigArrays.class.getMethod("resize", array.getClass().getInterfaces()[0], long.class);
             while (true) {
                 long newSize = array.size() * 2;
-                assertEquals(array.sizeInBytes(), bigArrays.sizeInBytes());
+                assertEquals(array.ramBytesUsed(), bigArrays.sizeInBytes());
                 try {
                     array = (BigArray) resize.invoke(bigArrays, array, newSize);
                 } catch (InvocationTargetException e) {
@@ -378,7 +378,7 @@ public class BigArraysTests extends ElasticsearchTestCase {
                     break;
                 }
             }
-            assertEquals(array.sizeInBytes(), bigArrays.sizeInBytes());
+            assertEquals(array.ramBytesUsed(), bigArrays.sizeInBytes());
             array.close();
             assertEquals(0, bigArrays.sizeInBytes());
         }

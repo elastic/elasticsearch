@@ -118,23 +118,12 @@ public final class RateLimitedFSDirectory extends FilterDirectory{
         }
 
         @Override
-        public void seek(long pos) throws IOException {
-            flush();
-            delegate.seek(pos);
-        }
-
-        @Override
         public void flush() throws IOException {
             try {
                 super.flush();
             } finally {
                 delegate.flush();
             }
-        }
-
-        @Override
-        public void setLength(long length) throws IOException {
-            delegate.setLength(length);
         }
 
         @Override

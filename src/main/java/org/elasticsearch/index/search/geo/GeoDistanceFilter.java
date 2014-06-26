@@ -173,11 +173,6 @@ public class GeoDistanceFilter extends Filter {
         }
 
         @Override
-        public boolean isCacheable() {
-            return true;
-        }
-
-        @Override
         protected boolean matchDoc(int doc) {
 
             final int length = values.setDocument(doc);

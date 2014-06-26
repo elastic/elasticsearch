@@ -19,13 +19,14 @@
 
 package org.elasticsearch.index.fielddata;
 
+import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.ScriptDocValues.Strings;
 
 /**
  * The thread safe {@link org.apache.lucene.index.AtomicReader} level cache of the data.
  */
-public interface AtomicFieldData<Script extends ScriptDocValues> extends RamUsage {
+public interface AtomicFieldData<Script extends ScriptDocValues> extends Accountable {
 
     /**
      * Use a non thread safe (lightweight) view of the values as bytes.
@@ -56,7 +57,7 @@ public interface AtomicFieldData<Script extends ScriptDocValues> extends RamUsag
             }
 
             @Override
-            public long getMemorySizeInBytes() {
+            public long ramBytesUsed() {
                 return 0;
             }
 

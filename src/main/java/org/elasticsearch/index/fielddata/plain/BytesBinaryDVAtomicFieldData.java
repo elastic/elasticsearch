@@ -20,7 +20,6 @@
 package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.BinaryDocValues;
-import org.apache.lucene.index.DocValues;
 import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
@@ -33,11 +32,11 @@ final class BytesBinaryDVAtomicFieldData implements AtomicFieldData<ScriptDocVal
 
     BytesBinaryDVAtomicFieldData(BinaryDocValues values) {
         super();
-        this.values = values == null ? DocValues.EMPTY_BINARY : values;
+        this.values = values;
     }
 
     @Override
-    public long getMemorySizeInBytes() {
+    public long ramBytesUsed() {
         return -1; // not exposed by Lucene
     }
 
@@ -45,13 +44,13 @@ final class BytesBinaryDVAtomicFieldData implements AtomicFieldData<ScriptDocVal
     public BytesValues getBytesValues() {
         return new BytesValues(true) {
 
-            final BytesRef bytes = new BytesRef();
+            BytesRef bytes;
             final BytesRef scratch = new BytesRef();
             final ByteArrayDataInput in = new ByteArrayDataInput();
 
             @Override
             public int setDocument(int docId) {
-                values.get(docId, bytes);
+                bytes = values.get(docId);
                 in.reset(bytes.bytes, bytes.offset, bytes.length);
                 if (bytes.length == 0) {
                     return 0;

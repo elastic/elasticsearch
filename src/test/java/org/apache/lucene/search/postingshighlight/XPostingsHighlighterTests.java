@@ -41,6 +41,7 @@ import java.util.Map;
 import static org.hamcrest.CoreMatchers.*;
 
 @LuceneTestCase.SuppressCodecs({"MockFixedIntBlock", "MockVariableIntBlock", "MockSep", "MockRandom", "Lucene3x"})
+@LuceneTestCase.SuppressSysoutChecks(bugUrl = "I print a lot of stuff")
 public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
 
     /*

@@ -67,7 +67,7 @@ public class FSTBytesIndexFieldData extends AbstractBytesIndexFieldData<AtomicFi
         // TODO: Use an actual estimator to estimate before loading.
         NonEstimatingEstimator estimator = new NonEstimatingEstimator(breakerService.getBreaker());
         if (terms == null) {
-            estimator.afterLoad(null, AtomicFieldData.WithOrdinals.EMPTY.getMemorySizeInBytes());
+            estimator.afterLoad(null, AtomicFieldData.WithOrdinals.EMPTY.ramBytesUsed());
             return AtomicFieldData.WithOrdinals.EMPTY;
         }
         PositiveIntOutputs outputs = PositiveIntOutputs.getSingleton();
@@ -106,7 +106,7 @@ public class FSTBytesIndexFieldData extends AbstractBytesIndexFieldData<AtomicFi
             return data;
         } finally {
             if (success) {
-                estimator.afterLoad(null, data.getMemorySizeInBytes());
+                estimator.afterLoad(null, data.ramBytesUsed());
             }
 
         }

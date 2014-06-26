@@ -235,7 +235,7 @@ public class AnalyzingCompletionLookupProviderV1 extends CompletionLookupProvide
             boolean preserveSep = (options & SERIALIZE_PRESERVE_SEPERATORS) != 0;
             boolean hasPayloads = (options & SERIALIZE_HAS_PAYLOADS) != 0;
             boolean preservePositionIncrements = (options & SERIALIZE_PRESERVE_POSITION_INCREMENTS) != 0;
-            sizeInBytes += fst.sizeInBytes();
+            sizeInBytes += fst.ramBytesUsed();
             lookupMap.put(entry.getValue(), new AnalyzingSuggestHolder(preserveSep, preservePositionIncrements, maxSurfaceFormsPerAnalyzedForm, maxGraphExpansions,
                     hasPayloads, maxAnalyzedPathsForOneInput, fst));
         }
@@ -278,14 +278,14 @@ public class AnalyzingCompletionLookupProviderV1 extends CompletionLookupProvide
                 }
 
                 for (Map.Entry<String, AnalyzingSuggestHolder> entry : lookupMap.entrySet()) {
-                    sizeInBytes += entry.getValue().fst.sizeInBytes();
+                    sizeInBytes += entry.getValue().fst.ramBytesUsed();
                     if (fields == null || fields.length == 0) {
                         continue;
                     }
                     for (String field : fields) {
                         // support for getting fields by regex as in fielddata
                         if (Regex.simpleMatch(field, entry.getKey())) {
-                            long fstSize = entry.getValue().fst.sizeInBytes();
+                            long fstSize = entry.getValue().fst.ramBytesUsed();
                             completionFields.addTo(field, fstSize);
                         }
                     }

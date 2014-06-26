@@ -49,7 +49,7 @@ public class NumericDVAtomicFieldData extends AbstractAtomicNumericFieldData {
     }
 
     @Override
-    public long getMemorySizeInBytes() {
+    public long ramBytesUsed() {
         // TODO: cannot be computed from Lucene
         return -1;
     }
@@ -66,23 +66,13 @@ public class NumericDVAtomicFieldData extends AbstractAtomicNumericFieldData {
     }
 
     private DocValuesAndBits getDocValues() {
-        final NumericDocValues values;
-        final Bits docsWithField;
         try {
-            final NumericDocValues v = reader.getNumericDocValues(field);
-            if (v == null) {
-                // segment has no value
-                values = DocValues.EMPTY_NUMERIC;
-                docsWithField = new Bits.MatchNoBits(reader.maxDoc());
-            } else {
-                values = v;
-                final Bits b = reader.getDocsWithField(field);
-                docsWithField = b == null ? new Bits.MatchAllBits(reader.maxDoc()) : b;
-            }
+            final NumericDocValues values = DocValues.getNumeric(reader, field);
+            final Bits docsWithField = DocValues.getDocsWithField(reader, field);
+            return new DocValuesAndBits(values, docsWithField);
         } catch (IOException e) {
             throw new ElasticsearchIllegalStateException("Cannot load doc values", e);
         }
-        return new DocValuesAndBits(values, docsWithField);
     }
 
     @Override

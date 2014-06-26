@@ -381,7 +381,7 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
         }
 
         @Override
-        public TokenStream tokenStream(Analyzer analyzer) throws IOException {
+        public TokenStream tokenStream(Analyzer analyzer, TokenStream previous) throws IOException {
             if (fieldType().indexed()) {
                 return mapper.popCachedStream().setFloatValue(number);
             }

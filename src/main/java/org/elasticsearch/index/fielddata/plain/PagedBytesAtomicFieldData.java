@@ -49,9 +49,9 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
     }
 
     @Override
-    public long getMemorySizeInBytes() {
+    public long ramBytesUsed() {
         if (size == -1) {
-            long size = ordinals.getMemorySizeInBytes();
+            long size = ordinals.ramBytesUsed();
             // PackedBytes
             size += readerBytesSize;
             // PackedInts

@@ -45,7 +45,7 @@ import java.io.IOException;
  */
 public class Lucene {
 
-    public static final Version VERSION = Version.LUCENE_48;
+    public static final Version VERSION = Version.LUCENE_4_9;
     public static final Version ANALYZER_VERSION = VERSION;
     public static final Version QUERYPARSER_VERSION = VERSION;
 
@@ -63,56 +63,28 @@ public class Lucene {
         if (version == null) {
             return defaultVersion;
         }
-        if ("4.8".equals(version)) {
-            return VERSION.LUCENE_48;
+        switch(version) {
+            case "4.9": return VERSION.LUCENE_4_9;
+            case "4.8": return VERSION.LUCENE_4_8;
+            case "4.7": return VERSION.LUCENE_4_7;
+            case "4.6": return VERSION.LUCENE_4_6;
+            case "4.5": return VERSION.LUCENE_4_5;
+            case "4.4": return VERSION.LUCENE_4_4;
+            case "4.3": return VERSION.LUCENE_4_3;
+            case "4.2": return VERSION.LUCENE_4_2;
+            case "4.1": return VERSION.LUCENE_4_1;
+            case "4.0": return VERSION.LUCENE_4_0;
+            case "3.6": return VERSION.LUCENE_3_6;
+            case "3.5": return VERSION.LUCENE_3_5;
+            case "3.4": return VERSION.LUCENE_3_4;
+            case "3.3": return VERSION.LUCENE_3_3;
+            case "3.2": return VERSION.LUCENE_3_2;
+            case "3.1": return VERSION.LUCENE_3_1;
+            case "3.0": return VERSION.LUCENE_3_0;
+            default:
+                logger.warn("no version match {}, default to {}", version, defaultVersion);
+                return defaultVersion;
         }
-        if ("4.7".equals(version)) {
-            return VERSION.LUCENE_47;
-        }
-        if ("4.6".equals(version)) {
-            return VERSION.LUCENE_46;
-        }
-        if ("4.5".equals(version)) {
-            return VERSION.LUCENE_45;
-        }
-        if ("4.4".equals(version)) {
-            return VERSION.LUCENE_44;
-        }
-        if ("4.3".equals(version)) {
-            return Version.LUCENE_43;
-        }
-        if ("4.2".equals(version)) {
-            return Version.LUCENE_42;
-        }
-        if ("4.1".equals(version)) {
-            return Version.LUCENE_41;
-        }
-        if ("4.0".equals(version)) {
-            return Version.LUCENE_40;
-        }
-        if ("3.6".equals(version)) {
-            return Version.LUCENE_36;
-        }
-        if ("3.5".equals(version)) {
-            return Version.LUCENE_35;
-        }
-        if ("3.4".equals(version)) {
-            return Version.LUCENE_34;
-        }
-        if ("3.3".equals(version)) {
-            return Version.LUCENE_33;
-        }
-        if ("3.2".equals(version)) {
-            return Version.LUCENE_32;
-        }
-        if ("3.1".equals(version)) {
-            return Version.LUCENE_31;
-        }
-        if ("3.0".equals(version)) {
-            return Version.LUCENE_30;
-        }
-        logger.warn("no version match {}, default to {}", version, defaultVersion);
-        return defaultVersion;
     }
 
     /**

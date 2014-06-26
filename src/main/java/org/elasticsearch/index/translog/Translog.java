@@ -20,6 +20,7 @@
 package org.elasticsearch.index.translog;
 
 import org.apache.lucene.index.Term;
+import org.apache.lucene.util.Accountable;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -42,7 +43,7 @@ import java.io.InputStream;
 /**
  *
  */
-public interface Translog extends IndexShardComponent, CloseableIndexComponent {
+public interface Translog extends IndexShardComponent, CloseableIndexComponent, Accountable {
 
     static ByteSizeValue INACTIVE_SHARD_TRANSLOG_BUFFER = ByteSizeValue.parseBytesSizeValue("1kb");
 
@@ -61,11 +62,6 @@ public interface Translog extends IndexShardComponent, CloseableIndexComponent {
      * Returns the number of operations in the transaction log.
      */
     int estimatedNumberOfOperations();
-
-    /**
-     * The estimated memory size this translog is taking.
-     */
-    long memorySizeInBytes();
 
     /**
      * Returns the size in bytes of the translog.

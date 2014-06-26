@@ -253,7 +253,7 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
 
             AnalyzingSuggestHolder holder = new AnalyzingSuggestHolder(preserveSep, preservePositionIncrements, maxSurfaceFormsPerAnalyzedForm, maxGraphExpansions,
                     hasPayloads, maxAnalyzedPathsForOneInput, fst, sepLabel, payloadSep, endByte, holeCharacter);
-            sizeInBytes += fst.sizeInBytes();
+            sizeInBytes += fst.ramBytesUsed();
             lookupMap.put(entry.getValue(), holder);
         }
         final long ramBytesUsed = sizeInBytes;
@@ -296,12 +296,12 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
                 }
 
                 for (Map.Entry<String, AnalyzingSuggestHolder> entry : lookupMap.entrySet()) {
-                    sizeInBytes += entry.getValue().fst.sizeInBytes();
+                    sizeInBytes += entry.getValue().fst.ramBytesUsed();
                     if (fields == null || fields.length == 0) {
                         continue;
                     }
                     if (Regex.simpleMatch(fields, entry.getKey())) {
-                        long fstSize = entry.getValue().fst.sizeInBytes();
+                        long fstSize = entry.getValue().fst.ramBytesUsed();
                         completionFields.addTo(entry.getKey(), fstSize);
                     }
                 }

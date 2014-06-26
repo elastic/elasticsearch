@@ -22,7 +22,6 @@ package org.elasticsearch.index.mapper.internal;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
-import org.apache.lucene.document.XStringField;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -201,7 +200,7 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements I
                     context.ignoredValue(names.indexName(), routing);
                     return;
                 }
-                fields.add(new XStringField(names.indexName(), routing, fieldType));
+                fields.add(new Field(names.indexName(), routing, fieldType));
             }
         }
     }

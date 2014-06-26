@@ -88,7 +88,7 @@ public class WordDelimiterTokenFilterFactory extends AbstractTokenFilterFactory 
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-         if (version.onOrAfter(Version.LUCENE_48)) {
+         if (version.onOrAfter(Version.LUCENE_4_8)) {
              return new WordDelimiterFilter(version, tokenStream,
                      charTypeTable,
                      flags,

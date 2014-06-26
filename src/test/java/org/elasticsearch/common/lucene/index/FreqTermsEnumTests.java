@@ -78,7 +78,7 @@ public class FreqTermsEnumTests extends ElasticsearchLuceneTestCase {
         IndexWriterConfig conf = newIndexWriterConfig(TEST_VERSION_CURRENT, new MockAnalyzer(random()));
         if (frequently()) {
             // we don't want to do any merges, so we won't expunge deletes
-            conf.setMergePolicy(randomBoolean() ? NoMergePolicy.COMPOUND_FILES : NoMergePolicy.NO_COMPOUND_FILES);
+            conf.setMergePolicy(NoMergePolicy.INSTANCE);
         }
         iw = new IndexWriter(dir, conf);
         terms = new String[scaledRandomIntBetween(10, 300)];

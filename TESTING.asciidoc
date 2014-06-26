@@ -20,13 +20,13 @@ mvn clean package -DskipTests
 
 To disable and enable network transport, set the `Des.node.mode`.
 
-Use network transport (default):
+Use network transport:
 
 ------------------------------------
 -Des.node.mode=network
 ------------------------------------
 
-Use local transport:
+Use local transport (default since 1.3):
 
 -------------------------------------
 -Des.node.mode=local

@@ -219,6 +219,25 @@ public class Strings {
         return hasLength((CharSequence) str);
     }
 
+
+    /**
+     * Check that the given CharSequence is either <code>null</code> or of length 0.
+     * Note: Will return <code>false</code> for a CharSequence that purely consists of whitespace.
+     * <p><pre>
+     * StringUtils.isEmpty(null) = true
+     * StringUtils.isEmpty("") = true
+     * StringUtils.isEmpty(" ") = false
+     * StringUtils.isEmpty("Hello") = false
+     * </pre>
+     *
+     * @param str the CharSequence to check (may be <code>null</code>)
+     * @return <code>true</code> if the CharSequence is either null or has a zero length
+     */
+    public static boolean isEmpty(CharSequence str) {
+        return !hasLength(str);
+    }
+
+
     /**
      * Check whether the given CharSequence has actual text.
      * More specifically, returns <code>true</code> if the string not <code>null</code>,

@@ -34,7 +34,6 @@ import org.apache.lucene.codecs.memory.MemoryPostingsFormat;
 import org.apache.lucene.codecs.perfield.PerFieldPostingsFormat;
 import org.apache.lucene.codecs.pulsing.Pulsing41PostingsFormat;
 import org.apache.lucene.codecs.simpletext.SimpleTextCodec;
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
@@ -66,7 +65,6 @@ import java.util.Arrays;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-@LuceneTestCase.SuppressSysoutChecks(bugUrl="I am quite noisy")
 public class CodecTests extends ElasticsearchLuceneTestCase {
     
     @Override

@@ -37,14 +37,29 @@ class LiveVersionMap implements ReferenceManager.RefreshListener {
         assert Version.CURRENT.luceneVersion == org.apache.lucene.util.Version.LUCENE_48 : "Add 'implements Accountable' here";
     }
 
-    // All writes (adds and deletes) go into here:
-    private volatile Map<BytesRef,VersionValue> current = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
+    private static class Maps {
 
-    // Used while refresh is running, and to hold adds/deletes until refresh finishes.  We read from both current and old on lookup:
-    private volatile Map<BytesRef,VersionValue> old = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
+        // All writes (adds and deletes) go into here:
+        final Map<BytesRef,VersionValue> current;
+
+        // Used while refresh is running, and to hold adds/deletes until refresh finishes.  We read from both current and old on lookup:
+        final Map<BytesRef,VersionValue> old;
+      
+        public Maps(Map<BytesRef,VersionValue> current, Map<BytesRef,VersionValue> old) {
+           this.current = current;
+           this.old = old;
+        }
+
+        public Maps() {
+            this(ConcurrentCollections.<BytesRef,VersionValue>newConcurrentMapWithAggressiveConcurrency(),
+                 ConcurrentCollections.<BytesRef,VersionValue>newConcurrentMapWithAggressiveConcurrency());
+        }
+    }
 
     // All deletes also go here, and delete "tombstones" are retained after refresh:
-    private volatile Map<BytesRef,VersionValue> tombstones = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
+    private final Map<BytesRef,VersionValue> tombstones = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
+
+    private volatile Maps maps = new Maps();
 
     private ReferenceManager mgr;
 
@@ -82,8 +97,7 @@ class LiveVersionMap implements ReferenceManager.RefreshListener {
 
         // In case InternalEngine closes & opens a new IndexWriter/SearcherManager, all deletes are made visible, so we clear old and
         // current here.  This is safe because caller holds writeLock here (so no concurrent adds/deletes can be happeninge):
-        old = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();        
-        current = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
+        maps = new Maps();
 
         // So we are notified when reopen starts and finishes
         mgr.addListener(this);
@@ -91,17 +105,15 @@ class LiveVersionMap implements ReferenceManager.RefreshListener {
 
     @Override
     public void beforeRefresh() throws IOException {
-        old = current;
-
-        // This is not 100% correct, since concurrent indexing ops can change these counters in between our execution of the following 2
-        // lines, but that should be minor, and the error won't accumulate over time:
-        ramBytesUsedCurrent.set(0);
-
         // Start sending all updates after this point to the new
         // map.  While reopen is running, any lookup will first
         // try this new map, then fallback to old, then to the
         // current searcher:
-        current = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
+        maps = new Maps(ConcurrentCollections.<BytesRef,VersionValue>newConcurrentMapWithAggressiveConcurrency(), maps.current);
+
+        // This is not 100% correct, since concurrent indexing ops can change these counters in between our execution of the following 2
+        // lines, but that should be minor, and the error won't accumulate over time:
+        ramBytesUsedCurrent.set(0);
     }
 
     @Override
@@ -112,18 +124,20 @@ class LiveVersionMap implements ReferenceManager.RefreshListener {
         // case.  This is because we assign a new "current" (in beforeRefresh) slightly before Lucene actually flushes any segments for the
         // reopen, and so any concurrent indexing requests can still sneak in a few additions to that current map that are in fact reflected
         // in the previous reader.   We don't touch tombstones here: they expire on their own index.gc_deletes timeframe:
-        old = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
+        maps = new Maps(maps.current, ConcurrentCollections.<BytesRef,VersionValue>newConcurrentMapWithAggressiveConcurrency());
     }
 
     /** Returns the live version (add or delete) for this uid. */
     public VersionValue getUnderLock(BytesRef uid) {
+        Maps currentMaps = maps;
+
         // First try to get the "live" value:
-        VersionValue value = current.get(uid);
+        VersionValue value = currentMaps.current.get(uid);
         if (value != null) {
             return value;
         }
 
-        value = old.get(uid);
+        value = currentMaps.old.get(uid);
         if (value != null) {
             return value;
         }
@@ -136,7 +150,7 @@ class LiveVersionMap implements ReferenceManager.RefreshListener {
 
         long uidRAMBytesUsed = BASE_BYTES_PER_BYTESREF + uid.bytes.length;
 
-        VersionValue prev = current.put(uid, version);
+        VersionValue prev = maps.current.put(uid, version);
         if (prev != null) {
             // Deduct RAM for the version we just replaced:
             long prevBytes = BASE_BYTES_PER_CHM_ENTRY;
@@ -191,7 +205,7 @@ class LiveVersionMap implements ReferenceManager.RefreshListener {
             long v = ramBytesUsedTombstones.addAndGet(-(BASE_BYTES_PER_CHM_ENTRY + prev.ramBytesUsed() + uidRAMBytesUsed));
             assert v >= 0;
         }
-        VersionValue curVersion = current.get(uid);
+        VersionValue curVersion = maps.current.get(uid);
         if (curVersion != null && curVersion.delete()) {
             // We now shift accounting of the BytesRef from tombstones to current, because a refresh would clear this RAM.  This should be
             // uncommon, because with the default refresh=1s and gc_deletes=60s, deletes should be cleared from current long before we drop
@@ -212,8 +226,7 @@ class LiveVersionMap implements ReferenceManager.RefreshListener {
 
     /** Called when this index is closed. */
     public void clear() {
-        current.clear();
-        old.clear();
+        maps = new Maps();
         tombstones.clear();
         ramBytesUsedCurrent.set(0);
         ramBytesUsedTombstones.set(0);

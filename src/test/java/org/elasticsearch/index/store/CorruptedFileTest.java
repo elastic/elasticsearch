@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.index.store;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.google.common.base.Charsets;
 import com.google.common.base.Predicate;
@@ -30,23 +29,24 @@ import org.apache.lucene.store.*;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
-import org.elasticsearch.cluster.routing.ShardIterator;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.index.engine.internal.InternalEngine;
 import org.elasticsearch.index.merge.policy.AbstractMergePolicyProvider;
 import org.elasticsearch.index.merge.policy.MergePolicyModule;
@@ -57,14 +57,19 @@ import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.recovery.RecoveryFileChunkRequest;
+import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.monitor.fs.FsStats;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.store.MockFSDirectoryService;
+import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.*;
 import org.junit.Test;
 
 import java.io.*;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -73,17 +78,23 @@ import java.util.concurrent.ExecutionException;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
-@Repeat(iterations = 100)
 @ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE)
 public class CorruptedFileTest extends ElasticsearchIntegrationTest {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.builder().put(super.nodeSettings(nodeOrdinal)).put("gateway.type", "local").build();
+        return ImmutableSettings.builder()
+                // we really need local GW here since this also checks for corruption etc.
+                // and we need to make sure primaries are not just trashed if we dont' have replicase
+                .put(super.nodeSettings(nodeOrdinal)).put("gateway.type", "local")
+                .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, MockTransportService.class.getName()).build();
     }
 
+    /**
+     * Tests that we can actually recover from a corruption on the primary given that we have replica shards around.
+     */
     @Test
-    public void corruptFileAndRecover() throws ExecutionException, InterruptedException, IOException {
+    public void testCorruptFileAndRecover() throws ExecutionException, InterruptedException, IOException {
         int numDocs = scaledRandomIntBetween(100, 1000);
         assertThat(cluster().numDataNodes(), greaterThanOrEqualTo(2));
 
@@ -193,6 +204,10 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
         }
     }
 
+    /**
+     * Tests corruption that happens on a single shard when no replicas are present. We make sure that the primary stays unassigned
+     * and all other replicas for the healthy shards happens
+     */
     @Test
     public void testCorruptPrimaryNoReplica() throws ExecutionException, InterruptedException, IOException {
         int numDocs = scaledRandomIntBetween(100, 1000);
@@ -257,6 +272,96 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
                 assertThat(files.toString(), file.getName(), startsWith("corrupted_"));
             }
         }
+    }
+
+    /**
+     * Tests corruption that happens on the network layer and that the primary does not get affected by corruption that happens on the way
+     * to the replica. The file on disk stays uncorrupted
+     */
+    @Test
+    public void testCorrupteOnNetworkLayer() throws ExecutionException, InterruptedException {
+        int numDocs = scaledRandomIntBetween(100, 1000);
+        assertThat(cluster().numDataNodes(), greaterThanOrEqualTo(2));
+        if (cluster().numDataNodes() < 3) {
+            internalCluster().startNode(ImmutableSettings.builder().put("node.data", true).put("node.client", false).put("node.master", false));
+        }
+        NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().get();
+        List<NodeStats> dataNodeStats = new ArrayList<>();
+        for (NodeStats stat : nodeStats.getNodes()) {
+            if (stat.getNode().isDataNode()) {
+                dataNodeStats.add(stat);
+            }
+        }
+
+        assertThat(dataNodeStats.size(), greaterThanOrEqualTo(2));
+        Collections.shuffle(dataNodeStats, getRandom());
+        NodeStats primariesNode = dataNodeStats.get(0);
+        NodeStats unluckyNode = dataNodeStats.get(1);
+
+
+        assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder()
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
+                .put(InternalEngine.ENGINE_FAIL_ON_CORRUPTION, true)
+                .put("index.routing.allocation.include._name", primariesNode.getNode().name())
+                .put("indices.recovery.concurrent_streams", 10)
+        ));
+        ensureGreen();
+        IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
+        for (int i = 0; i < builders.length; i++) {
+            builders[i] = client().prepareIndex("test", "type").setSource("field", "value");
+        }
+        indexRandom(true, builders);
+        ensureGreen();
+        assertAllSuccessful(client().admin().indices().prepareFlush().setForce(true).execute().actionGet());
+        // we have to flush at least once here since we don't corrupt the translog
+        CountResponse countResponse = client().prepareCount().get();
+        assertHitCount(countResponse, numDocs);
+
+        for (NodeStats dataNode : dataNodeStats) {
+            MockTransportService mockTransportService = ((MockTransportService) internalCluster().getInstance(TransportService.class, dataNode.getNode().name()));
+            mockTransportService.addDelegate(internalCluster().getInstance(Discovery.class, unluckyNode.getNode().name()).localNode(), new MockTransportService.DelegateTransport(mockTransportService.original()) {
+
+                @Override
+                public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {
+                    if (action.equals(RecoveryTarget.Actions.FILE_CHUNK)) {
+                        RecoveryFileChunkRequest req = (RecoveryFileChunkRequest) request;
+                        byte[] array = req.content().array();
+                        int i = randomIntBetween(0, req.content().length() - 1);
+                        array[i] = (byte) ~array[i]; // flip one byte in the content
+                    }
+                    super.sendRequest(node, requestId, action, request, options);
+                }
+            });
+        }
+
+        Settings build = ImmutableSettings.builder()
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "1")
+                .put("index.routing.allocation.include._name", "*").build();
+        client().admin().indices().prepareUpdateSettings("test").setSettings(build).get();
+        client().admin().cluster().prepareReroute().get();
+        ClusterHealthResponse actionGet = client().admin().cluster()
+                .health(Requests.clusterHealthRequest("test").waitForGreenStatus()).actionGet();
+        if (actionGet.isTimedOut()) {
+            logger.info("ensureGreen timed out, cluster state:\n{}\n{}", client().admin().cluster().prepareState().get().getState().prettyPrint(), client().admin().cluster().preparePendingClusterTasks().get().prettyPrint());
+            assertThat("timed out waiting for green state", actionGet.isTimedOut(), equalTo(false));
+        }
+        // we are green so primaries got not corrupted.
+        // ensure that no shard is actually allocated on the unlucky node
+        ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().get();
+        for (IndexShardRoutingTable table : clusterStateResponse.getState().routingNodes().getRoutingTable().index("test")) {
+            for (ShardRouting routing : table) {
+                if (unluckyNode.getNode().getId().equals(routing.currentNodeId())) {
+                    assertThat(routing.state(), not(equalTo(ShardRoutingState.STARTED)));
+                    assertThat(routing.state(), not(equalTo(ShardRoutingState.RELOCATING)));
+                }
+            }
+        }
+        final int numIterations = scaledRandomIntBetween(5, 20);
+        for (int i = 0; i < numIterations; i++) {
+            SearchResponse response = client().prepareSearch().setSize(numDocs).get();
+            assertHitCount(response, numDocs);
+        }
+
     }
 
     private int numShards(String... index) {

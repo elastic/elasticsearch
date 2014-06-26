@@ -34,7 +34,7 @@ import java.io.IOException;
 /**
  *
  */
-class RecoveryFileChunkRequest extends TransportRequest {
+public final class RecoveryFileChunkRequest extends TransportRequest {  // public for testing
 
     private long recoveryId;
     private ShardId shardId;

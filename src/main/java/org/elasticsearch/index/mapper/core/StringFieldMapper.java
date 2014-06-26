@@ -20,13 +20,9 @@
 package org.elasticsearch.index.mapper.core;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
-import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
-import org.apache.lucene.document.XStringField;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.BytesRef;
@@ -287,7 +283,7 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
         }
 
         if (fieldType.indexed() || fieldType.stored()) {
-            Field field = new XStringField(names.indexName(), valueAndBoost.value(), fieldType);
+            Field field = new Field(names.indexName(), valueAndBoost.value(), fieldType);
             field.setBoost(valueAndBoost.boost());
             fields.add(field);
         }

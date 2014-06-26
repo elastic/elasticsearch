@@ -37,13 +37,13 @@ public class ParentChildAtomicFieldData implements AtomicFieldData {
         this.typeToIds = typeToIds;
         long size = 0;
         for (ObjectCursor<PagedBytesAtomicFieldData> cursor : typeToIds.values()) {
-            size += cursor.value.getMemorySizeInBytes();
+            size += cursor.value.ramBytesUsed();
         }
         this.memorySizeInBytes = size;
     }
 
     @Override
-    public long getMemorySizeInBytes() {
+    public long ramBytesUsed() {
         return memorySizeInBytes;
     }
 

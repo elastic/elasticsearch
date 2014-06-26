@@ -25,7 +25,6 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 
 import java.io.IOException;
 import java.io.Reader;
@@ -63,15 +62,14 @@ public class AllField extends Field {
         return allEntries;
     }
 
-    static {
-        assert Version.CURRENT.luceneVersion == org.apache.lucene.util.Version.LUCENE_48: "Re-use the incoming AllTokenStream once we upgrade to Lucene 4.9";
-    }
-
     @Override
-    public TokenStream tokenStream(Analyzer analyzer) throws IOException {
+    public TokenStream tokenStream(Analyzer analyzer, TokenStream previous) throws IOException {
         try {
             allEntries.reset(); // reset the all entries, just in case it was read already
             if (allEntries.customBoost() && fieldType().indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) >= 0) {
+                // TODO: we should be able to reuse "previous" if its instanceof AllTokenStream?
+                // but we need to be careful this optimization is safe (and tested)...
+                
                 // AllTokenStream maps boost to 4-byte payloads, so we only need to use it any field had non-default (!= 1.0f) boost and if
                 // positions are indexed:
                 return AllTokenStream.allTokenStream(name, allEntries, analyzer);

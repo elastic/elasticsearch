@@ -19,8 +19,9 @@
 
 package org.elasticsearch.index.fielddata.ordinals;
 
-import org.apache.lucene.index.MultiDocValues.OrdinalMap;
+import org.apache.lucene.index.XOrdinalMap;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.LongValues;
 import org.elasticsearch.index.fielddata.BytesValues;
 
 /**
@@ -29,32 +30,38 @@ import org.elasticsearch.index.fielddata.BytesValues;
 public class GlobalOrdinalMapping extends BytesValues.WithOrdinals {
 
     private final BytesValues.WithOrdinals values;
-    private final OrdinalMap ordinalMap;
+    private final XOrdinalMap ordinalMap;
+    private final LongValues mapping;
     private final BytesValues.WithOrdinals[] bytesValues;
-    private final int segmentIndex;
 
-    GlobalOrdinalMapping(OrdinalMap ordinalMap, BytesValues.WithOrdinals[] bytesValues, int segmentIndex) {
+    GlobalOrdinalMapping(XOrdinalMap ordinalMap, BytesValues.WithOrdinals[] bytesValues, int segmentIndex) {
         super(bytesValues[segmentIndex].isMultiValued());
         this.values = bytesValues[segmentIndex];
-        this.segmentIndex = segmentIndex;
         this.bytesValues = bytesValues;
         this.ordinalMap = ordinalMap;
+        this.mapping = ordinalMap.getGlobalOrds(segmentIndex);
     }
-
-    int readerIndex;
 
     @Override
     public long getMaxOrd() {
         return ordinalMap.getValueCount();
     }
+    
+    // NOTE: careful if we change the API here: unnecessary branch for < 0 here hurts a lot. 
+    // so if we already know the count (from setDocument), its bad to do it redundantly.
 
     public long getGlobalOrd(long segmentOrd) {
-        return segmentOrd == MISSING_ORDINAL ? MISSING_ORDINAL : ordinalMap.getGlobalOrd(segmentIndex, segmentOrd);
+        return mapping.get(segmentOrd);
     }
 
     @Override
     public long getOrd(int docId) {
-        return getGlobalOrd(values.getOrd(docId));
+        long v = values.getOrd(docId);
+        if (v < 0) {
+            return v;
+        } else {
+            return getGlobalOrd(v);
+        }
     }
 
     @Override
@@ -70,7 +77,7 @@ public class GlobalOrdinalMapping extends BytesValues.WithOrdinals {
     @Override
     public BytesRef getValueByOrd(long globalOrd) {
         final long segmentOrd = ordinalMap.getFirstSegmentOrd(globalOrd);
-        readerIndex = ordinalMap.getFirstSegmentNumber(globalOrd);
+        int readerIndex = ordinalMap.getFirstSegmentNumber(globalOrd);
         return bytesValues[readerIndex].getValueByOrd(segmentOrd);
     }
 

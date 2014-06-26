@@ -18,28 +18,20 @@
  */
 package org.elasticsearch.search.highlight.vectorhighlight;
 
-import java.io.IOException;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.List;
-
-import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.ngram.NGramTokenizerFactory;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.TextField;
-import org.apache.lucene.document.XStringField;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.highlight.Encoder;
 import org.apache.lucene.search.vectorhighlight.BoundaryScanner;
 import org.apache.lucene.search.vectorhighlight.FieldFragList.WeightedFragInfo;
-import org.apache.lucene.search.vectorhighlight.FieldFragList.WeightedFragInfo.SubInfo;
 import org.apache.lucene.search.vectorhighlight.ScoreOrderFragmentsBuilder;
-import org.elasticsearch.index.analysis.CustomAnalyzer;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
+
+import java.io.IOException;
+import java.util.List;
 
 /**
  *
@@ -67,7 +59,7 @@ public class SourceScoreOrderFragmentsBuilder extends ScoreOrderFragmentsBuilder
         List<Object> values = lookup.source().extractRawValues(mapper.names().sourcePath());
         Field[] fields = new Field[values.size()];
         for (int i = 0; i < values.size(); i++) {
-            fields[i] = new XStringField(mapper.names().indexName(), values.get(i).toString(), TextField.TYPE_NOT_STORED);
+            fields[i] = new Field(mapper.names().indexName(), values.get(i).toString(), TextField.TYPE_NOT_STORED);
         }
         return fields;
     }

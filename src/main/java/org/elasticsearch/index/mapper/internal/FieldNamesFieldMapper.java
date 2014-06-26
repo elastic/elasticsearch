@@ -23,7 +23,6 @@ import com.google.common.collect.UnmodifiableIterator;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
-import org.apache.lucene.document.XStringField;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
@@ -221,7 +220,7 @@ public class FieldNamesFieldMapper extends AbstractFieldMapper<String> implement
             for (String path : paths) {
                 for (String fieldName : extractFieldNames(path)) {
                     if (fieldType.indexed() || fieldType.stored()) {
-                        document.add(new XStringField(names().indexName(), fieldName, fieldType));
+                        document.add(new Field(names().indexName(), fieldName, fieldType));
                     }
                     if (hasDocValues()) {
                         document.add(new SortedSetDocValuesField(names().indexName(), new BytesRef(fieldName)));

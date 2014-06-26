@@ -174,11 +174,6 @@ public class ScriptFilterParser implements FilterParser {
             }
 
             @Override
-            public boolean isCacheable() {
-                return true;
-            }
-
-            @Override
             protected boolean matchDoc(int doc) {
                 searchScript.setNextDocId(doc);
                 Object val = searchScript.run();

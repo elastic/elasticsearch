@@ -80,7 +80,7 @@ public class FloatArrayIndexFieldData extends AbstractIndexFieldData<FloatArrayA
         NonEstimatingEstimator estimator = new NonEstimatingEstimator(breakerService.getBreaker());
         if (terms == null) {
             data = FloatArrayAtomicFieldData.empty();
-            estimator.afterLoad(null, data.getMemorySizeInBytes());
+            estimator.afterLoad(null, data.ramBytesUsed());
             return data;
         }
         // TODO: how can we guess the number of terms? numerics end up creating more terms per value...
@@ -106,8 +106,8 @@ public class FloatArrayIndexFieldData extends AbstractIndexFieldData<FloatArrayA
 
                 // there's sweet spot where due to low unique value count, using ordinals will consume less memory
                 long singleValuesArraySize = reader.maxDoc() * RamUsageEstimator.NUM_BYTES_FLOAT + (set == null ? 0 : RamUsageEstimator.sizeOf(set.getBits()) + RamUsageEstimator.NUM_BYTES_INT);
-                long uniqueValuesArraySize = values.sizeInBytes();
-                long ordinalsSize = build.getMemorySizeInBytes();
+                long uniqueValuesArraySize = values.ramBytesUsed();
+                long ordinalsSize = build.ramBytesUsed();
                 if (uniqueValuesArraySize + ordinalsSize < singleValuesArraySize) {
                     data = new FloatArrayAtomicFieldData.WithOrdinals(values, build);
                     success = true;
@@ -133,7 +133,7 @@ public class FloatArrayIndexFieldData extends AbstractIndexFieldData<FloatArrayA
             return data;
         } finally {
             if (success) {
-                estimator.afterLoad(null, data.getMemorySizeInBytes());
+                estimator.afterLoad(null, data.ramBytesUsed());
             }
 
         }

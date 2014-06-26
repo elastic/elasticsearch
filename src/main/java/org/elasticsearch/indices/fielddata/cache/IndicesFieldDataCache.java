@@ -23,6 +23,7 @@ import com.google.common.cache.*;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.SegmentReader;
+import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
@@ -31,7 +32,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.fielddata.*;
+import org.elasticsearch.index.fielddata.AtomicFieldData;
+import org.elasticsearch.index.fielddata.FieldDataType;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.service.IndexService;
@@ -46,10 +50,10 @@ import java.util.concurrent.TimeUnit;
 
 /**
  */
-public class IndicesFieldDataCache extends AbstractComponent implements RemovalListener<IndicesFieldDataCache.Key, RamUsage> {
+public class IndicesFieldDataCache extends AbstractComponent implements RemovalListener<IndicesFieldDataCache.Key, Accountable> {
 
     private final IndicesFieldDataCacheListener indicesFieldDataCacheListener;
-    private final Cache<Key, RamUsage> cache;
+    private final Cache<Key, Accountable> cache;
 
     @Inject
     public IndicesFieldDataCache(Settings settings, IndicesFieldDataCacheListener indicesFieldDataCacheListener) {
@@ -64,7 +68,7 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
             size = ByteSizeValue.MAX_GUAVA_CACHE_SIZE.toString();
         }
         final TimeValue expire = componentSettings.getAsTime("expire", null);
-        CacheBuilder<Key, RamUsage> cacheBuilder = CacheBuilder.newBuilder()
+        CacheBuilder<Key, Accountable> cacheBuilder = CacheBuilder.newBuilder()
                 .removalListener(this);
         if (sizeInBytes > 0) {
             cacheBuilder.maximumWeight(sizeInBytes).weigher(new FieldDataWeigher());
@@ -86,20 +90,20 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
         return new IndexFieldCache(logger, cache, indicesFieldDataCacheListener, indexService, index, fieldNames, fieldDataType);
     }
 
-    public Cache<Key, RamUsage> getCache() {
+    public Cache<Key, Accountable> getCache() {
         return cache;
     }
 
     @Override
-    public void onRemoval(RemovalNotification<Key, RamUsage> notification) {
+    public void onRemoval(RemovalNotification<Key, Accountable> notification) {
         Key key = notification.getKey();
         assert key != null && key.listeners != null;
         IndexFieldCache indexCache = key.indexCache;
         long sizeInBytes = key.sizeInBytes;
-        final RamUsage value = notification.getValue();
+        final Accountable value = notification.getValue();
         assert sizeInBytes >= 0 || value != null : "Expected size [" + sizeInBytes + "] to be positive or value [" + value + "] to be non-null";
         if (sizeInBytes == -1 && value != null) {
-            sizeInBytes = value.getMemorySizeInBytes();
+            sizeInBytes = value.ramBytesUsed();
         }
         for (IndexFieldDataCache.Listener listener : key.listeners) {
             try {
@@ -111,11 +115,11 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
         }
     }
 
-    public static class FieldDataWeigher implements Weigher<Key, RamUsage> {
+    public static class FieldDataWeigher implements Weigher<Key, Accountable> {
 
         @Override
-        public int weigh(Key key, RamUsage ramUsage) {
-            int weight = (int) Math.min(ramUsage.getMemorySizeInBytes(), Integer.MAX_VALUE);
+        public int weigh(Key key, Accountable ramUsage) {
+            int weight = (int) Math.min(ramUsage.ramBytesUsed(), Integer.MAX_VALUE);
             return weight == 0 ? 1 : weight;
         }
     }
@@ -129,10 +133,10 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
         final Index index;
         final FieldMapper.Names fieldNames;
         final FieldDataType fieldDataType;
-        private final Cache<Key, RamUsage> cache;
+        private final Cache<Key, Accountable> cache;
         private final IndicesFieldDataCacheListener indicesFieldDataCacheListener;
 
-        IndexFieldCache(ESLogger logger,final Cache<Key, RamUsage> cache, IndicesFieldDataCacheListener indicesFieldDataCacheListener, IndexService indexService, Index index, FieldMapper.Names fieldNames, FieldDataType fieldDataType) {
+        IndexFieldCache(ESLogger logger,final Cache<Key, Accountable> cache, IndicesFieldDataCacheListener indicesFieldDataCacheListener, IndexService indexService, Index index, FieldMapper.Names fieldNames, FieldDataType fieldDataType) {
             this.logger = logger;
             this.indexService = indexService;
             this.index = index;
@@ -169,7 +173,7 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
                             logger.error("Failed to call listener on atomic field data loading", e);
                         }
                     }
-                    key.sizeInBytes = fieldData.getMemorySizeInBytes();
+                    key.sizeInBytes = fieldData.ramBytesUsed();
                     return fieldData;
                 }
             });
@@ -179,9 +183,9 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
             final Key key = new Key(this, indexReader.getCoreCacheKey());
 
             //noinspection unchecked
-            return (IFD) cache.get(key, new Callable<RamUsage>() {
+            return (IFD) cache.get(key, new Callable<Accountable>() {
                 @Override
-                public RamUsage call() throws Exception {
+                public Accountable call() throws Exception {
                     indexReader.addReaderClosedListener(IndexFieldCache.this);
                     key.listeners.add(indicesFieldDataCacheListener);
                     final ShardId shardId = ShardUtils.extractShardId(indexReader);

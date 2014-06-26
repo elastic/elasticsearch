@@ -29,7 +29,6 @@ import org.elasticsearch.index.mapper.internal.TTLFieldMapper;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -63,7 +62,7 @@ public class TTLMappingTests extends ElasticsearchTestCase {
 
         assertThat(doc.rootDoc().getField("_ttl").fieldType().stored(), equalTo(true));
         assertThat(doc.rootDoc().getField("_ttl").fieldType().indexed(), equalTo(true));
-        assertThat(doc.rootDoc().getField("_ttl").tokenStream(docMapper.indexAnalyzer()), notNullValue());
+        assertThat(doc.rootDoc().getField("_ttl").tokenStream(docMapper.indexAnalyzer(), null), notNullValue());
     }
 
     @Test

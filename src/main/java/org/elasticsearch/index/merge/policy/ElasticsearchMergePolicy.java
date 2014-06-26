@@ -51,7 +51,6 @@ import java.util.Map;
  * For now, this {@link MergePolicy} takes care of moving versions that used to
  * be stored as payloads to numeric doc values.
  */
-@SuppressWarnings("PMD.ProperCloneImplementation")
 public final class ElasticsearchMergePolicy extends MergePolicy {
 
     private final MergePolicy delegate;
@@ -105,11 +104,11 @@ public final class ElasticsearchMergePolicy extends MergePolicy {
                 fieldNumber = Math.max(fieldNumber, fi.number + 1);
             }
             newVersionInfo = new FieldInfo(VersionFieldMapper.NAME, false, fieldNumber, false, true, false,
-                    IndexOptions.DOCS_ONLY, DocValuesType.NUMERIC, DocValuesType.NUMERIC, Collections.<String, String>emptyMap());
+                    IndexOptions.DOCS_ONLY, DocValuesType.NUMERIC, DocValuesType.NUMERIC, -1, Collections.<String, String>emptyMap());
         } else {
             newVersionInfo = new FieldInfo(VersionFieldMapper.NAME, versionInfo.isIndexed(), versionInfo.number,
                     versionInfo.hasVectors(), versionInfo.omitsNorms(), versionInfo.hasPayloads(),
-                    versionInfo.getIndexOptions(), versionInfo.getDocValuesType(), versionInfo.getNormType(), versionInfo.attributes());
+                    versionInfo.getIndexOptions(), versionInfo.getDocValuesType(), versionInfo.getNormType(), versionInfo.getDocValuesGen(), versionInfo.attributes());
         }
         final ArrayList<FieldInfo> fieldInfoList = new ArrayList<>();
         for (FieldInfo info : fieldInfos) {
@@ -189,13 +188,13 @@ public final class ElasticsearchMergePolicy extends MergePolicy {
 
     @Override
     public MergeSpecification findMerges(MergeTrigger mergeTrigger,
-        SegmentInfos segmentInfos) throws IOException {
-      return upgradedMergeSpecification(delegate.findMerges(mergeTrigger, segmentInfos));
+        SegmentInfos segmentInfos, IndexWriter writer) throws IOException {
+      return upgradedMergeSpecification(delegate.findMerges(mergeTrigger, segmentInfos, writer));
     }
 
     @Override
     public MergeSpecification findForcedMerges(SegmentInfos segmentInfos,
-        int maxSegmentCount, Map<SegmentCommitInfo,Boolean> segmentsToMerge)
+        int maxSegmentCount, Map<SegmentCommitInfo,Boolean> segmentsToMerge, IndexWriter writer)
         throws IOException {
       if (force) {
           List<SegmentCommitInfo> segments = Lists.newArrayList();
@@ -210,18 +209,13 @@ public final class ElasticsearchMergePolicy extends MergePolicy {
               return spec;
           }
       }
-      return upgradedMergeSpecification(delegate.findForcedMerges(segmentInfos, maxSegmentCount, segmentsToMerge));
+      return upgradedMergeSpecification(delegate.findForcedMerges(segmentInfos, maxSegmentCount, segmentsToMerge, writer));
     }
 
     @Override
-    public MergeSpecification findForcedDeletesMerges(SegmentInfos segmentInfos)
+    public MergeSpecification findForcedDeletesMerges(SegmentInfos segmentInfos, IndexWriter writer)
         throws IOException {
-      return upgradedMergeSpecification(delegate.findForcedDeletesMerges(segmentInfos));
-    }
-
-    @Override
-    public MergePolicy clone() {
-      return new ElasticsearchMergePolicy(delegate.clone());
+      return upgradedMergeSpecification(delegate.findForcedDeletesMerges(segmentInfos, writer));
     }
 
     @Override
@@ -230,14 +224,8 @@ public final class ElasticsearchMergePolicy extends MergePolicy {
     }
 
     @Override
-    public boolean useCompoundFile(SegmentInfos segments,
-                                   SegmentCommitInfo newSegment) throws IOException {
-      return delegate.useCompoundFile(segments, newSegment);
-    }
-
-    @Override
-    public void setIndexWriter(IndexWriter writer) {
-      delegate.setIndexWriter(writer);
+    public boolean useCompoundFile(SegmentInfos segments, SegmentCommitInfo newSegment, IndexWriter writer) throws IOException {
+      return delegate.useCompoundFile(segments, newSegment, writer);
     }
 
     /**

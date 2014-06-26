@@ -79,11 +79,6 @@ public class GeoPolygonFilter extends Filter {
         }
 
         @Override
-        public boolean isCacheable() {
-            return true;
-        }
-
-        @Override
         protected boolean matchDoc(int doc) {
             final int length = values.setDocument(doc);
             for (int i = 0; i < length; i++) {

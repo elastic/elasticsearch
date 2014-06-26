@@ -45,7 +45,7 @@ public class SinglePackedOrdinals extends Ordinals {
     }
 
     @Override
-    public long getMemorySizeInBytes() {
+    public long ramBytesUsed() {
         if (size == -1) {
             size = RamUsageEstimator.NUM_BYTES_OBJECT_REF + reader.ramBytesUsed();
         }

@@ -44,47 +44,33 @@ public class BinaryDVAtomicFieldData implements AtomicFieldData<ScriptDocValues.
     }
 
     @Override
-    public long getMemorySizeInBytes() {
+    public long ramBytesUsed() {
         // TODO: Lucene doesn't expose it right now
         return -1;
     }
 
     @Override
     public BytesValues getBytesValues() {
-        final BinaryDocValues values;
-        final Bits docsWithField;
         try {
-            final BinaryDocValues v = reader.getBinaryDocValues(field);
-            if (v == null) {
-                // segment has no value
-                values = DocValues.EMPTY_BINARY;
-                docsWithField = new Bits.MatchNoBits(reader.maxDoc());
-            } else {
-                values = v;
-                final Bits b = reader.getDocsWithField(field);
-                docsWithField = b == null ? new Bits.MatchAllBits(reader.maxDoc()) : b;
-            }
+            final BinaryDocValues values = DocValues.getBinary(reader, field);
+            final Bits docsWithField = DocValues.getDocsWithField(reader, field);
+            return new BytesValues(false) {
+                int docId;
+
+                @Override
+                public int setDocument(int docId) {
+                    this.docId = docId;
+                    return docsWithField.get(docId) ? 1 : 0;
+                }
+
+                @Override
+                public BytesRef nextValue() {
+                    return values.get(docId);
+                }
+            };
         } catch (IOException e) {
             throw new ElasticsearchIllegalStateException("Cannot load doc values", e);
         }
-
-        return new BytesValues(false) {
-
-            final BytesRef scratch = new BytesRef();
-            int docId;
-
-            @Override
-            public int setDocument(int docId) {
-                this.docId = docId;
-                return docsWithField.get(docId) ? 1 : 0;
-            }
-
-            @Override
-            public BytesRef nextValue() {
-                values.get(docId, scratch);
-                return scratch;
-            }
-        };
     }
 
     @Override

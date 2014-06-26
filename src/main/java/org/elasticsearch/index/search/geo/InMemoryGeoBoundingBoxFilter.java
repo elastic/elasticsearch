@@ -89,11 +89,6 @@ public class InMemoryGeoBoundingBoxFilter extends Filter {
         }
 
         @Override
-        public boolean isCacheable() {
-            return true;
-        }
-
-        @Override
         protected boolean matchDoc(int doc) {
             final int length = values.setDocument(doc);
             for (int i = 0; i < length; i++) {
@@ -117,11 +112,6 @@ public class InMemoryGeoBoundingBoxFilter extends Filter {
             this.values = values;
             this.topLeft = topLeft;
             this.bottomRight = bottomRight;
-        }
-
-        @Override
-        public boolean isCacheable() {
-            return true;
         }
 
         @Override

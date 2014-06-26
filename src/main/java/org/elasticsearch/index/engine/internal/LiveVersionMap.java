@@ -89,7 +89,8 @@ class LiveVersionMap implements ReferenceManager.RefreshListener {
     /** Tracks bytes used by tombstones (deletes) */
     final AtomicLong ramBytesUsedTombstones = new AtomicLong();
 
-    public void setManager(ReferenceManager newMgr) {
+    /** Sync'd because we replace old mgr. */
+    synchronized void setManager(ReferenceManager newMgr) {
         if (mgr != null) {
             mgr.removeListener(this);
         }
@@ -128,7 +129,7 @@ class LiveVersionMap implements ReferenceManager.RefreshListener {
     }
 
     /** Returns the live version (add or delete) for this uid. */
-    public VersionValue getUnderLock(BytesRef uid) {
+    VersionValue getUnderLock(BytesRef uid) {
         Maps currentMaps = maps;
 
         // First try to get the "live" value:
@@ -146,11 +147,11 @@ class LiveVersionMap implements ReferenceManager.RefreshListener {
     }
 
     /** Adds this uid/version to the pending adds map. */
-    public void putUnderLock(BytesRef uid, VersionValue version) {
+    void putUnderLock(BytesRef uid, VersionValue version) {
 
         long uidRAMBytesUsed = BASE_BYTES_PER_BYTESREF + uid.bytes.length;
 
-        VersionValue prev = maps.current.put(uid, version);
+        final VersionValue prev = maps.current.put(uid, version);
         if (prev != null) {
             // Deduct RAM for the version we just replaced:
             long prevBytes = BASE_BYTES_PER_CHM_ENTRY;
@@ -167,7 +168,7 @@ class LiveVersionMap implements ReferenceManager.RefreshListener {
         }
         ramBytesUsedCurrent.addAndGet(newBytes);
 
-        VersionValue prevTombstone;
+        final VersionValue prevTombstone;
         if (version.delete()) {
             // Also enroll the delete into tombstones, and account for its RAM too:
             prevTombstone = tombstones.put(uid, version);
@@ -195,17 +196,17 @@ class LiveVersionMap implements ReferenceManager.RefreshListener {
     }
 
     /** Removes this uid from the pending deletes map. */
-    public void removeTombstoneUnderLock(BytesRef uid) {
+    void removeTombstoneUnderLock(BytesRef uid) {
 
         long uidRAMBytesUsed = BASE_BYTES_PER_BYTESREF + uid.bytes.length;
 
-        VersionValue prev = tombstones.remove(uid);
+        final VersionValue prev = tombstones.remove(uid);
         if (prev != null) {
             assert prev.delete();
             long v = ramBytesUsedTombstones.addAndGet(-(BASE_BYTES_PER_CHM_ENTRY + prev.ramBytesUsed() + uidRAMBytesUsed));
             assert v >= 0;
         }
-        VersionValue curVersion = maps.current.get(uid);
+        final VersionValue curVersion = maps.current.get(uid);
         if (curVersion != null && curVersion.delete()) {
             // We now shift accounting of the BytesRef from tombstones to current, because a refresh would clear this RAM.  This should be
             // uncommon, because with the default refresh=1s and gc_deletes=60s, deletes should be cleared from current long before we drop
@@ -215,17 +216,17 @@ class LiveVersionMap implements ReferenceManager.RefreshListener {
     }
 
     /** Caller has a lock, so that this uid will not be concurrently added/deleted by another thread. */
-    public VersionValue getTombstoneUnderLock(BytesRef uid) {
+    VersionValue getTombstoneUnderLock(BytesRef uid) {
         return tombstones.get(uid);
     }
 
     /** Iterates over all deleted versions, including new ones (not yet exposed via reader) and old ones (exposed via reader but not yet GC'd). */
-    public Iterable<Map.Entry<BytesRef,VersionValue>> getAllTombstones() {
+    Iterable<Map.Entry<BytesRef,VersionValue>> getAllTombstones() {
         return tombstones.entrySet();
     }
 
     /** Called when this index is closed. */
-    public void clear() {
+    synchronized void clear() {
         maps = new Maps();
         tombstones.clear();
         ramBytesUsedCurrent.set(0);
@@ -238,13 +239,13 @@ class LiveVersionMap implements ReferenceManager.RefreshListener {
 
     // Not until we implement Accountable interface (Lucene 4.9):
     // @Override
-    public long ramBytesUsed() {
+    long ramBytesUsed() {
         return ramBytesUsedCurrent.get() + ramBytesUsedTombstones.get();
     }
 
     /** Returns how much RAM would be freed up by refreshing. This is {@link ramBytesUsed} except does not include tombstones because they
      *  don't clear on refresh. */
-    public long ramBytesUsedForRefresh() {
+    long ramBytesUsedForRefresh() {
         return ramBytesUsedCurrent.get();
     }
 }

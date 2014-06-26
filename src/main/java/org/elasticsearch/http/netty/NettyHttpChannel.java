@@ -185,6 +185,8 @@ public class NettyHttpChannel extends HttpChannel {
         }
     }
 
+    private static final HttpResponseStatus TOO_MANY_REQUESTS = new HttpResponseStatus(429, "Too Many Requests");
+
     private HttpResponseStatus getStatus(RestStatus status) {
         switch (status) {
             case CONTINUE:
@@ -264,6 +266,8 @@ public class NettyHttpChannel extends HttpChannel {
                 return HttpResponseStatus.BAD_REQUEST;
             case FAILED_DEPENDENCY:
                 return HttpResponseStatus.BAD_REQUEST;
+            case TOO_MANY_REQUESTS:
+                return TOO_MANY_REQUESTS;
             case INTERNAL_SERVER_ERROR:
                 return HttpResponseStatus.INTERNAL_SERVER_ERROR;
             case NOT_IMPLEMENTED:

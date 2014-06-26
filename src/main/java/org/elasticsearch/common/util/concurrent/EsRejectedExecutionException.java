@@ -40,6 +40,6 @@ public class EsRejectedExecutionException extends ElasticsearchException {
 
     @Override
     public RestStatus status() {
-        return RestStatus.SERVICE_UNAVAILABLE;
+        return RestStatus.TOO_MANY_REQUESTS;
     }
 }

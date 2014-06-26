@@ -27,6 +27,7 @@ import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.Modules;
 import org.elasticsearch.common.inject.SpawnModules;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.store.fs.DefaultFsIndexStoreModule;
 import org.elasticsearch.index.store.fs.MmapFsIndexStoreModule;
 import org.elasticsearch.index.store.fs.NioFsIndexStoreModule;
 import org.elasticsearch.index.store.fs.SimpleFsIndexStoreModule;
@@ -39,6 +40,51 @@ public class IndexStoreModule extends AbstractModule implements SpawnModules {
 
     private final Settings settings;
 
+    public static enum Type {
+        NIOFS {
+            public boolean match(String setting) {
+                return super.match(setting) || "nio_fs".equalsIgnoreCase(setting);
+            }
+        },
+        MMAPFS {
+            public boolean match(String setting) {
+                return super.match(setting) || "mmap_fs".equalsIgnoreCase(setting);
+            }
+        },
+
+        SIMPLEFS {
+            public boolean match(String setting) {
+                return super.match(setting) || "simple_fs".equalsIgnoreCase(setting);
+            }
+        },
+        RAM {
+            public  boolean fsStore() {
+                return false;
+            }
+        },
+        MEMORY {
+            public  boolean fsStore() {
+                return false;
+            }
+        },
+        FS,
+        DEFAULT,;
+
+        /**
+         * Returns true iff this store type is a filesystem based store.
+         */
+        public  boolean fsStore() {
+            return true;
+        }
+
+        /**
+         * Returns true iff this settings matches the type.
+         */
+        public boolean match(String setting) {
+            return this.name().equalsIgnoreCase(setting);
+        }
+    }
+
     public IndexStoreModule(Settings settings) {
         this.settings = settings;
     }
@@ -46,26 +92,32 @@ public class IndexStoreModule extends AbstractModule implements SpawnModules {
     @Override
     public Iterable<? extends Module> spawnModules() {
         Class<? extends Module> indexStoreModule = NioFsIndexStoreModule.class;
-        // Same logic as FSDirectory#open ...
         if ((Constants.WINDOWS || Constants.SUN_OS || Constants.LINUX)
                 && Constants.JRE_IS_64BIT && MMapDirectory.UNMAP_SUPPORTED) {
-            indexStoreModule = MmapFsIndexStoreModule.class;
+            if (Constants.WINDOWS) {
+                indexStoreModule = MmapFsIndexStoreModule.class;
+            } else {
+                // on linux and friends we only mmap dedicated files
+                indexStoreModule = DefaultFsIndexStoreModule.class;
+            }
         } else if (Constants.WINDOWS) {
             indexStoreModule = SimpleFsIndexStoreModule.class;
         }
         String storeType = settings.get("index.store.type");
-        if ("ram".equalsIgnoreCase(storeType)) {
+        if (Type.RAM.name().equalsIgnoreCase(storeType)) {
             indexStoreModule = RamIndexStoreModule.class;
-        } else if ("memory".equalsIgnoreCase(storeType)) {
+        } else if (Type.MEMORY.match(storeType)) {
             indexStoreModule = RamIndexStoreModule.class;
-        } else if ("fs".equalsIgnoreCase(storeType)) {
+        } else if (Type.FS.match(storeType)) {
             // nothing to set here ... (we default to fs)
-        } else if ("simplefs".equalsIgnoreCase(storeType) || "simple_fs".equals(storeType)) {
+        } else if (Type.SIMPLEFS.match(storeType)) {
             indexStoreModule = SimpleFsIndexStoreModule.class;
-        } else if ("niofs".equalsIgnoreCase(storeType) || "nio_fs".equalsIgnoreCase(storeType)) {
+        } else if (Type.NIOFS.match(storeType)) {
             indexStoreModule = NioFsIndexStoreModule.class;
-        } else if ("mmapfs".equalsIgnoreCase(storeType) || "mmap_fs".equalsIgnoreCase(storeType)) {
+        } else if (Type.MMAPFS.match(storeType)) {
             indexStoreModule = MmapFsIndexStoreModule.class;
+        } else if (Type.DEFAULT.match(storeType)) {
+            indexStoreModule = DefaultFsIndexStoreModule.class;
         } else if (storeType != null) {
             indexStoreModule = settings.getAsClass("index.store.type", indexStoreModule, "org.elasticsearch.index.store.", "IndexStoreModule");
         }

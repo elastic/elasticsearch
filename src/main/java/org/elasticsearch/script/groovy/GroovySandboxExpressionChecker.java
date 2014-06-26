@@ -81,6 +81,7 @@ public class GroovySandboxExpressionChecker implements SecureASTCustomizer.Expre
             java.util.HashMap.class.getName(),
             java.util.HashSet.class.getName(),
             java.util.UUID.class.getName(),
+            java.math.BigDecimal.class.getName(),
             org.joda.time.DateTime.class.getName(),
             org.joda.time.DateTimeZone.class.getName()
     };

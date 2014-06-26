@@ -19,7 +19,7 @@
 package org.elasticsearch.index.fielddata.ordinals;
 
 import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.index.MultiDocValues.OrdinalMap;
+import org.apache.lucene.index.XOrdinalMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
@@ -35,7 +35,7 @@ final class InternalGlobalOrdinalsIndexFieldData extends GlobalOrdinalsIndexFiel
 
     private final Atomic[] atomicReaders;
 
-    InternalGlobalOrdinalsIndexFieldData(Index index, Settings settings, FieldMapper.Names fieldNames, FieldDataType fieldDataType, AtomicFieldData.WithOrdinals[] segmentAfd, OrdinalMap ordinalMap, long memorySizeInBytes) {
+    InternalGlobalOrdinalsIndexFieldData(Index index, Settings settings, FieldMapper.Names fieldNames, FieldDataType fieldDataType, AtomicFieldData.WithOrdinals[] segmentAfd, XOrdinalMap ordinalMap, long memorySizeInBytes) {
         super(index, settings, fieldNames, fieldDataType, memorySizeInBytes);
         this.atomicReaders = new Atomic[segmentAfd.length];
         for (int i = 0; i < segmentAfd.length; i++) {
@@ -51,10 +51,10 @@ final class InternalGlobalOrdinalsIndexFieldData extends GlobalOrdinalsIndexFiel
     private final class Atomic implements AtomicFieldData.WithOrdinals {
 
         private final WithOrdinals afd;
-        private final OrdinalMap ordinalMap;
+        private final XOrdinalMap ordinalMap;
         private final int segmentIndex;
 
-        private Atomic(WithOrdinals afd, OrdinalMap ordinalMap, int segmentIndex) {
+        private Atomic(WithOrdinals afd, XOrdinalMap ordinalMap, int segmentIndex) {
             this.afd = afd;
             this.ordinalMap = ordinalMap;
             this.segmentIndex = segmentIndex;

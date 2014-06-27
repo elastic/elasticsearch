@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.significant;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -144,7 +145,9 @@ public class SignificantLongTerms extends InternalSignificantTerms {
         out.writeVLong(minDocCount);
         out.writeVLong(subsetSize);
         out.writeVLong(supersetSize);
-        significanceHeuristic.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_1_3_0)) {
+            significanceHeuristic.writeTo(out);
+        }
         out.writeVInt(buckets.size());
         for (InternalSignificantTerms.Bucket bucket : buckets) {
             out.writeVLong(((Bucket) bucket).subsetDf);

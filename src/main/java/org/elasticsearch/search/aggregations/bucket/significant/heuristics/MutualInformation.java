@@ -44,6 +44,14 @@ public class MutualInformation implements SignificanceHeuristic {
      */
     protected boolean includeNegatives = false;
 
+    @Override
+    public boolean equals(Object other) {
+        if (! (other instanceof MutualInformation)) {
+            return false;
+        }
+        return ((MutualInformation)other).includeNegatives == includeNegatives;
+    }
+
     public static final SignificanceHeuristicStreams.Stream STREAM = new SignificanceHeuristicStreams.Stream() {
         @Override
         public SignificanceHeuristic readResult(StreamInput in) throws IOException {

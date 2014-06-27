@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations.bucket.significant.heuristics;
 
 import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
 
@@ -33,7 +34,11 @@ public class SignificanceHeuristicStreams {
     private static ImmutableMap<String, Stream> STREAMS = ImmutableMap.of();
 
     public static SignificanceHeuristic read(StreamInput in) throws IOException {
-        return stream(in.readString()).readResult(in);
+        if (in.getVersion().onOrAfter(Version.V_1_3_0)) {
+            return stream(in.readString()).readResult(in);
+        } else {
+            return new DefaultHeuristic();
+        }
     }
 
     /**

@@ -35,6 +35,11 @@ public class DefaultHeuristic implements SignificanceHeuristic {
 
     protected static final String[] NAMES = {"default"};
 
+    @Override
+    public boolean equals(Object other) {
+        return other instanceof DefaultHeuristic;
+    }
+
     public static final SignificanceHeuristicStreams.Stream STREAM = new SignificanceHeuristicStreams.Stream() {
         @Override
         public SignificanceHeuristic readResult(StreamInput in) throws IOException {

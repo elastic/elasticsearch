@@ -19,17 +19,17 @@
 
 package org.elasticsearch.indices.analysis.smartcn;
 
-import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.cn.smart.HMMChineseTokenizer;
-import org.apache.lucene.analysis.cn.smart.SentenceTokenizer;
 import org.apache.lucene.analysis.cn.smart.SmartChineseAnalyzer;
-import org.apache.lucene.analysis.cn.smart.WordTokenFilter;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.analysis.*;
+import org.elasticsearch.index.analysis.AnalyzerScope;
+import org.elasticsearch.index.analysis.PreBuiltAnalyzerProviderFactory;
+import org.elasticsearch.index.analysis.PreBuiltTokenizerFactoryFactory;
+import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 
 import java.io.Reader;
@@ -47,32 +47,7 @@ public class SmartChineseIndicesAnalysis extends AbstractComponent {
         // Register smartcn analyzer
         indicesAnalysisService.analyzerProviderFactories().put("smartcn", new PreBuiltAnalyzerProviderFactory("smartcn", AnalyzerScope.INDICES, new SmartChineseAnalyzer(Lucene.ANALYZER_VERSION)));
 
-        // Register smartcn_word token filter
-        // TODO Remove it in 2.3.0 (was deprecated: see https://github.com/elasticsearch/elasticsearch-analysis-smartcn/issues/22)
-        indicesAnalysisService.tokenFilterFactories().put("smartcn_word", new PreBuiltTokenFilterFactoryFactory(new TokenFilterFactory() {
-            @Override public String name() {
-                return "smartcn_word";
-            }
-
-            @Override public TokenStream create(TokenStream tokenStream) {
-                return new WordTokenFilter(tokenStream);
-            }
-        }));
-
-        // Register smartcn_sentence tokenizer
-        indicesAnalysisService.tokenizerFactories().put("smartcn_sentence", new PreBuiltTokenizerFactoryFactory(new TokenizerFactory() {
-            @Override
-            public String name() {
-                return "smartcn_sentence";
-            }
-
-            @Override
-            public Tokenizer create(Reader reader) {
-                return new SentenceTokenizer(reader);
-            }
-        }));
-
-        // Register smartcn_sentence tokenizer
+        // Register smartcn_tokenizer tokenizer
         indicesAnalysisService.tokenizerFactories().put("smartcn_tokenizer", new PreBuiltTokenizerFactoryFactory(new TokenizerFactory() {
             @Override
             public String name() {

@@ -30,14 +30,6 @@ public class SmartChineseAnalysisBinderProcessor extends AnalysisModule.Analysis
 
     @Override
     public void processTokenizers(TokenizersBindings tokenizersBindings) {
-        // TODO Remove it in 2.3.0 (was deprecated: see https://github.com/elasticsearch/elasticsearch-analysis-smartcn/issues/22)
-        tokenizersBindings.processTokenizer("smartcn_sentence", SmartChineseSentenceTokenizerFactory.class);
         tokenizersBindings.processTokenizer("smartcn_tokenizer", SmartChineseTokenizerTokenizerFactory.class);
-    }
-
-    @Override
-    public void processTokenFilters(TokenFiltersBindings tokenFiltersBindings) {
-        // TODO Remove it in 2.3.0 (was deprecated: see https://github.com/elasticsearch/elasticsearch-analysis-smartcn/issues/22)
-        tokenFiltersBindings.processTokenFilter("smartcn_word", SmartChineseWordTokenFilterFactory.class);
     }
 }

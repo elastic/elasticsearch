@@ -184,14 +184,23 @@ To run backwards compatibiilty tests untar or unzip a release and run the tests
 with the following command:
 
 ---------------------------------------------------------------------------
-mvn test -Dtests.bwc=true -Dtests.bwc.version=x.y.z -Dtests.bwc.path=/path/to/elasticsearch
+mvn test -Dtests.bwc=true -Dtests.bwc.version=x.y.z -Dtests.bwc.path=/path/to/elasticsearch -Des.node.mode=network
 ---------------------------------------------------------------------------
 
 If the elasticsearch release is placed under `./backwards/elasticsearch-x.y.z` the path
 can be omitted:
  
 ---------------------------------------------------------------------------
-mvn test -Dtests.bwc=true -Dtests.bwc.version=x.y.z 
+mvn test -Dtests.bwc=true -Dtests.bwc.version=x.y.z -Des.node.mode=network
+---------------------------------------------------------------------------
+
+To setup the bwc test environment execute the following steps (provided you are
+already in your elasticsearch clone):
+
+---------------------------------------------------------------------------
+$ mkdir backwards && cd backwards
+$ curl -O https://download.elasticsearch.org/elasticsearch/elasticsearch/elasticsearch-1.2.1.tar.gz
+$ tar -xzf elasticsearch-1.2.1.tar.gz 
 ---------------------------------------------------------------------------
 
 == Testing the REST layer

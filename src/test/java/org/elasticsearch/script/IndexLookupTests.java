@@ -178,6 +178,7 @@ public class IndexLookupTests extends ElasticsearchIntegrationTest {
             client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()).addScriptField("tvtest", script).execute().actionGet();
         } catch (SearchPhaseExecutionException e) {
             assertThat(
+                    "got: " + e.getDetailedMessage(),
                     e.getDetailedMessage()
                             .indexOf(
                                     "You must call get with all required flags! Instead of  _index['int_payload_field'].get('b', _FREQUENCIES) and _index['int_payload_field'].get('b', _POSITIONS) call  _index['int_payload_field'].get('b', _FREQUENCIES | _POSITIONS)  once]; "),
@@ -577,8 +578,8 @@ public class IndexLookupTests extends ElasticsearchIntegrationTest {
                         Matchers.greaterThan(-1));
             }
         } catch (SearchPhaseExecutionException ex) {
-
             assertThat(
+                    "got " + ex.getDetailedMessage(),
                     ex.getDetailedMessage().indexOf("Cannot iterate twice! If you want to iterate more that once, add _CACHE explicitely."),
                     Matchers.greaterThan(-1));
         }

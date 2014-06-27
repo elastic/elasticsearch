@@ -160,6 +160,9 @@ REM The path to the heap dump location, note directory must exists and have enou
 REM space for a full heap dump.
 REM JAVA_OPTS=%JAVA_OPTS% -XX:HeapDumpPath=$ES_HOME/logs/heapdump.hprof
 
+REM Disables explicit GC
+set JAVA_OPTS=%JAVA_OPTS% -XX:+DisableExplicitGC
+
 if "%DATA_DIR%" == "" set DATA_DIR=%ES_HOME%\data
 
 if "%WORK_DIR%" == "" set WORK_DIR=%ES_HOME%

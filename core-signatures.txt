@@ -51,5 +51,8 @@ java.lang.Object#notifyAll()
 java.lang.Math#abs(int)
 java.lang.Math#abs(long)
 
+@defaultMessage Please do not try to stop the world
+java.lang.System#gc()
+
 @defaultMessage Use Long.compare instead we are on Java7
 com.google.common.primitives.Longs#compare(long,long)

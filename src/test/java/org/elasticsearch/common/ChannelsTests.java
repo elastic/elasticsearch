@@ -107,30 +107,56 @@ public class ChannelsTests extends ElasticsearchTestCase {
 
     @Test
     public void testReadWriteThroughBuffers() throws IOException {
-        ByteBuffer source = ByteBuffer.wrap(randomBytes);
+        ByteBuffer source;
+        if (randomBoolean()) {
+            source = ByteBuffer.wrap(randomBytes);
+        } else {
+            source = ByteBuffer.allocateDirect(randomBytes.length);
+            source.put(randomBytes);
+            source.flip();
+        }
         Channels.writeToChannel(source, fileChannel);
-        ByteBuffer copy = ByteBuffer.allocate(randomBytes.length);
+        ByteBuffer copy;
+        if (randomBoolean()) {
+            copy = ByteBuffer.allocate(randomBytes.length);
+        } else {
+            copy = ByteBuffer.allocateDirect(randomBytes.length);
+        }
         int read = Channels.readFromFileChannel(fileChannel, 0, copy);
         assertThat(read, Matchers.equalTo(randomBytes.length));
-        assertThat("read bytes didn't match written bytes", randomBytes, Matchers.equalTo(copy.array()));
+        byte[] copyBytes = new byte[read];
+        copy.flip();
+        copy.get(copyBytes);
+        assertThat("read bytes didn't match written bytes", randomBytes, Matchers.equalTo(copyBytes));
     }
 
     @Test
     public void testPartialReadWriteThroughBuffers() throws IOException {
         int length = randomIntBetween(1, randomBytes.length / 2);
         int offset = randomIntBetween(0, randomBytes.length - length);
-        ByteBuffer source = ByteBuffer.wrap(randomBytes, offset, length);
+        ByteBuffer source;
+        if (randomBoolean()) {
+            source = ByteBuffer.wrap(randomBytes, offset, length);
+        } else {
+            source = ByteBuffer.allocateDirect(length);
+            source.put(randomBytes, offset, length);
+            source.flip();
+        }
         Channels.writeToChannel(source, fileChannel);
 
         int lengthToRead = randomIntBetween(1, length);
         int offsetToRead = randomIntBetween(0, length - lengthToRead);
-        ByteBuffer copy = ByteBuffer.allocate(offsetToRead + lengthToRead);
-        copy.position(offsetToRead);
+        ByteBuffer copy;
+        if (randomBoolean()) {
+            copy = ByteBuffer.allocate(lengthToRead);
+        } else {
+            copy = ByteBuffer.allocateDirect(lengthToRead);
+        }
         int read = Channels.readFromFileChannel(fileChannel, offsetToRead, copy);
         assertThat(read, Matchers.equalTo(lengthToRead));
+        copy.flip();
 
         BytesReference sourceRef = new BytesArray(randomBytes, offset + offsetToRead, lengthToRead);
-        copy.position(offsetToRead);
         BytesReference copyRef = new ByteBufferBytesReference(copy);
 
         assertTrue("read bytes didn't match written bytes", sourceRef.equals(copyRef));

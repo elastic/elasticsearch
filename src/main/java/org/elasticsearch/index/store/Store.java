@@ -57,6 +57,24 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
+ * A Store provides plain access to files written by an elasticsearch index shard. Each shard
+ * has a dedicated store that is uses to access lucenes Directory which represents the lowest level
+ * of file abstraction in lucene used to read and write Lucene indices to.
+ * This class also provides access to metadata information like checksums for committed files. A committed
+ * file is a file that belongs to a segment written by a Lucene commit. Files that have not been committed
+ * ie. created during a merge or a shard refresh / NRT reopen are not considered in the MetadataSnapshot.
+ *
+ * Note: If you use a store it's reference count should be increased before using it by calling #incRef and a
+ * corresponding #decRef must be called in a try/finally block to release the store again ie.:
+ * <pre>
+ *      store.incRef();
+ *      try {
+ *        // use the store...
+ *
+ *      } finally {
+ *          store.decRef();
+ *      }
+ * </pre>
  */
 public class Store extends AbstractIndexShardComponent implements CloseableIndexComponent, Closeable {
 
@@ -65,7 +83,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
     private final AtomicInteger refCount = new AtomicInteger(1);
 
     private final IndexStore indexStore;
-    final CodecService codecService;
+    private final CodecService codecService;
     private final DirectoryService directoryService;
     private final StoreDirectory directory;
     private final boolean sync;
@@ -97,9 +115,15 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
             throw new AlreadyClosedException("Store is already closed");
         }
     }
+
+    /**
+     * Returns a new MetadataSnapshot.
+     */
     public MetadataSnapshot getMetadata() throws IOException {
+        ensureOpen();
         return new MetadataSnapshot(distributorDirectory, logger);
     }
+
     /**
      * Deletes the content of a shard store. Be careful calling this!.
      */
@@ -138,6 +162,16 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
         return false;
     }
 
+    /**
+     * Increments the refCount of this Store instance.  RefCounts are used to determine when a
+     * Store can be closed safely, i.e. as soon as there are no more references. Be sure to always call a
+     * corresponding {@link #decRef}, in a finally clause; otherwise the store may never be closed.  Note that
+     * {@link #close} simply calls decRef(), which means that the Store will not really be closed until {@link
+     * #decRef} has been called for all outstanding references.
+     *
+     * Note: Close can safely be called multiple times.
+     * @see #decRef
+     */
     public final void incRef() {
         do {
             int i = refCount.get();
@@ -151,6 +185,11 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
         } while (true);
     }
 
+    /**
+     * Decreases the refCount of this Store instance.If the refCount drops to 0, then this
+     * store is closed.
+     * @see #incRef
+     */
     public final void decRef() {
         int i = refCount.decrementAndGet();
         assert i >= 0;
@@ -160,6 +199,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
 
     }
 
+    @Override
     public void close() {
         if (isClosed.compareAndSet(false, true)) {
             // only do this once!
@@ -306,6 +346,14 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
         }
     }
 
+    /**
+     * Represents a snaphshot of the current directory build from the latest Lucene commit.
+     * Only files that are part of the last commit are considered in this datastrucutre.
+     * For backwards compatibility the snapshot might include legacy checksums that
+     * are derived from a dedicated checksum file written by older elastcisearch version pre 1.3
+     *
+     * @see StoreFileMetaData
+     */
     public final static class MetadataSnapshot implements Iterable<StoreFileMetaData> {
         private final ImmutableMap<String, StoreFileMetaData> metadata;
 
@@ -318,7 +366,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
             Map<String, String> checksumMap = readLegacyChecksums(directory);
             try {
                 SegmentInfos segmentCommitInfos = Lucene.readSegmentInfos(directory);
-                Version maxVersion = Version.LUCENE_30; // we don't know which version was used to write so we take the max version.
+                Version maxVersion = Version.LUCENE_3_0; // we don't know which version was used to write so we take the max version.
                 Set<String> added = new HashSet<>();
                 for (SegmentCommitInfo info : segmentCommitInfos) {
                     final Version version = Version.parseLeniently(info.info.getVersion());
@@ -328,7 +376,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
                     for (String file : Iterables.concat(info.info.files(), info.files())) {
                         if (!added.contains(file)) {
                             String legacyChecksum = checksumMap.get(file);
-                            if (version.onOrAfter(Version.LUCENE_48) && legacyChecksum == null) {
+                            if (version.onOrAfter(Version.LUCENE_4_8) && legacyChecksum == null) {
                                 if (!checksumFromLuceneFile(directory, file, builder, logger, version)) {
                                     builder.put(file, new StoreFileMetaData(file, directory.fileLength(file)));
                                 }
@@ -342,7 +390,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
                 for (String file : Arrays.asList(segmentCommitInfos.getSegmentsFileName(), IndexFileNames.SEGMENTS_GEN)) {
                     if (!added.contains(file)) {
                         String legacyChecksum = checksumMap.get(file);
-                        if (maxVersion.onOrAfter(Version.LUCENE_48) && legacyChecksum == null) {
+                        if (maxVersion.onOrAfter(Version.LUCENE_4_8) && legacyChecksum == null) {
                             if (!checksumFromLuceneFile(directory, file, builder, logger, maxVersion)) {
                                 builder.put(file, new StoreFileMetaData(file, directory.fileLength(file)));
                             }
@@ -596,7 +644,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
                 try {
                     renameFile(file, uuid + file);
                 } catch (IOException ex) {
-                    logger.warn("Can't rename {} on marking corruppted index", ex, file);
+                    logger.warn("Can't rename {} on marking corrupted index", ex, file);
                 }
             }
         }

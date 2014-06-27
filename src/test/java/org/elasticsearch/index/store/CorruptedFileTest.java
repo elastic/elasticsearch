@@ -469,7 +469,7 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
 
         @Override
         public MergePolicy newMergePolicy() {
-            return NoMergePolicy.NO_COMPOUND_FILES;
+            return NoMergePolicy.INSTANCE;
         }
 
         @Override

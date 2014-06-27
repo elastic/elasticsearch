@@ -42,7 +42,6 @@ public class StoreFileMetaData implements Streamable {
 
     private Version writtenBy;
 
-
     private StoreFileMetaData() {
     }
 
@@ -75,6 +74,9 @@ public class StoreFileMetaData implements Streamable {
         return this.checksum;
     }
 
+    /**
+     * Returns <code>true</code> iff the length and the checksums are the same. otherwise <code>false</code>
+     */
     public boolean isSame(StoreFileMetaData other) {
         if (checksum == null || other.checksum == null) {
             return false;
@@ -114,11 +116,18 @@ public class StoreFileMetaData implements Streamable {
         }
     }
 
+    /**
+     * Returns the Lucene version this file has been written by or <code>null</code> if unknown
+     */
     public Version writtenBy() {
         return writtenBy;
     }
 
+    /**
+     * Returns <code>true</code>  iff the checksum is not <code>null</code> and if the file has NOT been written by
+     * a Lucene version greater or equal to Lucene 4.8
+     */
     public boolean hasLegacyChecksum() {
-        return checksum != null && ((writtenBy != null  && writtenBy.onOrAfter(Version.LUCENE_48)) == false);
+        return checksum != null && ((writtenBy != null  && writtenBy.onOrAfter(Version.LUCENE_4_8)) == false);
     }
 }

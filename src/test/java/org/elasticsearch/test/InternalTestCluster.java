@@ -77,6 +77,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportModule;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.netty.NettyTransport;
 import org.junit.Assert;
 
 import java.io.Closeable;
@@ -330,6 +331,15 @@ public final class InternalTestCluster extends TestCluster {
                 builder.put("indices.fielddata.cache.expire", TimeValue.timeValueMillis(1 + random.nextInt(10000)));
             }
         }
+
+        // randomize netty settings
+        if (random.nextBoolean()) {
+            builder.put(NettyTransport.WORKER_COUNT, random.nextInt(3) + 1);
+            builder.put(NettyTransport.CONNECTIONS_PER_NODE_RECOVERY, random.nextInt(2) + 1);
+            builder.put(NettyTransport.CONNECTIONS_PER_NODE_BULK, random.nextInt(3) + 1);
+            builder.put(NettyTransport.CONNECTIONS_PER_NODE_REG, random.nextInt(6) + 1);
+        }
+
         return builder.build();
     }
 

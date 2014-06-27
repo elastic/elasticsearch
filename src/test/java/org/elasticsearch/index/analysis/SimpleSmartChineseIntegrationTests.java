@@ -54,20 +54,10 @@ public class SimpleSmartChineseIntegrationTests extends ElasticsearchIntegration
     @Test
     public void testSmartcnTokenizer() throws ExecutionException, InterruptedException {
         AnalyzeResponse response = client().admin().indices()
-                .prepareAnalyze("叻出色").setTokenizer("smartcn_sentence")
+                .prepareAnalyze("叻出色").setTokenizer("smartcn_tokenizer")
                 .execute().get();
 
         assertThat(response, notNullValue());
-        assertThat(response.getTokens().size(), is(1));
-    }
-
-    @Test
-    public void testSmartcnTokenFilter() throws ExecutionException, InterruptedException {
-        AnalyzeResponse response = client().admin().indices()
-                .prepareAnalyze("叻出色").setTokenFilters("smartcn_word")
-                .execute().get();
-
-        assertThat(response, notNullValue());
-        assertThat(response.getTokens().size(), is(3));
+        assertThat(response.getTokens().size(), is(2));
     }
 }

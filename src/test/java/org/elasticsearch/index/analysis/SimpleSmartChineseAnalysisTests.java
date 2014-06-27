@@ -53,10 +53,7 @@ public class SimpleSmartChineseAnalysisTests extends ElasticsearchTestCase {
 
         AnalysisService analysisService = injector.getInstance(AnalysisService.class);
 
-        TokenizerFactory tokenizerFactory = analysisService.tokenizer("smartcn_sentence");
-        MatcherAssert.assertThat(tokenizerFactory, instanceOf(SmartChineseSentenceTokenizerFactory.class));
-
-        TokenFilterFactory filterFactory = analysisService.tokenFilter("smartcn_word");
-        MatcherAssert.assertThat(filterFactory, instanceOf(SmartChineseWordTokenFilterFactory.class));
+        TokenizerFactory tokenizerFactory = analysisService.tokenizer("smartcn_tokenizer");
+        MatcherAssert.assertThat(tokenizerFactory, instanceOf(SmartChineseTokenizerTokenizerFactory.class));
     }
 }

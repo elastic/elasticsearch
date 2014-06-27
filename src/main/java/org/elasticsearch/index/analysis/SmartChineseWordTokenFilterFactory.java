@@ -28,7 +28,9 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 
 /**
+ * WordTokenFilter has been deprecated in Lucene 4.8
  */
+@Deprecated
 public class SmartChineseWordTokenFilterFactory extends AbstractTokenFilterFactory {
 
     @Inject

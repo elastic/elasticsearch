@@ -20,14 +20,12 @@
 package org.elasticsearch.index.translog.fs;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.io.FileChannelInputStream;
+import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStreams;
 
 import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 
@@ -81,11 +79,6 @@ public class FsChannelSnapshot implements Translog.Snapshot {
     }
 
     @Override
-    public InputStream stream() throws IOException {
-        return new FileChannelInputStream(channel, position, lengthInBytes());
-    }
-
-    @Override
     public long lengthInBytes() {
         return length - position;
     }
@@ -93,22 +86,28 @@ public class FsChannelSnapshot implements Translog.Snapshot {
     @Override
     public boolean hasNext() {
         try {
-            if (position > length) {
+            if (position >= length) {
                 return false;
             }
             if (cacheBuffer == null) {
                 cacheBuffer = ByteBuffer.allocate(1024);
             }
             cacheBuffer.limit(4);
-            int bytesRead = channel.read(cacheBuffer, position);
-            if (bytesRead < 4) {
+            int bytesRead = Channels.readFromFileChannel(channel, position, cacheBuffer);
+            if (bytesRead < 0) {
+                // read passed EOF, which means the tranlog is still being written to. This shouldn't happen.
+                // nocommit: do we want to throw an exception?
+                assert false : "attempt to read passed snapshot EOF";
                 return false;
             }
+            assert bytesRead == 4;
             cacheBuffer.flip();
             int opSize = cacheBuffer.getInt();
             position += 4;
             if ((position + opSize) > length) {
                 // restore the position to before we read the opSize
+                // nocommit: do we want to throw an exception?
+                assert false : "opSize of [" + opSize + "] pointed beyond EOF. position [" + position + "] length [" + length + "]";
                 position -= 4;
                 return false;
             }
@@ -117,7 +116,13 @@ public class FsChannelSnapshot implements Translog.Snapshot {
             }
             cacheBuffer.clear();
             cacheBuffer.limit(opSize);
-            channel.read(cacheBuffer, position);
+            bytesRead = Channels.readFromFileChannel(channel, position, cacheBuffer);
+            if (bytesRead < 0) {
+                // read passed EOF, which means the tranlog is still being written to. This shouldn't happen.
+                // nocommit: do we want to throw an exception?
+                assert false : "attempt to read passed snapshot EOF";
+                return false;
+            }
             cacheBuffer.flip();
             position += opSize;
             lastOperationRead = TranslogStreams.readTranslogOperation(new BytesStreamInput(cacheBuffer.array(), 0, opSize, true));

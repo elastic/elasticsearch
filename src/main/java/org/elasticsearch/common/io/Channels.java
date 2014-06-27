@@ -43,13 +43,14 @@ public abstract class Channels {
      */
     public static byte[] readFromFileChannel(FileChannel channel, long position, int length) throws IOException {
         byte[] res = new byte[length];
-        readFromFileChannel(channel, position, res, 0, length);
+        readFromFileChannelWithEofException(channel, position, res, 0, length);
         return res;
 
     }
 
     /**
-     * read <i>length</i> bytes from <i>position</i> of a file channel
+     * read <i>length</i> bytes from <i>position</i> of a file channel. An EOFException will be thrown if you
+     * attempt to read beyond the end of file.
      *
      * @param channel         channel to read from
      * @param channelPosition position to read from
@@ -57,65 +58,69 @@ public abstract class Channels {
      * @param destOffset      offset in dest to read into
      * @param length          number of bytes to read
      */
-    public static void readFromFileChannel(FileChannel channel, long channelPosition, byte[] dest, int destOffset, int length) throws IOException {
-        ByteBuffer buffer = ByteBuffer.wrap(dest, destOffset, length);
-        while (length > 0) {
-            final int toRead = Math.min(READ_CHUNK_SIZE, length);
-            buffer.limit(buffer.position() + toRead);
-            assert buffer.remaining() == toRead;
-            final int i = channel.read(buffer, channelPosition);
-            if (i < 0) { // be defensive here, even though we checked before hand, something could have changed
-                throw new EOFException("read past EOF. pos [" + channelPosition + "] chunkLen: [" + toRead + "] end: [" + channel.size() + "]");
-            }
-            assert i > 0 : "FileChannel.read with non zero-length bb.remaining() must always read at least one byte (FileChannel is in blocking mode, see spec of ReadableByteChannel)";
-            channelPosition += i;
-            length -= i;
+    public static void readFromFileChannelWithEofException(FileChannel channel, long channelPosition, byte[] dest, int destOffset, int length) throws IOException {
+        int read = readFromFileChannel(channel, channelPosition, dest, destOffset, length);
+        if (read < 0) {
+            throw new EOFException("read past EOF. pos [" + channelPosition + "] length: [" + length + "] end: [" + channel.size() + "]");
         }
-        assert length == 0;
     }
 
+    /**
+     * read <i>length</i> bytes from <i>position</i> of a file channel.
+     *
+     * @param channel         channel to read from
+     * @param channelPosition position to read from
+     * @param dest            destination byte array to put data in
+     * @param destOffset      offset in dest to read into
+     * @param length          number of bytes to read
+     * @return total bytes read or -1 if an attempt was made to read past EOF. The method always tries to read all the bytes
+     * that will fit in the destination byte buffer.
+     */
+    public static int readFromFileChannel(FileChannel channel, long channelPosition, byte[] dest, int destOffset, int length) throws IOException {
+        ByteBuffer buffer = ByteBuffer.wrap(dest, destOffset, length);
+        return readFromFileChannel(channel, channelPosition, buffer);
+    }
+
+    /**
+     * read from a file channel into a byte buffer, starting at a certain position.
+     *
+     * @param channel         channel to read from
+     * @param channelPosition position to read from
+     * @param dest            destination {@link java.nio.ByteBuffer} to put data in
+     * @return total bytes read or -1 if an attempt was made to read past EOF. The method always tries to read all the bytes
+     * that will fit in the destination byte buffer.
+     */
     public static int readFromFileChannel(FileChannel channel, long channelPosition, ByteBuffer dest) throws IOException {
-        int bytesRead = 0;
         if (dest.isDirect() || (dest.remaining() < READ_CHUNK_SIZE)) {
-            while (dest.hasRemaining()) {
-                int read = channel.read(dest, channelPosition);
-                if (read < 0) {
-                    return read;
-                }
-
-                assert read > 0 : "FileChannel.read with non zero-length bb.remaining() must always read at least one byte (FileChannel is in blocking mode, see spec of ReadableByteChannel)";
-
-                bytesRead += read;
-                channelPosition += read;
-            }
+            return readSingleChunk(channel, channelPosition, dest);
         } else {
+            int bytesRead = 0;
+            int bytesToRead = dest.remaining();
 
             ByteBuffer tmpBuffer = dest.duplicate();
             try {
                 while (dest.hasRemaining()) {
                     tmpBuffer.limit(Math.min(dest.limit(), tmpBuffer.position() + READ_CHUNK_SIZE));
-                    while (tmpBuffer.hasRemaining()) {
-                        int read = channel.read(dest);
-                        if (read < 0) {
-                            return read;
-                        }
-
-                        assert read > 0 : "FileChannel.read with non zero-length bb.remaining() must always read at least one byte (FileChannel is in blocking mode, see spec of ReadableByteChannel)";
-
-                        bytesRead += read;
+                    int read = readSingleChunk(channel, channelPosition, tmpBuffer);
+                    if (read < 0) {
+                        return read;
                     }
+                    bytesRead += read;
+                    channelPosition += read;
                     dest.position(tmpBuffer.position());
                 }
             } finally {
                 // make sure we update byteBuffer to indicate how far we came..
                 dest.position(tmpBuffer.position());
             }
+
+            assert bytesRead == bytesToRead : "failed to read an entire buffer but also didn't get an EOF (read [" + bytesRead + "] needed [" + bytesToRead + "]";
+            return bytesRead;
         }
-        return bytesRead;
     }
 
 
-    private int readSingleChunk(FileChannel channel, long channelPosition, ByteBuffer dest) throws IOException {
+    private static int readSingleChunk(FileChannel channel, long channelPosition, ByteBuffer dest) throws IOException {
         int bytesRead = 0;
         while (dest.hasRemaining()) {
             int read = channel.read(dest, channelPosition);
@@ -130,7 +135,6 @@ public abstract class Channels {
         }
         return bytesRead;
     }
-
 
 
     /**
@@ -150,6 +154,19 @@ public abstract class Channels {
         }
         assert length == 0;
     }
+
+
+    /**
+     * Writes part of a byte array to a {@link java.nio.channels.WritableByteChannel}
+     *
+     * @param source  byte array to copy from
+     * @param channel target WritableByteChannel
+     * @throws IOException
+     */
+    public static void writeToChannel(byte[] source, WritableByteChannel channel) throws IOException {
+        writeToChannel(source, 0, source.length, channel);
+    }
+
 
     /**
      * Writes part of a byte array to a {@link java.nio.channels.WritableByteChannel}
@@ -183,8 +200,7 @@ public abstract class Channels {
      */
     public static void writeToChannel(ByteBuffer byteBuffer, WritableByteChannel channel) throws IOException {
         if (byteBuffer.isDirect() || (byteBuffer.remaining() <= WRITE_CHUNK_SIZE)) {
-            while (byteBuffer.hasRemaining())
-            {
+            while (byteBuffer.hasRemaining()) {
                 channel.write(byteBuffer);
             }
         } else {

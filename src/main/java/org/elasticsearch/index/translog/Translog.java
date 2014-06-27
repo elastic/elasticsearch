@@ -38,7 +38,6 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShardComponent;
 
 import java.io.IOException;
-import java.io.InputStream;
 
 /**
  *
@@ -177,11 +176,6 @@ public interface Translog extends IndexShardComponent, CloseableIndexComponent {
         Operation next();
 
         void seekForward(long length);
-
-        /**
-         * Returns a stream of this snapshot.
-         */
-        InputStream stream() throws IOException;
 
         /**
          * The length in bytes of this stream.

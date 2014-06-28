@@ -17,20 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.search.query;
+package org.elasticsearch.index.cache.query;
 
-import org.elasticsearch.search.SearchPhaseResult;
-import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.common.inject.AbstractModule;
 
 /**
- *
  */
-public abstract class QuerySearchResultProvider extends TransportResponse implements SearchPhaseResult {
+public class ShardQueryCacheModule extends AbstractModule {
 
-    /**
-     * If both query and fetch happened on the same call.
-     */
-    public abstract boolean includeFetch();
-
-    public abstract QuerySearchResult queryResult();
+    @Override
+    protected void configure() {
+        bind(ShardQueryCache.class).asEagerSingleton();
+    }
 }

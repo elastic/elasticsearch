@@ -125,7 +125,9 @@ public class SignificantStringTerms extends InternalSignificantTerms {
             BytesRef term = in.readBytesRef();
             long subsetDf = in.readVLong();
             long supersetDf = in.readVLong();
-            buckets.add(new Bucket(term, subsetDf, subsetSize, supersetDf, supersetSize, InternalAggregations.readAggregations(in)));
+            Bucket readBucket = new Bucket(term, subsetDf, subsetSize, supersetDf, supersetSize, InternalAggregations.readAggregations(in));
+            readBucket.updateScore(significanceHeuristic);
+            buckets.add(readBucket);
         }
         this.buckets = buckets;
         this.bucketMap = null;
@@ -162,7 +164,6 @@ public class SignificantStringTerms extends InternalSignificantTerms {
                 builder.startObject();
                 builder.utf8Field(CommonFields.KEY, ((Bucket) bucket).termBytes);
                 builder.field(CommonFields.DOC_COUNT, bucket.getDocCount());
-                bucket.updateScore(significanceHeuristic);
                 builder.field("score", bucket.score);
                 builder.field("bg_count", bucket.supersetDf);
                 ((InternalAggregations) bucket.getAggregations()).toXContentInternal(builder, params);

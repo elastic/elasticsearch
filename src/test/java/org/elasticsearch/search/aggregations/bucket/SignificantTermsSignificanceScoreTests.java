@@ -111,6 +111,38 @@ public class SignificantTermsSignificanceScoreTests extends ElasticsearchIntegra
             sigBucket = bucketIterator.next();
             assertThat(sigBucket.getSignificanceScore(), closeTo(1.0, 1.e-8));
         }
+
+        // we run the same test again but this time we do not call assertSearchResponse() before the assertions
+        // the reason is that this would trigger toXContent and we would like to check that this has no potential side effects
+
+        response = client().prepareSearch(INDEX_NAME).setTypes(DOC_TYPE)
+                .addAggregation(new TermsBuilder("class")
+                        .field(CLASS_FIELD)
+                        .subAggregation((new SignificantTermsBuilder("sig_terms"))
+                                .field(TEXT_FIELD)
+                                .significanceHeuristic(new SimpleHeuristic.SimpleHeuristicBuilder())
+                                .minDocCount(1)
+                        )
+                )
+                .execute()
+                .actionGet();
+
+        classes = (StringTerms) response.getAggregations().get("class");
+        assertThat(classes.getBuckets().size(), equalTo(2));
+        for (Terms.Bucket classBucket : classes.getBuckets()) {
+            Map<String, Aggregation> aggs = classBucket.getAggregations().asMap();
+            assertTrue(aggs.containsKey("sig_terms"));
+            SignificantTerms agg = (SignificantTerms) aggs.get("sig_terms");
+            assertThat(agg.getBuckets().size(), equalTo(2));
+            Iterator<SignificantTerms.Bucket> bucketIterator = agg.iterator();
+            SignificantTerms.Bucket sigBucket = bucketIterator.next();
+            String term = sigBucket.getKey();
+            String classTerm = classBucket.getKey();
+            assertTrue(term.equals(classTerm));
+            assertThat(sigBucket.getSignificanceScore(), closeTo(2.0, 1.e-8));
+            sigBucket = bucketIterator.next();
+            assertThat(sigBucket.getSignificanceScore(), closeTo(1.0, 1.e-8));
+        }
     }
 
     public static class CustomSignificanceHeuristicPlugin extends AbstractPlugin {

@@ -230,7 +230,7 @@ public class RelocationTests extends ElasticsearchIntegrationTest {
         logger.info("testRelocationWhileIndexingRandom(numRelocations={}, numberOfReplicas={}, numberOfNodes={})", numberOfRelocations, numberOfReplicas, numberOfNodes);
 
         String[] nodes = new String[numberOfNodes];
-        logger.info("--> starting [node1] ...");
+        logger.info("--> starting [node_0] ...");
         nodes[0] = internalCluster().startNode();
 
         logger.info("--> creating test index ...");
@@ -241,8 +241,11 @@ public class RelocationTests extends ElasticsearchIntegrationTest {
                         .put("index.refresh_interval", -1) // we want to control refreshes c
                 ).execute().actionGet();
 
+        // make sure the first shard is started.
+        ensureYellow();
+
         for (int i = 1; i < numberOfNodes; i++) {
-            logger.info("--> starting [node{}] ...", i + 1);
+            logger.info("--> starting [node_{}] ...", i);
             nodes[i] = internalCluster().startNode();
             if (i != numberOfNodes - 1) {
                 ClusterHealthResponse healthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID)

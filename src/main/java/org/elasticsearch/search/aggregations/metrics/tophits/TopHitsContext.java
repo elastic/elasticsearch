@@ -170,7 +170,7 @@ public class TopHitsContext extends SearchContext {
     }
 
     @Override
-    public long nowInMillis() {
+    protected long nowInMillisImpl() {
         return context.nowInMillis();
     }
 

@@ -34,7 +34,7 @@ import static org.elasticsearch.search.query.QuerySearchResult.readQuerySearchRe
 /**
  *
  */
-public class QueryFetchSearchResult extends TransportResponse implements QuerySearchResultProvider, FetchSearchResultProvider {
+public class QueryFetchSearchResult extends QuerySearchResultProvider implements FetchSearchResultProvider {
 
     private QuerySearchResult queryResult;
     private FetchSearchResult fetchResult;

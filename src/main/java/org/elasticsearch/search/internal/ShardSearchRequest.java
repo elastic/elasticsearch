@@ -259,11 +259,17 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        writeTo(out, false);
+    }
+
+    public void writeTo(StreamOutput out, boolean asKey) throws IOException {
         super.writeTo(out);
         out.writeString(index);
         out.writeVInt(shardId);
         out.writeByte(searchType.id());
-        out.writeVInt(numberOfShards);
+        if (!asKey) {
+            out.writeVInt(numberOfShards);
+        }
         if (scroll == null) {
             out.writeBoolean(false);
         } else {
@@ -274,7 +280,9 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         out.writeBytesReference(extraSource);
         out.writeStringArray(types);
         out.writeStringArrayNullable(filteringAliases);
-        out.writeVLong(nowInMillis);
+        if (!asKey) {
+            out.writeVLong(nowInMillis);
+        }
 
         if (out.getVersion().onOrAfter(Version.V_1_1_0)) {
             out.writeBytesReference(templateSource);

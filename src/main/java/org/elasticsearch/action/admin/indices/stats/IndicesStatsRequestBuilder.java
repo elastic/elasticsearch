@@ -163,6 +163,11 @@ public class IndicesStatsRequestBuilder extends BroadcastOperationRequestBuilder
         return this;
     }
 
+    public IndicesStatsRequestBuilder setQueryCache(boolean queryCache) {
+        request.queryCache(queryCache);
+        return this;
+    }
+
     @Override
     protected void doExecute(ActionListener<IndicesStatsResponse> listener) {
         client.stats(request, listener);

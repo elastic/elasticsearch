@@ -168,7 +168,7 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public long nowInMillis() {
+    protected long nowInMillisImpl() {
         return 0;
     }
 

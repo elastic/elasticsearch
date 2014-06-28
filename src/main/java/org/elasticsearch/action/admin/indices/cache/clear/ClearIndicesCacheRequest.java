@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.cache.clear;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -34,6 +35,7 @@ public class ClearIndicesCacheRequest extends BroadcastOperationRequest<ClearInd
     private boolean fieldDataCache = false;
     private boolean idCache = false;
     private boolean recycler = false;
+    private boolean queryCache = false;
     private String[] fields = null;
     private String[] filterKeys = null;
     
@@ -51,6 +53,15 @@ public class ClearIndicesCacheRequest extends BroadcastOperationRequest<ClearInd
 
     public ClearIndicesCacheRequest filterCache(boolean filterCache) {
         this.filterCache = filterCache;
+        return this;
+    }
+
+    public boolean queryCache() {
+        return this.queryCache;
+    }
+
+    public ClearIndicesCacheRequest queryCache(boolean queryCache) {
+        this.queryCache = queryCache;
         return this;
     }
 
@@ -107,6 +118,9 @@ public class ClearIndicesCacheRequest extends BroadcastOperationRequest<ClearInd
         recycler = in.readBoolean();
         fields = in.readStringArray();
         filterKeys = in.readStringArray();
+        if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
+            queryCache = in.readBoolean();
+        }
     }
 
     public void writeTo(StreamOutput out) throws IOException {
@@ -117,7 +131,8 @@ public class ClearIndicesCacheRequest extends BroadcastOperationRequest<ClearInd
         out.writeBoolean(recycler);
         out.writeStringArrayNullable(fields);
         out.writeStringArrayNullable(filterKeys);
+        if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
+            out.writeBoolean(queryCache);
+        }
     }
-
-   
 }

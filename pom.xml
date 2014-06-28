@@ -176,7 +176,7 @@
             <version>0.8.13</version>
             <optional>true</optional>
         </dependency>
-        <!-- Lucene spatial -->
+       <!-- Lucene spatial -->
 
 
         <!-- START: dependencies that are shaded -->
@@ -475,8 +475,7 @@
                             <haltOnFailure>${tests.failfast}</haltOnFailure>
                             <uniqueSuiteNames>false</uniqueSuiteNames>
                             <systemProperties>
-                                <java.io.tmpdir>.</java.io.tmpdir>
-                                <!-- we use '.' since this is different per JVM-->
+                                <java.io.tmpdir>.</java.io.tmpdir> <!-- we use '.' since this is different per JVM-->
                                 <!-- RandomizedTesting library system properties -->
                                 <tests.bwc>${tests.bwc}</tests.bwc>
                                 <tests.bwc.path>${tests.bwc.path}</tests.bwc.path>
@@ -529,15 +528,15 @@
                 <version>1.7</version>
                 <executions>
                     <execution>
-                        <phase>validate</phase>
-                        <goals>
-                            <goal>run</goal>
-                        </goals>
-                        <configuration>
-                            <target>
-                                <echo>Using ${java.runtime.name} ${java.runtime.version} ${java.vendor}</echo>
-                            </target>
-                        </configuration>
+                    <phase>validate</phase>
+                    <goals>
+                        <goal>run</goal>
+                    </goals>
+                    <configuration>
+                           <target>
+                               <echo>Using ${java.runtime.name} ${java.runtime.version} ${java.vendor}</echo>
+                           </target>
+                    </configuration>
                     </execution>
                     <execution>
                         <id>invalid-patterns</id>
@@ -565,9 +564,7 @@
                                     </fileset>
                                     <map from="${basedir}${file.separator}" to="* "/>
                                 </pathconvert>
-                                <fail if="validate.patternsFound">The following files contain tabs or
-                                    nocommits:${line.separator}${validate.patternsFound}
-                                </fail>
+                                <fail if="validate.patternsFound">The following files contain tabs or nocommits:${line.separator}${validate.patternsFound}</fail>
                             </target>
                         </configuration>
                     </execution>
@@ -575,8 +572,7 @@
                         <id>tests</id>
                         <phase>test</phase>
                         <configuration>
-                            <skip>${skipTests}</skip>
-                            <!-- don't run if we skip the tests -->
+                            <skip>${skipTests}</skip> <!-- don't run if we skip the tests -->
                             <failOnError>false</failOnError>
                             <target>
                                 <property name="runtime_classpath" refid="maven.runtime.classpath"/>
@@ -590,7 +586,7 @@
                                     </classpath>
                                 </taskdef>
                                 <tophints max="${tests.topn}">
-                                    <file file="${basedir}/${execution.hint.file}"/>
+                                    <file file="${basedir}/${execution.hint.file}" />
                                 </tophints>
                             </target>
                         </configuration>
@@ -707,7 +703,7 @@
                             <shadedPattern>org.elasticsearch.common.compress</shadedPattern>
                         </relocation>
                         <relocation>
-                            <pattern>com.github.mustachejava</pattern>
+                        <pattern>com.github.mustachejava</pattern>
                             <shadedPattern>org.elasticsearch.common.mustache</shadedPattern>
                         </relocation>
                         <relocation>
@@ -1327,194 +1323,193 @@
         </pluginManagement>
     </build>
     <profiles>
-        <!-- default profile, with randomization setting kicks in -->
-        <profile>
-            <id>default</id>
-            <activation>
-                <activeByDefault>true</activeByDefault>
-            </activation>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>com.carrotsearch.randomizedtesting</groupId>
-                        <artifactId>junit4-maven-plugin</artifactId>
-                        <configuration>
-                            <argLine>${tests.jvm.argline}</argLine>
-                        </configuration>
-                    </plugin>
-                    <plugin>
-                        <groupId>com.mycila</groupId>
-                        <artifactId>license-maven-plugin</artifactId>
-                        <version>2.5</version>
-                        <configuration>
-                            <header>dev-tools/elasticsearch_license_header.txt</header>
-                            <headerDefinitions>
-                                <headerDefinition>dev-tools/license_header_definition.xml</headerDefinition>
-                            </headerDefinitions>
-                            <includes>
-                                <include>src/main/java/org/elasticsearch/**/*.java</include>
-                                <include>src/test/java/org/elasticsearch/**/*.java</include>
-                            </includes>
-                            <excludes>
-                                <exclude>src/main/java/org/elasticsearch/common/inject/**</exclude>
-                                <!-- Guice -->
-                                <exclude>src/main/java/org/elasticsearch/common/geo/GeoHashUtils.java</exclude>
-                                <exclude>src/main/java/org/elasticsearch/common/lucene/search/XBooleanFilter.java</exclude>
-                                <exclude>src/main/java/org/elasticsearch/common/lucene/search/XFilteredQuery.java</exclude>
-                                <exclude>src/main/java/org/apache/lucene/queryparser/XSimpleQueryParser.java</exclude>
-                                <exclude>src/main/java/org/apache/lucene/**/X*.java</exclude>
-                                <!-- t-digest -->
-                                <exclude>src/main/java/org/elasticsearch/search/aggregations/metrics/percentiles/tdigest/TDigestState.java
-                                </exclude>
-                                <exclude>src/test/java/org/elasticsearch/search/aggregations/metrics/GroupTree.java</exclude>
-                            </excludes>
-                        </configuration>
-                        <executions>
-                            <execution>
-                                <phase>compile</phase>
-                                <goals>
-                                    <goal>check</goal>
-                                </goals>
-                            </execution>
-                        </executions>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
-        <!-- license profile, to generate third party license file -->
-        <profile>
-            <id>license</id>
-            <activation>
-                <property>
-                    <name>license.generation</name>
-                    <value>true</value>
-                </property>
-            </activation>
-            <!-- not including license-maven-plugin is sufficent to expose default license -->
-        </profile>
-        <!-- jacoco coverage profile.  This will insert -jagent -->
-        <profile>
-            <id>coverage</id>
-            <activation>
-                <property>
-                    <name>tests.coverage</name>
-                    <value>true</value>
-                </property>
-            </activation>
-            <dependencies>
-                <dependency>
-                    <!--  must be on the classpath  -->
-                    <groupId>org.jacoco</groupId>
-                    <artifactId>org.jacoco.agent</artifactId>
-                    <classifier>runtime</classifier>
-                    <version>0.6.4.201312101107</version>
-                    <scope>test</scope>
-                </dependency>
-            </dependencies>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.jacoco</groupId>
-                        <artifactId>jacoco-maven-plugin</artifactId>
-                        <version>0.6.4.201312101107</version>
-                        <executions>
-                            <execution>
-                                <id>default-prepare-agent</id>
-                                <goals>
-                                    <goal>prepare-agent</goal>
-                                </goals>
-                            </execution>
-                            <execution>
-                                <id>default-report</id>
-                                <phase>prepare-package</phase>
-                                <goals>
-                                    <goal>report</goal>
-                                </goals>
-                            </execution>
-                            <execution>
-                                <id>default-check</id>
-                                <goals>
-                                    <goal>check</goal>
-                                </goals>
-                            </execution>
-                        </executions>
-                        <configuration>
-                            <excludes>
-                                <exclude>jsr166e/**</exclude>
-                                <exclude>org/apache/lucene/**</exclude>
-                            </excludes>
-                        </configuration>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
-        <profile>
-            <id>static</id>
-            <activation>
-                <property>
-                    <name>tests.static</name>
-                    <value>true</value>
-                </property>
-            </activation>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.codehaus.mojo</groupId>
-                        <artifactId>findbugs-maven-plugin</artifactId>
-                        <version>2.5.3</version>
-                    </plugin>
-                </plugins>
-            </build>
-            <reporting>
-                <plugins>
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-jxr-plugin</artifactId>
-                        <version>2.3</version>
-                    </plugin>
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-pmd-plugin</artifactId>
-                        <version>3.0.1</version>
-                        <configuration>
-                            <rulesets>
-                                <ruleset>${basedir}/dev-tools/pmd/custom.xml</ruleset>
-                            </rulesets>
-                            <targetJdk>1.7</targetJdk>
-                            <excludes>
-                                <exclude>**/jsr166e/**</exclude>
-                                <exclude>**/org/apache/lucene/**</exclude>
-                                <exclude>**/org/apache/elasticsearch/common/Base64.java</exclude>
-                            </excludes>
-                        </configuration>
-                    </plugin>
-                    <plugin>
-                        <groupId>org.codehaus.mojo</groupId>
-                        <artifactId>findbugs-maven-plugin</artifactId>
-                        <version>2.5.3</version>
-                        <configuration>
-                            <xmlOutput>true</xmlOutput>
-                            <xmlOutputDirectory>target/site</xmlOutputDirectory>
-                            <fork>true</fork>
-                            <maxHeap>2048</maxHeap>
-                            <timeout>1800000</timeout>
-                            <onlyAnalyze>org.elasticsearch.-</onlyAnalyze>
-                        </configuration>
-                    </plugin>
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-project-info-reports-plugin</artifactId>
-                        <version>2.7</version>
-                        <reportSets>
-                            <reportSet>
-                                <reports>
-                                    <report>index</report>
-                                </reports>
-                            </reportSet>
-                        </reportSets>
-                    </plugin>
-                </plugins>
-            </reporting>
-        </profile>
+      <!-- default profile, with randomization setting kicks in -->
+      <profile>
+        <id>default</id>
+        <activation>
+          <activeByDefault>true</activeByDefault>
+        </activation>
+        <build>
+          <plugins>
+            <plugin>
+              <groupId>com.carrotsearch.randomizedtesting</groupId>
+              <artifactId>junit4-maven-plugin</artifactId>
+              <configuration>
+                <argLine>${tests.jvm.argline}</argLine>
+              </configuration>
+            </plugin>
+            <plugin>
+              <groupId>com.mycila</groupId>
+              <artifactId>license-maven-plugin</artifactId>
+              <version>2.5</version>
+              <configuration>
+                <header>dev-tools/elasticsearch_license_header.txt</header>
+                <headerDefinitions>
+                  <headerDefinition>dev-tools/license_header_definition.xml</headerDefinition>
+                </headerDefinitions>
+                <includes>
+                  <include>src/main/java/org/elasticsearch/**/*.java</include>
+                  <include>src/test/java/org/elasticsearch/**/*.java</include>
+                </includes>
+                <excludes>
+                  <exclude>src/main/java/org/elasticsearch/common/inject/**</exclude>
+                  <!-- Guice -->
+                  <exclude>src/main/java/org/elasticsearch/common/geo/GeoHashUtils.java</exclude>
+                  <exclude>src/main/java/org/elasticsearch/common/lucene/search/XBooleanFilter.java</exclude>
+                  <exclude>src/main/java/org/elasticsearch/common/lucene/search/XFilteredQuery.java</exclude>
+                  <exclude>src/main/java/org/apache/lucene/queryparser/XSimpleQueryParser.java</exclude>
+                  <exclude>src/main/java/org/apache/lucene/**/X*.java</exclude>
+                  <!-- t-digest -->
+                  <exclude>src/main/java/org/elasticsearch/search/aggregations/metrics/percentiles/tdigest/TDigestState.java</exclude>
+                  <exclude>src/test/java/org/elasticsearch/search/aggregations/metrics/GroupTree.java</exclude>
+                </excludes>
+              </configuration>
+                <executions>
+                    <execution>
+                        <phase>compile</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+          </plugins>
+        </build>
+      </profile>
+      <!-- license profile, to generate third party license file -->
+      <profile>
+        <id>license</id>
+        <activation>
+          <property>
+            <name>license.generation</name>
+            <value>true</value>
+          </property>
+        </activation>
+        <!-- not including license-maven-plugin is sufficent to expose default license -->
+      </profile>
+      <!-- jacoco coverage profile.  This will insert -jagent -->
+      <profile>
+        <id>coverage</id>
+        <activation>
+          <property>
+            <name>tests.coverage</name>
+            <value>true</value>
+          </property>
+        </activation>
+        <dependencies>
+          <dependency>
+            <!--  must be on the classpath  -->
+            <groupId>org.jacoco</groupId>
+            <artifactId>org.jacoco.agent</artifactId>
+            <classifier>runtime</classifier>
+            <version>0.6.4.201312101107</version>
+            <scope>test</scope>
+          </dependency>
+        </dependencies>
+        <build>
+          <plugins>
+            <plugin>
+              <groupId>org.jacoco</groupId>
+              <artifactId>jacoco-maven-plugin</artifactId>
+              <version>0.6.4.201312101107</version>
+              <executions>
+                <execution>
+                  <id>default-prepare-agent</id>
+                  <goals>
+                    <goal>prepare-agent</goal>
+                  </goals>
+                </execution>
+                <execution>
+                  <id>default-report</id>
+                  <phase>prepare-package</phase>
+                  <goals>
+                    <goal>report</goal>
+                  </goals>
+                </execution>
+                <execution>
+                  <id>default-check</id>
+                  <goals>
+                    <goal>check</goal>
+                  </goals>
+                </execution>
+              </executions>
+              <configuration>
+                <excludes>
+                  <exclude>jsr166e/**</exclude>
+                  <exclude>org/apache/lucene/**</exclude>
+                </excludes>
+              </configuration>
+            </plugin>
+          </plugins>
+        </build>
+      </profile>
+      <profile>
+        <id>static</id>
+        <activation>
+          <property>
+            <name>tests.static</name>
+            <value>true</value>
+          </property>
+        </activation>
+        <build>
+          <plugins>
+            <plugin>
+              <groupId>org.codehaus.mojo</groupId>
+              <artifactId>findbugs-maven-plugin</artifactId>
+              <version>2.5.3</version>
+            </plugin>
+          </plugins>
+        </build>
+        <reporting>
+          <plugins>
+            <plugin>
+              <groupId>org.apache.maven.plugins</groupId>
+              <artifactId>maven-jxr-plugin</artifactId>
+              <version>2.3</version>
+            </plugin>
+            <plugin>
+              <groupId>org.apache.maven.plugins</groupId>
+              <artifactId>maven-pmd-plugin</artifactId>
+              <version>3.0.1</version>
+              <configuration>
+                <rulesets>
+                  <ruleset>${basedir}/dev-tools/pmd/custom.xml</ruleset>
+                </rulesets>
+                <targetJdk>1.7</targetJdk>
+                <excludes>
+                  <exclude>**/jsr166e/**</exclude>
+                  <exclude>**/org/apache/lucene/**</exclude>
+                  <exclude>**/org/apache/elasticsearch/common/Base64.java</exclude>
+                </excludes>
+              </configuration>
+            </plugin>
+            <plugin>
+              <groupId>org.codehaus.mojo</groupId>
+              <artifactId>findbugs-maven-plugin</artifactId>
+              <version>2.5.3</version>
+              <configuration>
+                <xmlOutput>true</xmlOutput>
+                <xmlOutputDirectory>target/site</xmlOutputDirectory>
+                <fork>true</fork>
+                <maxHeap>2048</maxHeap>
+                <timeout>1800000</timeout>
+                <onlyAnalyze>org.elasticsearch.-</onlyAnalyze>
+              </configuration>
+            </plugin>
+            <plugin>
+              <groupId>org.apache.maven.plugins</groupId>
+              <artifactId>maven-project-info-reports-plugin</artifactId>
+              <version>2.7</version>
+              <reportSets>
+                <reportSet>
+                  <reports>
+                    <report>index</report>
+                  </reports>
+                </reportSet>
+              </reportSets>
+            </plugin>
+          </plugins>
+        </reporting>
+      </profile>
     </profiles>
 </project>

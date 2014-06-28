@@ -20,6 +20,7 @@
 package org.elasticsearch.search.sort;
 
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.UnicodeUtil;
@@ -59,6 +60,25 @@ import static org.hamcrest.Matchers.*;
  *
  */
 public class SimpleSortTests extends ElasticsearchIntegrationTest {
+
+    public void testIssue6639() throws ExecutionException, InterruptedException {
+        assertAcked(prepareCreate("$index")
+                .addMapping("$type","{\"$type\": {\"_boost\": {\"name\": \"boost\", \"null_value\": 1.0}, \"properties\": {\"grantee\": {\"index\": \"not_analyzed\", \"term_vector\": \"with_positions_offsets\", \"type\": \"string\", \"analyzer\": \"snowball\", \"boost\": 1.0, \"store\": \"yes\"}}}}"));
+        indexRandom(true,
+                client().prepareIndex("$index", "$type", "data.activity.5").setSource("{\"django_ct\": \"data.activity\", \"grantee\": \"Grantee 1\"}"),
+                client().prepareIndex("$index", "$type", "data.activity.6").setSource("{\"django_ct\": \"data.activity\", \"grantee\": \"Grantee 2\"}"));
+        ensureYellow();
+        SearchResponse searchResponse = client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .addSort("grantee", SortOrder.ASC)
+                .execute().actionGet();
+        assertOrderedSearchHits(searchResponse, "data.activity.5", "data.activity.6");
+        searchResponse = client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .addSort("grantee", SortOrder.DESC)
+                .execute().actionGet();
+        assertOrderedSearchHits(searchResponse, "data.activity.6", "data.activity.5");
+    }
 
     @Test
     public void testTrackScores() throws Exception {

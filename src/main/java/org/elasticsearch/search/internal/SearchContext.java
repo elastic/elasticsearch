@@ -98,6 +98,8 @@ public abstract class SearchContext implements Releasable {
         }
     }
 
+    private boolean nowInMillisUsed;
+
     protected abstract void doClose();
 
     /**
@@ -129,7 +131,16 @@ public abstract class SearchContext implements Releasable {
 
     public abstract SearchContext queryBoost(float queryBoost);
 
-    public abstract long nowInMillis();
+    public final long nowInMillis() {
+        nowInMillisUsed = true;
+        return nowInMillisImpl();
+    }
+
+    public final boolean nowInMillisUsed() {
+        return nowInMillisUsed;
+    }
+
+    protected abstract long nowInMillisImpl();
 
     public abstract Scroll scroll();
 

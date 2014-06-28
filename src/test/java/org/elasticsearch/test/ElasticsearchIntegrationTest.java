@@ -90,6 +90,7 @@ import org.elasticsearch.index.translog.TranslogService;
 import org.elasticsearch.index.translog.fs.FsTranslog;
 import org.elasticsearch.index.translog.fs.FsTranslogFile;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.rest.RestStatus;
@@ -441,6 +442,10 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
 
         // Randomly load or don't load bloom filters:
         builder.put(CodecService.INDEX_CODEC_BLOOM_LOAD, random.nextBoolean());
+
+        if (random.nextBoolean()) {
+            builder.put(IndicesQueryCache.INDEX_CACHE_QUERY_ENABLED, random.nextBoolean());
+        }
 
         return builder;
     }

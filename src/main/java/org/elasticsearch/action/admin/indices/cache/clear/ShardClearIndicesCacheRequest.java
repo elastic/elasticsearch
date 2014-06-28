@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.cache.clear;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -34,6 +35,7 @@ class ShardClearIndicesCacheRequest extends BroadcastShardOperationRequest {
     private boolean fieldDataCache = false;
     private boolean idCache = false;
     private boolean recycler;
+    private boolean queryCache = false;
 
     private String[] fields = null;
     private String[] filterKeys = null;
@@ -49,10 +51,15 @@ class ShardClearIndicesCacheRequest extends BroadcastShardOperationRequest {
         fields = request.fields();
         filterKeys = request.filterKeys();
         recycler = request.recycler();
+        queryCache = request.queryCache();
     }
 
     public boolean filterCache() {
         return filterCache;
+    }
+
+    public boolean queryCache() {
+        return queryCache;
     }
 
     public boolean fieldDataCache() {
@@ -89,6 +96,9 @@ class ShardClearIndicesCacheRequest extends BroadcastShardOperationRequest {
         recycler = in.readBoolean();
         fields = in.readStringArray();
         filterKeys = in.readStringArray();
+        if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
+            queryCache = in.readBoolean();
+        }
     }
 
     @Override
@@ -100,5 +110,8 @@ class ShardClearIndicesCacheRequest extends BroadcastShardOperationRequest {
         out.writeBoolean(recycler);
         out.writeStringArrayNullable(fields);
         out.writeStringArrayNullable(filterKeys);
+        if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
+            out.writeBoolean(queryCache);
+        }
     }
 }

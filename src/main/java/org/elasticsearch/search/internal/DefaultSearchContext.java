@@ -297,7 +297,7 @@ public class DefaultSearchContext extends SearchContext {
         return this;
     }
 
-    public long nowInMillis() {
+    protected long nowInMillisImpl() {
         return request.nowInMillis();
     }
 

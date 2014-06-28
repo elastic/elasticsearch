@@ -40,6 +40,7 @@ import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.query.QuerySearchResultProvider;
 import org.elasticsearch.search.query.ScrollQuerySearchResult;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
@@ -211,16 +212,16 @@ public class SearchServiceTransportAction extends AbstractComponent {
         }
     }
 
-    public void sendExecuteQuery(DiscoveryNode node, final ShardSearchRequest request, final SearchServiceListener<QuerySearchResult> listener) {
+    public void sendExecuteQuery(DiscoveryNode node, final ShardSearchRequest request, final SearchServiceListener<QuerySearchResultProvider> listener) {
         if (clusterService.state().nodes().localNodeId().equals(node.id())) {
-            execute(new Callable<QuerySearchResult>() {
+            execute(new Callable<QuerySearchResultProvider>() {
                 @Override
-                public QuerySearchResult call() throws Exception {
+                public QuerySearchResultProvider call() throws Exception {
                     return searchService.executeQueryPhase(request);
                 }
             }, listener);
         } else {
-            transportService.sendRequest(node, QUERY_ACTION_NAME, request, new BaseTransportResponseHandler<QuerySearchResult>() {
+            transportService.sendRequest(node, QUERY_ACTION_NAME, request, new BaseTransportResponseHandler<QuerySearchResultProvider>() {
 
                 @Override
                 public QuerySearchResult newInstance() {
@@ -228,7 +229,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
                 }
 
                 @Override
-                public void handleResponse(QuerySearchResult response) {
+                public void handleResponse(QuerySearchResultProvider response) {
                     listener.onResult(response);
                 }
 
@@ -690,7 +691,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
 
         @Override
         public void messageReceived(ShardSearchRequest request, TransportChannel channel) throws Exception {
-            QuerySearchResult result = searchService.executeQueryPhase(request);
+            QuerySearchResultProvider result = searchService.executeQueryPhase(request);
             channel.sendResponse(result);
         }
 

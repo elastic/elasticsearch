@@ -123,6 +123,12 @@ public class RestIndicesAction extends AbstractCatAction {
         table.addCell("filter_cache.evictions", "sibling:pri;alias:fce,filterCacheEvictions;default:false;text-align:right;desc:filter cache evictions");
         table.addCell("pri.filter_cache.evictions", "default:false;text-align:right;desc:filter cache evictions");
 
+        table.addCell("query_cache.memory_size", "sibling:pri;alias:qcm,queryCacheMemory;default:false;text-align:right;desc:used query cache");
+        table.addCell("pri.query_cache.memory_size", "default:false;text-align:right;desc:used query cache");
+
+        table.addCell("query_cache.evictions", "sibling:pri;alias:qce,queryCacheEvictions;default:false;text-align:right;desc:query cache evictions");
+        table.addCell("pri.query_cache.evictions", "default:false;text-align:right;desc:query cache evictions");
+
         table.addCell("flush.total", "sibling:pri;alias:ft,flushTotal;default:false;text-align:right;desc:number of flushes");
         table.addCell("pri.flush.total", "default:false;text-align:right;desc:number of flushes");
 
@@ -301,6 +307,12 @@ public class RestIndicesAction extends AbstractCatAction {
 
             table.addCell(indexStats == null ? null : indexStats.getTotal().getFilterCache().getEvictions());
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getFilterCache().getEvictions());
+
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getQueryCache().getMemorySize());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getQueryCache().getMemorySize());
+
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getQueryCache().getEvictions());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getQueryCache().getEvictions());
 
             table.addCell(indexStats == null ? null : indexStats.getTotal().getFlush().getTotal());
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getFlush().getTotal());

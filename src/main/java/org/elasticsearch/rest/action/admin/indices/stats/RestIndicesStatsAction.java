@@ -80,6 +80,7 @@ public class RestIndicesStatsAction extends BaseRestHandler {
             indicesStatsRequest.fieldData(metrics.contains("fielddata"));
             indicesStatsRequest.completion(metrics.contains("completion"));
             indicesStatsRequest.suggest(metrics.contains("suggest"));
+            indicesStatsRequest.queryCache(metrics.contains("query_cache"));
         }
 
         if (request.hasParam("groups")) {

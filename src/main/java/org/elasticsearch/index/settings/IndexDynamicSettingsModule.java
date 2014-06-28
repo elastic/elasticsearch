@@ -40,6 +40,7 @@ import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.index.store.support.AbstractIndexStore;
 import org.elasticsearch.index.translog.TranslogService;
 import org.elasticsearch.index.translog.fs.FsTranslog;
+import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 import org.elasticsearch.indices.ttl.IndicesTTLService;
 import org.elasticsearch.indices.warmer.InternalIndicesWarmer;
 
@@ -119,6 +120,7 @@ public class IndexDynamicSettingsModule extends AbstractModule {
         indexDynamicSettings.addDynamicSetting(TranslogService.INDEX_TRANSLOG_FLUSH_THRESHOLD_PERIOD, Validator.TIME);
         indexDynamicSettings.addDynamicSetting(TranslogService.INDEX_TRANSLOG_DISABLE_FLUSH);
         indexDynamicSettings.addDynamicSetting(InternalIndicesWarmer.INDEX_WARMER_ENABLED);
+        indexDynamicSettings.addDynamicSetting(IndicesQueryCache.INDEX_QUERY_CACHE_ENABLED, Validator.BOOLEAN);
     }
 
     public void addDynamicSettings(String... settings) {

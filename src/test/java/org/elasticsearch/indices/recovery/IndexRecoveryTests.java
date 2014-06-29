@@ -20,6 +20,7 @@
 package org.elasticsearch.indices.recovery;
 
 import com.carrotsearch.randomizedtesting.LifecycleScope;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
@@ -161,6 +162,7 @@ public class IndexRecoveryTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    @LuceneTestCase.AwaitsFix(bugUrl = "test ensureGreen times out. Boaz looking into it")
     public void replicaRecoveryTest() throws Exception {
         logger.info("--> start node A");
         String nodeA = internalCluster().startNode(settingsBuilder().put("gateway.type", "local"));

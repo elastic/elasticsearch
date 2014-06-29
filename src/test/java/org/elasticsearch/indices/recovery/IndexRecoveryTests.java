@@ -20,7 +20,6 @@
 package org.elasticsearch.indices.recovery;
 
 import com.carrotsearch.randomizedtesting.LifecycleScope;
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
@@ -35,6 +34,7 @@ import org.elasticsearch.indices.recovery.RecoveryState.Type;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -103,16 +103,15 @@ public class IndexRecoveryTests extends ElasticsearchIntegrationTest {
     private void slowDownRecovery() {
         assertTrue(client().admin().cluster().prepareUpdateSettings()
                 .setTransientSettings(ImmutableSettings.builder()
-                        .put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC, "50b")
-                        .put(RecoverySettings.INDICES_RECOVERY_FILE_CHUNK_SIZE, "10b"))
+                        // let the default file chunk wait 2 seconds, not to delay the test for too long
+                        .put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC, "256kb"))
                 .get().isAcknowledged());
     }
 
     private void restoreRecoverySpeed() {
         assertTrue(client().admin().cluster().prepareUpdateSettings()
                 .setTransientSettings(ImmutableSettings.builder()
-                        .put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC, "20mb")
-                        .put(RecoverySettings.INDICES_RECOVERY_FILE_CHUNK_SIZE, "512kb"))
+                        .put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC, "20mb"))
                 .get().isAcknowledged());
     }
 
@@ -162,7 +161,6 @@ public class IndexRecoveryTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @LuceneTestCase.AwaitsFix(bugUrl = "test ensureGreen times out. Boaz looking into it")
     public void replicaRecoveryTest() throws Exception {
         logger.info("--> start node A");
         String nodeA = internalCluster().startNode(settingsBuilder().put("gateway.type", "local"));
@@ -204,6 +202,7 @@ public class IndexRecoveryTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    @TestLogging("indices.recovery:TRACE")
     public void rerouteRecoveryTest() throws Exception {
         logger.info("--> start node A");
         String nodeA = internalCluster().startNode(settingsBuilder().put("gateway.type", "local"));
@@ -389,9 +388,9 @@ public class IndexRecoveryTests extends ElasticsearchIntegrationTest {
 
         for (int i = 0; i < numDocs; i++) {
             docs[i] = client().prepareIndex(INDEX_NAME, INDEX_TYPE).
-                    setSource("foo-int-" + i, randomInt(),
-                            "foo-string-" + i, randomAsciiOfLength(32),
-                            "foo-float-" + i, randomFloat());
+                    setSource("foo-int", randomInt(),
+                            "foo-string", randomAsciiOfLength(32),
+                            "foo-float", randomFloat());
         }
 
         indexRandom(true, docs);

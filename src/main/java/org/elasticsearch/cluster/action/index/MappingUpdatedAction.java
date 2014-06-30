@@ -50,6 +50,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
@@ -291,6 +292,7 @@ public class MappingUpdatedAction extends TransportMasterNodeOperationAction<Map
                         Thread.sleep(additionalMappingChangeTime.millis());
                     }
                     queue.drainTo(changes);
+                    Collections.reverse(changes); // process then in newest one to oldest
                     Set<Tuple<String, String>> seenIndexAndTypes = Sets.newHashSet();
                     for (MappingChange change : changes) {
                         Tuple<String, String> checked = Tuple.tuple(change.indexUUID, change.documentMapper.type());

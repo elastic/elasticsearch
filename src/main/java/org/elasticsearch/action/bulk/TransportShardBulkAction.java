@@ -315,7 +315,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                                         } else {
                                             logger.debug("[{}][{}] failed to execute bulk item (index) {}", t, shardRequest.request.index(), shardRequest.shardId, indexRequest);
                                         }
-                                        responses[requestIndex] = new BulkItemResponse(item.id(), indexRequest.opType().lowercase(),
+                                        responses[requestIndex] = new BulkItemResponse(item.id(), "update",
                                                 new BulkItemResponse.Failure(indexRequest.index(), indexRequest.type(), indexRequest.id(), t));
                                         break;
                                     case DELETE:

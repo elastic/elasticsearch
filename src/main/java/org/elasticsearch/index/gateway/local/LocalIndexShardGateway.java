@@ -24,13 +24,16 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.SegmentInfos;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.gateway.IndexShardGateway;
 import org.elasticsearch.index.gateway.IndexShardGatewayRecoveryException;
+import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -57,7 +60,8 @@ import java.util.concurrent.ScheduledFuture;
 public class LocalIndexShardGateway extends AbstractIndexShardComponent implements IndexShardGateway {
 
     private final ThreadPool threadPool;
-
+    private final MappingUpdatedAction mappingUpdatedAction;
+    private final IndexService indexService;
     private final InternalIndexShard indexShard;
 
     private final RecoveryState recoveryState = new RecoveryState();
@@ -66,9 +70,12 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
     private final TimeValue syncInterval;
 
     @Inject
-    public LocalIndexShardGateway(ShardId shardId, @IndexSettings Settings indexSettings, ThreadPool threadPool, IndexShard indexShard) {
+    public LocalIndexShardGateway(ShardId shardId, @IndexSettings Settings indexSettings, ThreadPool threadPool, MappingUpdatedAction mappingUpdatedAction,
+                                  IndexService indexService, IndexShard indexShard) {
         super(shardId, indexSettings);
         this.threadPool = threadPool;
+        this.mappingUpdatedAction = mappingUpdatedAction;
+        this.indexService = indexService;
         this.indexShard = (InternalIndexShard) indexShard;
 
         syncInterval = componentSettings.getAsTime("sync", TimeValue.timeValueSeconds(5));
@@ -224,7 +231,10 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
                     break;
                 }
                 try {
-                    indexShard.performRecoveryOperation(operation);
+                    Engine.IndexingOperation potentialIndexOperation = indexShard.performRecoveryOperation(operation);
+                    if (potentialIndexOperation != null) {
+                        mappingUpdatedAction.updateMappingOnMaster(indexService.index().name(), potentialIndexOperation.docMapper(), indexService.indexUUID());
+                    }
                     recoveryState.getTranslog().addTranslogOperations(1);
                 } catch (ElasticsearchException e) {
                     if (e.status() == RestStatus.BAD_REQUEST) {

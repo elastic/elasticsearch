@@ -43,7 +43,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -85,10 +84,9 @@ public class MappingUpdatedAction extends TransportMasterNodeOperationAction<Map
 
     @Inject
     public MappingUpdatedAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                MetaDataMappingService metaDataMappingService, IndicesService indicesService, NodeSettingsService nodeSettingsService) {
+                                MetaDataMappingService metaDataMappingService, NodeSettingsService nodeSettingsService) {
         super(settings, transportService, clusterService, threadPool);
         this.metaDataMappingService = metaDataMappingService;
-        this.indicesService = indicesService;
         // this setting should probably always be 0, just add the option to wait for more changes within a time window
         this.additionalMappingChangeTime = settings.getAsTime(INDICES_MAPPING_ADDITIONAL_MAPPING_CHANGE_TIME, TimeValue.timeValueMillis(0));
         this.masterMappingUpdater = new MasterMappingUpdater(EsExecutors.threadName(settings, "master_mapping_updater"));

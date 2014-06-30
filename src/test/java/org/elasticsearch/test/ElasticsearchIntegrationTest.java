@@ -41,6 +41,7 @@ import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequestBuilder;
@@ -55,6 +56,7 @@ import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.MutableShardRouting;
@@ -62,6 +64,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -800,6 +803,26 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         });
         if (!applied) {
             fail("failed to find mappings on all nodes for index " + index + ", type " + type + ", and fieldName " + Arrays.toString(fieldNames));
+        }
+    }
+
+    /**
+     * Waits for the given mapping type to exists on the master node.
+     */
+    public void waitForMappingOnMaster(final String index, final String type) throws InterruptedException {
+        boolean applied = awaitBusy(new Predicate<Object>() {
+            @Override
+            public boolean apply(Object input) {
+                GetMappingsResponse response = client().admin().indices().prepareGetMappings(index).setTypes(type).get();
+                ImmutableOpenMap<String, MappingMetaData> mappings = response.getMappings().get(index);
+                if (mappings == null) {
+                    return false;
+                }
+                return mappings.containsKey(type);
+            }
+        });
+        if (!applied) {
+            fail("failed to find mappings for index " + index + ", type " + type + " on master node");
         }
     }
 

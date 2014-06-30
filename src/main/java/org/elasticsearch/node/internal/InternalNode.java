@@ -243,6 +243,7 @@ public final class InternalNode implements Node {
         if (settings.getAsBoolean("http.enabled", true)) {
             injector.getInstance(HttpServer.class).start();
         }
+        injector.getInstance(MappingUpdatedAction.class).start();
         injector.getInstance(BulkUdpService.class).start();
         injector.getInstance(ResourceWatcherService.class).start();
         injector.getInstance(TribeService.class).start();
@@ -267,6 +268,7 @@ public final class InternalNode implements Node {
             injector.getInstance(HttpServer.class).stop();
         }
 
+        injector.getInstance(MappingUpdatedAction.class).stop();
         injector.getInstance(RiversManager.class).stop();
 
         injector.getInstance(SnapshotsService.class).stop();
@@ -324,8 +326,6 @@ public final class InternalNode implements Node {
         stopWatch.stop().start("rivers");
         injector.getInstance(RiversManager.class).close();
 
-        stopWatch.stop().start("mapping");
-        injector.getInstance(MappingUpdatedAction.class).close();
         stopWatch.stop().start("snapshot_service");
         injector.getInstance(SnapshotsService.class).close();
         stopWatch.stop().start("client");

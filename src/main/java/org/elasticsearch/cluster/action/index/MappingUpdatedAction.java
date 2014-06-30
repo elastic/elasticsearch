@@ -66,7 +66,7 @@ public class MappingUpdatedAction extends TransportMasterNodeOperationAction<Map
     private final AtomicLong mappingUpdateOrderGen = new AtomicLong();
     private final MetaDataMappingService metaDataMappingService;
 
-    private final MasterMappingUpdater masterMappingUpdater;
+    private volatile MasterMappingUpdater masterMappingUpdater;
 
     private volatile TimeValue additionalMappingChangeTime;
 
@@ -89,14 +89,17 @@ public class MappingUpdatedAction extends TransportMasterNodeOperationAction<Map
         this.metaDataMappingService = metaDataMappingService;
         // this setting should probably always be 0, just add the option to wait for more changes within a time window
         this.additionalMappingChangeTime = settings.getAsTime(INDICES_MAPPING_ADDITIONAL_MAPPING_CHANGE_TIME, TimeValue.timeValueMillis(0));
-        this.masterMappingUpdater = new MasterMappingUpdater(EsExecutors.threadName(settings, "master_mapping_updater"));
-        this.masterMappingUpdater.start();
-
         nodeSettingsService.addListener(new ApplySettings());
     }
 
-    public void close() {
-        masterMappingUpdater.close();
+    public void start() {
+        this.masterMappingUpdater = new MasterMappingUpdater(EsExecutors.threadName(settings, "master_mapping_updater"));
+        this.masterMappingUpdater.start();
+    }
+
+    public void stop() {
+        this.masterMappingUpdater.close();
+        this.masterMappingUpdater = null;
     }
 
     public void updateMappingOnMaster(String index, DocumentMapper documentMapper, String indexUUID) {

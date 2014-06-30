@@ -77,7 +77,7 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
  */
 public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implements Discovery, DiscoveryNodesProvider {
 
-    private final static String REJOIN_ON_MASTER_GONE = "discovery.zen.rejoin_on_master_gone";
+    public final static String REJOIN_ON_MASTER_GONE = "discovery.zen.rejoin_on_master_gone";
 
     private final ThreadPool threadPool;
     private final TransportService transportService;
@@ -969,6 +969,10 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 logger.warn("failed to send join request on disconnection from master [{}]", masterNode);
             }
         }
+    }
+
+    boolean isRejoinOnMasterGone() {
+        return rejoinOnMasterGone;
     }
 
     static class RejoinClusterRequest extends TransportRequest {

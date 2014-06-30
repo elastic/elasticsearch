@@ -128,9 +128,9 @@ public class PagedBytesReference implements BytesReference {
 
         while (currentLength > 0) {
             // try to align to the underlying pages while writing, so no new arrays will be created.
-            int fragmentSize = Math.min(currentLength, PAGE_SIZE - (offset % PAGE_SIZE));
+            int fragmentSize = Math.min(currentLength, PAGE_SIZE - (currentOffset % PAGE_SIZE));
             boolean newArray = bytearray.get(currentOffset, fragmentSize, ref);
-            assert !newArray : "PagedBytesReference failed to align with underlying. offset [" + currentOffset + "], size [" + fragmentSize + "]";
+            assert !newArray : "PagedBytesReference failed to align with underlying bytearray. offset [" + currentOffset + "], size [" + fragmentSize + "]";
             Channels.writeToChannel(ref.bytes, ref.offset, ref.length, channel);
             currentLength -= ref.length;
             currentOffset += ref.length;

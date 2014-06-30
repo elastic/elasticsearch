@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStreams;
 
+import java.io.EOFException;
 import java.io.FileNotFoundException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
@@ -50,6 +51,10 @@ public class FsChannelSnapshot implements Translog.Snapshot {
 
     private ByteBuffer cacheBuffer;
 
+    /**
+     * Create a snapshot of translog file channel. The length parameter should be consistent with totalOperations and point
+     * at the end of the last operation in this snapshot.
+     */
     public FsChannelSnapshot(long id, RafReference raf, long length, int totalOperations) throws FileNotFoundException {
         this.id = id;
         this.raf = raf;
@@ -95,21 +100,17 @@ public class FsChannelSnapshot implements Translog.Snapshot {
             cacheBuffer.limit(4);
             int bytesRead = Channels.readFromFileChannel(channel, position, cacheBuffer);
             if (bytesRead < 0) {
-                // read passed EOF, which means the tranlog is still being written to. This shouldn't happen.
-                // nocommit: do we want to throw an exception?
-                assert false : "attempt to read passed snapshot EOF";
-                return false;
+                // the snapshot is acquired under a write lock. we should never read beyond the EOF
+                throw new EOFException("read past EOF. pos [" + position + "] length: [" + cacheBuffer.limit() + "] end: [" + channel.size() + "]");
             }
             assert bytesRead == 4;
             cacheBuffer.flip();
             int opSize = cacheBuffer.getInt();
             position += 4;
             if ((position + opSize) > length) {
-                // restore the position to before we read the opSize
-                // nocommit: do we want to throw an exception?
-                assert false : "opSize of [" + opSize + "] pointed beyond EOF. position [" + position + "] length [" + length + "]";
+                // the snapshot is acquired under a write lock. we should never read beyond the EOF
                 position -= 4;
-                return false;
+                throw new EOFException("opSize of [" + opSize + "] pointed beyond EOF. position [" + position + "] length [" + length + "]");
             }
             if (cacheBuffer.capacity() < opSize) {
                 cacheBuffer = ByteBuffer.allocate(opSize);

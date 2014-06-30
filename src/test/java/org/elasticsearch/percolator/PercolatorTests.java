@@ -1756,8 +1756,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
         assertMatchCount(response, 0l);
         assertThat(response.getMatches(), arrayWithSize(0));
 
-        // wait until the mapping change has propagated
-        waitNoPendingTasksOnAll();
+        waitForConcreteMappingsOnAll("test", "type1", "field1", "field2");
 
         GetMappingsResponse mappingsResponse = client().admin().indices().prepareGetMappings("test").get();
         assertThat(mappingsResponse.getMappings().get("test"), notNullValue());

@@ -116,6 +116,7 @@ public class DefaultHeuristic implements SignificanceHeuristic {
 
         @Override
         public SignificanceHeuristic parse(XContentParser parser) throws IOException, QueryParsingException {
+            // move to the closing bracket
             parser.nextToken();
             return new DefaultHeuristic();
         }

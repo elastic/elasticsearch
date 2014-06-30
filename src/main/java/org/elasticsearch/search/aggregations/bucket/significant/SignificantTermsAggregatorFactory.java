@@ -138,6 +138,10 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
     private final TermsAggregator.BucketCountThresholds bucketCountThresholds;
     private final SignificanceHeuristic significanceHeuristic;
 
+    protected TermsAggregator.BucketCountThresholds getBucketCountThresholds() {
+        return new TermsAggregator.BucketCountThresholds(bucketCountThresholds);
+    }
+
     public SignificantTermsAggregatorFactory(String name, ValuesSourceConfig valueSourceConfig, TermsAggregator.BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude,
                                              String executionHint, Filter filter, SignificanceHeuristic significanceHeuristic) {
 

@@ -147,6 +147,10 @@ public class MutualInformation implements SignificanceHeuristic {
         return this;
     }
 
+    public boolean getIncludeNegatives() {
+        return includeNegatives;
+    }
+
     public static class MutualInformationParser implements SignificanceHeuristicParser {
 
         @Override
@@ -160,6 +164,7 @@ public class MutualInformation implements SignificanceHeuristic {
                     includeNegatives = parser.booleanValue();
                 }
             }
+            // move to the closing bracket
             parser.nextToken();
             return new MutualInformation().setIncludeNegatives(includeNegatives);
         }

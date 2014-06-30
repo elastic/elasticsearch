@@ -22,12 +22,14 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
-import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.search.child.TestSearchContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.DefaultHeuristic;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.MutualInformation;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicStreams;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.*;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchLuceneTestCase;
 import org.junit.Test;
@@ -36,11 +38,19 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.util.*;
 
+import static org.hamcrest.Matchers.equalTo;
+
 /**
  *
  */
 @ElasticsearchIntegrationTest.SuiteScopeTest
 public class SignificantTermsUnitTests extends ElasticsearchLuceneTestCase {
+    static class SignificantTermsTestSearchContext extends TestSearchContext {
+        @Override
+        public int numberOfShards() {
+            return 1;
+        }
+    }
 
     // test that stream output can actually be read - does not replace bwc test
     @Test
@@ -95,5 +105,64 @@ public class SignificantTermsUnitTests extends ElasticsearchLuceneTestCase {
         } else {
             return new MutualInformation().setIncludeNegatives(random().nextBoolean());
         }
+    }
+
+    // test that
+    // 1. The output of the builders can actually be parsed
+    // 2. The parser does not swallow parameters after a significance heuristic was defined
+    @Test
+    public void testBuilderAndParser() throws Exception {
+
+        Set<SignificanceHeuristicParser> parsers = new HashSet<>();
+        parsers.add(new DefaultHeuristic.DefaultHeuristicParser());
+        parsers.add(new MutualInformation.MutualInformationParser());
+        SignificanceHeuristicParserMapper heuristicParserMapper = new SignificanceHeuristicParserMapper(parsers);
+        SearchContext searchContext = new SignificantTermsTestSearchContext();
+
+        // test default with string
+        XContentParser stParser = JsonXContent.jsonXContent.createParser("{\"field\":\"text\", \"default\":{}, \"min_doc_count\":200}");
+        stParser.nextToken();
+        SignificantTermsAggregatorFactory aggregatorFactory = (SignificantTermsAggregatorFactory) new SignificantTermsParser(heuristicParserMapper).parse("testagg", stParser, searchContext);
+        stParser.nextToken();
+        assertThat(aggregatorFactory.getBucketCountThresholds().getMinDocCount(), equalTo(200l));
+        assertThat(stParser.currentToken(), equalTo(null));
+        stParser.close();
+
+        // test default with builders
+        SignificantTermsBuilder stBuilder = new SignificantTermsBuilder("testagg");
+        stBuilder.significanceHeuristic(new DefaultHeuristic.DefaultHeuristicBuilder()).field("text").minDocCount(200);
+        XContentBuilder stXContentBuilder = XContentFactory.jsonBuilder();
+        stBuilder.internalXContent(stXContentBuilder, null);
+        stParser = JsonXContent.jsonXContent.createParser(stXContentBuilder.string());
+        stParser.nextToken();
+        aggregatorFactory = (SignificantTermsAggregatorFactory) new SignificantTermsParser(heuristicParserMapper).parse("testagg", stParser, searchContext);
+        stParser.nextToken();
+        assertThat(aggregatorFactory.getBucketCountThresholds().getMinDocCount(), equalTo(200l));
+        assertThat(stParser.currentToken(), equalTo(null));
+        stParser.close();
+
+        // test mutual_information with string
+        stParser = JsonXContent.jsonXContent.createParser("{\"field\":\"text\", \"mutual_information\":{\"include_negatives\": false}, \"min_doc_count\":200}");
+        stParser.nextToken();
+        aggregatorFactory = (SignificantTermsAggregatorFactory) new SignificantTermsParser(heuristicParserMapper).parse("testagg", stParser, searchContext);
+        stParser.nextToken();
+        assertThat(aggregatorFactory.getBucketCountThresholds().getMinDocCount(), equalTo(200l));
+        assertTrue(!((MutualInformation) aggregatorFactory.getSignificanceHeuristic()).getIncludeNegatives());
+        assertThat(stParser.currentToken(), equalTo(null));
+        stParser.close();
+
+        // test mutual_information with builders
+        stBuilder = new SignificantTermsBuilder("testagg");
+        stBuilder.significanceHeuristic(new MutualInformation.MutualInformationBuilder().setIncludeNegatives(false)).field("text").minDocCount(200);
+        stXContentBuilder = XContentFactory.jsonBuilder();
+        stBuilder.internalXContent(stXContentBuilder, null);
+        stParser = JsonXContent.jsonXContent.createParser(stXContentBuilder.string());
+        stParser.nextToken();
+        aggregatorFactory = (SignificantTermsAggregatorFactory) new SignificantTermsParser(heuristicParserMapper).parse("testagg", stParser, searchContext);
+        stParser.nextToken();
+        assertThat(aggregatorFactory.getBucketCountThresholds().getMinDocCount(), equalTo(200l));
+        assertTrue(!((MutualInformation) aggregatorFactory.getSignificanceHeuristic()).getIncludeNegatives());
+        assertThat(stParser.currentToken(), equalTo(null));
+        stParser.close();
     }
 }

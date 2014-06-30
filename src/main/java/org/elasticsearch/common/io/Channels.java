@@ -97,6 +97,7 @@ public abstract class Channels {
             int bytesRead = 0;
             int bytesToRead = dest.remaining();
 
+            // duplicate the buffer in order to be able to change the limit
             ByteBuffer tmpBuffer = dest.duplicate();
             try {
                 while (dest.hasRemaining()) {
@@ -204,6 +205,7 @@ public abstract class Channels {
                 channel.write(byteBuffer);
             }
         } else {
+            // duplicate the buffer in order to be able to change the limit
             ByteBuffer tmpBuffer = byteBuffer.duplicate();
             try {
                 while (byteBuffer.hasRemaining()) {

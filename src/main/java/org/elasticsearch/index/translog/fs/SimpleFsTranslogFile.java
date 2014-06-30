@@ -115,6 +115,7 @@ public class SimpleFsTranslogFile implements FsTranslogFile {
             }
             return new FsChannelSnapshot(this.id, raf, lastWrittenPosition, operationCounter);
         } catch (Exception e) {
+            raf.decreaseRefCount(false);
             throw new TranslogException(shardId, "Failed to snapshot", e);
         } finally {
             rwl.writeLock().unlock();

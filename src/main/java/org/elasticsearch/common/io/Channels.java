@@ -28,7 +28,11 @@ import java.nio.channels.FileChannel;
 import java.nio.channels.GatheringByteChannel;
 import java.nio.channels.WritableByteChannel;
 
-public abstract class Channels {
+public final class Channels {
+
+    private Channels() {
+    }
+
     /**
      * The maximum chunk size for reads in bytes
      */

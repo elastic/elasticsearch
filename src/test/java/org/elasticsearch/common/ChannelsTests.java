@@ -54,7 +54,7 @@ public class ChannelsTests extends ElasticsearchTestCase {
         File tmpFile = newTempFile();
         randomAccessFile = new RandomAccessFile(tmpFile, "rw");
         fileChannel = new MockFileChannel(randomAccessFile.getChannel());
-        randomBytes = randomUnicodeOfLengthBetween(10, 100000).getBytes("UTF-8");
+        randomBytes = randomUnicodeOfLength(scaledRandomIntBetween(10, 100000)).getBytes("UTF-8");
     }
 
     @After

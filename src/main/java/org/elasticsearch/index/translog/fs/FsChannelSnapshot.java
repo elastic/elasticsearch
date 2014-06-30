@@ -29,6 +29,7 @@ import java.io.EOFException;
 import java.io.FileNotFoundException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  *
@@ -50,6 +51,8 @@ public class FsChannelSnapshot implements Translog.Snapshot {
     private int position = 0;
 
     private ByteBuffer cacheBuffer;
+
+    private AtomicBoolean closed = new AtomicBoolean(false);
 
     /**
      * Create a snapshot of translog file channel. The length parameter should be consistent with totalOperations and point
@@ -142,6 +145,9 @@ public class FsChannelSnapshot implements Translog.Snapshot {
 
     @Override
     public void close() throws ElasticsearchException {
+        if (!closed.compareAndSet(false, true)) {
+            return;
+        }
         raf.decreaseRefCount(true);
     }
 }

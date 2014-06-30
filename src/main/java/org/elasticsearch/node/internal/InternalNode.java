@@ -36,6 +36,7 @@ import org.elasticsearch.client.node.NodeClientModule;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterNameModule;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.StopWatch;
@@ -242,6 +243,7 @@ public final class InternalNode implements Node {
         if (settings.getAsBoolean("http.enabled", true)) {
             injector.getInstance(HttpServer.class).start();
         }
+        injector.getInstance(MappingUpdatedAction.class).start();
         injector.getInstance(BulkUdpService.class).start();
         injector.getInstance(ResourceWatcherService.class).start();
         injector.getInstance(TribeService.class).start();
@@ -266,6 +268,7 @@ public final class InternalNode implements Node {
             injector.getInstance(HttpServer.class).stop();
         }
 
+        injector.getInstance(MappingUpdatedAction.class).stop();
         injector.getInstance(RiversManager.class).stop();
 
         injector.getInstance(SnapshotsService.class).stop();

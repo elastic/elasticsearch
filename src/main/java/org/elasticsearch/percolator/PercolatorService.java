@@ -279,9 +279,7 @@ public class PercolatorService extends AbstractComponent {
                         DocumentMapper docMapper = mapperService.documentMapperWithAutoCreate(request.documentType());
                         doc = docMapper.parse(source(parser).type(request.documentType()).flyweight(true));
                         if (doc.mappingsModified()) {
-                            mappingUpdatedAction.updateMappingOnMaster(
-                                    docMapper, request.index(), request.documentType(), documentIndexService.indexUUID(), true
-                            );
+                            mappingUpdatedAction.updateMappingOnMaster(request.index(), docMapper, documentIndexService.indexUUID());
                         }
                         // the document parsing exists the "doc" object, so we need to set the new current field.
                         currentFieldName = parser.currentName();

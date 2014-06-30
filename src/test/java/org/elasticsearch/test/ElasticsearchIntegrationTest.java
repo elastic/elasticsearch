@@ -25,6 +25,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.google.common.base.Joiner;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 import org.apache.lucene.store.StoreRateLimiting;
 import org.apache.lucene.util.AbstractRandomizedTest;
 import org.apache.lucene.util.IOUtils;
@@ -35,6 +36,7 @@ import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
@@ -54,6 +56,9 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.MutableShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -70,6 +75,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.index.fielddata.FieldDataType;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMapper.Loading;
 import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
@@ -79,7 +85,9 @@ import org.elasticsearch.index.merge.scheduler.ConcurrentMergeSchedulerProvider;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerModule;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
 import org.elasticsearch.index.merge.scheduler.SerialMergeSchedulerProvider;
+import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.translog.TranslogService;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.rest.RestStatus;
@@ -104,7 +112,8 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.InternalTestCluster.clusterName;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.emptyIterable;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  * {@link ElasticsearchIntegrationTest} is an abstract base class to run integration
@@ -324,8 +333,8 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
 
             if (randomizeNumberOfShardsAndReplicas()) {
                 randomSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, between(DEFAULT_MIN_NUM_SHARDS, DEFAULT_MAX_NUM_SHARDS))
-                    //use either 0 or 1 replica, yet a higher amount when possible, but only rarely
-                    .put(SETTING_NUMBER_OF_REPLICAS, between(0, getRandom().nextInt(10) > 0 ? 1 : cluster().numDataNodes() - 1));
+                        //use either 0 or 1 replica, yet a higher amount when possible, but only rarely
+                        .put(SETTING_NUMBER_OF_REPLICAS, between(0, getRandom().nextInt(10) > 0 ? 1 : cluster().numDataNodes() - 1));
             }
             XContentBuilder mappings = null;
             if (frequently() && randomDynamicTemplates()) {
@@ -333,59 +342,59 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                 if (randomBoolean()) {
                     mappings.startObject(IdFieldMapper.NAME)
                             .field("index", randomFrom("not_analyzed", "no"))
-                        .endObject();
+                            .endObject();
                 }
                 mappings.startObject(FieldNamesFieldMapper.NAME)
                         .startObject("fielddata")
-                            .field(FieldDataType.FORMAT_KEY, randomFrom("paged_bytes", "fst", "doc_values"))
+                        .field(FieldDataType.FORMAT_KEY, randomFrom("paged_bytes", "fst", "doc_values"))
                         .endObject()
-                    .endObject();
+                        .endObject();
                 mappings.startArray("dynamic_templates")
                         .startObject()
-                            .startObject("template-strings")
-                                .field("match_mapping_type", "string")
-                                .startObject("mapping")
-                                    .startObject("fielddata")
-                                        .field(FieldDataType.FORMAT_KEY, randomFrom("paged_bytes", "fst")) // unfortunately doc values only work on not_analyzed fields
-                                        .field(Loading.KEY, randomLoadingValues())
-                                    .endObject()
-                                .endObject()
-                            .endObject()
+                        .startObject("template-strings")
+                        .field("match_mapping_type", "string")
+                        .startObject("mapping")
+                        .startObject("fielddata")
+                        .field(FieldDataType.FORMAT_KEY, randomFrom("paged_bytes", "fst")) // unfortunately doc values only work on not_analyzed fields
+                        .field(Loading.KEY, randomLoadingValues())
+                        .endObject()
+                        .endObject()
+                        .endObject()
                         .endObject()
                         .startObject()
-                            .startObject("template-longs")
-                                .field("match_mapping_type", "long")
-                                .startObject("mapping")
-                                    .startObject("fielddata")
-                                        .field(FieldDataType.FORMAT_KEY, randomFrom("array", "doc_values"))
-                                        .field(Loading.KEY, randomFrom(Loading.LAZY, Loading.EAGER))
-                                    .endObject()
-                                .endObject()
-                            .endObject()
+                        .startObject("template-longs")
+                        .field("match_mapping_type", "long")
+                        .startObject("mapping")
+                        .startObject("fielddata")
+                        .field(FieldDataType.FORMAT_KEY, randomFrom("array", "doc_values"))
+                        .field(Loading.KEY, randomFrom(Loading.LAZY, Loading.EAGER))
+                        .endObject()
+                        .endObject()
+                        .endObject()
                         .endObject()
                         .startObject()
-                            .startObject("template-doubles")
-                                .field("match_mapping_type", "double")
-                                .startObject("mapping")
-                                    .startObject("fielddata")
-                                        .field(FieldDataType.FORMAT_KEY, randomFrom("array", "doc_values"))
-                                        .field(Loading.KEY, randomFrom(Loading.LAZY, Loading.EAGER))
-                                    .endObject()
-                                .endObject()
-                            .endObject()
+                        .startObject("template-doubles")
+                        .field("match_mapping_type", "double")
+                        .startObject("mapping")
+                        .startObject("fielddata")
+                        .field(FieldDataType.FORMAT_KEY, randomFrom("array", "doc_values"))
+                        .field(Loading.KEY, randomFrom(Loading.LAZY, Loading.EAGER))
+                        .endObject()
+                        .endObject()
+                        .endObject()
                         .endObject()
                         .startObject()
-                            .startObject("template-geo_points")
-                                .field("match_mapping_type", "geo_point")
-                                .startObject("mapping")
-                                    .startObject("fielddata")
-                                        .field(FieldDataType.FORMAT_KEY, randomFrom("array", "doc_values"))
-                                        .field(Loading.KEY, randomFrom(Loading.LAZY, Loading.EAGER))
-                                    .endObject()
-                                .endObject()
-                            .endObject()
+                        .startObject("template-geo_points")
+                        .field("match_mapping_type", "geo_point")
+                        .startObject("mapping")
+                        .startObject("fielddata")
+                        .field(FieldDataType.FORMAT_KEY, randomFrom("array", "doc_values"))
+                        .field(Loading.KEY, randomFrom(Loading.LAZY, Loading.EAGER))
                         .endObject()
-                    .endArray();
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endArray();
                 mappings.endObject().endObject();
             }
 
@@ -460,7 +469,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             case 3:
                 builder.put(MergeSchedulerModule.MERGE_SCHEDULER_TYPE_KEY, ConcurrentMergeSchedulerProvider.class);
                 final int maxThreadCount = RandomInts.randomIntBetween(random, 1, 4);
-                final int maxMergeCount = RandomInts.randomIntBetween(random, maxThreadCount, maxThreadCount+4);
+                final int maxMergeCount = RandomInts.randomIntBetween(random, maxThreadCount, maxThreadCount + 4);
                 builder.put(ConcurrentMergeSchedulerProvider.MAX_MERGE_COUNT, maxMergeCount);
                 builder.put(ConcurrentMergeSchedulerProvider.MAX_THREAD_COUNT, maxThreadCount);
                 break;
@@ -754,6 +763,48 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             fail(reference[0].prettyPrint());
         }
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).get();
+    }
+
+    /**
+     * Waits till a (pattern) field name mappings concretely exists on all nodes. Note, this waits for the current
+     * started shards and checks for concrete mappings.
+     */
+    public void waitForConcreteMappingsOnAll(final String index, final String type, final String... fieldNames) throws InterruptedException {
+        boolean applied = awaitBusy(new Predicate<Object>() {
+            @Override
+            public boolean apply(Object input) {
+                try {
+                    Set<String> nodes = internalCluster().nodesInclude(index);
+                    if (nodes.isEmpty()) { // we expect at least one node to hold an index, so wait if not allocated yet
+                        return false;
+                    }
+                    for (String node : nodes) {
+                        IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
+                        IndexService indexService = indicesService.indexService(index);
+                        if (indexService == null) {
+                            return false;
+                        }
+                        DocumentMapper documentMapper = indexService.mapperService().documentMapper(type);
+                        if (documentMapper == null) {
+                            return false;
+                        }
+                        for (String fieldName : fieldNames) {
+                            Set<String> matches = documentMapper.mappers().simpleMatchToFullName(fieldName);
+                            if (matches.isEmpty()) {
+                                return false;
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    logger.info("got exception waiting for concrete mappings", e);
+                    return false;
+                }
+                return true;
+            }
+        });
+        if (!applied) {
+            fail("failed to find mappings on all nodes for index " + index + ", type " + type + ", and fieldName " + Arrays.toString(fieldNames));
+        }
     }
 
     /**
@@ -1073,8 +1124,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      * @param forceRefresh if <tt>true</tt> all involved indices are refreshed once the documents are indexed. Additionally if <tt>true</tt>
      *                     some empty dummy documents are may be randomly inserted into the document list and deleted once all documents are indexed.
      *                     This is useful to produce deleted documents on the server side.
-     * @param builders the documents to index.
-     *
+     * @param builders     the documents to index.
      * @see #indexRandom(boolean, boolean, java.util.List)
      */
     public void indexRandom(boolean forceRefresh, List<IndexRequestBuilder> builders) throws InterruptedException, ExecutionException {
@@ -1088,10 +1138,10 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      * segment or if only one document is in a segment etc. This method prevents issues like this by randomizing the index
      * layout.
      *
-     * @param forceRefresh if <tt>true</tt> all involved indices are refreshed once the documents are indexed.
+     * @param forceRefresh   if <tt>true</tt> all involved indices are refreshed once the documents are indexed.
      * @param dummyDocuments if <tt>true</tt> some empty dummy documents are may be randomly inserted into the document list and deleted once
      *                       all documents are indexed. This is useful to produce deleted documents on the server side.
-     * @param builders the documents to index.
+     * @param builders       the documents to index.
      */
     public void indexRandom(boolean forceRefresh, boolean dummyDocuments, List<IndexRequestBuilder> builders) throws InterruptedException, ExecutionException {
         Random random = getRandom();
@@ -1104,7 +1154,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             builders = new ArrayList<>(builders);
             final String[] indices = indicesSet.toArray(new String[0]);
             // inject some bogus docs
-            final int numBogusDocs = scaledRandomIntBetween(1, builders.size()*2);
+            final int numBogusDocs = scaledRandomIntBetween(1, builders.size() * 2);
             final int unicodeLen = between(1, 10);
             for (int i = 0; i < numBogusDocs; i++) {
                 String id = randomRealisticUnicodeOfLength(unicodeLen);
@@ -1156,10 +1206,10 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         }
         assertThat(actualErrors, emptyIterable());
         if (!bogusIds.isEmpty()) {
-           // delete the bogus types again - it might trigger merges or at least holes in the segments and enforces deleted docs!
-           for (Tuple<String, String> doc : bogusIds) {
-               assertTrue("failed to delete a dummy doc", client().prepareDelete(doc.v1(), RANDOM_BOGUS_TYPE, doc.v2()).get().isFound());
-           }
+            // delete the bogus types again - it might trigger merges or at least holes in the segments and enforces deleted docs!
+            for (Tuple<String, String> doc : bogusIds) {
+                assertTrue("failed to delete a dummy doc", client().prepareDelete(doc.v1(), RANDOM_BOGUS_TYPE, doc.v2()).get().isFound());
+            }
         }
         if (forceRefresh) {
             assertNoFailures(client().admin().indices().prepareRefresh(indices).setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute().get());
@@ -1566,7 +1616,6 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         }
         return System.getProperty(TESTS_BACKWARDS_COMPATIBILITY_VERSION);
     }
-
 
 
 }

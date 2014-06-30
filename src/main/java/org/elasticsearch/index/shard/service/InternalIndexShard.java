@@ -736,24 +736,33 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         engine.enableGcDeletes(true);
     }
 
-    public void performRecoveryOperation(Translog.Operation operation) throws ElasticsearchException {
+    /**
+     * Performs a single recovery operation, and returns the indexing operation (or null if its not an indexing operation)
+     * that can then be used for mapping updates (for example) if needed.
+     */
+    public Engine.IndexingOperation performRecoveryOperation(Translog.Operation operation) throws ElasticsearchException {
         if (state != IndexShardState.RECOVERING) {
             throw new IndexShardNotRecoveringException(shardId, state);
         }
+        Engine.IndexingOperation indexOperation = null;
         try {
             switch (operation.opType()) {
                 case CREATE:
                     Translog.Create create = (Translog.Create) operation;
-                    engine.create(prepareCreate(
+                    Engine.Create engineCreate = prepareCreate(
                             source(create.source()).type(create.type()).id(create.id())
-                            .routing(create.routing()).parent(create.parent()).timestamp(create.timestamp()).ttl(create.ttl()),
-                            create.version(), create.versionType().versionTypeForReplicationAndRecovery(), Engine.Operation.Origin.RECOVERY, true, false));
+                                    .routing(create.routing()).parent(create.parent()).timestamp(create.timestamp()).ttl(create.ttl()),
+                            create.version(), create.versionType().versionTypeForReplicationAndRecovery(), Engine.Operation.Origin.RECOVERY, true, false);
+                    engine.create(engineCreate);
+                    indexOperation = engineCreate;
                     break;
                 case SAVE:
                     Translog.Index index = (Translog.Index) operation;
-                    engine.index(prepareIndex(source(index.source()).type(index.type()).id(index.id())
-                            .routing(index.routing()).parent(index.parent()).timestamp(index.timestamp()).ttl(index.ttl()),
-                            index.version(),index.versionType().versionTypeForReplicationAndRecovery(), Engine.Operation.Origin.RECOVERY, true));
+                    Engine.Index engineIndex = prepareIndex(source(index.source()).type(index.type()).id(index.id())
+                                    .routing(index.routing()).parent(index.parent()).timestamp(index.timestamp()).ttl(index.ttl()),
+                            index.version(), index.versionType().versionTypeForReplicationAndRecovery(), Engine.Operation.Origin.RECOVERY, true);
+                    engine.index(engineIndex);
+                    indexOperation = engineIndex;
                     break;
                 case DELETE:
                     Translog.Delete delete = (Translog.Delete) operation;
@@ -786,6 +795,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                 throw e;
             }
         }
+        return indexOperation;
     }
 
     /**

@@ -26,10 +26,12 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.count.CountResponse;
+import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -679,6 +681,36 @@ public class BulkTests extends ElasticsearchIntegrationTest {
             assertThat("Could not get a bulk response even after an explicit flush.", response, notNullValue());
             assertThat(response.getItems().length, is(5));
         }
+    }
+
+    @Test // issue 6630
+    public void testThatFailedUpdateRequestReturnsCorrectType() throws Exception {
+        BulkResponse indexBulkItemResponse = client().prepareBulk()
+                .add(new IndexRequest("test", "type", "3").source("{ \"title\" : \"Great Title of doc 3\" }"))
+                .add(new IndexRequest("test", "type", "4").source("{ \"title\" : \"Great Title of doc 4\" }"))
+                .add(new IndexRequest("test", "type", "5").source("{ \"title\" : \"Great Title of doc 5\" }"))
+                .add(new IndexRequest("test", "type", "6").source("{ \"title\" : \"Great Title of doc 6\" }"))
+                .setRefresh(true)
+                .get();
+        assertNoFailures(indexBulkItemResponse);
+
+        BulkResponse bulkItemResponse = client().prepareBulk()
+                .add(new IndexRequest("test", "type", "1").source("{ \"title\" : \"Great Title of doc 1\" }"))
+                .add(new IndexRequest("test", "type", "2").source("{ \"title\" : \"Great Title of doc 2\" }"))
+                .add(new UpdateRequest("test", "type", "3").doc("{ \"date\" : \"2014-01-30T23:59:57\"}"))
+                .add(new UpdateRequest("test", "type", "4").doc("{ \"date\" : \"2014-13-30T23:59:57\"}"))
+                .add(new DeleteRequest("test", "type", "5"))
+                .add(new DeleteRequest("test", "type", "6"))
+        .get();
+
+        assertNoFailures(indexBulkItemResponse);
+        assertThat(bulkItemResponse.getItems().length, is(6));
+        assertThat(bulkItemResponse.getItems()[0].getOpType(), is("index"));
+        assertThat(bulkItemResponse.getItems()[1].getOpType(), is("index"));
+        assertThat(bulkItemResponse.getItems()[2].getOpType(), is("update"));
+        assertThat(bulkItemResponse.getItems()[3].getOpType(), is("update"));
+        assertThat(bulkItemResponse.getItems()[4].getOpType(), is("delete"));
+        assertThat(bulkItemResponse.getItems()[5].getOpType(), is("delete"));
     }
 }
 

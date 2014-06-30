@@ -31,6 +31,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -945,13 +946,16 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
         doXContent(builder, params);
 
         // sort the mappers so we get consistent serialization format
-        TreeMap<String, Mapper> sortedMappers = new TreeMap<>();
-        for (ObjectObjectCursor<String, Mapper> cursor : mappers) {
-            sortedMappers.put(cursor.key, cursor.value);
-        }
+        Mapper[] sortedMappers = mappers.values().toArray(Mapper.class);
+        Arrays.sort(sortedMappers, new Comparator<Mapper>() {
+            @Override
+            public int compare(Mapper o1, Mapper o2) {
+                return o1.name().compareTo(o2.name());
+            }
+        });
 
         // check internal mappers first (this is only relevant for root object)
-        for (Mapper mapper : sortedMappers.values()) {
+        for (Mapper mapper : sortedMappers) {
             if (mapper instanceof InternalMapper) {
                 mapper.toXContent(builder, params);
             }
@@ -969,7 +973,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
 
         if (!mappers.isEmpty()) {
             builder.startObject("properties");
-            for (Mapper mapper : sortedMappers.values()) {
+            for (Mapper mapper : sortedMappers) {
                 if (!(mapper instanceof InternalMapper)) {
                     mapper.toXContent(builder, params);
                 }

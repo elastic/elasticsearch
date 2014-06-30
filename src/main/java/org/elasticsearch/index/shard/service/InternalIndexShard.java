@@ -736,6 +736,10 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         engine.enableGcDeletes(true);
     }
 
+    /**
+     * Performs a single recovery operation, and returns the indexing operation (or null if its not an indexing operation)
+     * that can then be used for mapping updates (for example) if needed.
+     */
     public Engine.IndexingOperation performRecoveryOperation(Translog.Operation operation) throws ElasticsearchException {
         if (state != IndexShardState.RECOVERING) {
             throw new IndexShardNotRecoveringException(shardId, state);

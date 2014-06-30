@@ -45,6 +45,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -61,22 +62,40 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public class MappingUpdatedAction extends TransportMasterNodeOperationAction<MappingUpdatedAction.MappingUpdatedRequest, MappingUpdatedAction.MappingUpdatedResponse> {
 
+    public static final String INDICES_MAPPING_ADDITIONAL_MAPPING_CHANGE_TIME = "indices.mapping.additional_mapping_change_time";
+
     private final AtomicLong mappingUpdateOrderGen = new AtomicLong();
     private final MetaDataMappingService metaDataMappingService;
     private final IndicesService indicesService;
 
     private final MasterMappingUpdater masterMappingUpdater;
 
+    private volatile TimeValue additionalMappingChangeTime;
+
+    class ApplySettings implements NodeSettingsService.Listener {
+        @Override
+        public void onRefreshSettings(Settings settings) {
+            final TimeValue current = MappingUpdatedAction.this.additionalMappingChangeTime;
+            final TimeValue newValue = settings.getAsTime(INDICES_MAPPING_ADDITIONAL_MAPPING_CHANGE_TIME, current);
+            if (!current.equals(newValue)) {
+                logger.info("updating " + INDICES_MAPPING_ADDITIONAL_MAPPING_CHANGE_TIME + " from [{}] to [{}]", current, newValue);
+                MappingUpdatedAction.this.additionalMappingChangeTime = newValue;
+            }
+        }
+    }
+
     @Inject
     public MappingUpdatedAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                MetaDataMappingService metaDataMappingService, IndicesService indicesService) {
+                                MetaDataMappingService metaDataMappingService, IndicesService indicesService, NodeSettingsService nodeSettingsService) {
         super(settings, transportService, clusterService, threadPool);
         this.metaDataMappingService = metaDataMappingService;
         this.indicesService = indicesService;
         // this setting should probably always be 0, just add the option to wait for more changes within a time window
-        TimeValue additionalMappingChangeTime = settings.getAsTime("action.mapping.additional_mapping_change_time", TimeValue.timeValueMillis(0));
-        this.masterMappingUpdater = new MasterMappingUpdater(EsExecutors.threadName(settings, "master_mapping_updater"), additionalMappingChangeTime);
+        this.additionalMappingChangeTime = settings.getAsTime(INDICES_MAPPING_ADDITIONAL_MAPPING_CHANGE_TIME, TimeValue.timeValueMillis(0));
+        this.masterMappingUpdater = new MasterMappingUpdater(EsExecutors.threadName(settings, "master_mapping_updater"));
         this.masterMappingUpdater.start();
+
+        nodeSettingsService.addListener(new ApplySettings());
     }
 
     public void close() {
@@ -260,13 +279,11 @@ public class MappingUpdatedAction extends TransportMasterNodeOperationAction<Map
      */
     private class MasterMappingUpdater extends Thread {
 
-        private final TimeValue additionalMappingChangeTime;
         private volatile boolean running = true;
         private final BlockingQueue<MappingChange> queue = ConcurrentCollections.newBlockingQueue();
 
-        public MasterMappingUpdater(String name, TimeValue additionalMappingChangeTime) {
+        public MasterMappingUpdater(String name) {
             super(name);
-            this.additionalMappingChangeTime = additionalMappingChangeTime;
         }
 
         public void add(MappingChange change) {

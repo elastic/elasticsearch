@@ -22,48 +22,22 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.cache.recycler.CacheRecyclerModule;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedString;
-import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Injector;
-import org.elasticsearch.common.inject.ModulesBuilder;
-import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.lucene.search.AndFilter;
 import org.elasticsearch.common.lucene.search.CachedFilter;
 import org.elasticsearch.common.lucene.search.NoCacheFilter;
 import org.elasticsearch.common.lucene.search.XBooleanFilter;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsModule;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexNameModule;
-import org.elasticsearch.index.analysis.AnalysisModule;
-import org.elasticsearch.index.cache.IndexCacheModule;
-import org.elasticsearch.index.codec.CodecModule;
-import org.elasticsearch.index.engine.IndexEngineModule;
-import org.elasticsearch.index.fielddata.IndexFieldDataModule;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MapperServiceModule;
-import org.elasticsearch.index.query.functionscore.FunctionScoreModule;
 import org.elasticsearch.index.search.child.TestSearchContext;
-import org.elasticsearch.index.settings.IndexSettingsModule;
-import org.elasticsearch.index.similarity.SimilarityModule;
-import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
-import org.elasticsearch.indices.fielddata.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.indices.query.IndicesQueriesModule;
-import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.elasticsearch.test.index.service.StubIndexService;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.ThreadPoolModule;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
+import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -76,44 +50,18 @@ import static org.hamcrest.Matchers.is;
 /**
  *
  */
-public class IndexQueryParserFilterCachingTests extends ElasticsearchTestCase {
+public class IndexQueryParserFilterCachingTests extends ElasticsearchSingleNodeTest {
 
-    private static Injector injector;
+    private Injector injector;
+    private IndexQueryParserService queryParser;
 
-    private static IndexQueryParserService queryParser;
-
-    @BeforeClass
-    public static void setupQueryParser() throws IOException {
+    @Before
+    public void setup() throws IOException {
         Settings settings = ImmutableSettings.settingsBuilder()
                 .put("index.cache.filter.type", "weighted")
                 .put("name", "IndexQueryParserFilterCachingTests")
                 .build();
-        Index index = new Index("test");
-        injector = new ModulesBuilder().add(
-                new CacheRecyclerModule(settings),
-                new CodecModule(settings),
-                new SettingsModule(settings),
-                new ThreadPoolModule(settings),
-                new IndicesQueriesModule(),
-                new ScriptModule(settings),
-                new MapperServiceModule(),
-                new IndexSettingsModule(index, settings),
-                new IndexCacheModule(settings),
-                new AnalysisModule(settings),
-                new IndexEngineModule(settings),
-                new SimilarityModule(settings),
-                new IndexQueryParserModule(settings),
-                new IndexNameModule(index),
-                new FunctionScoreModule(),
-                new IndexFieldDataModule(settings),
-                new AbstractModule() {
-                    @Override
-                    protected void configure() {
-                        bind(ClusterService.class).toProvider(Providers.of((ClusterService) null));
-                        bind(CircuitBreakerService.class).to(NoneCircuitBreakerService.class);
-                    }
-                }
-        ).createInjector();
+        injector = createIndex("test", settings).injector();
 
         injector.getInstance(IndexFieldDataService.class).setIndexService((new StubIndexService(injector.getInstance(MapperService.class))));
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/query/mapping.json");
@@ -124,23 +72,9 @@ public class IndexQueryParserFilterCachingTests extends ElasticsearchTestCase {
         queryParser = injector.getInstance(IndexQueryParserService.class);
     }
 
-    @AfterClass
-    public static void close() {
-        injector.getInstance(ThreadPool.class).shutdownNow();
-        queryParser = null;
-        injector = null;
-    }
-
     private IndexQueryParserService queryParser() throws IOException {
         return this.queryParser;
     }
-
-    private BytesRef longToPrefixCoded(long val, int shift) {
-        BytesRef bytesRef = new BytesRef();
-        NumericUtils.longToPrefixCoded(val, shift, bytesRef);
-        return bytesRef;
-    }
-
 
     @Test
     public void testNoFilterParsing() throws IOException {

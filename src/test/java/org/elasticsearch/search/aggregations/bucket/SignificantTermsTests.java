@@ -200,20 +200,9 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
                            .minDocCount(2).backgroundFilter(FilterBuilders.termFilter("fact_category", 1)))
                 .execute()
                 .actionGet();
-        assertSearchResponse(response);
-        SignificantTerms topTerms = response.getAggregations().get("mySignificantTerms");
-        // We expect at least one of the significant terms to have been selected on the basis
-        // that it is present in the foreground selection but entirely missing from the filtered
-        // background used as context.
-        boolean hasMissingBackgroundTerms = false;
-        for (Bucket topTerm : topTerms) {
-            if (topTerm.getSupersetDf() == 0) {
-                hasMissingBackgroundTerms = true;
-                break;
-            }
-        }
-        assertTrue(hasMissingBackgroundTerms);
-    }       
+        assertThat(response.getFailedShards(), greaterThanOrEqualTo(1));
+        assertThat(response.getHits().getTotalHits(), equalTo(0l));
+    }
     
     @Test
     public void filteredAnalysis() throws Exception {

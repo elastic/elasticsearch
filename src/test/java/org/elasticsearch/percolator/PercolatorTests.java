@@ -1756,6 +1756,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
         assertMatchCount(response, 0l);
         assertThat(response.getMatches(), arrayWithSize(0));
 
+        ensureYellow("test"); // wait for at least primaries allocations so concretely allocated on it
         waitForConcreteMappingsOnAll("test", "type1", "field1", "field2");
 
         GetMappingsResponse mappingsResponse = client().admin().indices().prepareGetMappings("test").get();

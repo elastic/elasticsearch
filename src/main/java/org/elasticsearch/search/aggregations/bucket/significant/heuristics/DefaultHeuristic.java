@@ -70,6 +70,12 @@ public class DefaultHeuristic implements SignificanceHeuristic {
      */
     @Override
     public double getScore(long subsetFreq, long subsetSize, long supersetFreq, long supersetSize) {
+        assert subsetFreq >= 0 && subsetSize >= 0 && supersetFreq >= 0 && supersetSize >= 0: "subsetFreq >= 0 && subsetSize >= 0 && supersetFreq >= 0 && supersetSize >= 0";
+        assert subsetFreq <= supersetFreq : "subsetFreq <= supersetFreq";
+        assert subsetSize <= supersetSize : "subsetSize <= supersetSize";
+        assert subsetFreq <= subsetSize : "subsetFreq <= subsetSize";
+        assert supersetFreq <= supersetSize : "supersetFreq <= supersetSize";
+        assert supersetFreq - subsetFreq <= supersetSize - subsetSize : "supersetFreq - subsetFreq <= supersetSize - subsetSize";
         if ((subsetSize == 0) || (supersetSize == 0)) {
             // avoid any divide by zero issues
             return 0;

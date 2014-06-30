@@ -37,6 +37,8 @@ public class MutualInformation implements SignificanceHeuristic {
 
     protected static final ParseField INCLUDE_NEGATIVES_FIELD = new ParseField("include_negatives");
 
+    private static final double log2 = Math.log(2.0);
+
     /**
      * Mutual information does not differentiate between terms that are descriptive for subset or for
      * the background without the subset. We might want to filter out the terms that are appear much less often
@@ -68,28 +70,32 @@ public class MutualInformation implements SignificanceHeuristic {
      * Calculates mutual information
      * see "Information Retrieval", Manning et al., Eq. 13.17
      *
-     * @param subsetDf     The frequency of the term in the selected sample
+     * @param subsetFreq     The frequency of the term in the selected sample
      * @param subsetSize   The size of the selected sample (typically number of docs)
-     * @param supersetDf   The frequency of the term in the superset from which the sample was taken
+     * @param supersetFreq   The frequency of the term in the superset from which the sample was taken
      * @param supersetSize The size of the superset from which the sample was taken  (typically number of docs)
      * @return a "significance" score
      */
     @Override
-    public double getScore(long subsetDf, long subsetSize, long supersetDf, long supersetSize) {
-
-
+    public double getScore(long subsetFreq, long subsetSize, long supersetFreq, long supersetSize) {
+        assert subsetFreq >= 0 && subsetSize >= 0 && supersetFreq >= 0 && supersetSize >= 0: "subsetFreq >= 0 && subsetSize >= 0 && supersetFreq >= 0 && supersetSize >= 0";
+        assert subsetFreq <= supersetFreq : "subsetFreq <= supersetFreq";
+        assert subsetSize <= supersetSize : "subsetSize <= supersetSize";
+        assert subsetFreq <= subsetSize : "subsetFreq <= subsetSize";
+        assert supersetFreq <= supersetSize : "supersetFreq <= supersetSize";
+        assert supersetFreq - subsetFreq <= supersetSize - subsetSize : "supersetFreq - subsetFreq <= supersetSize - subsetSize";
         //documents not in class and do not contain term
-        double N00 = supersetSize - supersetDf - (subsetSize - subsetDf);
+        double N00 = supersetSize - supersetFreq - (subsetSize - subsetFreq);
         //documents in class and do not contain term
-        double N01 = (subsetSize - subsetDf);
+        double N01 = (subsetSize - subsetFreq);
         // documents not in class and do contain term
-        double N10 = supersetDf - subsetDf;
+        double N10 = supersetFreq - subsetFreq;
         // documents in class and do contain term
-        double N11 = subsetDf;
+        double N11 = subsetFreq;
         //documents that do not contain term
-        double N0_ = supersetSize - supersetDf;
+        double N0_ = supersetSize - supersetFreq;
         //documents that contain term
-        double N1_ = supersetDf;
+        double N1_ = supersetFreq;
         //documents that are not in class
         double N_0 = supersetSize - subsetSize;
         //documents that are in class
@@ -97,17 +103,18 @@ public class MutualInformation implements SignificanceHeuristic {
         //all docs
         double N = supersetSize;
 
-        double score = getMITerm(N00, N0_, N_0, N) +
+        double score = (getMITerm(N00, N0_, N_0, N) +
                 getMITerm(N01, N0_, N_1, N) +
                 getMITerm(N10, N1_, N_0, N) +
-                getMITerm(N11, N1_, N_1, N);
+                getMITerm(N11, N1_, N_1, N))
+                / log2;
 
         if (Double.isNaN(score)) {
             score = -1.0 * Float.MAX_VALUE;
         }
         // here we check if the term appears more often in subset than in background without subset.
         if (!includeNegatives && N11 / N_1 < N10 / N_0) {
-            score = -1.0 * Float.MAX_VALUE;
+            score = -1.0 * Double.MAX_VALUE;
         }
         return score;
     }
@@ -129,7 +136,7 @@ public class MutualInformation implements SignificanceHeuristic {
         double denominator = Math.abs(Nx_ * N_y);
         double factor = Math.abs(Nxy / N);
         if (numerator < 1.e-7 && factor < 1.e-7) {
-            return 0;
+            return 0.0;
         } else {
             return factor * Math.log(numerator / denominator);
         }

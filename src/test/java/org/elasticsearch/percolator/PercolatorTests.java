@@ -1720,6 +1720,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
         assertMatchCount(percolateResponse, 0l);
         assertThat(percolateResponse.getMatches(), arrayWithSize(0));
 
+        ensureYellow("idx");
         waitForConcreteMappingsOnAll("idx", "type", "custom.color");
 
         // The previous percolate request introduced the custom.color field, so now we register the query again

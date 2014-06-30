@@ -770,21 +770,11 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             @Override
             public boolean apply(Object input) {
                 try {
-                    // make sure we only ask for nodes info names that hold a specific started shard (would be nice to have an ES API for it?)
-                    ClusterStateResponse clusterState = client().admin().cluster().prepareState().setIndices(index).get();
-                    List<MutableShardRouting> shards = clusterState.getState().getRoutingNodes().shardsWithState(ShardRoutingState.STARTED);
-                    if (shards.isEmpty()) { // none are allocated yet
+                    Set<String> nodes = internalCluster().nodesInclude(index);
+                    if (nodes.isEmpty()) { // we expect at least one node to hold an index, so wait if not allocated yet
                         return false;
                     }
-                    Set<String> nodeNames = Sets.newHashSet();
-                    for (MutableShardRouting shard : shards) {
-                        DiscoveryNode node = clusterState.getState().getNodes().get(shard.currentNodeId());
-                        if (node == null) { // the node was removed for some reason, not yet identified in the state
-                            return false;
-                        }
-                        nodeNames.add(node.getName());
-                    }
-                    for (String node : nodeNames) {
+                    for (String node : nodes) {
                         IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
                         IndexService indexService = indicesService.indexService(index);
                         if (indexService == null) {

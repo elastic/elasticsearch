@@ -53,7 +53,9 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.DocumentAlreadyExistsException;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesService;
@@ -137,7 +139,8 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
     @Override
     protected PrimaryResponse<BulkShardResponse, BulkShardRequest> shardOperationOnPrimary(ClusterState clusterState, PrimaryOperationRequest shardRequest) {
         final BulkShardRequest request = shardRequest.request;
-        IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.request.index()).shardSafe(shardRequest.shardId);
+        IndexService indexService = indicesService.indexServiceSafe(shardRequest.request.index());
+        IndexShard indexShard = indexService.shardSafe(shardRequest.shardId);
         Engine.IndexingOperation[] ops = null;
         final Set<Tuple<String, String>> mappingsToUpdate = Sets.newHashSet();
 
@@ -180,7 +183,10 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                             applyVersion(request.items()[j], preVersions[j], preVersionTypes[j]);
                         }
                         for (Tuple<String, String> mappingToUpdate : mappingsToUpdate) {
-                            mappingUpdatedAction.updateMappingOnMaster(mappingToUpdate.v1(), mappingToUpdate.v2());
+                            DocumentMapper docMapper = indexService.mapperService().documentMapper(mappingToUpdate.v2());
+                            if (docMapper != null) {
+                                mappingUpdatedAction.updateMappingOnMaster(mappingToUpdate.v1(), docMapper, indexService.indexUUID());
+                            }
                         }
                         throw (ElasticsearchException) e;
                     }
@@ -340,7 +346,10 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
         }
 
         for (Tuple<String, String> mappingToUpdate : mappingsToUpdate) {
-            mappingUpdatedAction.updateMappingOnMaster(mappingToUpdate.v1(), mappingToUpdate.v2());
+            DocumentMapper docMapper = indexService.mapperService().documentMapper(mappingToUpdate.v2());
+            if (docMapper != null) {
+                mappingUpdatedAction.updateMappingOnMaster(mappingToUpdate.v1(), docMapper, indexService.indexUUID());
+            }
         }
 
         if (request.refresh()) {

@@ -102,23 +102,8 @@ public class MappingUpdatedAction extends TransportMasterNodeOperationAction<Map
         masterMappingUpdater.close();
     }
 
-    public void updateMappingOnMaster(String index, String type) {
-        IndexMetaData metaData = clusterService.state().metaData().index(index);
-        if (metaData != null) {
-            updateMappingOnMaster(index, type, metaData.getUUID());
-        }
-    }
-
-    public void updateMappingOnMaster(String index, String type, String indexUUID) {
-        final MapperService mapperService = indicesService.indexServiceSafe(index).mapperService();
-        final DocumentMapper documentMapper = mapperService.documentMapper(type);
-        if (documentMapper != null) { // should not happen
-            updateMappingOnMaster(documentMapper, index, type, indexUUID);
-        }
-    }
-
-    public void updateMappingOnMaster(DocumentMapper documentMapper, String index, String type, String indexUUID) {
-        masterMappingUpdater.add(new MappingChange(documentMapper, index, type, indexUUID));
+    public void updateMappingOnMaster(String index, DocumentMapper documentMapper, String indexUUID) {
+        masterMappingUpdater.add(new MappingChange(documentMapper, index, indexUUID));
     }
 
     @Override
@@ -257,13 +242,11 @@ public class MappingUpdatedAction extends TransportMasterNodeOperationAction<Map
     private static class MappingChange {
         public final DocumentMapper documentMapper;
         public final String index;
-        public final String type;
         public final String indexUUID;
 
-        MappingChange(DocumentMapper documentMapper, String index, String type, String indexUUID) {
+        MappingChange(DocumentMapper documentMapper, String index, String indexUUID) {
             this.documentMapper = documentMapper;
             this.index = index;
-            this.type = type;
             this.indexUUID = indexUUID;
         }
     }
@@ -310,7 +293,7 @@ public class MappingUpdatedAction extends TransportMasterNodeOperationAction<Map
                     queue.drainTo(changes);
                     Set<Tuple<String, String>> seenIndexAndTypes = Sets.newHashSet();
                     for (MappingChange change : changes) {
-                        Tuple<String, String> checked = Tuple.tuple(change.indexUUID, change.type);
+                        Tuple<String, String> checked = Tuple.tuple(change.indexUUID, change.documentMapper.type());
                         if (seenIndexAndTypes.contains(checked)) {
                             continue;
                         }
@@ -324,10 +307,10 @@ public class MappingUpdatedAction extends TransportMasterNodeOperationAction<Map
                             change.documentMapper.refreshSource();
                             DiscoveryNode node = clusterService.localNode();
                             mappingRequest = new MappingUpdatedAction.MappingUpdatedRequest(
-                                    change.index, change.indexUUID, change.type, change.documentMapper.mappingSource(), orderId, node != null ? node.id() : null
+                                    change.index, change.indexUUID, change.documentMapper.type(), change.documentMapper.mappingSource(), orderId, node != null ? node.id() : null
                             );
                         } catch (Throwable t) {
-                            logger.warn("Failed to update master on updated mapping for index [" + change.index + "], type [" + change.type + "]", t);
+                            logger.warn("Failed to update master on updated mapping for index [" + change.index + "], type [" + change.documentMapper.type() + "]", t);
                             continue;
                         }
                         logger.trace("sending mapping updated to master: {}", mappingRequest);
@@ -346,6 +329,9 @@ public class MappingUpdatedAction extends TransportMasterNodeOperationAction<Map
                     }
                 } catch (InterruptedException e) {
                     // are we shutting down? continue and check
+                    if (running) {
+                        logger.warn("failed to process mapping updates", e);
+                    }
                 } catch (Throwable t) {
                     logger.warn("failed to process mapping updates", t);
                 }

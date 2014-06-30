@@ -22,7 +22,6 @@ import com.google.common.base.Predicate;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
-import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
@@ -33,7 +32,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ImmutableSettings.Builder;
 import org.elasticsearch.common.unit.TimeValue;
@@ -1722,16 +1720,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
         assertMatchCount(percolateResponse, 0l);
         assertThat(percolateResponse.getMatches(), arrayWithSize(0));
 
-        // wait until the mapping change has propagated from the percolate request
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).execute().actionGet();
-        awaitBusy(new Predicate<Object>() {
-            @Override
-            public boolean apply(Object input) {
-                PendingClusterTasksResponse pendingTasks = client().admin().cluster().preparePendingClusterTasks().get();
-                return pendingTasks.pendingTasks().isEmpty();
-            }
-        });
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).execute().actionGet();
+        waitForConcreteMappingsOnAll("idx", "type", "custom.color");
 
         // The previous percolate request introduced the custom.color field, so now we register the query again
         // and the field name `color` will be resolved to `custom.color` field in mapping via smart field mapping resolving.

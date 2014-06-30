@@ -180,7 +180,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                             applyVersion(request.items()[j], preVersions[j], preVersionTypes[j]);
                         }
                         for (Tuple<String, String> mappingToUpdate : mappingsToUpdate) {
-                            mappingUpdatedAction.updateMappingOnMaster(mappingToUpdate.v1(), mappingToUpdate.v2(), true);
+                            mappingUpdatedAction.updateMappingOnMaster(mappingToUpdate.v1(), mappingToUpdate.v2());
                         }
                         throw (ElasticsearchException) e;
                     }
@@ -340,7 +340,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
         }
 
         for (Tuple<String, String> mappingToUpdate : mappingsToUpdate) {
-            mappingUpdatedAction.updateMappingOnMaster(mappingToUpdate.v1(), mappingToUpdate.v2(), true);
+            mappingUpdatedAction.updateMappingOnMaster(mappingToUpdate.v1(), mappingToUpdate.v2());
         }
 
         if (request.refresh()) {

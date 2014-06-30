@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.test;
 
+import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.collect.Sets;
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.SeedUtils;
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
@@ -35,6 +36,9 @@ import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
@@ -53,7 +57,12 @@ import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.MutableShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -70,15 +79,20 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.index.fielddata.FieldDataType;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMapper.Loading;
+import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.internal.IdFieldMapper;
 import org.elasticsearch.index.merge.policy.*;
 import org.elasticsearch.index.merge.scheduler.ConcurrentMergeSchedulerProvider;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerModule;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
+import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.translog.TranslogService;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.rest.RestStatus;
@@ -750,6 +764,62 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             fail(reference[0].prettyPrint());
         }
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).get();
+    }
+
+    /**
+     * Waits till a (pattern) field name mappings concretely exists on all nodes.
+     */
+    public void waitForConcreteMappingsOnAll(final String index, final String type, final String... fieldNames) throws InterruptedException {
+        boolean applied = awaitBusy(new Predicate<Object>() {
+            @Override
+            public boolean apply(Object input) {
+                try {
+                    // make sure we only ask for nodes info names that hold a specific started shard (would be nice to have an ES API for it?)
+                    ClusterStateResponse clusterState = client().admin().cluster().prepareState().setIndices(index).get();
+                    List<MutableShardRouting> shards = clusterState.getState().getRoutingNodes().shardsWithState(ShardRoutingState.STARTED);
+                    if (shards.isEmpty()) { // none are allocated yet
+                        return false;
+                    }
+                    Set<String> nodeNames = Sets.newHashSet();
+                    for (MutableShardRouting shard : shards) {
+                        DiscoveryNode node = clusterState.getState().getNodes().get(shard.currentNodeId());
+                        if (node == null) { // the node was removed for some reason, not yet identified in the state
+                            return false;
+                        }
+                        nodeNames.add(node.getName());
+                    }
+                    // get the nodes info to get the node names...
+                    NodesInfoResponse nodes = client().admin().cluster().prepareNodesInfo(nodeNames.toArray(new String[nodeNames.size()])).get();
+                    if (nodes.getNodes().length == 0) {
+                        return false;
+                    }
+                    for (NodeInfo node : nodes) {
+                        IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node.getNode().getName());
+                        IndexService indexService = indicesService.indexService(index);
+                        if (indexService == null) {
+                            return false;
+                        }
+                        DocumentMapper documentMapper = indexService.mapperService().documentMapper(type);
+                        if (documentMapper == null) {
+                            return false;
+                        }
+                        for (String fieldName : fieldNames) {
+                            Set<String> matches = documentMapper.mappers().simpleMatchToFullName(fieldName);
+                            if (matches.isEmpty()) {
+                                return false;
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    logger.info("got exception waiting for concrete mappings", e);
+                    return false;
+                }
+                return true;
+            }
+        });
+        if (!applied) {
+            fail("failed to find mappings on all nodes for index " + index + ", type " + type + ", and fieldName " + Arrays.toString(fieldNames));
+        }
     }
 
     /**

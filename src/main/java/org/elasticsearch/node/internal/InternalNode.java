@@ -36,6 +36,7 @@ import org.elasticsearch.client.node.NodeClientModule;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterNameModule;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.StopWatch;
@@ -323,6 +324,8 @@ public final class InternalNode implements Node {
         stopWatch.stop().start("rivers");
         injector.getInstance(RiversManager.class).close();
 
+        stopWatch.stop().start("mapping");
+        injector.getInstance(MappingUpdatedAction.class).close();
         stopWatch.stop().start("snapshot_service");
         injector.getInstance(SnapshotsService.class).close();
         stopWatch.stop().start("client");

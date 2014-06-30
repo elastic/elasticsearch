@@ -28,6 +28,7 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.RecoveryState.Stage;
 import org.elasticsearch.indices.recovery.RecoveryState.Type;
@@ -100,18 +101,23 @@ public class IndexRecoveryTests extends ElasticsearchIntegrationTest {
         assertThat(state.getStage(), not(equalTo(Stage.DONE)));
     }
 
-    private void slowDownRecovery() {
+    private void slowDownRecovery(ByteSizeValue shardSize) {
+        long chunkSize = shardSize.bytes() / 10;
         assertTrue(client().admin().cluster().prepareUpdateSettings()
                 .setTransientSettings(ImmutableSettings.builder()
-                        // let the default file chunk wait 2 seconds, not to delay the test for too long
-                        .put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC, "256kb"))
+                                // one chunk per sec..
+                                .put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC, chunkSize)
+                                .put(RecoverySettings.INDICES_RECOVERY_FILE_CHUNK_SIZE, chunkSize)
+                )
                 .get().isAcknowledged());
     }
 
     private void restoreRecoverySpeed() {
         assertTrue(client().admin().cluster().prepareUpdateSettings()
                 .setTransientSettings(ImmutableSettings.builder()
-                        .put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC, "20mb"))
+                                .put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC, "20mb")
+                                .put(RecoverySettings.INDICES_RECOVERY_FILE_CHUNK_SIZE, "512kb")
+                )
                 .get().isAcknowledged());
     }
 
@@ -208,7 +214,7 @@ public class IndexRecoveryTests extends ElasticsearchIntegrationTest {
         String nodeA = internalCluster().startNode(settingsBuilder().put("gateway.type", "local"));
 
         logger.info("--> create index on node: {}", nodeA);
-        createAndPopulateIndex(INDEX_NAME, 1, SHARD_COUNT, REPLICA_COUNT);
+        ByteSizeValue shardSize = createAndPopulateIndex(INDEX_NAME, 1, SHARD_COUNT, REPLICA_COUNT).getShards()[0].getStats().getStore().size();
 
         logger.info("--> start node B");
         String nodeB = internalCluster().startNode(settingsBuilder().put("gateway.type", "local"));
@@ -216,7 +222,7 @@ public class IndexRecoveryTests extends ElasticsearchIntegrationTest {
         ensureGreen();
 
         logger.info("--> slowing down recoveries");
-        slowDownRecovery();
+        slowDownRecovery(shardSize);
 
         logger.info("--> move shard from: {} to: {}", nodeA, nodeB);
         client().admin().cluster().prepareReroute()
@@ -263,7 +269,7 @@ public class IndexRecoveryTests extends ElasticsearchIntegrationTest {
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("3").get().isTimedOut());
 
         logger.info("--> slowing down recoveries");
-        slowDownRecovery();
+        slowDownRecovery(shardSize);
 
         logger.info("--> move replica shard from: {} to: {}", nodeA, nodeC);
         client().admin().cluster().prepareReroute()

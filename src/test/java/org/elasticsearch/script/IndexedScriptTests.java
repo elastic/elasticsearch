@@ -38,10 +38,11 @@ public class IndexedScriptTests extends ElasticsearchIntegrationTest {
     @Test
     public void testFieldIndexedScript()  throws ExecutionException, InterruptedException{
         List<IndexRequestBuilder> builders = new ArrayList();
-        builders.add(client().prepareIndex(ScriptService.SCRIPT_INDEX, "mvel", "script1").setSource("{" +
+        builders.add(client().prepareIndex(ScriptService.SCRIPT_INDEX, "groovy", "script1").setSource("{" +
                 "\"script\":\"2\""+
         "}"));
-        builders.add(client().prepareIndex(ScriptService.SCRIPT_INDEX, "mvel", "script2").setSource("{" +
+
+        builders.add(client().prepareIndex(ScriptService.SCRIPT_INDEX, "groovy", "script2").setSource("{" +
                 "\"script\":\"factor*2\""+
                 "}"));
 

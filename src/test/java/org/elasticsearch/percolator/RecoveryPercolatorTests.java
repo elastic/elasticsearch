@@ -222,6 +222,7 @@ public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
         assertAcked(client().admin().indices().prepareClose("test"));
         assertAcked(client().admin().indices().prepareOpen("test"));
         ensureGreen();
+        waitForConcreteMappingsOnAll("test", "type1", "field1");
 
         logger.info("--> Percolate doc with field1=100");
         response = client().preparePercolate()

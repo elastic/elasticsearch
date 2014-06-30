@@ -24,9 +24,9 @@ import com.google.common.collect.Lists;
 import org.apache.lucene.analysis.PrefixAnalyzer.PrefixTokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
-import org.apache.lucene.util.automaton.BasicAutomata;
-import org.apache.lucene.util.automaton.BasicOperations;
+import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.fst.FST;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.GeoHashUtils;
@@ -688,12 +688,12 @@ public class GeolocationContextMapping extends ContextMapping {
         public Automaton toAutomaton() {
             Automaton automaton;
             if(precisions == null || precisions.length == 0) {
-                 automaton = BasicAutomata.makeString(location);
+                 automaton = Automata.makeString(location);
             } else {
-                automaton = BasicAutomata.makeString(location.substring(0, Math.max(1, Math.min(location.length(), precisions[0]))));
+                automaton = Automata.makeString(location.substring(0, Math.max(1, Math.min(location.length(), precisions[0]))));
                 for (int i = 1; i < precisions.length; i++) {
                     final String cell = location.substring(0, Math.max(1, Math.min(location.length(), precisions[0])));
-                    automaton = BasicOperations.union(automaton, BasicAutomata.makeString(cell));
+                    automaton = Operations.union(automaton, Automata.makeString(cell));
                 }
             }
             return automaton;

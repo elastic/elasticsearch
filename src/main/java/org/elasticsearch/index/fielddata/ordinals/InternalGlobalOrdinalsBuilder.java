@@ -20,7 +20,7 @@
 package org.elasticsearch.index.fielddata.ordinals;
 
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.XOrdinalMap;
+import org.apache.lucene.index.MultiDocValues.OrdinalMap;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.common.settings.Settings;
@@ -56,7 +56,7 @@ public class InternalGlobalOrdinalsBuilder extends AbstractIndexComponent implem
             subs[i] = v.getTermsEnum();
             weights[i] = v.getMaxOrd();
         }
-        final XOrdinalMap ordinalMap = XOrdinalMap.build(null, subs, weights, PackedInts.DEFAULT);
+        final OrdinalMap ordinalMap = OrdinalMap.build(null, subs, weights, PackedInts.DEFAULT);
         final long memorySizeInBytes = ordinalMap.ramBytesUsed();
         breakerService.getBreaker().addWithoutBreaking(memorySizeInBytes);
 

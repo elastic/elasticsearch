@@ -24,9 +24,9 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.search.suggest.analyzing.XAnalyzingSuggester;
+import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
-import org.apache.lucene.util.automaton.BasicAutomata;
-import org.apache.lucene.util.automaton.BasicOperations;
+import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.fst.FST;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -246,21 +246,20 @@ public abstract class ContextMapping implements ToXContent {
          * @return Automaton matching the given Query
          */
         public static Automaton toAutomaton(boolean preserveSep, Iterable<ContextQuery> queries) {
-            Automaton a = BasicAutomata.makeEmptyString();
+            Automaton a = Automata.makeEmptyString();
 
-            Automaton gap = BasicAutomata.makeChar(ContextMapping.SEPARATOR);
+            Automaton gap = Automata.makeChar(ContextMapping.SEPARATOR);
             if (preserveSep) {
                 // if separators are preserved the fst contains a SEP_LABEL
                 // behind each gap. To have a matching automaton, we need to
                 // include the SEP_LABEL in the query as well
-                gap = BasicOperations.concatenate(gap, BasicAutomata.makeChar(XAnalyzingSuggester.SEP_LABEL));
+                gap = Operations.concatenate(gap, Automata.makeChar(XAnalyzingSuggester.SEP_LABEL));
             }
 
             for (ContextQuery query : queries) {
-                a = Automaton.concatenate(Arrays.asList(query.toAutomaton(), gap, a));
+                a = Operations.concatenate(Arrays.asList(query.toAutomaton(), gap, a));
             }
-            BasicOperations.determinize(a);
-            return a;
+            return Operations.determinize(a);
         }
 
         /**

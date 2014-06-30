@@ -31,7 +31,7 @@
     </parent>
 
     <properties>
-        <lucene.version>4.9.0</lucene.version>
+        <lucene.version>4.10.0</lucene.version>
         <tests.jvms>auto</tests.jvms>
         <tests.shuffle>true</tests.shuffle>
         <tests.output>onerror</tests.output>
@@ -47,6 +47,10 @@
         <repository>
             <id>Codehaus Snapshots</id>
             <url>http://repository.codehaus.org/</url>
+        </repository>
+        <repository>
+            <id>Lucene Snapshot</id>
+            <url>http://people.apache.org/~rmuir/fake_staging_area/lucene-solr-4.10.0-r1606690/maven/</url>
         </repository>
     </repositories>
 

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.fielddata.ordinals;
 
-import org.apache.lucene.index.XOrdinalMap;
+import org.apache.lucene.index.MultiDocValues.OrdinalMap;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongValues;
 import org.elasticsearch.index.fielddata.BytesValues;
@@ -30,11 +30,11 @@ import org.elasticsearch.index.fielddata.BytesValues;
 public class GlobalOrdinalMapping extends BytesValues.WithOrdinals {
 
     private final BytesValues.WithOrdinals values;
-    private final XOrdinalMap ordinalMap;
+    private final OrdinalMap ordinalMap;
     private final LongValues mapping;
     private final BytesValues.WithOrdinals[] bytesValues;
 
-    GlobalOrdinalMapping(XOrdinalMap ordinalMap, BytesValues.WithOrdinals[] bytesValues, int segmentIndex) {
+    GlobalOrdinalMapping(OrdinalMap ordinalMap, BytesValues.WithOrdinals[] bytesValues, int segmentIndex) {
         super(bytesValues[segmentIndex].isMultiValued());
         this.values = bytesValues[segmentIndex];
         this.bytesValues = bytesValues;

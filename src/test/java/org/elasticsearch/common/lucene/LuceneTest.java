@@ -43,7 +43,7 @@ public class LuceneTest {
         assertThat(Lucene.parseVersion(null, Lucene.VERSION, null), equalTo(Lucene.VERSION));
         for (int i = 0; i < values.length-1; i++) {
             // this should fail if the lucene version is not mapped as a string in Lucene.java
-            assertThat(Lucene.parseVersion(values[i].name().replaceFirst("^LUCENE_(\\d)_?(\\d)$", "$1.$2"), Version.LUCENE_CURRENT, logger), equalTo(values[i]));
+            assertThat(Lucene.parseVersion(values[i].name().replaceFirst("^LUCENE_(\\d)_?(\\d+)$", "$1.$2"), Version.LUCENE_CURRENT, logger), equalTo(values[i]));
         }
     }
 }

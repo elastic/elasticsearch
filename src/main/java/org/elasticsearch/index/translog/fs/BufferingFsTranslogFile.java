@@ -130,26 +130,27 @@ public class BufferingFsTranslogFile implements FsTranslogFile {
 
     @Override
     public FsChannelSnapshot snapshot() throws TranslogException {
-        rwl.writeLock().lock();
-        try {
+        if (raf.increaseRefCount()) {
+            boolean success = false;
             try {
-                flushBuffer();
-            } catch (IOException e) {
-                throw new TranslogException(shardId, "failed to flush", e);
+                rwl.writeLock().lock();
+                try {
+                    flushBuffer();
+                    FsChannelSnapshot snapshot = new FsChannelSnapshot(this.id, raf, lastWrittenPosition, operationCounter);
+                    success = true;
+                    return snapshot;
+                } catch (Exception e) {
+                    throw new TranslogException(shardId, "exception while creating snapshot", e);
+                } finally {
+                    rwl.writeLock().unlock();
+                }
+            } finally {
+                if (!success) {
+                    raf.decreaseRefCount(false);
+                }
             }
-            if (!raf.increaseRefCount()) {
-                return null;
-            }
-            try {
-                return new FsChannelSnapshot(this.id, raf, lastWrittenPosition, operationCounter);
-            } catch (Exception e) {
-                raf.decreaseRefCount(false);
-                throw new TranslogException(shardId, "exception while creating snapshot", e);
-            }
-
-        } finally {
-            rwl.writeLock().unlock();
         }
+        return null;
     }
 
     @Override

@@ -25,6 +25,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogException;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -108,18 +109,26 @@ public class SimpleFsTranslogFile implements FsTranslogFile {
      * Returns a snapshot on this file, <tt>null</tt> if it failed to snapshot.
      */
     public FsChannelSnapshot snapshot() throws TranslogException {
-        rwl.writeLock().lock();
-        try {
-            if (!raf.increaseRefCount()) {
-                return null;
+        if (raf.increaseRefCount()) {
+            boolean success = false;
+            try {
+                rwl.writeLock().lock();
+                try {
+                    FsChannelSnapshot snapshot = new FsChannelSnapshot(this.id, raf, lastWrittenPosition, operationCounter);
+                    success = true;
+                    return snapshot;
+                } finally {
+                    rwl.writeLock().unlock();
+                }
+            } catch (FileNotFoundException e) {
+                throw new TranslogException(shardId, "failed to create snapshot", e);
+            } finally {
+                if (!success) {
+                    raf.decreaseRefCount(false);
+                }
             }
-            return new FsChannelSnapshot(this.id, raf, lastWrittenPosition, operationCounter);
-        } catch (Exception e) {
-            raf.decreaseRefCount(false);
-            throw new TranslogException(shardId, "Failed to snapshot", e);
-        } finally {
-            rwl.writeLock().unlock();
         }
+        return null;
     }
 
     @Override

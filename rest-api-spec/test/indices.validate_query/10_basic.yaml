@@ -25,3 +25,12 @@
 
   - is_false: valid
 
+  - do:
+      indices.validate_query:
+        explain: true
+
+  - is_true: valid
+  - match: {_shards.failed: 0}
+  - match: {explanations.0.index: 'testing'}
+  - match: {explanations.0.explanation: 'ConstantScore(*:*)'}
+

@@ -39,6 +39,7 @@ import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 @ThreadLeakScope(Scope.NONE)
 @TimeoutSuite(millis = TimeUnits.HOUR)
 @SuppressCodecs("Lucene3x")
+@LuceneTestCase.SuppressSysoutChecks(bugUrl = "we log a lot on purpose")
 public abstract class ElasticsearchLuceneTestCase extends LuceneTestCase {
 
     private static final Codec DEFAULT_CODEC = Codec.getDefault();

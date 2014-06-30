@@ -36,13 +36,23 @@ pools, but the important ones include:
     size `# of available processors`.
     queue_size `1000`.
 
-`warmer`:: 
+`snapshot`::
+    For snapshot/restore operations, defaults to `scaling`
+    keep-alive `5m`,
+    size `(# of available processors)/2`.
+
+`snapshot_data`::
+    For snapshot/restore operations on data files, defaults to `scaling`
+    with a `5m` keep-alive,
+    size `5`.
+
+`warmer`::
     For segment warm-up operations, defaults to `scaling`
     with a `5m` keep-alive. 
 
 `refresh`:: 
     For refresh operations, defaults to `scaling`
-    with a `5m` keep-alive. 
+    with a `5m` keep-alive.
 
 Changing a specific thread pool can be done by setting its type and
 specific type parameters, for example, changing the `index` thread pool

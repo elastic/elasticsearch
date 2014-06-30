@@ -19,21 +19,26 @@
 
 package org.elasticsearch.common.bytes;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.test.ElasticsearchTestCase;
-import org.elasticsearch.test.cache.recycler.MockBigArrays;
+import org.hamcrest.Matchers;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.io.EOFException;
+import java.io.File;
 import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.util.Arrays;
 
 public class PagedBytesReferenceTest extends ElasticsearchTestCase {
@@ -61,7 +66,7 @@ public class PagedBytesReferenceTest extends ElasticsearchTestCase {
         int sliceLength = Math.max(1, length - sliceOffset - 1);
         BytesReference slice = pbr.slice(sliceOffset, sliceLength);
         assertEquals(pbr.get(sliceOffset), slice.get(0));
-        assertEquals(pbr.get(sliceOffset + sliceLength), slice.get(sliceLength));
+        assertEquals(pbr.get(sliceOffset + sliceLength - 1), slice.get(sliceLength - 1));
     }
 
     public void testLength() {
@@ -83,13 +88,11 @@ public class PagedBytesReferenceTest extends ElasticsearchTestCase {
 
         if (slice.hasArray()) {
             assertEquals(sliceOffset, slice.arrayOffset());
-        }
-        else {
+        } else {
             try {
                 slice.arrayOffset();
                 fail("expected IllegalStateException");
-            }
-            catch (IllegalStateException ise) {
+            } catch (IllegalStateException ise) {
                 // expected
             }
         }
@@ -120,7 +123,7 @@ public class PagedBytesReferenceTest extends ElasticsearchTestCase {
         si.reset();
 
         // read a few few bytes as ints
-        int bytesToRead = randomIntBetween(1, length/2);
+        int bytesToRead = randomIntBetween(1, length / 2);
         for (int i = 0; i < bytesToRead; i++) {
             int b = si.read();
             assertEquals(pbr.get(i), b);
@@ -135,8 +138,7 @@ public class PagedBytesReferenceTest extends ElasticsearchTestCase {
         try {
             si.readByte();
             fail("expected EOF");
-        }
-        catch (EOFException eof) {
+        } catch (EOFException eof) {
             // yay
         }
 
@@ -145,8 +147,7 @@ public class PagedBytesReferenceTest extends ElasticsearchTestCase {
         try {
             si.readBytes(targetBuf, 0, length * 2);
             fail("expected IndexOutOfBoundsException: le > stream.length");
-        }
-        catch (IndexOutOfBoundsException ioob) {
+        } catch (IndexOutOfBoundsException ioob) {
             // expected
         }
     }
@@ -159,7 +160,7 @@ public class PagedBytesReferenceTest extends ElasticsearchTestCase {
 
         // read a bunch of single bytes one by one
         int offset = randomIntBetween(1, length / 2);
-        for (int i = 0; i < offset ; i++) {
+        for (int i = 0; i < offset; i++) {
             assertEquals(pbr.get(i), si.readByte());
         }
 
@@ -181,11 +182,11 @@ public class PagedBytesReferenceTest extends ElasticsearchTestCase {
         BytesReference pbr = getRandomizedPagedBytesReference(length);
         StreamInput streamInput = pbr.streamInput();
         BytesRef target = new BytesRef();
-        while(target.length < pbr.length()) {
+        while (target.length < pbr.length()) {
             switch (randomIntBetween(0, 10)) {
                 case 6:
                 case 5:
-                    target.append(new BytesRef(new byte[] {streamInput.readByte()}));
+                    target.append(new BytesRef(new byte[]{streamInput.readByte()}));
                     break;
                 case 4:
                 case 3:
@@ -237,13 +238,13 @@ public class PagedBytesReferenceTest extends ElasticsearchTestCase {
 
         sliceInput.reset();
         byte[] buffer = new byte[sliceLength + scaledRandomIntBetween(1, 100)];
-        int offset  = scaledRandomIntBetween(0, Math.max(1, buffer.length - sliceLength - 1));
+        int offset = scaledRandomIntBetween(0, Math.max(1, buffer.length - sliceLength - 1));
         int read = sliceInput.read(buffer, offset, sliceLength / 2);
         sliceInput.read(buffer, offset + read, sliceLength);
         assertArrayEquals(sliceBytes, Arrays.copyOfRange(buffer, offset, offset + sliceLength));
     }
 
-    public void testWriteTo() throws IOException {
+    public void testWriteToOutputStream() throws IOException {
         int length = randomIntBetween(10, PAGE_SIZE * 4);
         BytesReference pbr = getRandomizedPagedBytesReference(length);
         BytesStreamOutput out = new BytesStreamOutput();
@@ -253,8 +254,19 @@ public class PagedBytesReferenceTest extends ElasticsearchTestCase {
         out.close();
     }
 
-    public void testSliceWriteTo() throws IOException {
-        int length = randomIntBetween(10, PAGE_SIZE * randomIntBetween(2,5));
+    public void testWriteToChannel() throws IOException {
+        int length = randomIntBetween(10, PAGE_SIZE * 4);
+        BytesReference pbr = getRandomizedPagedBytesReference(length);
+        File tFile = newTempFile();
+        try (RandomAccessFile file = new RandomAccessFile(tFile, "rw")) {
+            pbr.writeTo(file.getChannel());
+            assertEquals(pbr.length(), file.length());
+            assertArrayEquals(pbr.toBytes(), Streams.copyToByteArray(tFile));
+        }
+    }
+
+    public void testSliceWriteToOutputStream() throws IOException {
+        int length = randomIntBetween(10, PAGE_SIZE * randomIntBetween(2, 5));
         BytesReference pbr = getRandomizedPagedBytesReference(length);
         int sliceOffset = randomIntBetween(1, length / 2);
         int sliceLength = length - sliceOffset;
@@ -266,8 +278,22 @@ public class PagedBytesReferenceTest extends ElasticsearchTestCase {
         sliceOut.close();
     }
 
+    public void testSliceWriteToChannel() throws IOException {
+        int length = randomIntBetween(10, PAGE_SIZE * randomIntBetween(2, 5));
+        BytesReference pbr = getRandomizedPagedBytesReference(length);
+        int sliceOffset = randomIntBetween(1, length / 2);
+        int sliceLength = length - sliceOffset;
+        BytesReference slice = pbr.slice(sliceOffset, sliceLength);
+        File tFile = newTempFile();
+        try (RandomAccessFile file = new RandomAccessFile(tFile, "rw")) {
+            slice.writeTo(file.getChannel());
+            assertEquals(slice.length(), file.length());
+            assertArrayEquals(slice.toBytes(), Streams.copyToByteArray(tFile));
+        }
+    }
+
     public void testToBytes() {
-        int[] sizes = {0, randomInt(PAGE_SIZE), PAGE_SIZE, randomIntBetween(2, PAGE_SIZE * randomIntBetween(2,5))};
+        int[] sizes = {0, randomInt(PAGE_SIZE), PAGE_SIZE, randomIntBetween(2, PAGE_SIZE * randomIntBetween(2, 5))};
 
         for (int i = 0; i < sizes.length; i++) {
             BytesReference pbr = getRandomizedPagedBytesReference(sizes[i]);
@@ -276,8 +302,7 @@ public class PagedBytesReferenceTest extends ElasticsearchTestCase {
             // verify that toBytes() is cheap for small payloads
             if (sizes[i] <= PAGE_SIZE) {
                 assertSame(bytes, pbr.toBytes());
-            }
-            else {
+            } else {
                 assertNotSame(bytes, pbr.toBytes());
             }
         }
@@ -300,7 +325,7 @@ public class PagedBytesReferenceTest extends ElasticsearchTestCase {
         // we need a length != (n * pagesize) to avoid page sharing at boundaries
         int length = 0;
         while ((length % PAGE_SIZE) == 0) {
-            length = randomIntBetween(PAGE_SIZE, PAGE_SIZE * randomIntBetween(2,5));
+            length = randomIntBetween(PAGE_SIZE, PAGE_SIZE * randomIntBetween(2, 5));
         }
         BytesReference pbr = getRandomizedPagedBytesReference(length);
         BytesArray ba = pbr.toBytesArray();
@@ -325,7 +350,7 @@ public class PagedBytesReferenceTest extends ElasticsearchTestCase {
     }
 
     public void testSliceCopyBytesArray() {
-        int length = randomIntBetween(10, PAGE_SIZE * randomIntBetween(2,8));
+        int length = randomIntBetween(10, PAGE_SIZE * randomIntBetween(2, 8));
         BytesReference pbr = getRandomizedPagedBytesReference(length);
         int sliceOffset = randomIntBetween(0, pbr.length());
         int sliceLength = randomIntBetween(pbr.length() - sliceOffset, pbr.length() - sliceOffset);
@@ -342,7 +367,7 @@ public class PagedBytesReferenceTest extends ElasticsearchTestCase {
     }
 
     public void testToChannelBuffer() {
-        int length = randomIntBetween(10, PAGE_SIZE * randomIntBetween(2,8));
+        int length = randomIntBetween(10, PAGE_SIZE * randomIntBetween(2, 8));
         BytesReference pbr = getRandomizedPagedBytesReference(length);
         ChannelBuffer cb = pbr.toChannelBuffer();
         assertNotNull(cb);
@@ -360,7 +385,7 @@ public class PagedBytesReferenceTest extends ElasticsearchTestCase {
     }
 
     public void testSliceToChannelBuffer() {
-        int length = randomIntBetween(10, PAGE_SIZE * randomIntBetween(2,8));
+        int length = randomIntBetween(10, PAGE_SIZE * randomIntBetween(2, 8));
         BytesReference pbr = getRandomizedPagedBytesReference(length);
         int sliceOffset = randomIntBetween(0, pbr.length());
         int sliceLength = randomIntBetween(pbr.length() - sliceOffset, pbr.length() - sliceOffset);
@@ -373,14 +398,14 @@ public class PagedBytesReferenceTest extends ElasticsearchTestCase {
     }
 
     public void testHasArray() {
-        int length = randomIntBetween(10, PAGE_SIZE * randomIntBetween(1,3));
+        int length = randomIntBetween(10, PAGE_SIZE * randomIntBetween(1, 3));
         BytesReference pbr = getRandomizedPagedBytesReference(length);
         // must return true for <= pagesize
         assertEquals(length <= PAGE_SIZE, pbr.hasArray());
     }
 
     public void testArray() {
-        int[] sizes = {0, randomInt(PAGE_SIZE), PAGE_SIZE, randomIntBetween(2, PAGE_SIZE * randomIntBetween(2,5))};
+        int[] sizes = {0, randomInt(PAGE_SIZE), PAGE_SIZE, randomIntBetween(2, PAGE_SIZE * randomIntBetween(2, 5))};
 
         for (int i = 0; i < sizes.length; i++) {
             BytesReference pbr = getRandomizedPagedBytesReference(sizes[i]);
@@ -390,13 +415,11 @@ public class PagedBytesReferenceTest extends ElasticsearchTestCase {
                 assertNotNull(array);
                 assertEquals(sizes[i], array.length);
                 assertSame(array, pbr.array());
-            }
-            else {
+            } else {
                 try {
                     pbr.array();
                     fail("expected IllegalStateException");
-                }
-                catch (IllegalStateException isx) {
+                } catch (IllegalStateException isx) {
                     // expected
                 }
             }
@@ -404,37 +427,33 @@ public class PagedBytesReferenceTest extends ElasticsearchTestCase {
     }
 
     public void testArrayOffset() {
-        int length = randomInt(PAGE_SIZE * randomIntBetween(2,5));
+        int length = randomInt(PAGE_SIZE * randomIntBetween(2, 5));
         BytesReference pbr = getRandomizedPagedBytesReference(length);
         if (pbr.hasArray()) {
             assertEquals(0, pbr.arrayOffset());
-        }
-        else {
+        } else {
             try {
                 pbr.arrayOffset();
                 fail("expected IllegalStateException");
-            }
-            catch (IllegalStateException ise) {
+            } catch (IllegalStateException ise) {
                 // expected
             }
         }
     }
 
     public void testSliceArrayOffset() {
-        int length = randomInt(PAGE_SIZE * randomIntBetween(2,5));
+        int length = randomInt(PAGE_SIZE * randomIntBetween(2, 5));
         BytesReference pbr = getRandomizedPagedBytesReference(length);
         int sliceOffset = randomIntBetween(0, pbr.length());
         int sliceLength = randomIntBetween(pbr.length() - sliceOffset, pbr.length() - sliceOffset);
         BytesReference slice = pbr.slice(sliceOffset, sliceLength);
         if (slice.hasArray()) {
             assertEquals(sliceOffset, slice.arrayOffset());
-        }
-        else {
+        } else {
             try {
                 slice.arrayOffset();
                 fail("expected IllegalStateException");
-            }
-            catch (IllegalStateException ise) {
+            } catch (IllegalStateException ise) {
                 // expected
             }
         }
@@ -469,7 +488,7 @@ public class PagedBytesReferenceTest extends ElasticsearchTestCase {
     }
 
     public void testCopyBytesRef() {
-        int length = randomIntBetween(0, PAGE_SIZE * randomIntBetween(2,5));
+        int length = randomIntBetween(0, PAGE_SIZE * randomIntBetween(2, 5));
         BytesReference pbr = getRandomizedPagedBytesReference(length);
         BytesRef ref = pbr.copyBytesRef();
         assertNotNull(ref);
@@ -482,7 +501,7 @@ public class PagedBytesReferenceTest extends ElasticsearchTestCase {
         assertEquals(Arrays.hashCode(BytesRef.EMPTY_BYTES), pbr.hashCode());
 
         // test with content
-        pbr = getRandomizedPagedBytesReference(randomIntBetween(0, PAGE_SIZE * randomIntBetween(2,5)));
+        pbr = getRandomizedPagedBytesReference(randomIntBetween(0, PAGE_SIZE * randomIntBetween(2, 5)));
         int jdkHash = Arrays.hashCode(pbr.toBytes());
         int pbrHash = pbr.hashCode();
         assertEquals(jdkHash, pbrHash);
@@ -497,7 +516,7 @@ public class PagedBytesReferenceTest extends ElasticsearchTestCase {
     }
 
     public void testEquals() {
-        int length = randomIntBetween(100, PAGE_SIZE * randomIntBetween(2,5));
+        int length = randomIntBetween(100, PAGE_SIZE * randomIntBetween(2, 5));
         ByteArray ba1 = bigarrays.newByteArray(length, false);
         ByteArray ba2 = bigarrays.newByteArray(length, false);
 
@@ -513,14 +532,14 @@ public class PagedBytesReferenceTest extends ElasticsearchTestCase {
     }
 
     public void testEqualsPeerClass() {
-        int length = randomIntBetween(100, PAGE_SIZE * randomIntBetween(2,5));
+        int length = randomIntBetween(100, PAGE_SIZE * randomIntBetween(2, 5));
         BytesReference pbr = getRandomizedPagedBytesReference(length);
         BytesReference ba = new BytesArray(pbr.toBytes());
         assertEquals(pbr, ba);
     }
 
     public void testSliceEquals() {
-        int length = randomIntBetween(100, PAGE_SIZE * randomIntBetween(2,5));
+        int length = randomIntBetween(100, PAGE_SIZE * randomIntBetween(2, 5));
         ByteArray ba1 = bigarrays.newByteArray(length, false);
         BytesReference pbr = new PagedBytesReference(bigarrays, ba1, length);
 
@@ -540,7 +559,20 @@ public class PagedBytesReferenceTest extends ElasticsearchTestCase {
     }
 
     private BytesReference getRandomizedPagedBytesReference(int length) {
-        return new PagedBytesReference(bigarrays, bigarrays.newByteArray(length, false), length);
+        // we know bytes stream output always creates a paged bytes reference, we use it to create randomized content
+        ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(length, bigarrays);
+        try {
+            for (int i = 0; i < length; i++) {
+                out.writeByte((byte) getRandom().nextInt(1 << 8));
+            }
+        } catch (IOException e) {
+            fail("should not happen " + e.getMessage());
+        }
+        assertThat(out.size(), Matchers.equalTo(length));
+        BytesReference ref = out.bytes();
+        assertThat(ref.length(), Matchers.equalTo(length));
+        assertThat(ref, Matchers.instanceOf(PagedBytesReference.class));
+        return ref;
     }
 
 }

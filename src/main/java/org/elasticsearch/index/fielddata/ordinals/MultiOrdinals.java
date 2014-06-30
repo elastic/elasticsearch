@@ -19,15 +19,18 @@
 
 package org.elasticsearch.index.fielddata.ordinals;
 
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongsRef;
 import org.apache.lucene.util.packed.AppendingPackedLongBuffer;
 import org.apache.lucene.util.packed.MonotonicAppendingLongBuffer;
 import org.apache.lucene.util.packed.PackedInts;
+import org.elasticsearch.index.fielddata.BytesValues;
+import org.elasticsearch.index.fielddata.BytesValues.WithOrdinals;
 
 /**
  * {@link Ordinals} implementation which is efficient at storing field data ordinals for multi-valued or sparse fields.
  */
-public class MultiOrdinals implements Ordinals {
+public class MultiOrdinals extends Ordinals {
 
     private static final int OFFSETS_PAGE_SIZE = 1024;
     private static final int OFFSET_INIT_PAGE_COUNT = 16;
@@ -75,37 +78,35 @@ public class MultiOrdinals implements Ordinals {
     }
 
     @Override
-    public long getMemorySizeInBytes() {
+    public long ramBytesUsed() {
         return endOffsets.ramBytesUsed() + ords.ramBytesUsed();
     }
 
     @Override
-    public boolean isMultiValued() {
-        return multiValued;
+    public WithOrdinals ordinals(ValuesHolder values) {
+        return new MultiDocs(this, values);
     }
 
-    @Override
-    public long getMaxOrd() {
-        return maxOrd;
-    }
+    public static class MultiDocs extends BytesValues.WithOrdinals {
 
-    @Override
-    public Ordinals.Docs ordinals() {
-        return new MultiDocs(this);
-    }
-
-    static class MultiDocs extends Ordinals.AbstractDocs {
-
+        private final long maxOrd;
         private final MonotonicAppendingLongBuffer endOffsets;
         private final AppendingPackedLongBuffer ords;
         private long offset;
         private long limit;
-        private long currentOrd;
+        private final ValuesHolder values;
 
-        MultiDocs(MultiOrdinals ordinals) {
-            super(ordinals);
+        MultiDocs(MultiOrdinals ordinals, ValuesHolder values) {
+            super(ordinals.multiValued);
+            this.maxOrd = ordinals.maxOrd;
             this.endOffsets = ordinals.endOffsets;
             this.ords = ordinals.ords;
+            this.values = values;
+        }
+
+        @Override
+        public long getMaxOrd() {
+            return maxOrd;
         }
 
         @Override
@@ -113,16 +114,16 @@ public class MultiOrdinals implements Ordinals {
             final long startOffset = docId > 0 ? endOffsets.get(docId - 1) : 0;
             final long endOffset = endOffsets.get(docId);
             if (startOffset == endOffset) {
-                return currentOrd = Ordinals.MISSING_ORDINAL; // ord for missing values
+                return MISSING_ORDINAL; // ord for missing values
             } else {
-                return currentOrd = ords.get(startOffset);
+                return ords.get(startOffset);
             }
         }
 
         @Override
         public long nextOrd() {
             assert offset < limit;
-            return currentOrd = ords.get(offset++);
+            return ords.get(offset++);
         }
 
         @Override
@@ -135,8 +136,8 @@ public class MultiOrdinals implements Ordinals {
         }
 
         @Override
-        public long currentOrd() {
-            return currentOrd;
+        public BytesRef getValueByOrd(long ord) {
+            return values.getValueByOrd(ord);
         }
     }
 }

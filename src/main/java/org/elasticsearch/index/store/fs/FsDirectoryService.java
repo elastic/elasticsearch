@@ -63,7 +63,6 @@ public abstract class FsDirectoryService extends AbstractIndexShardComponent imp
         String fsLock = componentSettings.get("lock", componentSettings.get("fs_lock", "native"));
         LockFactory lockFactory = NoLockFactory.getNoLockFactory();
         if (fsLock.equals("native")) {
-            // TODO LUCENE MONITOR: this is not needed in next Lucene version
             lockFactory = new NativeFSLockFactory();
         } else if (fsLock.equals("simple")) {
             lockFactory = new SimpleFSLockFactory();

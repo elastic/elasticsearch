@@ -23,12 +23,11 @@ import com.google.common.collect.ObjectArrays;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.client.ClusterAdminClient;
-import org.elasticsearch.client.internal.InternalClusterAdminClient;
 
 /**
  * Get repository request builder
  */
-public class GetRepositoriesRequestBuilder extends MasterNodeReadOperationRequestBuilder<GetRepositoriesRequest, GetRepositoriesResponse, GetRepositoriesRequestBuilder> {
+public class GetRepositoriesRequestBuilder extends MasterNodeReadOperationRequestBuilder<GetRepositoriesRequest, GetRepositoriesResponse, GetRepositoriesRequestBuilder, ClusterAdminClient> {
 
     /**
      * Creates new get repository request builder
@@ -36,7 +35,7 @@ public class GetRepositoriesRequestBuilder extends MasterNodeReadOperationReques
      * @param clusterAdminClient cluster admin client
      */
     public GetRepositoriesRequestBuilder(ClusterAdminClient clusterAdminClient) {
-        super((InternalClusterAdminClient) clusterAdminClient, new GetRepositoriesRequest());
+        super(clusterAdminClient, new GetRepositoriesRequest());
     }
 
     /**
@@ -46,7 +45,7 @@ public class GetRepositoriesRequestBuilder extends MasterNodeReadOperationReques
      * @param repositories       list of repositories to get
      */
     public GetRepositoriesRequestBuilder(ClusterAdminClient clusterAdminClient, String... repositories) {
-        super((InternalClusterAdminClient) clusterAdminClient, new GetRepositoriesRequest(repositories));
+        super(clusterAdminClient, new GetRepositoriesRequest(repositories));
     }
 
     /**
@@ -73,6 +72,6 @@ public class GetRepositoriesRequestBuilder extends MasterNodeReadOperationReques
 
     @Override
     protected void doExecute(ActionListener<GetRepositoriesResponse> listener) {
-        ((ClusterAdminClient) client).getRepositories(request, listener);
+        client.getRepositories(request, listener);
     }
 }

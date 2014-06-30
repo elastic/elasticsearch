@@ -26,7 +26,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import org.elasticsearch.test.TestCluster;
+import org.elasticsearch.test.InternalTestCluster;
 import org.junit.Test;
 
 import java.io.File;
@@ -46,8 +46,8 @@ public class IndicesStoreTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void shardsCleanup() throws Exception {
-        final String node_1 = cluster().startNode(SETTINGS);
-        final String node_2 = cluster().startNode(SETTINGS);
+        final String node_1 = internalCluster().startNode(SETTINGS);
+        final String node_2 = internalCluster().startNode(SETTINGS);
         logger.info("--> creating index [test] with one shard and on replica");
         client().admin().indices().create(createIndexRequest("test")
                 .settings(settingsBuilder().put("index.numberOfReplicas", 1).put("index.numberOfShards", 1))).actionGet();
@@ -63,14 +63,14 @@ public class IndicesStoreTests extends ElasticsearchIntegrationTest {
         assertThat(shardDirectory(node_2, "test", 0).exists(), equalTo(true));
 
         logger.info("--> starting node server3");
-        String node_3 = cluster().startNode(SETTINGS);
+        String node_3 = internalCluster().startNode(SETTINGS);
 
         logger.info("--> making sure that shard is not allocated on server3");
         assertThat(waitForShardDeletion(node_3, "test", 0), equalTo(false));
 
         File server2Shard = shardDirectory(node_2, "test", 0);
         logger.info("--> stopping node node_2");
-        cluster().stopRandomNode(TestCluster.nameFilter(node_2));
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(node_2));
         assertThat(server2Shard.exists(), equalTo(true));
 
         logger.info("--> running cluster_health");
@@ -84,7 +84,7 @@ public class IndicesStoreTests extends ElasticsearchIntegrationTest {
         assertThat(shardDirectory(node_3, "test", 0).exists(), equalTo(true));
 
         logger.info("--> starting node node_4");
-        final String node_4 = cluster().startNode(SETTINGS);
+        final String node_4 = internalCluster().startNode(SETTINGS);
 
         logger.info("--> running cluster_health");
         clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
@@ -98,7 +98,7 @@ public class IndicesStoreTests extends ElasticsearchIntegrationTest {
     }
 
     private File shardDirectory(String server, String index, int shard) {
-        NodeEnvironment env = cluster().getInstance(NodeEnvironment.class, server);
+        NodeEnvironment env = internalCluster().getInstance(NodeEnvironment.class, server);
         return env.shardLocations(new ShardId(index, shard))[0];
     }
 

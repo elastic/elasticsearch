@@ -243,7 +243,8 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
 
             // Simulate a parent update
             if (random().nextBoolean()) {
-                int numberOfUpdates = scaledRandomIntBetween(1, 25);
+                final int numberOfUpdatableParents = numParentDocs - filteredOrDeletedDocs.size();
+                int numberOfUpdates = scaledRandomIntBetween(0, numberOfUpdatableParents);
                 for (int j = 0; j < numberOfUpdates; j++) {
                     int parentId;
                     do {
@@ -348,7 +349,7 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
     static SearchContext createSearchContext(String indexName, String parentType, String childType) throws IOException {
         final Index index = new Index(indexName);
         final CacheRecycler cacheRecycler = new CacheRecycler(ImmutableSettings.EMPTY);
-        ThreadPool threadPool = new ThreadPool();
+        ThreadPool threadPool = new ThreadPool("ChildrenConstantScoreQueryTests");
         final PageCacheRecycler pageCacheRecycler = new PageCacheRecycler(ImmutableSettings.EMPTY, threadPool);
         final BigArrays bigArrays = new BigArrays(ImmutableSettings.EMPTY, pageCacheRecycler);
         Settings settings = ImmutableSettings.EMPTY;

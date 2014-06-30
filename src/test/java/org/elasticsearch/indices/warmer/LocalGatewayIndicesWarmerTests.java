@@ -28,7 +28,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import org.elasticsearch.test.TestCluster.RestartCallback;
+import org.elasticsearch.test.InternalTestCluster.RestartCallback;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -48,7 +48,7 @@ public class LocalGatewayIndicesWarmerTests extends ElasticsearchIntegrationTest
     public void testStatePersistence() throws Exception {
 
         logger.info("--> starting 1 nodes");
-        cluster().startNode(settingsBuilder().put("gateway.type", "local"));
+        internalCluster().startNode(settingsBuilder().put("gateway.type", "local"));
 
         logger.info("--> putting two templates");
         createIndex("test");
@@ -89,7 +89,7 @@ public class LocalGatewayIndicesWarmerTests extends ElasticsearchIntegrationTest
         assertThat(templateWarmers.entries().size(), equalTo(1));
 
         logger.info("--> restarting the node");
-        cluster().fullRestart(new RestartCallback() {
+        internalCluster().fullRestart(new RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
                 return settingsBuilder().put("gateway.type", "local").build();
@@ -127,7 +127,7 @@ public class LocalGatewayIndicesWarmerTests extends ElasticsearchIntegrationTest
         assertThat(warmersMetaData.entries().size(), equalTo(1));
 
         logger.info("--> restarting the node");
-        cluster().fullRestart(new RestartCallback() {
+        internalCluster().fullRestart(new RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
                 return settingsBuilder().put("gateway.type", "local").build();

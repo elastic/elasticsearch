@@ -27,6 +27,7 @@ import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -44,17 +45,16 @@ import org.elasticsearch.index.query.functionscore.FunctionScoreModule;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.similarity.SimilarityModule;
 import org.elasticsearch.indices.InvalidAliasNameException;
-import org.elasticsearch.indices.query.IndicesQueriesModule;
-import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.fielddata.breaker.DummyCircuitBreakerService;
+import org.elasticsearch.indices.query.IndicesQueriesModule;
+import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
 
 import static org.elasticsearch.index.query.FilterBuilders.termFilter;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -63,23 +63,25 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public class IndexAliasesServiceTests extends ElasticsearchTestCase {
     public static IndexAliasesService newIndexAliasesService() {
-        return new IndexAliasesService(new Index("test"), ImmutableSettings.Builder.EMPTY_SETTINGS, newIndexQueryParserService());
+
+        Settings settings = ImmutableSettings.builder().put("name", "IndexAliasesServiceTests").build();
+        return new IndexAliasesService(new Index("test"), settings, newIndexQueryParserService(settings));
     }
 
-    public static IndexQueryParserService newIndexQueryParserService() {
+    public static IndexQueryParserService newIndexQueryParserService(Settings settings) {
         Injector injector = new ModulesBuilder().add(
                 new IndicesQueriesModule(),
-                new CacheRecyclerModule(ImmutableSettings.Builder.EMPTY_SETTINGS),
-                new CodecModule(ImmutableSettings.Builder.EMPTY_SETTINGS),
-                new IndexSettingsModule(new Index("test"), ImmutableSettings.Builder.EMPTY_SETTINGS),
+                new CacheRecyclerModule(settings),
+                new CodecModule(settings),
+                new IndexSettingsModule(new Index("test"), settings),
                 new IndexNameModule(new Index("test")),
-                new IndexQueryParserModule(ImmutableSettings.Builder.EMPTY_SETTINGS),
-                new AnalysisModule(ImmutableSettings.Builder.EMPTY_SETTINGS),
-                new SimilarityModule(ImmutableSettings.Builder.EMPTY_SETTINGS),
-                new ScriptModule(ImmutableSettings.Builder.EMPTY_SETTINGS),
-                new SettingsModule(ImmutableSettings.Builder.EMPTY_SETTINGS),
-                new IndexEngineModule(ImmutableSettings.Builder.EMPTY_SETTINGS),
-                new IndexCacheModule(ImmutableSettings.Builder.EMPTY_SETTINGS),
+                new IndexQueryParserModule(settings),
+                new AnalysisModule(settings),
+                new SimilarityModule(settings),
+                new ScriptModule(settings),
+                new SettingsModule(settings),
+                new IndexEngineModule(settings),
+                new IndexCacheModule(settings),
                 new FunctionScoreModule(),
                 new AbstractModule() {
                     @Override

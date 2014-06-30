@@ -65,6 +65,7 @@ public class RestThreadPoolAction extends AbstractCatAction {
             ThreadPool.Names.REFRESH,
             ThreadPool.Names.SEARCH,
             ThreadPool.Names.SNAPSHOT,
+            ThreadPool.Names.SNAPSHOT_DATA,
             ThreadPool.Names.SUGGEST,
             ThreadPool.Names.WARMER
     };
@@ -82,6 +83,7 @@ public class RestThreadPoolAction extends AbstractCatAction {
             "r",
             "s",
             "sn",
+            "sd",
             "su",
             "w"
     };
@@ -118,7 +120,7 @@ public class RestThreadPoolAction extends AbstractCatAction {
     }
 
     @Override
-    public void doRequest(final RestRequest request, final RestChannel channel) {
+    public void doRequest(final RestRequest request, final RestChannel channel, final Client client) {
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.clear().nodes(true);
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));

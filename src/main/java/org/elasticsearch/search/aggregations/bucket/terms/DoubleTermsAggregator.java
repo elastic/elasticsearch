@@ -25,7 +25,6 @@ import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.support.BucketPriorityQueue;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -39,26 +38,18 @@ import java.util.Collections;
 /**
  *
  */
-public class DoubleTermsAggregator extends BucketsAggregator {
+public class DoubleTermsAggregator extends TermsAggregator {
 
-    private final InternalOrder order;
-    private final int requiredSize;
-    private final int shardSize;
-    private final long minDocCount;
     private final ValuesSource.Numeric valuesSource;
     private final ValueFormatter formatter;
     private final LongHash bucketOrds;
     private DoubleValues values;
 
     public DoubleTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, @Nullable ValueFormat format, long estimatedBucketCount,
-                               InternalOrder order, int requiredSize, int shardSize, long minDocCount, AggregationContext aggregationContext, Aggregator parent) {
-        super(name, BucketAggregationMode.PER_BUCKET, factories, estimatedBucketCount, aggregationContext, parent);
+                               InternalOrder order, BucketCountThresholds bucketCountThresholds, AggregationContext aggregationContext, Aggregator parent, SubAggCollectionMode collectionMode) {
+        super(name, BucketAggregationMode.PER_BUCKET, factories, estimatedBucketCount, aggregationContext, parent, bucketCountThresholds, order, collectionMode);
         this.valuesSource = valuesSource;
         this.formatter = format != null ? format.formatter() : null;
-        this.order = InternalOrder.validate(order, this);
-        this.requiredSize = requiredSize;
-        this.shardSize = shardSize;
-        this.minDocCount = minDocCount;
         bucketOrds = new LongHash(estimatedBucketCount, aggregationContext.bigArrays());
     }
 
@@ -94,7 +85,7 @@ public class DoubleTermsAggregator extends BucketsAggregator {
     public DoubleTerms buildAggregation(long owningBucketOrdinal) {
         assert owningBucketOrdinal == 0;
 
-        if (minDocCount == 0 && (order != InternalOrder.COUNT_DESC || bucketOrds.size() < requiredSize)) {
+        if (bucketCountThresholds.getMinDocCount() == 0 && (order != InternalOrder.COUNT_DESC || bucketOrds.size() < bucketCountThresholds.getRequiredSize())) {
             // we need to fill-in the blanks
             for (AtomicReaderContext ctx : context.searchContext().searcher().getTopReaderContext().leaves()) {
                 context.setNextReader(ctx);
@@ -108,7 +99,7 @@ public class DoubleTermsAggregator extends BucketsAggregator {
             }
         }
 
-        final int size = (int) Math.min(bucketOrds.size(), shardSize);
+        final int size = (int) Math.min(bucketOrds.size(), bucketCountThresholds.getShardSize());
 
         BucketPriorityQueue ordered = new BucketPriorityQueue(size, order.comparator(this));
         DoubleTerms.Bucket spare = null;
@@ -119,21 +110,33 @@ public class DoubleTermsAggregator extends BucketsAggregator {
             spare.term = Double.longBitsToDouble(bucketOrds.get(i));
             spare.docCount = bucketDocCount(i);
             spare.bucketOrd = i;
-            spare = (DoubleTerms.Bucket) ordered.insertWithOverflow(spare);
+            if (bucketCountThresholds.getShardMinDocCount() <= spare.docCount) {
+                spare = (DoubleTerms.Bucket) ordered.insertWithOverflow(spare);
+            }
         }
 
+        // Get the top buckets
         final InternalTerms.Bucket[] list = new InternalTerms.Bucket[ordered.size()];
+        long survivingBucketOrds[] = new long[ordered.size()];
         for (int i = ordered.size() - 1; i >= 0; --i) {
             final DoubleTerms.Bucket bucket = (DoubleTerms.Bucket) ordered.pop();
-            bucket.aggregations = bucketAggregations(bucket.bucketOrd);
+            survivingBucketOrds[i] = bucket.bucketOrd;
             list[i] = bucket;
         }
-        return new DoubleTerms(name, order, formatter, requiredSize, minDocCount, Arrays.asList(list));
+        // replay any deferred collections
+        runDeferredCollections(survivingBucketOrds);    
+        // Now build the aggs
+        for (int i = 0; i < list.length; i++) {
+          list[i].aggregations = bucketAggregations(list[i].bucketOrd);
+        }        
+        
+        
+        return new DoubleTerms(name, order, formatter, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), Arrays.asList(list));
     }
 
     @Override
     public DoubleTerms buildEmptyAggregation() {
-        return new DoubleTerms(name, order, formatter, requiredSize, minDocCount, Collections.<InternalTerms.Bucket>emptyList());
+        return new DoubleTerms(name, order, formatter, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), Collections.<InternalTerms.Bucket>emptyList());
     }
 
     @Override

@@ -20,9 +20,19 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.action.get.MultiGetRequest;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.VersionType;
+import org.elasticsearch.search.fetch.source.FetchSourceContext;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Locale;
 
 /**
  * A more like this query that finds documents that are "like" the provided {@link #likeText(String)}
@@ -30,9 +40,69 @@ import java.io.IOException;
  */
 public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements BoostableQueryBuilder<MoreLikeThisQueryBuilder> {
 
+    /**
+     * A single get item. Pure delegate to multi get.
+     */
+    public static final class Item extends MultiGetRequest.Item implements ToXContent {
+        public Item() {
+            super();
+        }
+
+        public Item(String index, @Nullable String type, String id) {
+            super(index, type, id);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            if (this.index() != null) {
+                builder.field("_index", this.index());
+            }
+            if (this.id() != null) {
+                builder.field("_id", this.id());
+            }
+            if (this.type() != null) {
+                builder.field("_type", this.type());
+            }
+            if (this.fields() != null) {
+                builder.array("fields", this.fields());
+            }
+            if (this.routing() != null) {
+                builder.field("_routing", this.routing());
+            }
+            if (this.fetchSourceContext() != null) {
+                FetchSourceContext source = this.fetchSourceContext();
+                String[] includes = source.includes();
+                String[] excludes = source.excludes();
+                if (includes.length == 0 && excludes.length == 0) {
+                    builder.field("_source", source.fetchSource());
+                } else if (includes.length > 0 && excludes.length == 0) {
+                    builder.array("_source", source.includes());
+                } else if (excludes.length > 0) {
+                    builder.startObject("_source");
+                    if (includes.length > 0) {
+                        builder.array("includes", source.includes());
+                    }
+                    builder.array("excludes", source.excludes());
+                    builder.endObject();
+                }
+            }
+            if (this.version() != Versions.MATCH_ANY) {
+                builder.field("_version", this.version());
+            }
+            if (this.versionType() != VersionType.INTERNAL) {
+                builder.field("_version_type", this.versionType().toString().toLowerCase(Locale.ROOT));
+            }
+            return builder.endObject();
+        }
+    }
+
     private final String[] fields;
 
     private String likeText;
+    private List<String> ids = new ArrayList<>();
+    private List<Item> docs = new ArrayList<>();
+    private Boolean include = null;
     private float percentTermsToMatch = -1;
     private int minTermFreq = -1;
     private int maxQueryTerms = -1;
@@ -68,6 +138,35 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
      */
     public MoreLikeThisQueryBuilder likeText(String likeText) {
         this.likeText = likeText;
+        return this;
+    }
+
+    public MoreLikeThisQueryBuilder ids(String... ids) {
+        this.ids = Arrays.asList(ids);
+        return this;
+    }
+
+    public MoreLikeThisQueryBuilder docs(Item... docs) {
+        this.docs = Arrays.asList(docs);
+        return this;
+    }
+
+    public MoreLikeThisQueryBuilder addItem(Item item) {
+        this.docs.add(item);
+        return this;
+    }
+
+    public MoreLikeThisQueryBuilder include(boolean include) {
+        this.include = include;
+        return this;
+    }
+
+    /**
+     * @deprecated This is replaced by <code>include</code>.
+     */
+    @Deprecated
+    public MoreLikeThisQueryBuilder exclude(boolean exclude) {
+        this.include = !exclude;
         return this;
     }
 
@@ -192,9 +291,9 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
             }
             builder.endArray();
         }
-        if (likeText == null) {
-            throw new ElasticsearchIllegalArgumentException("moreLikeThis requires '"+
-                    MoreLikeThisQueryParser.Fields.LIKE_TEXT.getPreferredName() +"' to be provided");
+        if (likeText == null && this.docs.isEmpty() && this.ids.isEmpty()) {
+                throw new ElasticsearchIllegalArgumentException("more_like_this requires either '"+
+                    MoreLikeThisQueryParser.Fields.LIKE_TEXT.getPreferredName() +"' or 'docs/ids' to be provided");
         }
         builder.field(MoreLikeThisQueryParser.Fields.LIKE_TEXT.getPreferredName(), likeText);
         if (percentTermsToMatch != -1) {
@@ -239,6 +338,15 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
         }
         if (queryName != null) {
             builder.field("_name", queryName);
+        }
+        if (!ids.isEmpty()) {
+            builder.array("ids", ids.toArray());
+        }
+        if (!docs.isEmpty()) {
+            builder.array("docs", docs.toArray());
+        }
+        if (include != null) {
+            builder.field("exclude", !include); // keep on using exclude for bw compat with 1.x
         }
         builder.endObject();
     }

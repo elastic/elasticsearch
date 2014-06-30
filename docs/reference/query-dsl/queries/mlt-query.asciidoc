@@ -16,7 +16,57 @@ running it against one or more fields.
 }
 --------------------------------------------------
 
+coming[1.3.0,The ability to run the `mlt` query on multiple docs is only available from 1.3.0 onwards]
+
+Additionally, More Like This can find documents that are "like" a set of
+chosen documents. The syntax to specify one or more documents is similar to
+the <<docs-multi-get,Multi GET API>>, and supports the `ids` or `docs` array.
+If only one document is specified, the query behaves the same as the 
+<<search-more-like-this,More Like This API>>.
+
+[source,js]
+--------------------------------------------------
+{
+    "more_like_this" : {
+        "fields" : ["name.first", "name.last"],
+        "docs" : [
+        {
+            "_index" : "test",
+            "_type" : "type",
+            "_id" : "1"
+        },
+        {
+            "_index" : "test",
+            "_type" : "type",
+            "_id" : "2"
+        }
+        ],
+        "ids" : ["3", "4"],
+        "min_term_freq" : 1,
+        "max_query_terms" : 12
+    }
+}
+--------------------------------------------------
+
+
 `more_like_this` can be shortened to `mlt`.
+
+Under the hood, `more_like_this` simply creates multiple `should` clauses in a `bool` query of
+interesting terms extracted from some provided text. The interesting terms are
+selected with respect to their tf-idf scores. These are controlled by
+`min_term_freq`, `min_doc_freq`, and `max_doc_freq`. The number of interesting
+terms is controlled by `max_query_terms`. While the minimum number of clauses
+that must be satisfied is controlled by `percent_terms_to_match`. The terms
+are extracted from `like_text` which is analyzed by the analyzer associated
+with the field, unless specified by `analyzer`. There are other parameters,
+such as `min_word_length`, `max_word_length` or `stop_words`, to control what
+terms should be considered as interesting. In order to give more weight to
+more interesting terms, each boolean clause associated with a term could be
+boosted by the term tf-idf score times some boosting factor `boost_terms`.
+
+When a search for multiple `docs` is issued, More Like This generates a
+`more_like_this` query per document field in `fields`. These `fields` are
+specified as a top level parameter or within each `doc`.
 
 The `more_like_this` top level parameters include:
 
@@ -26,7 +76,19 @@ The `more_like_this` top level parameters include:
 |`fields` |A list of the fields to run the more like this query against.
 Defaults to the `_all` field.
 
-|`like_text` |The text to find documents like it, *required*.
+|`like_text` |The text to find documents like it, *required* if `ids` or `docs` are
+not specified.
+
+|`ids` or `docs` | coming[1.3.0] A list of documents following the same syntax as the
+<<docs-multi-get,Multi GET API>>. This parameter is *required* if
+`like_text` is not specified. The texts are fetched from `fields` unless
+specified in each `doc`, and cannot be set to `_all`.
+
+|`include` | coming[1.3.0] When using `ids` or `docs`, specifies whether the documents should be
+included from the search. Defaults to `false`.
+
+|`exclude` | deprecated[1.3.0,Replaced by `include`] When using `ids` or `docs`, specifies whether
+the documents should be excluded from the search. Defaults to `true`.
 
 |`percent_terms_to_match` |The percentage of terms to match on (float
 value). Defaults to `0.3` (30 percent).

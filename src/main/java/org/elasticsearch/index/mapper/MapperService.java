@@ -828,7 +828,8 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
                 String objectPath = fieldName.substring(0, indexOf);
                 ObjectMappers objectMappers = objectMapper(objectPath);
                 if (objectMappers == null) {
-                    return null;
+                    indexOf = objectPath.lastIndexOf('.');
+                    continue;
                 }
 
                 if (objectMappers.hasNested()) {

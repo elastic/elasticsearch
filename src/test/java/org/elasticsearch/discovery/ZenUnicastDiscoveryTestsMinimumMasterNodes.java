@@ -49,14 +49,14 @@ public class ZenUnicastDiscoveryTestsMinimumMasterNodes extends ElasticsearchInt
                 .put("transport.tcp.port", "25400-25500") // Need to use custom tcp port range otherwise we collide with the shared cluster
                 .build();
 
-        List<String> nodes = cluster().startNodesAsync(3, settings).get();
+        List<String> nodes = internalCluster().startNodesAsync(3, settings).get();
 
         ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("3").execute().actionGet();
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         DiscoveryNode masterDiscoNode = null;
         for (String node : nodes.toArray(new String[3])) {
-            ClusterState state = cluster().client(node).admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
+            ClusterState state = internalCluster().client(node).admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
             assertThat(state.nodes().size(), equalTo(3));
             if (masterDiscoNode == null) {
                 masterDiscoNode = state.nodes().masterNode();

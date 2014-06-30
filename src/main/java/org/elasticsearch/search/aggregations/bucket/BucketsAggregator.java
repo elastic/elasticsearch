@@ -19,14 +19,12 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.util.LongArray;
-import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.common.util.IntArray;
+import org.elasticsearch.search.aggregations.*;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 
 /**
@@ -34,12 +32,12 @@ import java.util.Arrays;
  */
 public abstract class BucketsAggregator extends Aggregator {
 
-    private LongArray docCounts;
+    private IntArray docCounts;
 
     public BucketsAggregator(String name, BucketAggregationMode bucketAggregationMode, AggregatorFactories factories,
                              long estimatedBucketsCount, AggregationContext context, Aggregator parent) {
         super(name, bucketAggregationMode, factories, estimatedBucketsCount, context, parent);
-        docCounts = bigArrays.newLongArray(estimatedBucketsCount, true);
+        docCounts = bigArrays.newIntArray(estimatedBucketsCount, true);
     }
 
     /**
@@ -65,7 +63,7 @@ public abstract class BucketsAggregator extends Aggregator {
         collectBucketNoCounts(doc, bucketOrd);
     }
 
-    public LongArray getDocCounts() {
+    public IntArray getDocCounts() {
         return docCounts;
     }
 
@@ -73,13 +71,13 @@ public abstract class BucketsAggregator extends Aggregator {
      * Utility method to collect the given doc in the given bucket but not to update the doc counts of the bucket
      */
     protected final void collectBucketNoCounts(int doc, long bucketOrd) throws IOException {
-        collectableSugAggregators.collect(doc, bucketOrd);
+        collectableSubAggregators.collect(doc, bucketOrd);
     }
 
     /**
      * Utility method to increment the doc counts of the given bucket (identified by the bucket ordinal)
      */
-    protected final void incrementBucketDocCount(long inc, long bucketOrd) throws IOException {
+    protected final void incrementBucketDocCount(int inc, long bucketOrd) throws IOException {
         docCounts = bigArrays.grow(docCounts, bucketOrd + 1);
         docCounts.increment(bucketOrd, inc);
     }
@@ -87,31 +85,56 @@ public abstract class BucketsAggregator extends Aggregator {
     /**
      * Utility method to return the number of documents that fell in the given bucket (identified by the bucket ordinal)
      */
-    public final long bucketDocCount(long bucketOrd) {
+    public final int bucketDocCount(long bucketOrd) {
         if (bucketOrd >= docCounts.size()) {
             // This may happen eg. if no document in the highest buckets is accepted by a sub aggregator.
             // For example, if there is a long terms agg on 3 terms 1,2,3 with a sub filter aggregator and if no document with 3 as a value
             // matches the filter, then the filter will never collect bucket ord 3. However, the long terms agg will call bucketAggregations(3)
             // on the filter aggregator anyway to build sub-aggregations.
-            return 0L;
+            return 0;
         } else {
             return docCounts.get(bucketOrd);
         }
     }
 
     /**
-     * Utility method to build the aggregations of the given bucket (identified by the bucket ordinal)
+     * Required method to build the child aggregations of the given bucket (identified by the bucket ordinal).
      */
     protected final InternalAggregations bucketAggregations(long bucketOrd) {
-        final InternalAggregation[] aggregations = new InternalAggregation[subAggregators.length];
+        final ArrayList<InternalAggregation> childAggs = new ArrayList<>();
         final long bucketDocCount = bucketDocCount(bucketOrd);
-        for (int i = 0; i < subAggregators.length; i++) {
-            aggregations[i] = bucketDocCount == 0L
-                    ? subAggregators[i].buildEmptyAggregation()
-                    : subAggregators[i].buildAggregation(bucketOrd);
+        if (bucketDocCount == 0L) {
+            // All child aggs marked as empty
+            for (int i = 0; i < subAggregators.length; i++) {
+                childAggs.add(subAggregators[i].buildEmptyAggregation());
+            }
+        } else {
+            BucketAnalysisCollector analysisCollector = new BucketAnalysisCollector() {               
+                @Override
+                public void add(Aggregation analysis) {
+                    childAggs.add((InternalAggregation) analysis);
+                }
+            };
+            // Add the collectable sub aggs by asking the collect tree to gather
+            // results using ordinals that may have undergone transformation as the 
+            // result of the collection process e.g. filtering
+            // to a subset of buckets then rebasing the numbers in the deferred collection
+            collectableSubAggregators.gatherAnalysis(analysisCollector, bucketOrd);
+
+            // Also add the results of any non-collecting sub aggs using the top-level ordinals
+            for (int i = 0; i < subAggregators.length; i++) {
+                if (!subAggregators[i].shouldCollect()) {
+                    // Agg is not part of the collect tree - call directly
+                    childAggs.add(subAggregators[i].buildAggregation(bucketOrd));
+                }
+            }
         }
-        return new InternalAggregations(Arrays.asList(aggregations));
+
+        return new InternalAggregations(childAggs);
+        
     }
+    
+    
 
     /**
      * Utility method to build empty aggregations of the sub aggregators.

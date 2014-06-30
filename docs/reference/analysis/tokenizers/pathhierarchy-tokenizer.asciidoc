@@ -28,5 +28,7 @@ the `delimiter`.
 |`reverse` |Generates tokens in reverse order, defaults to `false`.
 
 |`skip` |Controls initial tokens to skip, defaults to `0`.
-|=======================================================================
 
+|`type` |Required.  Must be set to `PathHierarchy` (case-sensitive).
+
+|=======================================================================

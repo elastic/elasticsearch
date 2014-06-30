@@ -47,7 +47,7 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
 
     public static class Defaults extends IntegerFieldMapper.Defaults {
         public static final String NAME = CONTENT_TYPE;
-        public static final EnabledAttributeMapper ENABLED_STATE = EnabledAttributeMapper.DISABLED;
+        public static final EnabledAttributeMapper ENABLED_STATE = EnabledAttributeMapper.UNSET_DISABLED;
 
         public static final FieldType SIZE_FIELD_TYPE = new FieldType(IntegerFieldMapper.Defaults.FIELD_TYPE);
 
@@ -122,10 +122,6 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
     }
 
     @Override
-    public void validate(ParseContext context) throws MapperParsingException {
-    }
-
-    @Override
     public void preParse(ParseContext context) throws IOException {
     }
 
@@ -165,7 +161,7 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
             return builder;
         }
         builder.startObject(contentType());
-        if (includeDefaults || enabledState != Defaults.ENABLED_STATE) {
+        if (includeDefaults || enabledState.enabled != Defaults.ENABLED_STATE.enabled) {
             builder.field("enabled", enabledState.enabled);
         }
         if (includeDefaults || fieldType().stored() != Defaults.SIZE_FIELD_TYPE.stored() && enabledState.enabled) {

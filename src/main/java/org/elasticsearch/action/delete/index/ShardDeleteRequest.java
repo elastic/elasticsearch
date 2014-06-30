@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.replication.ShardReplicationOperationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.uid.Versions;
 
 import java.io.IOException;
 
@@ -98,7 +99,7 @@ public class ShardDeleteRequest extends ShardReplicationOperationRequest<ShardDe
         type = in.readString();
         id = in.readString();
         refresh = in.readBoolean();
-        version = in.readLong();
+        version = Versions.readVersion(in);
     }
 
     @Override
@@ -108,6 +109,6 @@ public class ShardDeleteRequest extends ShardReplicationOperationRequest<ShardDe
         out.writeString(type);
         out.writeString(id);
         out.writeBoolean(refresh);
-        out.writeLong(version);
+        Versions.writeVersion(version, out);
     }
 }

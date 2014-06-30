@@ -18,12 +18,11 @@
  */
 package org.elasticsearch.search.aggregations.bucket.significant;
 
-import org.apache.lucene.search.Filter;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.BucketUtils;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
 import org.elasticsearch.search.internal.SearchContext;
@@ -35,12 +34,6 @@ import java.io.IOException;
  */
 public class SignificantTermsParser implements Aggregator.Parser {
 
-    public static final int DEFAULT_REQUIRED_SIZE = 10;
-    public static final int DEFAULT_SHARD_SIZE = 0;
-
-    //Typically need more than one occurrence of something for it to be statistically significant
-    public static final int DEFAULT_MIN_DOC_COUNT = 3;
-
     @Override
     public String type() {
         return SignificantStringTerms.TYPE.name();
@@ -48,66 +41,18 @@ public class SignificantTermsParser implements Aggregator.Parser {
 
     @Override
     public AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
-
+        SignificantTermsParametersParser aggParser = new SignificantTermsParametersParser();
         ValuesSourceParser vsParser = ValuesSourceParser.any(aggregationName, SignificantStringTerms.TYPE, context)
                 .scriptable(false)
                 .formattable(true)
                 .requiresSortedValues(true)
                 .requiresUniqueValues(true)
                 .build();
-
         IncludeExclude.Parser incExcParser = new IncludeExclude.Parser(aggregationName, SignificantStringTerms.TYPE, context);
+        aggParser.parse(aggregationName, parser, context, vsParser, incExcParser);
 
-        Filter filter = null;
-        int requiredSize = DEFAULT_REQUIRED_SIZE;
-        int shardSize = DEFAULT_SHARD_SIZE;
-        long minDocCount = DEFAULT_MIN_DOC_COUNT;
-        String executionHint = null;
-
-        XContentParser.Token token;
-        String currentFieldName = null;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if (vsParser.token(currentFieldName, token, parser)) {
-                continue;
-            } else if (incExcParser.token(currentFieldName, token, parser)) {
-                continue;
-            } else if (token == XContentParser.Token.VALUE_STRING) {
-                if ("execution_hint".equals(currentFieldName) || "executionHint".equals(currentFieldName)) {
-                    executionHint = parser.text();
-                } else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
-                }
-            } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                if ("size".equals(currentFieldName)) {
-                    requiredSize = parser.intValue();
-                } else if ("shard_size".equals(currentFieldName) || "shardSize".equals(currentFieldName)) {
-                    shardSize = parser.intValue();
-                } else if ("min_doc_count".equals(currentFieldName) || "minDocCount".equals(currentFieldName)) {
-                    minDocCount = parser.intValue();
-                } else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
-                }
-            } else if (token == XContentParser.Token.START_OBJECT) {
-                // TODO not sure if code below is the best means to declare a filter for 
-                // defining an alternative background stats context.
-                // In trial runs it becomes obvious that the choice of background does have to  
-                // be a strict superset of the foreground subset otherwise the significant terms algo
-                // immediately singles out the odd terms that are in the foreground but not represented
-                // in the background. So a better approach may be to use a designated parent agg as the  
-                // background because parent aggs are always guaranteed to be a superset whereas arbitrary
-                // filters defined by end users and parsed below are not.
-//                if ("background_context".equals(currentFieldName)) {
-//                    filter = context.queryParserService().parseInnerFilter(parser).filter();
-//                }
-
-            } else {
-                throw new SearchParseException(context, "Unexpected token " + token + " in [" + aggregationName + "].");
-            }
-        }
-
-        if (shardSize == DEFAULT_SHARD_SIZE) {
+        TermsAggregator.BucketCountThresholds bucketCountThresholds = aggParser.getBucketCountThresholds();
+        if (bucketCountThresholds.getShardSize() == new SignificantTermsParametersParser().getDefaultBucketCountThresholds().getShardSize()) {
             //The user has not made a shardSize selection .
             //Use default heuristic to avoid any wrong-ranking caused by distributed counting
             //but request double the usual amount.
@@ -115,17 +60,10 @@ public class SignificantTermsParser implements Aggregator.Parser {
             //as the significance algorithm is in less of a position to down-select at shard-level -
             //some of the things we want to find have only one occurrence on each shard and as
             // such are impossible to differentiate from non-significant terms at that early stage.
-            shardSize = 2 * BucketUtils.suggestShardSideQueueSize(requiredSize, context.numberOfShards());
-
+            bucketCountThresholds.setShardSize(2 * BucketUtils.suggestShardSideQueueSize(bucketCountThresholds.getRequiredSize(), context.numberOfShards()));
         }
 
-        // shard_size cannot be smaller than size as we need to at least fetch <size> entries from every shards in order to return <size>
-        if (shardSize < requiredSize) {
-            shardSize = requiredSize;
-        }
-
-        IncludeExclude includeExclude = incExcParser.includeExclude();
-        return new SignificantTermsAggregatorFactory(aggregationName, vsParser.config(), requiredSize, shardSize, minDocCount, includeExclude, executionHint, filter);
+        bucketCountThresholds.ensureValidity();
+        return new SignificantTermsAggregatorFactory(aggregationName, vsParser.config(), bucketCountThresholds, aggParser.getIncludeExclude(), aggParser.getExecutionHint(), aggParser.getFilter());
     }
-
 }

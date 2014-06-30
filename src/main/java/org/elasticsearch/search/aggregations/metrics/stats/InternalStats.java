@@ -24,16 +24,15 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.metrics.MetricsAggregation;
+import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
 import java.io.IOException;
-import java.util.List;
 
 /**
 *
 */
-public class InternalStats extends MetricsAggregation.MultiValue implements Stats {
+public class InternalStats extends InternalNumericMetricsAggregation.MultiValue implements Stats {
 
     public final static Type TYPE = new Type("stats");
 
@@ -120,33 +119,18 @@ public class InternalStats extends MetricsAggregation.MultiValue implements Stat
 
     @Override
     public InternalStats reduce(ReduceContext reduceContext) {
-        List<InternalAggregation> aggregations = reduceContext.aggregations();
-        if (aggregations.size() == 1) {
-            return (InternalStats) aggregations.get(0);
+        long count = 0;
+        double min = Double.POSITIVE_INFINITY;
+        double max = Double.NEGATIVE_INFINITY;
+        double sum = 0;
+        for (InternalAggregation aggregation : reduceContext.aggregations()) {
+            InternalStats stats = (InternalStats) aggregation;
+            count += stats.getCount();
+            min = Math.min(min, stats.getMin());
+            max = Math.max(max, stats.getMax());
+            sum += stats.getSum();
         }
-        InternalStats reduced = null;
-        for (InternalAggregation aggregation : aggregations) {
-            if (reduced == null) {
-                if (((InternalStats) aggregation).count != 0) {
-                    reduced = (InternalStats) aggregation;
-                }
-            } else {
-                if (((InternalStats) aggregation).count != 0) {
-                    reduced.count += ((InternalStats) aggregation).count;
-                    reduced.min = Math.min(reduced.min, ((InternalStats) aggregation).min);
-                    reduced.max = Math.max(reduced.max, ((InternalStats) aggregation).max);
-                    reduced.sum += ((InternalStats) aggregation).sum;
-                    mergeOtherStats(reduced, aggregation);
-                }
-            }
-        }
-        if (reduced != null) {
-            return reduced;
-        }
-        return (InternalStats) aggregations.get(0);
-    }
-
-    protected void mergeOtherStats(InternalStats to, InternalAggregation from) {
+        return new InternalStats(name, count, sum, min, max);
     }
 
     @Override

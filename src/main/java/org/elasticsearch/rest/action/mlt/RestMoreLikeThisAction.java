@@ -19,25 +19,20 @@
 
 package org.elasticsearch.rest.action.mlt;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.mlt.MoreLikeThisRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestToXContentListener;
 import org.elasticsearch.search.Scroll;
-
-import java.io.IOException;
 
 import static org.elasticsearch.client.Requests.moreLikeThisRequest;
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.rest.RestStatus.OK;
 
 /**
  *
@@ -52,7 +47,7 @@ public class RestMoreLikeThisAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         MoreLikeThisRequest mltRequest = moreLikeThisRequest(request.param("index")).type(request.param("type")).id(request.param("id"));
         mltRequest.routing(request.param("routing"));
 
@@ -70,6 +65,7 @@ public class RestMoreLikeThisAction extends BaseRestHandler {
         mltRequest.minWordLength(request.paramAsInt("min_word_len", request.paramAsInt("min_word_length", -1)));
         mltRequest.maxWordLength(request.paramAsInt("max_word_len", request.paramAsInt("max_word_length", -1)));
         mltRequest.boostTerms(request.paramAsFloat("boost_terms", -1));
+        mltRequest.include(request.paramAsBoolean("include", false));
 
         mltRequest.searchType(SearchType.fromString(request.param("search_type")));
         mltRequest.searchIndices(request.paramAsStringArray("search_indices", null));

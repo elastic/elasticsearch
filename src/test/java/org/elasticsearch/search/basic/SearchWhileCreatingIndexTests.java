@@ -68,7 +68,7 @@ public class SearchWhileCreatingIndexTests extends ElasticsearchIntegrationTest 
         // TODO: add a smarter choice based on actual consistency (when that is randomized)
         int shardsNo = numberOfReplicas + 1;
         int neededNodes = shardsNo <= 2 ? 1 : shardsNo / 2 + 1;
-        cluster().ensureAtLeastNumDataNodes(randomIntBetween(neededNodes, shardsNo));
+        internalCluster().ensureAtLeastNumDataNodes(randomIntBetween(neededNodes, shardsNo));
         for (int i = 0; i < 20; i++) {
             logger.info("running iteration {}", i);
             if (createIndex) {
@@ -99,9 +99,9 @@ public class SearchWhileCreatingIndexTests extends ElasticsearchIntegrationTest 
                 }
                 assertHitCount(searchResponse, 1);
                 status = client().admin().cluster().prepareHealth("test").get().getStatus();
-                cluster().ensureAtLeastNumDataNodes(numberOfReplicas + 1);
+                internalCluster().ensureAtLeastNumDataNodes(numberOfReplicas + 1);
             }
-            immutableCluster().wipeIndices("test");
+            cluster().wipeIndices("test");
         }
     }
 }

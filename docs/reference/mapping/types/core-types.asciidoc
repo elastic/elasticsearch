@@ -99,7 +99,7 @@ searchable at all (as an individual field; it may still be included in
 `analyzed`.
 
 |`doc_values` |Set to `true` to store field values in a column-stride fashion.
-Automatically set to `true` when the fielddata format is `doc_values`.
+Automatically set to `true` when the <<fielddata-formats,`fielddata` format>> is `doc_values`.
 
 |`term_vector` |Possible values are `no`, `yes`, `with_offsets`,
 `with_positions`, `with_positions_offsets`. Defaults to `no`.
@@ -181,7 +181,7 @@ you don't need scoring on a specific field, it is highly recommended to disable
 norms on it. In  particular, this is the case for fields that are used solely
 for filtering or aggregations.
 
-coming[1.2.0]
+added[1.2.0]
 In case you would like to disable norms after the fact, it is possible to do so
 by using the <<indices-put-mapping,PUT mapping API>>. Please however note that
 norms won't be removed instantly, but as your index will receive new insertions
@@ -238,7 +238,7 @@ in `_source`, have `include_in_all` enabled, or `store` be set to
 |`doc_values` |Set to `true` to store field values in a column-stride fashion.
 Automatically set to `true` when the fielddata format is `doc_values`.
 
-|`precision_step` |The precision step (influences the number of terms 
+|`precision_step` |The precision step (influences the number of terms
 generated for each number value). Defaults to `16` for `long`, `double`,
 `8` for `short`, `integer`, `float`, and `2147483647` for `byte`.
 
@@ -348,7 +348,7 @@ in `_source`, have `include_in_all` enabled, or `store` be set to
 |`doc_values` |Set to `true` to store field values in a column-stride fashion.
 Automatically set to `true` when the fielddata format is `doc_values`.
 
-|`precision_step` |The precision step (influences the number of terms 
+|`precision_step` |The precision step (influences the number of terms
 generated for each number value). Defaults to `16`.
 
 |`boost` |The boost value. Defaults to `1.0`.
@@ -379,7 +379,7 @@ and `false` respectively.
     "tweet" : {
         "properties" : {
             "hes_my_special_tweet" : {
-                "type" : "boolean",
+                "type" : "boolean"
             }
         }
     }
@@ -429,7 +429,7 @@ all.
     "tweet" : {
         "properties" : {
             "image" : {
-                "type" : "binary",
+                "type" : "binary"
             }
         }
     }
@@ -439,16 +439,38 @@ all.
 The following table lists all the attributes that can be used with the
 binary type:
 
-[cols="<,<",options="header",]
-|=======================================================================
-|Attribute |Description
-|`index_name` |The name of the field that will be stored in the index.
-Defaults to the property/field name.
-|`store` |Set to `true` to store actual field in the index, `false` to not
-store it. Defaults to `false` (note, the JSON document itself is stored,
-and it can be retrieved from it).
-|`doc_values` |Set to `true` to store field values in a column-stride fashion.
-|=======================================================================
+[horizontal]
+
+`index_name`::
+
+    The name of the field that will be stored in the index. Defaults to the
+    property/field name.
+
+`store`::
+
+    Set to `true` to store actual field in the index, `false` to not store it.
+    Defaults to `false` (note, the JSON document itself is already stored, so
+    the binary field can be retrieved from there).
+
+`doc_values`::
+
+    Set to `true` to store field values in a column-stride fashion.
+
+`compress`::
+
+    Set to `true` to compress the stored binary value.
+
+`compress_threshold`::
+
+    Compression will only be applied to stored binary fields that are greater
+    than this size. Defaults to `-1`
+
+NOTE: Enabling compression on stored binary fields only makes sense on large
+and highly-compressible values. Otherwise per-field compression is usually not
+worth doing as the space savings do not compensate for the overhead of the
+compression format. Normally, you should not configure any compression and
+just rely on the block compression of stored fields (which is enabled by
+default and can't be disabled).
 
 [float]
 [[fielddata-filters]]
@@ -621,7 +643,7 @@ property, as this example shows:
    "book":{
       "properties":{
          "title":{
-            "type":"string", "similarity":"BM25" 
+            "type":"string", "similarity":"BM25"
          }
       }
    }
@@ -658,7 +680,7 @@ the parameter. In the following example all values from fields `title` and `abst
     "properties" : {
       "title" : { "type" : "string", "copy_to" : "meta_data" },
       "abstract" : { "type" : "string", "copy_to" : "meta_data" },
-      "meta_data" : { "type" : "string" },
+      "meta_data" : { "type" : "string" }
     }
 }
 --------------------------------------------------
@@ -670,7 +692,7 @@ Multiple fields are also supported:
 {
   "book" : {
     "properties" : {
-      "title" : { "type" : "string", "copy_to" : ["meta_data", "article_info"] },
+      "title" : { "type" : "string", "copy_to" : ["meta_data", "article_info"] }
     }
 }
 --------------------------------------------------

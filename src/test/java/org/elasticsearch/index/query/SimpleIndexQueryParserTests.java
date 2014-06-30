@@ -30,6 +30,7 @@ import org.apache.lucene.spatial.prefix.IntersectsPrefixTreeFilter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.cache.recycler.CacheRecyclerModule;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -63,6 +64,8 @@ import org.elasticsearch.index.search.NumericRangeFieldDataFilter;
 import org.elasticsearch.index.search.geo.GeoDistanceFilter;
 import org.elasticsearch.index.search.geo.GeoPolygonFilter;
 import org.elasticsearch.index.search.geo.InMemoryGeoBoundingBoxFilter;
+import org.elasticsearch.index.search.morelikethis.MoreLikeThisFetchService;
+import org.elasticsearch.index.search.morelikethis.MoreLikeThisFetchService.LikeText;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.similarity.SimilarityModule;
 import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
@@ -80,6 +83,7 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
@@ -105,6 +109,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchTestCase {
     public static void setupQueryParser() throws IOException {
         Settings settings = ImmutableSettings.settingsBuilder()
                 .put("index.cache.filter.type", "none")
+                .put("name", "SimpleIndexQueryParserTests")
                 .build();
         Index index = new Index("test");
         injector = new ModulesBuilder().add(
@@ -137,6 +142,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchTestCase {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/query/mapping.json");
         injector.getInstance(MapperService.class).merge("person", new CompressedString(mapping), true);
         injector.getInstance(MapperService.class).documentMapper("person").parse(new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/query/data.json")));
+
         queryParser = injector.getInstance(IndexQueryParserService.class);
     }
 
@@ -1672,6 +1678,63 @@ public class SimpleIndexQueryParserTests extends ElasticsearchTestCase {
     }
 
     @Test
+    public void testMoreLikeThisIds() throws Exception {
+        MoreLikeThisQueryParser parser = (MoreLikeThisQueryParser) queryParser.queryParser("more_like_this");
+        parser.setFetchService(new MockMoreLikeThisFetchService());
+
+        List<LikeText> likeTexts = new ArrayList<>();
+        likeTexts.add(new LikeText("name.first", new String[]{
+                "test person 1 name.first", "test person 2 name.first", "test person 3 name.first", "test person 4 name.first"}));
+        likeTexts.add(new LikeText("name.last", new String[]{
+                "test person 1 name.last", "test person 2 name.last", "test person 3 name.last", "test person 4 name.last"}));
+
+        IndexQueryParserService queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/mlt-items.json");
+        Query parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(BooleanQuery.class));
+        BooleanQuery booleanQuery = (BooleanQuery) parsedQuery;
+        assertThat(booleanQuery.getClauses().length, is(likeTexts.size() + 1));
+
+        // check each clause is for each item
+        BooleanClause[] boolClauses = booleanQuery.getClauses();
+        for (int i = 0; i < likeTexts.size(); i++) {
+            BooleanClause booleanClause = booleanQuery.getClauses()[i];
+            assertThat(booleanClause.getOccur(), is(BooleanClause.Occur.SHOULD));
+            assertThat(booleanClause.getQuery(), instanceOf(MoreLikeThisQuery.class));
+            MoreLikeThisQuery mltQuery = (MoreLikeThisQuery) booleanClause.getQuery();
+            assertThat(mltQuery.getLikeTexts(), is(likeTexts.get(i).text));
+            assertThat(mltQuery.getMoreLikeFields()[0], equalTo(likeTexts.get(i).field));
+        }
+
+        // check last clause is for 'like_text'
+        BooleanClause boolClause = boolClauses[boolClauses.length - 1];
+        assertThat(boolClause.getOccur(), is(BooleanClause.Occur.SHOULD));
+        assertThat(boolClause.getQuery(), instanceOf(MoreLikeThisQuery.class));
+        MoreLikeThisQuery mltQuery = (MoreLikeThisQuery) boolClause.getQuery();
+        assertArrayEquals("Not the same more like this 'fields'", new String[] {"name.first", "name.last"}, mltQuery.getMoreLikeFields());
+        assertThat(mltQuery.getLikeText(), equalTo("Apache Lucene"));
+    }
+
+    private static class MockMoreLikeThisFetchService extends MoreLikeThisFetchService {
+
+        public MockMoreLikeThisFetchService() {
+            super(null, ImmutableSettings.Builder.EMPTY_SETTINGS);
+        }
+
+        public List<LikeText> fetch(List<MultiGetRequest.Item> items) throws IOException {
+            List<LikeText> likeTexts = new ArrayList<>();
+            for (MultiGetRequest.Item item: items) {
+                for (String field : item.fields()) {
+                    LikeText likeText = new LikeText(
+                            field, item.index() + " " + item.type() + " " + item.id() + " " + field);
+                    likeTexts.add(likeText);
+                }
+            }
+            return likeTexts;
+        }
+    }
+
+    @Test
     public void testFuzzyLikeThisBuilder() throws Exception {
         IndexQueryParserService queryParser = queryParser();
         Query parsedQuery = queryParser.parse(fuzzyLikeThisQuery("name.first", "name.last").likeText("something").maxQueryTerms(12)).query();
@@ -2290,4 +2353,24 @@ public class SimpleIndexQueryParserTests extends ElasticsearchTestCase {
         Query parsedQuery = queryParser.parse(query).query();
         assertThat(parsedQuery, instanceOf(BooleanQuery.class));
     }
+
+    @Test
+    public void testMatchWithFuzzyTranspositions() throws Exception {
+        IndexQueryParserService queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/match-with-fuzzy-transpositions.json");
+        Query parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(FuzzyQuery.class));
+        assertThat( ((FuzzyQuery) parsedQuery).getTranspositions(), equalTo(true));
+    }
+
+    @Test
+    public void testMatchWithoutFuzzyTranspositions() throws Exception {
+        IndexQueryParserService queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/match-without-fuzzy-transpositions.json");
+        Query parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(FuzzyQuery.class));
+        assertThat( ((FuzzyQuery) parsedQuery).getTranspositions(), equalTo(false));
+    }
+
+
 }

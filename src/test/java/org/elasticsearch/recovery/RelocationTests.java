@@ -23,12 +23,20 @@ import com.carrotsearch.hppc.IntOpenHashSet;
 import com.carrotsearch.hppc.procedures.IntProcedure;
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.service.IndexShard;
+import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.BackgroundIndexer;
@@ -36,11 +44,15 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.junit.Test;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -53,13 +65,13 @@ public class RelocationTests extends ElasticsearchIntegrationTest {
     @Test
     public void testSimpleRelocationNoIndexing() {
         logger.info("--> starting [node1] ...");
-        final String node_1 = cluster().startNode();
+        final String node_1 = internalCluster().startNode();
 
         logger.info("--> creating test index ...");
         client().admin().indices().prepareCreate("test")
                 .setSettings(ImmutableSettings.settingsBuilder()
-                        .put("index.number_of_shards", 1)
-                        .put("index.number_of_replicas", 0)
+                                .put("index.number_of_shards", 1)
+                                .put("index.number_of_replicas", 0)
                 )
                 .execute().actionGet();
 
@@ -79,7 +91,7 @@ public class RelocationTests extends ElasticsearchIntegrationTest {
         assertThat(client().prepareCount("test").execute().actionGet().getCount(), equalTo(20l));
 
         logger.info("--> start another node");
-        final String node_2 = cluster().startNode();
+        final String node_2 = internalCluster().startNode();
         ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("2").execute().actionGet();
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
@@ -109,19 +121,19 @@ public class RelocationTests extends ElasticsearchIntegrationTest {
 
         String[] nodes = new String[numberOfNodes];
         logger.info("--> starting [node1] ...");
-        nodes[0] = cluster().startNode();
+        nodes[0] = internalCluster().startNode();
 
         logger.info("--> creating test index ...");
         client().admin().indices().prepareCreate("test")
                 .setSettings(settingsBuilder()
-                        .put("index.number_of_shards", 1)
-                        .put("index.number_of_replicas", numberOfReplicas)
+                                .put("index.number_of_shards", 1)
+                                .put("index.number_of_replicas", numberOfReplicas)
                 ).execute().actionGet();
 
 
         for (int i = 1; i < numberOfNodes; i++) {
             logger.info("--> starting [node{}] ...", i + 1);
-            nodes[i] = cluster().startNode();
+            nodes[i] = internalCluster().startNode();
             if (i != numberOfNodes - 1) {
                 ClusterHealthResponse healthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID)
                         .setWaitForNodes(Integer.toString(i + 1)).setWaitForGreenStatus().execute().actionGet();
@@ -205,6 +217,107 @@ public class RelocationTests extends ElasticsearchIntegrationTest {
             if (!ranOnce) {
                 fail();
             }
+        }
+    }
+
+    @Test
+    @Slow
+    public void testRelocationWhileRefreshing() throws Exception {
+        int numberOfRelocations = scaledRandomIntBetween(1, rarely() ? 10 : 4);
+        int numberOfReplicas = randomBoolean() ? 0 : 1;
+        int numberOfNodes = numberOfReplicas == 0 ? 2 : 3;
+
+        logger.info("testRelocationWhileIndexingRandom(numRelocations={}, numberOfReplicas={}, numberOfNodes={})", numberOfRelocations, numberOfReplicas, numberOfNodes);
+
+        String[] nodes = new String[numberOfNodes];
+        logger.info("--> starting [node_0] ...");
+        nodes[0] = internalCluster().startNode();
+
+        logger.info("--> creating test index ...");
+        client().admin().indices().prepareCreate("test")
+                .setSettings(settingsBuilder()
+                        .put("index.number_of_shards", 1)
+                        .put("index.number_of_replicas", numberOfReplicas)
+                        .put("index.refresh_interval", -1) // we want to control refreshes c
+                ).execute().actionGet();
+
+        // make sure the first shard is started.
+        ensureYellow();
+
+        for (int i = 1; i < numberOfNodes; i++) {
+            logger.info("--> starting [node_{}] ...", i);
+            nodes[i] = internalCluster().startNode();
+            if (i != numberOfNodes - 1) {
+                ClusterHealthResponse healthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID)
+                        .setWaitForNodes(Integer.toString(i + 1)).setWaitForGreenStatus().execute().actionGet();
+                assertThat(healthResponse.isTimedOut(), equalTo(false));
+            }
+        }
+
+        final Semaphore postRecoveryShards = new Semaphore(0);
+
+        for (IndicesLifecycle indicesLifecycle : internalCluster().getInstances(IndicesLifecycle.class)) {
+            indicesLifecycle.addListener(new IndicesLifecycle.Listener() {
+                @Override
+                public void indexShardStateChanged(IndexShard indexShard, @Nullable IndexShardState previousState, IndexShardState currentState, @Nullable String reason) {
+                    if (currentState == IndexShardState.POST_RECOVERY) {
+                        postRecoveryShards.release();
+                    }
+                }
+            });
+        }
+
+
+        logger.info("--> starting relocations...");
+        int nodeShiftBased = numberOfReplicas; // if we have replicas shift those
+        for (int i = 0; i < numberOfRelocations; i++) {
+            int fromNode = (i % 2);
+            int toNode = fromNode == 0 ? 1 : 0;
+            fromNode += nodeShiftBased;
+            toNode += nodeShiftBased;
+
+            List<IndexRequestBuilder> builders1 = new ArrayList<>();
+            for (int numDocs = randomIntBetween(10, 30); numDocs > 0; numDocs--) {
+                builders1.add(client().prepareIndex("test", "type").setSource("{}"));
+            }
+
+            List<IndexRequestBuilder> builders2 = new ArrayList<>();
+            for (int numDocs = randomIntBetween(10, 30); numDocs > 0; numDocs--) {
+                builders2.add(client().prepareIndex("test", "type").setSource("{}"));
+            }
+
+            logger.info("--> START relocate the shard from {} to {}", nodes[fromNode], nodes[toNode]);
+
+
+            client().admin().cluster().prepareReroute()
+                    .add(new MoveAllocationCommand(new ShardId("test", 0), nodes[fromNode], nodes[toNode]))
+                    .get();
+
+
+            logger.debug("--> index [{}] documents", builders1.size());
+            indexRandom(false, true, builders1);
+            // wait for shard to reach post recovery
+            postRecoveryShards.acquire(1);
+
+            logger.debug("--> index [{}] documents", builders2.size());
+            indexRandom(true, true, builders2);
+
+            // verify cluster was finished.
+            assertFalse(client().admin().cluster().prepareHealth().setWaitForRelocatingShards(0).setTimeout("30s").get().isTimedOut());
+            logger.info("--> DONE relocate the shard from {} to {}", fromNode, toNode);
+
+            logger.debug("--> verifying all searches return the same number of docs");
+            long expectedCount = -1;
+            for (Client client : clients()) {
+                SearchResponse response = client.prepareSearch("test").setPreference("_local").setSearchType(SearchType.COUNT).get();
+                assertNoFailures(response);
+                if (expectedCount < 0) {
+                    expectedCount = response.getHits().totalHits();
+                } else {
+                    assertEquals(expectedCount, response.getHits().totalHits());
+                }
+            }
+
         }
     }
 

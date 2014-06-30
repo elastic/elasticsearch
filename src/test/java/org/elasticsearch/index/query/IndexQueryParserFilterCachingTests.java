@@ -86,6 +86,7 @@ public class IndexQueryParserFilterCachingTests extends ElasticsearchTestCase {
     public static void setupQueryParser() throws IOException {
         Settings settings = ImmutableSettings.settingsBuilder()
                 .put("index.cache.filter.type", "weighted")
+                .put("name", "IndexQueryParserFilterCachingTests")
                 .build();
         Index index = new Index("test");
         injector = new ModulesBuilder().add(

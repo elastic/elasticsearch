@@ -23,15 +23,14 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
-import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 
 /**
  *
  */
-public class DeleteWarmerRequestBuilder extends AcknowledgedRequestBuilder<DeleteWarmerRequest, DeleteWarmerResponse, DeleteWarmerRequestBuilder> {
+public class DeleteWarmerRequestBuilder extends AcknowledgedRequestBuilder<DeleteWarmerRequest, DeleteWarmerResponse, DeleteWarmerRequestBuilder, IndicesAdminClient> {
 
     public DeleteWarmerRequestBuilder(IndicesAdminClient indicesClient) {
-        super((InternalIndicesAdminClient) indicesClient, new DeleteWarmerRequest());
+        super(indicesClient, new DeleteWarmerRequest());
     }
 
     public DeleteWarmerRequestBuilder setIndices(String... indices) {
@@ -60,6 +59,6 @@ public class DeleteWarmerRequestBuilder extends AcknowledgedRequestBuilder<Delet
 
     @Override
     protected void doExecute(ActionListener<DeleteWarmerResponse> listener) {
-        ((IndicesAdminClient) client).deleteWarmer(request, listener);
+        client.deleteWarmer(request, listener);
     }
 }

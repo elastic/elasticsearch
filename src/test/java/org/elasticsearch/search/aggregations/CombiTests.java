@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.IntIntMap;
 import com.carrotsearch.hppc.IntIntOpenHashMap;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.missing.Missing;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -80,9 +81,11 @@ public class CombiTests extends ElasticsearchIntegrationTest {
         ensureSearchable();
 
 
+        SubAggCollectionMode aggCollectionMode = randomFrom(SubAggCollectionMode.values());
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(missing("missing_values").field("value"))
-                .addAggregation(terms("values").field("value"))
+                .addAggregation(terms("values").field("value")
+                        .collectMode(aggCollectionMode ))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -122,9 +125,11 @@ public class CombiTests extends ElasticsearchIntegrationTest {
 
         ensureSearchable("idx");
 
+        SubAggCollectionMode aggCollectionMode = randomFrom(SubAggCollectionMode.values());
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .addAggregation(histogram("values").field("value1").interval(1)
-                        .subAggregation(terms("names").field("name")))
+                        .subAggregation(terms("names").field("name")
+                                .collectMode(aggCollectionMode )))
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), Matchers.equalTo(0l));

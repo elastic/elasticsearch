@@ -70,6 +70,9 @@
 * https://github.com/cleverage/play2-elasticsearch[play2-elasticsearch]:
   Elasticsearch module for Play Framework 2.x
 
+* https://github.com/goodow/realtime-search[realtime-search]:
+  Elasticsearch module for Vert.x
+
 * https://github.com/fullscale/dangle[dangle]:
   A set of AngularJS directives that provide common visualizations for elasticsearch based on
   D3.

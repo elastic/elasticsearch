@@ -26,6 +26,8 @@ import com.google.common.cache.RemovalNotification;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.SegmentReader;
+import org.apache.lucene.util.Accountable;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.SegmentReaderUtils;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -62,7 +64,7 @@ public interface IndexFieldDataCache {
 
     interface Listener {
 
-        void onLoad(FieldMapper.Names fieldNames, FieldDataType fieldDataType, RamUsage ramUsage);
+        void onLoad(FieldMapper.Names fieldNames, FieldDataType fieldDataType, Accountable ramUsage);
 
         void onUnload(FieldMapper.Names fieldNames, FieldDataType fieldDataType, boolean wasEvicted, long sizeInBytes);
     }
@@ -70,15 +72,17 @@ public interface IndexFieldDataCache {
     /**
      * The resident field data cache is a *per field* cache that keeps all the values in memory.
      */
-    static abstract class FieldBased implements IndexFieldDataCache, SegmentReader.CoreClosedListener, RemovalListener<FieldBased.Key, RamUsage>, IndexReader.ReaderClosedListener {
+    static abstract class FieldBased implements IndexFieldDataCache, SegmentReader.CoreClosedListener, RemovalListener<FieldBased.Key, Accountable>, IndexReader.ReaderClosedListener {
         private final IndexService indexService;
         private final FieldMapper.Names fieldNames;
         private final FieldDataType fieldDataType;
-        private final Cache<Key, RamUsage> cache;
+        private final Cache<Key, Accountable> cache;
         private final IndicesFieldDataCacheListener indicesFieldDataCacheListener;
+        private final ESLogger logger;
 
-        protected FieldBased(IndexService indexService, FieldMapper.Names fieldNames, FieldDataType fieldDataType, CacheBuilder cache, IndicesFieldDataCacheListener indicesFieldDataCacheListener) {
+        protected FieldBased(ESLogger logger, IndexService indexService, FieldMapper.Names fieldNames, FieldDataType fieldDataType, CacheBuilder cache, IndicesFieldDataCacheListener indicesFieldDataCacheListener) {
             assert indexService != null;
+            this.logger = logger;
             this.indexService = indexService;
             this.fieldNames = fieldNames;
             this.fieldDataType = fieldDataType;
@@ -89,18 +93,22 @@ public interface IndexFieldDataCache {
         }
 
         @Override
-        public void onRemoval(RemovalNotification<Key, RamUsage> notification) {
+        public void onRemoval(RemovalNotification<Key, Accountable> notification) {
             final Key key = notification.getKey();
             assert key != null && key.listeners != null;
 
-            final RamUsage value = notification.getValue();
+            final Accountable value = notification.getValue();
             long sizeInBytes = key.sizeInBytes;
             assert sizeInBytes >= 0 || value != null : "Expected size [" + sizeInBytes + "] to be positive or value [" + value + "] to be non-null";
             if (sizeInBytes == -1 && value != null) {
-                sizeInBytes = value.getMemorySizeInBytes();
+                sizeInBytes = value.ramBytesUsed();
             }
             for (Listener listener : key.listeners) {
-                listener.onUnload(fieldNames, fieldDataType, notification.wasEvicted(), sizeInBytes);
+                try {
+                    listener.onUnload(fieldNames, fieldDataType, notification.wasEvicted(), sizeInBytes);
+                } catch (Throwable e) {
+                    logger.error("Failed to call listener on field data cache unloading", e);
+                }
             }
         }
 
@@ -112,8 +120,7 @@ public interface IndexFieldDataCache {
                 @Override
                 public AtomicFieldData call() throws Exception {
                     SegmentReaderUtils.registerCoreListener(context.reader(), FieldBased.this);
-                    AtomicFieldData fieldData = indexFieldData.loadDirect(context);
-                    key.sizeInBytes = fieldData.getMemorySizeInBytes();
+
                     key.listeners.add(indicesFieldDataCacheListener);
                     final ShardId shardId = ShardUtils.extractShardId(context.reader());
                     if (shardId != null) {
@@ -122,8 +129,15 @@ public interface IndexFieldDataCache {
                             key.listeners.add(shard.fieldData());
                         }
                     }
+                    final AtomicFieldData fieldData = indexFieldData.loadDirect(context);
+                    key.sizeInBytes = fieldData.ramBytesUsed();
                     for (Listener listener : key.listeners) {
-                        listener.onLoad(fieldNames, fieldDataType, fieldData);
+                        try {
+                            listener.onLoad(fieldNames, fieldDataType, fieldData);
+                        } catch (Throwable e) {
+                            // load anyway since listeners should not throw exceptions
+                            logger.error("Failed to call listener on atomic field data loading", e);
+                        }
                     }
                     return fieldData;
                 }
@@ -133,12 +147,11 @@ public interface IndexFieldDataCache {
         public <IFD extends IndexFieldData.WithOrdinals<?>> IFD load(final IndexReader indexReader, final IFD indexFieldData) throws Exception {
             final Key key = new Key(indexReader.getCoreCacheKey());
             //noinspection unchecked
-            return (IFD) cache.get(key, new Callable<RamUsage>() {
+            return (IFD) cache.get(key, new Callable<Accountable>() {
                 @Override
                 public GlobalOrdinalsIndexFieldData call() throws Exception {
                     indexReader.addReaderClosedListener(FieldBased.this);
-                    GlobalOrdinalsIndexFieldData ifd = (GlobalOrdinalsIndexFieldData) indexFieldData.localGlobalDirect(indexReader);
-                    key.sizeInBytes = ifd.getMemorySizeInBytes();
+
                     key.listeners.add(indicesFieldDataCacheListener);
                     final ShardId shardId = ShardUtils.extractShardId(indexReader);
                     if (shardId != null) {
@@ -147,8 +160,15 @@ public interface IndexFieldDataCache {
                             key.listeners.add(shard.fieldData());
                         }
                     }
+                    GlobalOrdinalsIndexFieldData ifd = (GlobalOrdinalsIndexFieldData) indexFieldData.localGlobalDirect(indexReader);
+                    key.sizeInBytes = ifd.ramBytesUsed();
                     for (Listener listener : key.listeners) {
-                        listener.onLoad(fieldNames, fieldDataType, ifd);
+                        try {
+                            listener.onLoad(fieldNames, fieldDataType, ifd);
+                        } catch (Throwable e) {
+                            // load anyway since listeners should not throw exceptions
+                            logger.error("Failed to call listener on global ordinals loading", e);
+                        }
                     }
 
                     return ifd;
@@ -207,15 +227,15 @@ public interface IndexFieldDataCache {
 
     static class Resident extends FieldBased {
 
-        public Resident(IndexService indexService, FieldMapper.Names fieldNames, FieldDataType fieldDataType, IndicesFieldDataCacheListener indicesFieldDataCacheListener) {
-            super(indexService, fieldNames, fieldDataType, CacheBuilder.newBuilder(), indicesFieldDataCacheListener);
+        public Resident(ESLogger logger, IndexService indexService, FieldMapper.Names fieldNames, FieldDataType fieldDataType, IndicesFieldDataCacheListener indicesFieldDataCacheListener) {
+            super(logger, indexService, fieldNames, fieldDataType, CacheBuilder.newBuilder(), indicesFieldDataCacheListener);
         }
     }
 
     static class Soft extends FieldBased {
 
-        public Soft(IndexService indexService, FieldMapper.Names fieldNames, FieldDataType fieldDataType, IndicesFieldDataCacheListener indicesFieldDataCacheListener) {
-            super(indexService, fieldNames, fieldDataType, CacheBuilder.newBuilder().softValues(), indicesFieldDataCacheListener);
+        public Soft(ESLogger logger, IndexService indexService, FieldMapper.Names fieldNames, FieldDataType fieldDataType, IndicesFieldDataCacheListener indicesFieldDataCacheListener) {
+            super(logger, indexService, fieldNames, fieldDataType, CacheBuilder.newBuilder().softValues(), indicesFieldDataCacheListener);
         }
     }
 }

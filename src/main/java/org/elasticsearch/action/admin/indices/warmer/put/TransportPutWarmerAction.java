@@ -31,12 +31,9 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
@@ -83,7 +80,7 @@ public class TransportPutWarmerAction extends TransportMasterNodeOperationAction
 
     @Override
     protected ClusterBlockException checkBlock(PutWarmerRequest request, ClusterState state) {
-        String[] concreteIndices = clusterService.state().metaData().concreteIndices(request.searchRequest().indices(), request.searchRequest().indicesOptions());
+        String[] concreteIndices = clusterService.state().metaData().concreteIndices(request.searchRequest().indicesOptions(), request.searchRequest().indices());
         return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, concreteIndices);
     }
 
@@ -98,43 +95,23 @@ public class TransportPutWarmerAction extends TransportMasterNodeOperationAction
                     return;
                 }
 
-                clusterService.submitStateUpdateTask("put_warmer [" + request.name() + "]", new AckedClusterStateUpdateTask() {
+                clusterService.submitStateUpdateTask("put_warmer [" + request.name() + "]", new AckedClusterStateUpdateTask<PutWarmerResponse>(request, listener) {
 
                     @Override
-                    public boolean mustAck(DiscoveryNode discoveryNode) {
-                        return true;
-                    }
-
-                    @Override
-                    public void onAllNodesAcked(@Nullable Throwable t) {
-                        listener.onResponse(new PutWarmerResponse(true));
-                    }
-
-                    @Override
-                    public void onAckTimeout() {
-                        listener.onResponse(new PutWarmerResponse(false));
-                    }
-
-                    @Override
-                    public TimeValue ackTimeout() {
-                        return request.timeout();
-                    }
-
-                    @Override
-                    public TimeValue timeout() {
-                        return request.masterNodeTimeout();
+                    protected PutWarmerResponse newResponse(boolean acknowledged) {
+                        return new PutWarmerResponse(acknowledged);
                     }
 
                     @Override
                     public void onFailure(String source, Throwable t) {
                         logger.debug("failed to put warmer [{}] on indices [{}]", t, request.name(), request.searchRequest().indices());
-                        listener.onFailure(t);
+                        super.onFailure(source, t);
                     }
 
                     @Override
                     public ClusterState execute(ClusterState currentState) {
                         MetaData metaData = currentState.metaData();
-                        String[] concreteIndices = metaData.concreteIndices(request.searchRequest().indices(), request.searchRequest().indicesOptions());
+                        String[] concreteIndices = metaData.concreteIndices(request.searchRequest().indicesOptions(), request.searchRequest().indices());
 
                         BytesReference source = null;
                         if (request.searchRequest().source() != null && request.searchRequest().source().length() > 0) {
@@ -179,11 +156,6 @@ public class TransportPutWarmerAction extends TransportMasterNodeOperationAction
                         }
 
                         return ClusterState.builder(currentState).metaData(mdBuilder).build();
-                    }
-
-                    @Override
-                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-
                     }
                 });
             }

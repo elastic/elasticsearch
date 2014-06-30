@@ -23,6 +23,7 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.support.replication.IndexReplicationOperationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.uid.Versions;
 
 import java.io.IOException;
 
@@ -72,7 +73,7 @@ public class IndexDeleteRequest extends IndexReplicationOperationRequest<IndexDe
         type = in.readString();
         id = in.readString();
         refresh = in.readBoolean();
-        version = in.readLong();
+        version = Versions.readVersion(in);
     }
 
     @Override
@@ -81,6 +82,6 @@ public class IndexDeleteRequest extends IndexReplicationOperationRequest<IndexDe
         out.writeString(type);
         out.writeString(id);
         out.writeBoolean(refresh);
-        out.writeLong(version);
+        Versions.writeVersion(version, out);
     }
 }

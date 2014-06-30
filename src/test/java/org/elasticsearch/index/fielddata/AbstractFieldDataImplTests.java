@@ -66,7 +66,7 @@ public abstract class AbstractFieldDataImplTests extends AbstractFieldDataTests 
         IndexFieldData indexFieldData = getForField("value");
         AtomicReaderContext readerContext = refreshReader();
         AtomicFieldData fieldData = indexFieldData.load(readerContext);
-        BytesValues values = fieldData.getBytesValues(randomBoolean());
+        BytesValues values = fieldData.getBytesValues();
         for (int i = 0; i < readerContext.reader().maxDoc(); ++i) {
             assertThat(values.setDocument(i), greaterThanOrEqualTo(1));
         }
@@ -78,9 +78,9 @@ public abstract class AbstractFieldDataImplTests extends AbstractFieldDataTests 
         IndexFieldData indexFieldData = getForField("value");
         AtomicReaderContext readerContext = refreshReader();
         AtomicFieldData fieldData = indexFieldData.load(readerContext);
-        assertThat(fieldData.getMemorySizeInBytes(), greaterThan(0l));
+        assertThat(fieldData.ramBytesUsed(), greaterThan(0l));
 
-        BytesValues bytesValues = fieldData.getBytesValues(randomBoolean());
+        BytesValues bytesValues = fieldData.getBytesValues();
 
         assertThat(bytesValues.isMultiValued(), equalTo(false));
 
@@ -95,7 +95,7 @@ public abstract class AbstractFieldDataImplTests extends AbstractFieldDataTests 
         assertValues(bytesValues, 1, one());
         assertValues(bytesValues, 2, three());
 
-        BytesValues hashedBytesValues = fieldData.getBytesValues(randomBoolean());
+        BytesValues hashedBytesValues = fieldData.getBytesValues();
 
         assertThat(convert(hashedBytesValues, 0), equalTo(new HashedBytesRef(two())));
         assertThat(convert(hashedBytesValues, 1), equalTo(new HashedBytesRef(one())));
@@ -127,7 +127,7 @@ public abstract class AbstractFieldDataImplTests extends AbstractFieldDataTests 
     
     private HashedBytesRef convert(BytesValues values, int doc) {
         if (values.setDocument(doc) > 0) {
-            return new HashedBytesRef(BytesRef.deepCopyOf(values.nextValue()), values.currentValueHash());
+            return new HashedBytesRef(BytesRef.deepCopyOf(values.nextValue()));
         } else {
             return new HashedBytesRef(new BytesRef());
         }
@@ -151,11 +151,8 @@ public abstract class AbstractFieldDataImplTests extends AbstractFieldDataTests 
     
     public void assertHashedValues(BytesValues values, int docId, BytesRef... actualValues) {
         assertThat(values.setDocument(docId), equalTo(actualValues.length));
-        BytesRef r = new BytesRef();
         for (int i = 0; i < actualValues.length; i++) {
             assertThat(values.nextValue(), equalTo(new HashedBytesRef(actualValues[i]).bytes));
-            assertThat(values.currentValueHash(), equalTo(new HashedBytesRef(actualValues[i]).hash));
-
         }
     }
     
@@ -163,7 +160,6 @@ public abstract class AbstractFieldDataImplTests extends AbstractFieldDataTests 
         assertThat(values.setDocument(docId), equalTo(actualValues.length));
         for (int i = 0; i < actualValues.length; i++) {
             assertThat(values.nextValue(), equalTo(new HashedBytesRef(actualValues[i]).bytes));
-            assertThat(values.currentValueHash(), equalTo(new HashedBytesRef(actualValues[i]).hash));
         }
     }
 
@@ -173,10 +169,10 @@ public abstract class AbstractFieldDataImplTests extends AbstractFieldDataTests 
         fillSingleValueWithMissing();
         IndexFieldData indexFieldData = getForField("value");
         AtomicFieldData fieldData = indexFieldData.load(refreshReader());
-        assertThat(fieldData.getMemorySizeInBytes(), greaterThan(0l));
+        assertThat(fieldData.ramBytesUsed(), greaterThan(0l));
 
         BytesValues bytesValues = fieldData
-                .getBytesValues(randomBoolean());
+                .getBytesValues();
 
         assertThat(bytesValues.isMultiValued(), equalTo(false));
 
@@ -184,7 +180,7 @@ public abstract class AbstractFieldDataImplTests extends AbstractFieldDataTests 
         assertValues(bytesValues, 1, Strings.EMPTY_ARRAY);
         assertValues(bytesValues, 2, three());
 
-        BytesValues hashedBytesValues = fieldData.getBytesValues(randomBoolean());
+        BytesValues hashedBytesValues = fieldData.getBytesValues();
         assertThat(convert(hashedBytesValues, 0), equalTo(new HashedBytesRef(two())));
         assertThat(convert(hashedBytesValues, 1), equalTo(new HashedBytesRef(new BytesRef())));
         assertThat(convert(hashedBytesValues, 2), equalTo(new HashedBytesRef(three())));
@@ -203,9 +199,9 @@ public abstract class AbstractFieldDataImplTests extends AbstractFieldDataTests 
         fillMultiValueAllSet();
         IndexFieldData indexFieldData = getForField("value");
         AtomicFieldData fieldData = indexFieldData.load(refreshReader());
-        assertThat(fieldData.getMemorySizeInBytes(), greaterThan(0l));
+        assertThat(fieldData.ramBytesUsed(), greaterThan(0l));
 
-        BytesValues bytesValues = fieldData.getBytesValues(randomBoolean());
+        BytesValues bytesValues = fieldData.getBytesValues();
 
         assertThat(bytesValues.isMultiValued(), equalTo(true));
 
@@ -214,7 +210,7 @@ public abstract class AbstractFieldDataImplTests extends AbstractFieldDataTests 
         assertValues(bytesValues, 2, three());
 
 
-        BytesValues hashedBytesValues = fieldData.getBytesValues(randomBoolean());
+        BytesValues hashedBytesValues = fieldData.getBytesValues();
 
         assertThat(convert(hashedBytesValues, 0), equalTo(new HashedBytesRef(two())));
         assertThat(convert(hashedBytesValues, 1), equalTo(new HashedBytesRef(one())));
@@ -245,16 +241,16 @@ public abstract class AbstractFieldDataImplTests extends AbstractFieldDataTests 
         fillMultiValueWithMissing();
         IndexFieldData indexFieldData = getForField("value");
         AtomicFieldData fieldData = indexFieldData.load(refreshReader());
-        assertThat(fieldData.getMemorySizeInBytes(), greaterThan(0l));
+        assertThat(fieldData.ramBytesUsed(), greaterThan(0l));
 
-        BytesValues bytesValues = fieldData.getBytesValues(randomBoolean());
+        BytesValues bytesValues = fieldData.getBytesValues();
 
         assertThat(bytesValues.isMultiValued(), equalTo(true));
 
         assertValues(bytesValues, 0, two(), four());
         assertValues(bytesValues, 1, Strings.EMPTY_ARRAY);
 
-        BytesValues hashedBytesValues = fieldData.getBytesValues(randomBoolean());
+        BytesValues hashedBytesValues = fieldData.getBytesValues();
 
 
         assertThat(convert(hashedBytesValues, 0), equalTo(new HashedBytesRef(two())));
@@ -276,16 +272,16 @@ public abstract class AbstractFieldDataImplTests extends AbstractFieldDataTests 
         IndexFieldData indexFieldData = getForField("value");
         AtomicFieldData fieldData = indexFieldData.load(refreshReader());
         // Some impls (FST) return size 0 and some (PagedBytes) do take size in the case no actual data is loaded
-        assertThat(fieldData.getMemorySizeInBytes(), greaterThanOrEqualTo(0l));
+        assertThat(fieldData.ramBytesUsed(), greaterThanOrEqualTo(0l));
 
-        BytesValues bytesValues = fieldData.getBytesValues(randomBoolean());
+        BytesValues bytesValues = fieldData.getBytesValues();
 
         assertThat(bytesValues.isMultiValued(), equalTo(false));
 
         assertValues(bytesValues, 0, Strings.EMPTY_ARRAY);
         assertValues(bytesValues, 1, Strings.EMPTY_ARRAY);
         assertValues(bytesValues, 2, Strings.EMPTY_ARRAY);
-        BytesValues hashedBytesValues = fieldData.getBytesValues(randomBoolean());
+        BytesValues hashedBytesValues = fieldData.getBytesValues();
 
         assertValues(hashedBytesValues, 0, Strings.EMPTY_ARRAY);
         assertValues(hashedBytesValues, 1, Strings.EMPTY_ARRAY);

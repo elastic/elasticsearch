@@ -19,6 +19,7 @@
 
 package org.elasticsearch.node.internal;
 
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -35,6 +36,7 @@ import org.elasticsearch.client.node.NodeClientModule;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterNameModule;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.StopWatch;
@@ -46,6 +48,8 @@ import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.Injectors;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.io.CachedStreams;
+import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkModule;
@@ -89,6 +93,7 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.elasticsearch.transport.TransportModule;
@@ -184,7 +189,7 @@ public final class InternalNode implements Node {
         modules.add(new ResourceWatcherModule());
         modules.add(new RepositoriesModule());
         modules.add(new TribeModule());
-        modules.add(new BenchmarkModule());
+        modules.add(new BenchmarkModule(settings));
 
         injector = modules.createInjector();
 
@@ -223,6 +228,7 @@ public final class InternalNode implements Node {
         injector.getInstance(IndicesClusterStateService.class).start();
         injector.getInstance(IndicesTTLService.class).start();
         injector.getInstance(RiversManager.class).start();
+        injector.getInstance(SnapshotsService.class).start();
         injector.getInstance(ClusterService.class).start();
         injector.getInstance(RoutingService.class).start();
         injector.getInstance(SearchService.class).start();
@@ -237,6 +243,7 @@ public final class InternalNode implements Node {
         if (settings.getAsBoolean("http.enabled", true)) {
             injector.getInstance(HttpServer.class).start();
         }
+        injector.getInstance(MappingUpdatedAction.class).start();
         injector.getInstance(BulkUdpService.class).start();
         injector.getInstance(ResourceWatcherService.class).start();
         injector.getInstance(TribeService.class).start();
@@ -261,8 +268,10 @@ public final class InternalNode implements Node {
             injector.getInstance(HttpServer.class).stop();
         }
 
+        injector.getInstance(MappingUpdatedAction.class).stop();
         injector.getInstance(RiversManager.class).stop();
 
+        injector.getInstance(SnapshotsService.class).stop();
         // stop any changes happening as a result of cluster state changes
         injector.getInstance(IndicesClusterStateService.class).stop();
         // we close indices first, so operations won't be allowed on it
@@ -317,8 +326,10 @@ public final class InternalNode implements Node {
         stopWatch.stop().start("rivers");
         injector.getInstance(RiversManager.class).close();
 
+        stopWatch.stop().start("snapshot_service");
+        injector.getInstance(SnapshotsService.class).close();
         stopWatch.stop().start("client");
-        injector.getInstance(Client.class).close();
+        Releasables.close(injector.getInstance(Client.class));
         stopWatch.stop().start("indices_cluster");
         injector.getInstance(IndicesClusterStateService.class).close();
         stopWatch.stop().start("indices");

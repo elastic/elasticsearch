@@ -24,7 +24,7 @@ import org.elasticsearch.common.logging.log4j.Log4jESLoggerFactory;
 import org.elasticsearch.common.logging.slf4j.Slf4jESLoggerFactory;
 
 /**
- *
+ * Factory to get {@link ESLogger}s
  */
 public abstract class ESLoggerFactory {
 

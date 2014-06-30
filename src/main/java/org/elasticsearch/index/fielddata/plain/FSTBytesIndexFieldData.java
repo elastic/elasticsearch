@@ -27,9 +27,7 @@ import org.apache.lucene.util.fst.PositiveIntOutputs;
 import org.apache.lucene.util.fst.Util;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.fielddata.FieldDataType;
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsBuilder;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
@@ -40,14 +38,14 @@ import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
 
 /**
  */
-public class FSTBytesIndexFieldData extends AbstractBytesIndexFieldData<FSTBytesAtomicFieldData> {
+public class FSTBytesIndexFieldData extends AbstractBytesIndexFieldData<AtomicFieldData.WithOrdinals<ScriptDocValues.Strings>> {
 
     private final CircuitBreakerService breakerService;
 
     public static class Builder implements IndexFieldData.Builder {
 
         @Override
-        public IndexFieldData<FSTBytesAtomicFieldData> build(Index index, @IndexSettings Settings indexSettings, FieldMapper<?> mapper,
+        public IndexFieldData<AtomicFieldData.WithOrdinals<ScriptDocValues.Strings>> build(Index index, @IndexSettings Settings indexSettings, FieldMapper<?> mapper,
                                                              IndexFieldDataCache cache, CircuitBreakerService breakerService, MapperService mapperService,
                                                              GlobalOrdinalsBuilder globalOrdinalBuilder) {
             return new FSTBytesIndexFieldData(index, indexSettings, mapper.names(), mapper.fieldDataType(), cache, breakerService, globalOrdinalBuilder);
@@ -61,7 +59,7 @@ public class FSTBytesIndexFieldData extends AbstractBytesIndexFieldData<FSTBytes
     }
 
     @Override
-    public FSTBytesAtomicFieldData loadDirect(AtomicReaderContext context) throws Exception {
+    public AtomicFieldData.WithOrdinals<ScriptDocValues.Strings> loadDirect(AtomicReaderContext context) throws Exception {
         AtomicReader reader = context.reader();
 
         Terms terms = reader.terms(getFieldNames().indexName());
@@ -69,9 +67,8 @@ public class FSTBytesIndexFieldData extends AbstractBytesIndexFieldData<FSTBytes
         // TODO: Use an actual estimator to estimate before loading.
         NonEstimatingEstimator estimator = new NonEstimatingEstimator(breakerService.getBreaker());
         if (terms == null) {
-            data = FSTBytesAtomicFieldData.empty();
-            estimator.afterLoad(null, data.getMemorySizeInBytes());
-            return data;
+            estimator.afterLoad(null, AtomicFieldData.WithOrdinals.EMPTY.ramBytesUsed());
+            return AtomicFieldData.WithOrdinals.EMPTY;
         }
         PositiveIntOutputs outputs = PositiveIntOutputs.getSingleton();
         org.apache.lucene.util.fst.Builder<Long> fstBuilder = new org.apache.lucene.util.fst.Builder<>(INPUT_TYPE.BYTE1, outputs);
@@ -109,7 +106,7 @@ public class FSTBytesIndexFieldData extends AbstractBytesIndexFieldData<FSTBytes
             return data;
         } finally {
             if (success) {
-                estimator.afterLoad(null, data.getMemorySizeInBytes());
+                estimator.afterLoad(null, data.ramBytesUsed());
             }
 
         }

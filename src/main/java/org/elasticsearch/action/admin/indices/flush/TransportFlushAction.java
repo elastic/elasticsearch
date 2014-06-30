@@ -99,7 +99,7 @@ public class TransportFlushAction extends TransportBroadcastOperationAction<Flus
     }
 
     @Override
-    protected ShardFlushRequest newShardRequest(ShardRouting shard, FlushRequest request) {
+    protected ShardFlushRequest newShardRequest(int numShards, ShardRouting shard, FlushRequest request) {
         return new ShardFlushRequest(shard.index(), shard.id(), request);
     }
 
@@ -120,7 +120,7 @@ public class TransportFlushAction extends TransportBroadcastOperationAction<Flus
      */
     @Override
     protected GroupShardsIterator shards(ClusterState clusterState, FlushRequest request, String[] concreteIndices) {
-        return clusterState.routingTable().allActiveShardsGrouped(concreteIndices, true);
+        return clusterState.routingTable().allActiveShardsGrouped(concreteIndices, true, true);
     }
 
     @Override

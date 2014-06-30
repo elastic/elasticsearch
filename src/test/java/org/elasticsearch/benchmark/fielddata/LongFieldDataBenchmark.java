@@ -151,7 +151,7 @@ public class LongFieldDataBenchmark {
             final long start = System.nanoTime();
             final AtomicNumericFieldData afd = fd.loadDirect(SlowCompositeReaderWrapper.wrap(dr).getContext());
             final long loadingTimeMs = (System.nanoTime() - start) / 1000 / 1000;
-            System.out.println(data + "\t" + loadingTimeMs + "\t" + afd.getClass().getSimpleName() + "\t" + RamUsageEstimator.humanSizeOf(afd.getLongValues()) + "\t" + RamUsageEstimator.humanReadableUnits(afd.getMemorySizeInBytes()));
+            System.out.println(data + "\t" + loadingTimeMs + "\t" + afd.getClass().getSimpleName() + "\t" + RamUsageEstimator.humanReadableUnits(afd.ramBytesUsed()));
             dr.close();
         }
     }

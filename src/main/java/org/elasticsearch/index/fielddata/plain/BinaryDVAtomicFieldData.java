@@ -44,62 +44,38 @@ public class BinaryDVAtomicFieldData implements AtomicFieldData<ScriptDocValues.
     }
 
     @Override
-    public boolean isMultiValued() {
-        return false;
-    }
-
-    @Override
-    public long getNumberUniqueValues() {
-        // probably not accurate, but a good upper limit
-        return reader.maxDoc();
-    }
-
-    @Override
-    public long getMemorySizeInBytes() {
+    public long ramBytesUsed() {
         // TODO: Lucene doesn't expose it right now
         return -1;
     }
 
     @Override
-    public BytesValues getBytesValues(boolean needsHashes) {
-        // if you want hashes to be cached, you should rather store them on disk alongside the values rather than loading them into memory
-        // here - not supported for now, and probably not useful since this field data only applies to _id and _uid?
-        final BinaryDocValues values;
-        final Bits docsWithField;
+    public BytesValues getBytesValues() {
         try {
-            final BinaryDocValues v = reader.getBinaryDocValues(field);
-            if (v == null) {
-                // segment has no value
-                values = DocValues.EMPTY_BINARY;
-                docsWithField = new Bits.MatchNoBits(reader.maxDoc());
-            } else {
-                values = v;
-                final Bits b = reader.getDocsWithField(field);
-                docsWithField = b == null ? new Bits.MatchAllBits(reader.maxDoc()) : b;
-            }
+            final BinaryDocValues values = DocValues.getBinary(reader, field);
+            final Bits docsWithField = DocValues.getDocsWithField(reader, field);
+            return new BytesValues(false) {
+                int docId;
+
+                @Override
+                public int setDocument(int docId) {
+                    this.docId = docId;
+                    return docsWithField.get(docId) ? 1 : 0;
+                }
+
+                @Override
+                public BytesRef nextValue() {
+                    return values.get(docId);
+                }
+            };
         } catch (IOException e) {
             throw new ElasticsearchIllegalStateException("Cannot load doc values", e);
         }
-
-        return new BytesValues(false) {
-
-            @Override
-            public int setDocument(int docId) {
-                this.docId = docId;
-                return docsWithField.get(docId) ? 1 : 0;
-            }
-
-            @Override
-            public BytesRef nextValue() {
-                values.get(docId, scratch);
-                return scratch;
-            }
-        };
     }
 
     @Override
     public Strings getScriptValues() {
-        return new ScriptDocValues.Strings(getBytesValues(false));
+        return new ScriptDocValues.Strings(getBytesValues());
     }
 
     @Override

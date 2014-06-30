@@ -157,7 +157,7 @@ it avoids the overhead of scripting. If used on a multi-valued field, only the
 first value of the field is used in calculations.
 
 As an example, imagine you have a document indexed with a numeric `popularity`
-field and wish in influence the score of a document with this field, an example
+field and wish to influence the score of a document with this field, an example
 doing so would look like:
 
 [source,js]
@@ -511,11 +511,11 @@ and the `custom_filters_score`
 "custom_filters_score": {
     "filters": [
         {
-            "boost_factor": "3",
+            "boost": "3",
             "filter": {...}
         },
         {
-            "filter": {â¦},
+            "filter": {...},
             "script": "_score * doc['my_numeric_field'].value / pow(param1, param2)"
         }
     ],

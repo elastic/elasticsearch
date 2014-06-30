@@ -30,19 +30,31 @@ public class VersionTypeTests extends ElasticsearchTestCase {
     public void testInternalVersionConflict() throws Exception {
 
         assertFalse(VersionType.INTERNAL.isVersionConflictForWrites(10, Versions.MATCH_ANY));
+        assertFalse(VersionType.INTERNAL.isVersionConflictForReads(10, Versions.MATCH_ANY));
         // if we don't have a version in the index we accept everything
         assertFalse(VersionType.INTERNAL.isVersionConflictForWrites(Versions.NOT_SET, 10));
+        assertFalse(VersionType.INTERNAL.isVersionConflictForReads(Versions.NOT_SET, 10));
         assertFalse(VersionType.INTERNAL.isVersionConflictForWrites(Versions.NOT_SET, Versions.MATCH_ANY));
+        assertFalse(VersionType.INTERNAL.isVersionConflictForReads(Versions.NOT_SET, Versions.MATCH_ANY));
 
         // if we didn't find a version (but the index does support it), we don't like it unless MATCH_ANY
-        assertTrue(VersionType.INTERNAL.isVersionConflictForWrites(Versions.NOT_FOUND, Versions.NOT_FOUND));
         assertTrue(VersionType.INTERNAL.isVersionConflictForWrites(Versions.NOT_FOUND, 10));
+        assertTrue(VersionType.INTERNAL.isVersionConflictForReads(Versions.NOT_FOUND, 10));
         assertFalse(VersionType.INTERNAL.isVersionConflictForWrites(Versions.NOT_FOUND, Versions.MATCH_ANY));
+        assertFalse(VersionType.INTERNAL.isVersionConflictForReads(Versions.NOT_FOUND, Versions.MATCH_ANY));
+
+        // test 0 is still matching any for backwards compatibility with versions <1.2.0
+        assertFalse(VersionType.INTERNAL.isVersionConflictForWrites(10, Versions.MATCH_ANY_PRE_1_2_0));
+        assertFalse(VersionType.INTERNAL.isVersionConflictForReads(10, Versions.MATCH_ANY_PRE_1_2_0));
+
 
         // and the stupid usual case
         assertFalse(VersionType.INTERNAL.isVersionConflictForWrites(10, 10));
+        assertFalse(VersionType.INTERNAL.isVersionConflictForReads(10, 10));
         assertTrue(VersionType.INTERNAL.isVersionConflictForWrites(9, 10));
+        assertTrue(VersionType.INTERNAL.isVersionConflictForReads(9, 10));
         assertTrue(VersionType.INTERNAL.isVersionConflictForWrites(10, 9));
+        assertTrue(VersionType.INTERNAL.isVersionConflictForReads(10, 9));
 
 // Old indexing code, dictating behavior
 //        if (expectedVersion != Versions.MATCH_ANY && currentVersion != Versions.NOT_SET) {

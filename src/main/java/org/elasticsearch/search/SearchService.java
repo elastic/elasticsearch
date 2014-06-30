@@ -545,13 +545,14 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         return context;
     }
 
-    public void freeContext(long id) {
+    public boolean freeContext(long id) {
         SearchContext context = activeContexts.remove(id);
         if (context == null) {
-            return;
+            return false;
         }
         context.indexShard().searchService().onFreeContext(context);
         context.close();
+        return true;
     }
 
     private void freeContext(SearchContext context) {

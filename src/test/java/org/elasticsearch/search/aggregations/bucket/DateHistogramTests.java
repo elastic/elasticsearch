@@ -114,7 +114,7 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
 
     @After
     public void afterEachTest() throws IOException {
-        cluster().wipeIndices("idx2");
+        internalCluster().wipeIndices("idx2");
     }
 
     private static DateHistogram.Bucket getBucket(DateHistogram histogram, DateTime key) {
@@ -710,7 +710,7 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(dateHistogram("histo")
                         .field("dates")
-                        .script("new DateTime(_value, DateTimeZone.UTC).plusMonths(1).getMillis()")
+                        .script("new DateTime((long)_value, DateTimeZone.UTC).plusMonths(1).getMillis()")
                         .interval(DateHistogram.Interval.MONTH)
                         .subAggregation(max("max")))
                 .execute().actionGet();
@@ -1199,5 +1199,34 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
             assertThat(bucket.getDocCount(), equalTo(extendedValueCounts[i]));
             key = key.plusDays(interval);
         }
+    }
+
+    @Test
+    public void singleValue_WithMultipleDateFormatsFromMapping() throws Exception {
+        
+        String mappingJson = jsonBuilder().startObject().startObject("type").startObject("properties").startObject("date").field("type", "date").field("format", "dateOptionalTime||dd-MM-yyyy").endObject().endObject().endObject().endObject().string();
+        prepareCreate("idx2").addMapping("type", mappingJson).execute().actionGet();
+        IndexRequestBuilder[] reqs = new IndexRequestBuilder[5];
+        for (int i = 0; i < reqs.length; i++) {
+            reqs[i] = client().prepareIndex("idx2", "type", "" + i).setSource(jsonBuilder().startObject().field("date", "10-03-2014").endObject());
+        }
+        indexRandom(true, reqs);
+
+        SearchResponse response = client().prepareSearch("idx2")
+                .setQuery(matchAllQuery())
+                .addAggregation(dateHistogram("date_histo")
+                        .field("date")
+                        .interval(DateHistogram.Interval.DAY))
+                .execute().actionGet();
+
+        assertThat(response.getHits().getTotalHits(), equalTo(5l));
+
+        DateHistogram histo = response.getAggregations().get("date_histo");
+        Collection<? extends DateHistogram.Bucket> buckets = histo.getBuckets();
+        assertThat(buckets.size(), equalTo(1));
+
+        DateHistogram.Bucket bucket = histo.getBucketByKey("2014-03-10T00:00:00.000Z");
+        assertThat(bucket, Matchers.notNullValue());
+        assertThat(bucket.getDocCount(), equalTo(5l));
     }
 }

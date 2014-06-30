@@ -1,11 +1,11 @@
 [[suggester-context]]
-== Context Suggester
+=== Context Suggester
 
-coming[1.2.0]
+added[1.2.0]
 
 The context suggester is an extension to the suggest API of Elasticsearch. Namely the
 suggester system provides a very fast way of searching documents by handling these
-entirely in memory. But this special treatenment does not allow the handling of
+entirely in memory. But this special treatment does not allow the handling of
 traditional queries and filters, because those would have notable impact on the
 performance. So the context extension is designed to take so-called context information
 into account to specify a more accurate way of searching within the suggester system. 
@@ -34,7 +34,7 @@ PUT services/service/_mapping
                 "context": {
                     "color": { <1>
                         "type": "category",
-                        "path": "color_field"
+                        "path": "color_field",
                         "default": ["red", "green", "blue"]
                     },
                     "location": { <2>
@@ -66,7 +66,7 @@ context. These type will be explained further in the following sections.
 
 [[suggester-context-category]]
 [float]
-=== Category Context
+==== Category Context
 The `category` context allows you to specify one or more categories in the document at index time.
 The document will be assigned to each named category, which can then be queried later. The category
 type also allows to specify a field to extract the categories from. The `path` parameter is used to
@@ -74,7 +74,7 @@ specify this field of the documents that should be used. If the referenced field
 values, all these values will be used as alternative categories.
 
 [float]
-==== Category Mapping
+===== Category Mapping
 
 The mapping for a category is simply defined by its `default` values. These can either be
 defined as list of *default* categories:
@@ -120,7 +120,7 @@ field named `color_field`. If this field does not exist a category *red* is assu
 the context *color*.
 
 [float]
-==== Indexing category contexts
+===== Indexing category contexts
 Within a document the category is specified either as an `array` of values, a
 single value or `null`. A list of values is interpreted as alternative categories. So
 a document belongs to all the categories defined. If the category is `null` or remains
@@ -143,7 +143,7 @@ PUT services/service/1
 --------------------------------------------------
 
 [float]
-==== Category Query
+===== Category Query
 A query within a category works similar to the configuration. If the value is `null`
 the mappings default categories will be used. Otherwise the suggestion takes place
 for all documents that have at least one category in common with the query.
@@ -167,13 +167,13 @@ POST services/_suggest?pretty'
 
 [[suggester-context-geo]]
 [float]
-=== Geo location Context
+==== Geo location Context
 A `geo` context allows you to limit results to those that lie within a certain distance
 of a specified geolocation. At index time, a lat/long geo point is converted into a
 geohash of a certain precision, which provides the context.
 
 [float]
-==== Geo location Mapping
+===== Geo location Mapping
 The mapping for a geo context accepts four settings, only of which `precision` is required:
 
 [horizontal]
@@ -215,7 +215,7 @@ locations.
 --------------------------------------------------
 
 [float]
-==== Geo location Config
+===== Geo location Config
 
 Within a document a geo location retrieved from the mapping definition can be overridden
 by another location. In this case the context mapped to a geo location supports all
@@ -239,7 +239,7 @@ PUT services/service/1
 --------------------------------------------------
 
 [float]
-==== Geo location Query
+===== Geo location Query
 
 Like in the configuration, querying with a geo location in context, the geo location
 query supports all representations of a `geo_point` to define the location. In this
@@ -293,7 +293,7 @@ POST services/_suggest
 }
 --------------------------------------------------
 
-A special form of the query is definied by an extension of the object representation of
+A special form of the query is defined by an extension of the object representation of
 the `geo_point`. Using this representation allows to set the `precision` parameter within
 the location itself:
 

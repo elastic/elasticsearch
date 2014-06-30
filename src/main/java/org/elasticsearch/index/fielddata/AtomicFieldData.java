@@ -19,35 +19,20 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.fielddata.ScriptDocValues.Strings;
 
 /**
  * The thread safe {@link org.apache.lucene.index.AtomicReader} level cache of the data.
  */
-public interface AtomicFieldData<Script extends ScriptDocValues> extends RamUsage {
-
-    /**
-     * If this method returns false, this means that no document has multiple values. However this method may return true even if all
-     * documents are single-valued. So this method is useful for performing optimizations when the single-value case makes the problem
-     * simpler but cannot be used to actually check whether this instance is multi-valued.
-     */
-    boolean isMultiValued();
-
-    /**
-     * An upper limit of the number of unique values in this atomic field data.
-     */
-    long getNumberUniqueValues();
+public interface AtomicFieldData<Script extends ScriptDocValues> extends Accountable {
 
     /**
      * Use a non thread safe (lightweight) view of the values as bytes.
-     *
-     * @param needsHashes if <code>true</code> the implementation will use pre-build hashes if
-     *                    {@link org.elasticsearch.index.fielddata.BytesValues#currentValueHash()} is used. if no hashes
-     *                    are used <code>false</code> should be passed instead.
-     *
      */
-    BytesValues getBytesValues(boolean needsHashes);
-    
+    BytesValues getBytesValues();
+
     /**
      * Returns a "scripting" based values.
      */
@@ -60,16 +45,60 @@ public interface AtomicFieldData<Script extends ScriptDocValues> extends RamUsag
 
     interface WithOrdinals<Script extends ScriptDocValues> extends AtomicFieldData<Script> {
 
+        public static final WithOrdinals<ScriptDocValues.Strings> EMPTY = new WithOrdinals<ScriptDocValues.Strings>() {
+
+            @Override
+            public Strings getScriptValues() {
+                return new ScriptDocValues.Strings(getBytesValues());
+            }
+
+            @Override
+            public void close() {
+            }
+
+            @Override
+            public long ramBytesUsed() {
+                return 0;
+            }
+
+            @Override
+            public BytesValues.WithOrdinals getBytesValues() {
+                return new BytesValues.WithOrdinals(false) {
+
+                    @Override
+                    public int setDocument(int docId) {
+                        return 0;
+                    }
+
+                    @Override
+                    public long nextOrd() {
+                        return MISSING_ORDINAL;
+                    }
+
+                    @Override
+                    public BytesRef getValueByOrd(long ord) {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public long getOrd(int docId) {
+                        return MISSING_ORDINAL;
+                    }
+
+                    @Override
+                    public long getMaxOrd() {
+                        return 0;
+                    }
+                };
+            }
+
+        };
+
         /**
          * Use a non thread safe (lightweight) view of the values as bytes.
          * @param needsHashes
          */
-        BytesValues.WithOrdinals getBytesValues(boolean needsHashes);
-
-        /**
-         * Returns a terms enum to iterate over all the underlying values.
-         */
-        TermsEnum getTermsEnum();
+        BytesValues.WithOrdinals getBytesValues();
 
     }
 

@@ -29,8 +29,8 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.*;
-import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.index.mapper.FieldMapper.Names;
+import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
 
@@ -39,22 +39,12 @@ abstract class AbstractGeoPointIndexFieldData extends AbstractIndexFieldData<Ato
     protected static class Empty extends AtomicGeoPointFieldData<ScriptDocValues> {
 
         @Override
-        public boolean isMultiValued() {
-            return false;
-        }
-
-        @Override
-        public long getNumberUniqueValues() {
+        public long ramBytesUsed() {
             return 0;
         }
 
         @Override
-        public long getMemorySizeInBytes() {
-            return 0;
-        }
-
-        @Override
-        public BytesValues getBytesValues(boolean needsHashes) {
+        public BytesValues getBytesValues() {
             return BytesValues.EMPTY;
         }
 

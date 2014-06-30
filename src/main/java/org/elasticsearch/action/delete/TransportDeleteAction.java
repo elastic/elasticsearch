@@ -103,7 +103,7 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
     @Override
     protected boolean resolveRequest(final ClusterState state, final DeleteRequest request, final ActionListener<DeleteResponse> listener) {
         request.routing(state.metaData().resolveIndexRouting(request.routing(), request.index()));
-        request.index(state.metaData().concreteIndex(request.index()));
+        request.index(state.metaData().concreteSingleIndex(request.index()));
         if (state.metaData().hasIndex(request.index())) {
             // check if routing is required, if so, do a broadcast delete
             MappingMetaData mappingMd = state.metaData().index(request.index()).mappingOrDefault(request.type());
@@ -112,7 +112,7 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
                     if (request.versionType() != VersionType.INTERNAL) {
                         // TODO: implement this feature
                         throw new ElasticsearchIllegalArgumentException("routing value is required for deleting documents of type [" + request.type()
-                                + "] while using version_type [" + request.versionType());
+                                + "] while using version_type [" + request.versionType() + "]");
                     }
                     indexDeleteAction.execute(new IndexDeleteRequest(request), new ActionListener<IndexDeleteResponse>() {
                         @Override

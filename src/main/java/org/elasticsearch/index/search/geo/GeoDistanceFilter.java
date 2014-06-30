@@ -52,7 +52,7 @@ public class GeoDistanceFilter extends Filter {
     private final IndexGeoPointFieldData indexFieldData;
 
     private final GeoDistance.FixedSourceDistance fixedSourceDistance;
-    private GeoDistance.DistanceBoundingCheck distanceBoundingCheck;
+    private final GeoDistance.DistanceBoundingCheck distanceBoundingCheck;
     private final Filter boundingBoxFilter;
 
     public GeoDistanceFilter(double lat, double lon, double distance, GeoDistance geoDistance, IndexGeoPointFieldData indexFieldData, GeoPointFieldMapper mapper,
@@ -64,6 +64,7 @@ public class GeoDistanceFilter extends Filter {
         this.indexFieldData = indexFieldData;
 
         this.fixedSourceDistance = geoDistance.fixedSourceDistance(lat, lon, DistanceUnit.DEFAULT);
+        GeoDistance.DistanceBoundingCheck distanceBoundingCheck = null;
         if (optimizeBbox != null && !"none".equals(optimizeBbox)) {
             distanceBoundingCheck = GeoDistance.distanceBoundingCheck(lat, lon, distance, DistanceUnit.DEFAULT);
             if ("memory".equals(optimizeBbox)) {
@@ -78,6 +79,7 @@ public class GeoDistanceFilter extends Filter {
             distanceBoundingCheck = GeoDistance.ALWAYS_INSTANCE;
             boundingBoxFilter = null;
         }
+        this.distanceBoundingCheck = distanceBoundingCheck;
     }
 
     public double lat() {
@@ -168,11 +170,6 @@ public class GeoDistanceFilter extends Filter {
             this.fixedSourceDistance = fixedSourceDistance;
             this.distanceBoundingCheck = distanceBoundingCheck;
             this.distance = distance;
-        }
-
-        @Override
-        public boolean isCacheable() {
-            return true;
         }
 
         @Override

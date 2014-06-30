@@ -83,12 +83,16 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
 
     protected abstract ShardRequest newShardRequest();
 
-    protected abstract ShardRequest newShardRequest(ShardRouting shard, Request request);
+    protected abstract ShardRequest newShardRequest(int numShards, ShardRouting shard, Request request);
 
     protected abstract ShardResponse newShardResponse();
 
     protected abstract ShardResponse shardOperation(ShardRequest request) throws ElasticsearchException;
 
+    /**
+     * Determines the shards this operation will be executed on. The operation is executed once per shard iterator, typically
+     * on the first shard in it. If the operation fails, it will be retried on the next shard in the iterator.
+     */
     protected abstract GroupShardsIterator shards(ClusterState clusterState, Request request, String[] concreteIndices);
 
     protected abstract ClusterBlockException checkGlobalBlock(ClusterState state, Request request);
@@ -117,13 +121,14 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
                 throw blockException;
             }
             // update to concrete indices
-            String[] concreteIndices = clusterState.metaData().concreteIndices(request.indices(), request.indicesOptions());
+            String[] concreteIndices = clusterState.metaData().concreteIndices(request.indicesOptions(), request.indices());
             blockException = checkRequestBlock(clusterState, request, concreteIndices);
             if (blockException != null) {
                 throw blockException;
             }
 
             nodes = clusterState.nodes();
+            logger.trace("resolving shards based on cluster state version [{}]", clusterState.version());
             shardsIts = shards(clusterState, request, concreteIndices);
             expectedOps = shardsIts.size();
 
@@ -161,7 +166,7 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
                 onOperation(null, shardIt, shardIndex, new NoShardAvailableActionException(shardIt.shardId()));
             } else {
                 try {
-                    final ShardRequest shardRequest = newShardRequest(shard, request);
+                    final ShardRequest shardRequest = newShardRequest(shardIt.size(), shard, request);
                     if (shard.currentNodeId().equals(nodes.localNodeId())) {
                         threadPool.executor(executor).execute(new Runnable() {
                             @Override

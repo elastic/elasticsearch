@@ -19,124 +19,36 @@
 
 package org.elasticsearch.index.fielddata.ordinals;
 
-import org.apache.lucene.index.SortedSetDocValues;
-
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.fielddata.BytesValues;
 
 /**
  * A thread safe ordinals abstraction. Ordinals can only be positive integers.
  */
-public interface Ordinals {
+public abstract class Ordinals implements Accountable {
 
-    static final long MISSING_ORDINAL = SortedSetDocValues.NO_MORE_ORDS;
-    static final long MIN_ORDINAL = 0;
+    public static final ValuesHolder NO_VALUES = new ValuesHolder() {
+        @Override
+        public BytesRef getValueByOrd(long ord) {
+            throw new UnsupportedOperationException();
+        }
+    };
 
     /**
      * The memory size this ordinals take.
      */
-    long getMemorySizeInBytes();
+    public abstract long ramBytesUsed();
 
-    /**
-     * Is one of the docs maps to more than one ordinal?
-     */
-    boolean isMultiValued();
+    public abstract BytesValues.WithOrdinals ordinals(ValuesHolder values);
 
-    /**
-     * Returns total unique ord count; this includes +1 for
-     * the  {@link #MISSING_ORDINAL}  ord (always  {@value #MISSING_ORDINAL} ).
-     */
-    long getMaxOrd();
-
-    /**
-     * Returns a lightweight (non thread safe) view iterator of the ordinals.
-     */
-    Docs ordinals();
-
-    /**
-     * A non thread safe ordinals abstraction, yet very lightweight to create. The idea
-     * is that this gets created for each "iteration" over ordinals.
-     * <p/>
-     * <p>A value of 0 ordinal when iterating indicated "no" value.</p>
-     * To iterate of a set of ordinals for a given document use {@link #setDocument(int)} and {@link #nextOrd()} as
-     * show in the example below:
-     * <pre>
-     *   Ordinals.Docs docs = ...;
-     *   final int len = docs.setDocId(docId);
-     *   for (int i = 0; i < len; i++) {
-     *       final long ord = docs.nextOrd();
-     *       // process ord
-     *   }
-     * </pre>
-     */
-    interface Docs {
-
-        /**
-         * Returns total unique ord count; this includes +1 for
-         * the null ord (always 0).
-         */
-        long getMaxOrd();
-
-        /**
-         * Is one of the docs maps to more than one ordinal?
-         */
-        boolean isMultiValued();
-
-        /**
-         * The ordinal that maps to the relevant docId. If it has no value, returns
-         * <tt>0</tt>.
-         */
-        long getOrd(int docId);
-
-
-        /**
-         * Returns the next ordinal for the current docID set to {@link #setDocument(int)}.
-         * This method should only be called <tt>N</tt> times where <tt>N</tt> is the number
-         * returned from {@link #setDocument(int)}. If called more than <tt>N</tt> times the behavior
-         * is undefined.
-         *
-         * Note: This method will never return <tt>0</tt>.
-         *
-         * @return the next ordinal for the current docID set to {@link #setDocument(int)}.
-         */
-        long nextOrd();
-
-
-        /**
-         * Sets iteration to the specified docID and returns the number of
-         * ordinals for this document ID,
-         * @param docId document ID
-         *
-         * @see #nextOrd()
-         */
-        int setDocument(int docId);
-
-
-        /**
-         * Returns the current ordinal in the iteration
-         * @return the current ordinal in the iteration
-         */
-        long currentOrd();
+    public final BytesValues.WithOrdinals ordinals() {
+        return ordinals(NO_VALUES);
     }
 
-    /**
-     * Base implementation of {@link Docs}.
-     */
-    public static abstract class AbstractDocs implements Docs {
+    public static interface ValuesHolder {
 
-        protected final Ordinals ordinals;
-
-        public AbstractDocs(Ordinals ordinals) {
-            this.ordinals = ordinals;
-        }
-
-        @Override
-        public final long getMaxOrd() {
-            return ordinals.getMaxOrd();
-        }
-
-        @Override
-        public final boolean isMultiValued() {
-            return ordinals.isMultiValued();
-        }
+        public abstract BytesRef getValueByOrd(long ord);
 
     }
 

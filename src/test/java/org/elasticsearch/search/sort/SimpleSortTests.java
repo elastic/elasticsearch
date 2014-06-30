@@ -20,6 +20,7 @@
 package org.elasticsearch.search.sort;
 
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.UnicodeUtil;
@@ -28,6 +29,8 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.text.StringAndBytesText;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -57,6 +60,25 @@ import static org.hamcrest.Matchers.*;
  *
  */
 public class SimpleSortTests extends ElasticsearchIntegrationTest {
+
+    public void testIssue6639() throws ExecutionException, InterruptedException {
+        assertAcked(prepareCreate("$index")
+                .addMapping("$type","{\"$type\": {\"_boost\": {\"name\": \"boost\", \"null_value\": 1.0}, \"properties\": {\"grantee\": {\"index\": \"not_analyzed\", \"term_vector\": \"with_positions_offsets\", \"type\": \"string\", \"analyzer\": \"snowball\", \"boost\": 1.0, \"store\": \"yes\"}}}}"));
+        indexRandom(true,
+                client().prepareIndex("$index", "$type", "data.activity.5").setSource("{\"django_ct\": \"data.activity\", \"grantee\": \"Grantee 1\"}"),
+                client().prepareIndex("$index", "$type", "data.activity.6").setSource("{\"django_ct\": \"data.activity\", \"grantee\": \"Grantee 2\"}"));
+        ensureYellow();
+        SearchResponse searchResponse = client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .addSort("grantee", SortOrder.ASC)
+                .execute().actionGet();
+        assertOrderedSearchHits(searchResponse, "data.activity.5", "data.activity.6");
+        searchResponse = client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .addSort("grantee", SortOrder.DESC)
+                .execute().actionGet();
+        assertOrderedSearchHits(searchResponse, "data.activity.6", "data.activity.5");
+    }
 
     @Test
     public void testTrackScores() throws Exception {
@@ -685,7 +707,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
         // test the long values
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .addScriptField("min", "var retval = Long.MAX_VALUE; for (v : doc['lvalue'].values){  retval = Math.min(v, retval);} return retval;")
+                .addScriptField("min", "retval = Long.MAX_VALUE; for (v : doc['lvalue'].values){ retval = min(v, retval) }; retval")
                 .addSort("ord", SortOrder.ASC).setSize(10)
                 .execute().actionGet();
 
@@ -698,7 +720,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
         // test the double values
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .addScriptField("min", "var retval = Double.MAX_VALUE; for (v : doc['dvalue'].values){  retval = Math.min(v, retval);} return retval;")
+                .addScriptField("min", "retval = Double.MAX_VALUE; for (v : doc['dvalue'].values){ retval = min(v, retval) }; retval")
                 .addSort("ord", SortOrder.ASC).setSize(10)
                 .execute().actionGet();
 
@@ -712,7 +734,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
         // test the string values
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .addScriptField("min", "var retval = Integer.MAX_VALUE; for (v : doc['svalue'].values){  retval = Math.min(Integer.parseInt(v), retval);} return retval;")
+                .addScriptField("min", "retval = Integer.MAX_VALUE; for (v : doc['svalue'].values){ retval = min(Integer.parseInt(v), retval) }; retval")
                 .addSort("ord", SortOrder.ASC).setSize(10)
                 .execute().actionGet();
 
@@ -726,7 +748,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
         // test the geopoint values
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .addScriptField("min", "var retval = Double.MAX_VALUE; for (v : doc['gvalue'].values){  retval = Math.min(v.lon, retval);} return retval;")
+                .addScriptField("min", "retval = Double.MAX_VALUE; for (v : doc['gvalue'].values){ retval = min(v.lon, retval) }; retval")
                 .addSort("ord", SortOrder.ASC).setSize(10)
                 .execute().actionGet();
 
@@ -847,9 +869,6 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
                                 .field("type", "float")
                                 .startObject("fielddata").field("format", maybeDocValues() ? "doc_values" : null).endObject()
                             .endObject()
-                        .endObject()
-                        .startObject("d_value")
-                        .field("type", "float")
                         .endObject()
                         .endObject()
                         .endObject()));
@@ -1508,5 +1527,112 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
             previousTs = timestamp;
         }
     }
+
+    /**
+     * Test case for issue 6150: https://github.com/elasticsearch/elasticsearch/issues/6150
+     */
+    @Test
+    public void testNestedSort() throws ElasticsearchException, IOException, InterruptedException, ExecutionException {
+        assertAcked(prepareCreate("test")
+                .addMapping("type",
+                        XContentFactory.jsonBuilder()
+                                .startObject()
+                                    .startObject("type")
+                                        .startObject("properties")
+                                            .startObject("nested")
+                                                .field("type", "nested")
+                                                .startObject("properties")
+                                                    .startObject("foo")
+                                                        .field("type", "string")
+                                                        .startObject("fields")
+                                                            .startObject("sub")
+                                                                .field("type", "string")
+                                                                .field("index", "not_analyzed")
+                                                            .endObject()
+                                                        .endObject()
+                                                    .endObject()
+                                                .endObject()
+                                            .endObject()
+                                        .endObject()
+                                    .endObject()
+                                .endObject()));
+        ensureGreen();
+
+        client().prepareIndex("test", "type", "1").setSource(jsonBuilder().startObject()
+                .startObject("nested")
+                    .field("foo", "bar bar")
+                .endObject()
+                .endObject()).execute().actionGet();
+        refresh();
+
+        // We sort on nested field
+        SearchResponse searchResponse = client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .addSort("nested.foo", SortOrder.DESC)
+                .execute().actionGet();
+        assertNoFailures(searchResponse);
+        SearchHit[] hits = searchResponse.getHits().hits();
+        for (int i = 0; i < hits.length; ++i) {
+            assertThat(hits[i].getSortValues().length, is(1));
+            Object o = hits[i].getSortValues()[0];
+            assertThat(o, notNullValue());
+            assertThat(o instanceof StringAndBytesText, is(true));
+            StringAndBytesText text = (StringAndBytesText) o;
+            assertThat(text.string(), is("bar"));
+        }
+
+
+        // We sort on nested sub field
+        searchResponse = client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .addSort("nested.foo.sub", SortOrder.DESC)
+                .execute().actionGet();
+        assertNoFailures(searchResponse);
+        hits = searchResponse.getHits().hits();
+        for (int i = 0; i < hits.length; ++i) {
+            assertThat(hits[i].getSortValues().length, is(1));
+            Object o = hits[i].getSortValues()[0];
+            assertThat(o, notNullValue());
+            assertThat(o instanceof StringAndBytesText, is(true));
+            StringAndBytesText text = (StringAndBytesText) o;
+            assertThat(text.string(), is("bar bar"));
+        }
+    }
+
+    @Test
+    public void testSortDuelBetweenSingleShardAndMultiShardIndex() throws Exception {
+        String sortField = "sortField";
+        assertAcked(prepareCreate("test1")
+                .setSettings(IndexMetaData.SETTING_NUMBER_OF_SHARDS, between(2, maximumNumberOfShards()))
+                .addMapping("type", sortField, "type=long").get());
+        assertAcked(prepareCreate("test2")
+                .setSettings(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .addMapping("type", sortField, "type=long").get());
+
+        for (String index : new String[]{"test1", "test2"}) {
+            List<IndexRequestBuilder> docs = new ArrayList<>();
+            for (int i = 0; i < 256; i++) {
+                docs.add(client().prepareIndex(index, "type", Integer.toString(i)).setSource(sortField, i));
+            }
+            indexRandom(true, docs);
+        }
+
+        ensureSearchable("test1", "test2");
+        SortOrder order = randomBoolean() ? SortOrder.ASC : SortOrder.DESC;
+        int from = between(0, 256);
+        int size = between(0, 256);
+        SearchResponse multiShardResponse = client().prepareSearch("test1").setFrom(from).setSize(size).addSort(sortField, order).get();
+        assertNoFailures(multiShardResponse);
+        SearchResponse singleShardResponse = client().prepareSearch("test2").setFrom(from).setSize(size).addSort(sortField, order).get();
+        assertNoFailures(singleShardResponse);
+
+        assertThat(multiShardResponse.getHits().totalHits(), equalTo(singleShardResponse.getHits().totalHits()));
+        assertThat(multiShardResponse.getHits().getHits().length, equalTo(singleShardResponse.getHits().getHits().length));
+        for (int i = 0; i < multiShardResponse.getHits().getHits().length; i++) {
+            assertThat(multiShardResponse.getHits().getAt(i).sortValues()[0], equalTo(singleShardResponse.getHits().getAt(i).sortValues()[0]));
+            assertThat(multiShardResponse.getHits().getAt(i).id(), equalTo(singleShardResponse.getHits().getAt(i).id()));
+        }
+    }
+
 
 }

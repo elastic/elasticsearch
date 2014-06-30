@@ -19,9 +19,7 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
-import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.BinaryDocValues;
-import org.apache.lucene.index.DocValues;
 import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
@@ -33,14 +31,12 @@ import org.elasticsearch.index.fielddata.LongValues;
 
 final class BinaryDVNumericAtomicFieldData extends AbstractAtomicNumericFieldData {
 
-    private final AtomicReader reader;
     private final BinaryDocValues values;
     private final NumericType numericType;
 
-    BinaryDVNumericAtomicFieldData(AtomicReader reader, BinaryDocValues values, NumericType numericType) {
+    BinaryDVNumericAtomicFieldData(BinaryDocValues values, NumericType numericType) {
         super(numericType.isFloatingPoint());
-        this.reader = reader;
-        this.values = values == null ? DocValues.EMPTY_BINARY : values;
+        this.values = values;
         this.numericType = numericType;
     }
 
@@ -51,7 +47,7 @@ final class BinaryDVNumericAtomicFieldData extends AbstractAtomicNumericFieldDat
         }
         return new LongValues(true) {
 
-            final BytesRef bytes = new BytesRef();
+            BytesRef bytes;
             final ByteArrayDataInput in = new ByteArrayDataInput();
             long[] longs = new long[8];
             int i = Integer.MAX_VALUE;
@@ -59,7 +55,7 @@ final class BinaryDVNumericAtomicFieldData extends AbstractAtomicNumericFieldDat
 
             @Override
             public int setDocument(int docId) {
-                values.get(docId, bytes);
+                bytes = values.get(docId);
                 in.reset(bytes.bytes, bytes.offset, bytes.length);
                 if (!in.eof()) {
                     // first value uses vLong on top of zig-zag encoding, then deltas are encoded using vLong
@@ -94,13 +90,13 @@ final class BinaryDVNumericAtomicFieldData extends AbstractAtomicNumericFieldDat
         case FLOAT:
             return new DoubleValues(true) {
 
-                final BytesRef bytes = new BytesRef();
+                BytesRef bytes;
                 int i = Integer.MAX_VALUE;
                 int valueCount = 0;
 
                 @Override
                 public int setDocument(int docId) {
-                    values.get(docId, bytes);
+                    bytes = values.get(docId);
                     assert bytes.length % 4 == 0;
                     i = 0;
                     return valueCount = bytes.length / 4;
@@ -116,13 +112,13 @@ final class BinaryDVNumericAtomicFieldData extends AbstractAtomicNumericFieldDat
         case DOUBLE:
             return new DoubleValues(true) {
 
-                final BytesRef bytes = new BytesRef();
+                BytesRef bytes;
                 int i = Integer.MAX_VALUE;
                 int valueCount = 0;
 
                 @Override
                 public int setDocument(int docId) {
-                    values.get(docId, bytes);
+                    bytes = values.get(docId);
                     assert bytes.length % 8 == 0;
                     i = 0;
                     return valueCount = bytes.length / 8;
@@ -141,17 +137,7 @@ final class BinaryDVNumericAtomicFieldData extends AbstractAtomicNumericFieldDat
     }
 
     @Override
-    public boolean isMultiValued() {
-        return true; // no way to know
-    }
-
-    @Override
-    public long getNumberUniqueValues() {
-        return Long.MAX_VALUE; // no clue
-    }
-
-    @Override
-    public long getMemorySizeInBytes() {
+    public long ramBytesUsed() {
         return -1; // Lucene doesn't expose it
     }
 

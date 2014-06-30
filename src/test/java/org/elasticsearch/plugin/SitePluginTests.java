@@ -57,7 +57,7 @@ public class SitePluginTests extends ElasticsearchIntegrationTest {
     }
 
     public HttpClient httpClient() {
-        HttpServerTransport httpServerTransport = cluster().getDataNodeInstance(HttpServerTransport.class);
+        HttpServerTransport httpServerTransport = internalCluster().getDataNodeInstance(HttpServerTransport.class);
         return new HttpClient(httpServerTransport.boundAddress().publishAddress());
     }
 

@@ -26,7 +26,6 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasA
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateListener;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -99,7 +98,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeOperationA
         Set<String> aliases = new HashSet<>();
         for (AliasActions action : actions) {
             //expand indices
-            String[] concreteIndices = state.metaData().concreteIndices(action.indices(), request.indicesOptions());
+            String[] concreteIndices = state.metaData().concreteIndices(request.indicesOptions(), action.indices());
             //collect the aliases
             for (String alias : action.aliases()) {
                 aliases.add(alias);
@@ -123,7 +122,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeOperationA
                 .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
                 .actions(finalActions.toArray(new AliasAction[finalActions.size()]));
 
-        indexAliasesService.indicesAliases(updateRequest, new ClusterStateUpdateListener() {
+        indexAliasesService.indicesAliases(updateRequest, new ActionListener<ClusterStateUpdateResponse>() {
             @Override
             public void onResponse(ClusterStateUpdateResponse response) {
                 listener.onResponse(new IndicesAliasesResponse(response.isAcknowledged()));

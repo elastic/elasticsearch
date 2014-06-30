@@ -30,7 +30,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 
-import java.io.IOException;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -52,20 +51,12 @@ public class RestIndicesStatsAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
         indicesStatsRequest.listenerThreaded(false);
         indicesStatsRequest.indicesOptions(IndicesOptions.fromRequest(request, indicesStatsRequest.indicesOptions()));
         indicesStatsRequest.indices(Strings.splitStringByCommaToArray(request.param("index")));
         indicesStatsRequest.types(Strings.splitStringByCommaToArray(request.param("types")));
-
-        if (request.hasParam("groups")) {
-            indicesStatsRequest.groups(Strings.splitStringByCommaToArray(request.param("groups")));
-        }
-
-        if (request.hasParam("types")) {
-            indicesStatsRequest.types(Strings.splitStringByCommaToArray(request.param("types")));
-        }
 
         Set<String> metrics = Strings.splitStringByCommaToSet(request.param("metric", "_all"));
         // short cut, if no metrics have been specified in URI
@@ -89,6 +80,14 @@ public class RestIndicesStatsAction extends BaseRestHandler {
             indicesStatsRequest.fieldData(metrics.contains("fielddata"));
             indicesStatsRequest.completion(metrics.contains("completion"));
             indicesStatsRequest.suggest(metrics.contains("suggest"));
+        }
+
+        if (request.hasParam("groups")) {
+            indicesStatsRequest.groups(Strings.splitStringByCommaToArray(request.param("groups")));
+        }
+
+        if (request.hasParam("types")) {
+            indicesStatsRequest.types(Strings.splitStringByCommaToArray(request.param("types")));
         }
 
         if (indicesStatsRequest.completion() && (request.hasParam("fields") || request.hasParam("completion_fields"))) {

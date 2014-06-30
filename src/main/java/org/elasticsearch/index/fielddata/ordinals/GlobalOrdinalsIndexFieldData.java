@@ -20,6 +20,7 @@ package org.elasticsearch.index.fielddata.ordinals;
 
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
@@ -27,14 +28,13 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.RamUsage;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.MultiValueMode;
 
 /**
  * {@link IndexFieldData} base class for concrete global ordinals implementations.
  */
-public abstract class GlobalOrdinalsIndexFieldData extends AbstractIndexComponent implements IndexFieldData.WithOrdinals, RamUsage {
+public abstract class GlobalOrdinalsIndexFieldData extends AbstractIndexComponent implements IndexFieldData.WithOrdinals, Accountable {
 
     private final FieldMapper.Names fieldNames;
     private final FieldDataType fieldDataType;
@@ -93,7 +93,7 @@ public abstract class GlobalOrdinalsIndexFieldData extends AbstractIndexComponen
     }
 
     @Override
-    public long getMemorySizeInBytes() {
+    public long ramBytesUsed() {
         return memorySizeInBytes;
     }
 

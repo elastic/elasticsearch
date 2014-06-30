@@ -41,14 +41,14 @@ public abstract class AbstractAtomicNumericFieldData implements AtomicNumericFie
     }
 
     @Override
-    public BytesValues getBytesValues(boolean needsHashes) {
+    public BytesValues getBytesValues() {
         if (isFloat) {
             final DoubleValues values = getDoubleValues();
             return new BytesValues(values.isMultiValued()) {
+                private final BytesRef scratch = new BytesRef();
 
                 @Override
                 public int setDocument(int docId) {
-                    this.docId = docId;
                     return values.setDocument(docId);
                 }
 
@@ -67,10 +67,10 @@ public abstract class AbstractAtomicNumericFieldData implements AtomicNumericFie
         } else {
             final LongValues values = getLongValues();
             return new BytesValues(values.isMultiValued()) {
+                private final BytesRef scratch = new BytesRef();
 
                 @Override
                 public int setDocument(int docId) {
-                    this.docId = docId;
                     return values.setDocument(docId);
                 }
 

@@ -37,6 +37,7 @@ public class FieldDataSourceTests extends ElasticsearchTestCase {
         final boolean multiValued = randomBoolean();
         final int maxLength = rarely() ? 3 : 10;
         return new BytesValues(multiValued) {
+            private final BytesRef scratch = new BytesRef();
             BytesRef previous;
             @Override
             public int setDocument(int docId) {
@@ -111,41 +112,8 @@ public class FieldDataSourceTests extends ElasticsearchTestCase {
         };
     }
 
-    private static void assertConsistent(BytesValues values) {
-        final int numDocs = scaledRandomIntBetween(10, 100);
-        for (int i = 0; i < numDocs; ++i) {
-            final int valueCount = values.setDocument(i);
-            for (int j = 0; j < valueCount; ++j) {
-                final BytesRef term = values.nextValue();
-                assertEquals(term.hashCode(), values.currentValueHash());
-                assertTrue(term.bytesEquals(values.copyShared()));
-            }
-        }
-    }
-
-    @Test
-    public void bytesValuesWithScript() {
-        final BytesValues values = randomBytesValues();
-        ValuesSource source = new ValuesSource.Bytes() {
-
-            @Override
-            public BytesValues bytesValues() {
-                return values;
-            }
-
-            @Override
-            public MetaData metaData() {
-                throw new UnsupportedOperationException();
-            }
-
-        };
-        SearchScript script = randomScript();
-        assertConsistent(new ValuesSource.WithScript.BytesValues(source, script));
-    }
-
     @Test
     public void sortedUniqueBytesValues() {
-        assertConsistent(new ValuesSource.Bytes.SortedAndUnique.SortedUniqueBytesValues(randomBytesValues()));
         assertSortedAndUnique(new ValuesSource.Bytes.SortedAndUnique.SortedUniqueBytesValues(randomBytesValues()));
     }
 
@@ -160,7 +128,7 @@ public class FieldDataSourceTests extends ElasticsearchTestCase {
                 if (j > 0) {
                     assertThat(BytesRef.getUTF8SortedAsUnicodeComparator().compare(ref.get(ref.size() - 1), term), lessThan(0));
                 }
-                ref.add(values.copyShared());
+                ref.add(BytesRef.deepCopyOf(term));
             }
         }
     }

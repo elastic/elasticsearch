@@ -35,6 +35,8 @@ public class RateLimitingInputStream extends InputStream {
 
     private final Listener listener;
 
+    private long bytesSinceLastRateLimit;
+
     public interface Listener {
         void onPause(long nanos);
     }
@@ -45,13 +47,21 @@ public class RateLimitingInputStream extends InputStream {
         this.listener = listener;
     }
 
+    private void maybePause(int bytes) {
+        bytesSinceLastRateLimit += bytes;
+        if (bytesSinceLastRateLimit >= rateLimiter.getMinPauseCheckBytes()) {
+            long pause = rateLimiter.pause(bytesSinceLastRateLimit);
+            bytesSinceLastRateLimit = 0;
+            if (pause > 0) {
+                listener.onPause(pause);
+            }
+        }
+    }
+
     @Override
     public int read() throws IOException {
         int b = delegate.read();
-        long pause = rateLimiter.pause(1);
-        if (pause > 0) {
-            listener.onPause(pause);
-        }
+        maybePause(1);
         return b;
     }
 
@@ -64,7 +74,7 @@ public class RateLimitingInputStream extends InputStream {
     public int read(byte[] b, int off, int len) throws IOException {
         int n = delegate.read(b, off, len);
         if (n > 0) {
-            listener.onPause(rateLimiter.pause(n));
+            maybePause(n);
         }
         return n;
     }

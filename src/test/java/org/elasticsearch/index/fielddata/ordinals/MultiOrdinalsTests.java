@@ -20,6 +20,7 @@ package org.elasticsearch.index.fielddata.ordinals;
 
 import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
@@ -103,7 +104,7 @@ public class MultiOrdinalsTests extends ElasticsearchTestCase {
             }
         });
         Ordinals ords = creationMultiOrdinals(builder);
-        Ordinals.Docs docs = ords.ordinals();
+        BytesValues.WithOrdinals docs = ords.ordinals();
         int docId = ordsAndIds.get(0).id;
         List<Long> docOrds = new ArrayList<>();
         for (OrdAndId ordAndId : ordsAndIds) {
@@ -125,7 +126,7 @@ public class MultiOrdinalsTests extends ElasticsearchTestCase {
                     assertIter(docs, docId, array);
                 }
                 for (int i = docId + 1; i < ordAndId.id; i++) {
-                    assertThat(docs.getOrd(i), equalTo(Ordinals.MISSING_ORDINAL));
+                    assertThat(docs.getOrd(i), equalTo(BytesValues.WithOrdinals.MISSING_ORDINAL));
                 }
                 docId = ordAndId.id;
                 docOrds.clear();
@@ -209,11 +210,11 @@ public class MultiOrdinalsTests extends ElasticsearchTestCase {
         };
 
         Ordinals ordinals = creationMultiOrdinals(builder);
-        Ordinals.Docs docs = ordinals.ordinals();
+        BytesValues.WithOrdinals docs = ordinals.ordinals();
         assertEquals(docs, ordinalPlan);
     }
 
-    protected static void assertIter(Ordinals.Docs docs, int docId, long... expectedOrdinals) {
+    protected static void assertIter(BytesValues.WithOrdinals docs, int docId, long... expectedOrdinals) {
         assertThat(docs.setDocument(docId), equalTo(expectedOrdinals.length));
         for (long expectedOrdinal : expectedOrdinals) {
             assertThat(docs.nextOrd(), equalTo(expectedOrdinal));
@@ -261,11 +262,11 @@ public class MultiOrdinalsTests extends ElasticsearchTestCase {
         };
 
         Ordinals ordinals = new MultiOrdinals(builder, PackedInts.FASTEST);
-        Ordinals.Docs docs = ordinals.ordinals();
+        BytesValues.WithOrdinals docs = ordinals.ordinals();
         assertEquals(docs, ordinalPlan);
     }
 
-    private void assertEquals(Ordinals.Docs docs, long[][] ordinalPlan) {
+    private void assertEquals(BytesValues.WithOrdinals docs, long[][] ordinalPlan) {
         long maxOrd = 0;
         for (int doc = 0; doc < ordinalPlan.length; ++doc) {
             if (ordinalPlan[doc].length > 0) {

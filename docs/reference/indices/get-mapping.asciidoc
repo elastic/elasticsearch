@@ -6,7 +6,7 @@ index/type.
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'http://localhost:9200/twitter/tweet/_mapping'
+curl -XGET 'http://localhost:9200/twitter/_mapping/tweet'
 --------------------------------------------------
 
 [float]
@@ -21,9 +21,9 @@ following are some examples:
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'http://localhost:9200/twitter,kimchy/_mapping'
+curl -XGET 'http://localhost:9200/_mapping/twitter,kimchy'
 
-curl -XGET 'http://localhost:9200/_all/tweet,book/_mapping'
+curl -XGET 'http://localhost:9200/_all/_mapping/tweet,book'
 --------------------------------------------------
 
 If you want to get mappings of all indices and types then the following

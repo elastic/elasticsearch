@@ -80,7 +80,7 @@ public class TransportSearchAction extends TransportAction<SearchRequest, Search
         if (optimizeSingleShard && searchRequest.searchType() != SCAN && searchRequest.searchType() != COUNT) {
             try {
                 ClusterState clusterState = clusterService.state();
-                String[] concreteIndices = clusterState.metaData().concreteIndices(searchRequest.indices(), searchRequest.indicesOptions());
+                String[] concreteIndices = clusterState.metaData().concreteIndices(searchRequest.indicesOptions(), searchRequest.indices());
                 Map<String, Set<String>> routingMap = clusterState.metaData().resolveSearchRouting(searchRequest.routing(), searchRequest.indices());
                 int shardCount = clusterService.operationRouting().searchShardsCount(clusterState, searchRequest.indices(), concreteIndices, routingMap, searchRequest.preference());
                 if (shardCount == 1) {

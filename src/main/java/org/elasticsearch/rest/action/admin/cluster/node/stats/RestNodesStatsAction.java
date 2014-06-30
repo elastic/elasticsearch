@@ -53,14 +53,12 @@ public class RestNodesStatsAction extends BaseRestHandler {
         controller.registerHandler(GET, "/_nodes/{nodeId}/stats/{metric}", this);
 
         controller.registerHandler(GET, "/_nodes/stats/{metric}/{indexMetric}", this);
-        controller.registerHandler(GET, "/_nodes/stats/{metric}/{indexMetric}/{fields}", this);
 
         controller.registerHandler(GET, "/_nodes/{nodeId}/stats/{metric}/{indexMetric}", this);
-        controller.registerHandler(GET, "/_nodes/{nodeId}/stats/{metric}/{indexMetric}/{fields}", this);
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         String[] nodesIds = Strings.splitStringByCommaToArray(request.param("nodeId"));
         Set<String> metrics = Strings.splitStringByCommaToSet(request.param("metric", "_all"));
 

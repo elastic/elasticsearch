@@ -32,6 +32,8 @@ import java.util.Arrays;
 /** Common implementation for array lists that slice data into fixed-size blocks. */
 abstract class AbstractBigArray extends AbstractArray {
 
+    private static final long EMPTY_SIZE = RamUsageEstimator.shallowSizeOfInstance(AbstractBigArray.class) + RamUsageEstimator.NUM_BYTES_OBJECT_REF + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER;
+
     private final PageCacheRecycler recycler;
     private Recycler.V<?>[] cache;
 
@@ -39,9 +41,9 @@ abstract class AbstractBigArray extends AbstractArray {
     private final int pageMask;
     protected long size;
 
-    protected AbstractBigArray(int pageSize, PageCacheRecycler recycler, boolean clearOnResize) {
-        super(clearOnResize);
-        this.recycler = recycler;
+    protected AbstractBigArray(int pageSize, BigArrays bigArrays, boolean clearOnResize) {
+        super(bigArrays, clearOnResize);
+        this.recycler = bigArrays.recycler;
         Preconditions.checkArgument(pageSize >= 128, "pageSize must be >= 128");
         Preconditions.checkArgument((pageSize & (pageSize - 1)) == 0, "pageSize must be a power of two");
         this.pageShift = Integer.numberOfTrailingZeros(pageSize);
@@ -76,9 +78,11 @@ abstract class AbstractBigArray extends AbstractArray {
         return size;
     }
 
+    public abstract void resize(long newSize);
+
     protected abstract int numBytesPerElement();
 
-    public final long sizeInBytes() {
+    public final long ramBytesUsed() {
         // rough approximate, we only take into account the size of the values, not the overhead of the array objects
         return ((long) pageIndex(size - 1) + 1) * pageSize() * numBytesPerElement();
     }
@@ -161,8 +165,7 @@ abstract class AbstractBigArray extends AbstractArray {
     }
 
     @Override
-    public final void close() {
-        super.close();
+    protected final void doClose() {
         if (recycler != null) {
             Releasables.close(cache);
             cache = null;

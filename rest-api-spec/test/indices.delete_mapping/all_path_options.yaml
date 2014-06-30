@@ -17,6 +17,9 @@ setup:
         body:
             mappings: { test_type2: {  }}
 
+  - do:
+        cluster.health:
+         wait_for_status: yellow
 ---
 "delete with _all index":
   - do:

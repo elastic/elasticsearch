@@ -6,7 +6,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>org.elasticsearch</groupId>
     <artifactId>elasticsearch</artifactId>
-    <version>1.2.0-SNAPSHOT</version>
+    <version>1.3.0-SNAPSHOT</version>
     <packaging>jar</packaging>
     <description>Elasticsearch - Open Source, Distributed, RESTful Search Engine</description>
     <inceptionYear>2009</inceptionYear>
@@ -31,11 +31,12 @@
     </parent>
 
     <properties>
-        <lucene.version>4.8.0</lucene.version>
+        <lucene.version>4.9.0</lucene.version>
         <tests.jvms>auto</tests.jvms>
         <tests.shuffle>true</tests.shuffle>
         <tests.output>onerror</tests.output>
         <tests.client.ratio></tests.client.ratio>
+        <tests.bwc.path>${project.basedir}/backwards</tests.bwc.path>
         <es.logger.level>INFO</es.logger.level>
         <tests.heap.size>512m</tests.heap.size>
         <tests.topn>5</tests.topn>
@@ -72,12 +73,6 @@
             <groupId>org.apache.httpcomponents</groupId>
             <artifactId>httpclient</artifactId>
             <version>4.3.1</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.mahout</groupId>
-            <artifactId>mahout-core</artifactId>
-            <version>0.9</version>
             <scope>test</scope>
         </dependency>
 
@@ -251,7 +246,7 @@
         <dependency>
             <groupId>io.netty</groupId>
             <artifactId>netty</artifactId>
-            <version>3.9.0.Final</version>
+            <version>3.9.1.Final</version>
             <scope>compile</scope>
         </dependency>
 
@@ -261,7 +256,22 @@
             <version>0.9.6</version>
             <scope>compile</scope>
         </dependency>
+
+        <dependency>
+            <groupId>com.tdunning</groupId>
+            <artifactId>t-digest</artifactId>
+            <version>3.0</version>
+            <scope>compile</scope>
+        </dependency>
         <!-- END: dependencies that are shaded -->
+
+        <dependency>
+            <groupId>org.codehaus.groovy</groupId>
+            <artifactId>groovy-all</artifactId>
+            <version>2.3.2</version>
+            <scope>compile</scope>
+            <optional>true</optional>
+        </dependency>
 
         <dependency>
             <groupId>log4j</groupId>
@@ -334,6 +344,14 @@
                     <include>**/*.json</include>
                     <include>**/*.yml</include>
                     <include>**/*.txt</include>
+                    <include>**/*.properties</include>
+                </includes>
+                <filtering>true</filtering>
+            </testResource>
+            <testResource>
+                <directory>${basedir}/src/test/java</directory>
+                <includes>
+                    <include>**/*.gz</include>
                 </includes>
             </testResource>
             <testResource>
@@ -389,6 +407,9 @@
                          be fixed in version > 3.1
                      -->
                     <useIncrementalCompilation>false</useIncrementalCompilation>
+                    <compilerArgs>
+                        <arg>-XDignore.symbol.file</arg>
+                    </compilerArgs>
                 </configuration>
             </plugin>
             <plugin>
@@ -456,7 +477,11 @@
                             <systemProperties>
                                 <java.io.tmpdir>.</java.io.tmpdir> <!-- we use '.' since this is different per JVM-->
                                 <!-- RandomizedTesting library system properties -->
+                                <tests.bwc>${tests.bwc}</tests.bwc>
+                                <tests.bwc.path>${tests.bwc.path}</tests.bwc.path>
+                                <tests.bwc.version>${tests.bwc.version}</tests.bwc.version>
                                 <tests.jvm.argline>${tests.jvm.argline}</tests.jvm.argline>
+                                <tests.processors>${tests.processors}</tests.processors>
                                 <tests.appendseed>${tests.appendseed}</tests.appendseed>
                                 <tests.iters>${tests.iters}</tests.iters>
                                 <tests.maxfailures>${tests.maxfailures}</tests.maxfailures>
@@ -464,6 +489,7 @@
                                 <tests.class>${tests.class}</tests.class>
                                 <tests.method>${tests.method}</tests.method>
                                 <tests.nightly>${tests.nightly}</tests.nightly>
+                                <tests.verbose>${tests.verbose}</tests.verbose>
                                 <tests.badapples>${tests.badapples}</tests.badapples>
                                 <tests.weekly>${tests.weekly}</tests.weekly>
                                 <tests.slow>${tests.slow}</tests.slow>
@@ -501,6 +527,47 @@
                 <artifactId>maven-antrun-plugin</artifactId>
                 <version>1.7</version>
                 <executions>
+                    <execution>
+                    <phase>validate</phase>
+                    <goals>
+                        <goal>run</goal>
+                    </goals>
+                    <configuration>
+                           <target>
+                               <echo>Using ${java.runtime.name} ${java.runtime.version} ${java.vendor}</echo>
+                           </target>
+                    </configuration>
+                    </execution>
+                    <execution>
+                        <id>invalid-patterns</id>
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target unless="${validate.skip}">
+                                <pathconvert pathsep="${line.separator}" dirsep="/" property="validate.patternsFound" setonempty="false">
+                                    <fileset dir="${basedir}">
+                                        <include name="**/*.java"/>
+                                        <include name="**/*.py"/>
+                                        <include name="**/*.txt"/>
+                                        <include name="**/*.xml"/>
+                                        <include name="**/*.rb"/>
+                                        <include name="**/*.pl"/>
+                                        <exclude name="**/org/elasticsearch/cluster/routing/shard_routes.txt"/>
+                                        <exclude name="target/**/*"/>
+                                        <exclude name=".metadata/**/*"/>
+                                        <or>
+                                            <containsregexp expression="\bno(n|)commit\b" casesensitive="no"/>
+                                            <containsregexp expression="\t" casesensitive="no"/>
+                                        </or>
+                                    </fileset>
+                                    <map from="${basedir}${file.separator}" to="* "/>
+                                </pathconvert>
+                                <fail if="validate.patternsFound">The following files contain tabs or nocommits:${line.separator}${validate.patternsFound}</fail>
+                            </target>
+                        </configuration>
+                    </execution>
                     <execution>
                         <id>tests</id>
                         <phase>test</phase>
@@ -549,12 +616,30 @@
                             <goal>jar</goal>
                         </goals>
                     </execution>
+                    <execution>
+                        <id>attach-test-sources</id>
+                        <goals>
+                            <goal>test-jar</goal>
+                        </goals>
+                        <configuration>
+                            <includes>
+                                <include>org/elasticsearch/test/**/*</include>
+                                <include>org/apache/lucene/util/AbstractRandomizedTest.java</include>
+                            </includes>
+                            <excludes>
+                                <!-- unit tests for yaml suite parser & rest spec parser need to be excluded -->
+                                <exclude>org/elasticsearch/test/rest/test/**/*</exclude>
+                            </excludes>
+                            <!-- Resources are large and not really helpful as "test sources". -->
+                            <excludeResources>true</excludeResources>
+                        </configuration>
+                    </execution>
                 </executions>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
-                <version>2.2</version>
+                <version>2.3</version>
                 <executions>
                     <execution>
                         <phase>package</phase>
@@ -581,6 +666,7 @@
                             <include>io.netty:netty</include>
                             <include>com.ning:compress-lzf</include>
                             <include>com.github.spullara.mustache.java:compiler</include>
+                            <include>com.tdunning:t-digest</include>
                         </includes>
                     </artifactSet>
                     <relocations>
@@ -615,6 +701,14 @@
                         <relocation>
                             <pattern>com.ning.compress</pattern>
                             <shadedPattern>org.elasticsearch.common.compress</shadedPattern>
+                        </relocation>
+                        <relocation>
+                        <pattern>com.github.mustachejava</pattern>
+                            <shadedPattern>org.elasticsearch.common.mustache</shadedPattern>
+                        </relocation>
+                        <relocation>
+                            <pattern>com.tdunning.math.stats</pattern>
+                            <shadedPattern>org.elasticsearch.common.stats</shadedPattern>
                         </relocation>
                     </relocations>
                     <filters>
@@ -784,7 +878,7 @@
                                 </data>
                                 <data>
                                     <src>${project.build.directory}/lib</src>
-                                    <includes>lucene*, log4j*, jna*, spatial4j*, jts*</includes>
+                                    <includes>lucene*, log4j*, jna*, spatial4j*, jts*, groovy*</includes>
                                     <type>directory</type>
                                     <mapper>
                                         <type>perm</type>
@@ -984,6 +1078,7 @@
                                         <include>jna*</include>
                                         <include>spatial4j*</include>
                                         <include>jts*</include>
+                                        <include>groovy*</include>
                                     </includes>
                                 </source>
                                 <source>
@@ -1067,7 +1162,11 @@
                                 <!-- start excludes for Math.abs -->
                                 <exclude>org/elasticsearch/common/util/MathUtils.class</exclude>
                                 <exclude>org/elasticsearch/common/math/UnboxedMathUtils.class</exclude>
+                                <exclude>org/elasticsearch/cluster/routing/operation/plain/PlainOperationRouting.class</exclude>
                                 <!-- end excludes for Math.abs -->
+                                <!-- start exclude for FilteredQuery -->
+                                <exclude>org/elasticsearch/common/lucene/search/XFilteredQuery.class</exclude>
+                                <!-- end exclude for FilteredQuery -->
                             </excludes>
                             <bundledSignatures>
                                 <!-- This will automatically choose the right signatures based on 'targetVersion': -->
@@ -1111,27 +1210,6 @@
                         </goals>
                     </execution>
                 </executions>
-            </plugin>
-            <plugin>
-                <artifactId>exec-maven-plugin</artifactId>
-                <groupId>org.codehaus.mojo</groupId>
-                <version>1.2.1</version>
-                <executions>
-                    <execution>
-                        <id>Java Version</id>
-                        <phase>validate</phase>
-                        <goals>
-                            <goal>exec</goal>
-                        </goals>
-                        <configuration>
-                            <executable>java</executable>
-                            <arguments>
-                                <argument>-version</argument>
-                            </arguments>
-                        </configuration>
-                    </execution>
-                </executions>
-
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -1324,7 +1402,7 @@
             <version>0.6.4.201312101107</version>
             <scope>test</scope>
           </dependency>
-        </dependencies>        
+        </dependencies>
         <build>
           <plugins>
             <plugin>
@@ -1349,7 +1427,7 @@
                   <id>default-check</id>
                   <goals>
                     <goal>check</goal>
-                  </goals>                  
+                  </goals>
                 </execution>
               </executions>
               <configuration>

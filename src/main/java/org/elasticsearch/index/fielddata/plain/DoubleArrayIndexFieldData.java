@@ -25,19 +25,19 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.util.*;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigDoubleArrayList;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
-import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsBuilder;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
-import org.elasticsearch.index.fielddata.ordinals.Ordinals.Docs;
 import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
+import org.elasticsearch.search.MultiValueMode;
 
 /**
  */
@@ -82,31 +82,34 @@ public class DoubleArrayIndexFieldData extends AbstractIndexFieldData<DoubleArra
         NonEstimatingEstimator estimator = new NonEstimatingEstimator(breakerService.getBreaker());
         if (terms == null) {
             data = DoubleArrayAtomicFieldData.empty();
-            estimator.afterLoad(null, data.getMemorySizeInBytes());
+            estimator.afterLoad(null, data.ramBytesUsed());
             return data;
         }
         // TODO: how can we guess the number of terms? numerics end up creating more terms per value...
-        final BigDoubleArrayList values = new BigDoubleArrayList();
+        DoubleArray values = BigArrays.NON_RECYCLING_INSTANCE.newDoubleArray(128);
 
         final float acceptableTransientOverheadRatio = fieldDataType.getSettings().getAsFloat("acceptable_transient_overhead_ratio", OrdinalsBuilder.DEFAULT_ACCEPTABLE_OVERHEAD_RATIO);
         boolean success = false;
         try (OrdinalsBuilder builder = new OrdinalsBuilder(reader.maxDoc(), acceptableTransientOverheadRatio)) {
             final BytesRefIterator iter = builder.buildFromTerms(getNumericType().wrapTermsEnum(terms.iterator(null)));
             BytesRef term;
+            long numTerms = 0;
             while ((term = iter.next()) != null) {
-                values.add(NumericUtils.sortableLongToDouble(NumericUtils.prefixCodedToLong(term)));
+                values = BigArrays.NON_RECYCLING_INSTANCE.grow(values, numTerms + 1);
+                values.set(numTerms++, NumericUtils.sortableLongToDouble(NumericUtils.prefixCodedToLong(term)));
             }
+            values = BigArrays.NON_RECYCLING_INSTANCE.resize(values, numTerms);
             Ordinals build = builder.build(fieldDataType.getSettings());
-            if (build.isMultiValued() || CommonSettings.getMemoryStorageHint(fieldDataType) == CommonSettings.MemoryStorageFormat.ORDINALS) {
+            BytesValues.WithOrdinals ordinals = build.ordinals();
+            if (ordinals.isMultiValued() || CommonSettings.getMemoryStorageHint(fieldDataType) == CommonSettings.MemoryStorageFormat.ORDINALS) {
                 data = new DoubleArrayAtomicFieldData.WithOrdinals(values, build);
             } else {
-                Docs ordinals = build.ordinals();
                 final FixedBitSet set = builder.buildDocsWithValuesSet();
 
                 // there's sweet spot where due to low unique value count, using ordinals will consume less memory
                 long singleValuesArraySize = reader.maxDoc() * RamUsageEstimator.NUM_BYTES_DOUBLE + (set == null ? 0 : RamUsageEstimator.sizeOf(set.getBits()) + RamUsageEstimator.NUM_BYTES_INT);
-                long uniqueValuesArraySize = values.sizeInBytes();
-                long ordinalsSize = build.getMemorySizeInBytes();
+                long uniqueValuesArraySize = values.ramBytesUsed();
+                long ordinalsSize = build.ramBytesUsed();
                 if (uniqueValuesArraySize + ordinalsSize < singleValuesArraySize) {
                     data = new DoubleArrayAtomicFieldData.WithOrdinals(values, build);
                     success = true;
@@ -114,27 +117,25 @@ public class DoubleArrayIndexFieldData extends AbstractIndexFieldData<DoubleArra
                 }
 
                 int maxDoc = reader.maxDoc();
-                BigDoubleArrayList sValues = new BigDoubleArrayList(maxDoc);
+                DoubleArray sValues = BigArrays.NON_RECYCLING_INSTANCE.newDoubleArray(maxDoc);
                 for (int i = 0; i < maxDoc; i++) {
                     final long ordinal = ordinals.getOrd(i);
-                    if (ordinal == Ordinals.MISSING_ORDINAL) {
-                        sValues.add(0);
-                    } else {
-                        sValues.add(values.get(ordinal));
+                    if (ordinal != BytesValues.WithOrdinals.MISSING_ORDINAL) {
+                        sValues.set(i, values.get(ordinal));
                     }
                 }
                 assert sValues.size() == maxDoc;
                 if (set == null) {
-                    data = new DoubleArrayAtomicFieldData.Single(sValues, ordinals.getMaxOrd() - Ordinals.MIN_ORDINAL);
+                    data = new DoubleArrayAtomicFieldData.Single(sValues);
                 } else {
-                    data = new DoubleArrayAtomicFieldData.SingleFixedSet(sValues, set, ordinals.getMaxOrd() - Ordinals.MIN_ORDINAL);
+                    data = new DoubleArrayAtomicFieldData.SingleFixedSet(sValues, set);
                 }
             }
             success = true;
             return data;
         } finally {
             if (success) {
-                estimator.afterLoad(null, data.getMemorySizeInBytes());
+                estimator.afterLoad(null, data.ramBytesUsed());
             }
 
         }

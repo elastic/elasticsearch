@@ -25,6 +25,7 @@ import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -40,13 +41,13 @@ public class RestActions {
 
     public static long parseVersion(RestRequest request) {
         if (request.hasParam("version")) {
-            return request.paramAsLong("version", 0);
+            return request.paramAsLong("version", Versions.MATCH_ANY);
         }
         String ifMatch = request.header("If-Match");
         if (ifMatch != null) {
             return Long.parseLong(ifMatch);
         }
-        return 0;
+        return Versions.MATCH_ANY;
     }
 
     static final class Fields {

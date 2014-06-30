@@ -131,7 +131,7 @@ public class TermsStatsStringFacetExecutor extends FacetExecutor {
 
         @Override
         public void setNextReader(AtomicReaderContext context) throws IOException {
-            keyValues = keyIndexFieldData.load(context).getBytesValues(true);
+            keyValues = keyIndexFieldData.load(context).getBytesValues();
             if (script != null) {
                 script.setNextReader(context);
             } else {
@@ -170,7 +170,7 @@ public class TermsStatsStringFacetExecutor extends FacetExecutor {
             spare.reset(value, hashCode);
             InternalTermsStatsStringFacet.StringEntry stringEntry = entries.get(spare);
             if (stringEntry == null) {
-                HashedBytesRef theValue = new HashedBytesRef(values.copyShared(), hashCode);
+                HashedBytesRef theValue = new HashedBytesRef(BytesRef.deepCopyOf(value), hashCode);
                 stringEntry = new InternalTermsStatsStringFacet.StringEntry(theValue, 0, 0, 0, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY);
                 entries.put(theValue, stringEntry);
             }
@@ -210,7 +210,7 @@ public class TermsStatsStringFacetExecutor extends FacetExecutor {
             spare.reset(value, hashCode);
             InternalTermsStatsStringFacet.StringEntry stringEntry = entries.get(spare);
             if (stringEntry == null) {
-                HashedBytesRef theValue = new HashedBytesRef(values.copyShared(), hashCode);
+                HashedBytesRef theValue = new HashedBytesRef(BytesRef.deepCopyOf(value), hashCode);
                 stringEntry = new InternalTermsStatsStringFacet.StringEntry(theValue, 1, 0, 0, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY);
                 entries.put(theValue, stringEntry);
             } else {

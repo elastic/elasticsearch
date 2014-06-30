@@ -84,6 +84,16 @@ public class StringTerms extends InternalTerms {
         int compareTerm(Terms.Bucket other) {
             return BytesRef.getUTF8SortedAsUnicodeComparator().compare(termBytes, ((Bucket) other).termBytes);
         }
+
+        @Override
+        Object getKeyAsObject() {
+            return getKeyAsText();
+        }
+
+        @Override
+        Bucket newBucket(long docCount, InternalAggregations aggs) {
+            return new Bucket(termBytes, docCount, aggs);
+        }
     }
 
     StringTerms() {} // for serialization
@@ -95,6 +105,11 @@ public class StringTerms extends InternalTerms {
     @Override
     public Type type() {
         return TYPE;
+    }
+
+    @Override
+    protected InternalTerms newAggregation(String name, List<InternalTerms.Bucket> buckets) {
+        return new StringTerms(name, order, requiredSize, minDocCount, buckets);
     }
 
     @Override
@@ -132,7 +147,7 @@ public class StringTerms extends InternalTerms {
         builder.startArray(CommonFields.BUCKETS);
         for (InternalTerms.Bucket bucket : buckets) {
             builder.startObject();
-            builder.field(CommonFields.KEY, ((Bucket) bucket).termBytes);
+            builder.utf8Field(CommonFields.KEY, ((Bucket) bucket).termBytes);
             builder.field(CommonFields.DOC_COUNT, bucket.getDocCount());
             ((InternalAggregations) bucket.getAggregations()).toXContentInternal(builder, params);
             builder.endObject();

@@ -18,9 +18,9 @@
  */
 package org.elasticsearch.search.suggest;
 
+import com.carrotsearch.hppc.ObjectLongOpenHashMap;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.google.common.collect.Lists;
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse;
@@ -30,7 +30,6 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.suggest.SuggestResponse;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -42,6 +41,7 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
 import org.elasticsearch.percolator.PercolatorService;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
@@ -509,57 +509,6 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @LuceneTestCase.AwaitsFix(bugUrl = "path_type issue")
-    // If the path_type is set to `just_name` and the multi field is updated (for example another multi field is added)
-    // then if the path isn't specified again the path_type isn't taken into account and full path names are generated.
-    public void testThatUpgradeToMultiFieldWorks_bug() throws Exception {
-        final XContentBuilder mapping = jsonBuilder()
-                .startObject()
-                .startObject(TYPE)
-                .startObject("properties")
-                .startObject(FIELD)
-                .field("type", "multi_field")
-                .field("path", "just_name")
-                .startObject("fields")
-                .startObject(FIELD).field("type", "string").endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject();
-        assertAcked(prepareCreate(INDEX).addMapping(TYPE, mapping));
-        client().prepareIndex(INDEX, TYPE, "1").setRefresh(true).setSource(jsonBuilder().startObject().field(FIELD, "Foo Fighters").endObject()).get();
-        ensureGreen(INDEX);
-
-        PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(jsonBuilder().startObject()
-                .startObject(TYPE).startObject("properties")
-                .startObject(FIELD)
-                .field("type", "multi_field")
-                .startObject("fields")
-                .startObject(FIELD).field("type", "string").endObject()
-                .startObject("suggest").field("type", "completion").field("index_analyzer", "simple").field("search_analyzer", "simple").endObject()
-                .endObject()
-                .endObject()
-                .endObject().endObject()
-                .endObject())
-                .get();
-        assertThat(putMappingResponse.isAcknowledged(), is(true));
-
-        SuggestResponse suggestResponse = client().prepareSuggest(INDEX).addSuggestion(
-                new CompletionSuggestionBuilder("suggs").field("suggest").text("f").size(10)
-        ).execute().actionGet();
-        assertSuggestions(suggestResponse, "suggs");
-
-        client().prepareIndex(INDEX, TYPE, "1").setRefresh(true).setSource(jsonBuilder().startObject().field(FIELD, "Foo Fighters").endObject()).get();
-        ensureGreen(INDEX);
-
-        SuggestResponse afterReindexingResponse = client().prepareSuggest(INDEX).addSuggestion(
-                new CompletionSuggestionBuilder("suggs").field("suggest").text("f").size(10)
-        ).execute().actionGet();
-        assertSuggestions(afterReindexingResponse, "suggs", "Foo Fighters");
-    }
-
-    @Test
     public void testThatFuzzySuggesterWorks() throws Exception {
         createIndexAndMapping(completionMappingBuilder);
 
@@ -714,7 +663,7 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
 
         PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(jsonBuilder().startObject()
                 .startObject(TYPE).startObject("properties")
-                .startObject(FIELD)
+                .startObject(FIELD.toString())
                 .field("type", "completion").field("analyzer", "simple")
                 .endObject()
                 .startObject(otherField)
@@ -743,7 +692,8 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
 
         // regexes
         IndicesStatsResponse regexFieldStats = client().admin().indices().prepareStats(INDEX).setIndices(INDEX).setCompletion(true).setCompletionFields("*").get();
-        long regexSizeInBytes = regexFieldStats.getIndex(INDEX).getPrimaries().completion.getFields().get("*");
+        ObjectLongOpenHashMap<String> fields = regexFieldStats.getIndex(INDEX).getPrimaries().completion.getFields();
+        long regexSizeInBytes = fields.get(FIELD) + fields.get(otherField);
         assertThat(regexSizeInBytes, is(totalSizeInBytes));
     }
 
@@ -915,7 +865,7 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
                             .startArray("input").value(input[i]).endArray()
                             .field("output", surface[i])
                             .startObject("payload").field("id", i).endObject()
-                            .field("weight", 1) // WE FORCEFULLY INDEX A BOGUS WEIGHT 
+                            .field("weight", 1) // WE FORCEFULLY INDEX A BOGUS WEIGHT
                             .endObject()
                             .endObject()
                     );
@@ -1083,7 +1033,8 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
         ).setRefresh(true).get();
 
         try {
-            client().prepareSearch(INDEX).addAggregation(AggregationBuilders.terms("suggest_agg").field(FIELD)).execute().actionGet();
+            client().prepareSearch(INDEX).addAggregation(AggregationBuilders.terms("suggest_agg").field(FIELD)
+                    .collectMode(randomFrom(SubAggCollectionMode.values()))).execute().actionGet();
             // Exception must be thrown
             assertFalse(true);
         } catch (SearchPhaseExecutionException e) {

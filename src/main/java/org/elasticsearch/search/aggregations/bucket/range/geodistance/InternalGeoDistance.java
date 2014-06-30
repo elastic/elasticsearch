@@ -61,6 +61,10 @@ public class InternalGeoDistance extends InternalRange<InternalGeoDistance.Bucke
             super(key, from, to, docCount, aggregations, formatter);
         }
 
+        @Override
+        protected InternalRange.Factory<Bucket, ?> getFactory() {
+            return FACTORY;
+        }
     }
 
     private static class Factory extends InternalRange.Factory<InternalGeoDistance.Bucket, InternalGeoDistance> {
@@ -71,8 +75,8 @@ public class InternalGeoDistance extends InternalRange<InternalGeoDistance.Bucke
         }
 
         @Override
-        public InternalGeoDistance create(String name, List<Bucket> ranges, @Nullable ValueFormatter formatter, boolean keyed, boolean unmapped) {
-            return new InternalGeoDistance(name, ranges, formatter, keyed, unmapped);
+        public InternalGeoDistance create(String name, List<Bucket> ranges, @Nullable ValueFormatter formatter, boolean keyed) {
+            return new InternalGeoDistance(name, ranges, formatter, keyed);
         }
 
         @Override
@@ -83,8 +87,8 @@ public class InternalGeoDistance extends InternalRange<InternalGeoDistance.Bucke
 
     InternalGeoDistance() {} // for serialization
 
-    public InternalGeoDistance(String name, List<Bucket> ranges, @Nullable ValueFormatter formatter, boolean keyed, boolean unmapped) {
-        super(name, ranges, formatter, keyed, unmapped);
+    public InternalGeoDistance(String name, List<Bucket> ranges, @Nullable ValueFormatter formatter, boolean keyed) {
+        super(name, ranges, formatter, keyed);
     }
 
     @Override
@@ -93,7 +97,7 @@ public class InternalGeoDistance extends InternalRange<InternalGeoDistance.Bucke
     }
 
     @Override
-    protected Bucket createBucket(String key, double from, double to, long docCount, InternalAggregations aggregations, ValueFormatter formatter) {
-        return new Bucket(key, from, to, docCount, aggregations, formatter);
+    protected InternalRange.Factory<Bucket, ?> getFactory() {
+        return FACTORY;
     }
 }

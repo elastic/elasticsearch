@@ -19,9 +19,7 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
-import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.BinaryDocValues;
-import org.apache.lucene.index.DocValues;
 import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
@@ -30,40 +28,29 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 
 final class BytesBinaryDVAtomicFieldData implements AtomicFieldData<ScriptDocValues> {
 
-    private final AtomicReader reader;
     private final BinaryDocValues values;
 
-    BytesBinaryDVAtomicFieldData(AtomicReader reader, BinaryDocValues values) {
+    BytesBinaryDVAtomicFieldData(BinaryDocValues values) {
         super();
-        this.reader = reader;
-        this.values = values == null ? DocValues.EMPTY_BINARY : values;
+        this.values = values;
     }
 
     @Override
-    public boolean isMultiValued() {
-        return true;
-    }
-
-    @Override
-    public long getNumberUniqueValues() {
-        return Long.MAX_VALUE;
-    }
-
-    @Override
-    public long getMemorySizeInBytes() {
+    public long ramBytesUsed() {
         return -1; // not exposed by Lucene
     }
 
     @Override
-    public BytesValues getBytesValues(boolean needsHashes) {
+    public BytesValues getBytesValues() {
         return new BytesValues(true) {
 
-            final BytesRef bytes = new BytesRef();
+            BytesRef bytes;
+            final BytesRef scratch = new BytesRef();
             final ByteArrayDataInput in = new ByteArrayDataInput();
 
             @Override
             public int setDocument(int docId) {
-                values.get(docId, bytes);
+                bytes = values.get(docId);
                 in.reset(bytes.bytes, bytes.offset, bytes.length);
                 if (bytes.length == 0) {
                     return 0;

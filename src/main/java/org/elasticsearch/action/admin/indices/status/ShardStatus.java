@@ -35,8 +35,10 @@ import static org.elasticsearch.cluster.routing.ImmutableShardRouting.readShardR
 import static org.elasticsearch.common.unit.ByteSizeValue.readBytesSizeValue;
 
 /**
- * Shard instance (actual allocated shard) status.
+ * This class will be removed in future versions
+ * Use the recovery API instead
  */
+@Deprecated
 public class ShardStatus extends BroadcastShardOperationResponse {
 
     private ShardRouting shardRouting;

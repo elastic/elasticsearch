@@ -26,8 +26,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 
-import java.io.IOException;
-
 /**
  *
  */
@@ -37,20 +35,12 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
     public RestPutIndexTemplateAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
         controller.registerHandler(RestRequest.Method.PUT, "/_template/{name}", this);
-        controller.registerHandler(RestRequest.Method.POST, "/_template/{name}", new CreateHandler());
-    }
-
-    final class CreateHandler implements RestHandler {
-        @Override
-        public void handleRequest(RestRequest request, RestChannel channel) {
-            request.params().put("create", "true");
-            RestPutIndexTemplateAction.this.handleRequest(request, channel);
-        }
+        controller.registerHandler(RestRequest.Method.POST, "/_template/{name}", this);
     }
 
     @SuppressWarnings({"unchecked"})
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         PutIndexTemplateRequest putRequest = new PutIndexTemplateRequest(request.param("name"));
         putRequest.listenerThreaded(false);
         putRequest.template(request.param("template", putRequest.template()));

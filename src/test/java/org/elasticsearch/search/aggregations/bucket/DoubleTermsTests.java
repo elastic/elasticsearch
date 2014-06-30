@@ -23,6 +23,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
+import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -102,7 +103,8 @@ public class DoubleTermsTests extends ElasticsearchIntegrationTest {
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
                         .minDocCount(randomInt(1))
-                        .size(0))
+                        .size(0)
+                        .collectMode(randomFrom(SubAggCollectionMode.values())))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -117,7 +119,8 @@ public class DoubleTermsTests extends ElasticsearchIntegrationTest {
     public void singleValueField() throws Exception {
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .addAggregation(terms("terms")
-                        .field(SINGLE_VALUED_FIELD_NAME))
+                        .field(SINGLE_VALUED_FIELD_NAME)
+                        .collectMode(randomFrom(SubAggCollectionMode.values())))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -143,6 +146,7 @@ public class DoubleTermsTests extends ElasticsearchIntegrationTest {
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
                         .size(20)
+                        .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .order(Terms.Order.term(true))) // we need to sort by terms cause we're checking the first 20 values
                 .execute().actionGet();
 
@@ -168,6 +172,7 @@ public class DoubleTermsTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
+                        .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .order(Terms.Order.term(true)))
                 .execute().actionGet();
 
@@ -194,6 +199,7 @@ public class DoubleTermsTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
+                        .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .order(Terms.Order.term(false)))
                 .execute().actionGet();
 
@@ -220,6 +226,7 @@ public class DoubleTermsTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
+                        .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .subAggregation(sum("sum").field(MULTI_VALUED_FIELD_NAME)))
                 .execute().actionGet();
 
@@ -248,6 +255,7 @@ public class DoubleTermsTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
+                        .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .subAggregation(sum("sum")))
                 .execute().actionGet();
 
@@ -276,6 +284,7 @@ public class DoubleTermsTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
+                        .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .script("_value + 1"))
                 .execute().actionGet();
 
@@ -300,7 +309,8 @@ public class DoubleTermsTests extends ElasticsearchIntegrationTest {
     public void multiValuedField() throws Exception {
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .addAggregation(terms("terms")
-                        .field(MULTI_VALUED_FIELD_NAME))
+                        .field(MULTI_VALUED_FIELD_NAME)
+                        .collectMode(randomFrom(SubAggCollectionMode.values())))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -329,6 +339,7 @@ public class DoubleTermsTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .addAggregation(terms("terms")
                         .field(MULTI_VALUED_FIELD_NAME)
+                        .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .script("_value + 1"))
                 .execute().actionGet();
 
@@ -358,6 +369,7 @@ public class DoubleTermsTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .addAggregation(terms("terms")
                         .field(MULTI_VALUED_FIELD_NAME)
+                        .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .script("(long) _value / 1000 + 1"))
                 .execute().actionGet();
 
@@ -398,6 +410,7 @@ public class DoubleTermsTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .addAggregation(terms("terms")
                         .field(MULTI_VALUED_FIELD_NAME)
+                        .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .script("_value + 1")
                         .subAggregation(sum("sum")))
                 .execute().actionGet();
@@ -434,6 +447,7 @@ public class DoubleTermsTests extends ElasticsearchIntegrationTest {
     public void script_SingleValue() throws Exception {
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .addAggregation(terms("terms")
+                        .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .script("doc['" + MULTI_VALUED_FIELD_NAME + "'].value"))
                 .execute().actionGet();
 
@@ -459,6 +473,7 @@ public class DoubleTermsTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
+                        .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .subAggregation(sum("sum")))
                 .execute().actionGet();
 
@@ -486,6 +501,7 @@ public class DoubleTermsTests extends ElasticsearchIntegrationTest {
     public void script_MultiValued() throws Exception {
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .addAggregation(terms("terms")
+                        .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .script("doc['" + MULTI_VALUED_FIELD_NAME + "'].values"))
                 .execute().actionGet();
 
@@ -520,6 +536,7 @@ public class DoubleTermsTests extends ElasticsearchIntegrationTest {
 
             SearchResponse response = client().prepareSearch("idx").setTypes("type")
                     .addAggregation(terms("terms")
+                            .collectMode(randomFrom(SubAggCollectionMode.values()))
                             .script("doc['" + MULTI_VALUED_FIELD_NAME + "'].values")
                             .subAggregation(sum("sum")))
                     .execute().actionGet();
@@ -537,6 +554,7 @@ public class DoubleTermsTests extends ElasticsearchIntegrationTest {
     public void script_MultiValued_WithAggregatorInherited_WithExplicitType() throws Exception {
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .addAggregation(terms("terms")
+                        .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .script("doc['" + MULTI_VALUED_FIELD_NAME + "'].values")
                         .valueType(Terms.ValueType.DOUBLE)
                         .subAggregation(sum("sum")))
@@ -575,7 +593,8 @@ public class DoubleTermsTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client().prepareSearch("idx_unmapped").setTypes("type")
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
-                        .size(randomInt(5)))
+                        .size(randomInt(5))
+                        .collectMode(randomFrom(SubAggCollectionMode.values())))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -591,7 +610,8 @@ public class DoubleTermsTests extends ElasticsearchIntegrationTest {
     public void partiallyUnmapped() throws Exception {
         SearchResponse response = client().prepareSearch("idx_unmapped", "idx").setTypes("type")
                 .addAggregation(terms("terms")
-                        .field(SINGLE_VALUED_FIELD_NAME))
+                        .field(SINGLE_VALUED_FIELD_NAME)
+                        .collectMode(randomFrom(SubAggCollectionMode.values())))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -637,6 +657,7 @@ public class DoubleTermsTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
+                        .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .order(Terms.Order.aggregation("avg_i", asc))
                         .subAggregation(avg("avg_i").field(SINGLE_VALUED_FIELD_NAME))
                 ).execute().actionGet();
@@ -661,11 +682,55 @@ public class DoubleTermsTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    public void singleValuedField_OrderedBySingleValueSubAggregationAscWithSubTermsAgg() throws Exception {
+        boolean asc = true;
+        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+                .addAggregation(terms("terms")
+                        .field(SINGLE_VALUED_FIELD_NAME)
+                        .collectMode(randomFrom(SubAggCollectionMode.values()))
+                        .order(Terms.Order.aggregation("avg_i", asc))
+                        .subAggregation(avg("avg_i").field(SINGLE_VALUED_FIELD_NAME)).subAggregation(terms("subTerms").field(MULTI_VALUED_FIELD_NAME)
+                                .collectMode(randomFrom(SubAggCollectionMode.values())))
+                ).execute().actionGet();
+
+
+        assertSearchResponse(response);
+
+        Terms terms = response.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        assertThat(terms.getName(), equalTo("terms"));
+        assertThat(terms.getBuckets().size(), equalTo(5));
+
+        for (int i = 0; i < 5; i++) {
+            Terms.Bucket bucket = terms.getBucketByKey("" + (double) i);
+            assertThat(bucket, notNullValue());
+            assertThat(key(bucket), equalTo("" + (double)i));
+            assertThat(bucket.getDocCount(), equalTo(1l));
+            
+            Avg avg = bucket.getAggregations().get("avg_i");
+            assertThat(avg, notNullValue());
+            assertThat(avg.getValue(), equalTo((double) i));
+            
+            Terms subTermsAgg = bucket.getAggregations().get("subTerms");
+            assertThat(subTermsAgg, notNullValue());
+            assertThat(subTermsAgg.getBuckets().size(), equalTo(2));
+            double j = i;
+            for (Terms.Bucket subBucket : subTermsAgg.getBuckets()) {
+                assertThat(subBucket, notNullValue());
+                assertThat(key(subBucket), equalTo(String.valueOf(j)));
+                assertThat(subBucket.getDocCount(), equalTo(1l));
+                j++;
+            }
+        }
+    }
+
+    @Test
     public void singleValuedField_OrderedBySingleBucketSubAggregationAsc() throws Exception {
         boolean asc = randomBoolean();
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .addAggregation(terms("num_tags")
                         .field("num_tag")
+                        .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .order(Terms.Order.aggregation("filter", asc))
                         .subAggregation(filter("filter").filter(FilterBuilders.matchAllFilter()))
                 ).execute().actionGet();
@@ -703,6 +768,7 @@ public class DoubleTermsTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .addAggregation(terms("tags")
                         .field("num_tag")
+                        .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .order(Terms.Order.aggregation("filter1>filter2>max", asc))
                         .subAggregation(filter("filter1").filter(FilterBuilders.matchAllFilter())
                                 .subAggregation(filter("filter2").filter(FilterBuilders.matchAllFilter())
@@ -758,6 +824,7 @@ public class DoubleTermsTests extends ElasticsearchIntegrationTest {
             client().prepareSearch("idx").setTypes("type")
                     .addAggregation(terms("terms")
                             .field(SINGLE_VALUED_FIELD_NAME)
+                            .collectMode(randomFrom(SubAggCollectionMode.values()))
                             .order(Terms.Order.aggregation("avg_i", true))
                     ).execute().actionGet();
 
@@ -775,8 +842,10 @@ public class DoubleTermsTests extends ElasticsearchIntegrationTest {
             client().prepareSearch("idx").setTypes("type")
                     .addAggregation(terms("terms")
                             .field(SINGLE_VALUED_FIELD_NAME)
+                            .collectMode(randomFrom(SubAggCollectionMode.values()))
                             .order(Terms.Order.aggregation("num_tags", true))
-                            .subAggregation(terms("num_tags").field("num_tags"))
+                            .subAggregation(terms("num_tags").field("num_tags")
+                                    .collectMode(randomFrom(SubAggCollectionMode.values())))
                     ).execute().actionGet();
 
             fail("Expected search to fail when trying to sort terms aggregation by sug-aggregation which is not of a metrics type");
@@ -793,6 +862,7 @@ public class DoubleTermsTests extends ElasticsearchIntegrationTest {
             client().prepareSearch("idx").setTypes("type")
                     .addAggregation(terms("terms")
                             .field(SINGLE_VALUED_FIELD_NAME)
+                            .collectMode(randomFrom(SubAggCollectionMode.values()))
                             .order(Terms.Order.aggregation("stats.foo", true))
                             .subAggregation(stats("stats").field(SINGLE_VALUED_FIELD_NAME))
                     ).execute().actionGet();
@@ -812,6 +882,7 @@ public class DoubleTermsTests extends ElasticsearchIntegrationTest {
             client().prepareSearch("idx").setTypes("type")
                     .addAggregation(terms("terms")
                             .field(SINGLE_VALUED_FIELD_NAME)
+                            .collectMode(randomFrom(SubAggCollectionMode.values()))
                             .order(Terms.Order.aggregation("stats", true))
                             .subAggregation(stats("stats").field(SINGLE_VALUED_FIELD_NAME))
                     ).execute().actionGet();
@@ -830,6 +901,7 @@ public class DoubleTermsTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
+                        .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .order(Terms.Order.aggregation("avg_i", asc))
                         .subAggregation(avg("avg_i").field(SINGLE_VALUED_FIELD_NAME))
                 ).execute().actionGet();
@@ -862,6 +934,7 @@ public class DoubleTermsTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
+                        .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .order(Terms.Order.aggregation("stats.avg", asc))
                         .subAggregation(stats("stats").field(SINGLE_VALUED_FIELD_NAME))
                 ).execute().actionGet();
@@ -892,6 +965,7 @@ public class DoubleTermsTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
+                        .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .order(Terms.Order.aggregation("stats.avg", asc))
                         .subAggregation(stats("stats").field(SINGLE_VALUED_FIELD_NAME))
                 ).execute().actionGet();
@@ -922,6 +996,7 @@ public class DoubleTermsTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
+                        .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .order(Terms.Order.aggregation("stats.variance", asc))
                         .subAggregation(extendedStats("stats").field(SINGLE_VALUED_FIELD_NAME))
                 ).execute().actionGet();
@@ -951,7 +1026,8 @@ public class DoubleTermsTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .setQuery(functionScoreQuery(matchAllQuery()).add(ScoreFunctionBuilders.scriptFunction("doc['" + SINGLE_VALUED_FIELD_NAME + "'].value")))
                 .addAggregation(terms("terms")
-                        .script("ceil(_doc.score/3)")
+                        .collectMode(randomFrom(SubAggCollectionMode.values()))
+                        .script("ceil(_doc.score()/3)")
                 ).execute().actionGet();
 
         assertSearchResponse(response);

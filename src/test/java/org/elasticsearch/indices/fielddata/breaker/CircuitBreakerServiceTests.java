@@ -19,11 +19,14 @@
 
 package org.elasticsearch.indices.fielddata.breaker;
 
+import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
@@ -31,16 +34,16 @@ import java.util.Arrays;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.TEST;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
  * Integration tests for InternalCircuitBreakerService
  */
-@ClusterScope(scope = TEST)
+@ClusterScope(scope = TEST, randomDynamicTemplates = false)
 public class CircuitBreakerServiceTests extends ElasticsearchIntegrationTest {
 
     private String randomRidiculouslySmallLimit() {
@@ -85,6 +88,14 @@ public class CircuitBreakerServiceTests extends ElasticsearchIntegrationTest {
             assertFailures(client.prepareSearch("cb-test").setSource("{\"sort\": \"test\",\"query\":{\"match_all\":{}}}"),
                         RestStatus.INTERNAL_SERVER_ERROR,
                     containsString("Data too large, data for field [test] would be larger than limit of [100/100b]"));
+
+            NodesStatsResponse stats = client.admin().cluster().prepareNodesStats().setBreaker(true).get();
+            int breaks = 0;
+            for (NodeStats stat : stats.getNodes()) {
+                FieldDataBreakerStats breakerStats = stat.getBreaker();
+                breaks += breakerStats.getTrippedCount();
+            }
+            assertThat(breaks, greaterThanOrEqualTo(1));
         } finally {
             // Reset settings
             Settings resetSettings = settingsBuilder()
@@ -137,6 +148,15 @@ public class CircuitBreakerServiceTests extends ElasticsearchIntegrationTest {
             assertFailures(client.prepareSearch("ramtest").setSource("{\"sort\": \"test\",\"query\":{\"match_all\":{}}}"),
                         RestStatus.INTERNAL_SERVER_ERROR,
                     containsString("Data too large, data for field [test] would be larger than limit of [100/100b]"));
+
+            NodesStatsResponse stats = client.admin().cluster().prepareNodesStats().setBreaker(true).get();
+            int breaks = 0;
+            for (NodeStats stat : stats.getNodes()) {
+                FieldDataBreakerStats breakerStats = stat.getBreaker();
+                breaks += breakerStats.getTrippedCount();
+            }
+            assertThat(breaks, greaterThanOrEqualTo(1));
+
         } finally {
             // Reset settings
             Settings resetSettings = settingsBuilder()

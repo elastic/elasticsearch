@@ -25,13 +25,13 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.metrics.MetricsAggregation;
+import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
 import java.io.IOException;
 import java.util.List;
 
-public final class InternalCardinality extends MetricsAggregation.SingleValue implements Cardinality {
+public final class InternalCardinality extends InternalNumericMetricsAggregation.SingleValue implements Cardinality {
 
     public final static Type TYPE = new Type("cardinality");
 
@@ -104,18 +104,17 @@ public final class InternalCardinality extends MetricsAggregation.SingleValue im
             final InternalCardinality cardinality = (InternalCardinality) aggregation;
             if (cardinality.counts != null) {
                 if (reduced == null) {
-                    reduced = cardinality;
-                } else {
-                    reduced.merge(cardinality);
+                    reduced = new InternalCardinality(name, new HyperLogLogPlusPlus(cardinality.counts.precision(), BigArrays.NON_RECYCLING_INSTANCE, 1));
                 }
+                reduced.merge(cardinality);
             }
         }
 
         if (reduced == null) { // all empty
-            reduced = (InternalCardinality) aggregations.get(0);
+            return aggregations.get(0);
+        } else {
+            return reduced;
         }
-
-        return reduced;
     }
 
     public void merge(InternalCardinality other) {

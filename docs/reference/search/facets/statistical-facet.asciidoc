@@ -1,6 +1,8 @@
 [[search-facets-statistical-facet]]
 === Statistical Facet
 
+include::deprecated.asciidoc[]
+
 Statistical facet allows to compute statistical data on a numeric
 fields. The statistical data include count, total, sum of squares, mean
 (average), minimum, maximum, variance, and standard deviation. Here is

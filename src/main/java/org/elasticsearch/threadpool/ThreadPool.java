@@ -74,6 +74,7 @@ public class ThreadPool extends AbstractComponent {
         public static final String REFRESH = "refresh";
         public static final String WARMER = "warmer";
         public static final String SNAPSHOT = "snapshot";
+        public static final String SNAPSHOT_DATA = "snapshot_data";
         public static final String OPTIMIZE = "optimize";
         public static final String BENCH = "bench";
     }
@@ -90,13 +91,16 @@ public class ThreadPool extends AbstractComponent {
 
     private final EstimatedTimeThread estimatedTimeThread;
 
-    public ThreadPool() {
-        this(ImmutableSettings.Builder.EMPTY_SETTINGS, null);
+
+    public ThreadPool(String name) {
+        this(ImmutableSettings.builder().put("name", name).build(), null);
     }
 
     @Inject
     public ThreadPool(Settings settings, @Nullable NodeSettingsService nodeSettingsService) {
         super(settings);
+
+        assert settings.get("name") != null : "ThreadPool's settings should contain a name";
 
         Map<String, Settings> groupSettings = settings.getGroups(THREADPOOL_GROUP);
 
@@ -117,6 +121,7 @@ public class ThreadPool extends AbstractComponent {
                 .put(Names.REFRESH, settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", halfProcMaxAt10).build())
                 .put(Names.WARMER, settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", halfProcMaxAt5).build())
                 .put(Names.SNAPSHOT, settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", halfProcMaxAt5).build())
+                .put(Names.SNAPSHOT_DATA, settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", 5).build())
                 .put(Names.OPTIMIZE, settingsBuilder().put("type", "fixed").put("size", 1).build())
                 .put(Names.BENCH, settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", halfProcMaxAt5).build())
                 .build();

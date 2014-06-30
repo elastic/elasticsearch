@@ -50,20 +50,25 @@ public class RestIndexAction extends BaseRestHandler {
         controller.registerHandler(POST, "/{index}/{type}", this); // auto id creation
         controller.registerHandler(PUT, "/{index}/{type}/{id}", this);
         controller.registerHandler(POST, "/{index}/{type}/{id}", this);
-        controller.registerHandler(PUT, "/{index}/{type}/{id}/_create", new CreateHandler());
-        controller.registerHandler(POST, "/{index}/{type}/{id}/_create", new CreateHandler());
+        CreateHandler createHandler = new CreateHandler(settings, client);
+        controller.registerHandler(PUT, "/{index}/{type}/{id}/_create", createHandler);
+        controller.registerHandler(POST, "/{index}/{type}/{id}/_create", createHandler);
     }
 
-    final class CreateHandler implements RestHandler {
+    final class CreateHandler extends BaseRestHandler {
+        protected CreateHandler(Settings settings, final Client client) {
+            super(settings, client);
+        }
+
         @Override
-        public void handleRequest(RestRequest request, RestChannel channel) {
+        public void handleRequest(RestRequest request, RestChannel channel, final Client client) {
             request.params().put("op_type", "create");
-            RestIndexAction.this.handleRequest(request, channel);
+            RestIndexAction.this.handleRequest(request, channel, client);
         }
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         IndexRequest indexRequest = new IndexRequest(request.param("index"), request.param("type"), request.param("id"));
         indexRequest.listenerThreaded(false);
         indexRequest.operationThreaded(true);

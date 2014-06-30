@@ -40,7 +40,7 @@ public class BenchmarkStatusNodeResponse extends ActionResponse implements Strea
     private List<BenchmarkResponse> benchmarkResponses;
 
     public BenchmarkStatusNodeResponse() {
-        benchmarkResponses = new ArrayList<BenchmarkResponse>();
+        benchmarkResponses = new ArrayList<>();
     }
 
     public void nodeName(String nodeName) {
@@ -57,6 +57,10 @@ public class BenchmarkStatusNodeResponse extends ActionResponse implements Strea
 
     public List<BenchmarkResponse> benchResponses() {
         return benchmarkResponses;
+    }
+
+    public int activeBenchmarks() {
+        return benchResponses().size();
     }
 
     @Override

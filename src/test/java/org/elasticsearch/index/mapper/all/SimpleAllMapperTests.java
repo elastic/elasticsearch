@@ -33,18 +33,18 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MapperTestUtils;
+import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.ParseContext.Document;
+import org.elasticsearch.index.mapper.internal.IndexFieldMapper;
+import org.elasticsearch.index.mapper.internal.SizeFieldMapper;
+import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
+import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 
 import static org.elasticsearch.common.io.Streams.copyToBytesFromClasspath;
 import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
@@ -63,7 +63,9 @@ public class SimpleAllMapperTests extends ElasticsearchTestCase {
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/all/test1.json");
         Document doc = docMapper.parse(new BytesArray(json)).rootDoc();
         AllField field = (AllField) doc.getField("_all");
-        AllEntries allEntries = ((AllTokenStream) field.tokenStream(docMapper.mappers().indexAnalyzer())).allEntries();
+        // One field is boosted so we should see AllTokenStream used:
+        assertThat(field.tokenStream(docMapper.mappers().indexAnalyzer(), null), Matchers.instanceOf(AllTokenStream.class));
+        AllEntries allEntries = field.getAllEntries();
         assertThat(allEntries.fields().size(), equalTo(3));
         assertThat(allEntries.fields().contains("address.last.location"), equalTo(true));
         assertThat(allEntries.fields().contains("name.last"), equalTo(true));
@@ -80,7 +82,7 @@ public class SimpleAllMapperTests extends ElasticsearchTestCase {
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/all/test1.json");
         Document doc = docMapper.parse(new BytesArray(json)).rootDoc();
         AllField field = (AllField) doc.getField("_all");
-        AllEntries allEntries = ((AllTokenStream) field.tokenStream(docMapper.mappers().indexAnalyzer())).allEntries();
+        AllEntries allEntries = field.getAllEntries();
         assertThat(allEntries.fields().size(), equalTo(3));
         assertThat(allEntries.fields().contains("address.last.location"), equalTo(true));
         assertThat(allEntries.fields().contains("name.last"), equalTo(true));
@@ -97,7 +99,7 @@ public class SimpleAllMapperTests extends ElasticsearchTestCase {
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/all/test1.json");
         Document doc = docMapper.parse(new BytesArray(json)).rootDoc();
         AllField field = (AllField) doc.getField("_all");
-        AllEntries allEntries = ((AllTokenStream) field.tokenStream(docMapper.mappers().indexAnalyzer())).allEntries();
+        AllEntries allEntries = field.getAllEntries();
         assertThat(allEntries.fields().size(), equalTo(3));
         assertThat(allEntries.fields().contains("address.last.location"), equalTo(true));
         assertThat(allEntries.fields().contains("name.last"), equalTo(true));
@@ -106,6 +108,50 @@ public class SimpleAllMapperTests extends ElasticsearchTestCase {
         assertThat(field.fieldType().omitNorms(), equalTo(false));
         assertThat(mapper.queryStringTermQuery(new Term("_all", "foobar")), Matchers.instanceOf(TermQuery.class));
 
+    }
+
+    // #6187: make sure we see AllTermQuery even when offsets are indexed in the _all field:
+    @Test
+    public void testAllMappersWithOffsetsTermQuery() throws Exception {
+        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/mapping_offsets_on_all.json");
+        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
+        byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/all/test1.json");
+        Document doc = docMapper.parse(new BytesArray(json)).rootDoc();
+        AllField field = (AllField) doc.getField("_all");
+        // _all field indexes positions, and mapping has boosts, so we should see AllTokenStream:
+        assertThat(field.tokenStream(docMapper.mappers().indexAnalyzer(), null), Matchers.instanceOf(AllTokenStream.class));
+        AllEntries allEntries = field.getAllEntries();
+        assertThat(allEntries.fields().size(), equalTo(3));
+        assertThat(allEntries.fields().contains("address.last.location"), equalTo(true));
+        assertThat(allEntries.fields().contains("name.last"), equalTo(true));
+        assertThat(allEntries.fields().contains("simple1"), equalTo(true));
+        FieldMapper mapper = docMapper.mappers().smartNameFieldMapper("_all");
+        assertThat(field.fieldType().omitNorms(), equalTo(false));
+        assertThat(mapper.queryStringTermQuery(new Term("_all", "foobar")), Matchers.instanceOf(AllTermQuery.class));
+    }
+
+    // #6187: if _all doesn't index positions then we never use AllTokenStream, even if some fields have boost
+    @Test
+    public void testBoostWithOmitPositions() throws Exception {
+        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/mapping_boost_omit_positions_on_all.json");
+        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
+        byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/all/test1.json");
+        Document doc = docMapper.parse(new BytesArray(json)).rootDoc();
+        AllField field = (AllField) doc.getField("_all");
+        // _all field omits positions, so we should not get AllTokenStream even though fields are boosted
+        assertThat(field.tokenStream(docMapper.mappers().indexAnalyzer(), null), Matchers.not(Matchers.instanceOf(AllTokenStream.class)));
+    }
+
+    // #6187: if no fields were boosted, we shouldn't use AllTokenStream
+    @Test
+    public void testNoBoost() throws Exception {
+        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/noboost-mapping.json");
+        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
+        byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/all/test1.json");
+        Document doc = docMapper.parse(new BytesArray(json)).rootDoc();
+        AllField field = (AllField) doc.getField("_all");
+        // no fields have boost, so we should not see AllTokenStream:
+        assertThat(field.tokenStream(docMapper.mappers().indexAnalyzer(), null), Matchers.not(Matchers.instanceOf(AllTokenStream.class)));
     }
 
 
@@ -120,7 +166,7 @@ public class SimpleAllMapperTests extends ElasticsearchTestCase {
         Document doc = builtDocMapper.parse(new BytesArray(json)).rootDoc();
 
         AllField field = (AllField) doc.getField("_all");
-        AllEntries allEntries = ((AllTokenStream) field.tokenStream(docMapper.mappers().indexAnalyzer())).allEntries();
+        AllEntries allEntries = field.getAllEntries();
         assertThat(allEntries.fields().size(), equalTo(3));
         assertThat(allEntries.fields().contains("address.last.location"), equalTo(true));
         assertThat(allEntries.fields().contains("name.last"), equalTo(true));
@@ -135,7 +181,7 @@ public class SimpleAllMapperTests extends ElasticsearchTestCase {
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/all/test1.json");
         Document doc = docMapper.parse(new BytesArray(json)).rootDoc();
         AllField field = (AllField) doc.getField("_all");
-        AllEntries allEntries = ((AllTokenStream) field.tokenStream(docMapper.mappers().indexAnalyzer())).allEntries();
+        AllEntries allEntries = field.getAllEntries();
         assertThat(allEntries.fields().size(), equalTo(2));
         assertThat(allEntries.fields().contains("name.last"), equalTo(true));
         assertThat(allEntries.fields().contains("simple1"), equalTo(true));
@@ -156,7 +202,7 @@ public class SimpleAllMapperTests extends ElasticsearchTestCase {
         Document doc = builtDocMapper.parse(new BytesArray(json)).rootDoc();
 
         AllField field = (AllField) doc.getField("_all");
-        AllEntries allEntries = ((AllTokenStream) field.tokenStream(docMapper.mappers().indexAnalyzer())).allEntries();
+        AllEntries allEntries = field.getAllEntries();
         assertThat(allEntries.fields().size(), equalTo(2));
         assertThat(allEntries.fields().contains("name.last"), equalTo(true));
         assertThat(allEntries.fields().contains("simple1"), equalTo(true));
@@ -247,7 +293,7 @@ public class SimpleAllMapperTests extends ElasticsearchTestCase {
             assertThat(field.fieldType().storeTermVectorPayloads(), equalTo(tv_payloads));
             assertThat(field.fieldType().storeTermVectorPositions(), equalTo(tv_positions));
             assertThat(field.fieldType().storeTermVectors(), equalTo(tv_stored));
-            AllEntries allEntries = ((AllTokenStream) field.tokenStream(docMapper.mappers().indexAnalyzer())).allEntries();
+            AllEntries allEntries = field.getAllEntries();
             assertThat(allEntries.fields().size(), equalTo(2));
             assertThat(allEntries.fields().contains("foobar"), equalTo(true));
             assertThat(allEntries.fields().contains("foo"), equalTo(true));
@@ -299,7 +345,7 @@ public class SimpleAllMapperTests extends ElasticsearchTestCase {
 
         Document doc = docMapper.parse(builder.bytes()).rootDoc();
         AllField field = (AllField) doc.getField("_all");
-        AllEntries allEntries = ((AllTokenStream) field.tokenStream(docMapper.mappers().indexAnalyzer())).allEntries();
+        AllEntries allEntries = field.getAllEntries();
         assertThat(allEntries.fields(), empty());
     }
 
@@ -319,8 +365,66 @@ public class SimpleAllMapperTests extends ElasticsearchTestCase {
 
         Document doc = docMapper.parse(builder.bytes()).rootDoc();
         AllField field = (AllField) doc.getField("_all");
-        AllEntries allEntries = ((AllTokenStream) field.tokenStream(docMapper.mappers().indexAnalyzer())).allEntries();
+        AllEntries allEntries = field.getAllEntries();
         assertThat(allEntries.fields(), hasSize(1));
         assertThat(allEntries.fields(), hasItem("foo.bar"));
+    }
+
+    @Test(expected = MapperParsingException.class)
+    public void testMisplacedTypeInRoot() throws IOException {
+        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/misplaced_type_in_root.json");
+        DocumentMapper docMapper = MapperTestUtils.newParser().parse("test", mapping);
+    }
+
+    // related to https://github.com/elasticsearch/elasticsearch/issues/5864
+    @Test(expected = MapperParsingException.class)
+    public void testMistypedTypeInRoot() throws IOException {
+        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/mistyped_type_in_root.json");
+        DocumentMapper docMapper = MapperTestUtils.newParser().parse("test", mapping);
+    }
+
+    // issue https://github.com/elasticsearch/elasticsearch/issues/5864
+    @Test(expected = MapperParsingException.class)
+    public void testMisplacedMappingAsRoot() throws IOException {
+        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/misplaced_mapping_key_in_root.json");
+        DocumentMapper docMapper = MapperTestUtils.newParser().parse("test", mapping);
+    }
+
+    // issue https://github.com/elasticsearch/elasticsearch/issues/5864
+    // test that RootObjectMapping still works
+    @Test
+    public void testRootObjectMapperPropertiesDoNotCauseException() throws IOException {
+        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/type_dynamic_template_mapping.json");
+        MapperTestUtils.newParser().parse("test", mapping);
+        mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/type_dynamic_date_formats_mapping.json");
+        MapperTestUtils.newParser().parse("test", mapping);
+        mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/type_date_detection_mapping.json");
+        MapperTestUtils.newParser().parse("test", mapping);
+        mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/type_numeric_detection_mapping.json");
+        MapperTestUtils.newParser().parse("test", mapping);
+    }
+
+    // issue https://github.com/elasticsearch/elasticsearch/issues/5864
+    @Test
+    public void testRootMappersStillWorking() {
+        String mapping = "{";
+        Map<String, String> rootTypes = new HashMap<>();
+        //just pick some example from DocumentMapperParser.rootTypeParsers
+        rootTypes.put(SizeFieldMapper.NAME, "{\"enabled\" : true}");
+        rootTypes.put(IndexFieldMapper.NAME, "{\"enabled\" : true}");
+        rootTypes.put(SourceFieldMapper.NAME, "{\"enabled\" : true}");
+        rootTypes.put(TypeFieldMapper.NAME, "{\"store\" : true}");
+        rootTypes.put("include_in_all", "true");
+        rootTypes.put("index_analyzer", "\"standard\"");
+        rootTypes.put("search_analyzer", "\"standard\"");
+        rootTypes.put("analyzer", "\"standard\"");
+        rootTypes.put("dynamic_date_formats", "[\"yyyy-MM-dd\", \"dd-MM-yyyy\"]");
+        rootTypes.put("numeric_detection", "true");
+        rootTypes.put("dynamic_templates", "[]");
+        for (String key : rootTypes.keySet()) {
+            mapping += "\"" + key+ "\"" + ":" + rootTypes.get(key) + ",\n";
+        }
+        mapping += "\"properties\":{}}" ;
+        MapperTestUtils.newParser().parse("test", mapping);
     }
 }

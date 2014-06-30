@@ -31,7 +31,10 @@ import com.carrotsearch.randomizedtesting.rules.NoInstanceHooksOverridesRule;
 import com.carrotsearch.randomizedtesting.rules.StaticFieldsInvariantRule;
 import com.carrotsearch.randomizedtesting.rules.SystemPropertiesInvariantRule;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
@@ -56,7 +59,8 @@ import java.util.logging.Logger;
         JUnit4MethodProvider.class
 })
 @Listeners({
-        ReproduceInfoPrinter.class
+        ReproduceInfoPrinter.class,
+        FailureMarker.class
 })
 @RunWith(value = com.carrotsearch.randomizedtesting.RandomizedRunner.class)
 @SuppressCodecs(value = "Lucene3x")
@@ -64,6 +68,32 @@ import java.util.logging.Logger;
 // NOTE: this class is in o.a.lucene.util since it uses some classes that are related
 // to the test framework that didn't make sense to copy but are package private access
 public abstract class AbstractRandomizedTest extends RandomizedTest {
+
+
+    /**
+     * Annotation for backwards compat tests
+     */
+    @Inherited
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target(ElementType.TYPE)
+    @TestGroup(enabled = false, sysProperty = TESTS_BACKWARDS_COMPATIBILITY)
+    public @interface BackwardsCompatibilityTest {
+    }
+
+    /**
+     * Key used to set the path for the elasticsearch executable used to run backwards compatibility tests from
+     * via the commandline -D{@value #TESTS_BACKWARDS_COMPATIBILITY_PATH}
+     */
+    public static final String TESTS_BACKWARDS_COMPATIBILITY = "tests.bwc";
+
+    public static final String TESTS_BACKWARDS_COMPATIBILITY_VERSION = "tests.bwc.version";
+
+    /**
+     * Key used to set the path for the elasticsearch executable used to run backwards compatibility tests from
+     * via the commandline -D{@value #TESTS_BACKWARDS_COMPATIBILITY_PATH}
+     */
+    public static final String TESTS_BACKWARDS_COMPATIBILITY_PATH = "tests.bwc.path";
+
     /**
      * Annotation for integration tests
      */
@@ -89,6 +119,8 @@ public abstract class AbstractRandomizedTest extends RandomizedTest {
     public static final String SYSPROP_FAILFAST = "tests.failfast";
 
     public static final String SYSPROP_INTEGRATION = "tests.integration";
+
+    public static final String SYSPROP_PROCESSORS = "tests.processors";
 
     // -----------------------------------------------------------------
     // Truly immutable fields and constants, initialized once and valid 
@@ -128,12 +160,20 @@ public abstract class AbstractRandomizedTest extends RandomizedTest {
      */
     public static final File TEMP_DIR;
 
+    public static final int TESTS_PROCESSORS;
+
     static {
         String s = System.getProperty("tempDir", System.getProperty("java.io.tmpdir"));
         if (s == null)
             throw new RuntimeException("To run tests, you need to define system property 'tempDir' or 'java.io.tmpdir'.");
         TEMP_DIR = new File(s);
         TEMP_DIR.mkdirs();
+
+        String processors = System.getProperty(SYSPROP_PROCESSORS, ""); // mvn sets "" as default
+        if (processors == null || processors.isEmpty()) {
+            processors = Integer.toString(EsExecutors.boundedNumberOfProcessors(ImmutableSettings.EMPTY));
+        }
+        TESTS_PROCESSORS = Integer.parseInt(processors);
     }
 
     /**
@@ -362,6 +402,15 @@ public abstract class AbstractRandomizedTest extends RandomizedTest {
      */
     public String getTestName() {
         return threadAndTestNameRule.testMethodName;
+    }
+
+    static {
+        String nodeLocal = System.getProperty("es.node.mode", System.getProperty("es.node.local", ""));
+        if (Strings.isEmpty(nodeLocal)) {
+            // we default to local mode to speed up tests running in IDEs etc.
+            // compared to a mvn default value this will also work if executed from an IDE.
+            System.setProperty("es.node.mode", "local");
+        }
     }
 
 }

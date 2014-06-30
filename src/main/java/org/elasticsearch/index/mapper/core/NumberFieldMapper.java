@@ -459,7 +459,7 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
         }
 
         @Override
-        public TokenStream tokenStream(Analyzer analyzer) throws IOException {
+        public TokenStream tokenStream(Analyzer analyzer, TokenStream reuse) throws IOException {
             return null;
         }
 

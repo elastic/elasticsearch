@@ -247,7 +247,7 @@ miles) of this geo point field from the provided geohash.
 === Stored Fields
 
 Stored fields can also be accessed when executing a script. Note, they
-are much slower to access compared with document fields, but are not
+are much slower to access compared with document fields, as they are not
 loaded into memory. They can be simply accessed using
 `_fields['my_field_name'].value` or `_fields['my_field_name'].values`.
 

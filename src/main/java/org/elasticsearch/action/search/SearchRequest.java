@@ -83,7 +83,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
 
     private String[] types = Strings.EMPTY_ARRAY;
 
-    private IndicesOptions indicesOptions = IndicesOptions.strict();
+    private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
 
     private boolean profile;
 

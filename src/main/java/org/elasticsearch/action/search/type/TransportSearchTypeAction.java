@@ -110,7 +110,7 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
 
             clusterState.blocks().globalBlockedRaiseException(ClusterBlockLevel.READ);
 
-            String[] concreteIndices = clusterState.metaData().concreteIndices(request.indices(), request.indicesOptions());
+            String[] concreteIndices = clusterState.metaData().concreteIndices(request.indicesOptions(), request.indices());
 
             for (String index : concreteIndices) {
                 clusterState.blocks().indexBlockedRaiseException(ClusterBlockLevel.READ, index);

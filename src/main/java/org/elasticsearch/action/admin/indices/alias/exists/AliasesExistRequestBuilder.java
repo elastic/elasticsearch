@@ -33,7 +33,7 @@ public class AliasesExistRequestBuilder extends BaseAliasesRequestBuilder<Aliase
 
     @Override
     protected void doExecute(ActionListener<AliasesExistResponse> listener) {
-        ((IndicesAdminClient) client).aliasesExist(request, listener);
+        client.aliasesExist(request, listener);
     }
 
 }

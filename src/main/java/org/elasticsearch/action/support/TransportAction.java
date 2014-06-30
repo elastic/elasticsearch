@@ -97,7 +97,7 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
                     }
                 });
             } catch (EsRejectedExecutionException ex) {
-                logger.debug("Can not run threaded action, exectuion rejected [{}] running on current thread", listener);
+                logger.debug("Can not run threaded action, execution rejected [{}] running on current thread", listener);
                 /* we don't care if that takes long since we are shutting down. But if we not respond somebody could wait
                  * for the response on the listener side which could be a remote machine so make sure we push it out there.*/
                 try {

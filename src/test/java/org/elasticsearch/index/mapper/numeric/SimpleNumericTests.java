@@ -498,7 +498,7 @@ public class SimpleNumericTests extends ElasticsearchTestCase {
         assertEquals(expected, ((Field)field).fieldType().numericPrecisionStep());
         
         // check the tokenstream actually used by the indexer
-        TokenStream ts = field.tokenStream(null);
+        TokenStream ts = field.tokenStream(null, null);
         assertThat(ts, instanceOf(NumericTokenStream.class)); 
         assertEquals(expected, ((NumericTokenStream)ts).getPrecisionStep());
     }

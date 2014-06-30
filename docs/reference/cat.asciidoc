@@ -100,6 +100,8 @@ include::cat/allocation.asciidoc[]
 
 include::cat/count.asciidoc[]
 
+include::cat/fielddata.asciidoc[]
+
 include::cat/health.asciidoc[]
 
 include::cat/indices.asciidoc[]
@@ -110,11 +112,11 @@ include::cat/nodes.asciidoc[]
 
 include::cat/pending_tasks.asciidoc[]
 
+include::cat/plugins.asciidoc[]
+
 include::cat/recovery.asciidoc[]
 
 include::cat/thread_pool.asciidoc[]
 
 include::cat/shards.asciidoc[]
-
-include::cat/plugins.asciidoc[]
 

@@ -67,7 +67,7 @@ public class PostingFormats {
         for (String luceneName : PostingsFormat.availablePostingsFormats()) {
             buildInPostingFormatsX.put(luceneName, new PreBuiltPostingsFormatProvider.Factory(PostingsFormat.forName(luceneName)));
         }
-        final Elasticsearch090PostingsFormat defaultFormat = new Elasticsearch090PostingsFormat();
+        final PostingsFormat defaultFormat = new Elasticsearch090PostingsFormat();
         buildInPostingFormatsX.put("direct", new PreBuiltPostingsFormatProvider.Factory("direct", PostingsFormat.forName("Direct")));
         buildInPostingFormatsX.put("memory", new PreBuiltPostingsFormatProvider.Factory("memory", PostingsFormat.forName("Memory")));
         // LUCENE UPGRADE: Need to change this to the relevant ones on a lucene upgrade

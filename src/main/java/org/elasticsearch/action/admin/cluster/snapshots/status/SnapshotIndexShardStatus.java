@@ -49,6 +49,7 @@ public class SnapshotIndexShardStatus extends BroadcastShardOperationResponse im
     SnapshotIndexShardStatus(String index, int shardId, SnapshotIndexShardStage stage) {
         super(index, shardId);
         this.stage = stage;
+        this.stats = new SnapshotStats();
     }
 
     SnapshotIndexShardStatus(ShardId shardId, IndexShardSnapshotStatus indexShardStatus) {

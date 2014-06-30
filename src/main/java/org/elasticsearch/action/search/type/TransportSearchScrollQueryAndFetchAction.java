@@ -181,7 +181,11 @@ public class TransportSearchScrollQueryAndFetchAction extends AbstractComponent 
             addShardFailure(shardIndex, new ShardSearchFailure(t));
             successfulOps.decrementAndGet();
             if (counter.decrementAndGet() == 0) {
-                finishHim();
+                if (successfulOps.get() == 0) {
+                    listener.onFailure(new SearchPhaseExecutionException("query_fetch", "all shards failed", buildShardFailures()));
+                } else {
+                    finishHim();
+                }
             }
         }
 
@@ -194,12 +198,7 @@ public class TransportSearchScrollQueryAndFetchAction extends AbstractComponent 
         }
 
         private void innerFinishHim() throws Exception {
-            ScoreDoc[] sortedShardList;
-            if (useSlowScroll) {
-                sortedShardList = searchPhaseController.sortDocs(queryFetchResults);
-            } else {
-                sortedShardList = searchPhaseController.sortDocsForScroll(queryFetchResults);
-            }
+            ScoreDoc[] sortedShardList = searchPhaseController.sortDocs(!useSlowScroll, queryFetchResults);
             final InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, queryFetchResults, queryFetchResults);
             String scrollId = null;
             if (request.scroll() != null) {

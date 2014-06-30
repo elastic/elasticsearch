@@ -43,10 +43,10 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.XCollector;
 import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
+import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.BytesText;
 import org.elasticsearch.common.text.StringText;
@@ -68,10 +68,14 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.internal.IdFieldMapper;
 import org.elasticsearch.index.percolator.stats.ShardPercolateService;
 import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.percolator.QueryCollector.*;
+import org.elasticsearch.percolator.QueryCollector.Count;
+import org.elasticsearch.percolator.QueryCollector.Match;
+import org.elasticsearch.percolator.QueryCollector.MatchAndScore;
+import org.elasticsearch.percolator.QueryCollector.MatchAndSort;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchShardTarget;
@@ -207,7 +211,9 @@ public class PercolatorService extends AbstractComponent {
 
             // parse the source either into one MemoryIndex, if it is a single document or index multiple docs if nested
             PercolatorIndex percolatorIndex;
-            if (indexShard.mapperService().documentMapper(request.documentType()).hasNestedObjects()) {
+            boolean isNested = indexShard.mapperService().documentMapper(request.documentType()).hasNestedObjects();
+            if (parsedDocument.docs().size() > 1) {
+                assert isNested;
                 percolatorIndex = multi;
             } else {
                 percolatorIndex = single;
@@ -228,7 +234,7 @@ public class PercolatorService extends AbstractComponent {
             context.percolatorTypeId = action.id();
 
             percolatorIndex.prepare(context, parsedDocument);
-            return action.doPercolate(request, context);
+            return action.doPercolate(request, context, isNested);
         } finally {
             context.close();
             shardPercolateService.postPercolate(System.nanoTime() - startTime);
@@ -273,9 +279,7 @@ public class PercolatorService extends AbstractComponent {
                         DocumentMapper docMapper = mapperService.documentMapperWithAutoCreate(request.documentType());
                         doc = docMapper.parse(source(parser).type(request.documentType()).flyweight(true));
                         if (doc.mappingsModified()) {
-                            mappingUpdatedAction.updateMappingOnMaster(
-                                    docMapper, request.index(), request.documentType(), documentIndexService.indexUUID(), true
-                            );
+                            mappingUpdatedAction.updateMappingOnMaster(request.index(), docMapper, documentIndexService.indexUUID());
                         }
                         // the document parsing exists the "doc" object, so we need to set the new current field.
                         currentFieldName = parser.currentName();
@@ -414,7 +418,7 @@ public class PercolatorService extends AbstractComponent {
 
         ReduceResult reduce(List<PercolateShardResponse> shardResults);
 
-        PercolateShardResponse doPercolate(PercolateShardRequest request, PercolateContext context);
+        PercolateShardResponse doPercolate(PercolateShardRequest request, PercolateContext context, boolean isNested);
 
     }
 
@@ -439,13 +443,17 @@ public class PercolatorService extends AbstractComponent {
         }
 
         @Override
-        public PercolateShardResponse doPercolate(PercolateShardRequest request, PercolateContext context) {
+        public PercolateShardResponse doPercolate(PercolateShardRequest request, PercolateContext context, boolean isNested) {
             long count = 0;
             Lucene.ExistsCollector collector = new Lucene.ExistsCollector();
-            for (Map.Entry<HashedBytesRef, Query> entry : context.percolateQueries().entrySet()) {
+            for (Map.Entry<BytesRef, Query> entry : context.percolateQueries().entrySet()) {
                 collector.reset();
                 try {
-                    context.docSearcher().search(entry.getValue(), collector);
+                    if (isNested) {
+                        context.docSearcher().search(entry.getValue(), NonNestedDocsFilter.INSTANCE, collector);
+                    } else {
+                        context.docSearcher().search(entry.getValue(), collector);
+                    }
                 } catch (Throwable e) {
                     logger.debug("[" + entry.getKey() + "] failed to execute query", e);
                     throw new PercolateException(context.indexShard().shardId(), "failed to execute", e);
@@ -473,11 +481,11 @@ public class PercolatorService extends AbstractComponent {
         }
 
         @Override
-        public PercolateShardResponse doPercolate(PercolateShardRequest request, PercolateContext context) {
+        public PercolateShardResponse doPercolate(PercolateShardRequest request, PercolateContext context, boolean isNested) {
             long count = 0;
             Engine.Searcher percolatorSearcher = context.indexShard().acquireSearcher("percolate");
             try {
-                Count countCollector = count(logger, context);
+                Count countCollector = count(logger, context, isNested);
                 queryBasedPercolating(percolatorSearcher, context, countCollector);
                 count = countCollector.counter();
             } catch (Throwable e) {
@@ -530,20 +538,24 @@ public class PercolatorService extends AbstractComponent {
         }
 
         @Override
-        public PercolateShardResponse doPercolate(PercolateShardRequest request, PercolateContext context) {
+        public PercolateShardResponse doPercolate(PercolateShardRequest request, PercolateContext context, boolean isNested) {
             long count = 0;
             List<BytesRef> matches = new ArrayList<>();
             List<Map<String, HighlightField>> hls = new ArrayList<>();
             Lucene.ExistsCollector collector = new Lucene.ExistsCollector();
 
-            for (Map.Entry<HashedBytesRef, Query> entry : context.percolateQueries().entrySet()) {
+            for (Map.Entry<BytesRef, Query> entry : context.percolateQueries().entrySet()) {
                 collector.reset();
                 if (context.highlight() != null) {
                     context.parsedQuery(new ParsedQuery(entry.getValue(), ImmutableMap.<String, Filter>of()));
                     context.hitContext().cache().clear();
                 }
                 try {
-                    context.docSearcher().search(entry.getValue(), collector);
+                    if (isNested) {
+                        context.docSearcher().search(entry.getValue(), NonNestedDocsFilter.INSTANCE, collector);
+                    } else {
+                        context.docSearcher().search(entry.getValue(), collector);
+                    }
                 } catch (Throwable e) {
                     logger.debug("[" + entry.getKey() + "] failed to execute query", e);
                     throw new PercolateException(context.indexShard().shardId(), "failed to execute", e);
@@ -551,7 +563,7 @@ public class PercolatorService extends AbstractComponent {
 
                 if (collector.exists()) {
                     if (!context.limit || count < context.size()) {
-                        matches.add(entry.getKey().bytes);
+                        matches.add(entry.getKey());
                         if (context.highlight() != null) {
                             highlightPhase.hitExecute(context, context.hitContext());
                             hls.add(context.hitContext().hit().getHighlightFields());
@@ -579,10 +591,10 @@ public class PercolatorService extends AbstractComponent {
         }
 
         @Override
-        public PercolateShardResponse doPercolate(PercolateShardRequest request, PercolateContext context) {
+        public PercolateShardResponse doPercolate(PercolateShardRequest request, PercolateContext context, boolean isNested) {
             Engine.Searcher percolatorSearcher = context.indexShard().acquireSearcher("percolate");
             try {
-                Match match = match(logger, context, highlightPhase);
+                Match match = match(logger, context, highlightPhase, isNested);
                 queryBasedPercolating(percolatorSearcher, context, match);
                 List<BytesRef> matches = match.matches();
                 List<Map<String, HighlightField>> hls = match.hls();
@@ -612,10 +624,10 @@ public class PercolatorService extends AbstractComponent {
         }
 
         @Override
-        public PercolateShardResponse doPercolate(PercolateShardRequest request, PercolateContext context) {
+        public PercolateShardResponse doPercolate(PercolateShardRequest request, PercolateContext context, boolean isNested) {
             Engine.Searcher percolatorSearcher = context.indexShard().acquireSearcher("percolate");
             try {
-                MatchAndScore matchAndScore = matchAndScore(logger, context, highlightPhase);
+                MatchAndScore matchAndScore = matchAndScore(logger, context, highlightPhase, isNested);
                 queryBasedPercolating(percolatorSearcher, context, matchAndScore);
                 List<BytesRef> matches = matchAndScore.matches();
                 List<Map<String, HighlightField>> hls = matchAndScore.hls();
@@ -726,10 +738,10 @@ public class PercolatorService extends AbstractComponent {
         }
 
         @Override
-        public PercolateShardResponse doPercolate(PercolateShardRequest request, PercolateContext context) {
+        public PercolateShardResponse doPercolate(PercolateShardRequest request, PercolateContext context, boolean isNested) {
             Engine.Searcher percolatorSearcher = context.indexShard().acquireSearcher("percolate");
             try {
-                MatchAndSort matchAndSort = QueryCollector.matchAndSort(logger, context);
+                MatchAndSort matchAndSort = QueryCollector.matchAndSort(logger, context, isNested);
                 queryBasedPercolating(percolatorSearcher, context, matchAndSort);
                 TopDocs topDocs = matchAndSort.topDocs();
                 long count = topDocs.totalHits;
@@ -743,19 +755,17 @@ public class PercolatorService extends AbstractComponent {
                 final FieldMapper<?> idMapper = context.mapperService().smartNameFieldMapper(IdFieldMapper.NAME);
                 final IndexFieldData<?> idFieldData = context.fieldData().getForField(idMapper);
                 int i = 0;
-                final HashedBytesRef spare = new HashedBytesRef(new BytesRef());
                 for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
                     int segmentIdx = ReaderUtil.subIndex(scoreDoc.doc, percolatorSearcher.reader().leaves());
                     AtomicReaderContext atomicReaderContext = percolatorSearcher.reader().leaves().get(segmentIdx);
-                    BytesValues values = idFieldData.load(atomicReaderContext).getBytesValues(true);
+                    BytesValues values = idFieldData.load(atomicReaderContext).getBytesValues();
                     final int localDocId = scoreDoc.doc - atomicReaderContext.docBase;
                     final int numValues = values.setDocument(localDocId);
                     assert numValues == 1;
-                    spare.bytes = values.nextValue();
-                    spare.hash = values.currentValueHash();
-                    matches.add(values.copyShared());
+                    BytesRef bytes = values.nextValue();
+                    matches.add(BytesRef.deepCopyOf(bytes));
                     if (hls != null) {
-                        Query query = context.percolateQueries().get(spare);
+                        Query query = context.percolateQueries().get(bytes);
                         context.parsedQuery(new ParsedQuery(query, ImmutableMap.<String, Filter>of()));
                         context.hitContext().cache().clear();
                         highlightPhase.hitExecute(context, context.hitContext());
@@ -781,9 +791,8 @@ public class PercolatorService extends AbstractComponent {
     private void queryBasedPercolating(Engine.Searcher percolatorSearcher, PercolateContext context, QueryCollector percolateCollector) throws IOException {
         Filter percolatorTypeFilter = context.indexService().mapperService().documentMapper(TYPE_NAME).typeFilter();
         percolatorTypeFilter = context.indexService().cache().filter().cache(percolatorTypeFilter);
-        FilteredQuery query = new FilteredQuery(context.percolateQuery(), percolatorTypeFilter);
+        XFilteredQuery query = new XFilteredQuery(context.percolateQuery(), percolatorTypeFilter);
         percolatorSearcher.searcher().search(query, percolateCollector);
-
         for (Collector queryCollector : percolateCollector.facetAndAggregatorCollector) {
             if (queryCollector instanceof XCollector) {
                 ((XCollector) queryCollector).postCollection();

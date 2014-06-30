@@ -23,7 +23,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
-import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -34,14 +33,14 @@ import java.util.Map;
 /**
  * Builder for a create index request
  */
-public class CreateIndexRequestBuilder extends AcknowledgedRequestBuilder<CreateIndexRequest, CreateIndexResponse, CreateIndexRequestBuilder> {
+public class CreateIndexRequestBuilder extends AcknowledgedRequestBuilder<CreateIndexRequest, CreateIndexResponse, CreateIndexRequestBuilder, IndicesAdminClient> {
 
     public CreateIndexRequestBuilder(IndicesAdminClient indicesClient) {
-        super((InternalIndicesAdminClient) indicesClient, new CreateIndexRequest());
+        super(indicesClient, new CreateIndexRequest());
     }
 
     public CreateIndexRequestBuilder(IndicesAdminClient indicesClient, String index) {
-        super((InternalIndicesAdminClient) indicesClient, new CreateIndexRequest(index));
+        super(indicesClient, new CreateIndexRequest(index));
     }
 
     /**
@@ -248,6 +247,6 @@ public class CreateIndexRequestBuilder extends AcknowledgedRequestBuilder<Create
 
     @Override
     protected void doExecute(ActionListener<CreateIndexResponse> listener) {
-        ((IndicesAdminClient) client).create(request, listener);
+        client.create(request, listener);
     }
 }

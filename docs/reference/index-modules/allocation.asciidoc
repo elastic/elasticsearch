@@ -43,8 +43,9 @@ to be allocated to a node. This is in contrast to `include` which will
 include a node if ANY rule matches.
 
 The `include`, `exclude` and `require` values can have generic simple
-matching wildcards, for example, `value1*`. A special attribute name
-called `_ip` can be used to match on node ip values.
+matching wildcards, for example, `value1*`. Additonally, special attribute
+names called `_ip`, `_name`, `_id` and `_host` can be used to match by node
+ip address, name, id or host name, respectively.
 
 Obviously a node can have several attributes associated with it, and
 both the attribute name and value are controlled in the setting. For
@@ -99,16 +100,18 @@ settings API.
 [[disk]]
 === Disk-based Shard Allocation
 
+coming[1.3.0] disk based shard allocation is enabled from version 1.3.0 onward
+
 Elasticsearch can be configured to prevent shard
 allocation on nodes depending on disk usage for the node. This
-functionality is disabled by default, and can be changed either in the
+functionality is enabled by default, and can be changed either in the
 configuration file, or dynamically using:
 
 [source,js]
 --------------------------------------------------
 curl -XPUT localhost:9200/_cluster/settings -d '{
     "transient" : {
-        "cluster.routing.allocation.disk.threshold_enabled" : true
+        "cluster.routing.allocation.disk.threshold_enabled" : false
     }
 }'
 --------------------------------------------------
@@ -117,15 +120,15 @@ Once enabled, Elasticsearch uses two watermarks to decide whether
 shards should be allocated or can remain on the node.
 
 `cluster.routing.allocation.disk.watermark.low` controls the low
-watermark for disk usage. It defaults to 70%, meaning ES will not
-allocate new shards to nodes once they have more than 70% disk
+watermark for disk usage. It defaults to 85%, meaning ES will not
+allocate new shards to nodes once they have more than 85% disk
 used. It can also be set to an absolute byte value (like 500mb) to
 prevent ES from allocating shards if less than the configured amount
 of space is available.
 
 `cluster.routing.allocation.disk.watermark.high` controls the high
-watermark. It defaults to 85%, meaning ES will attempt to relocate
-shards to another node if the node disk usage rises above 85%. It can
+watermark. It defaults to 90%, meaning ES will attempt to relocate
+shards to another node if the node disk usage rises above 90%. It can
 also be set to an absolute byte value (similar to the low watermark)
 to relocate shards once less than the configured amount of space is
 available on the node.

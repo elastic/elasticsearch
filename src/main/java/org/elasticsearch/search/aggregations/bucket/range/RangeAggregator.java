@@ -203,7 +203,7 @@ public class RangeAggregator extends BucketsAggregator {
             buckets.add(bucket);
         }
         // value source can be null in the case of unmapped fields
-        return rangeFactory.create(name, buckets, formatter, keyed, false);
+        return rangeFactory.create(name, buckets, formatter, keyed);
     }
 
     @Override
@@ -217,7 +217,7 @@ public class RangeAggregator extends BucketsAggregator {
             buckets.add(bucket);
         }
         // value source can be null in the case of unmapped fields
-        return rangeFactory.create(name, buckets, formatter, keyed, false);
+        return rangeFactory.create(name, buckets, formatter, keyed);
     }
 
     private static final void sortRanges(final Range[] ranges) {
@@ -274,7 +274,7 @@ public class RangeAggregator extends BucketsAggregator {
             for (RangeAggregator.Range range : ranges) {
                 buckets.add(factory.createBucket(range.key, range.from, range.to, 0, subAggs, formatter));
             }
-            return factory.create(name, buckets, formatter, keyed, true);
+            return factory.create(name, buckets, formatter, keyed);
         }
     }
 

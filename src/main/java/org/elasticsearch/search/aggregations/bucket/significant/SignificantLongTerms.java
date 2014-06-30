@@ -83,6 +83,11 @@ public class SignificantLongTerms extends InternalSignificantTerms {
             return Long.toString(term);
         }
 
+        @Override
+        Bucket newBucket(long subsetDf, long subsetSize, long supersetDf, long supersetSize, InternalAggregations aggregations) {
+            return new Bucket(subsetDf, subsetSize, supersetDf, supersetSize, term, aggregations);
+        }
+
     }
 
     private ValueFormatter formatter;
@@ -99,6 +104,12 @@ public class SignificantLongTerms extends InternalSignificantTerms {
     @Override
     public Type type() {
         return TYPE;
+    }
+
+    @Override
+    InternalSignificantTerms newAggregation(long subsetSize, long supersetSize,
+            List<InternalSignificantTerms.Bucket> buckets) {
+        return new SignificantLongTerms(subsetSize, supersetSize, getName(), formatter, requiredSize, minDocCount, buckets);
     }
 
     @Override

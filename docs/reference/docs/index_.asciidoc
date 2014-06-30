@@ -109,7 +109,7 @@ By default, internal versioning is used that starts at 1 and increments
 with each update, deletes included. Optionally, the version number can be
 supplemented with an external value (for example, if maintained in a
 database). To enable this functionality, `version_type` should be set to
-`external`. The value provided must be a numeric, long value greater than 0,
+`external`. The value provided must be a numeric, long value greater or equal to 0,
 and less than around 9.2e+18. When using the external version type, instead
 of checking for a matching version number, the system checks to see if
 the version number passed to the index request is greater than the
@@ -138,12 +138,13 @@ of the stored document.
 
 `external` or `external_gt`:: only index the document if the given version is strictly higher
 than the version of the stored document *or* if there is no existing document. The given
-version will be used as the new version and will be stored with the new document.
+version will be used as the new version and will be stored with the new document. The supplied
+version must be a non-negative long number.
 
 `external_gte`:: only index the document if the given version is *equal* or higher
 than the version of the stored document. If there is no existing document
 the operation will succeed as well. The given version will be used as the new version
-and will be stored with the new document.
+and will be stored with the new document. The supplied version must be a non-negative long number.
 
 `force`:: the document will be indexed regardless of the version of the stored document or if there
 is no existing document. The given version will be used as the new version and will be stored
@@ -342,6 +343,10 @@ setting. To alter this behavior per-operation, the `consistency` request
 parameter can be used.
 
 Valid write consistency values are `one`, `quorum`, and `all`.
+
+Note, for the case where the number of replicas is 1 (total of 2 copies
+of the data), then the default behavior is to succeed if 1 copy (the primary)
+can perform the write.
 
 [float]
 [[index-replication]]

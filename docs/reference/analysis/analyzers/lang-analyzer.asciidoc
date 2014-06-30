@@ -2,12 +2,37 @@
 === Language Analyzers
 
 A set of analyzers aimed at analyzing specific language text. The
-following types are supported: `arabic`, `armenian`, `basque`,
-`brazilian`, `bulgarian`, `catalan`, `chinese`, `cjk`, `czech`,
-`danish`, `dutch`, `english`, `finnish`, `french`, `galician`, `german`,
-`greek`, `hindi`, `hungarian`, `indonesian`, `italian`, `norwegian`,
-`persian`, `portuguese`, `romanian`, `russian`, `spanish`, `swedish`,
-`turkish`, `thai`.
+following types are supported:
+<<arabic-analyzer,`arabic`>>,
+<<armenian-analyzer,`armenian`>>,
+<<basque-analyzer,`basque`>>,
+<<brazilian-analyzer,`brazilian`>>,
+<<bulgarian-analyzer,`bulgarian`>>,
+<<catalan-analyzer,`catalan`>>,
+<<chinese-analyzer,`chinese`>>,
+<<cjk-analyzer,`cjk`>>,
+<<czech-analyzer,`czech`>>,
+<<danish-analyzer,`danish`>>,
+<<dutch-analyzer,`dutch`>>,
+<<english-analyzer,`english`>>,
+<<finnish-analyzer,`finnish`>>,
+<<french-analyzer,`french`>>,
+<<galician-analyzer,`galician`>>,
+<<german-analyzer,`german`>>,
+<<greek-analyzer,`greek`>>,
+<<hindi-analyzer,`hindi`>>,
+<<hungarian-analyzer,`hungarian`>>,
+<<indonesian-analyzer,`indonesian`>>,
+<<italian-analyzer,`italian`>>,
+<<norwegian-analyzer,`norwegian`>>,
+<<persian-analyzer,`persian`>>,
+<<portuguese-analyzer,`portuguese`>>,
+<<romanian-analyzer,`romanian`>>,
+<<russian-analyzer,`russian`>>,
+<<spanish-analyzer,`spanish`>>,
+<<swedish-analyzer,`swedish`>>,
+<<turkish-analyzer,`turkish`>>,
+<<thai-analyzer,`thai`>>.
 
 All analyzers support setting custom `stopwords` either internally in
 the config, or by using an external stopwords file by setting
@@ -15,7 +40,1215 @@ the config, or by using an external stopwords file by setting
 more details.
 
 The following analyzers support setting custom `stem_exclusion` list:
-`arabic`, `armenian`, `basque`, `brazilian`, `bulgarian`, `catalan`,
-`czech`, `danish`, `dutch`, `english`, `finnish`, `french`, `galician`,
+`arabic`, `armenian`, `basque`, `catalan`, `bulgarian`, `catalan`,
+`czech`, `finnish`, `dutch`, `english`, `finnish`, `french`, `galician`,
 `german`, `hindi`, `hungarian`, `indonesian`, `italian`, `norwegian`,
 `portuguese`, `romanian`, `russian`, `spanish`, `swedish`, `turkish`.
+
+[[arabic-analyzer]]
+==== `arabic` analyzer
+
+The `arabic` analyzer could be reimplemented as a `custom` analyzer as follows:
+
+[source,js]
+----------------------------------------------------
+{
+  "settings": {
+    "analysis": {
+      "filter": {
+        "arabic_stop": {
+          "type":       "stop",
+          "stopwords":  "_arabic_" <1>
+        },
+        "arabic_keywords": {
+          "type":       "keyword_marker",
+          "keywords":   [] <2>
+        },
+        "arabic_stemmer": {
+          "type":       "stemmer",
+          "language":   "arabic"
+        }
+      },
+      "analyzer": {
+        "arabic": {
+          "tokenizer":  "standard",
+          "filter": [
+            "lowercase",
+            "arabic_stop",
+            "arabic_normalization",
+            "arabic_keywords",
+            "arabic_stemmer"
+          ]
+        }
+      }
+    }
+  }
+}
+----------------------------------------------------
+<1> The default stopwords can be overridden with the `stopwords`
+    or `stopwords_path` parameters.
+<2> Words can be excluded from stemming with the `stem_exclusion`
+    parameter.
+
+[[armenian-analyzer]]
+==== `armenian` analyzer
+
+The `armenian` analyzer could be reimplemented as a `custom` analyzer as follows:
+
+[source,js]
+----------------------------------------------------
+{
+  "settings": {
+    "analysis": {
+      "filter": {
+        "armenian_stop": {
+          "type":       "stop",
+          "stopwords":  "_armenian_" <1>
+        },
+        "armenian_keywords": {
+          "type":       "keyword_marker",
+          "keywords":   [] <2>
+        },
+        "armenian_stemmer": {
+          "type":       "stemmer",
+          "language":   "armenian"
+        }
+      },
+      "analyzer": {
+        "armenian": {
+          "tokenizer":  "standard",
+          "filter": [
+            "lowercase",
+            "armenian_stop",
+            "armenian_keywords",
+            "armenian_stemmer"
+          ]
+        }
+      }
+    }
+  }
+}
+----------------------------------------------------
+<1> The default stopwords can be overridden with the `stopwords`
+    or `stopwords_path` parameters.
+<2> Words can be excluded from stemming with the `stem_exclusion`
+    parameter.
+
+[[basque-analyzer]]
+==== `basque` analyzer
+
+The `basque` analyzer could be reimplemented as a `custom` analyzer as follows:
+
+[source,js]
+----------------------------------------------------
+{
+  "settings": {
+    "analysis": {
+      "filter": {
+        "basque_stop": {
+          "type":       "stop",
+          "stopwords":  "_basque_" <1>
+        },
+        "basque_keywords": {
+          "type":       "keyword_marker",
+          "keywords":   [] <2>
+        },
+        "basque_stemmer": {
+          "type":       "stemmer",
+          "language":   "basque"
+        }
+      },
+      "analyzer": {
+        "basque": {
+          "tokenizer":  "standard",
+          "filter": [
+            "lowercase",
+            "basque_stop",
+            "basque_keywords",
+            "basque_stemmer"
+          ]
+        }
+      }
+    }
+  }
+}
+----------------------------------------------------
+<1> The default stopwords can be overridden with the `stopwords`
+    or `stopwords_path` parameters.
+<2> Words can be excluded from stemming with the `stem_exclusion`
+    parameter.
+
+[[brazilian-analyzer]]
+==== `brazilian` analyzer
+
+The `brazilian` analyzer could be reimplemented as a `custom` analyzer as follows:
+
+[source,js]
+----------------------------------------------------
+{
+  "settings": {
+    "analysis": {
+      "filter": {
+        "brazilian_stop": {
+          "type":       "stop",
+          "stopwords":  "_brazilian_" <1>
+        },
+        "brazilian_keywords": {
+          "type":       "keyword_marker",
+          "keywords":   [] <2>
+        },
+        "brazilian_stemmer": {
+          "type":       "stemmer",
+          "language":   "brazilian"
+        }
+      },
+      "analyzer": {
+        "brazilian": {
+          "tokenizer":  "standard",
+          "filter": [
+            "lowercase",
+            "brazilian_stop",
+            "brazilian_keywords",
+            "brazilian_stemmer"
+          ]
+        }
+      }
+    }
+  }
+}
+----------------------------------------------------
+<1> The default stopwords can be overridden with the `stopwords`
+    or `stopwords_path` parameters.
+<2> Words can be excluded from stemming with the `stem_exclusion`
+    parameter.
+
+[[bulgarian-analyzer]]
+==== `bulgarian` analyzer
+
+The `bulgarian` analyzer could be reimplemented as a `custom` analyzer as follows:
+
+[source,js]
+----------------------------------------------------
+{
+  "settings": {
+    "analysis": {
+      "filter": {
+        "bulgarian_stop": {
+          "type":       "stop",
+          "stopwords":  "_bulgarian_" <1>
+        },
+        "bulgarian_keywords": {
+          "type":       "keyword_marker",
+          "keywords":   [] <2>
+        },
+        "bulgarian_stemmer": {
+          "type":       "stemmer",
+          "language":   "bulgarian"
+        }
+      },
+      "analyzer": {
+        "bulgarian": {
+          "tokenizer":  "standard",
+          "filter": [
+            "lowercase",
+            "bulgarian_stop",
+            "bulgarian_keywords",
+            "bulgarian_stemmer"
+          ]
+        }
+      }
+    }
+  }
+}
+----------------------------------------------------
+<1> The default stopwords can be overridden with the `stopwords`
+    or `stopwords_path` parameters.
+<2> Words can be excluded from stemming with the `stem_exclusion`
+    parameter.
+
+[[catalan-analyzer]]
+==== `catalan` analyzer
+
+The `catalan` analyzer could be reimplemented as a `custom` analyzer as follows:
+
+[source,js]
+----------------------------------------------------
+{
+  "settings": {
+    "analysis": {
+      "filter": {
+        "catalan_elision": {
+        "type":         "elision",
+            "articles": [ "d", "l", "m", "n", "s", "t"]
+        },
+        "catalan_stop": {
+          "type":       "stop",
+          "stopwords":  "_catalan_" <1>
+        },
+        "catalan_keywords": {
+          "type":       "keyword_marker",
+          "keywords":   [] <2>
+        },
+        "catalan_stemmer": {
+          "type":       "stemmer",
+          "language":   "catalan"
+        }
+      },
+      "analyzer": {
+        "catalan": {
+          "tokenizer":  "standard",
+          "filter": [
+            "catalan_elision",
+            "lowercase",
+            "catalan_stop",
+            "catalan_keywords",
+            "catalan_stemmer"
+          ]
+        }
+      }
+    }
+  }
+}
+----------------------------------------------------
+<1> The default stopwords can be overridden with the `stopwords`
+    or `stopwords_path` parameters.
+<2> Words can be excluded from stemming with the `stem_exclusion`
+    parameter.
+
+[[chinese-analyzer]]
+==== `chinese` analyzer
+
+The `chinese` analyzer cannot be reimplemented as a `custom` analyzer
+because it depends on the ChineseTokenizer and ChineseFilter classes,
+which are not exposed in Elasticsearch.  These classes are
+deprecated in Lucene 4 and the `chinese` analyzer will be replaced
+with the <<analysis-standard-analyzer>> in Lucene 5.
+
+[[cjk-analyzer]]
+==== `cjk` analyzer
+
+The `cjk` analyzer could be reimplemented as a `custom` analyzer as follows:
+
+[source,js]
+----------------------------------------------------
+{
+  "settings": {
+    "analysis": {
+      "filter": {
+        "english_stop": {
+          "type":       "stop",
+          "stopwords":  "_english_" <1>
+        }
+      },
+      "analyzer": {
+        "cjk": {
+          "tokenizer":  "standard",
+          "filter": [
+            "cjk_width"
+            "lowercase",
+            "cjk_bigram",
+            "english_stop"
+          ]
+        }
+      }
+    }
+  }
+}
+----------------------------------------------------
+<1> The default stopwords can be overridden with the `stopwords`
+    or `stopwords_path` parameters.
+
+[[czech-analyzer]]
+==== `czech` analyzer
+
+The `czech` analyzer could be reimplemented as a `custom` analyzer as follows:
+
+[source,js]
+----------------------------------------------------
+{
+  "settings": {
+    "analysis": {
+      "filter": {
+        "czech_stop": {
+          "type":       "stop",
+          "stopwords":  "_czech_" <1>
+        },
+        "czech_keywords": {
+          "type":       "keyword_marker",
+          "keywords":   [] <2>
+        },
+        "czech_stemmer": {
+          "type":       "stemmer",
+          "language":   "czech"
+        }
+      },
+      "analyzer": {
+        "czech": {
+          "tokenizer":  "standard",
+          "filter": [
+            "lowercase",
+            "czech_stop",
+            "czech_keywords",
+            "czech_stemmer"
+          ]
+        }
+      }
+    }
+  }
+}
+----------------------------------------------------
+<1> The default stopwords can be overridden with the `stopwords`
+    or `stopwords_path` parameters.
+<2> Words can be excluded from stemming with the `stem_exclusion`
+    parameter.
+
+[[danish-analyzer]]
+==== `danish` analyzer
+
+The `danish` analyzer could be reimplemented as a `custom` analyzer as follows:
+
+[source,js]
+----------------------------------------------------
+{
+  "settings": {
+    "analysis": {
+      "filter": {
+        "danish_stop": {
+          "type":       "stop",
+          "stopwords":  "_danish_" <1>
+        },
+        "danish_keywords": {
+          "type":       "keyword_marker",
+          "keywords":   [] <2>
+        },
+        "danish_stemmer": {
+          "type":       "stemmer",
+          "language":   "danish"
+        }
+      },
+      "analyzer": {
+        "danish": {
+          "tokenizer":  "standard",
+          "filter": [
+            "lowercase",
+            "danish_stop",
+            "danish_keywords",
+            "danish_stemmer"
+          ]
+        }
+      }
+    }
+  }
+}
+----------------------------------------------------
+<1> The default stopwords can be overridden with the `stopwords`
+    or `stopwords_path` parameters.
+<2> Words can be excluded from stemming with the `stem_exclusion`
+    parameter.
+
+[[dutch-analyzer]]
+==== `dutch` analyzer
+
+The `dutch` analyzer could be reimplemented as a `custom` analyzer as follows:
+
+[source,js]
+----------------------------------------------------
+{
+  "settings": {
+    "analysis": {
+      "filter": {
+        "dutch_stop": {
+          "type":       "stop",
+          "stopwords":  "_dutch_" <1>
+        },
+        "dutch_keywords": {
+          "type":       "keyword_marker",
+          "keywords":   [] <2>
+        },
+        "dutch_stemmer": {
+          "type":       "stemmer",
+          "language":   "dutch"
+        },
+        "dutch_override": {
+          "type":       "stemmer_override",
+          "rules": [
+            "fiets=>fiets",
+            "bromfiets=>bromfiets",
+            "ei=>eier",
+            "kind=>kinder"
+          ]
+        }
+      },
+      "analyzer": {
+        "dutch": {
+          "tokenizer":  "standard",
+          "filter": [
+            "lowercase",
+            "dutch_stop",
+            "dutch_keywords",
+            "dutch_override",
+            "dutch_stemmer"
+          ]
+        }
+      }
+    }
+  }
+}
+----------------------------------------------------
+<1> The default stopwords can be overridden with the `stopwords`
+    or `stopwords_path` parameters.
+<2> Words can be excluded from stemming with the `stem_exclusion`
+    parameter.
+
+[[english-analyzer]]
+==== `english` analyzer
+
+The `english` analyzer could be reimplemented as a `custom` analyzer as follows:
+
+[source,js]
+----------------------------------------------------
+{
+  "settings": {
+    "analysis": {
+      "filter": {
+        "english_stop": {
+          "type":       "stop",
+          "stopwords":  "_english_" <1>
+        },
+        "english_keywords": {
+          "type":       "keyword_marker",
+          "keywords":   [] <2>
+        },
+        "english_stemmer": {
+          "type":       "stemmer",
+          "language":   "english"
+        },
+        "english_possessive_stemmer": {
+          "type":       "stemmer",
+          "language":   "possessive_english"
+        }
+      },
+      "analyzer": {
+        "english": {
+          "tokenizer":  "standard",
+          "filter": [
+            "english_possessive_stemmer",
+            "lowercase",
+            "english_stop",
+            "english_keywords",
+            "english_stemmer"
+          ]
+        }
+      }
+    }
+  }
+}
+----------------------------------------------------
+<1> The default stopwords can be overridden with the `stopwords`
+    or `stopwords_path` parameters.
+<2> Words can be excluded from stemming with the `stem_exclusion`
+    parameter.
+
+[[finnish-analyzer]]
+==== `finnish` analyzer
+
+The `finnish` analyzer could be reimplemented as a `custom` analyzer as follows:
+
+[source,js]
+----------------------------------------------------
+{
+  "settings": {
+    "analysis": {
+      "filter": {
+        "finnish_stop": {
+          "type":       "stop",
+          "stopwords":  "_finnish_" <1>
+        },
+        "finnish_keywords": {
+          "type":       "keyword_marker",
+          "keywords":   [] <2>
+        },
+        "finnish_stemmer": {
+          "type":       "stemmer",
+          "language":   "finnish"
+        }
+      },
+      "analyzer": {
+        "finnish": {
+          "tokenizer":  "standard",
+          "filter": [
+            "lowercase",
+            "finnish_stop",
+            "finnish_keywords",
+            "finnish_stemmer"
+          ]
+        }
+      }
+    }
+  }
+}
+----------------------------------------------------
+<1> The default stopwords can be overridden with the `stopwords`
+    or `stopwords_path` parameters.
+<2> Words can be excluded from stemming with the `stem_exclusion`
+    parameter.
+
+[[french-analyzer]]
+==== `french` analyzer
+
+The `french` analyzer could be reimplemented as a `custom` analyzer as follows:
+
+[source,js]
+----------------------------------------------------
+{
+  "settings": {
+    "analysis": {
+      "filter": {
+        "french_elision": {
+        "type":         "elision",
+            "articles": [ "l", "m", "t", "qu", "n", "s",
+                          "j", "d", "c", "jusqu", "quoiqu",
+                          "lorsqu", "puisqu"
+                        ]
+        },
+        "french_stop": {
+          "type":       "stop",
+          "stopwords":  "_french_" <1>
+        },
+        "french_keywords": {
+          "type":       "keyword_marker",
+          "keywords":   [] <2>
+        },
+        "french_stemmer": {
+          "type":       "stemmer",
+          "language":   "light_french"
+        }
+      },
+      "analyzer": {
+        "french": {
+          "tokenizer":  "standard",
+          "filter": [
+            "french_elision",
+            "lowercase",
+            "french_stop",
+            "french_keywords",
+            "french_stemmer"
+          ]
+        }
+      }
+    }
+  }
+}
+----------------------------------------------------
+<1> The default stopwords can be overridden with the `stopwords`
+    or `stopwords_path` parameters.
+<2> Words can be excluded from stemming with the `stem_exclusion`
+    parameter.
+
+[[galician-analyzer]]
+==== `galician` analyzer
+
+The `galician` analyzer could be reimplemented as a `custom` analyzer as follows:
+
+[source,js]
+----------------------------------------------------
+{
+  "settings": {
+    "analysis": {
+      "filter": {
+        "galician_stop": {
+          "type":       "stop",
+          "stopwords":  "_galician_" <1>
+        },
+        "galician_keywords": {
+          "type":       "keyword_marker",
+          "keywords":   [] <2>
+        },
+        "galician_stemmer": {
+          "type":       "stemmer",
+          "language":   "galician"
+        }
+      },
+      "analyzer": {
+        "galician": {
+          "tokenizer":  "standard",
+          "filter": [
+            "lowercase",
+            "galician_stop",
+            "galician_keywords",
+            "galician_stemmer"
+          ]
+        }
+      }
+    }
+  }
+}
+----------------------------------------------------
+<1> The default stopwords can be overridden with the `stopwords`
+    or `stopwords_path` parameters.
+<2> Words can be excluded from stemming with the `stem_exclusion`
+    parameter.
+
+[[german-analyzer]]
+==== `german` analyzer
+
+The `german` analyzer could be reimplemented as a `custom` analyzer as follows:
+
+[source,js]
+----------------------------------------------------
+{
+  "settings": {
+    "analysis": {
+      "filter": {
+        "german_stop": {
+          "type":       "stop",
+          "stopwords":  "_german_" <1>
+        },
+        "german_keywords": {
+          "type":       "keyword_marker",
+          "keywords":   [] <2>
+        },
+        "german_stemmer": {
+          "type":       "stemmer",
+          "language":   "light_german"
+        }
+      },
+      "analyzer": {
+        "german": {
+          "tokenizer":  "standard",
+          "filter": [
+            "lowercase",
+            "german_stop",
+            "german_keywords",
+            "ascii_folding", <3>
+            "german_stemmer"
+          ]
+        }
+      }
+    }
+  }
+}
+----------------------------------------------------
+<1> The default stopwords can be overridden with the `stopwords`
+    or `stopwords_path` parameters.
+<2> Words can be excluded from stemming with the `stem_exclusion`
+    parameter.
+<3> The `german` analyzer actually uses the GermanNormalizationFilter,
+    which isn't exposed in Elasticsearch.  The `ascii_folding` filter
+    does a similar job but is more extensive.
+
+[[greek-analyzer]]
+==== `greek` analyzer
+
+The `greek` analyzer could be reimplemented as a `custom` analyzer as follows:
+
+[source,js]
+----------------------------------------------------
+{
+  "settings": {
+    "analysis": {
+      "filter": {
+        "greek_stop": {
+          "type":       "stop",
+          "stopwords":  "_greek_" <1>
+        },
+        "greek_keywords": {
+          "type":       "keyword_marker",
+          "keywords":   [] <2>
+        },
+        "greek_stemmer": {
+          "type":       "stemmer",
+          "language":   "greek"
+        }
+      },
+      "analyzer": {
+        "greek": {
+          "tokenizer":  "standard",
+          "filter": [
+            "lowercase",
+            "greek_stop",
+            "greek_keywords",
+            "greek_stemmer"
+          ]
+        }
+      }
+    }
+  }
+}
+----------------------------------------------------
+<1> The default stopwords can be overridden with the `stopwords`
+    or `stopwords_path` parameters.
+<2> Words can be excluded from stemming with the `stem_exclusion`
+    parameter.
+
+[[hindi-analyzer]]
+==== `hindi` analyzer
+
+The `hindi` analyzer cannot currently be implemented as a `custom` analyzer
+as it depends on the IndicNormalizationFilter and HindiNormalizationFilter
+which are not yet exposed by Elasticsearch. Instead, see the <<analysis-icu-plugin>>.
+
+[[hungarian-analyzer]]
+==== `hungarian` analyzer
+
+The `hungarian` analyzer could be reimplemented as a `custom` analyzer as follows:
+
+[source,js]
+----------------------------------------------------
+{
+  "settings": {
+    "analysis": {
+      "filter": {
+        "hungarian_stop": {
+          "type":       "stop",
+          "stopwords":  "_hungarian_" <1>
+        },
+        "hungarian_keywords": {
+          "type":       "keyword_marker",
+          "keywords":   [] <2>
+        },
+        "hungarian_stemmer": {
+          "type":       "stemmer",
+          "language":   "hungarian"
+        }
+      },
+      "analyzer": {
+        "hungarian": {
+          "tokenizer":  "standard",
+          "filter": [
+            "lowercase",
+            "hungarian_stop",
+            "hungarian_keywords",
+            "hungarian_stemmer"
+          ]
+        }
+      }
+    }
+  }
+}
+----------------------------------------------------
+<1> The default stopwords can be overridden with the `stopwords`
+    or `stopwords_path` parameters.
+<2> Words can be excluded from stemming with the `stem_exclusion`
+    parameter.
+
+
+[[indonesian-analyzer]]
+==== `indonesian` analyzer
+
+The `indonesian` analyzer could be reimplemented as a `custom` analyzer as follows:
+
+[source,js]
+----------------------------------------------------
+{
+  "settings": {
+    "analysis": {
+      "filter": {
+        "indonesian_stop": {
+          "type":       "stop",
+          "stopwords":  "_indonesian_" <1>
+        },
+        "indonesian_keywords": {
+          "type":       "keyword_marker",
+          "keywords":   [] <2>
+        },
+        "indonesian_stemmer": {
+          "type":       "stemmer",
+          "language":   "indonesian"
+        }
+      },
+      "analyzer": {
+        "indonesian": {
+          "tokenizer":  "standard",
+          "filter": [
+            "lowercase",
+            "indonesian_stop",
+            "indonesian_keywords",
+            "indonesian_stemmer"
+          ]
+        }
+      }
+    }
+  }
+}
+----------------------------------------------------
+<1> The default stopwords can be overridden with the `stopwords`
+    or `stopwords_path` parameters.
+<2> Words can be excluded from stemming with the `stem_exclusion`
+    parameter.
+
+[[italian-analyzer]]
+==== `italian` analyzer
+
+The `italian` analyzer could be reimplemented as a `custom` analyzer as follows:
+
+[source,js]
+----------------------------------------------------
+{
+  "settings": {
+    "analysis": {
+      "filter": {
+        "italian_elision": {
+        "type":         "elision",
+            "articles": [
+                "c", "l", "all", "dall", "dell",
+                "nell", "sull", "coll", "pell",
+                "gl", "agl", "dagl", "degl", "negl",
+                "sugl", "un", "m", "t", "s", "v", "d"
+            ]
+        },
+        "italian_stop": {
+          "type":       "stop",
+          "stopwords":  "_italian_" <1>
+        },
+        "italian_keywords": {
+          "type":       "keyword_marker",
+          "keywords":   [] <2>
+        },
+        "italian_stemmer": {
+          "type":       "stemmer",
+          "language":   "light_italian"
+        }
+      },
+      "analyzer": {
+        "italian": {
+          "tokenizer":  "standard",
+          "filter": [
+            "italian_elision",
+            "lowercase",
+            "italian_stop",
+            "italian_keywords",
+            "italian_stemmer"
+          ]
+        }
+      }
+    }
+  }
+}
+----------------------------------------------------
+<1> The default stopwords can be overridden with the `stopwords`
+    or `stopwords_path` parameters.
+<2> Words can be excluded from stemming with the `stem_exclusion`
+    parameter.
+
+[[norwegian-analyzer]]
+==== `norwegian` analyzer
+
+The `norwegian` analyzer could be reimplemented as a `custom` analyzer as follows:
+
+[source,js]
+----------------------------------------------------
+{
+  "settings": {
+    "analysis": {
+      "filter": {
+        "norwegian_stop": {
+          "type":       "stop",
+          "stopwords":  "_norwegian_" <1>
+        },
+        "norwegian_keywords": {
+          "type":       "keyword_marker",
+          "keywords":   [] <2>
+        },
+        "norwegian_stemmer": {
+          "type":       "stemmer",
+          "language":   "norwegian"
+        }
+      },
+      "analyzer": {
+        "norwegian": {
+          "tokenizer":  "standard",
+          "filter": [
+            "lowercase",
+            "norwegian_stop",
+            "norwegian_keywords",
+            "norwegian_stemmer"
+          ]
+        }
+      }
+    }
+  }
+}
+----------------------------------------------------
+<1> The default stopwords can be overridden with the `stopwords`
+    or `stopwords_path` parameters.
+<2> Words can be excluded from stemming with the `stem_exclusion`
+    parameter.
+
+[[persian-analyzer]]
+==== `persian` analyzer
+
+The `persian` analyzer could be reimplemented as a `custom` analyzer as follows:
+
+[source,js]
+----------------------------------------------------
+{
+  "settings": {
+    "analysis": {
+      "char_filter": {
+        "zero_width_spaces": {
+            "type":       "mapping",
+            "mappings": [ "\\u200C=> "] <1>
+        }
+      },
+      "filter": {
+        "persian_stop": {
+          "type":       "stop",
+          "stopwords":  "_persian_" <2>
+        }
+      },
+      "analyzer": {
+        "persian": {
+          "tokenizer":     "standard",
+          "char_filter": [ "zero_width_spaces" ]
+          "filter": [
+            "lowercase",
+            "arabic_normalization",
+            "persian_normalization",
+            "persian_stop"
+          ]
+        }
+      }
+    }
+  }
+}
+----------------------------------------------------
+<1> Replaces zero-width non-joiners with an ASCII space.
+<2> The default stopwords can be overridden with the `stopwords`
+    or `stopwords_path` parameters.
+
+[[portuguese-analyzer]]
+==== `portuguese` analyzer
+
+The `portuguese` analyzer could be reimplemented as a `custom` analyzer as follows:
+
+[source,js]
+----------------------------------------------------
+{
+  "settings": {
+    "analysis": {
+      "filter": {
+        "portuguese_stop": {
+          "type":       "stop",
+          "stopwords":  "_portuguese_" <1>
+        },
+        "portuguese_keywords": {
+          "type":       "keyword_marker",
+          "keywords":   [] <2>
+        },
+        "portuguese_stemmer": {
+          "type":       "stemmer",
+          "language":   "light_portuguese"
+        }
+      },
+      "analyzer": {
+        "portuguese": {
+          "tokenizer":  "standard",
+          "filter": [
+            "lowercase",
+            "portuguese_stop",
+            "portuguese_keywords",
+            "portuguese_stemmer"
+          ]
+        }
+      }
+    }
+  }
+}
+----------------------------------------------------
+<1> The default stopwords can be overridden with the `stopwords`
+    or `stopwords_path` parameters.
+<2> Words can be excluded from stemming with the `stem_exclusion`
+    parameter.
+
+[[romanian-analyzer]]
+==== `romanian` analyzer
+
+The `romanian` analyzer could be reimplemented as a `custom` analyzer as follows:
+
+[source,js]
+----------------------------------------------------
+{
+  "settings": {
+    "analysis": {
+      "filter": {
+        "romanian_stop": {
+          "type":       "stop",
+          "stopwords":  "_romanian_" <1>
+        },
+        "romanian_keywords": {
+          "type":       "keyword_marker",
+          "keywords":   [] <2>
+        },
+        "romanian_stemmer": {
+          "type":       "stemmer",
+          "language":   "romanian"
+        }
+      },
+      "analyzer": {
+        "romanian": {
+          "tokenizer":  "standard",
+          "filter": [
+            "lowercase",
+            "romanian_stop",
+            "romanian_keywords",
+            "romanian_stemmer"
+          ]
+        }
+      }
+    }
+  }
+}
+----------------------------------------------------
+<1> The default stopwords can be overridden with the `stopwords`
+    or `stopwords_path` parameters.
+<2> Words can be excluded from stemming with the `stem_exclusion`
+    parameter.
+
+
+[[russian-analyzer]]
+==== `russian` analyzer
+
+The `russian` analyzer could be reimplemented as a `custom` analyzer as follows:
+
+[source,js]
+----------------------------------------------------
+{
+  "settings": {
+    "analysis": {
+      "filter": {
+        "russian_stop": {
+          "type":       "stop",
+          "stopwords":  "_russian_" <1>
+        },
+        "russian_keywords": {
+          "type":       "keyword_marker",
+          "keywords":   [] <2>
+        },
+        "russian_stemmer": {
+          "type":       "stemmer",
+          "language":   "russian"
+        }
+      },
+      "analyzer": {
+        "russian": {
+          "tokenizer":  "standard",
+          "filter": [
+            "lowercase",
+            "russian_stop",
+            "russian_keywords",
+            "russian_stemmer"
+          ]
+        }
+      }
+    }
+  }
+}
+----------------------------------------------------
+<1> The default stopwords can be overridden with the `stopwords`
+    or `stopwords_path` parameters.
+<2> Words can be excluded from stemming with the `stem_exclusion`
+    parameter.
+
+[[spanish-analyzer]]
+==== `spanish` analyzer
+
+The `spanish` analyzer could be reimplemented as a `custom` analyzer as follows:
+
+[source,js]
+----------------------------------------------------
+{
+  "settings": {
+    "analysis": {
+      "filter": {
+        "spanish_stop": {
+          "type":       "stop",
+          "stopwords":  "_spanish_" <1>
+        },
+        "spanish_keywords": {
+          "type":       "keyword_marker",
+          "keywords":   [] <2>
+        },
+        "spanish_stemmer": {
+          "type":       "stemmer",
+          "language":   "light_spanish"
+        }
+      },
+      "analyzer": {
+        "spanish": {
+          "tokenizer":  "standard",
+          "filter": [
+            "lowercase",
+            "spanish_stop",
+            "spanish_keywords",
+            "spanish_stemmer"
+          ]
+        }
+      }
+    }
+  }
+}
+----------------------------------------------------
+<1> The default stopwords can be overridden with the `stopwords`
+    or `stopwords_path` parameters.
+<2> Words can be excluded from stemming with the `stem_exclusion`
+    parameter.
+
+[[swedish-analyzer]]
+==== `swedish` analyzer
+
+The `swedish` analyzer could be reimplemented as a `custom` analyzer as follows:
+
+[source,js]
+----------------------------------------------------
+{
+  "settings": {
+    "analysis": {
+      "filter": {
+        "swedish_stop": {
+          "type":       "stop",
+          "stopwords":  "_swedish_" <1>
+        },
+        "swedish_keywords": {
+          "type":       "keyword_marker",
+          "keywords":   [] <2>
+        },
+        "swedish_stemmer": {
+          "type":       "stemmer",
+          "language":   "swedish"
+        }
+      },
+      "analyzer": {
+        "swedish": {
+          "tokenizer":  "standard",
+          "filter": [
+            "lowercase",
+            "swedish_stop",
+            "swedish_keywords",
+            "swedish_stemmer"
+          ]
+        }
+      }
+    }
+  }
+}
+----------------------------------------------------
+<1> The default stopwords can be overridden with the `stopwords`
+    or `stopwords_path` parameters.
+<2> Words can be excluded from stemming with the `stem_exclusion`
+    parameter.
+
+[[turkish-analyzer]]
+==== `turkish` analyzer
+
+The `turkish` analyzer cannot currently be implemented as a `custom` analyzer
+because it depends on the TurkishLowerCaseFilter and the ApostropheFilter
+which are not exposed in Elasticsearch. Instead, see the <<analysis-icu-plugin>>.
+
+[[thai-analyzer]]
+==== `thai` analyzer
+
+The `thai` analyzer cannot currently be implemented as a `custom` analyzer
+because it depends on the ThaiTokenizer which is not exposed in Elasticsearch.
+Instead, see the <<analysis-icu-plugin>>.
+

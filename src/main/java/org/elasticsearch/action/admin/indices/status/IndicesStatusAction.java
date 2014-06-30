@@ -23,7 +23,10 @@ import org.elasticsearch.action.admin.indices.IndicesAction;
 import org.elasticsearch.client.IndicesAdminClient;
 
 /**
+ * This class will be removed in future versions
+ * Use the recovery API instead
  */
+@Deprecated
 public class IndicesStatusAction extends IndicesAction<IndicesStatusRequest, IndicesStatusResponse, IndicesStatusRequestBuilder> {
 
     public static final IndicesStatusAction INSTANCE = new IndicesStatusAction();

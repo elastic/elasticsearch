@@ -672,7 +672,6 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
 
     @Test
     @Nightly
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch/pull/5962")
     public void testPhraseBoundaryCases() throws ElasticsearchException, IOException {
         CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
                 .put(indexSettings()).put(SETTING_NUMBER_OF_SHARDS, 1) // to get reliable statistics we should put this all into one shard
@@ -751,10 +750,17 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
         phraseSuggestion.field("ngram").analyzer("myDefAnalyzer")
                 .addCandidateGenerator(candidateGenerator("body").minWordLength(1).suggestMode("always"));
         Suggest suggest = searchSuggest( "Xor the Got-Jewel", phraseSuggestion);
-        assertSuggestion(suggest, 0, "simple_phrase", "xorr the god jewel");
+
+        // "xorr the god jewel" and and "xorn the god jewel" have identical scores (we are only using unigrams to score), so we tie break by
+        // earlier term (xorn):
+        assertSuggestion(suggest, 0, "simple_phrase", "xorn the god jewel");
 
         phraseSuggestion.analyzer(null);
         suggest = searchSuggest( "Xor the Got-Jewel", phraseSuggestion);
+
+        // In this case xorr has a better score than xorn because we set the field back to the default (my_shingle2) analyzer, so the
+        // probability that the term is not in the dictionary but is NOT a misspelling is relatively high in this case compared to the
+        // others that have no n-gram with the other terms in the phrase :) you can set this realWorldErrorLikelyhood
         assertSuggestion(suggest, 0, "simple_phrase", "xorr the god jewel");
     }
 

@@ -139,10 +139,20 @@ public class NettyHttpChannel extends HttpChannel {
                         buffer,
                         ChannelBuffers.wrappedBuffer(END_JSONP)
                 );
+                // Add content-type header of "application/javascript"
+                resp.headers().add(HttpHeaders.Names.CONTENT_TYPE, "application/javascript");
             }
             resp.setContent(buffer);
-            resp.headers().add(HttpHeaders.Names.CONTENT_TYPE, response.contentType());
-            resp.headers().add(HttpHeaders.Names.CONTENT_LENGTH, String.valueOf(buffer.readableBytes()));
+
+            // If our response doesn't specify a content-type header, set one
+            if (!resp.headers().contains(HttpHeaders.Names.CONTENT_TYPE)) {
+                resp.headers().add(HttpHeaders.Names.CONTENT_TYPE, response.contentType());
+            }
+
+            // If our response has no content-length, calculate and set one
+            if (!resp.headers().contains(HttpHeaders.Names.CONTENT_LENGTH)) {
+                resp.headers().add(HttpHeaders.Names.CONTENT_LENGTH, String.valueOf(buffer.readableBytes()));
+            }
 
             if (transport.resetCookies) {
                 String cookieString = nettyRequest.headers().get(HttpHeaders.Names.COOKIE);
@@ -174,6 +184,8 @@ public class NettyHttpChannel extends HttpChannel {
             }
         }
     }
+
+    private static final HttpResponseStatus TOO_MANY_REQUESTS = new HttpResponseStatus(429, "Too Many Requests");
 
     private HttpResponseStatus getStatus(RestStatus status) {
         switch (status) {
@@ -254,6 +266,8 @@ public class NettyHttpChannel extends HttpChannel {
                 return HttpResponseStatus.BAD_REQUEST;
             case FAILED_DEPENDENCY:
                 return HttpResponseStatus.BAD_REQUEST;
+            case TOO_MANY_REQUESTS:
+                return TOO_MANY_REQUESTS;
             case INTERNAL_SERVER_ERROR:
                 return HttpResponseStatus.INTERNAL_SERVER_ERROR;
             case NOT_IMPLEMENTED:

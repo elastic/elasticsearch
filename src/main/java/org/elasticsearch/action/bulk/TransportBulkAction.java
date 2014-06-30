@@ -134,7 +134,7 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
                                 // fail all requests involving this index, if create didnt work
                                 for (int i = 0; i < bulkRequest.requests.size(); i++) {
                                     ActionRequest request = bulkRequest.requests.get(i);
-                                    if (setResponseFailureIfIndexMatches(responses, i, request, index, e)) {
+                                    if (request != null && setResponseFailureIfIndexMatches(responses, i, request, index, e)) {
                                         bulkRequest.requests.set(i, null);
                                     }
                                 }
@@ -202,7 +202,7 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
             if (request instanceof IndexRequest) {
                 IndexRequest indexRequest = (IndexRequest) request;
                 String aliasOrIndex = indexRequest.index();
-                indexRequest.index(clusterState.metaData().concreteIndex(indexRequest.index()));
+                indexRequest.index(clusterState.metaData().concreteSingleIndex(indexRequest.index()));
 
                 MappingMetaData mappingMd = null;
                 if (metaData.hasIndex(indexRequest.index())) {
@@ -220,11 +220,11 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
             } else if (request instanceof DeleteRequest) {
                 DeleteRequest deleteRequest = (DeleteRequest) request;
                 deleteRequest.routing(clusterState.metaData().resolveIndexRouting(deleteRequest.routing(), deleteRequest.index()));
-                deleteRequest.index(clusterState.metaData().concreteIndex(deleteRequest.index()));
+                deleteRequest.index(clusterState.metaData().concreteSingleIndex(deleteRequest.index()));
             } else if (request instanceof UpdateRequest) {
                 UpdateRequest updateRequest = (UpdateRequest) request;
                 updateRequest.routing(clusterState.metaData().resolveIndexRouting(updateRequest.routing(), updateRequest.index()));
-                updateRequest.index(clusterState.metaData().concreteIndex(updateRequest.index()));
+                updateRequest.index(clusterState.metaData().concreteSingleIndex(updateRequest.index()));
             }
         }
 

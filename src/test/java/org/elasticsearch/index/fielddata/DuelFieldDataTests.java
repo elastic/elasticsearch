@@ -38,8 +38,6 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.unit.DistanceUnit.Distance;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.fielddata.ordinals.Ordinals;
-import org.elasticsearch.index.fielddata.ordinals.Ordinals.Docs;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperTestUtils;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -401,13 +399,11 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
         for (Map.Entry<FieldDataType, Type> entry : typeMap.entrySet()) {
             ifdService.clear();
             IndexFieldData.WithOrdinals<?> fieldData = getForField(entry.getKey(), entry.getValue().name().toLowerCase(Locale.ROOT));
-            BytesValues.WithOrdinals left = fieldData.load(readerContext).getBytesValues(randomBoolean());
+            BytesValues.WithOrdinals left = fieldData.load(readerContext).getBytesValues();
             fieldData.clear();
-            BytesValues.WithOrdinals right = fieldData.loadGlobal(topLevelReader).load(topLevelReader.leaves().get(0)).getBytesValues(randomBoolean());
-            Docs leftOrds = left.ordinals();
-            Docs rightOrds = right.ordinals();
-            assertEquals(leftOrds.getMaxOrd(), rightOrds.getMaxOrd());
-            for (long ord = Ordinals.MIN_ORDINAL; ord < leftOrds.getMaxOrd(); ++ord) {
+            BytesValues.WithOrdinals right = fieldData.loadGlobal(topLevelReader).load(topLevelReader.leaves().get(0)).getBytesValues();
+            assertEquals(left.getMaxOrd(), right.getMaxOrd());
+            for (long ord = BytesValues.WithOrdinals.MIN_ORDINAL; ord < left.getMaxOrd(); ++ord) {
                 assertEquals(left.getValueByOrd(ord), right.getValueByOrd(ord));
             }
         }
@@ -483,7 +479,7 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
 
     private void assertOrder(AtomicFieldData.Order order, IndexFieldData<?> data, AtomicReaderContext context) throws Exception {
         AtomicFieldData<?> leftData = randomBoolean() ? data.load(context) : data.loadDirect(context);
-        assertThat(leftData.getBytesValues(randomBoolean()).getOrder(), is(order));
+        assertThat(leftData.getBytesValues().getOrder(), is(order));
     }
 
     private int[] getNumbers(Random random, int margin) {
@@ -504,8 +500,8 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
         AtomicFieldData<?> rightData = random.nextBoolean() ? right.load(context) : right.loadDirect(context);
 
         int numDocs = context.reader().maxDoc();
-        BytesValues leftBytesValues = leftData.getBytesValues(random.nextBoolean());
-        BytesValues rightBytesValues = rightData.getBytesValues(random.nextBoolean());
+        BytesValues leftBytesValues = leftData.getBytesValues();
+        BytesValues rightBytesValues = rightData.getBytesValues();
         BytesRef leftSpare = new BytesRef();
         BytesRef rightSpare = new BytesRef();
 
@@ -517,8 +513,6 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
 
                 rightSpare.copyBytes(rightBytesValues.nextValue());
                 leftSpare.copyBytes(leftBytesValues.nextValue());
-                assertThat(rightSpare.hashCode(), equalTo(rightBytesValues.currentValueHash()));
-                assertThat(leftSpare.hashCode(), equalTo(leftBytesValues.currentValueHash()));
                 if (previous != null && leftBytesValues.getOrder() == rightBytesValues.getOrder()) { // we can only compare the
                   assertThat(pre.compare(previous, rightSpare), lessThan(0));
                 }
@@ -526,9 +520,6 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
                 pre.toString(rightSpare);
                 pre.toString(leftSpare);
                 assertThat(pre.toString(leftSpare), equalTo(pre.toString(rightSpare)));
-                if (leftSpare.equals(rightSpare)) {
-                    assertThat(leftBytesValues.currentValueHash(), equalTo(rightBytesValues.currentValueHash()));
-                }
             }
         }
     }

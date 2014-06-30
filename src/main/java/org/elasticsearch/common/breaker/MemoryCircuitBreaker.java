@@ -32,6 +32,7 @@ public class MemoryCircuitBreaker {
     private final long memoryBytesLimit;
     private final double overheadConstant;
     private final AtomicLong used;
+    private final AtomicLong trippedCount;
     private final ESLogger logger;
 
 
@@ -43,14 +44,7 @@ public class MemoryCircuitBreaker {
      * @param overheadConstant constant multiplier for byte estimations
      */
     public MemoryCircuitBreaker(ByteSizeValue limit, double overheadConstant, ESLogger logger) {
-        this.memoryBytesLimit = limit.bytes();
-        this.overheadConstant = overheadConstant;
-        this.used = new AtomicLong(0);
-        this.logger = logger;
-        if (logger.isTraceEnabled()) {
-            logger.trace("Creating MemoryCircuitBreaker with a limit of {} bytes ({}) and a overhead constant of {}",
-                    this.memoryBytesLimit, limit, this.overheadConstant);
-        }
+        this(limit, overheadConstant, null, logger);
     }
 
     /**
@@ -67,8 +61,10 @@ public class MemoryCircuitBreaker {
         this.overheadConstant = overheadConstant;
         if (oldBreaker == null) {
             this.used = new AtomicLong(0);
+            this.trippedCount = new AtomicLong(0);
         } else {
             this.used = oldBreaker.used;
+            this.trippedCount = oldBreaker.trippedCount;
         }
         this.logger = logger;
         if (logger.isTraceEnabled()) {
@@ -82,6 +78,7 @@ public class MemoryCircuitBreaker {
      * @throws CircuitBreakingException
      */
     public void circuitBreak(String fieldName) throws CircuitBreakingException {
+        this.trippedCount.incrementAndGet();
         throw new CircuitBreakingException("Data too large, data for field [" + fieldName + "] would be larger than limit of [" +
                 memoryBytesLimit + "/" + new ByteSizeValue(memoryBytesLimit) + "]");
     }
@@ -175,5 +172,12 @@ public class MemoryCircuitBreaker {
      */
     public double getOverhead() {
         return this.overheadConstant;
+    }
+
+    /**
+     * @return the number of times the breaker has been tripped
+     */
+    public long getTrippedCount() {
+        return this.trippedCount.get();
     }
 }

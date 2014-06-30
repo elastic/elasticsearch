@@ -72,7 +72,7 @@ public abstract class MatchDocIdSet extends DocIdSet implements Bits {
         return maxDoc;
     }
 
-    class NoAcceptDocsIterator extends DocIdSetIterator {
+    final class NoAcceptDocsIterator extends DocIdSetIterator {
 
         private final int maxDoc;
         private int doc = -1;
@@ -114,7 +114,7 @@ public abstract class MatchDocIdSet extends DocIdSet implements Bits {
 
     }
 
-    class FixedBitSetIterator extends FilteredDocIdSetIterator {
+    final class FixedBitSetIterator extends FilteredDocIdSetIterator {
 
         FixedBitSetIterator(DocIdSetIterator innerIter) {
             super(innerIter);
@@ -126,7 +126,7 @@ public abstract class MatchDocIdSet extends DocIdSet implements Bits {
         }
     }
 
-    class BothIterator extends DocIdSetIterator {
+    final class BothIterator extends DocIdSetIterator {
         private final int maxDoc;
         private final Bits acceptDocs;
         private int doc = -1;
@@ -148,14 +148,14 @@ public abstract class MatchDocIdSet extends DocIdSet implements Bits {
                 if (doc >= maxDoc) {
                     return doc = NO_MORE_DOCS;
                 }
-            } while (!(matchDoc(doc) && acceptDocs.get(doc)));
+            } while (!(acceptDocs.get(doc) && matchDoc(doc)));
             return doc;
         }
 
         @Override
         public int advance(int target) {
             for (doc = target; doc < maxDoc; doc++) {
-                if (matchDoc(doc) && acceptDocs.get(doc)) {
+                if (acceptDocs.get(doc) && matchDoc(doc)) {
                     return doc;
                 }
             }

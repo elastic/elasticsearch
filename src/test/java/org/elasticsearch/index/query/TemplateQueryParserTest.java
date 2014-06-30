@@ -63,7 +63,10 @@ public class TemplateQueryParserTest extends ElasticsearchTestCase {
 
     @Before
     public void setup() throws IOException {
-        Settings settings = ImmutableSettings.settingsBuilder().put("path.conf", this.getResource("config").getPath()).build();
+        Settings settings = ImmutableSettings.settingsBuilder()
+                .put("path.conf", this.getResource("config").getPath())
+                .put("name", getClass().getName())
+                .build();
 
         Index index = new Index("test");
         injector = new ModulesBuilder().add(

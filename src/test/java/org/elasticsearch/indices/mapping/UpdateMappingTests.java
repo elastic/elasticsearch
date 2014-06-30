@@ -20,10 +20,8 @@
 package org.elasticsearch.indices.mapping;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import com.google.common.base.Predicate;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
@@ -40,6 +38,7 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -55,6 +54,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.*;
 
+@ClusterScope(randomDynamicTemplates = false)
 public class UpdateMappingTests extends ElasticsearchIntegrationTest {
 
     @Test
@@ -85,38 +85,10 @@ public class UpdateMappingTests extends ElasticsearchIntegrationTest {
 
         logger.info("checking all the fields are in the mappings");
 
-        reRunTest:
-        while (true) {
-            Map<String, String> typeToSource = Maps.newHashMap();
-            ClusterState state = client().admin().cluster().prepareState().get().getState();
-            for (ObjectObjectCursor<String, MappingMetaData> cursor : state.getMetaData().getIndices().get("test").getMappings()) {
-                typeToSource.put(cursor.key, cursor.value.source().string());
-            }
-            for (int rec = 0; rec < recCount; rec++) {
-                String type = "type" + (rec % numberOfTypes);
-                String fieldName = "field_" + type + "_" + rec;
-                fieldName = "\"" + fieldName + "\""; // quote it, so we make sure we catch the exact one
-                if (!typeToSource.containsKey(type) || !typeToSource.get(type).contains(fieldName)) {
-                    client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).execute().actionGet();
-                    awaitBusy(new Predicate<Object>() {
-                        @Override
-                        public boolean apply(Object input) {
-                            PendingClusterTasksResponse pendingTasks = client().admin().cluster().preparePendingClusterTasks().get();
-                            return pendingTasks.pendingTasks().isEmpty();
-                        }
-                    });
-                    client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).execute().actionGet();
-                    // its going to break, before we do, make sure that the cluster state hasn't changed on us...
-                    ClusterState state2 = client().admin().cluster().prepareState().get().getState();
-                    if (state.version() != state2.version()) {
-                        logger.info("not the same version, used for test {}, new one {}, re-running test, first wait for mapping to wait", state.version(), state2.version());
-                        continue reRunTest;
-                    }
-                    logger.info("failing, type {}, field {}, mapping {}", type, fieldName, typeToSource.get(type));
-                    assertThat(typeToSource.get(type), containsString(fieldName));
-                }
-            }
-            break;
+        for (int rec = 0; rec < recCount; rec++) {
+            String type = "type" + (rec % numberOfTypes);
+            String fieldName = "field_" + type + "_" + rec;
+            waitForConcreteMappingsOnAll("test", type, fieldName);
         }
     }
 

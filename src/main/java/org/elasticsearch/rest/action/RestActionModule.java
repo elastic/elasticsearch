@@ -234,6 +234,7 @@ public class RestActionModule extends AbstractModule {
         catActionMultibinder.addBinding().to(RestAliasAction.class).asEagerSingleton();
         catActionMultibinder.addBinding().to(RestThreadPoolAction.class).asEagerSingleton();
         catActionMultibinder.addBinding().to(RestPluginsAction.class).asEagerSingleton();
+        catActionMultibinder.addBinding().to(RestFielddataAction.class).asEagerSingleton();
         // no abstract cat action
         bind(RestCatAction.class).asEagerSingleton();
     }

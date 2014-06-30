@@ -100,7 +100,7 @@ public class TransportRefreshAction extends TransportBroadcastOperationAction<Re
     }
 
     @Override
-    protected ShardRefreshRequest newShardRequest(ShardRouting shard, RefreshRequest request) {
+    protected ShardRefreshRequest newShardRequest(int numShards, ShardRouting shard, RefreshRequest request) {
         return new ShardRefreshRequest(shard.index(), shard.id(), request);
     }
 
@@ -122,8 +122,7 @@ public class TransportRefreshAction extends TransportBroadcastOperationAction<Re
      */
     @Override
     protected GroupShardsIterator shards(ClusterState clusterState, RefreshRequest request, String[] concreteIndices) {
-        logger.trace("resolving shards to refresh based on cluster state version [{}]", clusterState.version());
-        return clusterState.routingTable().allAssignedShardsGrouped(concreteIndices, true);
+        return clusterState.routingTable().allAssignedShardsGrouped(concreteIndices, true, true);
     }
 
     @Override

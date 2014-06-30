@@ -28,10 +28,13 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.similarities.DefaultSimilarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.search.similarities.TFIDFSimilarity;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.FastStringReader;
 
 import java.io.IOException;
+import java.io.Reader;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -43,7 +46,7 @@ public class MoreLikeThisQuery extends Query {
 
     private TFIDFSimilarity similarity;
 
-    private String likeText;
+    private String[] likeText;
     private String[] moreLikeFields;
     private Analyzer analyzer;
     private float percentTermsToMatch = DEFAULT_PERCENT_TERMS_TO_MATCH;
@@ -63,7 +66,7 @@ public class MoreLikeThisQuery extends Query {
     }
 
     public MoreLikeThisQuery(String likeText, String[] moreLikeFields, Analyzer analyzer) {
-        this.likeText = likeText;
+        this.likeText = new String[]{likeText};
         this.moreLikeFields = moreLikeFields;
         this.analyzer = analyzer;
     }
@@ -72,7 +75,7 @@ public class MoreLikeThisQuery extends Query {
     public int hashCode() {
         int result = boostTerms ? 1 : 0;
         result = 31 * result + Float.floatToIntBits(boostTermsFactor);
-        result = 31 * result + likeText.hashCode();
+        result = 31 * result + Arrays.hashCode(likeText);
         result = 31 * result + maxDocFreq;
         result = 31 * result + maxQueryTerms;
         result = 31 * result + maxWordLen;
@@ -99,7 +102,7 @@ public class MoreLikeThisQuery extends Query {
             return false;
         if (boostTermsFactor != other.boostTermsFactor)
             return false;
-        if (!likeText.equals(other.likeText))
+        if (!(Arrays.equals(likeText, other.likeText)))
             return false;
         if (maxDocFreq != other.maxDocFreq)
             return false;
@@ -145,10 +148,15 @@ public class MoreLikeThisQuery extends Query {
         mlt.setStopWords(stopWords);
         mlt.setBoost(boostTerms);
         mlt.setBoostFactor(boostTermsFactor);
-        //LUCENE 4 UPGRADE this mapps the 3.6 behavior (only use the first field)
-        BooleanQuery bq = (BooleanQuery) mlt.like(new FastStringReader(likeText), moreLikeFields[0]);
-        BooleanClause[] clauses = bq.getClauses();
 
+        Reader[] readers = new Reader[likeText.length];
+        for (int i = 0; i < readers.length; i++) {
+            readers[i] = new FastStringReader(likeText[i]);
+        }
+        //LUCENE 4 UPGRADE this mapps the 3.6 behavior (only use the first field)
+        BooleanQuery bq = (BooleanQuery) mlt.like(moreLikeFields[0], readers);
+
+        BooleanClause[] clauses = bq.getClauses();
         bq.setMinimumNumberShouldMatch((int) (clauses.length * percentTermsToMatch));
 
         bq.setBoost(getBoost());
@@ -157,15 +165,27 @@ public class MoreLikeThisQuery extends Query {
 
     @Override
     public String toString(String field) {
-        return "like:" + likeText;
+        return "like:" + Arrays.toString(likeText);
     }
 
     public String getLikeText() {
+        return (likeText == null ? null : likeText[0]);
+    }
+
+    public String[] getLikeTexts() {
         return likeText;
     }
 
     public void setLikeText(String likeText) {
+        setLikeText(new String[]{likeText});
+    }
+
+    public void setLikeText(String... likeText) {
         this.likeText = likeText;
+    }
+
+    public void setLikeText(List<String> likeText) {
+        setLikeText(likeText.toArray(Strings.EMPTY_ARRAY));
     }
 
     public String[] getMoreLikeFields() {

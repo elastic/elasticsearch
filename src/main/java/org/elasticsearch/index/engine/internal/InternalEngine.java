@@ -19,7 +19,19 @@
 
 package org.elasticsearch.index.engine.internal;
 
-import com.google.common.collect.Lists;
+import java.io.IOException;
+import java.util.*;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
+
 import org.apache.lucene.index.*;
 import org.apache.lucene.index.IndexWriter.IndexReaderWarmer;
 import org.apache.lucene.search.IndexSearcher;
@@ -28,6 +40,7 @@ import org.apache.lucene.search.SearcherFactory;
 import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.LockObtainFailedException;
+import org.apache.lucene.store.NoLockFactory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
@@ -39,7 +52,8 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.lucene.HashedBytesRef;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.LoggerInfoStream;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.SegmentReaderUtils;
@@ -75,18 +89,7 @@ import org.elasticsearch.index.translog.TranslogStreams;
 import org.elasticsearch.indices.warmer.IndicesWarmer;
 import org.elasticsearch.indices.warmer.InternalIndicesWarmer;
 import org.elasticsearch.threadpool.ThreadPool;
-
-import java.io.IOException;
-import java.util.*;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
+import com.google.common.collect.Lists;
 
 /**
  *
@@ -146,7 +149,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
 
     // A uid (in the form of BytesRef) to the version map
     // we use the hashed variant since we iterate over it and check removal and additions on existing keys
-    private final ConcurrentMap<HashedBytesRef, VersionValue> versionMap;
+    private final LiveVersionMap versionMap;
 
     private final Object[] dirtyLocks;
 
@@ -162,6 +165,8 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
     private final AtomicLong translogIdGenerator = new AtomicLong();
 
     private SegmentInfos lastCommittedSegmentInfos;
+
+    private IndexThrottle throttle;
 
     @Inject
     public InternalEngine(ShardId shardId, @IndexSettings Settings indexSettings, ThreadPool threadPool,
@@ -192,7 +197,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         this.codecService = codecService;
         this.compoundOnFlush = indexSettings.getAsBoolean(INDEX_COMPOUND_ON_FLUSH, this.compoundOnFlush);
         this.indexConcurrency = indexSettings.getAsInt(INDEX_INDEX_CONCURRENCY, Math.max(IndexWriterConfig.DEFAULT_MAX_THREAD_STATES, (int) (EsExecutors.boundedNumberOfProcessors(indexSettings) * 0.65)));
-        this.versionMap = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
+        this.versionMap = new LiveVersionMap();
         this.dirtyLocks = new Object[indexConcurrency * 50]; // we multiply it to have enough...
         for (int i = 0; i < dirtyLocks.length; i++) {
             dirtyLocks[i] = new Object();
@@ -257,6 +262,9 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             }
             try {
                 this.indexWriter = createWriter();
+                mergeScheduler.removeListener(this.throttle);
+                this.throttle = new IndexThrottle(mergeScheduler.getMaxMerges(), logger);
+                mergeScheduler.addListener(throttle);
             } catch (IOException e) {
                 throw new EngineCreationFailureException(shardId, "failed to create engine", e);
             }
@@ -280,6 +288,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                 }
                 translog.newTranslog(translogIdGenerator.get());
                 this.searcherManager = buildSearchManager(indexWriter);
+                versionMap.setManager(searcherManager);
                 readLastCommittedSegmentsInfo();
             } catch (IOException e) {
                 try {
@@ -313,7 +322,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
     public GetResult get(Get get) throws EngineException {
         try (InternalLock _ = readLock.acquire()) {
             if (get.realtime()) {
-                VersionValue versionValue = versionMap.get(versionKey(get.uid()));
+                VersionValue versionValue = versionMap.getUnderLock(get.uid().bytes());
                 if (versionValue != null) {
                     if (versionValue.delete()) {
                         return GetResult.NOT_EXISTS;
@@ -373,7 +382,9 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             if (writer == null) {
                 throw new EngineClosedException(shardId, failedEngine);
             }
-            innerCreate(create, writer);
+            try (Releasable r = throttle.acquireThrottle()) {
+                innerCreate(create, writer);
+            }
             dirty = true;
             possibleMergeNeeded = true;
             flushNeeded = true;
@@ -391,14 +402,13 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
 
     private void innerCreate(Create create, IndexWriter writer) throws IOException {
         synchronized (dirtyLock(create.uid())) {
-            HashedBytesRef versionKey = versionKey(create.uid());
             final long currentVersion;
             final VersionValue versionValue;
             if (optimizeAutoGenerateId && create.autoGeneratedId() && !create.canHaveDuplicates()) {
                 currentVersion = Versions.NOT_FOUND;
                 versionValue = null;
             } else {
-                versionValue = versionMap.get(versionKey);
+                versionValue = versionMap.getUnderLock(create.uid().bytes());
                 if (versionValue == null) {
                     currentVersion = loadCurrentVersionFromIndex(create.uid());
                 } else {
@@ -422,7 +432,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             }
             updatedVersion = create.versionType().updateVersion(currentVersion, expectedVersion);
 
-            // if the doc does not exists or it exists but not delete
+            // if the doc does not exist or it exists but is not deleted
             if (versionValue != null) {
                 if (!versionValue.delete()) {
                     if (create.origin() == Operation.Origin.RECOVERY) {
@@ -449,7 +459,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             }
             Translog.Location translogLocation = translog.add(new Translog.Create(create));
 
-            versionMap.put(versionKey, new VersionValue(updatedVersion, false, threadPool.estimatedTimeInMillis(), translogLocation));
+            versionMap.putUnderLock(create.uid().bytes(), new VersionValue(updatedVersion, translogLocation));
 
             indexingService.postCreateUnderLock(create);
         }
@@ -462,8 +472,9 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             if (writer == null) {
                 throw new EngineClosedException(shardId, failedEngine);
             }
-
-            innerIndex(index, writer);
+            try (Releasable r = throttle.acquireThrottle()) {
+                innerIndex(index, writer);
+            }
             dirty = true;
             possibleMergeNeeded = true;
             flushNeeded = true;
@@ -475,9 +486,8 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
 
     private void innerIndex(Index index, IndexWriter writer) throws IOException {
         synchronized (dirtyLock(index.uid())) {
-            HashedBytesRef versionKey = versionKey(index.uid());
             final long currentVersion;
-            VersionValue versionValue = versionMap.get(versionKey);
+            VersionValue versionValue = versionMap.getUnderLock(index.uid().bytes());
             if (versionValue == null) {
                 currentVersion = loadCurrentVersionFromIndex(index.uid());
             } else {
@@ -521,7 +531,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             }
             Translog.Location translogLocation = translog.add(new Translog.Index(index));
 
-            versionMap.put(versionKey, new VersionValue(updatedVersion, false, threadPool.estimatedTimeInMillis(), translogLocation));
+            versionMap.putUnderLock(index.uid().bytes(), new VersionValue(updatedVersion, translogLocation));
 
             indexingService.postIndexUnderLock(index);
         }
@@ -547,8 +557,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
     private void innerDelete(Delete delete, IndexWriter writer) throws IOException {
         synchronized (dirtyLock(delete.uid())) {
             final long currentVersion;
-            HashedBytesRef versionKey = versionKey(delete.uid());
-            VersionValue versionValue = versionMap.get(versionKey);
+            VersionValue versionValue = versionMap.getUnderLock(delete.uid().bytes());
             if (versionValue == null) {
                 currentVersion = loadCurrentVersionFromIndex(delete.uid());
             } else {
@@ -570,22 +579,22 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             }
             updatedVersion = delete.versionType().updateVersion(currentVersion, expectedVersion);
 
+            final boolean found;
             if (currentVersion == Versions.NOT_FOUND) {
-                // doc does not exists and no prior deletes
-                delete.updateVersion(updatedVersion, false);
-                Translog.Location translogLocation = translog.add(new Translog.Delete(delete));
-                versionMap.put(versionKey, new VersionValue(updatedVersion, true, threadPool.estimatedTimeInMillis(), translogLocation));
+                // doc does not exist and no prior deletes
+                found = false;
             } else if (versionValue != null && versionValue.delete()) {
                 // a "delete on delete", in this case, we still increment the version, log it, and return that version
-                delete.updateVersion(updatedVersion, false);
-                Translog.Location translogLocation = translog.add(new Translog.Delete(delete));
-                versionMap.put(versionKey, new VersionValue(updatedVersion, true, threadPool.estimatedTimeInMillis(), translogLocation));
+                found = false;
             } else {
-                delete.updateVersion(updatedVersion, true);
+                // we deleted a currently existing document
                 writer.deleteDocuments(delete.uid());
-                Translog.Location translogLocation = translog.add(new Translog.Delete(delete));
-                versionMap.put(versionKey, new VersionValue(updatedVersion, true, threadPool.estimatedTimeInMillis(), translogLocation));
+                found = true;
             }
+
+            delete.updateVersion(updatedVersion, found);
+            Translog.Location translogLocation = translog.add(new Translog.Delete(delete));
+            versionMap.putDeleteUnderLock(delete.uid().bytes(), new DeleteVersionValue(updatedVersion, threadPool.estimatedTimeInMillis(), translogLocation));
 
             indexingService.postDeleteUnderLock(delete);
         }
@@ -620,7 +629,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             throw new DeleteByQueryFailedEngineException(shardId, delete, t);
         }
         //TODO: This is heavy, since we refresh, but we really have to...
-        refreshVersioningTable(System.currentTimeMillis());
+        pruneDeletedVersions(System.currentTimeMillis());
     }
 
     @Override
@@ -744,7 +753,9 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                         // to be allocated to a different node
                         currentIndexWriter().close(false);
                         indexWriter = createWriter();
-
+                        mergeScheduler.removeListener(this.throttle);
+                        this.throttle = new IndexThrottle(mergeScheduler.getMaxMerges(), this.logger);
+                        mergeScheduler.addListener(throttle);
                         // commit on a just opened writer will commit even if there are no changes done to it
                         // we rely on that for the commit data translog id key
                         if (flushNeeded || flush.force()) {
@@ -757,12 +768,14 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
 
                         SearcherManager current = this.searcherManager;
                         this.searcherManager = buildSearchManager(indexWriter);
+                        versionMap.setManager(searcherManager);
+
                         try {
                             IOUtils.close(current);
                         } catch (Throwable t) {
                             logger.warn("Failed to close current SearcherManager", t);
                         }
-                        refreshVersioningTable(threadPool.estimatedTimeInMillis());
+                        pruneDeletedVersions(threadPool.estimatedTimeInMillis());
                     } catch (Throwable t) {
                         throw new FlushFailedEngineException(shardId, t);
                     }
@@ -781,7 +794,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                             translog.newTransientTranslog(translogId);
                             indexWriter.setCommitData(MapBuilder.<String, String>newMapBuilder().put(Translog.TRANSLOG_ID_KEY, Long.toString(translogId)).map());
                             indexWriter.commit();
-                            refreshVersioningTable(threadPool.estimatedTimeInMillis());
+                            pruneDeletedVersions(threadPool.estimatedTimeInMillis());
                             // we need to move transient to current only after we refresh
                             // so items added to current will still be around for realtime get
                             // when tans overrides it
@@ -851,25 +864,29 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         return writer;
     }
 
-    private void refreshVersioningTable(long time) {
+    private void pruneDeletedVersions(long time) {
         // we need to refresh in order to clear older version values
         refresh(new Refresh("version_table").force(true));
-        for (Map.Entry<HashedBytesRef, VersionValue> entry : versionMap.entrySet()) {
-            HashedBytesRef uid = entry.getKey();
-            synchronized (dirtyLock(uid.bytes)) { // can we do it without this lock on each value? maybe batch to a set and get the lock once per set?
-                VersionValue versionValue = versionMap.get(uid);
+
+        // TODO: not good that we reach into LiveVersionMap here; can we move this inside VersionMap instead?  problem is the dirtyLock...
+
+        // we only need to prune deletes; the adds/updates are cleared whenever reader is refreshed:
+        for (Map.Entry<BytesRef, VersionValue> entry : versionMap.getAllDeletes()) {
+            BytesRef uid = entry.getKey();
+            synchronized (dirtyLock(uid)) { // can we do it without this lock on each value? maybe batch to a set and get the lock once per set?
+
+                // Must re-get it here, vs using entry.getValue(), in case the uid was indexed/deleted since we pulled the iterator:
+                VersionValue versionValue = versionMap.getDeleteUnderLock(uid);
                 if (versionValue == null) {
+                    // another thread has re-added this uid since we started refreshing:
                     continue;
                 }
                 if (time - versionValue.time() <= 0) {
                     continue; // its a newer value, from after/during we refreshed, don't clear it
                 }
-                if (versionValue.delete()) {
-                    if (enableGcDeletes && (time - versionValue.time()) > gcDeletesInMillis) {
-                        versionMap.remove(uid);
-                    }
-                } else {
-                    versionMap.remove(uid);
+                assert versionValue.delete();
+                if (enableGcDeletes && (time - versionValue.time()) > gcDeletesInMillis) {
+                    versionMap.removeDeleteUnderLock(uid);
                 }
             }
         }
@@ -1190,10 +1207,6 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         }
     }
 
-    private HashedBytesRef versionKey(Term uid) {
-        return new HashedBytesRef(uid.bytes());
-    }
-
     private Object dirtyLock(BytesRef uid) {
         int hash = DjbHashFunction.DJB_HASH(uid.bytes, uid.offset, uid.length);
         return dirtyLocks[MathUtils.mod(hash, dirtyLocks.length)];
@@ -1401,36 +1414,6 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         }
     }
 
-    static class VersionValue {
-        private final long version;
-        private final boolean delete;
-        private final long time;
-        private final Translog.Location translogLocation;
-
-        VersionValue(long version, boolean delete, long time, Translog.Location translogLocation) {
-            this.version = version;
-            this.delete = delete;
-            this.time = time;
-            this.translogLocation = translogLocation;
-        }
-
-        public long time() {
-            return this.time;
-        }
-
-        public long version() {
-            return version;
-        }
-
-        public boolean delete() {
-            return delete;
-        }
-
-        public Translog.Location translogLocation() {
-            return this.translogLocation;
-        }
-    }
-
     class SearchFactory extends SearcherFactory {
 
         @Override
@@ -1557,6 +1540,77 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         boolean assertLockIsHeld() {
             Boolean aBoolean = lockIsHeld.get();
             return aBoolean != null && aBoolean.booleanValue();
+        }
+    }
+
+
+    private static final class IndexThrottle implements MergeSchedulerProvider.Listener {
+
+        private static final InternalLock NOOP_LOCK = new InternalLock(new NoOpLock());
+        private final InternalLock lockReference = new InternalLock(new ReentrantLock());
+        private final AtomicInteger numMergesInFlight = new AtomicInteger(0);
+        private final AtomicBoolean isThrottling = new AtomicBoolean();
+        private final int maxNumMerges;
+        private final ESLogger logger;
+
+        private volatile InternalLock lock = NOOP_LOCK;
+
+        public IndexThrottle(int maxNumMerges, ESLogger logger) {
+            this.maxNumMerges = maxNumMerges;
+            this.logger = logger;
+        }
+
+        public Releasable acquireThrottle() {
+            return lock.acquire();
+        }
+
+        @Override
+        public void beforeMerge(OnGoingMerge merge) {
+          if (numMergesInFlight.incrementAndGet() > maxNumMerges) {
+              if (isThrottling.getAndSet(true) == false) {
+                  logger.info("now throttling indexing: numMergesInFlight={}, maxNumMerges={}", numMergesInFlight, maxNumMerges);
+              }
+              lock = lockReference;
+            }
+        }
+
+        @Override
+        public void afterMerge(OnGoingMerge merge) {
+            if (numMergesInFlight.decrementAndGet() < maxNumMerges) {
+                if (isThrottling.getAndSet(false)) {
+                    logger.info("stop throttling indexing: numMergesInFlight={}, maxNumMerges={}", numMergesInFlight, maxNumMerges);
+                }
+                lock = NOOP_LOCK;
+            }
+        }
+    }
+
+    private static final class NoOpLock implements Lock {
+
+        @Override
+        public void lock() {}
+
+        @Override
+        public void lockInterruptibly() throws InterruptedException {
+        }
+
+        @Override
+        public boolean tryLock() {
+            return true;
+        }
+
+        @Override
+        public boolean tryLock(long time, TimeUnit unit) throws InterruptedException {
+            return true;
+        }
+
+        @Override
+        public void unlock() {
+        }
+
+        @Override
+        public Condition newCondition() {
+            throw new UnsupportedOperationException("NoOpLock can't provide a condition");
         }
     }
 }

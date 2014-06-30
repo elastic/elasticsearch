@@ -36,7 +36,6 @@ import org.elasticsearch.common.util.FloatArray;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
@@ -170,7 +169,6 @@ public class ParentQuery extends Query {
 
         private Scorer scorer;
         private BytesValues.WithOrdinals values;
-        private Ordinals.Docs globalOrdinals;
 
         ParentOrdAndScoreCollector(SearchContext searchContext, IndexFieldData.WithOrdinals globalIfd) {
             this.bigArrays = searchContext.bigArrays();
@@ -182,9 +180,9 @@ public class ParentQuery extends Query {
         @Override
         public void collect(int doc) throws IOException {
             // It can happen that for particular segment no document exist for an specific type. This prevents NPE
-            if (globalOrdinals != null) {
-                long globalOrdinal = globalOrdinals.getOrd(doc);
-                if (globalOrdinal != Ordinals.MISSING_ORDINAL) {
+            if (values != null) {
+                long globalOrdinal = values.getOrd(doc);
+                if (globalOrdinal != BytesValues.WithOrdinals.MISSING_ORDINAL) {
                     long parentIdx = parentIdxs.add(globalOrdinal);
                     if (parentIdx >= 0) {
                         scores = bigArrays.grow(scores, parentIdx + 1);
@@ -203,10 +201,7 @@ public class ParentQuery extends Query {
 
         @Override
         public void setNextReader(AtomicReaderContext context) throws IOException {
-            values = globalIfd.load(context).getBytesValues(false);
-            if (values != null) {
-                globalOrdinals = values.ordinals();
-            }
+            values = globalIfd.load(context).getBytesValues();
         }
 
         @Override
@@ -263,13 +258,12 @@ public class ParentQuery extends Query {
             if (DocIdSets.isEmpty(childrenDocSet)) {
                 return null;
             }
-            BytesValues.WithOrdinals bytesValues = globalIfd.load(context).getBytesValues(false);
+            BytesValues.WithOrdinals bytesValues = globalIfd.load(context).getBytesValues();
             if (bytesValues == null) {
                 return null;
             }
 
-            Ordinals.Docs ordinals = bytesValues.ordinals();
-            return new ChildScorer(this, parentIdxs, scores, childrenDocSet.iterator(), ordinals);
+            return new ChildScorer(this, parentIdxs, scores, childrenDocSet.iterator(), bytesValues);
         }
 
     }
@@ -279,12 +273,12 @@ public class ParentQuery extends Query {
         private final LongHash parentIdxs;
         private final FloatArray scores;
         private final DocIdSetIterator childrenIterator;
-        private final Ordinals.Docs ordinals;
+        private final BytesValues.WithOrdinals ordinals;
 
         private int currentChildDoc = -1;
         private float currentScore;
 
-        ChildScorer(Weight weight, LongHash parentIdxs, FloatArray scores, DocIdSetIterator childrenIterator, Ordinals.Docs ordinals) {
+        ChildScorer(Weight weight, LongHash parentIdxs, FloatArray scores, DocIdSetIterator childrenIterator, BytesValues.WithOrdinals ordinals) {
             super(weight);
             this.parentIdxs = parentIdxs;
             this.scores = scores;
@@ -318,7 +312,7 @@ public class ParentQuery extends Query {
                 }
 
                 int globalOrdinal = (int) ordinals.getOrd(currentChildDoc);
-                if (globalOrdinal == Ordinals.MISSING_ORDINAL) {
+                if (globalOrdinal == BytesValues.WithOrdinals.MISSING_ORDINAL) {
                     continue;
                 }
 
@@ -338,7 +332,7 @@ public class ParentQuery extends Query {
             }
 
             int globalOrdinal = (int) ordinals.getOrd(currentChildDoc);
-            if (globalOrdinal == Ordinals.MISSING_ORDINAL) {
+            if (globalOrdinal == BytesValues.WithOrdinals.MISSING_ORDINAL) {
                 return nextDoc();
             }
 

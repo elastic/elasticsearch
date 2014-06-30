@@ -47,7 +47,7 @@ public abstract class QueryBuilders {
     public static MatchQueryBuilder matchQuery(String name, Object text) {
         return new MatchQueryBuilder(name, text).type(MatchQueryBuilder.Type.BOOLEAN);
     }
-    
+
     /**
      * Creates a common query for the provided field name and text.
      *
@@ -62,7 +62,7 @@ public abstract class QueryBuilders {
      * Creates a match query with type "BOOLEAN" for the provided field name and text.
      *
      * @param fieldNames The field names.
-     * @param text The query text (to be analyzed).
+     * @param text       The query text (to be analyzed).
      */
     public static MultiMatchQueryBuilder multiMatchQuery(Object text, String... fieldNames) {
         return new MultiMatchQueryBuilder(text, fieldNames); // BOOLEAN is the default
@@ -359,19 +359,19 @@ public abstract class QueryBuilders {
     public static SpanOrQueryBuilder spanOrQuery() {
         return new SpanOrQueryBuilder();
     }
-    
+
     /**
      * Creates a {@link SpanQueryBuilder} which allows having a sub query
      * which implements {@link MultiTermQueryBuilder}. This is useful for
      * having e.g. wildcard or fuzzy queries inside spans.
-     * 
-     * @param multiTermQueryBuilder The {@link MultiTermQueryBuilder} that 
-     * backs the created builder.
+     *
+     * @param multiTermQueryBuilder The {@link MultiTermQueryBuilder} that
+     *                              backs the created builder.
      * @return
      */
-    
-    public static SpanMultiTermQueryBuilder spanMultiTermQueryBuilder(MultiTermQueryBuilder multiTermQueryBuilder){
-		return new SpanMultiTermQueryBuilder(multiTermQueryBuilder);
+
+    public static SpanMultiTermQueryBuilder spanMultiTermQueryBuilder(MultiTermQueryBuilder multiTermQueryBuilder) {
+        return new SpanMultiTermQueryBuilder(multiTermQueryBuilder);
     }
 
     public static FieldMaskingSpanQueryBuilder fieldMaskingSpanQuery(SpanQueryBuilder query, String field) {
@@ -408,7 +408,7 @@ public abstract class QueryBuilders {
     public static ConstantScoreQueryBuilder constantScoreQuery(FilterBuilder filterBuilder) {
         return new ConstantScoreQueryBuilder(filterBuilder);
     }
-    
+
     /**
      * A query that wraps another query and simply returns a constant score equal to the
      * query boost for every document in the query.
@@ -427,15 +427,14 @@ public abstract class QueryBuilders {
     public static FunctionScoreQueryBuilder functionScoreQuery(QueryBuilder queryBuilder) {
         return new FunctionScoreQueryBuilder(queryBuilder);
     }
-    
+
     /**
      * A query that allows to define a custom scoring function.
-     * 
      */
     public static FunctionScoreQueryBuilder functionScoreQuery() {
         return new FunctionScoreQueryBuilder();
     }
-    
+
     /**
      * A query that allows to define a custom scoring function.
      *
@@ -444,27 +443,27 @@ public abstract class QueryBuilders {
     public static FunctionScoreQueryBuilder functionScoreQuery(ScoreFunctionBuilder function) {
         return new FunctionScoreQueryBuilder(function);
     }
-    
+
     /**
      * A query that allows to define a custom scoring function.
      *
      * @param queryBuilder The query to custom score
-     * @param function The function builder used to custom score
+     * @param function     The function builder used to custom score
      */
     public static FunctionScoreQueryBuilder functionScoreQuery(QueryBuilder queryBuilder, ScoreFunctionBuilder function) {
         return (new FunctionScoreQueryBuilder(queryBuilder)).add(function);
     }
-    
+
     /**
      * A query that allows to define a custom scoring function.
      *
      * @param filterBuilder The query to custom score
-     * @param function The function builder used to custom score
+     * @param function      The function builder used to custom score
      */
     public static FunctionScoreQueryBuilder functionScoreQuery(FilterBuilder filterBuilder, ScoreFunctionBuilder function) {
         return (new FunctionScoreQueryBuilder(filterBuilder)).add(function);
     }
-    
+
     /**
      * A query that allows to define a custom scoring function.
      *
@@ -473,6 +472,7 @@ public abstract class QueryBuilders {
     public static FunctionScoreQueryBuilder functionScoreQuery(FilterBuilder filterBuilder) {
         return new FunctionScoreQueryBuilder(filterBuilder);
     }
+
     /**
      * A more like this query that finds documents that are "like" the provided {@link MoreLikeThisQueryBuilder#likeText(String)}
      * which is checked against the fields the query is constructed with.
@@ -732,7 +732,7 @@ public abstract class QueryBuilders {
      * Query that matches Documents based on the relationship between the given shape and
      * indexed shapes
      *
-     * @param name The shape field name
+     * @param name  The shape field name
      * @param shape Shape to use in the Query
      */
     public static GeoShapeQueryBuilder geoShapeQuery(String name, ShapeBuilder shape) {

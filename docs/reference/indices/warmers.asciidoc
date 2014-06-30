@@ -7,7 +7,7 @@ of search, cold data (segments) will be warmed up before they become
 available for search. 
 
 Warmup searches typically include requests that require heavy loading of
-data, such as faceting or sorting on specific fields. The warmup APIs
+data, such as aggregations or sorting on specific fields. The warmup APIs
 allows to register warmup (search) under specific names, remove them,
 and get them.
 
@@ -33,7 +33,7 @@ curl -XPUT localhost:9200/test -d '{
                 "query" : {
                     ...
                 },
-                "facets" : {
+                "aggs" : {
                     ...
                 }
             }
@@ -56,7 +56,7 @@ curl -XPUT localhost:9200/_template/template_1 -d '
                 "query" : {
                     ...
                 },
-                "facets" : {
+                "aggs" : {
                     ...
                 }
             }
@@ -84,8 +84,8 @@ curl -XPUT localhost:9200/test/_warmer/warmer_1 -d '{
     "query" : {
         "match_all" : {}
     },
-    "facets" : {
-        "facet_1" : {
+    "aggs" : {
+        "aggs_1" : {
             "terms" : {
                 "field" : "field"
             }
@@ -102,8 +102,8 @@ curl -XPUT localhost:9200/test/type1/_warmer/warmer_1 -d '{
     "query" : {
         "match_all" : {}
     },
-    "facets" : {
-        "facet_1" : {
+    "aggs" : {
+        "aggs_1" : {
             "terms" : {
                 "field" : "field"
             }

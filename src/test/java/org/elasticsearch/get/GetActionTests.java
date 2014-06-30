@@ -20,8 +20,10 @@
 package org.elasticsearch.get;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetRequest;
@@ -34,6 +36,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.util.Map;
@@ -155,11 +158,6 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void simpleMultiGetTests() throws Exception {
-        try {
-            client().admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // fine
-        }
         client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1)).execute().actionGet();
 
         ensureGreen();
@@ -794,12 +792,13 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    @TestLogging("index.shard.service:TRACE,cluster.service:TRACE,action.admin.indices.flush:TRACE")
     public void testGetFields_complexField() throws Exception {
         client().admin().indices().prepareCreate("my-index")
                 .setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1))
                 .addMapping("my-type2", jsonBuilder().startObject().startObject("my-type2").startObject("properties")
                         .startObject("field1").field("type", "object")
-                            .startObject("field2").field("type", "object")
+                        .startObject("field2").field("type", "object")
                                 .startObject("field3").field("type", "object")
                                     .startObject("field4").field("type", "string").field("store", "yes")
                                 .endObject()
@@ -831,9 +830,12 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
                     .endArray()
                 .endObject().bytes();
 
+        logger.info("indexing documents");
+
         client().prepareIndex("my-index", "my-type1", "1").setSource(source).get();
         client().prepareIndex("my-index", "my-type2", "1").setSource(source).get();
 
+        logger.info("checking real time retrieval");
 
         String field = "field1.field2.field3.field4";
         GetResponse getResponse = client().prepareGet("my-index", "my-type1", "1").setFields(field).get();
@@ -850,7 +852,23 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
         assertThat(getResponse.getField(field).getValues().get(0).toString(), equalTo("value1"));
         assertThat(getResponse.getField(field).getValues().get(1).toString(), equalTo("value2"));
 
-        client().admin().indices().prepareFlush("my-index").get();
+        logger.info("waiting for recoveries to complete");
+
+        // Flush fails if shard has ongoing recoveries, make sure the cluster is settled down
+        ensureGreen();
+
+        logger.info("flushing");
+        FlushResponse flushResponse = client().admin().indices().prepareFlush("my-index").setForce(true).get();
+        if (flushResponse.getSuccessfulShards() == 0) {
+            StringBuilder sb = new StringBuilder("failed to flush at least one shard. total shards [")
+                    .append(flushResponse.getTotalShards()).append("], failed shards: [").append(flushResponse.getFailedShards()).append("]");
+            for (ShardOperationFailedException failure: flushResponse.getShardFailures()) {
+                sb.append("\nShard failure: ").append(failure);
+            }
+            fail(sb.toString());
+        }
+
+        logger.info("checking post-flush retrieval");
 
         getResponse = client().prepareGet("my-index", "my-type1", "1").setFields(field).get();
         assertThat(getResponse.isExists(), equalTo(true));

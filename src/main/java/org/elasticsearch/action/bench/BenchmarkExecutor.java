@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.action.bench;
 
+import com.google.common.collect.UnmodifiableIterator;
 import org.apache.lucene.util.PriorityQueue;
-
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -27,12 +27,9 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-
-import com.google.common.collect.UnmodifiableIterator;
 
 import java.util.*;
 import java.util.concurrent.*;
@@ -48,7 +45,8 @@ public class BenchmarkExecutor {
     private String nodeName;
     private final ClusterService clusterService;
     private volatile ImmutableOpenMap<String, BenchmarkState> activeBenchmarks = ImmutableOpenMap.of();
-    private final Object lock = new Object();
+
+    private final Object activeStateLock = new Object();
 
     public BenchmarkExecutor(Client client, ClusterService clusterService) {
         this.client = client;
@@ -68,21 +66,27 @@ public class BenchmarkExecutor {
     }
 
     /**
-     * Aborts a benchmark with the given id
+     * Aborts benchmark(s) matching the given wildcard patterns
      *
-     * @param benchmarkId   The benchmark to abort
-     * @return              Abort response
+     * @param names the benchmark names to abort
      */
-    public AbortBenchmarkNodeResponse abortBenchmark(String benchmarkId) {
-        if (!activeBenchmarks.containsKey(benchmarkId)) {
-            return new AbortBenchmarkNodeResponse(benchmarkId, nodeName, false, "Benchmark with id [" + benchmarkId + "] not found");
+    public AbortBenchmarkResponse abortBenchmark(String[] names) {
+        synchronized (activeStateLock) {
+            for (String name : names) {
+                try {
+                    final BenchmarkState state = activeBenchmarks.get(name);
+                    if (state == null) {
+                        continue;
+                    }
+                    state.semaphore.stop();
+                    activeBenchmarks = ImmutableOpenMap.builder(activeBenchmarks).fRemove(name).build();
+                    logger.debug("Aborted benchmark [{}] on [{}]", name, nodeName());
+                } catch (Throwable e) {
+                    logger.warn("Error while aborting [{}]", name, e);
+                }
+            }
         }
-        BenchmarkState state = activeBenchmarks.get(benchmarkId);
-        if (state == null) {
-            throw new ElasticsearchException("Benchmark with id [" + benchmarkId + "] is missing");
-        }
-        state.semaphore.stop();
-        return new AbortBenchmarkNodeResponse(benchmarkId, nodeName);
+        return new AbortBenchmarkResponse(true);
     }
 
     /**
@@ -100,6 +104,8 @@ public class BenchmarkExecutor {
             BenchmarkState state = activeBenchmarks.get(id);
             response.addBenchResponse(state.response);
         }
+
+        logger.debug("Reporting [{}] active benchmarks on [{}]", response.activeBenchmarks(), nodeName());
         return response;
     }
 
@@ -116,13 +122,9 @@ public class BenchmarkExecutor {
         final Map<String, CompetitionResult> competitionResults = new HashMap<String, CompetitionResult>();
         final BenchmarkResponse benchmarkResponse = new BenchmarkResponse(request.benchmarkName(), competitionResults);
 
-        if (this.nodeName == null) {
-            this.nodeName = clusterService.localNode().name();
-        }
-
-        synchronized (lock) {
+        synchronized (activeStateLock) {
             if (activeBenchmarks.containsKey(request.benchmarkName())) {
-                throw new ElasticsearchException("Benchmark with id [" + request.benchmarkName() + "] is already running");
+                throw new ElasticsearchException("Benchmark [" + request.benchmarkName() + "] is already running on [" + nodeName() + "]");
             }
 
             activeBenchmarks = ImmutableOpenMap.builder(activeBenchmarks).fPut(
@@ -130,86 +132,85 @@ public class BenchmarkExecutor {
         }
 
         try {
-            final List<String> errorMessages = new ArrayList<>();
+            for (BenchmarkCompetitor competitor : request.competitors()) {
 
-            try {
-                for (BenchmarkCompetitor competitor : request.competitors()) {
-                    final BenchmarkSettings settings = competitor.settings();
-                    final int iterations = settings.iterations();
-                    logger.debug("Executing [{}] iterations for benchmark [{}][{}] ", iterations, request.benchmarkName(), competitor.name());
+                final BenchmarkSettings settings = competitor.settings();
+                final int iterations = settings.iterations();
+                logger.debug("Executing [iterations: {}] [multiplier: {}] for [{}] on [{}]",
+                        iterations, settings.multiplier(), request.benchmarkName(), nodeName());
 
-                    final List<CompetitionIteration> competitionIterations = new ArrayList<>(iterations);
-                    final CompetitionResult competitionResult =
-                            new CompetitionResult(competitor.name(), settings.concurrency(), settings.multiplier(), request.percentiles());
-                    final CompetitionNodeResult competitionNodeResult =
-                            new CompetitionNodeResult(competitor.name(), nodeName, iterations, competitionIterations);
+                final List<CompetitionIteration> competitionIterations = new ArrayList<>(iterations);
+                final CompetitionResult competitionResult =
+                        new CompetitionResult(competitor.name(), settings.concurrency(), settings.multiplier(), request.percentiles());
+                final CompetitionNodeResult competitionNodeResult =
+                        new CompetitionNodeResult(competitor.name(), nodeName(), iterations, competitionIterations);
 
-                    competitionResult.addCompetitionNodeResult(competitionNodeResult);
-                    benchmarkResponse.competitionResults.put(competitor.name(), competitionResult);
+                competitionResult.addCompetitionNodeResult(competitionNodeResult);
+                benchmarkResponse.competitionResults.put(competitor.name(), competitionResult);
 
-                    final List<SearchRequest> searchRequests = competitor.settings().searchRequests();
+                final List<SearchRequest> searchRequests = competitor.settings().searchRequests();
 
-                    if (settings.warmup()) {
-                        final long beforeWarmup = System.nanoTime();
-                        final List<String> warmUpErrors = warmUp(competitor, searchRequests, semaphore);
-                        final long afterWarmup = System.nanoTime();
-                        competitionNodeResult.warmUpTime(TimeUnit.MILLISECONDS.convert(afterWarmup - beforeWarmup, TimeUnit.NANOSECONDS));
-                        if (!warmUpErrors.isEmpty()) {
-                            competitionNodeResult.failures(warmUpErrors.toArray(Strings.EMPTY_ARRAY));
-                            continue;
-                        }
+                if (settings.warmup()) {
+                    final long beforeWarmup = System.nanoTime();
+                    final List<String> warmUpErrors = warmUp(competitor, searchRequests, semaphore);
+                    final long afterWarmup = System.nanoTime();
+                    competitionNodeResult.warmUpTime(TimeUnit.MILLISECONDS.convert(afterWarmup - beforeWarmup, TimeUnit.NANOSECONDS));
+                    if (!warmUpErrors.isEmpty()) {
+                        throw new BenchmarkExecutionException("Failed to execute warmup phase", warmUpErrors);
                     }
-
-                    final int requestsPerRound = settings.multiplier() * searchRequests.size();
-                    final long[] timeBuckets = new long[requestsPerRound];
-                    final long[] docBuckets = new long[requestsPerRound];
-
-                    for (int i = 0; i < iterations; i++) {
-                        if (settings.allowCacheClearing() && settings.clearCaches() != null) {
-                            try {
-                                client.admin().indices().clearCache(settings.clearCaches()).get();
-                            } catch (ExecutionException e) {
-                                throw new ElasticsearchException("Failed to clear caches before benchmark round", e);
-                            }
-                        }
-
-                        // Run the iteration
-                        CompetitionIteration ci = runIteration(competitor, searchRequests, timeBuckets, docBuckets, errorMessages, semaphore);
-                        ci.percentiles(request.percentiles());
-
-                        if (errorMessages.isEmpty()) {
-                            competitionIterations.add(ci);
-                            competitionNodeResult.incrementCompletedIterations();
-                        } else {
-                            competitionNodeResult.failures(errorMessages.toArray(Strings.EMPTY_ARRAY));
-                            return benchmarkResponse;
-                        }
-                    }
-
-                    competitionNodeResult.totalExecutedQueries(settings.multiplier() * searchRequests.size() * iterations);
                 }
-            } catch (InterruptedException ex) {
-                Thread.currentThread().interrupt();
-                benchmarkResponse.state(BenchmarkResponse.State.ABORTED);
+
+                final int numMeasurements = settings.multiplier() * searchRequests.size();
+                final long[] timeBuckets = new long[numMeasurements];
+                final long[] docBuckets = new long[numMeasurements];
+
+                for (int i = 0; i < iterations; i++) {
+                    if (settings.allowCacheClearing() && settings.clearCaches() != null) {
+                        try {
+                            client.admin().indices().clearCache(settings.clearCaches()).get();
+                        } catch (ExecutionException e) {
+                            throw new BenchmarkExecutionException("Failed to clear caches", e);
+                        }
+                    }
+
+                    // Run the iteration
+                    CompetitionIteration ci =
+                            runIteration(competitor, searchRequests, timeBuckets, docBuckets, semaphore);
+                    ci.percentiles(request.percentiles());
+                    competitionIterations.add(ci);
+                    competitionNodeResult.incrementCompletedIterations();
+                }
+
+                competitionNodeResult.totalExecutedQueries(settings.multiplier() * searchRequests.size() * iterations);
             }
+
             benchmarkResponse.state(BenchmarkResponse.State.COMPLETE);
-            return benchmarkResponse;
+
+        } catch (BenchmarkExecutionException e) {
+            benchmarkResponse.state(BenchmarkResponse.State.FAILED);
+            benchmarkResponse.errors(e.errorMessages().toArray(new String[e.errorMessages().size()]));
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            benchmarkResponse.state(BenchmarkResponse.State.ABORTED);
+        } catch (Throwable ex) {
+            logger.debug("Unexpected exception during benchmark", ex);
+            benchmarkResponse.state(BenchmarkResponse.State.FAILED);
+            benchmarkResponse.errors(ex.getMessage());
         } finally {
-            synchronized (lock) {
-                if (!activeBenchmarks.containsKey(request.benchmarkName())) {
-                    throw new ElasticsearchException("Benchmark with id [" + request.benchmarkName() + "] is missing");
-                }
+            synchronized (activeStateLock) {
                 semaphore.stop();
                 activeBenchmarks = ImmutableOpenMap.builder(activeBenchmarks).fRemove(request.benchmarkName()).build();
             }
         }
+
+        return benchmarkResponse;
     }
 
     private List<String> warmUp(BenchmarkCompetitor competitor, List<SearchRequest> searchRequests, StoppableSemaphore stoppableSemaphore)
             throws InterruptedException {
         final StoppableSemaphore semaphore = stoppableSemaphore.reset(competitor.settings().concurrency());
         final CountDownLatch totalCount = new CountDownLatch(searchRequests.size());
-        final CopyOnWriteArrayList<String> errorMessages = new CopyOnWriteArrayList<String>();
+        final CopyOnWriteArrayList<String> errorMessages = new CopyOnWriteArrayList<>();
 
         for (SearchRequest searchRequest : searchRequests) {
             semaphore.acquire();
@@ -220,7 +221,7 @@ public class BenchmarkExecutor {
     }
 
     private CompetitionIteration runIteration(BenchmarkCompetitor competitor, List<SearchRequest> searchRequests,
-                                              final long[] timeBuckets, final long[] docBuckets, List<String> errors,
+                                              final long[] timeBuckets, final long[] docBuckets,
                                               StoppableSemaphore stoppableSemaphore) throws InterruptedException {
 
         assert timeBuckets.length == competitor.settings().multiplier() * searchRequests.size();
@@ -233,7 +234,7 @@ public class BenchmarkExecutor {
 
         int id = 0;
         final CountDownLatch totalCount = new CountDownLatch(timeBuckets.length);
-        final CopyOnWriteArrayList<String> errorMessages = new CopyOnWriteArrayList<String>();
+        final CopyOnWriteArrayList<String> errorMessages = new CopyOnWriteArrayList<>();
         final long beforeRun = System.nanoTime();
 
         for (int i = 0; i < competitor.settings().multiplier(); i++) {
@@ -248,24 +249,22 @@ public class BenchmarkExecutor {
         assert id == timeBuckets.length;
         final long afterRun = System.nanoTime();
         if (!errorMessages.isEmpty()) {
-            errors.addAll(errorMessages);
-            return null;
+            throw new BenchmarkExecutionException("Too many execution failures", errorMessages);
         }
-
-        assert assertBuckets(timeBuckets); // make sure they are all set
-        assert assertBuckets(docBuckets);  // make sure they are all set
 
         final long totalTime = TimeUnit.MILLISECONDS.convert(afterRun - beforeRun, TimeUnit.NANOSECONDS);
 
         CompetitionIterationData iterationData = new CompetitionIterationData(timeBuckets);
         long sumDocs = new CompetitionIterationData(docBuckets).sum();
 
-        CompetitionIteration.SlowRequest[] topN =
-                competitor.settings().numSlowest() > 0 ? getTopN(timeBuckets, searchRequests,
-                        competitor.settings().multiplier(), competitor.settings().numSlowest()) : null;
+        // Don't track slowest request if there is only one request as that is redundant
+        CompetitionIteration.SlowRequest[] topN = null;
+        if ((competitor.settings().numSlowest() > 0) && (searchRequests.size() > 1)) {
+            topN = getTopN(timeBuckets, searchRequests, competitor.settings().multiplier(), competitor.settings().numSlowest());
+        }
+
         CompetitionIteration round =
                 new CompetitionIteration(topN, totalTime, timeBuckets.length, sumDocs, iterationData);
-
         return round;
     }
 
@@ -354,12 +353,16 @@ public class BenchmarkExecutor {
         }
 
         public void onFailure(Throwable e) {
-            manage();
-            if (errorMessages.size() < 5) {
-                logger.error("Failed to execute benchmark [{}]", e.getMessage(), e);
-                e = ExceptionsHelper.unwrapCause(e);
-                errorMessages.add(e.getLocalizedMessage());
+            try {
+                if (errorMessages.size() < 5) {
+                    logger.debug("Failed to execute benchmark [{}]", e.getMessage(), e);
+                    e = ExceptionsHelper.unwrapCause(e);
+                    errorMessages.add(e.getLocalizedMessage());
+                }
+            } finally {
+                manage(); // first add the msg then call the count down on the latch otherwise we might iss one error
             }
+
         }
     }
 
@@ -369,8 +372,9 @@ public class BenchmarkExecutor {
         private final int bucketId;
         private final long[] docBuckets;
 
-        public StatisticCollectionActionListener(StoppableSemaphore semaphore, long[] timeBuckets, long[] docs, int bucketId,
-                                                 CountDownLatch totalCount, CopyOnWriteArrayList<String> errorMessages) {
+        public StatisticCollectionActionListener(StoppableSemaphore semaphore, long[] timeBuckets, long[] docs,
+                                                 int bucketId, CountDownLatch totalCount,
+                                                 CopyOnWriteArrayList<String> errorMessages) {
             super(semaphore, totalCount, errorMessages);
             this.bucketId = bucketId;
             this.timeBuckets = timeBuckets;
@@ -388,9 +392,13 @@ public class BenchmarkExecutor {
 
         @Override
         public void onFailure(Throwable e) {
-            timeBuckets[bucketId] = -1;
-            docBuckets[bucketId] = -1;
-            super.onFailure(e);
+            try {
+                timeBuckets[bucketId] = -1;
+                docBuckets[bucketId] = -1;
+            } finally {
+                super.onFailure(e);
+            }
+
         }
     }
 
@@ -423,9 +431,16 @@ public class BenchmarkExecutor {
         }
     }
 
-    private final boolean assertBuckets(long[] buckets) { // assert only
+    private String nodeName() {
+        if (nodeName == null) {
+            nodeName = clusterService.localNode().name();
+        }
+        return nodeName;
+    }
+
+    private final boolean assertBuckets(long[] buckets) {
         for (int i = 0; i < buckets.length; i++) {
-            assert buckets[i] >= 0 : "Bucket value was negative: " + buckets[i];
+            assert buckets[i] >= 0 : "Bucket value was negative: " + buckets[i] + " bucket id: " + i;
         }
         return true;
     }

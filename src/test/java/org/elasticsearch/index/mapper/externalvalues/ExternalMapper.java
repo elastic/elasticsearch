@@ -35,10 +35,10 @@ import java.util.Map;
 
 /**
  * This mapper add a new sub fields
- *  .bin Binary type
- *  .bool Boolean type
- *  .point GeoPoint type
- *  .shape GeoShape type
+ * .bin Binary type
+ * .bool Boolean type
+ * .point GeoPoint type
+ * .shape GeoShape type
  */
 public class ExternalMapper implements Mapper {
     public static class Names {
@@ -175,14 +175,14 @@ public class ExternalMapper implements Mapper {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
-	        builder.field("type", RegisterExternalTypes.EXTERNAL);
-	        builder.startObject("fields");
-                binMapper.toXContent(builder, params);
-                boolMapper.toXContent(builder, params);
-                pointMapper.toXContent(builder, params);
-                shapeMapper.toXContent(builder, params);
-	        builder.endObject();
-        
+        builder.field("type", RegisterExternalTypes.EXTERNAL);
+        builder.startObject("fields");
+        binMapper.toXContent(builder, params);
+        boolMapper.toXContent(builder, params);
+        pointMapper.toXContent(builder, params);
+        shapeMapper.toXContent(builder, params);
+        builder.endObject();
+
         builder.endObject();
         return builder;
     }

@@ -1,5 +1,5 @@
 [[search-aggregations-bucket-datehistogram-aggregation]]
-=== Date Histogram
+=== Date Histogram Aggregation
 
 A multi-bucket aggregation similar to the <<search-aggregations-bucket-histogram-aggregation,histogram>> except it can
 only be applied on date values. Since dates are represented in elasticsearch internally as long values, it is possible

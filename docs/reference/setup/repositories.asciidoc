@@ -20,10 +20,16 @@ Add the following to your /etc/apt/sources.list to enable the repository
 
 [source,sh]
 --------------------------------------------------
-deb http://packages.elasticsearch.org/elasticsearch/1.1/debian stable main
+deb http://packages.elasticsearch.org/elasticsearch/1.2/debian stable main
 --------------------------------------------------
 
-Run apt-get update and the repository is ready for use.
+Run apt-get update and the repository is ready for use. You can install it with :
+
+[source,sh]
+--------------------------------------------------
+apt-get install elasticsearch
+--------------------------------------------------
+
 
 
 [float]
@@ -36,17 +42,22 @@ Download and install the Public Signing Key
 rpm --import http://packages.elasticsearch.org/GPG-KEY-elasticsearch
 --------------------------------------------------
 
-Add the following in your /etc/yum.repos.d/ directory
+Add the following in your `/etc/yum.repos.d/` directory
+in a file named (for example) `elasticsearch.repo`
 
 [source,sh]
 --------------------------------------------------
-[elasticsearch-1.1]
-name=Elasticsearch repository for 1.1.x packages
-baseurl=http://packages.elasticsearch.org/elasticsearch/1.1/centos
+[elasticsearch-1.2]
+name=Elasticsearch repository for 1.2.x packages
+baseurl=http://packages.elasticsearch.org/elasticsearch/1.2/centos
 gpgcheck=1
 gpgkey=http://packages.elasticsearch.org/GPG-KEY-elasticsearch
 enabled=1
 --------------------------------------------------
 
-And your repository is ready for use.
+And your repository is ready for use. You can install it with :
 
+[source,sh]
+--------------------------------------------------
+yum install elasticsearch
+--------------------------------------------------

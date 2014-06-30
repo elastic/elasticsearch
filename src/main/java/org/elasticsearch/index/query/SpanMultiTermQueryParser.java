@@ -18,40 +18,39 @@
  */
 package org.elasticsearch.index.query;
 
-import java.io.IOException;
-
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+
+import java.io.IOException;
 
 /**
  *
  */
 public class SpanMultiTermQueryParser implements QueryParser {
 
-	public static final String NAME = "span_multi";
-	public static final String MATCH_NAME = "match";
+    public static final String NAME = "span_multi";
+    public static final String MATCH_NAME = "match";
 
-	@Inject
-	public SpanMultiTermQueryParser() {
-	}
+    @Inject
+    public SpanMultiTermQueryParser() {
+    }
 
-	@Override
-	public String[] names() {
-		return new String[] { NAME, Strings.toCamelCase(NAME) };
-	}
+    @Override
+    public String[] names() {
+        return new String[]{NAME, Strings.toCamelCase(NAME)};
+    }
 
-	@Override
+    @Override
     public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
         Token token = parser.nextToken();
-            if (!MATCH_NAME.equals(parser.currentName()) || token != XContentParser.Token.FIELD_NAME) {
+        if (!MATCH_NAME.equals(parser.currentName()) || token != XContentParser.Token.FIELD_NAME) {
             throw new QueryParsingException(parseContext.index(), "spanMultiTerm must have [" + MATCH_NAME + "] multi term query clause");
         }
 

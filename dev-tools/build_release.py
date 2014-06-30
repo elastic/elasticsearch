@@ -391,7 +391,7 @@ def smoke_test_release(release, files, expected_hash, plugins):
     plugin_names = {}
     for name, plugin  in plugins:
       print('  Install plugin [%s] from [%s]' % (name, plugin))
-      run('%s %s %s' % (es_plugin_path, '-install', plugin))
+      run('%s; %s %s %s' % (java_exe(), es_plugin_path, '-install', plugin))
       plugin_names[name] = True
 
     if release.startswith("0.90."):
@@ -399,7 +399,7 @@ def smoke_test_release(release, files, expected_hash, plugins):
     else:
       background = '-d'
     print('  Starting elasticsearch deamon from [%s]' % os.path.join(tmp_dir, 'elasticsearch-%s' % release))
-    run('%s; %s -Des.node.name=smoke_tester -Des.cluster.name=prepare_release -Des.discovery.zen.ping.multicast.enabled=false %s'
+    run('%s; %s -Des.node.name=smoke_tester -Des.cluster.name=prepare_release -Des.discovery.zen.ping.multicast.enabled=false -Des.node.bench=true -Des.script.disable_dynamic=false %s'
          % (java_exe(), es_run_path, background))
     conn = HTTPConnection('127.0.0.1', 9200, 20);
     wait_for_node_startup()
@@ -541,7 +541,6 @@ if __name__ == '__main__':
   print('Preparing Release from branch [%s] running tests: [%s] dryrun: [%s]' % (src_branch, run_tests, dry_run))
   print('  JAVA_HOME is [%s]' % JAVA_HOME)
   print('  Running with maven command: [%s] ' % (MVN))
-
   if build:
     release_version = find_release_version(src_branch)
     ensure_no_open_tickets(release_version)

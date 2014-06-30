@@ -18,11 +18,9 @@
  */
 package org.elasticsearch.test;
 
-import com.carrotsearch.randomizedtesting.annotations.Listeners;
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
+import com.carrotsearch.randomizedtesting.RandomizedTest;
+import com.carrotsearch.randomizedtesting.annotations.*;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
-import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableList;
 import org.apache.lucene.store.MockDirectoryWrapper;
@@ -30,7 +28,6 @@ import org.apache.lucene.util.AbstractRandomizedTest;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.Version;
-import org.elasticsearch.test.cache.recycler.MockPageCacheRecycler;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;
@@ -39,11 +36,11 @@ import org.elasticsearch.common.util.concurrent.EsAbortPolicy;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.cache.recycler.MockBigArrays;
+import org.elasticsearch.test.cache.recycler.MockPageCacheRecycler;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.test.store.MockDirectoryHelper;
 import org.junit.After;
 import org.junit.AfterClass;
-import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.Closeable;
@@ -292,5 +289,24 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
         } else {
             return threadGroup.getName();
         }
+    }
+
+    public static <T> T randomFrom(T... values) {
+        return RandomizedTest.randomFrom(values);
+    }
+
+    public static String[] generateRandomStringArray(int maxArraySize, int maxStringSize, boolean allowNull) {
+        if (allowNull && randomBoolean()) {
+            return null;
+        }
+        String[] array = new String[randomInt(maxArraySize)]; // allow empty arrays
+        for (int i = 0; i < array.length; i++) {
+            array[i] = randomAsciiOfLength(maxStringSize);
+        }
+        return array;
+    }
+
+    public static String[] generateRandomStringArray(int maxArraySize, int maxStringSize) {
+        return generateRandomStringArray(maxArraySize, maxStringSize, false);
     }
 }

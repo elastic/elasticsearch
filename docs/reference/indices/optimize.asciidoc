@@ -23,11 +23,12 @@ The optimize API accepts the following request parameters:
 optimize the index, set it to `1`. Defaults to simply checking if a
 merge needs to execute, and if so, executes it.
 
-`only_expunge_deletes`:: Should the optimize process only expunge segments
-with deletes in it. In Lucene, a document is not deleted from a segment,
-just marked as deleted. During a merge process of segments, a new
-segment is created that does not have those deletes. This flag allows to
-only merge segments that have deletes. Defaults to `false`.
+`only_expunge_deletes`:: Should the optimize process only expunge segments with
+deletes in it. In Lucene, a document is not deleted from a segment, just marked
+as deleted. During a merge process of segments, a new segment is created that
+does not have those deletes. This flag allows to only merge segments that have
+deletes. Defaults to `false`.  Note that this won't override the
+`index.merge.policy.expunge_deletes_allowed` threshold.
 
 `flush`::  Should a flush be performed after the optimize. Defaults to
 `true`.

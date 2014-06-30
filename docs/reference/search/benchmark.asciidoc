@@ -1,7 +1,7 @@
 [[search-benchmark]]
 == Benchmark
 
-coming[1.2.0]
+coming[1.3.0]
 
 .Experimental!
 [IMPORTANT]
@@ -27,8 +27,7 @@ Benchmarking a search request is as simple as executing the following command:
 
 [source,js]
 --------------------------------------------------
-$ curl -XPUT 'localhost:9200/_bench/?pretty=true' -d
-'{
+$ curl -XPUT 'localhost:9200/_bench/?pretty=true' -d '{
     "name": "my_benchmark",
     "competitors": [ {
         "name": "my_competitor",
@@ -70,13 +69,7 @@ Response:
           "percentile_75" : 5,
           "percentile_90" : 7,
           "percentile_99" : 10
-        },
-        "slowest" : [ {
-          "node" : "localhost",
-          "max_time" : 15,
-          "avg_time" : 4,
-          "request":{"query":{"match":{"_all":"a*"}}}
-        } ]
+        }
       }
     }
   }
@@ -89,32 +82,33 @@ competing alternatives side-by-side.
 
 There are several parameters which may be set at the competition level:
 [horizontal]
-`name`::            Unique name for the competition
-`iterations`::      Number of times to run the competitors
-`concurrency`::     Within each iteration use this level of parallelism
-`multiplier`::      Within each iteration run the query this many times
-`warmup`::          Perform warmup of query
-`num_slowest`::     Record N slowest queries
-`search_type`::     Type of search, e.g. "query_then_fetch", "dfs_query_then_fetch", "count" 
-`requests`::        Query DSL describing search requests
-`clear_caches`::    Whether caches should be cleared on each iteration, and if so, how
-`indices`::         Array of indices (and optional types) to search, e.g. ["my_index_1/my_type_1", "my_index_2", "my_index_3/my_type_3"]
+`name`::            Unique name for the competition.
+`iterations`::      Number of times to run the competitors. Defaults to `5`.
+`concurrency`::     Within each iteration use this level of parallelism. Defaults to `5`.
+`multiplier`::      Within each iteration run the query this many times. Defaults to `1000`.
+`warmup`::          Perform warmup of query. Defaults to `true`.
+`num_slowest`::     Record N slowest queries. Defaults to `1`.
+`search_type`::     Type of search, e.g. "query_then_fetch", "dfs_query_then_fetch", "count". Defaults to `query_then_fetch`.
+`requests`::        Query DSL describing search requests.
+`clear_caches`::    Whether caches should be cleared on each iteration, and if so, how. Caches are not cleared by default.
+`indices`::         Array of indices to search, e.g. ["my_index_1", "my_index_2", "my_index_3"].
+`types`::           Array of index types to search, e.g. ["my_type_1", "my_type_2"].
 
 Cache clearing parameters:
 [horizontal]
-`clear_caches`::                Set to 'false' to disable cache clearing completely
-`clear_caches.filter`::         Whether to clear the filter cache
-`clear_caches.field_data`::     Whether to clear the field data cache
-`clear_caches.id`::             Whether to clear the id cache
-`clear_caches.recycler`::       Whether to clear the recycler cache
-`clear_caches.fields`::         Array of fields to clear
-`clear_caches.filter_keys`::    Array of filter keys to clear
+`clear_caches`::                Set to 'false' to disable cache clearing completely.
+`clear_caches.filter`::         Whether to clear the filter cache.
+`clear_caches.field_data`::     Whether to clear the field data cache.
+`clear_caches.id`::             Whether to clear the id cache.
+`clear_caches.recycler`::       Whether to clear the recycler cache.
+`clear_caches.fields`::         Array of fields to clear.
+`clear_caches.filter_keys`::    Array of filter keys to clear.
 
 Global parameters:
 [horizontal]
-`name`::                    Unique name for the benchmark
+`name`::                    Unique name for the benchmark.
 `num_executor_nodes`::      Number of cluster nodes from which to submit and time benchmarks. Allows user to run a benchmark simultaneously on one or more nodes and compare timings. Note that this does not control how many nodes a search request will actually execute on. Defaults to: 1.
-`percentiles`::             Array of percentile values to report. Defaults to: [10, 25, 50, 75, 90, 99]
+`percentiles`::             Array of percentile values to report. Defaults to: [10, 25, 50, 75, 90, 99].
 
 Additionally, the following competition-level parameters may be set globally: iteration, concurrency, multiplier, warmup, and clear_caches.
 
@@ -122,8 +116,7 @@ Using these parameters it is possible to describe precisely how to execute a ben
 
 [source,js]
 --------------------------------------------------
-$ curl -XPUT 'localhost:9200/_bench/?pretty=true' -d
-{
+$ curl -XPUT 'localhost:9200/_bench/?pretty=true' -d '{
     "name": "my_benchmark",
     "num_executor_nodes": 1,
     "percentiles" : [ 25, 50, 75 ],
@@ -151,6 +144,7 @@ $ curl -XPUT 'localhost:9200/_bench/?pretty=true' -d
         "name": "competitor_1",
         "search_type": "query_then_fetch",
         "indices": [ "my_index_1" ],
+        "types": [ "my_type_1" ],
         "clear_caches" : {
             "filter" : true,
             "field_data" : true,
@@ -162,6 +156,7 @@ $ curl -XPUT 'localhost:9200/_bench/?pretty=true' -d
         "name": "competitor_2",
         "search_type": "dfs_query_then_fetch",
         "indices": [ "my_index_2" ],
+        "types": [ "my_type_2" ],
         "clear_caches" : {
             "filter" : true,
             "field_data" : true,
@@ -170,7 +165,7 @@ $ curl -XPUT 'localhost:9200/_bench/?pretty=true' -d
             "fields": ["title"]
         }
     } ]
-}
+}'
 --------------------------------------------------
 
 Response:
@@ -199,8 +194,7 @@ Response:
           "percentile_25" : 0.0,
           "percentile_50" : 1.0,
           "percentile_75" : 1.0
-        },
-        "slowest" : [ ]
+        }
       }
     },
     "competitor_2" : {
@@ -222,8 +216,7 @@ Response:
           "percentile_25" : 0.0,
           "percentile_50" : 0.0,
           "percentile_75" : 1.0
-        },
-        "slowest" : [ ]
+        }
       }
     }
   }

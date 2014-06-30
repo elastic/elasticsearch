@@ -379,10 +379,8 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                 newClusterState.status(ClusterState.ClusterStateStatus.BEING_APPLIED);
 
                 if (logger.isTraceEnabled()) {
-                    StringBuilder sb = new StringBuilder("cluster state updated:\nversion [").append(newClusterState.version()).append("], source [").append(source).append("]\n");
-                    sb.append(newClusterState.nodes().prettyPrint());
-                    sb.append(newClusterState.routingTable().prettyPrint());
-                    sb.append(newClusterState.readOnlyRoutingNodes().prettyPrint());
+                    StringBuilder sb = new StringBuilder("cluster state updated, source [").append(source).append("]\n");
+                    sb.append(newClusterState.prettyPrint());
                     logger.trace(sb.toString());
                 } else if (logger.isDebugEnabled()) {
                     logger.debug("cluster state updated, version [{}], source [{}]", newClusterState.version(), source);

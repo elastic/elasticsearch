@@ -29,15 +29,15 @@ example, can be set to `5m` for a 5 minute expiry.
 === Field data circuit breaker
 The field data circuit breaker allows Elasticsearch to estimate the amount of
 memory a field will required to be loaded into memory. It can then prevent the
-field data loading by raising and exception. By default the limit is configured
-to 80% of the maximum JVM heap. It can be configured with the following
+field data loading by raising an exception. By default the limit is configured
+to 60% of the maximum JVM heap. It can be configured with the following
 parameters:
 
 [cols="<,<",options="header",]
 |=======================================================================
 |Setting |Description
 |`indices.fielddata.breaker.limit` |Maximum size of estimated field data
-to allow loading. Defaults to 80% of the maximum JVM heap.
+to allow loading. Defaults to 60% of the maximum JVM heap.
 |`indices.fielddata.breaker.overhead` |A constant that all field data
 estimations are multiplied with to determine a final estimation. Defaults to
 1.03
@@ -127,7 +127,7 @@ field data format.
 [float]
 ==== Global ordinals
 
-coming[1.2.0]
+added[1.2.0]
 
 Global ordinals is a data-structure on top of field data, that maintains an
 incremental numbering for all the terms in field data in a lexicographic order.

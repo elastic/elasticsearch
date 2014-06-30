@@ -61,7 +61,7 @@ public class RestNodesAction extends AbstractCatAction {
     }
 
     @Override
-    public void doRequest(final RestRequest request, final RestChannel channel) {
+    public void doRequest(final RestRequest request, final RestChannel channel, final Client client) {
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.clear().nodes(true);
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
@@ -201,7 +201,7 @@ public class RestNodesAction extends AbstractCatAction {
                 table.addCell("-");
             }
 
-            table.addCell(info == null ? null : info.getVersion().number());
+            table.addCell(node.getVersion().number());
             table.addCell(info == null ? null : info.getBuild().hashShort());
             table.addCell(info == null ? null : info.getJvm().version());
             table.addCell(stats == null ? null : stats.getFs() == null ? null : stats.getFs().total().getAvailable());

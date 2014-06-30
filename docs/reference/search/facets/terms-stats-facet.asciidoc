@@ -1,6 +1,8 @@
 [[search-facets-terms-stats-facet]]
 === Terms Stats Facet
 
+include::deprecated.asciidoc[]
+
 The `terms_stats` facet combines both the
 <<search-facets-terms-facet,terms>> and
 <<search-facets-statistical-facet,statistical>>

@@ -19,10 +19,11 @@
 
 package org.elasticsearch.common.util;
 
+import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.lease.Releasable;
 
 /** Base abstraction of an array. */
-public interface BigArray extends Releasable {
+public interface BigArray extends Releasable, Accountable {
 
     /** Return the length of this array. */
     public long size();

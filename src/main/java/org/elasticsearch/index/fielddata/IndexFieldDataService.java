@@ -35,6 +35,7 @@ import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsBuilder;
 import org.elasticsearch.index.fielddata.ordinals.InternalGlobalOrdinalsBuilder;
 import org.elasticsearch.index.fielddata.plain.*;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.internal.IndexFieldMapper;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -73,6 +74,7 @@ public class IndexFieldDataService extends AbstractIndexComponent {
                 .put("long", new PackedArrayIndexFieldData.Builder().setNumericType(IndexNumericFieldData.NumericType.LONG))
                 .put("geo_point", new GeoPointDoubleArrayIndexFieldData.Builder())
                 .put(ParentFieldMapper.NAME, new ParentChildIndexFieldData.Builder())
+                .put(IndexFieldMapper.NAME, new IndexIndexFieldData.Builder())
                 .put("binary", new DisabledIndexFieldData.Builder())
                 .immutableMap();
 
@@ -244,9 +246,9 @@ public class IndexFieldDataService extends AbstractIndexComponent {
                         // this means changing the node level settings is simple, just set the bounds there
                         String cacheType = type.getSettings().get("cache", indexSettings.get("index.fielddata.cache", "node"));
                         if ("resident".equals(cacheType)) {
-                            cache = new IndexFieldDataCache.Resident(indexService, fieldNames, type, indicesFieldDataCacheListener);
+                            cache = new IndexFieldDataCache.Resident(logger, indexService, fieldNames, type, indicesFieldDataCacheListener);
                         } else if ("soft".equals(cacheType)) {
-                            cache = new IndexFieldDataCache.Soft(indexService, fieldNames, type, indicesFieldDataCacheListener);
+                            cache = new IndexFieldDataCache.Soft(logger, indexService, fieldNames, type, indicesFieldDataCacheListener);
                         } else if ("node".equals(cacheType)) {
                             cache = indicesFieldDataCache.buildIndexFieldDataCache(indexService, index, fieldNames, type);
                         } else {

@@ -58,8 +58,8 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
         Settings settings = settingsBuilder()
                 .put("discovery.type", "local")
                 .build();
-        cluster().startNode(settings);
-        ClusterService clusterService1 = cluster().getInstance(ClusterService.class);
+        internalCluster().startNode(settings);
+        ClusterService clusterService1 = internalCluster().getInstance(ClusterService.class);
         final CountDownLatch block = new CountDownLatch(1);
         clusterService1.submitStateUpdateTask("test1", new ClusterStateUpdateTask() {
             @Override
@@ -113,8 +113,8 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
         Settings settings = settingsBuilder()
                 .put("discovery.type", "local")
                 .build();
-        cluster().startNode(settings);
-        ClusterService clusterService = cluster().getInstance(ClusterService.class);
+        internalCluster().startNode(settings);
+        ClusterService clusterService = internalCluster().getInstance(ClusterService.class);
 
         final AtomicBoolean allNodesAcked = new AtomicBoolean(false);
         final AtomicBoolean ackTimeout = new AtomicBoolean(false);
@@ -122,7 +122,12 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
         final AtomicBoolean executed = new AtomicBoolean(false);
         final CountDownLatch latch = new CountDownLatch(1);
         final CountDownLatch processedLatch = new CountDownLatch(1);
-        clusterService.submitStateUpdateTask("test", new AckedClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("test", new AckedClusterStateUpdateTask<Void>(null, null) {
+            @Override
+            protected Void newResponse(boolean acknowledged) {
+                return null;
+            }
+
             @Override
             public boolean mustAck(DiscoveryNode discoveryNode) {
                 return true;
@@ -184,8 +189,8 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
         Settings settings = settingsBuilder()
                 .put("discovery.type", "local")
                 .build();
-        cluster().startNode(settings);
-        ClusterService clusterService = cluster().getInstance(ClusterService.class);
+        internalCluster().startNode(settings);
+        ClusterService clusterService = internalCluster().getInstance(ClusterService.class);
 
         final AtomicBoolean allNodesAcked = new AtomicBoolean(false);
         final AtomicBoolean ackTimeout = new AtomicBoolean(false);
@@ -193,10 +198,10 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
         final AtomicBoolean executed = new AtomicBoolean(false);
         final CountDownLatch latch = new CountDownLatch(1);
         final CountDownLatch processedLatch = new CountDownLatch(1);
-        clusterService.submitStateUpdateTask("test", new AckedClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("test", new AckedClusterStateUpdateTask<Void>(null, null) {
             @Override
-            public boolean mustAck(DiscoveryNode discoveryNode) {
-                return true;
+            protected Void newResponse(boolean acknowledged) {
+                return null;
             }
 
             @Override
@@ -255,15 +260,20 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
         Settings settings = settingsBuilder()
                 .put("discovery.type", "local")
                 .build();
-        cluster().startNode(settings);
-        ClusterService clusterService = cluster().getInstance(ClusterService.class);
+        internalCluster().startNode(settings);
+        ClusterService clusterService = internalCluster().getInstance(ClusterService.class);
 
         final AtomicBoolean allNodesAcked = new AtomicBoolean(false);
         final AtomicBoolean ackTimeout = new AtomicBoolean(false);
         final AtomicBoolean onFailure = new AtomicBoolean(false);
         final AtomicBoolean executed = new AtomicBoolean(false);
         final CountDownLatch latch = new CountDownLatch(1);
-        clusterService.submitStateUpdateTask("test", new AckedClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("test", new AckedClusterStateUpdateTask<Void>(null, null) {
+            @Override
+            protected Void newResponse(boolean acknowledged) {
+                return null;
+            }
+
             @Override
             public boolean mustAck(DiscoveryNode discoveryNode) {
                 return false;
@@ -322,8 +332,8 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
         Settings settings = settingsBuilder()
                 .put("discovery.type", "local")
                 .build();
-        cluster().startNode(settings);
-        ClusterService clusterService = cluster().getInstance(ClusterService.class);
+        internalCluster().startNode(settings);
+        ClusterService clusterService = internalCluster().getInstance(ClusterService.class);
 
         final AtomicBoolean allNodesAcked = new AtomicBoolean(false);
         final AtomicBoolean ackTimeout = new AtomicBoolean(false);
@@ -331,7 +341,12 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
         final AtomicBoolean executed = new AtomicBoolean(false);
         final CountDownLatch latch = new CountDownLatch(1);
         final CountDownLatch processedLatch = new CountDownLatch(1);
-        clusterService.submitStateUpdateTask("test", new AckedClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("test", new AckedClusterStateUpdateTask<Void>(null, null) {
+            @Override
+            protected Void newResponse(boolean acknowledged) {
+                return null;
+            }
+
             @Override
             public boolean mustAck(DiscoveryNode discoveryNode) {
                 return false;
@@ -392,11 +407,11 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
     public void testPendingUpdateTask() throws Exception {
         Settings zenSettings = settingsBuilder()
                 .put("discovery.type", "zen").build();
-        String node_0 = cluster().startNode(zenSettings);
-        cluster().startNodeClient(zenSettings);
+        String node_0 = internalCluster().startNode(zenSettings);
+        internalCluster().startNodeClient(zenSettings);
 
 
-        ClusterService clusterService = cluster().getInstance(ClusterService.class, node_0);
+        ClusterService clusterService = internalCluster().getInstance(ClusterService.class, node_0);
         final CountDownLatch block1 = new CountDownLatch(1);
         final CountDownLatch invoked1 = new CountDownLatch(1);
         clusterService.submitStateUpdateTask("1", new ClusterStateUpdateTask() {
@@ -444,7 +459,7 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
         assertTrue(controlSources.isEmpty());
 
         controlSources = new HashSet<>(Arrays.asList("2", "3", "4", "5", "6", "7", "8", "9", "10"));
-        PendingClusterTasksResponse response = cluster().clientNodeClient().admin().cluster().preparePendingClusterTasks().execute().actionGet();
+        PendingClusterTasksResponse response = internalCluster().clientNodeClient().admin().cluster().preparePendingClusterTasks().execute().actionGet();
         assertThat(response.pendingTasks().size(), equalTo(9));
         for (PendingClusterTask task : response) {
             assertTrue(controlSources.remove(task.source().string()));
@@ -455,7 +470,7 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
 
         pendingClusterTasks = clusterService.pendingTasks();
         assertThat(pendingClusterTasks, empty());
-        response = cluster().clientNodeClient().admin().cluster().preparePendingClusterTasks().execute().actionGet();
+        response = internalCluster().clientNodeClient().admin().cluster().preparePendingClusterTasks().execute().actionGet();
         assertThat(response.pendingTasks(), empty());
 
         final CountDownLatch block2 = new CountDownLatch(1);
@@ -503,7 +518,7 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
         }
         assertTrue(controlSources.isEmpty());
 
-        response = cluster().clientNodeClient().admin().cluster().preparePendingClusterTasks().execute().actionGet();
+        response = internalCluster().clientNodeClient().admin().cluster().preparePendingClusterTasks().execute().actionGet();
         assertThat(response.pendingTasks().size(), equalTo(4));
         controlSources = new HashSet<>(Arrays.asList("2", "3", "4", "5"));
         for (PendingClusterTask task : response) {
@@ -524,18 +539,18 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
                 .put("plugin.types", TestPlugin.class.getName())
                 .build();
 
-        cluster().startNode(settings);
-        ClusterService clusterService1 = cluster().getInstance(ClusterService.class);
-        MasterAwareService testService1 = cluster().getInstance(MasterAwareService.class);
+        internalCluster().startNode(settings);
+        ClusterService clusterService1 = internalCluster().getInstance(ClusterService.class);
+        MasterAwareService testService1 = internalCluster().getInstance(MasterAwareService.class);
 
         // the first node should be a master as the minimum required is 1
         assertThat(clusterService1.state().nodes().masterNode(), notNullValue());
         assertThat(clusterService1.state().nodes().localNodeMaster(), is(true));
         assertThat(testService1.master(), is(true));
 
-        String node_1 = cluster().startNode(settings);
-        final ClusterService clusterService2 = cluster().getInstance(ClusterService.class, node_1);
-        MasterAwareService testService2 = cluster().getInstance(MasterAwareService.class, node_1);
+        String node_1 = internalCluster().startNode(settings);
+        final ClusterService clusterService2 = internalCluster().getInstance(ClusterService.class, node_1);
+        MasterAwareService testService2 = internalCluster().getInstance(MasterAwareService.class, node_1);
 
         ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("2").execute().actionGet();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
@@ -544,7 +559,7 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
         assertThat(clusterService2.state().nodes().localNodeMaster(), is(false));
         assertThat(testService2.master(), is(false));
 
-        cluster().stopCurrentMasterNode();
+        internalCluster().stopCurrentMasterNode();
         clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("1").execute().actionGet();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
 
@@ -567,9 +582,9 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
         assertThat(testService2.master(), is(false));
 
 
-        String node_2 = cluster().startNode(settings);
-        clusterService1 = cluster().getInstance(ClusterService.class, node_2);
-        testService1 = cluster().getInstance(MasterAwareService.class, node_2);
+        String node_2 = internalCluster().startNode(settings);
+        clusterService1 = internalCluster().getInstance(ClusterService.class, node_2);
+        testService1 = internalCluster().getInstance(MasterAwareService.class, node_2);
 
         // make sure both nodes see each other otherwise the masternode below could be null if node 2 is master and node 1 did'r receive the updated cluster state...
         assertThat(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setLocal(true).setWaitForNodes("2").execute().actionGet().isTimedOut(), is(false));
@@ -594,8 +609,8 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
         Settings settings = settingsBuilder()
                 .put("discovery.type", "local")
                 .build();
-        cluster().startNode(settings);
-        ClusterService clusterService = cluster().getInstance(ClusterService.class);
+        internalCluster().startNode(settings);
+        ClusterService clusterService = internalCluster().getInstance(ClusterService.class);
         BlockingTask block = new BlockingTask();
         clusterService.submitStateUpdateTask("test", Priority.IMMEDIATE, block);
         int taskCount = randomIntBetween(5, 20);

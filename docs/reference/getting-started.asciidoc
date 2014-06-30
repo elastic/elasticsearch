@@ -85,7 +85,7 @@ Replication is important for two primary reasons:
 
 
 To summarize, each index can be split into multiple shards. An index can also be replicated zero (meaning no replicas) or more times. Once replicated, each index will have primary shards (the original shards that were replicated from) and replica shards (the copies of the primary shards).
-The number of shards and replicas can defined per index at the time the index is created. After the index is created, you may change the number of replicas dynamically anytime but you cannot change the number shards after-the-fact.
+The number of shards and replicas can be defined per index at the time the index is created. After the index is created, you may change the number of replicas dynamically anytime but you cannot change the number shards after-the-fact.
 
 By default, each index in Elasticsearch is allocated 5 primary shards and 1 replica which means that if you have at least two nodes in your cluster, your index will have 5 primary shards and another 5 replica shards (1 complete replica) for a total of 10 shards per index.
 
@@ -93,7 +93,7 @@ With that out of the way, let's get started with the fun part...
 
 == Installation
 
-Elasticsearch requires Java. Specifically as of this writing, it is recommended that you use the Oracle JDK version 1.7.0_55. Java installation varies from platform to platform so we won't go into those details here. Suffice to say, before you install Elasticsearch, please check your Java version first by running (and then install/upgrade accordingly if needed):
+Elasticsearch requires Java 7. Specifically as of this writing, it is recommended that you use the Oracle JDK version 1.7.0_55. Java installation varies from platform to platform so we won't go into those details here. Suffice to say, before you install Elasticsearch, please check your Java version first by running (and then install/upgrade accordingly if needed):
 
 [source,sh]
 --------------------------------------------------
@@ -486,7 +486,7 @@ Note above that the URI has changed to `/_query` to signify a delete-by-query AP
 
 In addition to being able to index, update, and delete individual documents, Elasticsearch also provides the ability to perform any of the above operations in batches using the http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/docs-bulk.html[`_bulk` API]. This functionality is important in that it provides a very efficient mechanism to do multiple operations as fast as possible with as little network roundtrips as possible.
 
-As a quick example, the following call indexes two documents (ID 1 - John Done and ID 2 - Jane Doe) in one bulk operation:
+As a quick example, the following call indexes two documents (ID 1 - John Doe and ID 2 - Jane Doe) in one bulk operation:
 
 [source,sh]
 --------------------------------------------------

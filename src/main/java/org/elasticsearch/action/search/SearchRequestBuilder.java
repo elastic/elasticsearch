@@ -24,7 +24,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.internal.InternalClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
@@ -46,12 +45,12 @@ import java.util.Map;
 /**
  * A search action request builder.
  */
-public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, SearchResponse, SearchRequestBuilder> {
+public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, SearchResponse, SearchRequestBuilder, Client> {
 
     private SearchSourceBuilder sourceBuilder;
 
     public SearchRequestBuilder(Client client) {
-        super((InternalClient) client, new SearchRequest());
+        super(client, new SearchRequest());
     }
 
     /**
@@ -525,7 +524,9 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
 
     /**
      * Adds a facet to the search operation.
+     * @deprecated Facets are deprecated and will be removed in a future release. Please use aggregations instead.
      */
+    @Deprecated
     public SearchRequestBuilder addFacet(FacetBuilder facet) {
         sourceBuilder().facet(facet);
         return this;
@@ -533,7 +534,9 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
 
     /**
      * Sets a raw (xcontent) binary representation of facets to use.
+     * @deprecated Facets are deprecated and will be removed in a future release. Please use aggregations instead.
      */
+    @Deprecated
     public SearchRequestBuilder setFacets(BytesReference facets) {
         sourceBuilder().facets(facets);
         return this;
@@ -541,7 +544,9 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
 
     /**
      * Sets a raw (xcontent) binary representation of facets to use.
+     * @deprecated Facets are deprecated and will be removed in a future release. Please use aggregations instead.
      */
+    @Deprecated
     public SearchRequestBuilder setFacets(byte[] facets) {
         sourceBuilder().facets(facets);
         return this;
@@ -549,7 +554,9 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
 
     /**
      * Sets a raw (xcontent) binary representation of facets to use.
+     * @deprecated Facets are deprecated and will be removed in a future release. Please use aggregations instead.
      */
+    @Deprecated
     public SearchRequestBuilder setFacets(byte[] facets, int facetsOffset, int facetsLength) {
         sourceBuilder().facets(facets, facetsOffset, facetsLength);
         return this;
@@ -557,7 +564,9 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
 
     /**
      * Sets a raw (xcontent) binary representation of facets to use.
+     * @deprecated Facets are deprecated and will be removed in a future release. Please use aggregations instead.
      */
+    @Deprecated
     public SearchRequestBuilder setFacets(XContentBuilder facets) {
         sourceBuilder().facets(facets);
         return this;
@@ -565,7 +574,9 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
 
     /**
      * Sets a raw (xcontent) binary representation of facets to use.
+     * @deprecated Facets are deprecated and will be removed in a future release. Please use aggregations instead.
      */
+    @Deprecated
     public SearchRequestBuilder setFacets(Map facets) {
         sourceBuilder().facets(facets);
         return this;
@@ -803,6 +814,15 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      */
     public SearchRequestBuilder setHighlighterForceSource(Boolean forceSource) {
         highlightBuilder().forceSource(forceSource);
+        return this;
+    }
+
+    /**
+     * Send the fields to be highlighted using a syntax that is specific about the order in which they should be highlighted.
+     * @return this for chaining
+     */
+    public SearchRequestBuilder setHighlighterExplicitFieldOrder(boolean explicitFieldOrder) {
+        highlightBuilder().useExplicitFieldOrder(explicitFieldOrder);
         return this;
     }
 
@@ -1068,7 +1088,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
         if (sourceBuilder != null) {
             request.source(sourceBuilder());
         }
-        ((Client) client).search(request, listener);
+        client.search(request, listener);
     }
 
     private SearchSourceBuilder sourceBuilder() {

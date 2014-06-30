@@ -67,7 +67,7 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
             FIELD_TYPE.freeze();
         }
 
-        public static final EnabledAttributeMapper ENABLED = EnabledAttributeMapper.DISABLED;
+        public static final EnabledAttributeMapper ENABLED = EnabledAttributeMapper.UNSET_DISABLED;
         public static final String PATH = null;
         public static final FormatDateTimeFormatter DATE_TIME_FORMATTER = Joda.forPattern(DEFAULT_DATE_TIME_FORMAT);
     }
@@ -180,10 +180,6 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
     }
 
     @Override
-    public void validate(ParseContext context) throws MapperParsingException {
-    }
-
-    @Override
     public void preParse(ParseContext context) throws IOException {
         super.parse(context);
     }
@@ -234,7 +230,7 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
             return builder;
         }
         builder.startObject(CONTENT_TYPE);
-        if (includeDefaults || enabledState != Defaults.ENABLED) {
+        if (includeDefaults || enabledState.enabled != Defaults.ENABLED.enabled) {
             builder.field("enabled", enabledState.enabled);
         }
         if (enabledState.enabled) {

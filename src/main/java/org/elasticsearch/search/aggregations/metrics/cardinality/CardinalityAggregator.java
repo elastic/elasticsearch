@@ -34,10 +34,9 @@ import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.LongValues;
 import org.elasticsearch.index.fielddata.MurmurHash3Values;
-import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
+import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 
@@ -46,7 +45,7 @@ import java.io.IOException;
 /**
  * An aggregator that computes approximate counts of unique values.
  */
-public class CardinalityAggregator extends MetricsAggregator.SingleValue {
+public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue {
 
     private final int precision;
     private final boolean rehash;
@@ -92,7 +91,11 @@ public class CardinalityAggregator extends MetricsAggregator.SingleValue {
         final BytesValues bytesValues = valuesSource.bytesValues();
         if (bytesValues instanceof BytesValues.WithOrdinals) {
             BytesValues.WithOrdinals values = (BytesValues.WithOrdinals) bytesValues;
-            final long maxOrd = values.ordinals().getMaxOrd();
+            final long maxOrd = values.getMaxOrd();
+            if (maxOrd == 0) {
+                return new EmptyCollector();
+            }
+
             final long ordinalsMemoryUsage = OrdinalsCollector.memoryOverhead(maxOrd);
             final long countsMemoryUsage = HyperLogLogPlusPlus.memoryUsage(precision);
             // only use ordinals if they don't increase memory usage by more than 25%
@@ -166,6 +169,24 @@ public class CardinalityAggregator extends MetricsAggregator.SingleValue {
 
     }
 
+    private static class EmptyCollector implements Collector {
+
+        @Override
+        public void collect(int doc, long bucketOrd) {
+            // no-op
+        }
+
+        @Override
+        public void postCollect() {
+            // no-op
+        }
+
+        @Override
+        public void close() throws ElasticsearchException {
+            // no-op
+        }
+    }
+
     private static class DirectCollector implements Collector {
 
         private final LongValues hashes;
@@ -209,15 +230,13 @@ public class CardinalityAggregator extends MetricsAggregator.SingleValue {
 
         private final BigArrays bigArrays;
         private final BytesValues.WithOrdinals values;
-        private final Ordinals.Docs ordinals;
         private final int maxOrd;
         private final HyperLogLogPlusPlus counts;
         private ObjectArray<FixedBitSet> visitedOrds;
 
         OrdinalsCollector(HyperLogLogPlusPlus counts, BytesValues.WithOrdinals values, BigArrays bigArrays) {
-            ordinals = values.ordinals();
-            Preconditions.checkArgument(ordinals.getMaxOrd() <= Integer.MAX_VALUE);
-            maxOrd = (int) ordinals.getMaxOrd();
+            Preconditions.checkArgument(values.getMaxOrd() <= Integer.MAX_VALUE);
+            maxOrd = (int) values.getMaxOrd();
             this.bigArrays = bigArrays;
             this.counts = counts;
             this.values = values;
@@ -232,9 +251,9 @@ public class CardinalityAggregator extends MetricsAggregator.SingleValue {
                 bits = new FixedBitSet(maxOrd);
                 visitedOrds.set(bucketOrd, bits);
             }
-            final int valueCount = ordinals.setDocument(doc);
+            final int valueCount = values.setDocument(doc);
             for (int i = 0; i < valueCount; ++i) {
-                bits.set((int) ordinals.nextOrd());
+                bits.set((int) values.nextOrd());
             }
         }
 

@@ -30,7 +30,7 @@ Each package features a configuration file, which allows you to set the followin
 [float]
 ==== Debian/Ubuntu
 
-The debian package ships with everything you need as it uses standard debian tools like update `update-rc.d` to define the runlevels it runs on. The init script is placed at `/etc/init.d/elasticsearch` is you would expect it. The configuration file is placed at `/etc/default/elasticsearch`.
+The debian package ships with everything you need as it uses standard debian tools like update `update-rc.d` to define the runlevels it runs on. The init script is placed at `/etc/init.d/elasticsearch` as you would expect it. The configuration file is placed at `/etc/default/elasticsearch`.
 
 The debian package does not start up the service by default. The reason for this is to prevent the instance to accidentally join a cluster, without being configured appropriately. After installing using `dpkg -i` you can use the following commands to ensure, that elasticsearch starts when the system is booted and then start up elasticsearch:
 

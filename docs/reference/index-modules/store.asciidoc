@@ -40,7 +40,7 @@ second. It can be set by setting `indices.store.throttle.type` to
 `merge`, and setting `indices.store.throttle.max_bytes_per_sec` to
 something like `5mb`. The node level settings can be changed dynamically
 using the cluster update settings API. The default is set
-to `50mb` with type `merge`.
+to `20mb` with type `merge`.
 
 If specific index level configuration is needed, regardless of the node
 level settings, it can be set as well using the
@@ -50,21 +50,40 @@ is `node`, meaning it will throttle based on the node level settings and
 participate in the global throttling happening. Both settings can be set
 using the index update settings API dynamically.
 
-The following sections lists all the different storage types supported.
-
 [float]
 [[file-system]]
-=== File System
+=== File system storage types
 
 File system based storage is the default storage used. There are
-different implementations or storage types. The best one for the
+different implementations or _storage types_. The best one for the
 operating environment will be automatically chosen: `mmapfs` on
 Solaris/Linux/Windows 64bit, `simplefs` on Windows 32bit, and
 `niofs` for the rest.
 
-The following are the different file system based storage types:
+This can be overridden for all indices by adding this to the
+`config/elasticsearch.yml` file:
+
+[source,yaml]
+---------------------------------
+index.store.type: niofs
+---------------------------------
+
+It can also be set on a per-index basis at index creation time:
+
+[source,json]
+---------------------------------
+curl -XPUT localhost:9200/my_index
+{
+    "settings": {
+        "index.store.type": "niofs"
+    }
+}
+---------------------------------
+
+The following sections lists all the different storage types supported.
 
 [float]
+[[simplefs]]
 ==== Simple FS
 
 The `simplefs` type is a straightforward implementation of file system
@@ -74,6 +93,7 @@ will bottleneck). It is usually better to use the `niofs` when you need
 index persistence.
 
 [float]
+[[niofs]]
 ==== NIO FS
 
 The `niofs` type stores the shard index on the file system (maps to
@@ -90,9 +110,11 @@ Lucene `MMapDirectory`) by mapping a file into memory (mmap). Memory
 mapping uses up a portion of the virtual memory address space in your
 process equal to the size of the file being mapped. Before using this
 class, be sure your have plenty of virtual address space.
+See <<vm-max-map-count>>
 
 [float]
 [[store-memory]]
 === Memory
 
-The `memory` type stores the index in main memory.
+The `memory` type stores the index in main memory, using Lucene's
+`RamIndexStore`.

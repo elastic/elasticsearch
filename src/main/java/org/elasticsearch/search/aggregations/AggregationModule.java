@@ -28,18 +28,21 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramParse
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramParser;
 import org.elasticsearch.search.aggregations.bucket.missing.MissingParser;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedParser;
+import org.elasticsearch.search.aggregations.bucket.nested.ReverseNestedParser;
 import org.elasticsearch.search.aggregations.bucket.range.RangeParser;
 import org.elasticsearch.search.aggregations.bucket.range.date.DateRangeParser;
 import org.elasticsearch.search.aggregations.bucket.range.geodistance.GeoDistanceParser;
 import org.elasticsearch.search.aggregations.bucket.range.ipv4.IpRangeParser;
-import org.elasticsearch.search.aggregations.bucket.nested.ReverseNestedParser;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsParser;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsParser;
+import org.elasticsearch.search.aggregations.metrics.tophits.TopHitsParser;
 import org.elasticsearch.search.aggregations.metrics.avg.AvgParser;
 import org.elasticsearch.search.aggregations.metrics.cardinality.CardinalityParser;
+import org.elasticsearch.search.aggregations.metrics.geobounds.GeoBoundsParser;
 import org.elasticsearch.search.aggregations.metrics.max.MaxParser;
 import org.elasticsearch.search.aggregations.metrics.min.MinParser;
 import org.elasticsearch.search.aggregations.metrics.percentiles.PercentilesParser;
+import org.elasticsearch.search.aggregations.metrics.percentiles.PercentileRanksParser;
 import org.elasticsearch.search.aggregations.metrics.stats.StatsParser;
 import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStatsParser;
 import org.elasticsearch.search.aggregations.metrics.sum.SumParser;
@@ -63,6 +66,7 @@ public class AggregationModule extends AbstractModule {
         parsers.add(ExtendedStatsParser.class);
         parsers.add(ValueCountParser.class);
         parsers.add(PercentilesParser.class);
+        parsers.add(PercentileRanksParser.class);
         parsers.add(CardinalityParser.class);
 
         parsers.add(GlobalParser.class);
@@ -79,6 +83,8 @@ public class AggregationModule extends AbstractModule {
         parsers.add(GeoHashGridParser.class);
         parsers.add(NestedParser.class);
         parsers.add(ReverseNestedParser.class);
+        parsers.add(TopHitsParser.class);
+        parsers.add(GeoBoundsParser.class);
     }
 
     /**

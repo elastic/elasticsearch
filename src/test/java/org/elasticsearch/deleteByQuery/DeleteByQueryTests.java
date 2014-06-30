@@ -88,7 +88,7 @@ public class DeleteByQueryTests extends ElasticsearchIntegrationTest {
             //everything well
         }
 
-        deleteByQueryRequestBuilder.setIndicesOptions(IndicesOptions.lenient());
+        deleteByQueryRequestBuilder.setIndicesOptions(IndicesOptions.lenientExpandOpen());
         DeleteByQueryResponse actionGet = deleteByQueryRequestBuilder.execute().actionGet();
         assertThat(actionGet.status(), equalTo(RestStatus.OK));
         assertThat(actionGet.getIndex("twitter").getFailedShards(), equalTo(0));

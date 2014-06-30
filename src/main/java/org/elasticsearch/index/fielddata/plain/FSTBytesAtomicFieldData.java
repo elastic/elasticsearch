@@ -18,19 +18,16 @@
  */
 package org.elasticsearch.index.fielddata.plain;
 
-import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IntsRef;
-import org.apache.lucene.util.fst.*;
+import org.apache.lucene.util.fst.FST;
 import org.apache.lucene.util.fst.FST.Arc;
 import org.apache.lucene.util.fst.FST.BytesReader;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.IntArray;
+import org.apache.lucene.util.fst.Util;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
+import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.index.fielddata.ordinals.EmptyOrdinals;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
-import org.elasticsearch.index.fielddata.ordinals.Ordinals.Docs;
 
 import java.io.IOException;
 
@@ -38,14 +35,9 @@ import java.io.IOException;
  */
 public class FSTBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<ScriptDocValues.Strings> {
 
-    public static FSTBytesAtomicFieldData empty() {
-        return new Empty();
-    }
-
     // 0 ordinal in values means no value (its null)
     protected final Ordinals ordinals;
 
-    private volatile IntArray hashes;
     private long size = -1;
 
     private final FST<Long> fst;
@@ -60,82 +52,47 @@ public class FSTBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<Scr
     }
 
     @Override
-    public boolean isMultiValued() {
-        return ordinals.isMultiValued();
-    }
-
-    @Override
-    public long getNumberUniqueValues() {
-        return ordinals.getMaxOrd() - Ordinals.MIN_ORDINAL;
-    }
-
-    @Override
-    public long getMemorySizeInBytes() {
+    public long ramBytesUsed() {
         if (size == -1) {
-            long size = ordinals.getMemorySizeInBytes();
+            long size = ordinals.ramBytesUsed();
             // FST
-            size += fst == null ? 0 : fst.sizeInBytes();
+            size += fst == null ? 0 : fst.ramBytesUsed();
             this.size = size;
         }
         return size;
     }
 
     @Override
-    public BytesValues.WithOrdinals getBytesValues(boolean needsHashes) {
-        assert fst != null;
-        if (needsHashes) {
-            if (hashes == null) {
-                BytesRefFSTEnum<Long> fstEnum = new BytesRefFSTEnum<>(fst);
-                IntArray hashes = BigArrays.NON_RECYCLING_INSTANCE.newIntArray(ordinals.getMaxOrd());
-                try {
-                    for (long i = 0, maxOrd = ordinals.getMaxOrd(); i < maxOrd; ++i) {
-                        hashes.set(i, fstEnum.next().input.hashCode());
-                    }
-                    assert fstEnum.next() == null;
-                } catch (IOException e) {
-                    throw new AssertionError("Cannot happen", e);
-                }
-                this.hashes = hashes;
-            }
-            return new HashedBytesValues(fst, ordinals.ordinals(), hashes);
-        } else {
-            return new BytesValues(fst, ordinals.ordinals());
-        }
+    public BytesValues.WithOrdinals getBytesValues() {
+        return ordinals.ordinals(new ValuesHolder(fst));
     }
-
 
     @Override
     public ScriptDocValues.Strings getScriptValues() {
         assert fst != null;
-        return new ScriptDocValues.Strings(getBytesValues(false));
+        return new ScriptDocValues.Strings(getBytesValues());
     }
 
-    @Override
-    public TermsEnum getTermsEnum() {
-        return new AtomicFieldDataWithOrdinalsTermsEnum(this);
-    }
+    private static class ValuesHolder implements Ordinals.ValuesHolder {
 
-    static class BytesValues extends org.elasticsearch.index.fielddata.BytesValues.WithOrdinals {
-
-        protected final FST<Long> fst;
-        protected final Ordinals.Docs ordinals;
+        private final FST<Long> fst;
 
         // per-thread resources
+        private final BytesRef scratch;
         protected final BytesReader in;
         protected final Arc<Long> firstArc = new Arc<>();
         protected final Arc<Long> scratchArc = new Arc<>();
         protected final IntsRef scratchInts = new IntsRef();
 
-        BytesValues(FST<Long> fst, Ordinals.Docs ordinals) {
-            super(ordinals);
+        ValuesHolder(FST<Long> fst) {
             this.fst = fst;
-            this.ordinals = ordinals;
+            scratch = new BytesRef();
             in = fst.getBytesReader();
         }
 
         @Override
         public BytesRef getValueByOrd(long ord) {
-            assert ord != Ordinals.MISSING_ORDINAL;
+            assert ord != BytesValues.WithOrdinals.MISSING_ORDINAL;
             in.setPosition(0);
             fst.getFirstArc(firstArc);
             try {
@@ -148,46 +105,6 @@ public class FSTBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<Scr
             }
             return scratch;
         }
-
     }
-    
-    static final class HashedBytesValues extends BytesValues {
-        private final IntArray hashes;
-
-        HashedBytesValues(FST<Long> fst, Docs ordinals, IntArray hashes) {
-            super(fst, ordinals);
-            this.hashes = hashes;
-        }
-
-        @Override
-        public int currentValueHash() {
-            assert ordinals.currentOrd() >= 0;
-            return hashes.get(ordinals.currentOrd());
-        }
-    }
-
-
-    final static class Empty extends FSTBytesAtomicFieldData {
-
-        Empty() {
-            super(null, EmptyOrdinals.INSTANCE);
-        }
-
-        @Override
-        public boolean isMultiValued() {
-            return false;
-        }
-
-        @Override
-        public BytesValues.WithOrdinals getBytesValues(boolean needsHashes) {
-            return new EmptyByteValuesWithOrdinals(ordinals.ordinals());
-        }
-
-        @Override
-        public ScriptDocValues.Strings getScriptValues() {
-            return ScriptDocValues.EMPTY_STRINGS;
-        }
-    }
-
 
 }

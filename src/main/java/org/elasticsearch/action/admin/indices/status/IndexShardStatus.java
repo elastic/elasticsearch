@@ -29,8 +29,10 @@ import org.elasticsearch.index.shard.ShardId;
 import java.util.Iterator;
 
 /**
- *
+ * This class will be removed in future versions
+ * Use the recovery API instead
  */
+@Deprecated
 public class IndexShardStatus implements Iterable<ShardStatus> {
 
     private final ShardId shardId;

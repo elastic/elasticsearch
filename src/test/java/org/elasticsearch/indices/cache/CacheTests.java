@@ -29,16 +29,16 @@ import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.junit.Test;
 
 import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
 import static org.hamcrest.Matchers.*;
 
 /**
  */
-@ClusterScope(scope= Scope.SUITE, numDataNodes =1, numClientNodes = 0)
+@ClusterScope(scope= Scope.SUITE, numDataNodes =1, numClientNodes = 0, randomDynamicTemplates = false)
 public class CacheTests extends ElasticsearchIntegrationTest {
 
     @Override
@@ -61,9 +61,9 @@ public class CacheTests extends ElasticsearchIntegrationTest {
         SearchResponse searchResponse = client().prepareSearch().setQuery(filteredQuery(matchAllQuery(), FilterBuilders.termFilter("field", "value").cacheKey("test_key"))).execute().actionGet();
         assertThat(searchResponse.getHits().getHits().length, equalTo(1));
         nodesStats = client().admin().cluster().prepareNodesStats().setIndices(true).execute().actionGet();
-        assertThat(nodesStats.getNodes()[0].getIndices().getFilterCache().getMemorySizeInBytes(), greaterThan(0l));
+        assertThat(nodesStats.getNodes()[0].getIndices().getFilterCache().getMemorySizeInBytes(), internalCluster().hasFilterCache() ? greaterThan(0l) : is(0L));
         indicesStats = client().admin().indices().prepareStats("test").clear().setFilterCache(true).execute().actionGet();
-        assertThat(indicesStats.getTotal().getFilterCache().getMemorySizeInBytes(), greaterThan(0l));
+        assertThat(indicesStats.getTotal().getFilterCache().getMemorySizeInBytes(), internalCluster().hasFilterCache() ? greaterThan(0l) : is(0L));
 
         client().admin().indices().prepareClearCache().setFilterKeys("test_key").execute().actionGet();
         nodesStats = client().admin().cluster().prepareNodesStats().setIndices(true).execute().actionGet();
@@ -152,13 +152,13 @@ public class CacheTests extends ElasticsearchIntegrationTest {
         nodesStats = client().admin().cluster().prepareNodesStats().setIndices(true)
                 .execute().actionGet();
         assertThat(nodesStats.getNodes()[0].getIndices().getFieldData().getMemorySizeInBytes(), greaterThan(0l));
-        assertThat(nodesStats.getNodes()[0].getIndices().getFilterCache().getMemorySizeInBytes(), greaterThan(0l));
+        assertThat(nodesStats.getNodes()[0].getIndices().getFilterCache().getMemorySizeInBytes(), internalCluster().hasFilterCache() ? greaterThan(0l) : is(0L));
 
         indicesStats = client().admin().indices().prepareStats("test")
                 .clear().setFieldData(true).setFilterCache(true)
                 .execute().actionGet();
         assertThat(indicesStats.getTotal().getFieldData().getMemorySizeInBytes(), greaterThan(0l));
-        assertThat(indicesStats.getTotal().getFilterCache().getMemorySizeInBytes(), greaterThan(0l));
+        assertThat(indicesStats.getTotal().getFilterCache().getMemorySizeInBytes(), internalCluster().hasFilterCache() ? greaterThan(0l) : is(0L));
 
         client().admin().indices().prepareClearCache().execute().actionGet();
         Thread.sleep(100); // Make sure the filter cache entries have been removed...

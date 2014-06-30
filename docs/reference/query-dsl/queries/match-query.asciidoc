@@ -26,12 +26,12 @@ The default `match` query is of type `boolean`. It means that the text
 provided is analyzed and the analysis process constructs a boolean query
 from the provided text. The `operator` flag can be set to `or` or `and`
 to control the boolean clauses (defaults to `or`). The minimum number of
-should clauses to match can be set using the
+optional `should` clauses to match can be set using the
 <<query-dsl-minimum-should-match,`minimum_should_match`>>
 parameter.
 
 The `analyzer` can be set to control which analyzer will perform the
-analysis process on the text. It default to the field explicit mapping
+analysis process on the text. It defaults to the field explicit mapping
 definition, or the default search analyzer.
 
 `fuzziness` allows _fuzzy matching_ based on the type of field being queried.
@@ -97,13 +97,6 @@ ensure fast execution.
 The `cutoff_frequency` can either be relative to the number of documents
 in the index if in the range `[0..1)` or absolute if greater or equal to
 `1.0`.
-
-Note: If the `cutoff_frequency` is used and the operator is `and`
-_stacked tokens_ (tokens that are on the same position like `synonym` filter emits)
-are not handled gracefully as they are in a pure `and` query. For instance the query
-`fast fox` is analyzed into 3 terms `[fast, quick, fox]` where `quick` is a synonym
-for `fast` on the same token positions the query might require `fast` and `quick` to
-match if the operator is `and`.
 
 Here is an example showing a query composed of stopwords exclusivly:
 

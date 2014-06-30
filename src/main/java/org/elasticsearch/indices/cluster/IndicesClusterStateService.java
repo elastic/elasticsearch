@@ -69,6 +69,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static com.google.common.collect.Maps.newHashMap;
 import static org.elasticsearch.ExceptionsHelper.detailedMessage;
@@ -108,6 +109,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
     private final FailedEngineHandler failedEngineHandler = new FailedEngineHandler();
 
     private final boolean sendRefreshMapping;
+    private final AtomicLong recoveryIdGenerator = new AtomicLong();
 
     @Inject
     public IndicesClusterStateService(Settings settings, IndicesService indicesService, ClusterService clusterService,
@@ -517,8 +519,12 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                     // the master thinks we are started, but we don't have this shard at all, mark it as failed
                     logger.warn("[{}][{}] master [{}] marked shard as started, but shard has not been created, mark shard as failed", shardRouting.index(), shardId, nodes.masterNode());
                     failedShards.put(shardRouting.shardId(), new FailedShard(shardRouting.version()));
-                    shardStateAction.shardFailed(shardRouting, indexMetaData.getUUID(),
-                            "master " + nodes.masterNode() + " marked shard as started, but shard has not been created, mark shard as failed");
+                    if (nodes.masterNode() != null) {
+                        shardStateAction.shardFailed(shardRouting, indexMetaData.getUUID(),
+                                "master " + nodes.masterNode() + " marked shard as started, but shard has not been created, mark shard as failed",
+                                nodes.masterNode()
+                        );
+                    }
                 }
                 continue;
             }
@@ -606,11 +612,14 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 // for master to confirm a shard started message (either master failover, or a cluster event before
                 // we managed to tell the master we started), mark us as started
                 if (logger.isTraceEnabled()) {
-                    logger.trace("{} master marked shard as initializing, but shard has state [{}], resending shard started",
-                            indexShard.shardId(), indexShard.state());
+                    logger.trace("{} master marked shard as initializing, but shard has state [{}], resending shard started to {}",
+                            indexShard.shardId(), indexShard.state(), nodes.masterNode());
                 }
-                shardStateAction.shardStarted(shardRouting, indexMetaData.getUUID(),
-                        "master " + nodes.masterNode() + " marked shard as initializing, but shard state is [" + indexShard.state() + "], mark shard as started");
+                if (nodes.masterNode() != null) {
+                    shardStateAction.shardStarted(shardRouting, indexMetaData.getUUID(),
+                            "master " + nodes.masterNode() + " marked shard as initializing, but shard state is [" + indexShard.state() + "], mark shard as started",
+                            nodes.masterNode());
+                }
                 return;
             } else {
                 if (indexShard.ignoreRecoveryAttempt()) {
@@ -676,7 +685,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                     logger.warn("[{}][{}] failed to remove shard after failed creation", e1, shardRouting.index(), shardRouting.id());
                 }
                 failedShards.put(shardRouting.shardId(), new FailedShard(shardRouting.version()));
-                shardStateAction.shardFailed(shardRouting, indexMetaData.getUUID(), "Failed to create shard, message [" + detailedMessage(e) + "]");
+                if (nodes.masterNode() != null) {
+                    shardStateAction.shardFailed(shardRouting, indexMetaData.getUUID(), "Failed to create shard, message [" + detailedMessage(e) + "]",
+                            nodes.masterNode()
+                    );
+                } else {
+                    logger.debug("can't send shard failed for {} as there is no current master", shardRouting.shardId());
+                }
                 return;
             }
         }
@@ -698,7 +713,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
 
                 RecoveryState.Type type = shardRouting.primary() ? RecoveryState.Type.RELOCATION : RecoveryState.Type.REPLICA;
                 final StartRecoveryRequest request = new StartRecoveryRequest(indexShard.shardId(), sourceNode, nodes.localNode(),
-                        false, indexShard.store().list(), type);
+                        false, indexShard.store().list(), type, recoveryIdGenerator.incrementAndGet());
                 recoveryTarget.startRecovery(request, indexShard, new PeerRecoveryListener(request, shardRouting, indexService, indexMetaData));
 
             } catch (Throwable e) {
@@ -748,7 +763,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
 
         @Override
         public void onRetryRecovery(TimeValue retryAfter, RecoveryStatus recoveryStatus) {
-            recoveryTarget.retryRecovery(request, recoveryStatus, PeerRecoveryListener.this);
+            recoveryTarget.retryRecovery(request, retryAfter, recoveryStatus, PeerRecoveryListener.this);
         }
 
         @Override

@@ -23,7 +23,7 @@ import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.*;
 import org.elasticsearch.action.admin.cluster.ClusterAction;
-import org.elasticsearch.client.internal.InternalClusterAdminClient;
+import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.client.support.AbstractClusterAdminClient;
 import org.elasticsearch.client.transport.TransportClientNodesService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -39,7 +39,7 @@ import java.util.Map;
  *
  */
 @SuppressWarnings("unchecked")
-public class InternalTransportClusterAdminClient extends AbstractClusterAdminClient implements InternalClusterAdminClient {
+public class InternalTransportClusterAdminClient extends AbstractClusterAdminClient implements ClusterAdminClient {
 
     private final TransportClientNodesService nodesService;
 
@@ -68,7 +68,7 @@ public class InternalTransportClusterAdminClient extends AbstractClusterAdminCli
 
     @SuppressWarnings("unchecked")
     @Override
-    public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> ActionFuture<Response> execute(final ClusterAction<Request, Response, RequestBuilder> action, final Request request) {
+    public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, ClusterAdminClient>> ActionFuture<Response> execute(final Action<Request, Response, RequestBuilder, ClusterAdminClient> action, final Request request) {
         final TransportActionNodeProxy<Request, Response> proxy = actions.get(action);
         return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<Response>>() {
             @Override
@@ -80,7 +80,7 @@ public class InternalTransportClusterAdminClient extends AbstractClusterAdminCli
 
     @SuppressWarnings("unchecked")
     @Override
-    public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void execute(final ClusterAction<Request, Response, RequestBuilder> action, final Request request, final ActionListener<Response> listener) {
+    public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, ClusterAdminClient>> void execute(final Action<Request, Response, RequestBuilder, ClusterAdminClient> action, final Request request, final ActionListener<Response> listener) {
         final TransportActionNodeProxy<Request, Response> proxy = actions.get(action);
         nodesService.execute(new TransportClientNodesService.NodeListenerCallback<Response>() {
             @Override

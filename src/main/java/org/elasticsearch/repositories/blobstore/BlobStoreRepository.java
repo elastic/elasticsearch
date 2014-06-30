@@ -312,7 +312,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
             String blobName = snapshotBlobName(snapshotId);
             BlobStoreSnapshot.Builder updatedSnapshot = BlobStoreSnapshot.builder().snapshot(snapshot);
             if (failure == null) {
-                updatedSnapshot.success();
+                if (shardFailures.isEmpty()) {
+                    updatedSnapshot.success();
+                } else {
+                    updatedSnapshot.partial();
+                }
                 updatedSnapshot.failures(totalShards, shardFailures);
             } else {
                 updatedSnapshot.failed(failure);

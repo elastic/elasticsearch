@@ -19,12 +19,12 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ClientAction;
 import org.elasticsearch.client.Client;
 
 /**
  */
-public class SearchScrollAction extends Action<SearchScrollRequest, SearchResponse, SearchScrollRequestBuilder> {
+public class SearchScrollAction extends ClientAction<SearchScrollRequest, SearchResponse, SearchScrollRequestBuilder> {
 
     public static final SearchScrollAction INSTANCE = new SearchScrollAction();
     public static final String NAME = "search/scroll";

@@ -25,7 +25,6 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.InternalFacet;
@@ -107,7 +106,7 @@ public class TermsStringFacetExecutor extends FacetExecutor {
 
         @Override
         public void setNextReader(AtomicReaderContext context) throws IOException {
-            values = indexFieldData.load(context).getBytesValues(true);
+            values = indexFieldData.load(context).getBytesValues();
             if (script != null) {
                 script.setNextReader(context);
             }
@@ -130,20 +129,19 @@ public class TermsStringFacetExecutor extends FacetExecutor {
         for (AtomicReaderContext readerContext : context.searcher().getTopReaderContext().leaves()) {
             int maxDoc = readerContext.reader().maxDoc();
             if (indexFieldData instanceof IndexFieldData.WithOrdinals) {
-                BytesValues.WithOrdinals values = ((IndexFieldData.WithOrdinals) indexFieldData).load(readerContext).getBytesValues(false);
-                Ordinals.Docs ordinals = values.ordinals();
+                BytesValues.WithOrdinals values = ((IndexFieldData.WithOrdinals) indexFieldData).load(readerContext).getBytesValues();
                 // 0 = docs with no value for field, so start from 1 instead
-                for (long ord = Ordinals.MIN_ORDINAL; ord < ordinals.getMaxOrd(); ord++) {
+                for (long ord = BytesValues.WithOrdinals.MIN_ORDINAL; ord < values.getMaxOrd(); ord++) {
                     BytesRef value = values.getValueByOrd(ord);
                     aggregator.addValue(value, value.hashCode(), values);
                 }
             } else {
-                BytesValues values = indexFieldData.load(readerContext).getBytesValues(true);
+                BytesValues values = indexFieldData.load(readerContext).getBytesValues();
                 for (int docId = 0; docId < maxDoc; docId++) {
                     final int size = values.setDocument(docId);
                     for (int i = 0; i < size; i++) {
                         final BytesRef value = values.nextValue();
-                        aggregator.addValue(value, values.currentValueHash(), values);
+                        aggregator.addValue(value, value.hashCode(), values);
                     }
                 }
             }

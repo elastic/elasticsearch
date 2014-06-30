@@ -23,7 +23,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
-import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.Map;
@@ -31,10 +30,10 @@ import java.util.Map;
 /**
  * Builder for an update index settings request
  */
-public class UpdateSettingsRequestBuilder extends AcknowledgedRequestBuilder<UpdateSettingsRequest, UpdateSettingsResponse, UpdateSettingsRequestBuilder> {
+public class UpdateSettingsRequestBuilder extends AcknowledgedRequestBuilder<UpdateSettingsRequest, UpdateSettingsResponse, UpdateSettingsRequestBuilder, IndicesAdminClient> {
 
     public UpdateSettingsRequestBuilder(IndicesAdminClient indicesClient, String... indices) {
-        super((InternalIndicesAdminClient) indicesClient, new UpdateSettingsRequest(indices));
+        super(indicesClient, new UpdateSettingsRequest(indices));
     }
 
     /**
@@ -89,6 +88,6 @@ public class UpdateSettingsRequestBuilder extends AcknowledgedRequestBuilder<Upd
 
     @Override
     protected void doExecute(ActionListener<UpdateSettingsResponse> listener) {
-        ((IndicesAdminClient) client).updateSettings(request, listener);
+        client.updateSettings(request, listener);
     }
 }

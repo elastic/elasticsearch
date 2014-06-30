@@ -60,11 +60,12 @@ public class InternalRange<B extends InternalRange.Bucket> extends InternalAggre
 
     public static class Bucket implements Range.Bucket {
 
-        private double from = Double.NEGATIVE_INFINITY;
-        private double to = Double.POSITIVE_INFINITY;
-        private long docCount;
-        InternalAggregations aggregations;
-        private String key;
+        private final ValueFormatter formatter;
+        private final double from;
+        private final double to;
+        private final long docCount;
+        final InternalAggregations aggregations;
+        private final String key;
 
         public Bucket(String key, double from, double to, long docCount, InternalAggregations aggregations, @Nullable ValueFormatter formatter) {
             this.key = key != null ? key : generateKey(from, to, formatter);
@@ -72,6 +73,7 @@ public class InternalRange<B extends InternalRange.Bucket> extends InternalAggre
             this.to = to;
             this.docCount = docCount;
             this.aggregations = aggregations;
+            this.formatter = formatter;
         }
 
         public String getKey() {
@@ -103,25 +105,19 @@ public class InternalRange<B extends InternalRange.Bucket> extends InternalAggre
             return aggregations;
         }
 
+        protected Factory<? extends Bucket, ?> getFactory() {
+            return FACTORY;
+        }
+
         Bucket reduce(List<Bucket> ranges, BigArrays bigArrays) {
-            if (ranges.size() == 1) {
-                // we stil need to call reduce on all the sub aggregations
-                Bucket bucket = ranges.get(0);
-                bucket.aggregations.reduce(bigArrays);
-                return bucket;
-            }
-            Bucket reduced = null;
+            long docCount = 0;
             List<InternalAggregations> aggregationsList = Lists.newArrayListWithCapacity(ranges.size());
             for (Bucket range : ranges) {
-                if (reduced == null) {
-                    reduced = range;
-                } else {
-                    reduced.docCount += range.docCount;
-                }
+                docCount += range.docCount;
                 aggregationsList.add(range.aggregations);
             }
-            reduced.aggregations = InternalAggregations.reduce(aggregationsList, bigArrays);
-            return reduced;
+            final InternalAggregations aggs = InternalAggregations.reduce(aggregationsList, bigArrays);
+            return getFactory().createBucket(key, from, to, docCount, aggs, formatter);
         }
 
         void toXContent(XContentBuilder builder, Params params, @Nullable ValueFormatter formatter, boolean keyed) throws IOException {
@@ -164,8 +160,8 @@ public class InternalRange<B extends InternalRange.Bucket> extends InternalAggre
             return TYPE.name();
         }
 
-        public R create(String name, List<B> ranges, @Nullable ValueFormatter formatter, boolean keyed, boolean unmapped) {
-            return (R) new InternalRange<>(name, ranges, formatter, keyed, unmapped);
+        public R create(String name, List<B> ranges, @Nullable ValueFormatter formatter, boolean keyed) {
+            return (R) new InternalRange<>(name, ranges, formatter, keyed);
         }
 
 
@@ -178,16 +174,14 @@ public class InternalRange<B extends InternalRange.Bucket> extends InternalAggre
     private Map<String, B> rangeMap;
     private @Nullable ValueFormatter formatter;
     private boolean keyed;
-    private boolean unmapped;
 
     public InternalRange() {} // for serialization
 
-    public InternalRange(String name, List<B> ranges, @Nullable ValueFormatter formatter, boolean keyed, boolean unmapped) {
+    public InternalRange(String name, List<B> ranges, @Nullable ValueFormatter formatter, boolean keyed) {
         super(name);
         this.ranges = ranges;
         this.formatter = formatter;
         this.keyed = keyed;
-        this.unmapped = unmapped;
     }
 
     @Override
@@ -211,52 +205,31 @@ public class InternalRange<B extends InternalRange.Bucket> extends InternalAggre
         return rangeMap.get(key);
     }
 
+    protected Factory<B, ?> getFactory() {
+        return FACTORY;
+    }
+
     @Override
     public InternalAggregation reduce(ReduceContext reduceContext) {
         List<InternalAggregation> aggregations = reduceContext.aggregations();
-        if (aggregations.size() == 1) {
-            InternalRange<B> reduced = (InternalRange<B>) aggregations.get(0);
-            for (B bucket : reduced.ranges) {
-                bucket.aggregations.reduce(reduceContext.bigArrays());
-            }
-            return reduced;
+        @SuppressWarnings("unchecked")
+        List<Bucket>[] rangeList = new List[ranges.size()];
+        for (int i = 0; i < rangeList.length; ++i) {
+            rangeList[i] = new ArrayList<Bucket>();
         }
-        List<List<Bucket>> rangesList = null;
         for (InternalAggregation aggregation : aggregations) {
-            InternalRange<Bucket> ranges = (InternalRange) aggregation;
-            if (ranges.unmapped) {
-                continue;
-            }
-            if (rangesList == null) {
-                rangesList = new ArrayList<>(ranges.ranges.size());
-                for (Bucket bucket : ranges.ranges) {
-                    List<Bucket> sameRangeList = new ArrayList<>(aggregations.size());
-                    sameRangeList.add(bucket);
-                    rangesList.add(sameRangeList);
-                }
-            } else {
-                int i = 0;
-                for (Bucket range : ranges.ranges) {
-                    rangesList.get(i++).add(range);
-                }
+            InternalRange<?> ranges = (InternalRange<?>) aggregation;
+            int i = 0;
+            for (Bucket range : ranges.ranges) {
+                rangeList[i++].add(range);
             }
         }
 
-        if (rangesList == null) {
-            // unmapped, we can just take the first one
-            return aggregations.get(0);
+        final List<B> ranges = new ArrayList<>();
+        for (int i = 0; i < this.ranges.size(); ++i) {
+            ranges.add((B) rangeList[i].get(0).reduce(rangeList[i], reduceContext.bigArrays()));
         }
-
-        InternalRange reduced = (InternalRange) aggregations.get(0);
-        int i = 0;
-        for (List<Bucket> sameRangeList : rangesList) {
-            reduced.ranges.set(i++, (sameRangeList.get(0)).reduce(sameRangeList, reduceContext.bigArrays()));
-        }
-        return reduced;
-    }
-
-    protected B createBucket(String key, double from, double to, long docCount, InternalAggregations aggregations, ValueFormatter formatter) {
-        return (B) new Bucket(key, from, to, docCount, aggregations, formatter);
+        return getFactory().create(name, ranges, formatter, keyed);
     }
 
     @Override
@@ -268,7 +241,7 @@ public class InternalRange<B extends InternalRange.Bucket> extends InternalAggre
         List<B> ranges = Lists.newArrayListWithCapacity(size);
         for (int i = 0; i < size; i++) {
             String key = in.readOptionalString();
-            ranges.add(createBucket(key, in.readDouble(), in.readDouble(), in.readVLong(), InternalAggregations.readAggregations(in), formatter));
+            ranges.add(getFactory().createBucket(key, in.readDouble(), in.readDouble(), in.readVLong(), InternalAggregations.readAggregations(in), formatter));
         }
         this.ranges = ranges;
         this.rangeMap = null;

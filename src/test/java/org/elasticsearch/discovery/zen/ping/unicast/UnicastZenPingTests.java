@@ -52,7 +52,7 @@ public class UnicastZenPingTests extends ElasticsearchTestCase {
         int endPort = startPort + 10;
         settings = ImmutableSettings.builder().put(settings).put("transport.tcp.port", startPort + "-" + endPort).build();
 
-        ThreadPool threadPool = new ThreadPool();
+        ThreadPool threadPool = new ThreadPool(getClass().getName());
         ClusterName clusterName = new ClusterName("test");
         NetworkService networkService = new NetworkService(settings);
 

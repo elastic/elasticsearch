@@ -27,7 +27,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -62,7 +61,7 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        threadPool = new ThreadPool();
+        threadPool = new ThreadPool(getClass().getName());
         serviceA = build(ImmutableSettings.builder().put("name", "TS_A").build(), version0);
         nodeA = new DiscoveryNode("TS_A", "TS_A", serviceA.boundAddress().publishAddress(), ImmutableMap.<String, String>of(), version0);
         serviceB = build(ImmutableSettings.builder().put("name", "TS_B").build(), version1);
@@ -546,7 +545,7 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
             final int counter = i;
             // now, try and send another request, this times, with a short timeout
             res = serviceB.submitRequest(nodeA, "sayHelloTimeoutDelayedResponse",
-                    new StringMessageRequest(counter + "ms"), options().withTimeout(300), new BaseTransportResponseHandler<StringMessageResponse>() {
+                    new StringMessageRequest(counter + "ms"), options().withTimeout(3000), new BaseTransportResponseHandler<StringMessageResponse>() {
                 @Override
                 public StringMessageResponse newInstance() {
                     return new StringMessageResponse();

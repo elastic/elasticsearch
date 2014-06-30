@@ -35,7 +35,7 @@ public class GetAliasesRequest extends MasterNodeReadOperationRequest<GetAliases
     private String[] indices = Strings.EMPTY_ARRAY;
     private String[] aliases = Strings.EMPTY_ARRAY;
 
-    private IndicesOptions indicesOptions = IndicesOptions.strict();
+    private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
 
     public GetAliasesRequest(String[] aliases) {
         this.aliases = aliases;

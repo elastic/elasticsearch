@@ -1,6 +1,8 @@
 [[search-facets]]
 == Facets
 
+include::facets/deprecated.asciidoc[]
+
 The usual purpose of a full-text search engine is to return a small
 number of documents matching your query.
 

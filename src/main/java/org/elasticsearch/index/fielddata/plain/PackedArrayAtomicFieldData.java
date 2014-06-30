@@ -59,22 +59,12 @@ public abstract class PackedArrayAtomicFieldData extends AbstractAtomicNumericFi
         }
 
         @Override
-        public boolean isMultiValued() {
-            return false;
-        }
-
-        @Override
-        public long getMemorySizeInBytes() {
+        public long ramBytesUsed() {
             return 0;
         }
 
         @Override
-        public long getNumberUniqueValues() {
-            return 0;
-        }
-
-        @Override
-        public BytesValues getBytesValues(boolean needsHashes) {
+        public BytesValues getBytesValues() {
             return BytesValues.EMPTY;
         }
 
@@ -96,21 +86,11 @@ public abstract class PackedArrayAtomicFieldData extends AbstractAtomicNumericFi
         }
 
         @Override
-        public boolean isMultiValued() {
-            return ordinals.isMultiValued();
-        }
-
-        @Override
-        public long getMemorySizeInBytes() {
+        public long ramBytesUsed() {
             if (size == -1) {
-                size = RamUsageEstimator.NUM_BYTES_INT/*size*/ + values.ramBytesUsed() + ordinals.getMemorySizeInBytes();
+                size = RamUsageEstimator.NUM_BYTES_INT/*size*/ + values.ramBytesUsed() + ordinals.ramBytesUsed();
             }
             return size;
-        }
-
-        @Override
-        public long getNumberUniqueValues() {
-            return ordinals.getMaxOrd() - Ordinals.MIN_ORDINAL;
         }
 
         @Override
@@ -127,14 +107,14 @@ public abstract class PackedArrayAtomicFieldData extends AbstractAtomicNumericFi
 
             private final MonotonicAppendingLongBuffer values;
 
-            LongValues(MonotonicAppendingLongBuffer values, Ordinals.Docs ordinals) {
+            LongValues(MonotonicAppendingLongBuffer values, BytesValues.WithOrdinals ordinals) {
                 super(ordinals);
                 this.values = values;
             }
 
             @Override
             public long getValueByOrd(long ord) {
-                assert ord != Ordinals.MISSING_ORDINAL;
+                assert ord != BytesValues.WithOrdinals.MISSING_ORDINAL;
                 return values.get(ord);
             }
         }
@@ -143,14 +123,14 @@ public abstract class PackedArrayAtomicFieldData extends AbstractAtomicNumericFi
 
             private final MonotonicAppendingLongBuffer values;
 
-            DoubleValues(MonotonicAppendingLongBuffer values, Ordinals.Docs ordinals) {
+            DoubleValues(MonotonicAppendingLongBuffer values, BytesValues.WithOrdinals ordinals) {
                 super(ordinals);
                 this.values = values;
             }
 
             @Override
             public double getValueByOrd(long ord) {
-                assert ord != Ordinals.MISSING_ORDINAL;
+                assert ord != BytesValues.WithOrdinals.MISSING_ORDINAL;
                 return values.get(ord);
             }
 
@@ -167,28 +147,16 @@ public abstract class PackedArrayAtomicFieldData extends AbstractAtomicNumericFi
         private final PackedInts.Mutable values;
         private final long minValue;
         private final long missingValue;
-        private final long numOrds;
 
-        public SingleSparse(PackedInts.Mutable values, long minValue, long missingValue, long numOrds) {
+        public SingleSparse(PackedInts.Mutable values, long minValue, long missingValue) {
             super();
             this.values = values;
             this.minValue = minValue;
             this.missingValue = missingValue;
-            this.numOrds = numOrds;
         }
 
         @Override
-        public boolean isMultiValued() {
-            return false;
-        }
-
-        @Override
-        public long getNumberUniqueValues() {
-            return numOrds;
-        }
-
-        @Override
-        public long getMemorySizeInBytes() {
+        public long ramBytesUsed() {
             if (size == -1) {
                 size = values.ramBytesUsed() + 2 * RamUsageEstimator.NUM_BYTES_LONG;
             }
@@ -263,31 +231,19 @@ public abstract class PackedArrayAtomicFieldData extends AbstractAtomicNumericFi
 
         private final PackedInts.Mutable values;
         private final long minValue;
-        private final long numOrds;
 
         /**
          * Note, here, we assume that there is no offset by 1 from docId, so position 0
          * is the value for docId 0.
          */
-        public Single(PackedInts.Mutable values, long minValue, long numOrds) {
+        public Single(PackedInts.Mutable values, long minValue) {
             super();
             this.values = values;
             this.minValue = minValue;
-            this.numOrds = numOrds;
         }
 
         @Override
-        public boolean isMultiValued() {
-            return false;
-        }
-
-        @Override
-        public long getNumberUniqueValues() {
-            return numOrds;
-        }
-
-        @Override
-        public long getMemorySizeInBytes() {
+        public long ramBytesUsed() {
             if (size == -1) {
                 size = values.ramBytesUsed();
             }
@@ -355,30 +311,18 @@ public abstract class PackedArrayAtomicFieldData extends AbstractAtomicNumericFi
     public static class PagedSingle extends PackedArrayAtomicFieldData {
 
         private final AppendingDeltaPackedLongBuffer values;
-        private final long numOrds;
 
         /**
          * Note, here, we assume that there is no offset by 1 from docId, so position 0
          * is the value for docId 0.
          */
-        public PagedSingle(AppendingDeltaPackedLongBuffer values, long numOrds) {
+        public PagedSingle(AppendingDeltaPackedLongBuffer values) {
             super();
             this.values = values;
-            this.numOrds = numOrds;
         }
 
         @Override
-        public boolean isMultiValued() {
-            return false;
-        }
-
-        @Override
-        public long getNumberUniqueValues() {
-            return numOrds;
-        }
-
-        @Override
-        public long getMemorySizeInBytes() {
+        public long ramBytesUsed() {
             if (size == -1) {
                 size = values.ramBytesUsed();
             }
@@ -446,27 +390,15 @@ public abstract class PackedArrayAtomicFieldData extends AbstractAtomicNumericFi
 
         private final AppendingDeltaPackedLongBuffer values;
         private final FixedBitSet docsWithValue;
-        private final long numOrds;
 
-        public PagedSingleSparse(AppendingDeltaPackedLongBuffer values, FixedBitSet docsWithValue, long numOrds) {
+        public PagedSingleSparse(AppendingDeltaPackedLongBuffer values, FixedBitSet docsWithValue) {
             super();
             this.values = values;
             this.docsWithValue = docsWithValue;
-            this.numOrds = numOrds;
         }
 
         @Override
-        public boolean isMultiValued() {
-            return false;
-        }
-
-        @Override
-        public long getNumberUniqueValues() {
-            return numOrds;
-        }
-
-        @Override
-        public long getMemorySizeInBytes() {
+        public long ramBytesUsed() {
             if (size == -1) {
                 size = values.ramBytesUsed() + 2 * RamUsageEstimator.NUM_BYTES_LONG;
             }

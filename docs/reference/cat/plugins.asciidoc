@@ -1,5 +1,5 @@
 [[cat-plugins]]
-== Plugins
+== cat plugins
 
 The `plugins` command provides a view per node of running plugins. This information *spans nodes*.
 

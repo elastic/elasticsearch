@@ -180,6 +180,8 @@ public class DocumentMapper implements ToXContent {
             this.rootMappers.put(TTLFieldMapper.class, new TTLFieldMapper());
             this.rootMappers.put(VersionFieldMapper.class, new VersionFieldMapper());
             this.rootMappers.put(ParentFieldMapper.class, new ParentFieldMapper());
+            // _field_names last so that it can see all other fields
+            this.rootMappers.put(FieldNamesFieldMapper.class, new FieldNamesFieldMapper(indexSettings));
         }
 
         public Builder meta(ImmutableMap<String, Object> meta) {
@@ -386,6 +388,10 @@ public class DocumentMapper implements ToXContent {
         return rootMapper(SourceFieldMapper.class);
     }
 
+    public AnalyzerMapper analyzerMapper() {
+        return rootMapper(AnalyzerMapper.class);
+    }
+
     public AllFieldMapper allFieldMapper() {
         return rootMapper(AllFieldMapper.class);
     }
@@ -521,10 +527,6 @@ public class DocumentMapper implements ToXContent {
 
             for (RootMapper rootMapper : rootMappersOrdered) {
                 rootMapper.postParse(context);
-            }
-
-            for (RootMapper rootMapper : rootMappersOrdered) {
-                rootMapper.validate(context);
             }
         } catch (Throwable e) {
             // if its already a mapper parsing exception, no need to wrap it...

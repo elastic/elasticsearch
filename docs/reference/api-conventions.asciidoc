@@ -44,8 +44,8 @@ setting is also applicable when `_all`, `*` or no index has been specified.
 `expand_wildcards`::
 
 Controls to what kind of concrete indices wildcard indices expression expand
-to. If `open` is specified then the wildcard expression if expanded to only
-open indices and if `closed` is specified then the wildcard expression if
+to. If `open` is specified then the wildcard expression is expanded to only
+open indices and if `closed` is specified then the wildcard expression is
 expanded only to closed indices. Also both values (`open,closed`) can be
 specified to expand to all indices.
 
@@ -241,8 +241,17 @@ document indexed.
 [float]
 === JSONP
 
-All REST APIs accept a `callback` parameter resulting in a
-http://en.wikipedia.org/wiki/JSONP[JSONP] result.
+By default JSONP resposes are enabled. All REST APIs accept a `callback` parameter
+resulting in a http://en.wikipedia.org/wiki/JSONP[JSONP] result. You can disable
+this behavior by adding the following to `config.yaml`:
+
+    http.jsonp.enable: false
+
+Please note, due to the architecture of Elasticsearch, this may pose a security
+risk. Under some circumstances, an attacker may be able to exfiltrate data in your
+Elasticsearch server if they're able to force your browser to make a JSONP request
+on your behalf (e.g. by including a <script> tag on an untrusted site with a
+legitimate query against a local Elasticsearch server).
 
 [float]
 === Request body in query string

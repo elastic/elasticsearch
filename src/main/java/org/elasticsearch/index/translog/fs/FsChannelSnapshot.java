@@ -119,10 +119,7 @@ public class FsChannelSnapshot implements Translog.Snapshot {
             cacheBuffer.limit(opSize);
             bytesRead = Channels.readFromFileChannel(channel, position, cacheBuffer);
             if (bytesRead < 0) {
-                // read passed EOF, which means the tranlog is still being written to. This shouldn't happen.
-                // nocommit: do we want to throw an exception?
-                assert false : "attempt to read passed snapshot EOF";
-                return false;
+                throw new EOFException("tried to read past EOF. opSize [" + opSize + "] position [" + position + "] length [" + length + "]");
             }
             cacheBuffer.flip();
             position += opSize;

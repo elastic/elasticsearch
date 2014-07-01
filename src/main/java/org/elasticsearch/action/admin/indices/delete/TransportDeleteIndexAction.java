@@ -85,14 +85,14 @@ public class TransportDeleteIndexAction extends TransportMasterNodeOperationActi
 
     @Override
     protected void masterOperation(final DeleteIndexRequest request, final ClusterState state, final ActionListener<DeleteIndexResponse> listener) throws ElasticsearchException {
-        request.indices(state.metaData().concreteIndices(request.indicesOptions(), request.indices()));
-        if (request.indices().length == 0) {
+        String[] concreteIndices = state.metaData().concreteIndices(request.indicesOptions(), request.indices());
+        if (concreteIndices.length == 0) {
             listener.onResponse(new DeleteIndexResponse(true));
             return;
         }
         // TODO: this API should be improved, currently, if one delete index failed, we send a failure, we should send a response array that includes all the indices that were deleted
-        final CountDown count = new CountDown(request.indices().length);
-        for (final String index : request.indices()) {
+        final CountDown count = new CountDown(concreteIndices.length);
+        for (final String index : concreteIndices) {
             deleteIndexService.deleteIndex(new MetaDataDeleteIndexService.Request(index).timeout(request.timeout()).masterTimeout(request.masterNodeTimeout()), new MetaDataDeleteIndexService.Listener() {
 
                 private volatile Throwable lastFailure;

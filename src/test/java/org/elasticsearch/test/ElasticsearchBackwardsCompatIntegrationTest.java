@@ -110,6 +110,7 @@ public abstract class ElasticsearchBackwardsCompatIntegrationTest extends Elasti
         return ImmutableSettings.builder()
                 .put(TransportModule.TRANSPORT_TYPE_KEY, NettyTransportModule.class) // run same transport  / disco as external
                 .put(DiscoveryModule.DISCOVERY_TYPE_KEY, ZenDiscoveryModule.class)
+                .put("node.mode", "network") // we need network mode for this
                 .put("gateway.type", "local") // we require local gateway to mimic upgrades of nodes
                 .put("discovery.type", "zen") // zen is needed since we start external nodes
                 .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, TransportService.class.getName())

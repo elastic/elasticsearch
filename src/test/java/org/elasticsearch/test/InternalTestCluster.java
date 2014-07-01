@@ -44,6 +44,7 @@ import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.ESLogger;
@@ -141,6 +142,8 @@ public final class InternalTestCluster extends TestCluster {
 
     static final boolean DEFAULT_ENABLE_RANDOM_BENCH_NODES = true;
 
+    private static final String NODE_MODE = nodeMode();
+
     /* sorted map to make traverse order reproducible, concurrent since we do checks on it not within a sync block */
     private final NavigableMap<String, NodeAndClient> nodes = new TreeMap<>();
 
@@ -235,11 +238,38 @@ public final class InternalTestCluster extends TestCluster {
                 builder.put("path.data", dataPath.toString());
             }
         }
+        builder.put("config.ignore_system_properties", true);
+        builder.put("node.mode", NODE_MODE);
         builder.put("script.disable_dynamic", false);
         builder.put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false);
+        if (Strings.hasLength(System.getProperty("es.logger.level"))) {
+            builder.put("logger.level", System.getProperty("es.logger.level"));
+        }
+        if (Strings.hasLength(System.getProperty("es.logger.prefix"))) {
+            builder.put("logger.prefix", System.getProperty("es.logger.level"));
+        }
         defaultSettings = builder.build();
         executor = EsExecutors.newCached(1, TimeUnit.MINUTES, EsExecutors.daemonThreadFactory("test_" + clusterName));
         this.hasFilterCache = random.nextBoolean();
+    }
+
+
+    private static String nodeMode() {
+        Builder builder = ImmutableSettings.builder();
+        if (Strings.isEmpty(System.getProperty("es.node.mode"))&& Strings.isEmpty(System.getProperty("es.node.local"))) {
+            return "local"; // default if nothing is specified
+        }
+        if (Strings.hasLength(System.getProperty("es.node.mode"))) {
+            builder.put("node.mode", System.getProperty("es.node.mode"));
+        }
+        if (Strings.hasLength(System.getProperty("es.node.local"))) {
+            builder.put("node.local", System.getProperty("es.node.local"));
+        }
+        if (DiscoveryNode.localNode(builder.build())) {
+            return "local";
+        } else {
+            return "network";
+        }
     }
 
     public String getClusterName() {
@@ -734,10 +764,18 @@ public final class InternalTestCluster extends TestCluster {
         @Override
         public Client client(Node node, String clusterName, Random random) {
             TransportAddress addr = ((InternalNode) node).injector().getInstance(TransportService.class).boundAddress().publishAddress();
-            TransportClient client = new TransportClient(settingsBuilder().put("client.transport.nodes_sampler_interval", "1s")
+            Settings nodeSettings = node.settings();
+            Builder builder = settingsBuilder().put("client.transport.nodes_sampler_interval", "1s")
                     .put("name", TRANSPORT_CLIENT_PREFIX + node.settings().get("name"))
                     .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false)
-                    .put(ClusterName.SETTING, clusterName).put("client.transport.sniff", sniff).build());
+                    .put(ClusterName.SETTING, clusterName).put("client.transport.sniff", sniff);
+            builder.put("node.mode", nodeSettings.get("node.mode", NODE_MODE));
+            builder.put("node.local", nodeSettings.get("node.local", ""));
+            builder.put("logger.prefix", nodeSettings.get("logger.prefix", ""));
+            builder.put("logger.level", nodeSettings.get("logger.level", "INFO"));
+            builder.put("config.ignore_system_properties", true);
+
+            TransportClient client = new TransportClient(builder.build());
             client.addTransportAddress(addr);
             return client;
         }

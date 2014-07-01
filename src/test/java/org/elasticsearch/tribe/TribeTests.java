@@ -20,6 +20,7 @@
 package org.elasticsearch.tribe;
 
 import com.google.common.base.Predicate;
+import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -40,6 +41,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -92,12 +94,22 @@ public class TribeTests extends ElasticsearchIntegrationTest {
     }
 
     private void setupTribeNode(Settings settings) {
+        ImmutableMap<String,String> asMap = internalCluster().getDefaultSettings().getAsMap();
+        ImmutableSettings.Builder tribe1Defaults = ImmutableSettings.builder();
+        ImmutableSettings.Builder tribe2Defaults = ImmutableSettings.builder();
+        for (Map.Entry<String, String> entry : asMap.entrySet()) {
+            tribe1Defaults.put("tribe.t1." + entry.getKey(), entry.getValue());
+            tribe2Defaults.put("tribe.t2." + entry.getKey(), entry.getValue());
+        }
         Settings merged = ImmutableSettings.builder()
                 .put("tribe.t1.cluster.name", internalCluster().getClusterName())
                 .put("tribe.t2.cluster.name", cluster2.getClusterName())
                 .put("tribe.blocks.write", false)
                 .put("tribe.blocks.read", false)
                 .put(settings)
+                .put(tribe1Defaults.build())
+                .put(tribe2Defaults.build())
+                .put(internalCluster().getDefaultSettings())
                 .build();
 
         tribeNode = NodeBuilder.nodeBuilder()

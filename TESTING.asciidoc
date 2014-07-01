@@ -184,14 +184,14 @@ To run backwards compatibiilty tests untar or unzip a release and run the tests
 with the following command:
 
 ---------------------------------------------------------------------------
-mvn test -Dtests.bwc=true -Dtests.bwc.version=x.y.z -Dtests.bwc.path=/path/to/elasticsearch -Des.node.mode=network
+mvn test -Dtests.bwc=true -Dtests.bwc.version=x.y.z -Dtests.bwc.path=/path/to/elasticsearch 
 ---------------------------------------------------------------------------
 
 If the elasticsearch release is placed under `./backwards/elasticsearch-x.y.z` the path
 can be omitted:
  
 ---------------------------------------------------------------------------
-mvn test -Dtests.bwc=true -Dtests.bwc.version=x.y.z -Des.node.mode=network
+mvn test -Dtests.bwc=true -Dtests.bwc.version=x.y.z 
 ---------------------------------------------------------------------------
 
 To setup the bwc test environment execute the following steps (provided you are

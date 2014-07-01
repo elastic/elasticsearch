@@ -51,7 +51,9 @@ public final class ExternalTestCluster extends TestCluster {
     private final int numBenchNodes;
 
     public ExternalTestCluster(TransportAddress... transportAddresses) {
-        this.client = new TransportClient(ImmutableSettings.settingsBuilder().put("client.transport.ignore_cluster_name", true))
+        this.client = new TransportClient(ImmutableSettings.settingsBuilder()
+                .put("client.transport.ignore_cluster_name", true)
+                .put("node.mode", "network")) // we require network here!
                 .addTransportAddresses(transportAddresses);
 
         NodesInfoResponse nodeInfos = this.client.admin().cluster().prepareNodesInfo().clear().setSettings(true).setHttp(true).get();

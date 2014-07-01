@@ -90,6 +90,7 @@ final class ExternalNode implements Closeable {
                 case "path.home":
                 case "node.mode":
                 case "gateway.type":
+                case "config.ignore_system_properties":
                     continue;
                 default:
                     params.add("-Des." + entry.getKey() + "=" + entry.getValue());

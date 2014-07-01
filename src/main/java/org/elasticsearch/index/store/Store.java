@@ -224,8 +224,9 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
     public void writeChecksums() throws IOException {
         ensureOpen();
         ImmutableMap<String, StoreFileMetaData> files = list();
-        String checksumName = CHECKSUMS_PREFIX + System.currentTimeMillis();
+        String checksumName;
         synchronized (mutex) {
+            checksumName = CHECKSUMS_PREFIX + System.currentTimeMillis();
             Map<String, String> checksums = new HashMap<>();
             for (StoreFileMetaData metaData : files.values()) {
                 if (metaData.checksum() != null) {

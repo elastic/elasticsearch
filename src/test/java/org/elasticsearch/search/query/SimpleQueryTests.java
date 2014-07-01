@@ -453,6 +453,8 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testOmitTermFreqsAndPositions() throws Exception {
+        cluster().wipeTemplates(); // no randomized template for this test -- we are testing bwc compat and set version explicitly this might cause failures if an unsupported feature
+                                   // is added randomly via an index template.
         Version version = Version.CURRENT;
         int iters = scaledRandomIntBetween(10, 20);
         for (int i = 0; i < iters; i++) {

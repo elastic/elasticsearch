@@ -25,7 +25,6 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.google.common.base.Joiner;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
 import org.apache.lucene.store.StoreRateLimiting;
 import org.apache.lucene.util.AbstractRandomizedTest;
 import org.apache.lucene.util.IOUtils;
@@ -36,7 +35,6 @@ import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
@@ -58,9 +56,6 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.MutableShardRouting;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -198,7 +193,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      */
     public static final String TESTS_COMPATIBILITY = "tests.compatibility";
 
-    protected static final Version COMPATIBILITY_VERSION = Version.fromString(compatibilityVersionProperty());
+    private static final Version COMPATIBILITY_VERSION = Version.fromString(compatibilityVersionProperty());
 
     /**
      * Threshold at which indexing switches from frequently async to frequently bulk.
@@ -314,7 +309,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     }
 
     private Loading randomLoadingValues() {
-        if (COMPATIBILITY_VERSION.onOrAfter(Version.V_1_2_0)) {
+        if (compatibilityVersion().onOrAfter(Version.V_1_2_0)) {
             // Loading.EAGER_GLOBAL_ORDINALS was added in 1,2.0
             return randomFrom(Loading.values());
         } else {
@@ -347,11 +342,13 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                             .field("index", randomFrom("not_analyzed", "no"))
                             .endObject();
                 }
-                mappings.startObject(FieldNamesFieldMapper.NAME)
-                        .startObject("fielddata")
-                        .field(FieldDataType.FORMAT_KEY, randomFrom("paged_bytes", "fst", "doc_values"))
-                        .endObject()
-                        .endObject();
+                if (compatibilityVersion().onOrAfter(Version.V_1_3_0)) {
+                    mappings.startObject(FieldNamesFieldMapper.NAME)
+                            .startObject("fielddata")
+                            .field(FieldDataType.FORMAT_KEY, randomFrom("paged_bytes", "fst", "doc_values"))
+                            .endObject()
+                            .endObject();
+                }
                 mappings.startArray("dynamic_templates")
                         .startObject()
                         .startObject("template-strings")
@@ -414,7 +411,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     }
 
     protected boolean randomizeNumberOfShardsAndReplicas() {
-        return COMPATIBILITY_VERSION.onOrAfter(Version.V_1_1_0);
+        return compatibilityVersion().onOrAfter(Version.V_1_1_0);
     }
 
     private static ImmutableSettings.Builder setRandomSettings(Random random, ImmutableSettings.Builder builder) {
@@ -1630,6 +1627,36 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     @Target({ElementType.TYPE})
     @Ignore
     public @interface SuiteScopeTest {
+    }
+
+
+    /**
+     * If a test is annotated with {@link org.elasticsearch.test.ElasticsearchIntegrationTest.CompatibilityVersion}
+     * all randomized settings will only contain settings or mappings which are compatible with the specified version ID.
+     */
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target({ElementType.TYPE})
+    @Ignore
+    public @interface CompatibilityVersion {
+        int version();
+    }
+
+    /**
+     * Retruns the tests compatibility version.
+     */
+    public Version compatibilityVersion() {
+        return compatibiltyVersion(getClass());
+    }
+
+    private Version compatibiltyVersion(Class<?> clazz) {
+        if (clazz == Object.class || clazz == ElasticsearchIntegrationTest.class) {
+            return COMPATIBILITY_VERSION;
+        }
+        CompatibilityVersion annotation = clazz.getAnnotation(CompatibilityVersion.class);
+        if (annotation != null) {
+            return  Version.smallest(Version.fromId(annotation.version()), COMPATIBILITY_VERSION);
+        }
+        return compatibiltyVersion(clazz.getSuperclass());
     }
 
     private static String compatibilityVersionProperty() {

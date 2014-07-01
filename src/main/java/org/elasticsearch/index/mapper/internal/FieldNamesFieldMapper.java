@@ -26,6 +26,7 @@ import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.Lucene;
@@ -106,9 +107,13 @@ public class FieldNamesFieldMapper extends AbstractFieldMapper<String> implement
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            FieldNamesFieldMapper.Builder builder = fieldNames();
-            parseField(builder, builder.name, node, parserContext);
-            return builder;
+            if (parserContext.indexVersionCreated().onOrAfter(Version.V_1_3_0)) {
+                FieldNamesFieldMapper.Builder builder = fieldNames();
+                parseField(builder, builder.name, node, parserContext);
+                return builder;
+            } else {
+              throw new ElasticsearchIllegalArgumentException("type="+CONTENT_TYPE+" is not supported on indices created before version 1.3.0 is your cluster running multiple datanode versions?");
+            }
         }
     }
 

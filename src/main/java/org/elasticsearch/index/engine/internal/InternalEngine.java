@@ -19,19 +19,7 @@
 
 package org.elasticsearch.index.engine.internal;
 
-import java.io.IOException;
-import java.util.*;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.locks.Condition;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
-
+import com.google.common.collect.Lists;
 import org.apache.lucene.index.*;
 import org.apache.lucene.index.IndexWriter.IndexReaderWarmer;
 import org.apache.lucene.search.IndexSearcher;
@@ -40,7 +28,6 @@ import org.apache.lucene.search.SearcherFactory;
 import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.LockObtainFailedException;
-import org.apache.lucene.store.NoLockFactory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
@@ -53,7 +40,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.LoggerInfoStream;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.SegmentReaderUtils;
@@ -64,7 +50,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.codec.CodecService;
@@ -89,7 +74,18 @@ import org.elasticsearch.index.translog.TranslogStreams;
 import org.elasticsearch.indices.warmer.IndicesWarmer;
 import org.elasticsearch.indices.warmer.InternalIndicesWarmer;
 import org.elasticsearch.threadpool.ThreadPool;
-import com.google.common.collect.Lists;
+
+import java.io.IOException;
+import java.util.*;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
  *
@@ -312,6 +308,11 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
     @Override
     public TimeValue defaultRefreshInterval() {
         return new TimeValue(1, TimeUnit.SECONDS);
+    }
+
+    /** return the current indexing buffer size setting * */
+    public ByteSizeValue indexingBufferSize() {
+        return indexingBufferSize;
     }
 
     @Override
@@ -1566,11 +1567,11 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
 
         @Override
         public void beforeMerge(OnGoingMerge merge) {
-          if (numMergesInFlight.incrementAndGet() > maxNumMerges) {
-              if (isThrottling.getAndSet(true) == false) {
-                  logger.info("now throttling indexing: numMergesInFlight={}, maxNumMerges={}", numMergesInFlight, maxNumMerges);
-              }
-              lock = lockReference;
+            if (numMergesInFlight.incrementAndGet() > maxNumMerges) {
+                if (isThrottling.getAndSet(true) == false) {
+                    logger.info("now throttling indexing: numMergesInFlight={}, maxNumMerges={}", numMergesInFlight, maxNumMerges);
+                }
+                lock = lockReference;
             }
         }
 
@@ -1588,7 +1589,8 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
     private static final class NoOpLock implements Lock {
 
         @Override
-        public void lock() {}
+        public void lock() {
+        }
 
         @Override
         public void lockInterruptibly() throws InterruptedException {

@@ -100,7 +100,7 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
         logger.info("--> start 2 nodes");
         Client client = client();
 
-        assertAcked(prepareCreate("test-idx", 2, settingsBuilder().put("number_of_shards", 2).put("number_of_replicas", 0).put(MockDirectoryHelper.RANDOM_NO_DELETE_OPEN_FILE, false)));
+        assertAcked(prepareCreate("test-idx", 2, settingsBuilder().put("number_of_shards", 2).put("number_of_replicas", 0)));
         ensureGreen();
 
         logger.info("--> indexing some data");
@@ -149,7 +149,7 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
         nodes.add(internalCluster().startNode());
         Client client = client();
 
-        assertAcked(prepareCreate("test-idx", 2, settingsBuilder().put("number_of_shards", 2).put("number_of_replicas", 0).put(MockDirectoryHelper.RANDOM_NO_DELETE_OPEN_FILE, false)));
+        assertAcked(prepareCreate("test-idx", 2, settingsBuilder().put("number_of_shards", 2).put("number_of_replicas", 0)));
         ensureGreen();
 
         logger.info("--> indexing some data");
@@ -212,9 +212,7 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
 
         logger.info("--> create an index that will have some unallocated shards");
         assertAcked(prepareCreate("test-idx-some", 2, settingsBuilder().put("number_of_shards", 6)
-                .put("number_of_replicas", 0)
-                .put(MockDirectoryHelper.RANDOM_NO_DELETE_OPEN_FILE, false)
-                .put(MockDirectoryHelper.RANDOM_PREVENT_DOUBLE_WRITE, false)));
+                .put("number_of_replicas", 0)));
         ensureGreen();
 
         logger.info("--> indexing some data into test-idx-some");
@@ -230,8 +228,7 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
 
         logger.info("--> create an index that will have all allocated shards");
         assertAcked(prepareCreate("test-idx-all", 1, settingsBuilder().put("number_of_shards", 6)
-                .put("number_of_replicas", 0)
-                .put(MockDirectoryHelper.RANDOM_NO_DELETE_OPEN_FILE, false)));
+                .put("number_of_replicas", 0)));
         ensureGreen("test-idx-all");
 
         logger.info("--> indexing some data into test-idx-all");
@@ -244,8 +241,7 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
         logger.info("--> create an index that will have no allocated shards");
         assertAcked(prepareCreate("test-idx-none", 1, settingsBuilder().put("number_of_shards", 6)
                 .put("index.routing.allocation.include.tag", "nowhere")
-                .put("number_of_replicas", 0)
-                .put(MockDirectoryHelper.RANDOM_NO_DELETE_OPEN_FILE, false)));
+                .put("number_of_replicas", 0)));
 
         logger.info("--> create repository");
         logger.info("--> creating repository");
@@ -456,8 +452,7 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
 
     private void createTestIndex(String name) {
         assertAcked(prepareCreate(name, 0, settingsBuilder().put("number_of_shards", between(1, 6))
-                .put("number_of_replicas", between(1, 6))
-                .put(MockDirectoryHelper.RANDOM_NO_DELETE_OPEN_FILE, false)));
+                .put("number_of_replicas", between(1, 6))));
 
         ensureYellow(name);
 

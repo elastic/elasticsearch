@@ -25,9 +25,8 @@ import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.*;
-import org.apache.lucene.util.packed.AppendingDeltaPackedLongBuffer;
-import org.apache.lucene.util.packed.MonotonicAppendingLongBuffer;
 import org.apache.lucene.util.packed.PackedInts;
+import org.apache.lucene.util.packed.PackedLongValues;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.breaker.MemoryCircuitBreaker;
@@ -107,7 +106,7 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
         // TODO: how can we guess the number of terms? numerics end up creating more terms per value...
         // Lucene encodes numeric data so that the lexicographical (encoded) order matches the integer order so we know the sequence of
         // longs is going to be monotonically increasing
-        final MonotonicAppendingLongBuffer values = new MonotonicAppendingLongBuffer();
+        final PackedLongValues.Builder valuesBuilder = PackedLongValues.monotonicBuilder(PackedInts.COMPACT);
 
         final float acceptableTransientOverheadRatio = fieldDataType.getSettings().getAsFloat("acceptable_transient_overhead_ratio", OrdinalsBuilder.DEFAULT_ACCEPTABLE_OVERHEAD_RATIO);
         TermsEnum termsEnum = estimator.beforeLoad(terms);
@@ -121,9 +120,10 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
                 final long value = indexedAsLong
                         ? NumericUtils.prefixCodedToLong(term)
                         : NumericUtils.prefixCodedToInt(term);
-                assert values.size() == 0 || value > values.get(values.size() - 1);
-                values.add(value);
+                //assert values.size() == 0 || value > values.get(values.size() - 1);
+                valuesBuilder.add(value);
             }
+            final PackedLongValues values = valuesBuilder.build();
             Ordinals build = builder.build(fieldDataType.getSettings());
             CommonSettings.MemoryStorageFormat formatHint = CommonSettings.getMemoryStorageHint(fieldDataType);
 
@@ -197,7 +197,7 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
                         break;
                     case PAGED:
 
-                        final AppendingDeltaPackedLongBuffer dpValues = new AppendingDeltaPackedLongBuffer(reader.maxDoc() / pageSize + 1, pageSize, acceptableOverheadRatio);
+                        final PackedLongValues.Builder dpValues = PackedLongValues.deltaPackedBuilder(pageSize, acceptableOverheadRatio);
 
                         long lastValue = 0;
                         for (int i = 0; i < reader.maxDoc(); i++) {
@@ -207,11 +207,10 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
                             }
                             dpValues.add(lastValue);
                         }
-                        dpValues.freeze();
                         if (docsWithValues == null) {
-                            data = new PackedArrayAtomicFieldData.PagedSingle(dpValues);
+                            data = new PackedArrayAtomicFieldData.PagedSingle(dpValues.build());
                         } else {
-                            data = new PackedArrayAtomicFieldData.PagedSingleSparse(dpValues, docsWithValues);
+                            data = new PackedArrayAtomicFieldData.PagedSingleSparse(dpValues.build(), docsWithValues);
                         }
                         break;
                     case ORDINALS:
@@ -238,7 +237,7 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
 
     }
 
-    protected CommonSettings.MemoryStorageFormat chooseStorageFormat(AtomicReader reader, MonotonicAppendingLongBuffer values, Ordinals build, BytesValues.WithOrdinals ordinals,
+    protected CommonSettings.MemoryStorageFormat chooseStorageFormat(AtomicReader reader, PackedLongValues values, Ordinals build, BytesValues.WithOrdinals ordinals,
                                                                      long minValue, long maxValue, float acceptableOverheadRatio, int pageSize) {
 
         CommonSettings.MemoryStorageFormat format;
@@ -295,7 +294,7 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
         return format;
     }
 
-    private long getPageMemoryUsage(MonotonicAppendingLongBuffer values, float acceptableOverheadRatio, int pageSize, long pageMinOrdinal, long pageMaxOrdinal) {
+    private long getPageMemoryUsage(PackedLongValues values, float acceptableOverheadRatio, int pageSize, long pageMinOrdinal, long pageMaxOrdinal) {
         int bitsRequired;
         long pageMemorySize = 0;
         PackedInts.FormatAndBits formatAndBits;

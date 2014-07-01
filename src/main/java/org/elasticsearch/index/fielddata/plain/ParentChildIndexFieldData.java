@@ -24,7 +24,8 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.lucene.index.*;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PagedBytes;
-import org.apache.lucene.util.packed.MonotonicAppendingLongBuffer;
+import org.apache.lucene.util.packed.PackedInts;
+import org.apache.lucene.util.packed.PackedLongValues;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.Nullable;
@@ -139,7 +140,7 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<ParentChil
 
                         typeToAtomicFieldData.put(
                                 cursor.key,
-                                new PagedBytesAtomicFieldData(bytesReader, sizePointer, cursor.value.termOrdToBytesOffset, ordinals)
+                                new PagedBytesAtomicFieldData(bytesReader, sizePointer, cursor.value.termOrdToBytesOffset.build(), ordinals)
                         );
                     }
                     data = new ParentChildAtomicFieldData(typeToAtomicFieldData.build());
@@ -193,12 +194,12 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<ParentChil
     class TypeBuilder {
 
         final PagedBytes bytes;
-        final MonotonicAppendingLongBuffer termOrdToBytesOffset;
+        final PackedLongValues.Builder termOrdToBytesOffset;
         final OrdinalsBuilder builder;
 
         TypeBuilder(float acceptableTransientOverheadRatio, AtomicReader reader) throws IOException {
             bytes = new PagedBytes(15);
-            termOrdToBytesOffset = new MonotonicAppendingLongBuffer();
+            termOrdToBytesOffset = PackedLongValues.monotonicBuilder(PackedInts.COMPACT);
             builder = new OrdinalsBuilder(-1, reader.maxDoc(), acceptableTransientOverheadRatio);
         }
     }

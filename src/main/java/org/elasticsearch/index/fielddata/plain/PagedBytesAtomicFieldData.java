@@ -20,7 +20,7 @@ package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PagedBytes;
-import org.apache.lucene.util.packed.MonotonicAppendingLongBuffer;
+import org.apache.lucene.util.packed.PackedLongValues;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
@@ -31,13 +31,13 @@ import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<ScriptDocValues.Strings> {
 
     private final PagedBytes.Reader bytes;
-    private final MonotonicAppendingLongBuffer termOrdToBytesOffset;
+    private final PackedLongValues termOrdToBytesOffset;
     protected final Ordinals ordinals;
 
     private long size = -1;
     private final long readerBytesSize;
 
-    public PagedBytesAtomicFieldData(PagedBytes.Reader bytes, long readerBytesSize, MonotonicAppendingLongBuffer termOrdToBytesOffset, Ordinals ordinals) {
+    public PagedBytesAtomicFieldData(PagedBytes.Reader bytes, long readerBytesSize, PackedLongValues termOrdToBytesOffset, Ordinals ordinals) {
         this.bytes = bytes;
         this.termOrdToBytesOffset = termOrdToBytesOffset;
         this.ordinals = ordinals;
@@ -75,9 +75,9 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
 
         private final BytesRef scratch = new BytesRef();
         private final PagedBytes.Reader bytes;
-        private final MonotonicAppendingLongBuffer termOrdToBytesOffset;
+        private final PackedLongValues termOrdToBytesOffset;
 
-        ValuesHolder(PagedBytes.Reader bytes, MonotonicAppendingLongBuffer termOrdToBytesOffset) {
+        ValuesHolder(PagedBytes.Reader bytes, PackedLongValues termOrdToBytesOffset) {
             this.bytes = bytes;
             this.termOrdToBytesOffset = termOrdToBytesOffset;
         }

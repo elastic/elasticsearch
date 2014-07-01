@@ -20,8 +20,8 @@
 package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.util.packed.AppendingDeltaPackedLongBuffer;
-import org.apache.lucene.util.packed.AppendingPackedLongBuffer;
+import org.apache.lucene.util.packed.PackedInts;
+import org.apache.lucene.util.packed.PackedLongValues;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
@@ -42,8 +42,8 @@ public class RecordingPerReaderBucketCollector extends RecordingBucketCollector 
     
     static class PerSegmentCollects {
         AtomicReaderContext readerContext;
-        AppendingPackedLongBuffer docs;
-        AppendingPackedLongBuffer buckets;
+        PackedLongValues.Builder docs;
+        PackedLongValues.Builder buckets;
         int lastDocId = 0;
 
         PerSegmentCollects(AtomicReaderContext readerContext) {
@@ -54,7 +54,7 @@ public class RecordingPerReaderBucketCollector extends RecordingBucketCollector 
             if (docs == null) {
                 // TODO unclear what might be reasonable constructor args to pass to this collection
                 // No way of accurately predicting how many docs will be collected 
-                docs = new AppendingPackedLongBuffer();
+                docs = PackedLongValues.packedBuilder(PackedInts.COMPACT);
             }
             // Store as delta-encoded for better compression
             docs.add(doc - lastDocId);
@@ -63,7 +63,7 @@ public class RecordingPerReaderBucketCollector extends RecordingBucketCollector 
                 if (owningBucketOrdinal != 0) {
                     // Store all of the prior bucketOrds (which up until now have
                     // all been zero based)
-                    buckets = new AppendingPackedLongBuffer();
+                    buckets = PackedLongValues.packedBuilder(PackedInts.COMPACT);
                     for (int i = 0; i < docs.size() - 1; i++) {
                         buckets.add(0);
                     }
@@ -75,12 +75,6 @@ public class RecordingPerReaderBucketCollector extends RecordingBucketCollector 
             }
         }
         void endCollect() {
-            if (docs != null) {
-                docs.freeze();
-            }
-            if (buckets != null) {
-                buckets.freeze();
-            }
         }
 
         boolean hasItems() {
@@ -94,15 +88,15 @@ public class RecordingPerReaderBucketCollector extends RecordingBucketCollector 
                 return;
             }
             if (buckets == null) {
-                final AppendingDeltaPackedLongBuffer.Iterator docsIter = docs.iterator();
+                final PackedLongValues.Iterator docsIter = docs.build().iterator();
                 while (docsIter.hasNext()) {
                     lastDocId += (int) docsIter.next();
                     collector.collect(lastDocId, 0);
                 }
             } else {
                 assert docs.size() == buckets.size();
-                final AppendingDeltaPackedLongBuffer.Iterator docsIter = docs.iterator();
-                final AppendingDeltaPackedLongBuffer.Iterator bucketsIter = buckets.iterator();
+                final PackedLongValues.Iterator docsIter = docs.build().iterator();
+                final PackedLongValues.Iterator bucketsIter = buckets.build().iterator();
                 while (docsIter.hasNext()) {
                     lastDocId += (int) docsIter.next();
                     collector.collect(lastDocId, bucketsIter.next());

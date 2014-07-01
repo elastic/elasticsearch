@@ -21,9 +21,8 @@ package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.apache.lucene.util.packed.AppendingDeltaPackedLongBuffer;
-import org.apache.lucene.util.packed.MonotonicAppendingLongBuffer;
 import org.apache.lucene.util.packed.PackedInts;
+import org.apache.lucene.util.packed.PackedLongValues;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 
@@ -76,10 +75,10 @@ public abstract class PackedArrayAtomicFieldData extends AbstractAtomicNumericFi
 
     public static class WithOrdinals extends PackedArrayAtomicFieldData {
 
-        private final MonotonicAppendingLongBuffer values;
+        private final PackedLongValues values;
         private final Ordinals ordinals;
 
-        public WithOrdinals(MonotonicAppendingLongBuffer values, Ordinals ordinals) {
+        public WithOrdinals(PackedLongValues values, Ordinals ordinals) {
             super();
             this.values = values;
             this.ordinals = ordinals;
@@ -105,9 +104,9 @@ public abstract class PackedArrayAtomicFieldData extends AbstractAtomicNumericFi
 
         static class LongValues extends org.elasticsearch.index.fielddata.LongValues.WithOrdinals {
 
-            private final MonotonicAppendingLongBuffer values;
+            private final PackedLongValues values;
 
-            LongValues(MonotonicAppendingLongBuffer values, BytesValues.WithOrdinals ordinals) {
+            LongValues(PackedLongValues values, BytesValues.WithOrdinals ordinals) {
                 super(ordinals);
                 this.values = values;
             }
@@ -121,9 +120,9 @@ public abstract class PackedArrayAtomicFieldData extends AbstractAtomicNumericFi
 
         static class DoubleValues extends org.elasticsearch.index.fielddata.DoubleValues.WithOrdinals {
 
-            private final MonotonicAppendingLongBuffer values;
+            private final PackedLongValues values;
 
-            DoubleValues(MonotonicAppendingLongBuffer values, BytesValues.WithOrdinals ordinals) {
+            DoubleValues(PackedLongValues values, BytesValues.WithOrdinals ordinals) {
                 super(ordinals);
                 this.values = values;
             }
@@ -310,13 +309,13 @@ public abstract class PackedArrayAtomicFieldData extends AbstractAtomicNumericFi
      */
     public static class PagedSingle extends PackedArrayAtomicFieldData {
 
-        private final AppendingDeltaPackedLongBuffer values;
+        private final PackedLongValues values;
 
         /**
          * Note, here, we assume that there is no offset by 1 from docId, so position 0
          * is the value for docId 0.
          */
-        public PagedSingle(AppendingDeltaPackedLongBuffer values) {
+        public PagedSingle(PackedLongValues values) {
             super();
             this.values = values;
         }
@@ -341,9 +340,9 @@ public abstract class PackedArrayAtomicFieldData extends AbstractAtomicNumericFi
 
         static class LongValues extends DenseLongValues {
 
-            private final AppendingDeltaPackedLongBuffer values;
+            private final PackedLongValues values;
 
-            LongValues(AppendingDeltaPackedLongBuffer values) {
+            LongValues(PackedLongValues values) {
                 super(false);
                 this.values = values;
             }
@@ -359,9 +358,9 @@ public abstract class PackedArrayAtomicFieldData extends AbstractAtomicNumericFi
 
         static class DoubleValues extends org.elasticsearch.index.fielddata.DoubleValues {
 
-            private final AppendingDeltaPackedLongBuffer values;
+            private final PackedLongValues values;
 
-            DoubleValues(AppendingDeltaPackedLongBuffer values) {
+            DoubleValues(PackedLongValues values) {
                 super(false);
                 this.values = values;
             }
@@ -388,10 +387,10 @@ public abstract class PackedArrayAtomicFieldData extends AbstractAtomicNumericFi
      */
     public static class PagedSingleSparse extends PackedArrayAtomicFieldData {
 
-        private final AppendingDeltaPackedLongBuffer values;
+        private final PackedLongValues values;
         private final FixedBitSet docsWithValue;
 
-        public PagedSingleSparse(AppendingDeltaPackedLongBuffer values, FixedBitSet docsWithValue) {
+        public PagedSingleSparse(PackedLongValues values, FixedBitSet docsWithValue) {
             super();
             this.values = values;
             this.docsWithValue = docsWithValue;
@@ -417,10 +416,10 @@ public abstract class PackedArrayAtomicFieldData extends AbstractAtomicNumericFi
 
         static class LongValues extends org.elasticsearch.index.fielddata.LongValues {
 
-            private final AppendingDeltaPackedLongBuffer values;
+            private final PackedLongValues values;
             private final FixedBitSet docsWithValue;
 
-            LongValues(AppendingDeltaPackedLongBuffer values, FixedBitSet docsWithValue) {
+            LongValues(PackedLongValues values, FixedBitSet docsWithValue) {
                 super(false);
                 this.values = values;
                 this.docsWithValue = docsWithValue;
@@ -440,10 +439,10 @@ public abstract class PackedArrayAtomicFieldData extends AbstractAtomicNumericFi
 
         static class DoubleValues extends org.elasticsearch.index.fielddata.DoubleValues {
 
-            private final AppendingDeltaPackedLongBuffer values;
+            private final PackedLongValues values;
             private final FixedBitSet docsWithValue;
 
-            DoubleValues(AppendingDeltaPackedLongBuffer values, FixedBitSet docsWithValue) {
+            DoubleValues(PackedLongValues values, FixedBitSet docsWithValue) {
                 super(false);
                 this.values = values;
                 this.docsWithValue = docsWithValue;

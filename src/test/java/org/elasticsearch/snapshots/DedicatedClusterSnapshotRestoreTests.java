@@ -213,7 +213,8 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
         logger.info("--> create an index that will have some unallocated shards");
         assertAcked(prepareCreate("test-idx-some", 2, settingsBuilder().put("number_of_shards", 6)
                 .put("number_of_replicas", 0)
-                .put(MockDirectoryHelper.RANDOM_NO_DELETE_OPEN_FILE, false)));
+                .put(MockDirectoryHelper.RANDOM_NO_DELETE_OPEN_FILE, false)
+                .put(MockDirectoryHelper.RANDOM_PREVENT_DOUBLE_WRITE, false)));
         ensureGreen();
 
         logger.info("--> indexing some data into test-idx-some");

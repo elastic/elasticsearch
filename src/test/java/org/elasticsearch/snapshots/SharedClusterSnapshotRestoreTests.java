@@ -62,16 +62,6 @@ import static org.hamcrest.Matchers.*;
 @Slow
 public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
 
-    @Override
-    public Settings indexSettings() {
-        // During restore we frequently restore index to exactly the same state it was before, that might cause the same
-        // checksum file to be written twice during restore operation
-        return ImmutableSettings.builder().put(super.indexSettings())
-                .put(MockDirectoryHelper.RANDOM_PREVENT_DOUBLE_WRITE, false)
-                .put(MockDirectoryHelper.RANDOM_NO_DELETE_OPEN_FILE, false) //TODO: Ask Simon if this is hiding an issue
-                .build();
-    }
-
     @Test
     public void basicWorkFlowTest() throws Exception {
         Client client = client();

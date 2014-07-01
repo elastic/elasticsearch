@@ -56,7 +56,7 @@ Will cause `2009-11-15T14:12:12` to be used as the timestamp value for:
 }
 --------------------------------------------------
 
-Note, using `path` without explicit timestamp value provided require an
+Note, using `path` without explicit timestamp value provided requires an
 additional (though quite fast) parsing phase.
 
 [float]

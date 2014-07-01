@@ -176,7 +176,7 @@ public class DefaultSourceMappingTests extends ElasticsearchTestCase {
         MapperService mapperService = MapperTestUtils.newMapperService();
         mapperService.merge(MapperService.DEFAULT_MAPPING, new CompressedString(defaultMapping), true);
 
-        DocumentMapper mapper = mapperService.documentMapperWithAutoCreate("my_type");
+        DocumentMapper mapper = mapperService.documentMapperWithAutoCreate("my_type").v1();
         assertThat(mapper.type(), equalTo("my_type"));
         assertThat(mapper.sourceMapper().enabled(), equalTo(false));
     }

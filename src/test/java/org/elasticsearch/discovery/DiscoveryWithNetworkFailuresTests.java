@@ -161,7 +161,12 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
         internalCluster().startNodesAsync(3, nodeSettings).get();
         // Wait until a 3 nodes are part of the cluster
         ensureStableCluster(3);
-        createIndex("test");
+
+        // Makes sure that the get request can be executed on each node locally:
+        assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder()
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 2)
+        ));
 
         // Everything is stable now, it is now time to simulate evil...
         // but first make sure we have no initializing shards and all is green

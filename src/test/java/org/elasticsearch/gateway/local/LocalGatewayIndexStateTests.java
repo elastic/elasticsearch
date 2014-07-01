@@ -175,8 +175,6 @@ public class LocalGatewayIndexStateTests extends ElasticsearchIntegrationTest {
 
         logger.info("--> waiting for green status");
         ensureGreen();
-        // we need to wait for mapping on master since the mapping update from translog update might get delayed
-        waitForMappingOnMaster("test", "type1");
 
         stateResponse = client().admin().cluster().prepareState().execute().actionGet();
         assertThat(stateResponse.getState().metaData().index("test").state(), equalTo(IndexMetaData.State.OPEN));
@@ -323,8 +321,6 @@ public class LocalGatewayIndexStateTests extends ElasticsearchIntegrationTest {
         assertThat(client().admin().indices().prepareExists("test").execute().actionGet().isExists(), equalTo(true));
         logger.info("--> waiting for green status");
         ensureGreen();
-        // we need to wait for mapping on master since the mapping update from translog update might get delayed
-        waitForMappingOnMaster("test", "type1");
 
         logger.info("--> verify the doc is there");
         assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(true));
@@ -388,8 +384,6 @@ public class LocalGatewayIndexStateTests extends ElasticsearchIntegrationTest {
         assertAcked(client().admin().indices().prepareOpen("test").get());
         logger.info("--> waiting for green status");
         ensureGreen();
-        // we need to wait for mapping on master since the mapping update from translog update might get delayed
-        waitForMappingOnMaster("test", "type1");
 
         logger.info("--> verify the doc is there");
         assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(true));
@@ -450,8 +444,6 @@ public class LocalGatewayIndexStateTests extends ElasticsearchIntegrationTest {
 
         logger.info("--> waiting for green status");
         ensureGreen();
-        // we need to wait for mapping on master since the mapping update from translog update might get delayed
-        waitForMappingOnMaster("test", "type1");
 
         logger.info("--> verify that the dangling index does exists now!");
         assertThat(client().admin().indices().prepareExists("test").execute().actionGet().isExists(), equalTo(true));

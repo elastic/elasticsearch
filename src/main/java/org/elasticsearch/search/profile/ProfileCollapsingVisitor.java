@@ -79,11 +79,23 @@ public class ProfileCollapsingVisitor extends Visitor<Object, ArrayList> {
     }
 
     public ArrayList<Profile> visit(XConstantScoreQuery query) {
-        ArrayList<Profile> profiles = apply(query.getQuery());
-        ArrayList<Profile> pFilters = apply(query.getFilter());
+        Query q = query.getQuery();
+        Filter f = query.getFilter();
 
-        if (pFilters != null) {
-            profiles.addAll(pFilters);
+        ArrayList<Profile> profiles = new ArrayList<>();
+
+        if (q != null) {
+            ArrayList<Profile> pQuery = apply(query.getQuery());
+            if (pQuery != null) {
+                profiles.addAll(pQuery);
+            }
+        }
+
+        if (f != null) {
+            ArrayList<Profile> pFilters = apply(query.getFilter());
+            if (pFilters != null) {
+                profiles.addAll(pFilters);
+            }
         }
 
         return profiles;

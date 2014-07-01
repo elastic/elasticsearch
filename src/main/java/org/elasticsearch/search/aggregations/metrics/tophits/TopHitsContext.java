@@ -616,4 +616,14 @@ public class TopHitsContext extends SearchContext {
     public SearchContext useSlowScroll(boolean useSlowScroll) {
         throw new UnsupportedOperationException("Not supported");
     }
+
+    @Override
+    public SearchContext profiledQuery(boolean profile) {
+        throw new UnsupportedOperationException("Not supported");
+    }
+
+    @Override
+    public boolean profiledQuery() {
+        throw new UnsupportedOperationException();
+    }
 }

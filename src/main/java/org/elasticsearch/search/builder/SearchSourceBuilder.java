@@ -88,6 +88,8 @@ public class SearchSourceBuilder implements ToXContent {
 
     private Boolean explain;
 
+    private Boolean profile = false;
+
     private Boolean version;
 
     private List<SortBuilder> sorts;
@@ -280,6 +282,14 @@ public class SearchSourceBuilder implements ToXContent {
      */
     public SearchSourceBuilder explain(Boolean explain) {
         this.explain = explain;
+        return this;
+    }
+
+    /**
+     * Should the query be profiled. Defaults to <tt>False</tt>
+     */
+    public SearchSourceBuilder profile(Boolean profile) {
+        this.profile = profile;
         return this;
     }
 
@@ -774,6 +784,10 @@ public class SearchSourceBuilder implements ToXContent {
 
         if (explain != null) {
             builder.field("explain", explain);
+        }
+
+        if (profile != null) {
+            builder.field("profile", profile);
         }
 
         if (fetchSourceContext != null) {

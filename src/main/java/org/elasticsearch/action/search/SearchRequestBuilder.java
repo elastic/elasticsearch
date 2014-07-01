@@ -319,6 +319,14 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
+     * Should the query be profiled. Defaults to <tt>False</tt>
+     */
+    public SearchRequestBuilder setProfile(boolean profile) {
+        sourceBuilder().profile(profile);
+        return this;
+    }
+
+    /**
      * Should each {@link org.elasticsearch.search.SearchHit} be returned with its
      * version.
      */

@@ -19,12 +19,14 @@
 
 package org.elasticsearch.index.gateway.local;
 
+import com.google.common.collect.Sets;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.SegmentInfos;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.lucene.Lucene;
@@ -52,7 +54,10 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 
 /**
  *
@@ -63,6 +68,8 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
     private final MappingUpdatedAction mappingUpdatedAction;
     private final IndexService indexService;
     private final InternalIndexShard indexShard;
+
+    private final TimeValue waitForMappingUpdatePostRecovery;
 
     private final RecoveryState recoveryState = new RecoveryState();
 
@@ -78,6 +85,7 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
         this.indexService = indexService;
         this.indexShard = (InternalIndexShard) indexShard;
 
+        this.waitForMappingUpdatePostRecovery = componentSettings.getAsTime("wait_for_mapping_update_post_recovery", TimeValue.timeValueSeconds(30));
         syncInterval = componentSettings.getAsTime("sync", TimeValue.timeValueSeconds(5));
         if (syncInterval.millis() > 0) {
             this.indexShard.translog().syncOnEachOperation(false);
@@ -215,6 +223,8 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
         recoveryState.getTranslog().startTime(System.currentTimeMillis());
         recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
         FileInputStream fs = null;
+
+        final Set<String> typesToUpdate = Sets.newHashSet();
         try {
             fs = new FileInputStream(recoveringTranslogFile);
             InputStreamStreamInput si = new InputStreamStreamInput(fs);
@@ -232,8 +242,10 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
                 }
                 try {
                     Engine.IndexingOperation potentialIndexOperation = indexShard.performRecoveryOperation(operation);
-                    if (potentialIndexOperation != null) {
-                        mappingUpdatedAction.updateMappingOnMaster(indexService.index().name(), potentialIndexOperation.docMapper(), indexService.indexUUID());
+                    if (potentialIndexOperation != null && potentialIndexOperation.parsedDoc().mappingsModified()) {
+                        if (!typesToUpdate.contains(potentialIndexOperation.docMapper().type())) {
+                            typesToUpdate.add(potentialIndexOperation.docMapper().type());
+                        }
                     }
                     recoveryState.getTranslog().addTranslogOperations(1);
                 } catch (ElasticsearchException e) {
@@ -259,6 +271,31 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
         indexShard.performRecoveryFinalization(true);
 
         recoveringTranslogFile.delete();
+
+        for (final String type : typesToUpdate) {
+            final CountDownLatch latch = new CountDownLatch(1);
+            mappingUpdatedAction.updateMappingOnMaster(indexService.index().name(), indexService.mapperService().documentMapper(type), indexService.indexUUID(), new MappingUpdatedAction.MappingUpdateListener() {
+                @Override
+                public void onMappingUpdate() {
+                    latch.countDown();
+                }
+
+                @Override
+                public void onFailure(Throwable t) {
+                    latch.countDown();
+                    logger.debug("failed to send mapping update post recovery to master for [{}]", t, type);
+                }
+            });
+
+            try {
+                boolean waited = latch.await(waitForMappingUpdatePostRecovery.millis(), TimeUnit.MILLISECONDS);
+                if (!waited) {
+                    logger.debug("waited for mapping update on master for [{}], yet timed out");
+                }
+            } catch (InterruptedException e) {
+                logger.debug("interrupted while waiting for mapping update");
+            }
+        }
 
         recoveryState.getTranslog().time(System.currentTimeMillis() - recoveryState.getTranslog().startTime());
     }

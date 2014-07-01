@@ -32,6 +32,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineClosedException;
 import org.elasticsearch.index.engine.FlushNotAllowedEngineException;
 import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
@@ -64,7 +65,7 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
 
     private final TimeValue inactiveTime;
     private final TimeValue interval;
-    private final AtomicBoolean shardsCreatedOrDeleted = new AtomicBoolean();
+    private final AtomicBoolean shardsRecoveredOrDeleted = new AtomicBoolean();
 
     private final Listener listener = new Listener();
 
@@ -151,6 +152,10 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
     protected void doClose() throws ElasticsearchException {
     }
 
+    public ByteSizeValue indexingBufferSize() {
+        return indexingBuffer;
+    }
+
     class ShardsIndicesStatusChecker implements Runnable {
         @Override
         public void run() {
@@ -206,9 +211,9 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
                         // ignore
                     }
                 }
-                boolean shardsCreatedOrDeleted = IndexingMemoryController.this.shardsCreatedOrDeleted.compareAndSet(true, false);
-                if (shardsCreatedOrDeleted || activeInactiveStatusChanges) {
-                    calcAndSetShardBuffers("active/inactive[" + activeInactiveStatusChanges + "] created/deleted[" + shardsCreatedOrDeleted + "]");
+                boolean shardsRecoveredOrDeleted = IndexingMemoryController.this.shardsRecoveredOrDeleted.compareAndSet(true, false);
+                if (shardsRecoveredOrDeleted || activeInactiveStatusChanges) {
+                    calcAndSetShardBuffers("active/inactive[" + activeInactiveStatusChanges + "] recovered/deleted[" + shardsRecoveredOrDeleted + "]");
                 }
             }
         }
@@ -217,10 +222,10 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
     class Listener extends IndicesLifecycle.Listener {
 
         @Override
-        public void afterIndexShardCreated(IndexShard indexShard) {
+        public void afterIndexShardPostRecovery(IndexShard indexShard) {
             synchronized (mutex) {
                 shardsIndicesStatus.put(indexShard.shardId(), new ShardIndexingStatus());
-                shardsCreatedOrDeleted.set(true);
+                shardsRecoveredOrDeleted.set(true);
             }
         }
 
@@ -228,7 +233,7 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
         public void afterIndexShardClosed(ShardId shardId) {
             synchronized (mutex) {
                 shardsIndicesStatus.remove(shardId);
-                shardsCreatedOrDeleted.set(true);
+                shardsRecoveredOrDeleted.set(true);
             }
         }
     }
@@ -258,6 +263,11 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
         logger.debug("recalculating shard indexing buffer (reason={}), total is [{}] with [{}] active shards, each shard set to indexing=[{}], translog=[{}]", reason, indexingBuffer, shardsCount, shardIndexingBufferSize, shardTranslogBufferSize);
         for (IndexService indexService : indicesService) {
             for (IndexShard indexShard : indexService) {
+                IndexShardState state = indexShard.state();
+                if (state != IndexShardState.POST_RECOVERY && state != IndexShardState.STARTED && state != IndexShardState.RELOCATED) {
+                    logger.trace("shard [{}] is not yet ready for index buffer update. index shard state: [{}]", indexShard.shardId(), state);
+                    continue;
+                }
                 ShardIndexingStatus status = shardsIndicesStatus.get(indexShard.shardId());
                 if (status == null || !status.inactiveIndexing) {
                     try {
@@ -270,7 +280,7 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
                         // ignore
                         continue;
                     } catch (Exception e) {
-                        logger.warn("failed to set shard [{}][{}] index buffer to [{}]", indexShard.shardId().index().name(), indexShard.shardId().id(), shardIndexingBufferSize);
+                        logger.warn("failed to set shard {} index buffer to [{}]", indexShard.shardId(), shardIndexingBufferSize);
                     }
                 }
             }

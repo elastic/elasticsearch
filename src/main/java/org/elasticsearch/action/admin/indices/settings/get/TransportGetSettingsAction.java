@@ -73,9 +73,9 @@ public class TransportGetSettingsAction extends TransportMasterNodeReadOperation
 
     @Override
     protected void masterOperation(GetSettingsRequest request, ClusterState state, ActionListener<GetSettingsResponse> listener) throws ElasticsearchException {
-        request.indices(state.metaData().concreteIndices(request.indicesOptions(), request.indices()));
+        String[] concreteIndices = state.metaData().concreteIndices(request.indicesOptions(), request.indices());
         ImmutableOpenMap.Builder<String, Settings> indexToSettingsBuilder = ImmutableOpenMap.builder();
-        for (String concreteIndex : request.indices()) {
+        for (String concreteIndex : concreteIndices) {
             IndexMetaData indexMetaData = state.getMetaData().index(concreteIndex);
             if (indexMetaData == null) {
                 continue;

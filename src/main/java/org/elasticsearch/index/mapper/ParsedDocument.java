@@ -131,6 +131,10 @@ public class ParsedDocument {
         return mappingsModified;
     }
 
+    public void setMappingsModified() {
+        this.mappingsModified = true;
+    }
+
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();

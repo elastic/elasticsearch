@@ -34,6 +34,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.Streams;
@@ -399,10 +400,10 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
         return mappers.get(type);
     }
 
-    public DocumentMapper documentMapperWithAutoCreate(String type) {
+    public Tuple<DocumentMapper, Boolean> documentMapperWithAutoCreate(String type) {
         DocumentMapper mapper = mappers.get(type);
         if (mapper != null) {
-            return mapper;
+            return Tuple.tuple(mapper, Boolean.FALSE);
         }
         if (!dynamic) {
             throw new TypeMissingException(index, type, "trying to auto create mapping, but dynamic mapping is disabled");
@@ -411,10 +412,10 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
         synchronized (typeMutex) {
             mapper = mappers.get(type);
             if (mapper != null) {
-                return mapper;
+                return Tuple.tuple(mapper, Boolean.FALSE);
             }
             merge(type, null, true);
-            return mappers.get(type);
+            return Tuple.tuple(mappers.get(type), Boolean.TRUE);
         }
     }
 

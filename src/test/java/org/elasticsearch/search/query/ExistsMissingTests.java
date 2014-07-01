@@ -29,11 +29,7 @@ import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Locale;
+import java.util.*;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
@@ -44,15 +40,39 @@ public class ExistsMissingTests extends ElasticsearchIntegrationTest {
     public void testExistsMissing() throws Exception {
 
         XContentBuilder mapping = XContentBuilder.builder(JsonXContent.jsonXContent)
-                .startObject()
+            .startObject()
                 .startObject("type")
-                .startObject(FieldNamesFieldMapper.NAME)
+                    .startObject(FieldNamesFieldMapper.NAME)
                         // by setting randomly index to no we also test the pre-1.3 behavior
-                .field("index", randomFrom("no", "not_analyzed"))
-                .field("store", randomFrom("no", "yes"))
+                        .field("index", randomFrom("no", "not_analyzed"))
+                        .field("store", randomFrom("no", "yes"))
+                    .endObject()
+                    .startObject("properties")
+                        .startObject("foo")
+                            .field("type", "string")
+                        .endObject()
+                        .startObject("bar")
+                            .field("type", "object")
+                            .startObject("properties")
+                                .startObject("foo")
+                                    .field("type", "string")
+                                .endObject()
+                                .startObject("bar")
+                                    .field("type", "object")
+                                    .startObject("properties")
+                                        .startObject("bar")
+                                            .field("type", "string")
+                                        .endObject()
+                                    .endObject()
+                                .endObject()
+                                .startObject("baz")
+                                    .field("type", "long")
+                                .endObject()
+                            .endObject()
+                        .endObject()
+                    .endObject()
                 .endObject()
-                .endObject()
-                .endObject();
+            .endObject();
 
         assertAcked(client().admin().indices().prepareCreate("idx").addMapping("type", mapping));
             @SuppressWarnings("unchecked")

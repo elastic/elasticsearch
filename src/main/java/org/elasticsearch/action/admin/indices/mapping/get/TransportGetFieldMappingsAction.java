@@ -60,7 +60,7 @@ public class TransportGetFieldMappingsAction extends TransportAction<GetFieldMap
         final AtomicInteger completionCounter = new AtomicInteger(concreteIndices.length);
         final AtomicReferenceArray<Object> indexResponses = new AtomicReferenceArray<>(concreteIndices.length);
 
-        if (concreteIndices == null || concreteIndices.length == 0) {
+        if (concreteIndices.length == 0) {
             listener.onResponse(new GetFieldMappingsResponse());
         } else {
             boolean probablySingleFieldRequest = concreteIndices.length == 1 && request.types().length == 1 && request.fields().length == 1;

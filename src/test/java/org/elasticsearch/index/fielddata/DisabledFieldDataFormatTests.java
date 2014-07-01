@@ -19,13 +19,20 @@
 
 package org.elasticsearch.index.fielddata;
 
+import com.google.common.base.Predicate;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.mapper.MapperService.SmartNameFieldMappers;
+import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+
+import java.util.Set;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -33,17 +40,16 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 @ClusterScope(randomDynamicTemplates = false)
 public class DisabledFieldDataFormatTests extends ElasticsearchIntegrationTest {
 
-    @Override
-    protected int numberOfReplicas() {
-        return 0;
-    }
-
     public void test() throws Exception {
-        createIndex("test");
+        prepareCreate("test").addMapping("type", "s", "type=string").execute().actionGet();
         ensureGreen();
+        logger.info("indexing data start");
         for (int i = 0; i < 10; ++i) {
             client().prepareIndex("test", "type", Integer.toString(i)).setSource("s", "value" + i).execute().actionGet();
         }
+        logger.info("indexing data end");
+
+        final int searchCycles = 20;
 
         refresh();
 
@@ -53,55 +59,99 @@ public class DisabledFieldDataFormatTests extends ElasticsearchIntegrationTest {
         SubAggCollectionMode aggCollectionMode = randomFrom(SubAggCollectionMode.values());
         SearchResponse resp = null;
         // try to run something that relies on field data and make sure that it fails
-        try {
-            resp = client().prepareSearch("test").addAggregation(AggregationBuilders.terms("t").field("s")
-                    .collectMode(aggCollectionMode)).execute().actionGet();
-            assertFailures(resp);
-        } catch (SearchPhaseExecutionException e) {
-            // expected
+        for (int i = 0; i < searchCycles; i++) {
+            try {
+                resp = client().prepareSearch("test").setPreference(Integer.toString(i)).addAggregation(AggregationBuilders.terms("t").field("s")
+                        .collectMode(aggCollectionMode)).execute().actionGet();
+                assertFailures(resp);
+            } catch (SearchPhaseExecutionException e) {
+                // expected
+            }
         }
 
         // enable it again
         updateFormat("paged_bytes");
 
         // try to run something that relies on field data and make sure that it works
-        resp = client().prepareSearch("test").addAggregation(AggregationBuilders.terms("t").field("s")
-                .collectMode(aggCollectionMode)).execute().actionGet();
-        assertNoFailures(resp);
+        for (int i = 0; i < searchCycles; i++) {
+            resp = client().prepareSearch("test").setPreference(Integer.toString(i)).addAggregation(AggregationBuilders.terms("t").field("s")
+                    .collectMode(aggCollectionMode)).execute().actionGet();
+            assertNoFailures(resp);
+        }
 
         // disable it again
         updateFormat("disabled");
 
         // this time, it should work because segments are already loaded
-        resp = client().prepareSearch("test").addAggregation(AggregationBuilders.terms("t").field("s")
-                .collectMode(aggCollectionMode)).execute().actionGet();
-        assertNoFailures(resp);
+        for (int i = 0; i < searchCycles; i++) {
+            resp = client().prepareSearch("test").setPreference(Integer.toString(i)).addAggregation(AggregationBuilders.terms("t").field("s")
+                    .collectMode(aggCollectionMode)).execute().actionGet();
+            assertNoFailures(resp);
+        }
 
         // but add more docs and the new segment won't be loaded
         client().prepareIndex("test", "type", "-1").setSource("s", "value").execute().actionGet();
         refresh();
-        try {
-            resp = client().prepareSearch("test").addAggregation(AggregationBuilders.terms("t").field("s")
-                    .collectMode(aggCollectionMode)).execute().actionGet();
-            assertFailures(resp);
-        } catch (SearchPhaseExecutionException e) {
-            // expected
+        for (int i = 0; i < searchCycles; i++) {
+            try {
+                resp = client().prepareSearch("test").setPreference(Integer.toString(i)).addAggregation(AggregationBuilders.terms("t").field("s")
+                        .collectMode(aggCollectionMode)).execute().actionGet();
+                assertFailures(resp);
+            } catch (SearchPhaseExecutionException e) {
+                // expected
+            }
         }
     }
 
-    private void updateFormat(String format) throws Exception {
+    private void updateFormat(final String format) throws Exception {
+        logger.info(">> put mapping start {}", format);
         client().admin().indices().preparePutMapping("test").setType("type").setSource(
                 XContentFactory.jsonBuilder().startObject().startObject("type")
-                    .startObject("properties")
-                        .startObject("s")
-                            .field("type", "string")
+                        .startObject("properties")
+                            .startObject("s")
+                                .field("type", "string")
                                 .startObject("fielddata")
                                     .field("format", format)
                                 .endObject()
                             .endObject()
-                          .endObject()
                         .endObject()
-                    .endObject()).execute().actionGet();
+                        .endObject()
+                        .endObject()).execute().actionGet();
+        logger.info(">> put mapping end {}", format);
+        boolean applied = awaitBusy(new Predicate<Object>() {
+            @Override
+            public boolean apply(Object input) {
+                try {
+                    Set<String> nodes = internalCluster().nodesInclude("test");
+                    if (nodes.isEmpty()) { // we expect at least one node to hold an index, so wait if not allocated yet
+                        return false;
+                    }
+                    for (String node : nodes) {
+                        IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
+                        IndexService indexService = indicesService.indexService("test");
+                        if (indexService == null) {
+                            return false;
+                        }
+                        final SmartNameFieldMappers mappers = indexService.mapperService().smartName("s");
+                        if (mappers == null || !mappers.hasMapper()) {
+                            return false;
+                        }
+                        final String currentFormat = mappers.mapper().fieldDataType().getFormat(ImmutableSettings.EMPTY);
+                        if (!format.equals(currentFormat)) {
+                            return false;
+                        }
+                    }
+                } catch (Exception e) {
+                    logger.info("got exception waiting for concrete mappings", e);
+                    return false;
+                }
+                return true;
+            }
+        });
+        logger.info(">> put mapping verified {}, applies {}", format, applied);
+        if (!applied) {
+            fail();
+        }
     }
 
 }

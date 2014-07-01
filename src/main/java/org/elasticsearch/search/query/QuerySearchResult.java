@@ -21,6 +21,7 @@ package org.elasticsearch.search.query;
 
 import com.carrotsearch.hppc.ObjectLongOpenHashMap;
 import org.apache.lucene.search.TopDocs;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchShardTarget;
@@ -174,6 +175,11 @@ public class QuerySearchResult extends TransportResponse implements QuerySearchR
         if (in.readBoolean()) {
             suggest = Suggest.readSuggest(Suggest.Fields.SUGGEST, in);
         }
+        if (in.getVersion().onOrAfter(Version.V_1_3_0)) {
+            if (in.readBoolean()) {
+                profile = Profile.readProfile(in);
+            }
+        }
         searchTimedOut = in.readBoolean();
     }
 
@@ -202,6 +208,14 @@ public class QuerySearchResult extends TransportResponse implements QuerySearchR
         } else {
             out.writeBoolean(true);
             suggest.writeTo(out);
+        }
+        if (out.getVersion().onOrAfter(Version.V_1_3_0)) {
+            if (profile == null) {
+                out.writeBoolean(false);
+            } else {
+                out.writeBoolean(true);
+                profile.writeTo(out);
+            }
         }
         out.writeBoolean(searchTimedOut);
     }

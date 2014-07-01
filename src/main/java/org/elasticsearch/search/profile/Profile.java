@@ -148,6 +148,12 @@ public class Profile implements Streamable, ToXContent {
         return p;
     }
 
+    public static Profile readProfile(StreamInput in) throws IOException {
+        Profile result = new Profile();
+        result.readFrom(in);
+        return result;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
 

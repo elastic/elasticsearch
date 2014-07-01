@@ -223,6 +223,7 @@ public final class InternalNode implements Node {
             injector.getInstance(plugin).start();
         }
 
+        injector.getInstance(MappingUpdatedAction.class).start();
         injector.getInstance(IndicesService.class).start();
         injector.getInstance(IndexingMemoryController.class).start();
         injector.getInstance(IndicesClusterStateService.class).start();
@@ -243,7 +244,6 @@ public final class InternalNode implements Node {
         if (settings.getAsBoolean("http.enabled", true)) {
             injector.getInstance(HttpServer.class).start();
         }
-        injector.getInstance(MappingUpdatedAction.class).start();
         injector.getInstance(BulkUdpService.class).start();
         injector.getInstance(ResourceWatcherService.class).start();
         injector.getInstance(TribeService.class).start();

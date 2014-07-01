@@ -403,14 +403,4 @@ public abstract class AbstractRandomizedTest extends RandomizedTest {
     public String getTestName() {
         return threadAndTestNameRule.testMethodName;
     }
-
-    static {
-        String nodeLocal = System.getProperty("es.node.mode", System.getProperty("es.node.local", ""));
-        if (Strings.isEmpty(nodeLocal)) {
-            // we default to local mode to speed up tests running in IDEs etc.
-            // compared to a mvn default value this will also work if executed from an IDE.
-            System.setProperty("es.node.mode", "local");
-        }
-    }
-
 }

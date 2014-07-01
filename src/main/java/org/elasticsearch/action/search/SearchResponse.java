@@ -29,6 +29,7 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.facet.Facets;
 import org.elasticsearch.search.internal.InternalSearchResponse;
+import org.elasticsearch.search.profile.Profile;
 import org.elasticsearch.search.suggest.Suggest;
 
 import java.io.IOException;
@@ -107,6 +108,13 @@ public class SearchResponse extends ActionResponse implements StatusToXContent {
 
     public Suggest getSuggest() {
         return internalResponse.suggest();
+    }
+
+    /**
+     * The profile results.
+     */
+    public Profile getProfile() {
+        return internalResponse.profile();
     }
 
     /**

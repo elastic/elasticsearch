@@ -43,9 +43,11 @@ public class DisabledFieldDataFormatTests extends ElasticsearchIntegrationTest {
     public void test() throws Exception {
         prepareCreate("test").addMapping("type", "s", "type=string").execute().actionGet();
         ensureGreen();
+        logger.info("indexing data start");
         for (int i = 0; i < 10; ++i) {
             client().prepareIndex("test", "type", Integer.toString(i)).setSource("s", "value" + i).execute().actionGet();
         }
+        logger.info("indexing data end");
 
         refresh();
 
@@ -92,7 +94,7 @@ public class DisabledFieldDataFormatTests extends ElasticsearchIntegrationTest {
     }
 
     private void updateFormat(final String format) throws Exception {
-        System.out.println(">> put mapping start " + format);
+        logger.info(">> put mapping start {}", format);
         client().admin().indices().preparePutMapping("test").setType("type").setSource(
                 XContentFactory.jsonBuilder().startObject().startObject("type")
                         .startObject("properties")
@@ -105,7 +107,7 @@ public class DisabledFieldDataFormatTests extends ElasticsearchIntegrationTest {
                         .endObject()
                         .endObject()
                         .endObject()).execute().actionGet();
-        System.out.println(">> put mapping end " + format);
+        logger.info(">> put mapping end {}", format);
         boolean applied = awaitBusy(new Predicate<Object>() {
             @Override
             public boolean apply(Object input) {
@@ -136,7 +138,7 @@ public class DisabledFieldDataFormatTests extends ElasticsearchIntegrationTest {
                 return true;
             }
         });
-        System.out.println(">> put mapping verified " + format);
+        logger.info(">> put mapping verified {}, applies {}", format, applied);
         if (!applied) {
             fail();
         }

@@ -278,10 +278,7 @@ public class PercolatorService extends AbstractComponent {
 
                         MapperService mapperService = documentIndexService.mapperService();
                         Tuple<DocumentMapper, Boolean> docMapper = mapperService.documentMapperWithAutoCreate(request.documentType());
-                        doc = docMapper.v1().parse(source(parser).type(request.documentType()).flyweight(true));
-                        if (docMapper.v2()) {
-                            doc.setMappingsModified();
-                        }
+                        doc = docMapper.v1().parse(source(parser).type(request.documentType()).flyweight(true)).setMappingsModified(docMapper);
                         if (doc.mappingsModified()) {
                             mappingUpdatedAction.updateMappingOnMaster(request.index(), docMapper.v1(), documentIndexService.indexUUID());
                         }

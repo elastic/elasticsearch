@@ -400,6 +400,10 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
         return mappers.get(type);
     }
 
+    /**
+     * Returns the document mapper created, including if the document mapper ended up
+     * being actually created or not in the second tuple value.
+     */
     public Tuple<DocumentMapper, Boolean> documentMapperWithAutoCreate(String type) {
         DocumentMapper mapper = mappers.get(type);
         if (mapper != null) {

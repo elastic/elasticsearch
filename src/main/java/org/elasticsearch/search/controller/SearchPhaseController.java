@@ -319,6 +319,8 @@ public class SearchPhaseController extends AbstractComponent {
         long totalHits = 0;
         float maxScore = Float.NEGATIVE_INFINITY;
         boolean timedOut = false;
+        List<Profile> profileList = new ArrayList<Profile>(queryResults.size());
+
         for (AtomicArray.Entry<? extends QuerySearchResultProvider> entry : queryResults) {
             QuerySearchResult result = entry.value.queryResult();
             if (result.searchTimedOut()) {
@@ -328,7 +330,17 @@ public class SearchPhaseController extends AbstractComponent {
             if (!Float.isNaN(result.topDocs().getMaxScore())) {
                 maxScore = Math.max(maxScore, result.topDocs().getMaxScore());
             }
+
+            if (entry.value.queryResult().profile() != null) {
+                profileList.add(entry.value.queryResult().profile());
+            }
         }
+
+        Profile finalProfile = null;
+        if (profileList.size() > 0) {
+            finalProfile = Profile.merge(profileList);   //TODO technically we can merge directly and skip the list
+        }
+
         if (Float.isInfinite(maxScore)) {
             maxScore = Float.NaN;
         }
@@ -393,17 +405,6 @@ public class SearchPhaseController extends AbstractComponent {
                     aggregationsList.add((InternalAggregations) entry.value.queryResult().aggregations());
                 }
                 aggregations = InternalAggregations.reduce(aggregationsList, bigArrays);
-            }
-        }
-
-        Profile finalProfile = null;
-        if (!queryResults.isEmpty()) {
-            if (firstResult.profile() != null) {
-                List<Profile> profileList = new ArrayList<Profile>(queryResults.size());
-                for (AtomicArray.Entry<? extends QuerySearchResultProvider> entry : queryResults) {
-                    profileList.add(entry.value.queryResult().profile());
-                }
-                finalProfile = Profile.merge(profileList);   //TODO technically we can merge directly and skip the list
             }
         }
 

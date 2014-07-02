@@ -152,6 +152,10 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
     protected void doClose() throws ElasticsearchException {
     }
 
+    /**
+     * returns the current budget for the total amount of indexing buffers of
+     * active shards on this node
+     */
     public ByteSizeValue indexingBufferSize() {
         return indexingBuffer;
     }

@@ -35,7 +35,6 @@ public class IndexMemoryControllerTests extends ElasticsearchIntegrationTest {
     public void testIndexBufferSizeUpdateAfterShardCreation() throws InterruptedException {
 
         internalCluster().startNode(ImmutableSettings.builder()
-                        .put("gateway.type", "local")
                         .put("http.enabled", "false")
                         .put("discovery.type", "local")
                         .put("indices.memory.interval", "1s")

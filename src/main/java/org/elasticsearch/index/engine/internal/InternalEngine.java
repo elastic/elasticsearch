@@ -310,7 +310,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         return new TimeValue(1, TimeUnit.SECONDS);
     }
 
-
+    /** return the current indexing buffer size setting * */
     public ByteSizeValue indexingBufferSize() {
         return indexingBufferSize;
     }

@@ -78,3 +78,7 @@ include::tokenfilters/cjk-bigram-tokenfilter.asciidoc[]
 include::tokenfilters/delimited-payload-tokenfilter.asciidoc[]
 
 include::tokenfilters/keep-words-tokenfilter.asciidoc[]
+
+include::tokenfilters/classic-tokenfilter.asciidoc[]
+
+include::tokenfilters/apostrophe-tokenfilter.asciidoc[]

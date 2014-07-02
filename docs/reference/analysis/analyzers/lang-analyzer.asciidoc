@@ -23,12 +23,14 @@ following types are supported:
 <<hindi-analyzer,`hindi`>>,
 <<hungarian-analyzer,`hungarian`>>,
 <<indonesian-analyzer,`indonesian`>>,
+<<irish-analyzer,`irish`>>,
 <<italian-analyzer,`italian`>>,
 <<norwegian-analyzer,`norwegian`>>,
 <<persian-analyzer,`persian`>>,
 <<portuguese-analyzer,`portuguese`>>,
 <<romanian-analyzer,`romanian`>>,
 <<russian-analyzer,`russian`>>,
+<<sorani-analyzer,`sorani`>>,
 <<spanish-analyzer,`spanish`>>,
 <<swedish-analyzer,`swedish`>>,
 <<turkish-analyzer,`turkish`>>,
@@ -42,8 +44,8 @@ more details.
 The following analyzers support setting custom `stem_exclusion` list:
 `arabic`, `armenian`, `basque`, `catalan`, `bulgarian`, `catalan`,
 `czech`, `finnish`, `dutch`, `english`, `finnish`, `french`, `galician`,
-`german`, `hindi`, `hungarian`, `indonesian`, `italian`, `norwegian`,
-`portuguese`, `romanian`, `russian`, `spanish`, `swedish`, `turkish`.
+`german`, `irish`, `hindi`, `hungarian`, `indonesian`, `italian`, `norwegian`,
+`portuguese`, `romanian`, `russian`, `sorani`, `spanish`, `swedish`, `turkish`.
 
 [[arabic-analyzer]]
 ==== `arabic` analyzer
@@ -720,7 +722,7 @@ The `german` analyzer could be reimplemented as a `custom` analyzer as follows:
             "lowercase",
             "german_stop",
             "german_keywords",
-            "ascii_folding", <3>
+            "german_normalization",
             "german_stemmer"
           ]
         }
@@ -733,9 +735,6 @@ The `german` analyzer could be reimplemented as a `custom` analyzer as follows:
     or `stopwords_path` parameters.
 <2> Words can be excluded from stemming with the `stem_exclusion`
     parameter.
-<3> The `german` analyzer actually uses the GermanNormalizationFilter,
-    which isn't exposed in Elasticsearch.  The `ascii_folding` filter
-    does a similar job but is more extensive.
 
 [[greek-analyzer]]
 ==== `greek` analyzer
@@ -752,6 +751,10 @@ The `greek` analyzer could be reimplemented as a `custom` analyzer as follows:
           "type":       "stop",
           "stopwords":  "_greek_" <1>
         },
+        "greek_lowercase": {
+          "type":       "lowercase",
+          "language":   "greek"
+        },
         "greek_keywords": {
           "type":       "keyword_marker",
           "keywords":   [] <2>
@@ -765,7 +768,7 @@ The `greek` analyzer could be reimplemented as a `custom` analyzer as follows:
         "greek": {
           "tokenizer":  "standard",
           "filter": [
-            "lowercase",
+            "greek_lowercase",
             "greek_stop",
             "greek_keywords",
             "greek_stemmer"
@@ -784,9 +787,48 @@ The `greek` analyzer could be reimplemented as a `custom` analyzer as follows:
 [[hindi-analyzer]]
 ==== `hindi` analyzer
 
-The `hindi` analyzer cannot currently be implemented as a `custom` analyzer
-as it depends on the IndicNormalizationFilter and HindiNormalizationFilter
-which are not yet exposed by Elasticsearch. Instead, see the <<analysis-icu-plugin>>.
+The `hindi` analyzer could be reimplemented as a `custom` analyzer as follows:
+
+[source,js]
+----------------------------------------------------
+{
+  "settings": {
+    "analysis": {
+      "filter": {
+        "hindi_stop": {
+          "type":       "stop",
+          "stopwords":  "_hindi_" <1>
+        },
+        "hindi_keywords": {
+          "type":       "keyword_marker",
+          "keywords":   [] <2>
+        },
+        "hindi_stemmer": {
+          "type":       "stemmer",
+          "language":   "hindi"
+        }
+      },
+      "analyzer": {
+        "hindi": {
+          "tokenizer":  "standard",
+          "filter": [
+            "lowercase",
+            "indic_normalization",
+            "hindi_normalization",
+            "hindi_stop",
+            "hindi_keywords",
+            "hindi_stemmer"
+          ]
+        }
+      }
+    }
+  }
+}
+----------------------------------------------------
+<1> The default stopwords can be overridden with the `stopwords`
+    or `stopwords_path` parameters.
+<2> Words can be excluded from stemming with the `stem_exclusion`
+    parameter.
 
 [[hungarian-analyzer]]
 ==== `hungarian` analyzer
@@ -865,6 +907,59 @@ The `indonesian` analyzer could be reimplemented as a `custom` analyzer as follo
             "indonesian_stop",
             "indonesian_keywords",
             "indonesian_stemmer"
+          ]
+        }
+      }
+    }
+  }
+}
+----------------------------------------------------
+<1> The default stopwords can be overridden with the `stopwords`
+    or `stopwords_path` parameters.
+<2> Words can be excluded from stemming with the `stem_exclusion`
+    parameter.
+
+[[irish-analyzer]]
+==== `irish` analyzer
+
+The `irish` analyzer could be reimplemented as a `custom` analyzer as follows:
+
+[source,js]
+----------------------------------------------------
+{
+  "settings": {
+    "analysis": {
+      "filter": {
+        "irish_elision": {
+          "type":       "elision",
+          "articles": [ "h", "n", "t" ]
+        },
+        "irish_stop": {
+          "type":       "stop",
+          "stopwords":  "_irish_" <1>
+        },
+        "irish_lowercase": {
+          "type":       "lowercase",
+          "language":   "irish"
+        },
+        "irish_keywords": {
+          "type":       "keyword_marker",
+          "keywords":   [] <2>
+        },
+        "irish_stemmer": {
+          "type":       "stemmer",
+          "language":   "irish"
+        }
+      },
+      "analyzer": {
+        "irish": {
+          "tokenizer":  "standard",
+          "filter": [
+            "irish_stop",
+            "irish_elision",
+            "irish_lowercase",
+            "irish_keywords",
+            "irish_stemmer"
           ]
         }
       }
@@ -1150,6 +1245,51 @@ The `russian` analyzer could be reimplemented as a `custom` analyzer as follows:
 <2> Words can be excluded from stemming with the `stem_exclusion`
     parameter.
 
+[[sorani-analyzer]]
+==== `sorani` analyzer
+
+The `sorani` analyzer could be reimplemented as a `custom` analyzer as follows:
+
+[source,js]
+----------------------------------------------------
+{
+  "settings": {
+    "analysis": {
+      "filter": {
+        "sorani_stop": {
+          "type":       "stop",
+          "stopwords":  "_sorani_" <1>
+        },
+        "sorani_keywords": {
+          "type":       "keyword_marker",
+          "keywords":   [] <2>
+        },
+        "sorani_stemmer": {
+          "type":       "stemmer",
+          "language":   "sorani"
+        }
+      },
+      "analyzer": {
+        "sorani": {
+          "tokenizer":  "standard",
+          "filter": [
+            "sorani_normalization",
+            "lowercase",
+            "sorani_stop",
+            "sorani_keywords",
+            "sorani_stemmer"
+          ]
+        }
+      }
+    }
+  }
+}
+----------------------------------------------------
+<1> The default stopwords can be overridden with the `stopwords`
+    or `stopwords_path` parameters.
+<2> Words can be excluded from stemming with the `stem_exclusion`
+    parameter.
+
 [[spanish-analyzer]]
 ==== `spanish` analyzer
 
@@ -1241,14 +1381,80 @@ The `swedish` analyzer could be reimplemented as a `custom` analyzer as follows:
 [[turkish-analyzer]]
 ==== `turkish` analyzer
 
-The `turkish` analyzer cannot currently be implemented as a `custom` analyzer
-because it depends on the TurkishLowerCaseFilter and the ApostropheFilter
-which are not exposed in Elasticsearch. Instead, see the <<analysis-icu-plugin>>.
+The `turkish` analyzer could be reimplemented as a `custom` analyzer as follows:
+
+[source,js]
+----------------------------------------------------
+{
+  "settings": {
+    "analysis": {
+      "filter": {
+        "turkish_stop": {
+          "type":       "stop",
+          "stopwords":  "_turkish_" <1>
+        },
+        "turkish_lowercase": {
+          "type":       "lowercase",
+          "language":   "turkish"
+        },
+        "turkish_keywords": {
+          "type":       "keyword_marker",
+          "keywords":   [] <2>
+        },
+        "turkish_stemmer": {
+          "type":       "stemmer",
+          "language":   "turkish"
+        }
+      },
+      "analyzer": {
+        "turkish": {
+          "tokenizer":  "standard",
+          "filter": [
+            "apostrophe",
+            "turkish_lowercase",
+            "turkish_stop",
+            "turkish_keywords",
+            "turkish_stemmer"
+          ]
+        }
+      }
+    }
+  }
+}
+----------------------------------------------------
+<1> The default stopwords can be overridden with the `stopwords`
+    or `stopwords_path` parameters.
+<2> Words can be excluded from stemming with the `stem_exclusion`
+    parameter.
 
 [[thai-analyzer]]
 ==== `thai` analyzer
 
-The `thai` analyzer cannot currently be implemented as a `custom` analyzer
-because it depends on the ThaiTokenizer which is not exposed in Elasticsearch.
-Instead, see the <<analysis-icu-plugin>>.
+The `thai` analyzer could be reimplemented as a `custom` analyzer as follows:
 
+[source,js]
+----------------------------------------------------
+{
+  "settings": {
+    "analysis": {
+      "filter": {
+        "thai_stop": {
+          "type":       "stop",
+          "stopwords":  "_thai_" <1>
+        }
+      },
+      "analyzer": {
+        "thai": {
+          "tokenizer":  "thai",
+          "filter": [
+            "lowercase",
+            "thai_stop"
+          ]
+        }
+      }
+    }
+  }
+}
+----------------------------------------------------
+<1> The default stopwords can be overridden with the `stopwords`
+    or `stopwords_path` parameters.

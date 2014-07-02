@@ -22,7 +22,7 @@ import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.LongArray;
-import org.elasticsearch.index.fielddata.DoubleValues;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
@@ -39,7 +39,7 @@ import java.io.IOException;
 public class AvgAggregator extends NumericMetricsAggregator.SingleValue {
 
     private final ValuesSource.Numeric valuesSource;
-    private DoubleValues values;
+    private SortedNumericDoubleValues values;
 
     private LongArray counts;
     private DoubleArray sums;
@@ -69,11 +69,12 @@ public class AvgAggregator extends NumericMetricsAggregator.SingleValue {
         counts = bigArrays.grow(counts, owningBucketOrdinal + 1);
         sums = bigArrays.grow(sums, owningBucketOrdinal + 1);
 
-        final int valueCount = values.setDocument(doc);
+        values.setDocument(doc);
+        final int valueCount = values.count();
         counts.increment(owningBucketOrdinal, valueCount);
         double sum = 0;
         for (int i = 0; i < valueCount; i++) {
-            sum += values.nextValue();
+            sum += values.valueAt(i);
         }
         sums.increment(owningBucketOrdinal, sum);
     }

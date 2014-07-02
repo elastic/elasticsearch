@@ -20,10 +20,11 @@
 package org.elasticsearch.index.fielddata.fieldcomparator;
 
 import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
@@ -43,7 +44,7 @@ public final class BytesRefValComparator extends NestedWrappableComparator<Bytes
     private final BytesRef[] values;
     private BytesRef bottom;
     private BytesRef top;
-    private BytesValues docTerms;
+    private BinaryDocValues docTerms;
 
     BytesRefValComparator(IndexFieldData<?> indexFieldData, int numHits, MultiValueMode sortMode, BytesRef missingValue) {
         this.sortMode = sortMode;
@@ -61,18 +62,18 @@ public final class BytesRefValComparator extends NestedWrappableComparator<Bytes
 
     @Override
     public int compareBottom(int doc) throws IOException {
-        BytesRef val2 = sortMode.getRelevantValue(docTerms, doc, missingValue);
+        BytesRef val2 = docTerms.get(doc);
         return compareValues(bottom, val2);
     }
 
     @Override
     public int compareTop(int doc) throws IOException {
-        return  top.compareTo(sortMode.getRelevantValue(docTerms, doc, missingValue));
+        return  top.compareTo(docTerms.get(doc));
     }
 
     @Override
     public void copy(int slot, int doc) throws IOException {
-        BytesRef relevantValue = sortMode.getRelevantValue(docTerms, doc, missingValue);
+        BytesRef relevantValue = docTerms.get(doc);
         if (relevantValue == missingValue) {
             values[slot] = missingValue;
         } else {
@@ -85,7 +86,8 @@ public final class BytesRefValComparator extends NestedWrappableComparator<Bytes
 
     @Override
     public FieldComparator<BytesRef> setNextReader(AtomicReaderContext context) throws IOException {
-        docTerms = indexFieldData.load(context).getBytesValues();
+        final SortedBinaryDocValues docTerms = indexFieldData.load(context).getBytesValues();
+        this.docTerms = sortMode.select(docTerms, missingValue);
         return this;
     }
 

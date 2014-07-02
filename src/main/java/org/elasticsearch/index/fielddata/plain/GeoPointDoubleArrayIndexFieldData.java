@@ -20,6 +20,7 @@ package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -28,7 +29,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.*;
-import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsBuilder;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -38,7 +38,7 @@ import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
 
 /**
  */
-public class GeoPointDoubleArrayIndexFieldData extends AbstractGeoPointIndexFieldData {
+public class GeoPointDoubleArrayIndexFieldData extends AbstractIndexGeoPointFieldData {
 
     private final CircuitBreakerService breakerService;
 
@@ -46,7 +46,7 @@ public class GeoPointDoubleArrayIndexFieldData extends AbstractGeoPointIndexFiel
 
         @Override
         public IndexFieldData<?> build(Index index, @IndexSettings Settings indexSettings, FieldMapper<?> mapper, IndexFieldDataCache cache,
-                                       CircuitBreakerService breakerService, MapperService mapperService, GlobalOrdinalsBuilder globalOrdinalBuilder) {
+                                       CircuitBreakerService breakerService, MapperService mapperService) {
             return new GeoPointDoubleArrayIndexFieldData(index, indexSettings, mapper.names(), mapper.fieldDataType(), cache, breakerService);
         }
     }
@@ -58,7 +58,7 @@ public class GeoPointDoubleArrayIndexFieldData extends AbstractGeoPointIndexFiel
     }
 
     @Override
-    public AtomicGeoPointFieldData<ScriptDocValues> loadDirect(AtomicReaderContext context) throws Exception {
+    public AtomicGeoPointFieldData loadDirect(AtomicReaderContext context) throws Exception {
         AtomicReader reader = context.reader();
 
         Terms terms = reader.terms(getFieldNames().indexName());
@@ -66,7 +66,7 @@ public class GeoPointDoubleArrayIndexFieldData extends AbstractGeoPointIndexFiel
         // TODO: Use an actual estimator to estimate before loading.
         NonEstimatingEstimator estimator = new NonEstimatingEstimator(breakerService.getBreaker());
         if (terms == null) {
-            data = new Empty();
+            data = AbstractAtomicGeoPointFieldData.empty(reader.maxDoc());
             estimator.afterLoad(null, data.ramBytesUsed());
             return data;
         }
@@ -89,26 +89,23 @@ public class GeoPointDoubleArrayIndexFieldData extends AbstractGeoPointIndexFiel
             lon = BigArrays.NON_RECYCLING_INSTANCE.resize(lon, numTerms);
 
             Ordinals build = builder.build(fieldDataType.getSettings());
-            BytesValues.WithOrdinals ordinals = build.ordinals();
-            if (!(ordinals.isMultiValued() || CommonSettings.getMemoryStorageHint(fieldDataType) == CommonSettings.MemoryStorageFormat.ORDINALS)) {
+            RandomAccessOrds ordinals = build.ordinals();
+            if (!(FieldData.isMultiValued(ordinals) || CommonSettings.getMemoryStorageHint(fieldDataType) == CommonSettings.MemoryStorageFormat.ORDINALS)) {
                 int maxDoc = reader.maxDoc();
                 DoubleArray sLat = BigArrays.NON_RECYCLING_INSTANCE.newDoubleArray(reader.maxDoc());
                 DoubleArray sLon = BigArrays.NON_RECYCLING_INSTANCE.newDoubleArray(reader.maxDoc());
                 for (int i = 0; i < maxDoc; i++) {
-                    long nativeOrdinal = ordinals.getOrd(i);
-                    if (nativeOrdinal != BytesValues.WithOrdinals.MISSING_ORDINAL) {
+                    ordinals.setDocument(i);
+                    long nativeOrdinal = ordinals.nextOrd();
+                    if (nativeOrdinal != RandomAccessOrds.NO_MORE_ORDS) {
                         sLat.set(i, lat.get(nativeOrdinal));
                         sLon.set(i, lon.get(nativeOrdinal));
                     }
                 }
                 FixedBitSet set = builder.buildDocsWithValuesSet();
-                if (set == null) {
-                    data = new GeoPointDoubleArrayAtomicFieldData.Single(sLon, sLat);
-                } else {
-                    data = new GeoPointDoubleArrayAtomicFieldData.SingleFixedSet(sLon, sLat, set);
-                }
+                data = new GeoPointDoubleArrayAtomicFieldData.Single(sLon, sLat, set);
             } else {
-                data = new GeoPointDoubleArrayAtomicFieldData.WithOrdinals(lon, lat, build);
+                data = new GeoPointDoubleArrayAtomicFieldData.WithOrdinals(lon, lat, build, reader.maxDoc());
             }
             success = true;
             return data;

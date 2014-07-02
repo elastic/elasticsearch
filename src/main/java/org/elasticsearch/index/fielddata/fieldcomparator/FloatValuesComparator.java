@@ -29,7 +29,7 @@ public final class FloatValuesComparator extends DoubleValuesComparatorBase<Floa
 
     private final float[] values;
 
-    public FloatValuesComparator(IndexNumericFieldData<?> indexFieldData, float missingValue, int numHits, MultiValueMode sortMode) {
+    public FloatValuesComparator(IndexNumericFieldData indexFieldData, float missingValue, int numHits, MultiValueMode sortMode) {
         super(indexFieldData, missingValue, sortMode);
         assert indexFieldData.getNumericType().requiredBits() <= 32;
         this.values = new float[numHits];
@@ -49,7 +49,7 @@ public final class FloatValuesComparator extends DoubleValuesComparatorBase<Floa
 
     @Override
     public void copy(int slot, int doc) throws IOException {
-        values[slot] = (float) sortMode.getRelevantValue(readerValues, doc, missingValue);
+        values[slot] = (float) readerValues.get(doc);
     }
 
     @Override
@@ -59,7 +59,7 @@ public final class FloatValuesComparator extends DoubleValuesComparatorBase<Floa
 
     @Override
     public void add(int slot, int doc) {
-        values[slot] += (float) sortMode.getRelevantValue(readerValues, doc, missingValue);
+        values[slot] += (float) readerValues.get(doc);
     }
 
     @Override

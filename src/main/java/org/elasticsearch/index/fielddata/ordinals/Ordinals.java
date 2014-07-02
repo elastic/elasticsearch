@@ -19,9 +19,9 @@
 
 package org.elasticsearch.index.fielddata.ordinals;
 
+import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.index.fielddata.BytesValues;
 
 /**
  * A thread safe ordinals abstraction. Ordinals can only be positive integers.
@@ -30,7 +30,7 @@ public abstract class Ordinals implements Accountable {
 
     public static final ValuesHolder NO_VALUES = new ValuesHolder() {
         @Override
-        public BytesRef getValueByOrd(long ord) {
+        public BytesRef lookupOrd(long ord) {
             throw new UnsupportedOperationException();
         }
     };
@@ -40,15 +40,15 @@ public abstract class Ordinals implements Accountable {
      */
     public abstract long ramBytesUsed();
 
-    public abstract BytesValues.WithOrdinals ordinals(ValuesHolder values);
+    public abstract RandomAccessOrds ordinals(ValuesHolder values);
 
-    public final BytesValues.WithOrdinals ordinals() {
+    public final RandomAccessOrds ordinals() {
         return ordinals(NO_VALUES);
     }
 
     public static interface ValuesHolder {
 
-        public abstract BytesRef getValueByOrd(long ord);
+        public abstract BytesRef lookupOrd(long ord);
 
     }
 

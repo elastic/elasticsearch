@@ -32,6 +32,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -147,10 +148,6 @@ public class AggregationContext implements ReaderContextAware, ScorerAware {
         scorerAwares.add(config.script);
         readerAwares.add(config.script);
         ValuesSource.Numeric source = new ValuesSource.Numeric.Script(config.script, config.scriptValueType);
-        if (config.ensureUnique || config.ensureSorted) {
-            source = new ValuesSource.Numeric.SortedAndUnique(source);
-            readerAwares.add((ReaderContextAware) source);
-        }
         return source;
     }
 
@@ -159,7 +156,7 @@ public class AggregationContext implements ReaderContextAware, ScorerAware {
         ValuesSource.Numeric dataSource = (ValuesSource.Numeric) fieldDataSources.get(cacheKey);
         if (dataSource == null) {
             ValuesSource.MetaData metaData = ValuesSource.MetaData.load(config.fieldContext.indexFieldData(), searchContext);
-            dataSource = new ValuesSource.Numeric.FieldData((IndexNumericFieldData<?>) config.fieldContext.indexFieldData(), metaData);
+            dataSource = new ValuesSource.Numeric.FieldData((IndexNumericFieldData) config.fieldContext.indexFieldData(), metaData);
             setReaderIfNeeded((ReaderContextAware) dataSource);
             readerAwares.add((ReaderContextAware) dataSource);
             fieldDataSources.put(cacheKey, dataSource);
@@ -170,11 +167,6 @@ public class AggregationContext implements ReaderContextAware, ScorerAware {
             scorerAwares.add(config.script);
             readerAwares.add(config.script);
             dataSource = new ValuesSource.Numeric.WithScript(dataSource, config.script);
-
-            if (config.ensureUnique || config.ensureSorted) {
-                dataSource = new ValuesSource.Numeric.SortedAndUnique(dataSource);
-                readerAwares.add((ReaderContextAware) dataSource);
-            }
         }
         return dataSource;
     }
@@ -185,8 +177,8 @@ public class AggregationContext implements ReaderContextAware, ScorerAware {
         if (dataSource == null) {
             final IndexFieldData<?> indexFieldData = config.fieldContext.indexFieldData();
             ValuesSource.MetaData metaData = ValuesSource.MetaData.load(config.fieldContext.indexFieldData(), searchContext);
-            if (indexFieldData instanceof IndexFieldData.WithOrdinals) {
-                dataSource = new ValuesSource.Bytes.WithOrdinals.FieldData((IndexFieldData.WithOrdinals) indexFieldData, metaData);
+            if (indexFieldData instanceof IndexOrdinalsFieldData) {
+                dataSource = new ValuesSource.Bytes.WithOrdinals.FieldData((IndexOrdinalsFieldData) indexFieldData, metaData);
             } else {
                 dataSource = new ValuesSource.Bytes.FieldData(indexFieldData, metaData);
             }
@@ -204,13 +196,6 @@ public class AggregationContext implements ReaderContextAware, ScorerAware {
             readerAwares.add(config.script);
             dataSource = new ValuesSource.WithScript(dataSource, config.script);
         }
-        // Even in case we wrap field data, we might still need to wrap for sorting, because the wrapped field data might be
-        // eg. a numeric field data that doesn't sort according to the byte order. However field data values are unique so no
-        // need to wrap for uniqueness
-        if ((config.ensureUnique && !dataSource.metaData().uniqueness().unique()) || config.ensureSorted) {
-            dataSource = new ValuesSource.Bytes.SortedAndUnique(dataSource);
-            readerAwares.add((ReaderContextAware) dataSource);
-        }
         return dataSource;
     }
 
@@ -220,10 +205,6 @@ public class AggregationContext implements ReaderContextAware, ScorerAware {
         scorerAwares.add(config.script);
         readerAwares.add(config.script);
         ValuesSource.Bytes source = new ValuesSource.Bytes.Script(config.script);
-        if (config.ensureUnique || config.ensureSorted) {
-            source = new ValuesSource.Bytes.SortedAndUnique(source);
-            readerAwares.add((ReaderContextAware) source);
-        }
         return source;
     }
 
@@ -232,7 +213,7 @@ public class AggregationContext implements ReaderContextAware, ScorerAware {
         ValuesSource.GeoPoint dataSource = (ValuesSource.GeoPoint) fieldDataSources.get(cacheKey);
         if (dataSource == null) {
             ValuesSource.MetaData metaData = ValuesSource.MetaData.load(config.fieldContext.indexFieldData(), searchContext);
-            dataSource = new ValuesSource.GeoPoint((IndexGeoPointFieldData<?>) config.fieldContext.indexFieldData(), metaData);
+            dataSource = new ValuesSource.GeoPoint((IndexGeoPointFieldData) config.fieldContext.indexFieldData(), metaData);
             setReaderIfNeeded(dataSource);
             readerAwares.add(dataSource);
             fieldDataSources.put(cacheKey, dataSource);

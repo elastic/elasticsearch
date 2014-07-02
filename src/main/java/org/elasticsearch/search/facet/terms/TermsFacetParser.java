@@ -29,6 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.SearchScript;
@@ -217,8 +218,8 @@ public class TermsFacetParser extends AbstractComponent implements FacetParser {
         } else {
             if (script != null || "map".equals(executionHint)) {
                 return new TermsStringFacetExecutor(indexFieldData, size, shardSize, comparatorType, allTerms, context, excluded, pattern, searchScript);
-            } else if (indexFieldData instanceof IndexFieldData.WithOrdinals) {
-                return new TermsStringOrdinalsFacetExecutor((IndexFieldData.WithOrdinals) indexFieldData, size, shardSize, comparatorType, allTerms, context, excluded, pattern, ordinalsCacheAbove);
+            } else if (indexFieldData instanceof IndexOrdinalsFieldData) {
+                return new TermsStringOrdinalsFacetExecutor((IndexOrdinalsFieldData) indexFieldData, size, shardSize, comparatorType, allTerms, context, excluded, pattern, ordinalsCacheAbove);
             } else {
                 return new TermsStringFacetExecutor(indexFieldData, size, shardSize, comparatorType, allTerms, context, excluded, pattern, searchScript);
             }

@@ -21,12 +21,12 @@ package org.elasticsearch.search.facet.datehistogram;
 
 import com.carrotsearch.hppc.LongObjectOpenHashMap;
 import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.rounding.TimeZoneRounding;
-import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.fielddata.LongValues;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.facet.DoubleFacetAggregatorBase;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.InternalFacet;
@@ -80,7 +80,7 @@ public class ValueDateHistogramFacetExecutor extends FacetExecutor {
     class Collector extends FacetExecutor.Collector {
 
         private final DateHistogramProc histoProc;
-        private LongValues keyValues;
+        private SortedNumericDocValues keyValues;
 
         public Collector() {
             this.histoProc = new DateHistogramProc(tzRounding, entries.v());
@@ -107,7 +107,7 @@ public class ValueDateHistogramFacetExecutor extends FacetExecutor {
         final LongObjectOpenHashMap<InternalFullDateHistogramFacet.FullEntry> entries;
         private final TimeZoneRounding tzRounding;
 
-        DoubleValues valueValues;
+        SortedNumericDoubleValues valueValues;
 
         final ValueAggregator valueAggregator = new ValueAggregator();
 

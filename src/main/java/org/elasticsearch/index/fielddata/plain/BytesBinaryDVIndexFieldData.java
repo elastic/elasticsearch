@@ -29,7 +29,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
-import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsBuilder;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMapper.Names;
 import org.elasticsearch.index.mapper.MapperService;
@@ -42,11 +41,6 @@ public class BytesBinaryDVIndexFieldData extends DocValuesIndexFieldData impleme
 
     public BytesBinaryDVIndexFieldData(Index index, Names fieldNames, FieldDataType fieldDataType) {
         super(index, fieldNames, fieldDataType);
-    }
-
-    @Override
-    public boolean valuesOrdered() {
-        return false;
     }
 
     @Override
@@ -72,7 +66,7 @@ public class BytesBinaryDVIndexFieldData extends DocValuesIndexFieldData impleme
 
         @Override
         public IndexFieldData<?> build(Index index, Settings indexSettings, FieldMapper<?> mapper, IndexFieldDataCache cache,
-                                       CircuitBreakerService breakerService, MapperService mapperService, GlobalOrdinalsBuilder globalOrdinalBuilder) {
+                                       CircuitBreakerService breakerService, MapperService mapperService) {
             // Ignore breaker
             final Names fieldNames = mapper.names();
             return new BytesBinaryDVIndexFieldData(index, fieldNames, mapper.fieldDataType());

@@ -29,14 +29,15 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexComponent;
-import org.elasticsearch.search.MultiValueMode;
-import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsBuilder;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
+import org.elasticsearch.search.MultiValueMode;
 
 /**
+ * Thread-safe utility class that allows to get per-segment values via the
+ * {@link #load(AtomicReaderContext)} method.
  */
 public interface IndexFieldData<FD extends AtomicFieldData> extends IndexComponent {
 
@@ -78,11 +79,6 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
      * The field data type.
      */
     FieldDataType getFieldDataType();
-
-    /**
-     * Are the values ordered? (in ascending manner).
-     */
-    boolean valuesOrdered();
 
     /**
      * Loads the atomic field data for the reader, possibly cached.
@@ -195,25 +191,15 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
 
     interface Builder {
 
-        IndexFieldData build(Index index, @IndexSettings Settings indexSettings, FieldMapper<?> mapper, IndexFieldDataCache cache,
-                             CircuitBreakerService breakerService, MapperService mapperService, GlobalOrdinalsBuilder globalOrdinalBuilder);
+        IndexFieldData<?> build(Index index, @IndexSettings Settings indexSettings, FieldMapper<?> mapper, IndexFieldDataCache cache,
+                             CircuitBreakerService breakerService, MapperService mapperService);
     }
 
-    public interface WithOrdinals<FD extends AtomicFieldData.WithOrdinals> extends IndexFieldData<FD> {
+    public static interface Global<FD extends AtomicFieldData> extends IndexFieldData<FD> {
 
-        /**
-         * Loads the atomic field data for the reader, possibly cached.
-         */
-        FD load(AtomicReaderContext context);
+        IndexFieldData<FD> loadGlobal(IndexReader indexReader);
 
-        /**
-         * Loads directly the atomic field data for the reader, ignoring any caching involved.
-         */
-        FD loadDirect(AtomicReaderContext context) throws Exception;
-
-        WithOrdinals loadGlobal(IndexReader indexReader);
-
-        WithOrdinals localGlobalDirect(IndexReader indexReader) throws Exception;
+        IndexFieldData<FD> localGlobalDirect(IndexReader indexReader) throws Exception;
 
     }
 

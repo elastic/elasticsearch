@@ -19,23 +19,24 @@
 package org.elasticsearch.index.fielddata.fieldcomparator;
 
 import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.FieldComparator;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.fielddata.LongValues;
 import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
 
 abstract class LongValuesComparatorBase<T extends Number> extends NumberComparatorBase<T> {
 
-    protected final IndexNumericFieldData<?> indexFieldData;
+    protected final IndexNumericFieldData indexFieldData;
     protected final long missingValue;
     protected long bottom;
-    protected LongValues readerValues;
+    protected NumericDocValues readerValues;
     protected final MultiValueMode sortMode;
 
 
-    public LongValuesComparatorBase(IndexNumericFieldData<?> indexFieldData, long missingValue, MultiValueMode sortMode) {
+    public LongValuesComparatorBase(IndexNumericFieldData indexFieldData, long missingValue, MultiValueMode sortMode) {
         this.indexFieldData = indexFieldData;
         this.missingValue = missingValue;
         this.sortMode = sortMode;
@@ -43,18 +44,19 @@ abstract class LongValuesComparatorBase<T extends Number> extends NumberComparat
 
     @Override
     public final int compareBottom(int doc) throws IOException {
-        long v2 = sortMode.getRelevantValue(readerValues, doc, missingValue);
+        long v2 = readerValues.get(doc);
         return Long.compare(bottom, v2);
     }
 
     @Override
     public int compareTop(int doc) throws IOException {
-        return Long.compare(top.longValue(), sortMode.getRelevantValue(readerValues, doc, missingValue));
+        return Long.compare(top.longValue(), readerValues.get(doc));
     }
 
     @Override
     public final FieldComparator<T> setNextReader(AtomicReaderContext context) throws IOException {
-        readerValues = indexFieldData.load(context).getLongValues();
+        SortedNumericDocValues readerValues = indexFieldData.load(context).getLongValues();
+        this.readerValues = sortMode.select(readerValues, missingValue);
         return this;
     }
 

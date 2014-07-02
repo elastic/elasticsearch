@@ -16,22 +16,33 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.fielddata.plain;
 
-import org.elasticsearch.index.fielddata.LongValues;
+package org.elasticsearch.index.fielddata;
+
+import org.apache.lucene.util.BytesRef;
 
 /**
- * Package private base class for dense long values.
+ * A list of per-document binary values, sorted
+ * according to {@link BytesRef#getUTF8SortedAsUnicodeComparator()}.
+ * There might be dups however.
  */
-abstract class DenseLongValues extends LongValues {
+public abstract class SortedBinaryDocValues {
 
-    protected DenseLongValues(boolean multiValued) {
-        super(multiValued);
-    }
+    /**
+     * Positions to the specified document
+     */
+    public abstract void setDocument(int docId);
 
-    @Override
-    public final int setDocument(int docId) {
-        this.docId = docId;
-        return 1;
-    }
+    /**
+     * Return the number of values of the current document.
+     */
+    public abstract int count();
+
+    /**
+     * Retrieve the value for the current document at the specified index.
+     * An index ranges from {@code 0} to {@code count()-1}.
+     * Note that the returned {@link BytesRef} might be reused across invocations.
+     */
+    public abstract BytesRef valueAt(int index);
+
 }

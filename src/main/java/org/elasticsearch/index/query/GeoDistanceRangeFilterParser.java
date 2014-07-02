@@ -205,7 +205,7 @@ public class GeoDistanceRangeFilterParser implements FilterParser {
         }
         GeoPointFieldMapper geoMapper = ((GeoPointFieldMapper) mapper);
 
-        IndexGeoPointFieldData<?> indexFieldData = parseContext.getForField(mapper);
+        IndexGeoPointFieldData indexFieldData = parseContext.getForField(mapper);
         Filter filter = new GeoDistanceRangeFilter(point, from, to, includeLower, includeUpper, geoDistance, geoMapper, indexFieldData, optimizeBbox);
         if (cache) {
             filter = parseContext.cacheFilter(filter, cacheKey);

@@ -33,8 +33,7 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.search.EmptyScorer;
 import org.elasticsearch.common.recycler.Recycler;
-import org.elasticsearch.index.fielddata.BytesValues;
-import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
+import org.elasticsearch.index.fielddata.IndexParentChildFieldData;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.search.internal.SearchContext;
@@ -63,7 +62,7 @@ public class TopChildrenQuery extends Query {
 
     private static final ParentDocComparator PARENT_DOC_COMP = new ParentDocComparator();
 
-    private final ParentChildIndexFieldData parentChildIndexFieldData;
+    private final IndexParentChildFieldData parentChildIndexFieldData;
     private final CacheRecycler cacheRecycler;
     private final String parentType;
     private final String childType;
@@ -78,7 +77,7 @@ public class TopChildrenQuery extends Query {
     private IndexReader rewriteIndexReader;
 
     // Note, the query is expected to already be filtered to only child type docs
-    public TopChildrenQuery(ParentChildIndexFieldData parentChildIndexFieldData, Query childQuery, String childType, String parentType, ScoreType scoreType, int factor, int incrementalFactor, CacheRecycler cacheRecycler, Filter nonNestedDocsFilter) {
+    public TopChildrenQuery(IndexParentChildFieldData parentChildIndexFieldData, Query childQuery, String childType, String parentType, ScoreType scoreType, int factor, int incrementalFactor, CacheRecycler cacheRecycler, Filter nonNestedDocsFilter) {
         this.parentChildIndexFieldData = parentChildIndexFieldData;
         this.originalChildQuery = childQuery;
         this.childType = childType;
@@ -179,12 +178,11 @@ public class TopChildrenQuery extends Query {
         child_hits: for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
             int readerIndex = ReaderUtil.subIndex(scoreDoc.doc, context.searcher().getIndexReader().leaves());
             AtomicReaderContext subContext = context.searcher().getIndexReader().leaves().get(readerIndex);
-            BytesValues.WithOrdinals parentValues = parentChildIndexFieldData.load(subContext).getBytesValues(parentType);
+            SortedDocValues parentValues = parentChildIndexFieldData.load(subContext).getOrdinalsValues(parentType);
             int subDoc = scoreDoc.doc - subContext.docBase;
 
             // find the parent id
-            parentValues.setDocument(subDoc);
-            BytesRef parentId = parentValues.nextValue();
+            BytesRef parentId = parentValues.get(subDoc);
             if (parentId == null) {
                 // no parent found
                 continue;

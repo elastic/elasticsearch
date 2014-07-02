@@ -16,35 +16,35 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.index.fielddata;
 
+import org.apache.lucene.index.SortedNumericDocValues;
+
 /**
- * <code>FilterLongValues</code> contains another {@link LongValues}, which it
- * uses as its basic source of data, possibly transforming the data along the
- * way or providing additional functionality.
+ * Clone of {@link SortedNumericDocValues} for double values.
  */
-public class FilterLongValues extends LongValues {
+public abstract class SortedNumericDoubleValues {
 
-    protected final LongValues delegate;
+    /** Sole constructor. (For invocation by subclass
+     * constructors, typically implicit.) */
+    protected SortedNumericDoubleValues() {}
 
-    protected FilterLongValues(LongValues delegate) {
-        super(delegate.isMultiValued());
-        this.delegate = delegate;
-    }
+    /**
+     * Positions to the specified document
+     */
+    public abstract void setDocument(int doc);
 
-    @Override
-    public int setDocument(int docId) {
-        return delegate.setDocument(docId);
-    }
+    /**
+     * Retrieve the value for the current document at the specified index.
+     * An index ranges from {@code 0} to {@code count()-1}.
+     */
+    public abstract double valueAt(int index);
 
-    @Override
-    public long nextValue() {
-        return delegate.nextValue();
-    }
-
-    @Override
-    public AtomicFieldData.Order getOrder() {
-        return delegate.getOrder();
-    }
+    /**
+     * Retrieves the count of values for the current document.
+     * This may be zero if a document has no values.
+     */
+    public abstract int count();
 
 }

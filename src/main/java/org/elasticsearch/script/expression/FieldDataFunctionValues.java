@@ -22,26 +22,22 @@ package org.elasticsearch.script.expression;
 import org.apache.lucene.queries.function.ValueSource;
 import org.apache.lucene.queries.function.docvalues.DoubleDocValues;
 import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
-import org.elasticsearch.index.fielddata.DoubleValues;
+import org.elasticsearch.index.fielddata.NumericDoubleValues;
+import org.elasticsearch.search.MultiValueMode;
 
 /**
  * A {@link org.apache.lucene.queries.function.FunctionValues} which wrap field data.
  */
 class FieldDataFunctionValues extends DoubleDocValues {
-    DoubleValues dataAccessor;
+    NumericDoubleValues dataAccessor;
 
     FieldDataFunctionValues(ValueSource parent, AtomicNumericFieldData d) {
         super(parent);
-        dataAccessor = d.getDoubleValues();
+        dataAccessor = MultiValueMode.MIN.select(d.getDoubleValues(), 0d);
     }
 
     @Override
     public double doubleVal(int i) {
-        int numValues = dataAccessor.setDocument(i);
-        if (numValues == 0) {
-            // sparse fields get a value of 0 when the field doesn't exist
-            return 0.0;
-        }
-        return dataAccessor.nextValue();
+        return dataAccessor.get(i);
     }
 }

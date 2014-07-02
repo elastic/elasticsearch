@@ -22,6 +22,7 @@ import org.apache.lucene.index.FilteredTermsEnum;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.MemoryCircuitBreaker;
+import org.elasticsearch.index.fielddata.plain.AbstractIndexFieldData;
 
 import java.io.IOException;
 

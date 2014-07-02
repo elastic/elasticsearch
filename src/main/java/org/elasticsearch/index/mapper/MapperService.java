@@ -83,6 +83,16 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             "_size", "_timestamp", "_ttl"
     );
 
+    public static final String FIELD_MAPPERS_COLLECTION_SWITCH = "index.mapper.field_mappers_collection_switch";
+    public static final int DEFAULT_FIELD_MAPPERS_COLLECTION_SWITCH = 100;
+
+    public static int getFieldMappersCollectionSwitch(@Nullable Settings settings) {
+        if (settings == null) {
+            return DEFAULT_FIELD_MAPPERS_COLLECTION_SWITCH;
+        }
+        return settings.getAsInt(MapperService.FIELD_MAPPERS_COLLECTION_SWITCH, MapperService.DEFAULT_FIELD_MAPPERS_COLLECTION_SWITCH);
+    }
+
     private final AnalysisService analysisService;
     private final IndexFieldDataService fieldDataService;
 
@@ -99,7 +109,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
     private final Object typeMutex = new Object();
     private final Object mappersMutex = new Object();
 
-    private final FieldMappersLookup fieldMappers = new FieldMappersLookup();
+    private final FieldMappersLookup fieldMappers;
     private volatile ImmutableOpenMap<String, ObjectMappers> fullPathObjectMappers = ImmutableOpenMap.of();
     private boolean hasNested = false; // updated dynamically to true when a nested object is added
 
@@ -119,6 +129,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
         super(index, indexSettings);
         this.analysisService = analysisService;
         this.fieldDataService = fieldDataService;
+        this.fieldMappers = new FieldMappersLookup(indexSettings);
         this.documentParser = new DocumentMapperParser(index, indexSettings, analysisService, postingsFormatService, docValuesFormatService, similarityLookupService);
         this.searchAnalyzer = new SmartIndexNameSearchAnalyzer(analysisService.defaultSearchAnalyzer());
         this.searchQuoteAnalyzer = new SmartIndexNameSearchQuoteAnalyzer(analysisService.defaultSearchQuoteAnalyzer());
@@ -330,7 +341,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
         }
     }
 
-    private void addFieldMappers(Iterable<FieldMapper>  fieldMappers) {
+    private void addFieldMappers(List<FieldMapper> fieldMappers) {
         synchronized (mappersMutex) {
             this.fieldMappers.addNewMappers(fieldMappers);
         }
@@ -1046,7 +1057,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
         }
 
         @Override
-        public void fieldMappers(Iterable<FieldMapper>  fieldMappers) {
+        public void fieldMappers(List<FieldMapper> fieldMappers) {
             addFieldMappers(fieldMappers);
         }
     }

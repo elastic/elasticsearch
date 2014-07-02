@@ -71,6 +71,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -801,12 +802,13 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         if (!applied) {
             fail("failed to find mappings on all nodes for index " + index + ", type " + type + ", and fieldName " + Arrays.toString(fieldNames));
         }
+        waitForMappingOnMaster(index, type, fieldNames);
     }
 
     /**
      * Waits for the given mapping type to exists on the master node.
      */
-    public void waitForMappingOnMaster(final String index, final String type) throws InterruptedException {
+    public void waitForMappingOnMaster(final String index, final String type, final String... fieldNames) throws InterruptedException {
         boolean applied = awaitBusy(new Predicate<Object>() {
             @Override
             public boolean apply(Object input) {
@@ -815,7 +817,32 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                 if (mappings == null) {
                     return false;
                 }
-                return mappings.containsKey(type);
+                MappingMetaData mappingMetaData = mappings.get(type);
+                if (mappingMetaData == null) {
+                    return false;
+                }
+
+                Map<String, Object> mappingSource;
+                try {
+                    mappingSource = mappingMetaData.getSourceAsMap();
+                } catch (IOException e) {
+                    throw ExceptionsHelper.convertToElastic(e);
+                }
+                if (mappingSource.isEmpty() && !mappingSource.containsKey("properties")) {
+                    return false;
+                }
+
+                for (String fieldName : fieldNames) {
+                    Map<String, Object> mappingProperties = (Map<String, Object>) mappingSource.get("properties");
+                    if (fieldName.indexOf('.') != -1) {
+                        fieldName = fieldName.replace(".", ".properties.");
+                    }
+                    if (XContentMapValues.extractValue(fieldName, mappingProperties) == null) {
+                        return false;
+                    }
+                }
+
+                return true;
             }
         });
         if (!applied) {

@@ -20,8 +20,8 @@
 package org.elasticsearch.search.facet.range;
 
 import org.apache.lucene.index.AtomicReaderContext;
-import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.facet.DoubleFacetAggregatorBase;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.InternalFacet;
@@ -56,7 +56,7 @@ public class RangeFacetExecutor extends FacetExecutor {
     class Collector extends FacetExecutor.Collector {
 
         private final RangeProc rangeProc;
-        private DoubleValues values;
+        private SortedNumericDoubleValues values;
 
         public Collector() {
             rangeProc = new RangeProc(entries);

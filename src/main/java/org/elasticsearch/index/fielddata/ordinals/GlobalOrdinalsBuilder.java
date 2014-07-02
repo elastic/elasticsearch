@@ -20,16 +20,51 @@
 package org.elasticsearch.index.fielddata.ordinals;
 
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.RandomAccessOrds;
+import org.apache.lucene.index.XOrdinalMap;
+import org.apache.lucene.util.packed.PackedInts;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
 
 import java.io.IOException;
 
 /**
-*/
-public interface GlobalOrdinalsBuilder {
+ * Utility class to build global ordinals.
+ */
+public enum GlobalOrdinalsBuilder {
+    ;
 
-    IndexFieldData.WithOrdinals build(IndexReader indexReader, IndexFieldData.WithOrdinals indexFieldData, Settings settings, CircuitBreakerService breakerService) throws IOException;
+    /**
+     * Build global ordinals for the provided {@link IndexReader}.
+     */
+    public static IndexOrdinalsFieldData build(final IndexReader indexReader, IndexOrdinalsFieldData indexFieldData, Settings settings, CircuitBreakerService breakerService, ESLogger logger) throws IOException {
+        assert indexReader.leaves().size() > 1;
+        long startTime = System.currentTimeMillis();
+
+        final AtomicOrdinalsFieldData[] atomicFD = new AtomicOrdinalsFieldData[indexReader.leaves().size()];
+        final RandomAccessOrds[] subs = new RandomAccessOrds[indexReader.leaves().size()];
+        for (int i = 0; i < indexReader.leaves().size(); ++i) {
+            atomicFD[i] = indexFieldData.load(indexReader.leaves().get(i));
+            subs[i] = atomicFD[i].getOrdinalsValues();
+        }
+        final XOrdinalMap ordinalMap = XOrdinalMap.build(null, subs, PackedInts.DEFAULT);
+        final long memorySizeInBytes = ordinalMap.ramBytesUsed();
+        breakerService.getBreaker().addWithoutBreaking(memorySizeInBytes);
+
+        if (logger.isDebugEnabled()) {
+            logger.debug(
+                    "Global-ordinals[{}][{}] took {} ms",
+                    indexFieldData.getFieldNames().fullName(),
+                    ordinalMap.getValueCount(),
+                    (System.currentTimeMillis() - startTime)
+            );
+        }
+        return new InternalGlobalOrdinalsIndexFieldData(indexFieldData.index(), settings, indexFieldData.getFieldNames(),
+                indexFieldData.getFieldDataType(), atomicFD, ordinalMap, memorySizeInBytes
+        );
+    }
 
 }

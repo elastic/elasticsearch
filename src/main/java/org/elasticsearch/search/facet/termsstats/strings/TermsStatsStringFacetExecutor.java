@@ -27,10 +27,10 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.recycler.Recycler;
-import org.elasticsearch.index.fielddata.BytesValues;
-import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.facet.DoubleFacetAggregatorBase;
 import org.elasticsearch.search.facet.FacetExecutor;
@@ -112,7 +112,7 @@ public class TermsStatsStringFacetExecutor extends FacetExecutor {
     class Collector extends FacetExecutor.Collector {
 
         private final Aggregator aggregator;
-        private BytesValues keyValues;
+        private SortedBinaryDocValues keyValues;
 
         public Collector() {
             if (script != null) {
@@ -157,7 +157,7 @@ public class TermsStatsStringFacetExecutor extends FacetExecutor {
         final HashedBytesRef spare = new HashedBytesRef();
         int missing = 0;
 
-        DoubleValues valueValues;
+        SortedNumericDoubleValues valueValues;
 
         ValueAggregator valueAggregator = new ValueAggregator();
 
@@ -166,7 +166,7 @@ public class TermsStatsStringFacetExecutor extends FacetExecutor {
         }
 
         @Override
-        public void onValue(int docId, BytesRef value, int hashCode, BytesValues values) {
+        public void onValue(int docId, BytesRef value, int hashCode) {
             spare.reset(value, hashCode);
             InternalTermsStatsStringFacet.StringEntry stringEntry = entries.get(spare);
             if (stringEntry == null) {
@@ -206,7 +206,7 @@ public class TermsStatsStringFacetExecutor extends FacetExecutor {
         }
 
         @Override
-        public void onValue(int docId, BytesRef value, int hashCode, BytesValues values) {
+        public void onValue(int docId, BytesRef value, int hashCode) {
             spare.reset(value, hashCode);
             InternalTermsStatsStringFacet.StringEntry stringEntry = entries.get(spare);
             if (stringEntry == null) {

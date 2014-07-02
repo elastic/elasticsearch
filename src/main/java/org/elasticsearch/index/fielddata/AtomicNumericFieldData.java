@@ -19,12 +19,25 @@
 
 package org.elasticsearch.index.fielddata;
 
+import org.apache.lucene.index.SortedNumericDocValues;
+
 /**
+ * Specialization of {@link AtomicFieldData} for numeric data.
  */
-public interface AtomicNumericFieldData extends AtomicFieldData<ScriptDocValues> {
+public interface AtomicNumericFieldData extends AtomicFieldData {
 
-    LongValues getLongValues();
+    /**
+     * Get an integer view of the values of this segment. If the implementation
+     * stores floating-point numbers then these values will return the same
+     * values but casted to longs.
+     */
+    SortedNumericDocValues getLongValues();
 
-    DoubleValues getDoubleValues();
+    /**
+     * Return a floating-point view of the values in this segment. If the
+     * implementation stored integers then the returned doubles would be the
+     * same ones as you would get from casting to a double.
+     */
+    SortedNumericDoubleValues getDoubleValues();
 
 }

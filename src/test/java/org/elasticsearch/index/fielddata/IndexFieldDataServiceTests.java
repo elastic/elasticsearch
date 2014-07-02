@@ -54,7 +54,7 @@ public class IndexFieldDataServiceTests extends ElasticsearchSingleNodeTest {
             ifdService.clear();
             IndexFieldData<?> fd = ifdService.getForField(stringMapper);
             if (docValues) {
-                assertTrue(fd instanceof SortedSetDVBytesIndexFieldData);
+                assertTrue(fd instanceof SortedSetDVOrdinalsIndexFieldData);
             } else {
                 assertTrue(fd instanceof PagedBytesIndexFieldData);
             }
@@ -140,7 +140,7 @@ public class IndexFieldDataServiceTests extends ElasticsearchSingleNodeTest {
         Set<AtomicReader> oldSegments = Collections.newSetFromMap(new IdentityHashMap<AtomicReader, Boolean>());
         for (AtomicReaderContext arc : reader1.leaves()) {
             oldSegments.add(arc.reader());
-            AtomicFieldData<?> afd = ifd.load(arc);
+            AtomicFieldData afd = ifd.load(arc);
             assertThat(afd, instanceOf(PagedBytesAtomicFieldData.class));
         }
         // write new segment
@@ -151,7 +151,7 @@ public class IndexFieldDataServiceTests extends ElasticsearchSingleNodeTest {
         ifd = ifdService.getForField(mapper2);
         assertThat(ifd, instanceOf(FSTBytesIndexFieldData.class));
         for (AtomicReaderContext arc : reader2.leaves()) {
-            AtomicFieldData<?> afd = ifd.load(arc);
+            AtomicFieldData afd = ifd.load(arc);
             if (oldSegments.contains(arc.reader())) {
                 assertThat(afd, instanceOf(PagedBytesAtomicFieldData.class));
             } else {

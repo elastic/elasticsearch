@@ -118,7 +118,7 @@ public class NestedAggregator extends SingleBucketAggregator implements ReaderCo
                 collectBucketNoCounts(i, bucketOrd);
             }
         }
-        incrementBucketDocCount(numChildren, bucketOrd);
+        incrementBucketDocCount(bucketOrd, numChildren);
     }
 
     @Override

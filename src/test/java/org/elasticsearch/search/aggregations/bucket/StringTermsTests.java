@@ -133,7 +133,7 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
                 .execute().actionGet();
 
-        assertSearchResponse(response);
+        assertSearchResponse(response);System.out.println(response);
 
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -1322,7 +1322,7 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
         }
 
     }
-    
+
     @Test
     public void singleValuedField_OrderedByStatsAggAscWithTermsSubAgg() throws Exception {
         boolean asc = true;
@@ -1352,7 +1352,7 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
             ExtendedStats stats = bucket.getAggregations().get("stats");
             assertThat(stats, notNullValue());
             assertThat(stats.getMax(), equalTo((double) i));
-            
+
             Terms subTermsAgg = bucket.getAggregations().get("subTerms");
             assertThat(subTermsAgg, notNullValue());
             assertThat(subTermsAgg.getBuckets().size(), equalTo(2));

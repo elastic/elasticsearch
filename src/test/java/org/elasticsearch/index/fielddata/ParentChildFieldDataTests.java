@@ -99,33 +99,41 @@ public class ParentChildFieldDataTests extends AbstractFieldDataTests {
         AtomicFieldData fieldData = indexFieldData.load(refreshReader());
         assertThat(fieldData.ramBytesUsed(), greaterThan(0l));
 
-        BytesValues bytesValues = fieldData.getBytesValues();
-        assertThat(bytesValues.setDocument(0), equalTo(1));
-        assertThat(bytesValues.nextValue().utf8ToString(), equalTo("1"));
+        SortedBinaryDocValues bytesValues = fieldData.getBytesValues();
+        bytesValues.setDocument(0);
+        assertThat(bytesValues.count(), equalTo(1));
+        assertThat(bytesValues.valueAt(0).utf8ToString(), equalTo("1"));
 
-        assertThat(bytesValues.setDocument(1), equalTo(2));
-        assertThat(bytesValues.nextValue().utf8ToString(), equalTo("1"));
-        assertThat(bytesValues.nextValue().utf8ToString(), equalTo("2"));
+        bytesValues.setDocument(1);
+        assertThat(bytesValues.count(), equalTo(2));
+        assertThat(bytesValues.valueAt(0).utf8ToString(), equalTo("1"));
+        assertThat(bytesValues.valueAt(1).utf8ToString(), equalTo("2"));
 
-        assertThat(bytesValues.setDocument(2), equalTo(2));
-        assertThat(bytesValues.nextValue().utf8ToString(), equalTo("1"));
-        assertThat(bytesValues.nextValue().utf8ToString(), equalTo("3"));
+        bytesValues.setDocument(2);
+        assertThat(bytesValues.count(), equalTo(2));
+        assertThat(bytesValues.valueAt(0).utf8ToString(), equalTo("1"));
+        assertThat(bytesValues.valueAt(1).utf8ToString(), equalTo("3"));
 
-        assertThat(bytesValues.setDocument(3), equalTo(1));
-        assertThat(bytesValues.nextValue().utf8ToString(), equalTo("2"));
+        bytesValues.setDocument(3);
+        assertThat(bytesValues.count(), equalTo(1));
+        assertThat(bytesValues.valueAt(0).utf8ToString(), equalTo("2"));
 
-        assertThat(bytesValues.setDocument(4), equalTo(2));
-        assertThat(bytesValues.nextValue().utf8ToString(), equalTo("2"));
-        assertThat(bytesValues.nextValue().utf8ToString(), equalTo("4"));
+        bytesValues.setDocument(4);
+        assertThat(bytesValues.count(), equalTo(2));
+        assertThat(bytesValues.valueAt(0).utf8ToString(), equalTo("2"));
+        assertThat(bytesValues.valueAt(1).utf8ToString(), equalTo("4"));
 
-        assertThat(bytesValues.setDocument(5), equalTo(2));
-        assertThat(bytesValues.nextValue().utf8ToString(), equalTo("1"));
-        assertThat(bytesValues.nextValue().utf8ToString(), equalTo("5"));
+        bytesValues.setDocument(5);
+        assertThat(bytesValues.count(), equalTo(2));
+        assertThat(bytesValues.valueAt(0).utf8ToString(), equalTo("1"));
+        assertThat(bytesValues.valueAt(1).utf8ToString(), equalTo("5"));
 
-        assertThat(bytesValues.setDocument(6), equalTo(1));
-        assertThat(bytesValues.nextValue().utf8ToString(), equalTo("2"));
+        bytesValues.setDocument(6);
+        assertThat(bytesValues.count(), equalTo(1));
+        assertThat(bytesValues.valueAt(0).utf8ToString(), equalTo("2"));
 
-        assertThat(bytesValues.setDocument(7), equalTo(0));
+        bytesValues.setDocument(7);
+        assertThat(bytesValues.count(), equalTo(0));
     }
 
     @Test

@@ -347,10 +347,10 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
                                   TermsFacet firstRunFacet = (TermsFacet) firstRun.getFacets().get(facet.getName());
                                   assertThat(facet.getEntries().size(), equalTo(firstRunFacet.getEntries().size()));
 
-                                  assertThat(facet.getEntries().size(), equalTo(10));
-                                  assertThat(facet.getTotalCount(), equalTo(100l));
-                                  assertThat(facet.getOtherCount(), equalTo(90l));
-                                  assertThat(facet.getMissingCount(), equalTo(10l));
+                                  assertThat(facet.getName(), facet.getEntries().size(), equalTo(10));
+                                  assertThat(facet.getName(), facet.getTotalCount(), equalTo(100l));
+                                  assertThat(facet.getName(), facet.getOtherCount(), equalTo(90l));
+                                  assertThat(facet.getName(), facet.getMissingCount(), equalTo(10l));
 
                                   List<? extends Entry> right = facet.getEntries();
                                   List<? extends Entry> left = firstRunFacet.getEntries();

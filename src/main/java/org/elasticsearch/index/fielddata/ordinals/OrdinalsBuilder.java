@@ -27,7 +27,6 @@ import org.apache.lucene.util.packed.GrowableWriter;
 import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PagedGrowableWriter;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.fielddata.BytesValues;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -260,7 +259,7 @@ public final class OrdinalsBuilder implements Closeable {
     }
 
     private final int maxDoc;
-    private long currentOrd = BytesValues.WithOrdinals.MIN_ORDINAL - 1;
+    private long currentOrd = -1;
     private int numDocsWithValue = 0;
     private int numMultiValuedDocs = 0;
     private int totalNumOrds = 0;
@@ -370,7 +369,7 @@ public final class OrdinalsBuilder implements Closeable {
     /**
      * Returns the number of distinct ordinals in this builder.
      */
-    public long getMaxOrd() {
+    public long getValueCount() {
         return currentOrd + 1;
     }
 
@@ -396,7 +395,7 @@ public final class OrdinalsBuilder implements Closeable {
      */
     public Ordinals build(Settings settings) {
         final float acceptableOverheadRatio = settings.getAsFloat("acceptable_overhead_ratio", PackedInts.FASTEST);
-        if (numMultiValuedDocs > 0 || MultiOrdinals.significantlySmallerThanSinglePackedOrdinals(maxDoc, numDocsWithValue, getMaxOrd(), acceptableOverheadRatio)) {
+        if (numMultiValuedDocs > 0 || MultiOrdinals.significantlySmallerThanSinglePackedOrdinals(maxDoc, numDocsWithValue, getValueCount(), acceptableOverheadRatio)) {
             // MultiOrdinals can be smaller than SinglePackedOrdinals for sparse fields
             return new MultiOrdinals(this, acceptableOverheadRatio);
         } else {

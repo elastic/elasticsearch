@@ -19,32 +19,45 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.*;
+import org.apache.lucene.util.Bits;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
-import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.index.mapper.FieldMapper.Names;
+import org.elasticsearch.search.MultiValueMode;
 
-public class NumericDVIndexFieldData extends DocValuesIndexFieldData implements IndexNumericFieldData<NumericDVAtomicFieldData> {
+import java.io.IOException;
+
+public class NumericDVIndexFieldData extends DocValuesIndexFieldData implements IndexNumericFieldData {
 
     public NumericDVIndexFieldData(Index index, Names fieldNames, FieldDataType fieldDataType) {
         super(index, fieldNames, fieldDataType);
     }
 
     @Override
-    public boolean valuesOrdered() {
-        return false;
+    public AtomicLongFieldData load(AtomicReaderContext context) {
+        final AtomicReader reader = context.reader();
+        final String field = fieldNames.indexName();
+        return new AtomicLongFieldData(-1) {
+            @Override
+            public SortedNumericDocValues getLongValues() {
+                try {
+                    final NumericDocValues values = DocValues.getNumeric(reader, field);
+                    final Bits docsWithField = DocValues.getDocsWithField(reader, field);
+                    return DocValues.singleton(values, docsWithField);
+                } catch (IOException e) {
+                    throw new ElasticsearchIllegalStateException("Cannot load doc values", e);
+                }
+            }
+        };
+
     }
 
     @Override
-    public NumericDVAtomicFieldData load(AtomicReaderContext context) {
-        return new NumericDVAtomicFieldData(context.reader(), fieldNames.indexName());
-    }
-
-    @Override
-    public NumericDVAtomicFieldData loadDirect(AtomicReaderContext context) throws Exception {
+    public AtomicLongFieldData loadDirect(AtomicReaderContext context) throws Exception {
         return load(context);
     }
 

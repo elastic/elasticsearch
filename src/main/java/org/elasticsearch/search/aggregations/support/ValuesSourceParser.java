@@ -164,8 +164,6 @@ public class ValuesSourceParser<VS extends ValuesSource> {
             config.format = resolveFormat(input.format, valueType);
             config.script = createScript();
             config.scriptValueType = valueType;
-            config.ensureUnique = requiresUniqueValues && !input.assumeUnique;
-            config.ensureSorted = requiresSortedValues && !input.assumeSorted;
             return config;
         }
 
@@ -199,10 +197,6 @@ public class ValuesSourceParser<VS extends ValuesSource> {
 
         config.fieldContext = new FieldContext(input.field, indexFieldData, mapper);
         config.script = createScript();
-        if (config.script != null) {
-            config.ensureUnique = requiresUniqueValues && !input.assumeUnique;
-            config.ensureSorted = requiresSortedValues && !input.assumeSorted;
-        }
         config.format = resolveFormat(input.format, mapper);
         return config;
     }

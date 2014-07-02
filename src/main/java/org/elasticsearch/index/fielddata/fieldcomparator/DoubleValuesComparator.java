@@ -26,13 +26,12 @@ import java.io.IOException;
 
 /**
  */
-public final class DoubleValuesComparator extends DoubleValuesComparatorBase<Double> {
+public class DoubleValuesComparator extends DoubleValuesComparatorBase<Double> {
 
     private final double[] values;
 
-    public DoubleValuesComparator(IndexNumericFieldData<?> indexFieldData, double missingValue, int numHits, MultiValueMode sortMode) {
+    public DoubleValuesComparator(IndexNumericFieldData indexFieldData, double missingValue, int numHits, MultiValueMode sortMode) {
         super(indexFieldData, missingValue, sortMode);
-        assert indexFieldData.getNumericType().requiredBits() <= 64;
         this.values = new double[numHits];
     }
 
@@ -50,7 +49,7 @@ public final class DoubleValuesComparator extends DoubleValuesComparatorBase<Dou
 
     @Override
     public void copy(int slot, int doc) throws IOException {
-        values[slot] = sortMode.getRelevantValue(readerValues, doc, missingValue);
+        values[slot] = readerValues.get(doc);
     }
 
     @Override
@@ -60,7 +59,7 @@ public final class DoubleValuesComparator extends DoubleValuesComparatorBase<Dou
 
     @Override
     public void add(int slot, int doc) {
-        values[slot] += sortMode.getRelevantValue(readerValues, doc, missingValue);
+        values[slot] += readerValues.get(doc);
     }
 
     @Override

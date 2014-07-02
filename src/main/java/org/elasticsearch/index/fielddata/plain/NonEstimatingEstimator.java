@@ -23,7 +23,6 @@ import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.breaker.MemoryCircuitBreaker;
-import org.elasticsearch.index.fielddata.AbstractIndexFieldData;
 
 import java.io.IOException;
 

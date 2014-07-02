@@ -18,15 +18,18 @@
  */
 package org.elasticsearch.search.aggregations.bucket.range.geodistance;
 
+import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.GeoDistance;
+import org.elasticsearch.common.geo.GeoDistance.FixedSourceDistance;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.lucene.ReaderContextAware;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.fielddata.BytesValues;
-import org.elasticsearch.index.fielddata.DoubleValues;
-import org.elasticsearch.index.fielddata.GeoPointValues;
-import org.elasticsearch.index.fielddata.LongValues;
+import org.elasticsearch.index.fielddata.MultiGeoPointValues;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -179,54 +182,34 @@ public class GeoDistanceParser implements Aggregator.Parser {
 
         @Override
         protected Aggregator create(final ValuesSource.GeoPoint valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent) {
-            final DistanceValues distanceValues = new DistanceValues(valuesSource, distanceType, origin, unit);
-            ValuesSource.Numeric distanceSource = new DistanceSource(distanceValues, valuesSource.metaData());
-            if (distanceSource.metaData().multiValued()) {
-                // we need to ensure uniqueness
-                distanceSource = new ValuesSource.Numeric.SortedAndUnique(distanceSource);
-            }
+            DistanceSource distanceSource = new DistanceSource(valuesSource, distanceType, origin, unit);
+            aggregationContext.registerReaderContextAware(distanceSource);
             return new RangeAggregator(name, factories, distanceSource, null, rangeFactory, ranges, keyed, aggregationContext, parent);
         }
 
-        private static class DistanceValues extends DoubleValues {
+        private static class DistanceSource extends ValuesSource.Numeric implements ReaderContextAware {
 
-            private final ValuesSource.GeoPoint geoPointValues;
-            private GeoPointValues geoValues;
+            private final ValuesSource.GeoPoint source;
             private final GeoDistance distanceType;
-            private final GeoPoint origin;
             private final DistanceUnit unit;
-
-            protected DistanceValues(ValuesSource.GeoPoint geoPointValues, GeoDistance distanceType, GeoPoint origin, DistanceUnit unit) {
-                super(true);
-                this.geoPointValues = geoPointValues;
-                this.distanceType = distanceType;
-                this.origin = origin;
-                this.unit = unit;
-            }
-
-            @Override
-            public int setDocument(int docId) {
-                geoValues = geoPointValues.geoPointValues();
-                return geoValues.setDocument(docId);
-            }
-
-            @Override
-            public double nextValue() {
-                final GeoPoint target = geoValues.nextValue();
-                return distanceType.calculate(origin.getLat(), origin.getLon(), target.getLat(), target.getLon(), unit);
-            }
-
-        }
-
-        private static class DistanceSource extends ValuesSource.Numeric {
-
-            private final DoubleValues values;
+            private final org.elasticsearch.common.geo.GeoPoint origin;
             private final MetaData metaData;
+            private SortedNumericDoubleValues distanceValues;
 
-            public DistanceSource(DoubleValues values, MetaData metaData) {
-                this.values = values;
+            public DistanceSource(ValuesSource.GeoPoint source, GeoDistance distanceType, org.elasticsearch.common.geo.GeoPoint origin, DistanceUnit unit) {
+                this.source = source;
                 // even if the geo points are unique, there's no guarantee the distances are
-                this.metaData = MetaData.builder(metaData).uniqueness(MetaData.Uniqueness.UNKNOWN).build();
+                this.metaData = MetaData.builder(source.metaData()).uniqueness(MetaData.Uniqueness.UNKNOWN).build();
+                this.distanceType = distanceType;
+                this.unit = unit;
+                this.origin = origin;
+            }
+
+            @Override
+            public void setNextReader(AtomicReaderContext reader) {
+                final MultiGeoPointValues geoValues = source.geoPointValues();
+                final FixedSourceDistance distance = distanceType.fixedSourceDistance(origin.getLat(), origin.getLon(), unit);
+                distanceValues = GeoDistance.distanceValues(distance, geoValues);
             }
 
             @Override
@@ -240,17 +223,17 @@ public class GeoDistanceParser implements Aggregator.Parser {
             }
 
             @Override
-            public LongValues longValues() {
+            public SortedNumericDocValues longValues() {
                 throw new UnsupportedOperationException();
             }
 
             @Override
-            public DoubleValues doubleValues() {
-                return values;
+            public SortedNumericDoubleValues doubleValues() {
+                return distanceValues;
             }
 
             @Override
-            public BytesValues bytesValues() {
+            public SortedBinaryDocValues bytesValues() {
                 throw new UnsupportedOperationException();
             }
 

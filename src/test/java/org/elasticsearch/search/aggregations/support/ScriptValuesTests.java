@@ -102,17 +102,20 @@ public class ScriptValuesTests extends ElasticsearchTestCase {
     public void longs() {
         final Object[][] values = new Long[randomInt(10)][];
         for (int i = 0; i < values.length; ++i) {
-            values[i] = new Long[randomInt(8)];
-            for (int j = 0; j < values[i].length; ++j) {
-                values[i][j] = randomLong();
+            Long[] longs = new Long[randomInt(8)];
+            for (int j = 0; j < longs.length; ++j) {
+                longs[j] = randomLong();
             }
+            Arrays.sort(longs);
+            values[i] = longs;
         }
         FakeSearchScript script = new FakeSearchScript(values);
         ScriptLongValues scriptValues = new ScriptLongValues(script);
         for (int i = 0; i < values.length; ++i) {
-            assertEquals(values[i].length, scriptValues.setDocument(i));
+            scriptValues.setDocument(i);
+            assertEquals(values[i].length, scriptValues.count());
             for (int j = 0; j < values[i].length; ++j) {
-                assertEquals(values[i][j], scriptValues.nextValue());
+                assertEquals(values[i][j], scriptValues.valueAt(j));
             }
         }
     }
@@ -121,17 +124,20 @@ public class ScriptValuesTests extends ElasticsearchTestCase {
     public void doubles() {
         final Object[][] values = new Double[randomInt(10)][];
         for (int i = 0; i < values.length; ++i) {
-            values[i] = new Double[randomInt(8)];
-            for (int j = 0; j < values[i].length; ++j) {
-                values[i][j] = randomDouble();
+            Double[] doubles = new Double[randomInt(8)];
+            for (int j = 0; j < doubles.length; ++j) {
+                doubles[j] = randomDouble();
             }
+            Arrays.sort(doubles);
+            values[i] = doubles;
         }
         FakeSearchScript script = new FakeSearchScript(values);
         ScriptDoubleValues scriptValues = new ScriptDoubleValues(script);
         for (int i = 0; i < values.length; ++i) {
-            assertEquals(values[i].length, scriptValues.setDocument(i));
+            scriptValues.setDocument(i);
+            assertEquals(values[i].length, scriptValues.count());
             for (int j = 0; j < values[i].length; ++j) {
-                assertEquals(values[i][j], scriptValues.nextValue());
+                assertEquals(values[i][j], scriptValues.valueAt(j));
             }
         }
     }
@@ -140,17 +146,20 @@ public class ScriptValuesTests extends ElasticsearchTestCase {
     public void bytes() {
         final String[][] values = new String[randomInt(10)][];
         for (int i = 0; i < values.length; ++i) {
-            values[i] = new String[randomInt(8)];
-            for (int j = 0; j < values[i].length; ++j) {
-                values[i][j] = RandomStrings.randomAsciiOfLength(getRandom(), 5);
+            String[] strings = new String[randomInt(8)];
+            for (int j = 0; j < strings.length; ++j) {
+                strings[j] = RandomStrings.randomAsciiOfLength(getRandom(), 5);
             }
+            Arrays.sort(strings);
+            values[i] = strings;
         }
         FakeSearchScript script = new FakeSearchScript(values);
         ScriptBytesValues scriptValues = new ScriptBytesValues(script);
         for (int i = 0; i < values.length; ++i) {
-            assertEquals(values[i].length, scriptValues.setDocument(i));
+            scriptValues.setDocument(i);
+            assertEquals(values[i].length, scriptValues.count());
             for (int j = 0; j < values[i].length; ++j) {
-                assertEquals(new BytesRef(values[i][j]), scriptValues.nextValue());
+                assertEquals(new BytesRef(values[i][j]), scriptValues.valueAt(j));
             }
         }
     }

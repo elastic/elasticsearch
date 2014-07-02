@@ -19,9 +19,11 @@
 
 package org.elasticsearch.common.geo;
 
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.SloppyMath;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.unit.DistanceUnit;
+import org.elasticsearch.index.fielddata.*;
 
 import java.util.Locale;
 
@@ -366,6 +368,44 @@ public enum GeoDistance {
         @Override
         public double calculate(double targetLatitude, double targetLongitude) {
             return SLOPPY_ARC.calculate(sourceLatitude, sourceLongitude, targetLatitude, targetLongitude, unit);
+        }
+    }
+
+    /**
+     * Return a {@link SortedNumericDoubleValues} instance that returns the distance to a given geo-point for each document.
+     */
+    public static SortedNumericDoubleValues distanceValues(final FixedSourceDistance distance, final MultiGeoPointValues geoPointValues) {
+        final GeoPointValues singleValues = FieldData.unwrapSingleton(geoPointValues);
+        if (singleValues != null) {
+            final Bits docsWithField = FieldData.unwrapSingletonBits(geoPointValues);
+            return FieldData.singleton(new NumericDoubleValues() {
+
+                @Override
+                public double get(int docID) {
+                    if (docsWithField != null && !docsWithField.get(docID)) {
+                        return 0d;
+                    }
+                    final GeoPoint point = singleValues.get(docID);
+                    return distance.calculate(point.lat(), point.lon());
+                }
+
+            }, docsWithField);
+        } else {
+            return new SortingNumericDoubleValues() {
+
+                @Override
+                public void setDocument(int doc) {
+                    geoPointValues.setDocument(doc);
+                    count = geoPointValues.count();
+                    grow();
+                    for (int i = 0; i < count; ++i) {
+                        final GeoPoint point = geoPointValues.valueAt(i);
+                        values[i] = distance.calculate(point.lat(), point.lon());
+                    }
+                    sort();
+                }
+
+            };
         }
     }
 }

@@ -327,7 +327,7 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
                 .addAggregation(new SignificantTermsBuilder("mySignificantTerms")
                         .field("description")
                         .executionHint(randomExecutionHint())
-                        .significanceHeuristic(new MutualInformation.MutualInformationBuilder().setIncludeNegatives(false))
+                        .significanceHeuristic(new MutualInformation.MutualInformationBuilder(false, true))
                         .minDocCount(1))
                 .execute()
                 .actionGet();

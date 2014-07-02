@@ -52,6 +52,13 @@ public class MutualInformation implements SignificanceHeuristic {
     protected boolean includeNegatives = false;
     private boolean isBackground = true;
 
+    private MutualInformation() {};
+
+    public MutualInformation(boolean includeNegatives, boolean isBackground) {
+        this.includeNegatives = includeNegatives;
+        this.isBackground = isBackground;
+    }
+
     @Override
     public boolean equals(Object other) {
         if (! (other instanceof MutualInformation)) {
@@ -63,7 +70,7 @@ public class MutualInformation implements SignificanceHeuristic {
     public static final SignificanceHeuristicStreams.Stream STREAM = new SignificanceHeuristicStreams.Stream() {
         @Override
         public SignificanceHeuristic readResult(StreamInput in) throws IOException {
-            return new MutualInformation().setIncludeNegatives(in.readBoolean()).setIsBackground(in.readBoolean());
+            return new MutualInformation(in.readBoolean(), in.readBoolean());
         }
 
         @Override
@@ -192,18 +199,8 @@ public class MutualInformation implements SignificanceHeuristic {
 
     }
 
-    public MutualInformation setIncludeNegatives(boolean includeNegatives) {
-        this.includeNegatives = includeNegatives;
-        return this;
-    }
-
     public boolean getIncludeNegatives() {
         return includeNegatives;
-    }
-
-    public MutualInformation setIsBackground(boolean isBackground) {
-        this.isBackground = isBackground;
-        return this;
     }
 
     public static class MutualInformationParser implements SignificanceHeuristicParser {
@@ -225,7 +222,7 @@ public class MutualInformation implements SignificanceHeuristic {
                 token = parser.nextToken();
             }
             // move to the closing bracket
-            return new MutualInformation().setIncludeNegatives(includeNegatives).setIsBackground(isBackground);
+            return new MutualInformation(includeNegatives, isBackground);
         }
 
         @Override
@@ -239,22 +236,18 @@ public class MutualInformation implements SignificanceHeuristic {
         boolean includeNegatives = true;
         private boolean isBackground = true;
 
-        public MutualInformationBuilder setIncludeNegatives(boolean includeNegatives) {
-            this.includeNegatives = includeNegatives;
-            return this;
-        }
+        private MutualInformationBuilder() {};
 
+        public MutualInformationBuilder(boolean includeNegatives, boolean isBackground) {
+            this.includeNegatives = includeNegatives;
+            this.isBackground = isBackground;
+        }
         @Override
         public void toXContent(XContentBuilder builder) throws IOException {
             builder.startObject(STREAM.getName())
                     .field(INCLUDE_NEGATIVES_FIELD.getPreferredName(), includeNegatives)
                     .field(IS_BACKGROUND.getPreferredName(), isBackground)
                     .endObject();
-        }
-
-        public MutualInformationBuilder setIsBackground(boolean isBackground) {
-            this.isBackground = isBackground;
-            return this;
         }
     }
 }

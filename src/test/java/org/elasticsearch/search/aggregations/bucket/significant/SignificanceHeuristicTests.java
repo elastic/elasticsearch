@@ -103,7 +103,7 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
         if (randomBoolean()) {
             return DefaultHeuristic.INSTANCE;
         } else {
-            return new MutualInformation().setIncludeNegatives(randomBoolean());
+            return new MutualInformation(randomBoolean(), true);
         }
     }
 
@@ -153,7 +153,7 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
 
         // test mutual_information with builders
         stBuilder = new SignificantTermsBuilder("testagg");
-        stBuilder.significanceHeuristic(new MutualInformation.MutualInformationBuilder().setIncludeNegatives(false)).field("text").minDocCount(200);
+        stBuilder.significanceHeuristic(new MutualInformation.MutualInformationBuilder(false, true)).field("text").minDocCount(200);
         stXContentBuilder = XContentFactory.jsonBuilder();
         stBuilder.internalXContent(stXContentBuilder, null);
         stParser = JsonXContent.jsonXContent.createParser(stXContentBuilder.string());
@@ -168,8 +168,7 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
 
     @Test
     public void testAssertions() throws Exception {
-        MutualInformation mutualInformation = new MutualInformation();
-        mutualInformation.setIncludeNegatives(true);
+        MutualInformation mutualInformation = new MutualInformation(true, true);
         try {
             mutualInformation.getScore(2, 3, 1, 4);
             fail();
@@ -215,7 +214,7 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
             assertNotNull(illegalArgumentException.getMessage());
             assertTrue(illegalArgumentException.getMessage().contains("Frequencies of subset and superset must be positive"));
         }
-        mutualInformation.setIsBackground(false);
+        mutualInformation = new MutualInformation(true, false);
         double score = mutualInformation.getScore(2, 3, 1, 4);
         assertThat(score, greaterThanOrEqualTo(0.0));
         assertThat(score, lessThanOrEqualTo(1.0));
@@ -300,8 +299,7 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
 
     @Test
     public void scoreMutual() throws Exception {
-        SignificanceHeuristic heuristic = new MutualInformation();
-        ((MutualInformation) heuristic).setIncludeNegatives(true);
+        SignificanceHeuristic heuristic = new MutualInformation(true, true);
         assertThat(heuristic.getScore(1, 1, 1, 3), greaterThan(0.0));
         assertThat(heuristic.getScore(1, 1, 2, 3), lessThan(heuristic.getScore(1, 1, 1, 3)));
         assertThat(heuristic.getScore(2, 2, 2, 4), equalTo(1.0));
@@ -321,7 +319,7 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
         }
         assertThat(score, lessThanOrEqualTo(1.0));
         assertThat(score, greaterThanOrEqualTo(0.0));
-        ((MutualInformation) heuristic).setIncludeNegatives(false);
+        heuristic = new MutualInformation(false, true);
         assertThat(heuristic.getScore(0, 1, 2, 3), equalTo(-1.0 * Double.MAX_VALUE));
 
     }

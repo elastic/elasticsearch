@@ -279,9 +279,7 @@ public class SignificantTermsSignificanceScoreTests extends ElasticsearchIntegra
                                         .field(TEXT_FIELD)
                                         .minDocCount(1)
                                         .significanceHeuristic(
-                                                new MutualInformation.MutualInformationBuilder()
-                                                        .setIncludeNegatives(true)
-                                                        .setIsBackground(true))))
+                                                new MutualInformation.MutualInformationBuilder(true, true))))
                 .execute()
                 .actionGet();
         assertSearchResponse(response1);
@@ -292,18 +290,14 @@ public class SignificantTermsSignificanceScoreTests extends ElasticsearchIntegra
                                 .field(TEXT_FIELD)
                                 .minDocCount(1)
                                 .backgroundFilter(FilterBuilders.termFilter(CLASS_FIELD, "1"))
-                                .significanceHeuristic(new MutualInformation.MutualInformationBuilder()
-                                        .setIncludeNegatives(true)
-                                        .setIsBackground(false))))
+                                .significanceHeuristic(new MutualInformation.MutualInformationBuilder(true, false))))
                 .addAggregation((new FilterAggregationBuilder("1"))
                         .filter(FilterBuilders.termFilter(CLASS_FIELD, "1"))
                         .subAggregation(new SignificantTermsBuilder("sig_terms")
                                 .field(TEXT_FIELD)
                                 .minDocCount(1)
                                 .backgroundFilter(FilterBuilders.termFilter(CLASS_FIELD, "0"))
-                                .significanceHeuristic(new MutualInformation.MutualInformationBuilder()
-                                        .setIncludeNegatives(true)
-                                        .setIsBackground(false))))
+                                .significanceHeuristic(new MutualInformation.MutualInformationBuilder(true, false))))
                 .execute()
                 .actionGet();
 
@@ -356,7 +350,7 @@ public class SignificantTermsSignificanceScoreTests extends ElasticsearchIntegra
                 .addAggregation(new TermsBuilder("class").field("class").subAggregation(new SignificantTermsBuilder("mySignificantTerms")
                         .field("text")
                         .executionHint(randomExecutionHint())
-                        .significanceHeuristic(new MutualInformation.MutualInformationBuilder().setIncludeNegatives(true))
+                        .significanceHeuristic(new MutualInformation.MutualInformationBuilder(true, true))
                         .minDocCount(1).shardSize(1000).size(1000)))
                 .execute()
                 .actionGet();

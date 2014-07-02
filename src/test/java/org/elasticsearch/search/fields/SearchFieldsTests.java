@@ -185,7 +185,7 @@ public class SearchFieldsTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testUidBasedScriptFields() throws Exception {
-        createIndex("test");
+        prepareCreate("test").addMapping("type1", "num1", "type=long").execute().actionGet();
         ensureYellow();
 
         int numDocs = randomIntBetween(1, 30);

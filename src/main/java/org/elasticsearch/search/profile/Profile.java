@@ -42,12 +42,12 @@ public class Profile implements Streamable, ToXContent {
     private long totalTime;
 
     public Profile(ProfileQuery pQuery) {
-        this.components = new ArrayList<Profile>();
+        this();
         components.add(Profile.collapse(pQuery));
     }
 
     public Profile() {
-
+        this.components = new ArrayList<>();
     }
 
     public void setClassName(String name) {
@@ -59,18 +59,7 @@ public class Profile implements Streamable, ToXContent {
     }
 
     public void addComponent(Profile child) {
-        if (this.components == null) {
-            this.components = new ArrayList<Profile>();
-        }
         this.components.add(child);
-    }
-
-    public void addComponents(ArrayList<Profile> children) {
-        if (this.components == null) {
-            this.components = children;
-        } else {
-            this.components.addAll(children);
-        }
     }
 
     public ArrayList<Profile> getComponents() {
@@ -107,7 +96,7 @@ public class Profile implements Streamable, ToXContent {
      * @return this
      */
     public Profile merge(Profile other) {
-        if (components != null && components.size() > 0) {
+        if (components.size() > 0) {
             for (int i = 0; i < this.components.size(); ++i) {
 
                 if (other.components != null && i < other.components.size()) {
@@ -178,7 +167,7 @@ public class Profile implements Streamable, ToXContent {
         builder.field("relative", String.format("%.5g%%", ((float) time / (float)totalTime)*100f));
         builder.field("lucene", details);
 
-        if (components != null && components.size() > 0) {
+        if (components.size() > 0) {
             builder.startArray("components");
             for (Profile component : components) {
                 component.setTotalTime(totalTime);
@@ -214,7 +203,7 @@ public class Profile implements Streamable, ToXContent {
         out.writeLong(totalTime);
         out.writeString(details);
 
-        if (components != null && components.size() > 0) {
+        if (components.size() > 0) {
             out.writeInt(components.size());
             for (Profile component : components) {
                 component.writeTo(out);

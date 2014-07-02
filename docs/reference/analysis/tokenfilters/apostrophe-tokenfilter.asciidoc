@@ -1,0 +1,7 @@
+[[analysis-apostrophe-tokenfilter]]
+=== Apostrophe Token Filter
+
+coming[1.3.0]
+
+The `apostrophe` token filter strips all characters after an apostrophe,
+including the apostrophe itself.

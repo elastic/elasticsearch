@@ -230,11 +230,12 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
             indexRandom(true, docs);
         }
         client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder().put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE, "all")).get();
-        final int numIters = randomIntBetween(10, 20);
+        ensureYellow();
+        final int numIters = randomIntBetween(1, 20);
         for (int i = 0; i < numIters; i++) {
-            countResponse = client().prepareCount().get();
-            assertHitCount(countResponse, numDocs);
+            assertHitCount(client().prepareCount().get(), numDocs);
         }
+        ensureGreen(); // wait for all the relocation
         assertVersionCreated(compatibilityVersion(), "test");
     }
 

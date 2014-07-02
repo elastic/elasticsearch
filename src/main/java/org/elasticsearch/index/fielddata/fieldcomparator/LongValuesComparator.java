@@ -29,7 +29,7 @@ public final class LongValuesComparator extends LongValuesComparatorBase<Long> {
 
     private final long[] values;
 
-    public LongValuesComparator(IndexNumericFieldData<?> indexFieldData, long missingValue, int numHits, MultiValueMode sortMode) {
+    public LongValuesComparator(IndexNumericFieldData indexFieldData, long missingValue, int numHits, MultiValueMode sortMode) {
         super(indexFieldData, missingValue, sortMode);
         this.values = new long[numHits];
         assert indexFieldData.getNumericType().requiredBits() <= 64;
@@ -48,7 +48,7 @@ public final class LongValuesComparator extends LongValuesComparatorBase<Long> {
     }
 
     public void copy(int slot, int doc) throws IOException {
-        values[slot] = sortMode.getRelevantValue(readerValues, doc, missingValue);
+        values[slot] = readerValues.get(doc);
     }
 
     @Override
@@ -58,7 +58,7 @@ public final class LongValuesComparator extends LongValuesComparatorBase<Long> {
 
     @Override
     public void add(int slot, int doc) {
-        values[slot] += sortMode.getRelevantValue(readerValues, doc, missingValue);
+        values[slot] += readerValues.get(doc);
     }
 
     @Override

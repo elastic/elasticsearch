@@ -350,7 +350,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                         .field("match_mapping_type", "string")
                         .startObject("mapping")
                         .startObject("fielddata")
-                        .field(FieldDataType.FORMAT_KEY, randomFrom("paged_bytes", "fst")) // unfortunately doc values only work on not_analyzed fields
+                        .field(FieldDataType.FORMAT_KEY, randomFrom("paged_bytes"/*, "fst"*/)) // unfortunately doc values only work on not_analyzed fields
                         .field(Loading.KEY, randomLoadingValues())
                         .endObject()
                         .endObject()

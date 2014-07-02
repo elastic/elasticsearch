@@ -20,14 +20,16 @@
 package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.util.ByteUtils;
-import org.elasticsearch.index.fielddata.AtomicGeoPointFieldData;
-import org.elasticsearch.index.fielddata.GeoPointValues;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 
-final class GeoPointBinaryDVAtomicFieldData extends AtomicGeoPointFieldData<ScriptDocValues> {
+import java.util.Arrays;
+
+final class GeoPointBinaryDVAtomicFieldData extends AbstractAtomicGeoPointFieldData {
 
     private final BinaryDocValues values;
 
@@ -42,38 +44,44 @@ final class GeoPointBinaryDVAtomicFieldData extends AtomicGeoPointFieldData<Scri
     }
 
     @Override
-    public ScriptDocValues getScriptValues() {
-        return new ScriptDocValues.GeoPoints(getGeoPointValues());
-    }
-
-    @Override
     public void close() {
         // no-op
     }
 
     @Override
-    public GeoPointValues getGeoPointValues() {
-        return new GeoPointValues(true) {
+    public MultiGeoPointValues getGeoPointValues() {
+        return new MultiGeoPointValues() {
 
-            BytesRef bytes;
-            int i = Integer.MAX_VALUE;
-            int valueCount = 0;
-            final GeoPoint point = new GeoPoint();
+            int count;
+            GeoPoint[] points = new GeoPoint[0];
 
             @Override
-            public int setDocument(int docId) {
-                bytes = values.get(docId);
+            public void setDocument(int docId) {
+                final BytesRef bytes = values.get(docId);
                 assert bytes.length % 16 == 0;
-                i = 0;
-                return valueCount = (bytes.length >>> 4);
+                count = (bytes.length >>> 4);
+                if (count > points.length) {
+                    final int previousLength = points.length;
+                    points = Arrays.copyOf(points, ArrayUtil.oversize(count, RamUsageEstimator.NUM_BYTES_OBJECT_REF));
+                    for (int i = previousLength; i < points.length; ++i) {
+                        points[i] = new GeoPoint();
+                    }
+                }
+                for (int i = 0; i < count; ++i) {
+                    final double lat = ByteUtils.readDoubleLE(bytes.bytes, bytes.offset + i * 16);
+                    final double lon = ByteUtils.readDoubleLE(bytes.bytes, bytes.offset + i * 16 + 8);
+                    points[i].reset(lat, lon);
+                }
             }
 
             @Override
-            public GeoPoint nextValue() {
-                assert i < 2 * valueCount;
-                final double lat = ByteUtils.readDoubleLE(bytes.bytes, bytes.offset + i++ * 8);
-                final double lon = ByteUtils.readDoubleLE(bytes.bytes, bytes.offset + i++ * 8);
-                return point.reset(lat, lon);
+            public int count() {
+                return count;
+            }
+
+            @Override
+            public GeoPoint valueAt(int index) {
+                return points[index];
             }
 
         };

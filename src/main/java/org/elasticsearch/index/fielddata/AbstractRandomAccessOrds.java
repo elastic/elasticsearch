@@ -16,35 +16,30 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.index.fielddata;
 
+import org.apache.lucene.index.RandomAccessOrds;
+
 /**
- * <code>FilterLongValues</code> contains another {@link LongValues}, which it
- * uses as its basic source of data, possibly transforming the data along the
- * way or providing additional functionality.
+ * Base implementation of a {@link RandomAccessOrds} instance.
  */
-public class FilterLongValues extends LongValues {
+// TODO: should it be merged into Lucene's RandomAccessOrds?
+public abstract class AbstractRandomAccessOrds extends RandomAccessOrds {
 
-    protected final LongValues delegate;
+    int i = 0;
 
-    protected FilterLongValues(LongValues delegate) {
-        super(delegate.isMultiValued());
-        this.delegate = delegate;
+    protected abstract void doSetDocument(int docID);
+
+    @Override
+    public final void setDocument(int docID) {
+        doSetDocument(docID);
+        i = 0;
     }
 
     @Override
-    public int setDocument(int docId) {
-        return delegate.setDocument(docId);
-    }
-
-    @Override
-    public long nextValue() {
-        return delegate.nextValue();
-    }
-
-    @Override
-    public AtomicFieldData.Order getOrder() {
-        return delegate.getOrder();
+    public long nextOrd() {
+        return ordAt(i++);
     }
 
 }

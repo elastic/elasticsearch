@@ -35,6 +35,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -51,6 +52,7 @@ import static org.hamcrest.Matchers.*;
 
 /**
  */
+@TestLogging("_root:DEBUG")
 public class GeoDistanceTests extends ElasticsearchIntegrationTest {
 
     @Test

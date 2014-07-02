@@ -23,11 +23,12 @@ import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
 import com.google.common.collect.UnmodifiableIterator;
 import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.collect.Iterators2;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BytesRefHash;
-import org.elasticsearch.index.fielddata.BytesValues;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -47,7 +48,8 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
     private final ValuesSource valuesSource;
     protected final BytesRefHash bucketOrds;
     private final IncludeExclude includeExclude;
-    private BytesValues values;
+    private SortedBinaryDocValues values;
+    private final BytesRef previous;
 
     public StringTermsAggregator(String name, AggregatorFactories factories, ValuesSource valuesSource, long estimatedBucketCount,
                                  InternalOrder order, BucketCountThresholds bucketCountThresholds,
@@ -57,6 +59,7 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
         this.valuesSource = valuesSource;
         this.includeExclude = includeExclude;
         bucketOrds = new BytesRefHash(estimatedBucketCount, aggregationContext.bigArrays());
+        previous = new BytesRef();
     }
 
     @Override
@@ -72,11 +75,17 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
     @Override
     public void collect(int doc, long owningBucketOrdinal) throws IOException {
         assert owningBucketOrdinal == 0;
-        final int valuesCount = values.setDocument(doc);
+        values.setDocument(doc);
+        final int valuesCount = values.count();
 
+        // SortedBinaryDocValues don't guarantee uniqueness so we need to take care of dups
+        previous.length = 0;
         for (int i = 0; i < valuesCount; ++i) {
-            final BytesRef bytes = values.nextValue();
+            final BytesRef bytes = values.valueAt(i);
             if (includeExclude != null && !includeExclude.accept(bytes)) {
+                continue;
+            }
+            if (previous.equals(bytes)) {
                 continue;
             }
             long bucketOrdinal = bucketOrds.add(bytes);
@@ -86,41 +95,42 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
             } else {
                 collectBucket(doc, bucketOrdinal);
             }
+            previous.copyBytes(bytes);
         }
     }
 
     // TODO: use terms enum
     /** Returns an iterator over the field data terms. */
-    private static Iterator<BytesRef> terms(final BytesValues.WithOrdinals bytesValues, boolean reverse) {
+    private static Iterator<BytesRef> terms(final RandomAccessOrds bytesValues, boolean reverse) {
         if (reverse) {
             return new UnmodifiableIterator<BytesRef>() {
 
-                long i = bytesValues.getMaxOrd() - 1;
+                long i = bytesValues.getValueCount() - 1;
 
                 @Override
                 public boolean hasNext() {
-                    return i >= BytesValues.WithOrdinals.MIN_ORDINAL;
+                    return i >= 0;
                 }
 
                 @Override
                 public BytesRef next() {
-                    return BytesRef.deepCopyOf(bytesValues.getValueByOrd(i--));
+                    return BytesRef.deepCopyOf(bytesValues.lookupOrd(i--));
                 }
 
             };
         } else {
             return new UnmodifiableIterator<BytesRef>() {
 
-                long i = BytesValues.WithOrdinals.MIN_ORDINAL;
+                long i = 0;
 
                 @Override
                 public boolean hasNext() {
-                    return i < bytesValues.getMaxOrd();
+                    return i < bytesValues.getValueCount();
                 }
 
                 @Override
                 public BytesRef next() {
-                    return BytesRef.deepCopyOf(bytesValues.getValueByOrd(i++));
+                    return BytesRef.deepCopyOf(bytesValues.lookupOrd(i++));
                 }
 
             };
@@ -133,21 +143,18 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
 
         if (bucketCountThresholds.getMinDocCount() == 0 && (order != InternalOrder.COUNT_DESC || bucketOrds.size() < bucketCountThresholds.getRequiredSize())) {
             // we need to fill-in the blanks
-            List<BytesValues.WithOrdinals> valuesWithOrdinals = Lists.newArrayList();
+            List<RandomAccessOrds> valuesWithOrdinals = Lists.newArrayList();
             for (AtomicReaderContext ctx : context.searchContext().searcher().getTopReaderContext().leaves()) {
                 context.setNextReader(ctx);
-                final BytesValues values = valuesSource.bytesValues();
-                if (values instanceof BytesValues.WithOrdinals) {
-                    valuesWithOrdinals.add((BytesValues.WithOrdinals) values);
-                } else {
-                    // brute force
-                    for (int docId = 0; docId < ctx.reader().maxDoc(); ++docId) {
-                        final int valueCount = values.setDocument(docId);
-                        for (int i = 0; i < valueCount; ++i) {
-                            final BytesRef term = values.nextValue();
-                            if (includeExclude == null || includeExclude.accept(term)) {
-                                bucketOrds.add(term);
-                            }
+                final SortedBinaryDocValues values = valuesSource.bytesValues();
+                // brute force
+                for (int docId = 0; docId < ctx.reader().maxDoc(); ++docId) {
+                    values.setDocument(docId);
+                    final int valueCount = values.count();
+                    for (int i = 0; i < valueCount; ++i) {
+                        final BytesRef term = values.valueAt(i);
+                        if (includeExclude == null || includeExclude.accept(term)) {
+                            bucketOrds.add(term);
                         }
                     }
                 }

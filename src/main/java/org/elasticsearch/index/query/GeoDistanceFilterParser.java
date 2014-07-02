@@ -163,7 +163,7 @@ public class GeoDistanceFilterParser implements FilterParser {
         GeoPointFieldMapper geoMapper = ((GeoPointFieldMapper) mapper);
 
 
-        IndexGeoPointFieldData<?> indexFieldData = parseContext.getForField(mapper);
+        IndexGeoPointFieldData indexFieldData = parseContext.getForField(mapper);
         Filter filter = new GeoDistanceFilter(point.lat(), point.lon(), distance, geoDistance, indexFieldData, geoMapper, optimizeBbox);
         if (cache) {
             filter = parseContext.cacheFilter(filter, cacheKey);

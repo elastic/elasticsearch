@@ -27,8 +27,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.FilteredCollector;
-import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.internal.IdFieldMapper;
 import org.elasticsearch.index.query.ParsedQuery;
@@ -61,7 +61,7 @@ abstract class QueryCollector extends Collector {
     final Lucene.ExistsCollector collector = new Lucene.ExistsCollector();
     BytesRef current;
 
-    BytesValues values;
+    SortedBinaryDocValues values;
 
     final List<Collector> facetAndAggregatorCollector;
 
@@ -160,12 +160,13 @@ abstract class QueryCollector extends Collector {
 
 
     protected final Query getQuery(int doc) {
-        final int numValues = values.setDocument(doc);
+        values.setDocument(doc);
+        final int numValues = values.count();
         if (numValues == 0) {
             return null;
         }
         assert numValues == 1;
-        current = values.nextValue();
+        current = values.valueAt(0);
         return queries.get(current);
     }
 

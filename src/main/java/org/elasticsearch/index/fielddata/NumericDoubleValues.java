@@ -16,35 +16,23 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.index.fielddata;
+
 /**
- * <code>FilterDoubleValues</code> contains another {@link DoubleValues}, which it
- * uses as its basic source of data, possibly transforming the data along the
- * way or providing additional functionality.
+ * A per-document numeric value.
  */
-public abstract class FilterDoubleValues extends DoubleValues {
+public abstract class NumericDoubleValues {
 
-    protected final DoubleValues delegate;
+  /** Sole constructor. (For invocation by subclass
+   * constructors, typically implicit.) */
+  protected NumericDoubleValues() {}
 
-    protected FilterDoubleValues(DoubleValues delegate) {
-        super(delegate.isMultiValued());
-        this.delegate = delegate;
-    }
-
-    @Override
-    public int setDocument(int docId) {
-        return delegate.setDocument(docId);
-    }
-
-    @Override
-    public double nextValue() {
-        return delegate.nextValue();
-    }
-
-    @Override
-    public AtomicFieldData.Order getOrder() {
-        return delegate.getOrder();
-    }
-
-
+  /**
+   * Returns the numeric value for the specified document ID. This must return
+   * <tt>0d</tt> if the given doc ID has no value.
+   * @param docID document ID to lookup
+   * @return numeric value
+   */
+  public abstract double get(int docID);
 }

@@ -19,13 +19,13 @@
 package org.elasticsearch.index.fielddata.ordinals;
 
 import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.index.XOrdinalMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.fielddata.AtomicFieldData;
-import org.elasticsearch.index.fielddata.BytesValues;
+import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.FieldDataType;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.fielddata.plain.AbstractAtomicOrdinalsFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 
 /**
@@ -35,7 +35,7 @@ final class InternalGlobalOrdinalsIndexFieldData extends GlobalOrdinalsIndexFiel
 
     private final Atomic[] atomicReaders;
 
-    InternalGlobalOrdinalsIndexFieldData(Index index, Settings settings, FieldMapper.Names fieldNames, FieldDataType fieldDataType, AtomicFieldData.WithOrdinals[] segmentAfd, XOrdinalMap ordinalMap, long memorySizeInBytes) {
+    InternalGlobalOrdinalsIndexFieldData(Index index, Settings settings, FieldMapper.Names fieldNames, FieldDataType fieldDataType, AtomicOrdinalsFieldData[] segmentAfd, XOrdinalMap ordinalMap, long memorySizeInBytes) {
         super(index, settings, fieldNames, fieldDataType, memorySizeInBytes);
         this.atomicReaders = new Atomic[segmentAfd.length];
         for (int i = 0; i < segmentAfd.length; i++) {
@@ -44,32 +44,32 @@ final class InternalGlobalOrdinalsIndexFieldData extends GlobalOrdinalsIndexFiel
     }
 
     @Override
-    public AtomicFieldData.WithOrdinals load(AtomicReaderContext context) {
+    public AtomicOrdinalsFieldData load(AtomicReaderContext context) {
         return atomicReaders[context.ord];
     }
 
-    private final class Atomic implements AtomicFieldData.WithOrdinals {
+    private final class Atomic extends AbstractAtomicOrdinalsFieldData {
 
-        private final WithOrdinals afd;
+        private final AtomicOrdinalsFieldData afd;
         private final XOrdinalMap ordinalMap;
         private final int segmentIndex;
 
-        private Atomic(WithOrdinals afd, XOrdinalMap ordinalMap, int segmentIndex) {
+        private Atomic(AtomicOrdinalsFieldData afd, XOrdinalMap ordinalMap, int segmentIndex) {
             this.afd = afd;
             this.ordinalMap = ordinalMap;
             this.segmentIndex = segmentIndex;
         }
 
         @Override
-        public BytesValues.WithOrdinals getBytesValues() {
-            final BytesValues.WithOrdinals values = afd.getBytesValues();
-            if (values.getMaxOrd() == ordinalMap.getValueCount()) {
+        public RandomAccessOrds getOrdinalsValues() {
+            final RandomAccessOrds values = afd.getOrdinalsValues();
+            if (values.getValueCount() == ordinalMap.getValueCount()) {
                 // segment ordinals match global ordinals
                 return values;
             }
-            final BytesValues.WithOrdinals[] bytesValues = new BytesValues.WithOrdinals[atomicReaders.length];
+            final RandomAccessOrds[] bytesValues = new RandomAccessOrds[atomicReaders.length];
             for (int i = 0; i < bytesValues.length; i++) {
-                bytesValues[i] = atomicReaders[i].afd.getBytesValues();
+                bytesValues[i] = atomicReaders[i].afd.getOrdinalsValues();
             }
             return new GlobalOrdinalMapping(ordinalMap, bytesValues, segmentIndex);
         }
@@ -77,11 +77,6 @@ final class InternalGlobalOrdinalsIndexFieldData extends GlobalOrdinalsIndexFiel
         @Override
         public long ramBytesUsed() {
             return afd.ramBytesUsed();
-        }
-
-        @Override
-        public ScriptDocValues getScriptValues() {
-            throw new UnsupportedOperationException("Script values not supported on global ordinals");
         }
 
         @Override

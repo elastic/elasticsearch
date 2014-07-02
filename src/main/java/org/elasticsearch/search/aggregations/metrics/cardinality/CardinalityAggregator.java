@@ -19,8 +19,11 @@
 
 package org.elasticsearch.search.aggregations.metrics.cardinality;
 
+import com.carrotsearch.hppc.hash.MurmurHash3;
 import com.google.common.base.Preconditions;
 import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.RandomAccessOrds;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.RamUsageEstimator;
@@ -31,9 +34,8 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.ObjectArray;
-import org.elasticsearch.index.fielddata.BytesValues;
-import org.elasticsearch.index.fielddata.LongValues;
-import org.elasticsearch.index.fielddata.MurmurHash3Values;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
@@ -78,20 +80,20 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         // requested not to hash the values (perhaps they already hashed the values themselves before indexing the doc)
         // so we can just work with the original value source as is
         if (!rehash) {
-            LongValues hashValues = ((ValuesSource.Numeric) valuesSource).longValues();
+            SortedNumericDocValues hashValues = ((ValuesSource.Numeric) valuesSource).longValues();
             return new DirectCollector(counts, hashValues);
         }
 
         if (valuesSource instanceof ValuesSource.Numeric) {
             ValuesSource.Numeric source = (ValuesSource.Numeric) valuesSource;
-            LongValues hashValues = source.isFloatingPoint() ? MurmurHash3Values.wrap(source.doubleValues()) : MurmurHash3Values.wrap(source.longValues());
+            SortedNumericDocValues hashValues = source.isFloatingPoint() ? MurmurHash3Values.wrap(source.doubleValues()) : MurmurHash3Values.wrap(source.longValues());
             return new DirectCollector(counts, hashValues);
         }
 
-        final BytesValues bytesValues = valuesSource.bytesValues();
-        if (bytesValues instanceof BytesValues.WithOrdinals) {
-            BytesValues.WithOrdinals values = (BytesValues.WithOrdinals) bytesValues;
-            final long maxOrd = values.getMaxOrd();
+        if (valuesSource instanceof ValuesSource.Bytes.WithOrdinals) {
+            ValuesSource.Bytes.WithOrdinals source = (ValuesSource.Bytes.WithOrdinals) valuesSource;
+            final RandomAccessOrds ordinalValues = source.ordinalsValues();
+            final long maxOrd = ordinalValues.getValueCount();
             if (maxOrd == 0) {
                 return new EmptyCollector();
             }
@@ -100,11 +102,11 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             final long countsMemoryUsage = HyperLogLogPlusPlus.memoryUsage(precision);
             // only use ordinals if they don't increase memory usage by more than 25%
             if (ordinalsMemoryUsage < countsMemoryUsage / 4) {
-                return new OrdinalsCollector(counts, values, bigArrays);
+                return new OrdinalsCollector(counts, ordinalValues, bigArrays);
             }
         }
 
-        return new DirectCollector(counts, MurmurHash3Values.wrap(bytesValues));
+        return new DirectCollector(counts, MurmurHash3Values.wrap(valuesSource.bytesValues()));
     }
 
 
@@ -189,19 +191,20 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
     private static class DirectCollector implements Collector {
 
-        private final LongValues hashes;
+        private final SortedNumericDocValues hashes;
         private final HyperLogLogPlusPlus counts;
 
-        DirectCollector(HyperLogLogPlusPlus counts, LongValues values) {
+        DirectCollector(HyperLogLogPlusPlus counts, SortedNumericDocValues values) {
             this.counts = counts;
             this.hashes = values;
         }
 
         @Override
         public void collect(int doc, long bucketOrd) {
-            final int valueCount = hashes.setDocument(doc);
+            hashes.setDocument(doc);
+            final int valueCount = hashes.count();
             for (int i = 0; i < valueCount; ++i) {
-                counts.collect(bucketOrd, hashes.nextValue());
+                counts.collect(bucketOrd, hashes.valueAt(i));
             }
         }
 
@@ -229,14 +232,14 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         }
 
         private final BigArrays bigArrays;
-        private final BytesValues.WithOrdinals values;
+        private final RandomAccessOrds values;
         private final int maxOrd;
         private final HyperLogLogPlusPlus counts;
         private ObjectArray<FixedBitSet> visitedOrds;
 
-        OrdinalsCollector(HyperLogLogPlusPlus counts, BytesValues.WithOrdinals values, BigArrays bigArrays) {
-            Preconditions.checkArgument(values.getMaxOrd() <= Integer.MAX_VALUE);
-            maxOrd = (int) values.getMaxOrd();
+        OrdinalsCollector(HyperLogLogPlusPlus counts, RandomAccessOrds values, BigArrays bigArrays) {
+            Preconditions.checkArgument(values.getValueCount() <= Integer.MAX_VALUE);
+            maxOrd = (int) values.getValueCount();
             this.bigArrays = bigArrays;
             this.counts = counts;
             this.values = values;
@@ -251,9 +254,10 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
                 bits = new FixedBitSet(maxOrd);
                 visitedOrds.set(bucketOrd, bits);
             }
-            final int valueCount = values.setDocument(doc);
+            values.setDocument(doc);
+            final int valueCount = values.cardinality();
             for (int i = 0; i < valueCount; ++i) {
-                bits.set((int) values.nextOrd());
+                bits.set((int) values.ordAt(i));
             }
         }
 
@@ -270,7 +274,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             final org.elasticsearch.common.hash.MurmurHash3.Hash128 hash = new org.elasticsearch.common.hash.MurmurHash3.Hash128();
             try (LongArray hashes = bigArrays.newLongArray(maxOrd, false)) {
                 for (int ord = allVisitedOrds.nextSetBit(0); ord != -1; ord = ord + 1 < maxOrd ? allVisitedOrds.nextSetBit(ord + 1) : -1) {
-                    final BytesRef value = values.getValueByOrd(ord);
+                    final BytesRef value = values.lookupOrd(ord);
                     org.elasticsearch.common.hash.MurmurHash3.hash128(value.bytes, value.offset, value.length, 0, hash);
                     hashes.set(ord, hash.h1);
                 }
@@ -293,4 +297,98 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
     }
 
+    /**
+     * These classes are not legal implementations of {@link SortedNumericDocValues},... since they
+     * don't guarantee order, but it is ok in the context of this aggregator that doesn't take care about order.
+     */
+    static class MurmurHash3Values {
+
+        public static SortedNumericDocValues wrap(SortedNumericDoubleValues values) {
+            return new Double(values);
+        }
+
+        public static SortedNumericDocValues wrap(SortedNumericDocValues values) {
+            return new Long(values);
+        }
+
+        public static SortedNumericDocValues wrap(SortedBinaryDocValues values) {
+            return new Bytes(values);
+        }
+
+        private static class Long extends SortedNumericDocValues {
+
+            private final SortedNumericDocValues values;
+
+            public Long(SortedNumericDocValues values) {
+                this.values = values;
+            }
+
+            @Override
+            public void setDocument(int docId) {
+                values.setDocument(docId);
+            }
+
+            @Override
+            public int count() {
+                return values.count();
+            }
+
+            @Override
+            public long valueAt(int index) {
+                return MurmurHash3.hash(values.valueAt(index));
+            }
+        }
+
+        private static class Double extends SortedNumericDocValues {
+
+            private final SortedNumericDoubleValues values;
+
+            public Double(SortedNumericDoubleValues values) {
+                this.values = values;
+            }
+
+            @Override
+            public void setDocument(int docId) {
+                values.setDocument(docId);
+            }
+
+            @Override
+            public int count() {
+                return values.count();
+            }
+
+            @Override
+            public long valueAt(int index) {
+                return MurmurHash3.hash(java.lang.Double.doubleToLongBits(values.valueAt(index)));
+            }
+        }
+
+        private static class Bytes extends SortedNumericDocValues {
+
+            private final org.elasticsearch.common.hash.MurmurHash3.Hash128 hash = new org.elasticsearch.common.hash.MurmurHash3.Hash128();
+
+            private final SortedBinaryDocValues values;
+
+            public Bytes(SortedBinaryDocValues values) {
+                this.values = values;
+            }
+
+            @Override
+            public void setDocument(int docId) {
+                values.setDocument(docId);
+            }
+
+            @Override
+            public int count() {
+                return values.count();
+            }
+
+            @Override
+            public long valueAt(int index) {
+                final BytesRef bytes = values.valueAt(index);
+                org.elasticsearch.common.hash.MurmurHash3.hash128(bytes.bytes, bytes.offset, bytes.length, 0, hash);
+                return hash.h1;
+            }
+        }
+    }
 }

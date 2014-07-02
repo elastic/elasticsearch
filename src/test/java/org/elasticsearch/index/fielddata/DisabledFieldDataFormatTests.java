@@ -49,6 +49,8 @@ public class DisabledFieldDataFormatTests extends ElasticsearchIntegrationTest {
         }
         logger.info("indexing data end");
 
+        final int searchCycles = 20;
+
         refresh();
 
         // disable field data
@@ -58,9 +60,11 @@ public class DisabledFieldDataFormatTests extends ElasticsearchIntegrationTest {
         SearchResponse resp = null;
         // try to run something that relies on field data and make sure that it fails
         try {
-            resp = client().prepareSearch("test").addAggregation(AggregationBuilders.terms("t").field("s")
-                    .collectMode(aggCollectionMode)).execute().actionGet();
-            assertFailures(resp);
+            for (int i = 0; i < searchCycles; i++) {
+                resp = client().prepareSearch("test").setPreference(Integer.toString(i)).addAggregation(AggregationBuilders.terms("t").field("s")
+                        .collectMode(aggCollectionMode)).execute().actionGet();
+                assertFailures(resp);
+            }
         } catch (SearchPhaseExecutionException e) {
             // expected
         }
@@ -69,25 +73,31 @@ public class DisabledFieldDataFormatTests extends ElasticsearchIntegrationTest {
         updateFormat("paged_bytes");
 
         // try to run something that relies on field data and make sure that it works
-        resp = client().prepareSearch("test").addAggregation(AggregationBuilders.terms("t").field("s")
-                .collectMode(aggCollectionMode)).execute().actionGet();
-        assertNoFailures(resp);
+        for (int i = 0; i < searchCycles; i++) {
+            resp = client().prepareSearch("test").setPreference(Integer.toString(i)).addAggregation(AggregationBuilders.terms("t").field("s")
+                    .collectMode(aggCollectionMode)).execute().actionGet();
+            assertNoFailures(resp);
+        }
 
         // disable it again
         updateFormat("disabled");
 
         // this time, it should work because segments are already loaded
-        resp = client().prepareSearch("test").addAggregation(AggregationBuilders.terms("t").field("s")
-                .collectMode(aggCollectionMode)).execute().actionGet();
-        assertNoFailures(resp);
+        for (int i = 0; i < searchCycles; i++) {
+            resp = client().prepareSearch("test").setPreference(Integer.toString(i)).addAggregation(AggregationBuilders.terms("t").field("s")
+                    .collectMode(aggCollectionMode)).execute().actionGet();
+            assertNoFailures(resp);
+        }
 
         // but add more docs and the new segment won't be loaded
         client().prepareIndex("test", "type", "-1").setSource("s", "value").execute().actionGet();
         refresh();
         try {
-            resp = client().prepareSearch("test").addAggregation(AggregationBuilders.terms("t").field("s")
-                    .collectMode(aggCollectionMode)).execute().actionGet();
-            assertFailures(resp);
+            for (int i = 0; i < searchCycles; i++) {
+                resp = client().prepareSearch("test").setPreference(Integer.toString(i)).addAggregation(AggregationBuilders.terms("t").field("s")
+                        .collectMode(aggCollectionMode)).execute().actionGet();
+                assertFailures(resp);
+            }
         } catch (SearchPhaseExecutionException e) {
             // expected
         }

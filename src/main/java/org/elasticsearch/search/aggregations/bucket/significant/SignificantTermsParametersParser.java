@@ -32,7 +32,6 @@ import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.EnumSet;
 
 
 public class SignificantTermsParametersParser extends AbstractTermsParametersParser {
@@ -60,6 +59,7 @@ public class SignificantTermsParametersParser extends AbstractTermsParametersPar
 
     @Override
     public void parseSpecial(String aggregationName, XContentParser parser, SearchContext context, XContentParser.Token token, String currentFieldName) throws IOException {
+        
         if (token == XContentParser.Token.START_OBJECT) {
             SignificanceHeuristicParser significanceHeuristicParser = significanceHeuristicParserMapper.get(currentFieldName);
             if (significanceHeuristicParser != null) {

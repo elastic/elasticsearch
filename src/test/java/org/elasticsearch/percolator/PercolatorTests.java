@@ -1705,6 +1705,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
                 .endObject()
                 .endArray()
                 .endObject().endObject()));
+        ensureGreen("idx");
 
         client().prepareIndex("idx", PercolatorService.TYPE_NAME, "1")
                 .setSource(jsonBuilder().startObject().field("query", QueryBuilders.queryString("color:red")).endObject())
@@ -1756,8 +1757,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
         assertMatchCount(response, 0l);
         assertThat(response.getMatches(), arrayWithSize(0));
 
-        ensureYellow("test"); // wait for at least primaries allocations so concretely allocated on it
-        waitForConcreteMappingsOnAll("test", "type1", "field1", "field2");
+        waitForMappingOnMaster("test", "type1");
 
         GetMappingsResponse mappingsResponse = client().admin().indices().prepareGetMappings("test").get();
         assertThat(mappingsResponse.getMappings().get("test"), notNullValue());

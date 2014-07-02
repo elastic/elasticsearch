@@ -245,9 +245,9 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
             if (hasPercolatorType(indexShard)) {
                 // percolator index has started, fetch what we can from it and initialize the indices
                 // we have
-                logger.debug("loading percolator queries for index [{}] and shard[{}]...", shardId.index(), shardId.id());
-                loadQueries(indexShard);
-                logger.trace("done loading percolator queries for index [{}] and shard[{}]", shardId.index(), shardId.id());
+                logger.trace("loading percolator queries for [{}]...", shardId);
+                int loadedQueries = loadQueries(indexShard);
+                logger.debug("done loading [{}] percolator queries for [{}]", loadedQueries, shardId);
             }
         }
 
@@ -256,27 +256,23 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
             return shardId.equals(otherShardId) && mapperService.hasMapping(PercolatorService.TYPE_NAME);
         }
 
-        private void loadQueries(IndexShard shard) {
-            try {
-                shard.refresh(new Engine.Refresh("percolator_load_queries").force(true));
-                // Maybe add a mode load? This isn't really a write. We need write b/c state=post_recovery
-                Engine.Searcher searcher = shard.acquireSearcher("percolator_load_queries", IndexShard.Mode.WRITE);
-                try {
-                    Query query = new XConstantScoreQuery(
-                            indexCache.filter().cache(
-                                    new TermFilter(new Term(TypeFieldMapper.NAME, PercolatorService.TYPE_NAME))
-                            )
-                    );
-                    QueriesLoaderCollector queryCollector = new QueriesLoaderCollector(PercolatorQueriesRegistry.this, logger, mapperService, indexFieldDataService);
-                    searcher.searcher().search(query, queryCollector);
-                    Map<BytesRef, Query> queries = queryCollector.queries();
-                    for (Map.Entry<BytesRef, Query> entry : queries.entrySet()) {
-                        Query previousQuery = percolateQueries.put(entry.getKey(), entry.getValue());
-                        shardPercolateService.addedQuery(entry.getKey(), previousQuery, entry.getValue());
-                    }
-                } finally {
-                    searcher.close();
+        private int loadQueries(IndexShard shard) {
+            shard.refresh(new Engine.Refresh("percolator_load_queries").force(true));
+            // Maybe add a mode load? This isn't really a write. We need write b/c state=post_recovery
+            try (Engine.Searcher searcher = shard.acquireSearcher("percolator_load_queries", IndexShard.Mode.WRITE)) {
+                Query query = new XConstantScoreQuery(
+                        indexCache.filter().cache(
+                                new TermFilter(new Term(TypeFieldMapper.NAME, PercolatorService.TYPE_NAME))
+                        )
+                );
+                QueriesLoaderCollector queryCollector = new QueriesLoaderCollector(PercolatorQueriesRegistry.this, logger, mapperService, indexFieldDataService);
+                searcher.searcher().search(query, queryCollector);
+                Map<BytesRef, Query> queries = queryCollector.queries();
+                for (Map.Entry<BytesRef, Query> entry : queries.entrySet()) {
+                    Query previousQuery = percolateQueries.put(entry.getKey(), entry.getValue());
+                    shardPercolateService.addedQuery(entry.getKey(), previousQuery, entry.getValue());
                 }
+                return queries.size();
             } catch (Exception e) {
                 throw new PercolatorException(shardId.index(), "failed to load queries from percolator index", e);
             }

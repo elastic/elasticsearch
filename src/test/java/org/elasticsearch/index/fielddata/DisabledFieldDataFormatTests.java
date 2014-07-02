@@ -59,14 +59,14 @@ public class DisabledFieldDataFormatTests extends ElasticsearchIntegrationTest {
         SubAggCollectionMode aggCollectionMode = randomFrom(SubAggCollectionMode.values());
         SearchResponse resp = null;
         // try to run something that relies on field data and make sure that it fails
-        try {
-            for (int i = 0; i < searchCycles; i++) {
+        for (int i = 0; i < searchCycles; i++) {
+            try {
                 resp = client().prepareSearch("test").setPreference(Integer.toString(i)).addAggregation(AggregationBuilders.terms("t").field("s")
                         .collectMode(aggCollectionMode)).execute().actionGet();
                 assertFailures(resp);
+            } catch (SearchPhaseExecutionException e) {
+                // expected
             }
-        } catch (SearchPhaseExecutionException e) {
-            // expected
         }
 
         // enable it again
@@ -92,14 +92,14 @@ public class DisabledFieldDataFormatTests extends ElasticsearchIntegrationTest {
         // but add more docs and the new segment won't be loaded
         client().prepareIndex("test", "type", "-1").setSource("s", "value").execute().actionGet();
         refresh();
-        try {
-            for (int i = 0; i < searchCycles; i++) {
+        for (int i = 0; i < searchCycles; i++) {
+            try {
                 resp = client().prepareSearch("test").setPreference(Integer.toString(i)).addAggregation(AggregationBuilders.terms("t").field("s")
                         .collectMode(aggCollectionMode)).execute().actionGet();
                 assertFailures(resp);
+            } catch (SearchPhaseExecutionException e) {
+                // expected
             }
-        } catch (SearchPhaseExecutionException e) {
-            // expected
         }
     }
 
@@ -108,12 +108,12 @@ public class DisabledFieldDataFormatTests extends ElasticsearchIntegrationTest {
         client().admin().indices().preparePutMapping("test").setType("type").setSource(
                 XContentFactory.jsonBuilder().startObject().startObject("type")
                         .startObject("properties")
-                        .startObject("s")
-                        .field("type", "string")
-                        .startObject("fielddata")
-                        .field("format", format)
-                        .endObject()
-                        .endObject()
+                            .startObject("s")
+                                .field("type", "string")
+                                .startObject("fielddata")
+                                    .field("format", format)
+                                .endObject()
+                            .endObject()
                         .endObject()
                         .endObject()
                         .endObject()).execute().actionGet();

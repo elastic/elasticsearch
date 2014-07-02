@@ -98,11 +98,14 @@ public class Profile implements Streamable, ToXContent {
     public Profile merge(Profile other) {
         if (components.size() > 0) {
             for (int i = 0; i < this.components.size(); ++i) {
-
                 if (other.components != null && i < other.components.size()) {
                     components.set(i, components.get(i).merge(other.components.get(i)));
                 }
             }
+        } else {
+            // We don't have any components (possible because of differences in shards), but `other`
+            // has some...so we'll use those and just skip the merge process
+            components = other.components;
         }
         this.time += other.time();
 
@@ -126,7 +129,7 @@ public class Profile implements Streamable, ToXContent {
     /**
      * Merge two or more Profile objects into a single Profile.  This combines the timing scores.
      * Profiles *must* have identical structure or else results will potentially omit paths
-     * through the three
+     * through the tree
      *
      * @param profiles list of profiles to merge
      * @return         Single Profile object representing the merged set

@@ -176,7 +176,7 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
         NetworkPartition networkPartition = addRandomPartition();
 
         final String isolatedNode = networkPartition.getMinoritySide().get(0);
-        final String nonIsolatedNode = networkPartition.getMjaoritySide().get(0);
+        final String nonIsolatedNode = networkPartition.getMajoritySide().get(0);
 
         // Simulate a network issue between the unlucky node and the rest of the cluster.
         networkPartition.startDisrupting();

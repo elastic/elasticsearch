@@ -40,7 +40,6 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-@ElasticsearchIntegrationTest.ClusterScope(numDataNodes = 0, scope = ElasticsearchIntegrationTest.Scope.SUITE, numClientNodes = 0, transportClientRatio = 0.0)
 public class SignificantTermsBackwardCompatibilityTests extends ElasticsearchBackwardsCompatIntegrationTest {
 
     static final String INDEX_NAME = "testidx";

@@ -42,6 +42,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ScheduledFuture;
@@ -74,6 +75,8 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
     private volatile ScheduledFuture scheduler;
 
     private final Object mutex = new Object();
+
+    private static final EnumSet<IndexShardState> CAN_UPDATE_INDEX_BUFFER_STATES = EnumSet.of(IndexShardState.POST_RECOVERY, IndexShardState.STARTED, IndexShardState.RELOCATED);
 
     @Inject
     public IndexingMemoryController(Settings settings, ThreadPool threadPool, IndicesService indicesService) {
@@ -244,7 +247,7 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
 
 
     private void calcAndSetShardBuffers(String reason) {
-        int shardsCount = countShards();
+        int shardsCount = countActiveShards();
         if (shardsCount == 0) {
             return;
         }
@@ -268,7 +271,7 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
         for (IndexService indexService : indicesService) {
             for (IndexShard indexShard : indexService) {
                 IndexShardState state = indexShard.state();
-                if (state != IndexShardState.POST_RECOVERY && state != IndexShardState.STARTED && state != IndexShardState.RELOCATED) {
+                if (!CAN_UPDATE_INDEX_BUFFER_STATES.contains(state)) {
                     logger.trace("shard [{}] is not yet ready for index buffer update. index shard state: [{}]", indexShard.shardId(), state);
                     continue;
                 }
@@ -291,7 +294,7 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
         }
     }
 
-    private int countShards() {
+    private int countActiveShards() {
         int shardsCount = 0;
         for (IndexService indexService : indicesService) {
             for (IndexShard indexShard : indexService) {

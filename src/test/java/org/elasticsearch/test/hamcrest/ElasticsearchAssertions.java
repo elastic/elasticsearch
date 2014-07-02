@@ -38,6 +38,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.node.info.PluginInfo;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsInfo;
+import org.elasticsearch.action.admin.indices.alias.exists.AliasesExistResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
@@ -362,6 +363,20 @@ public class ElasticsearchAssertions {
             templateNames.add(indexTemplateMetaData.name());
         }
         assertThat(templateNames, hasItem(name));
+    }
+
+    /**
+     * Assert that aliases are missing
+     */
+    public static void assertAliasesMissing(AliasesExistResponse aliasesExistResponse) {
+        assertFalse("Aliases shouldn't exist", aliasesExistResponse.exists());
+    }
+
+    /**
+     * Assert that aliases exist
+     */
+    public static void assertAliasesExist(AliasesExistResponse aliasesExistResponse) {
+        assertTrue("Aliases should exist", aliasesExistResponse.exists());
     }
 
     /*

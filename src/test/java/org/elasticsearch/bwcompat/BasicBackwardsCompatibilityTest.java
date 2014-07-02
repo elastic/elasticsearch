@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -72,16 +73,17 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
     public void testExternalVersion() throws Exception {
         createIndex("test");
         final boolean routing = randomBoolean();
+        long version = compatibilityVersion().onOrAfter(Version.V_1_2_0) ? Versions.MATCH_ANY_PRE_1_2_0 : Versions.MATCH_ANY;
         int numDocs = randomIntBetween(10, 20);
         for (int i = 0; i < numDocs; i++) {
             String id = Integer.toString(i);
             String routingKey = routing ? randomRealisticUnicodeOfLength(10) : null;
             client().prepareIndex("test", "type1", id).setRouting(routingKey).setVersion(1).setVersionType(VersionType.EXTERNAL).setSource("field1", English.intToEnglish(i)).get();
-            GetResponse get = client().prepareGet("test", "type1", id).setRouting(routingKey).get();
+            GetResponse get = client().prepareGet("test", "type1", id).setRouting(routingKey).setVersion(version).get();
             assertThat("Document with ID " +id + " should exist but doesn't", get.isExists(), is(true));
             assertThat(get.getVersion(), equalTo(1l));
             client().prepareIndex("test", "type1", id).setRouting(routingKey).setVersion(2).setVersionType(VersionType.EXTERNAL).setSource("field1", English.intToEnglish(i)).get();
-            get = client().prepareGet("test", "type1", id).setRouting(routingKey).get();
+            get = client().prepareGet("test", "type1", id).setRouting(routingKey).setVersion(version).get();
             assertThat("Document with ID " +id + " should exist but doesn't", get.isExists(), is(true));
             assertThat(get.getVersion(), equalTo(2l));
         }
@@ -94,16 +96,17 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
     public void testInternalVersion() throws Exception {
         createIndex("test");
         final boolean routing = randomBoolean();
+        long version = compatibilityVersion().onOrAfter(Version.V_1_2_0) ? Versions.MATCH_ANY_PRE_1_2_0 : Versions.MATCH_ANY;
         int numDocs = randomIntBetween(10, 20);
         for (int i = 0; i < numDocs; i++) {
             String routingKey = routing ? randomRealisticUnicodeOfLength(10) : null;
             String id = Integer.toString(i);
             assertThat(id, client().prepareIndex("test", "type1", id).setRouting(routingKey).setSource("field1", English.intToEnglish(i)).get().isCreated(), is(true));
-            GetResponse get = client().prepareGet("test", "type1", id).setRouting(routingKey).get();
+            GetResponse get = client().prepareGet("test", "type1", id).setRouting(routingKey).setVersion(version).get();
             assertThat("Document with ID " +id + " should exist but doesn't", get.isExists(), is(true));
             assertThat(get.getVersion(), equalTo(1l));
             client().prepareIndex("test", "type1", id).setRouting(routingKey).setSource("field1", English.intToEnglish(i)).execute().actionGet();
-            get = client().prepareGet("test", "type1", id).setRouting(routingKey).get();
+            get = client().prepareGet("test", "type1", id).setRouting(routingKey).setVersion(version).get();
             assertThat("Document with ID " +id + " should exist but doesn't", get.isExists(), is(true));
             assertThat(get.getVersion(), equalTo(2l));
         }

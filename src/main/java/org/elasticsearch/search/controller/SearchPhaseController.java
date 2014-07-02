@@ -319,7 +319,7 @@ public class SearchPhaseController extends AbstractComponent {
         long totalHits = 0;
         float maxScore = Float.NEGATIVE_INFINITY;
         boolean timedOut = false;
-        List<Profile> profileList = null;
+        Profile finalProfile = null;
 
         for (AtomicArray.Entry<? extends QuerySearchResultProvider> entry : queryResults) {
             QuerySearchResult result = entry.value.queryResult();
@@ -332,16 +332,12 @@ public class SearchPhaseController extends AbstractComponent {
             }
 
             if (entry.value.queryResult().profile() != null) {
-                if (profileList == null) {
-                    profileList = new ArrayList<>(queryResults.size());
+                if (finalProfile == null) {
+                    finalProfile = entry.value.queryResult().profile();
+                } else {
+                    finalProfile = Profile.merge(finalProfile, entry.value.queryResult().profile());
                 }
-                profileList.add(entry.value.queryResult().profile());
             }
-        }
-
-        Profile finalProfile = null;
-        if (profileList.size() > 0) {
-            finalProfile = Profile.merge(profileList);   //TODO technically we can merge directly and skip the list
         }
 
         if (Float.isInfinite(maxScore)) {

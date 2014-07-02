@@ -235,7 +235,6 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
         for (int i = 0; i < numIters; i++) {
             assertHitCount(client().prepareCount().get(), numDocs);
         }
-        ensureGreen(); // wait for all the relocation
         assertVersionCreated(compatibilityVersion(), "test");
     }
 

@@ -32,7 +32,7 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.*;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.ElasticsearchLuceneTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
@@ -44,8 +44,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-@ElasticsearchIntegrationTest.SuiteScopeTest
-public class SignificantTermsUnitTests extends ElasticsearchLuceneTestCase {
+public class SignificanceHeuristicTests extends ElasticsearchTestCase {
     static class SignificantTermsTestSearchContext extends TestSearchContext {
         @Override
         public int numberOfShards() {
@@ -85,7 +84,7 @@ public class SignificantTermsUnitTests extends ElasticsearchLuceneTestCase {
     InternalSignificantTerms[] getRandomSignificantTerms(SignificanceHeuristic heuristic) {
         InternalSignificantTerms[] sTerms = new InternalSignificantTerms[2];
         ArrayList<InternalSignificantTerms.Bucket> buckets = new ArrayList<>();
-        if (random().nextBoolean()) {
+        if (randomBoolean()) {
             BytesRef term = new BytesRef("123.0");
             buckets.add(new SignificantLongTerms.Bucket(1, 2, 3, 4, 123, InternalAggregations.EMPTY));
             sTerms[0] = new SignificantLongTerms(10, 20, "some_name", null, 1, 1, heuristic, buckets);
@@ -101,10 +100,10 @@ public class SignificantTermsUnitTests extends ElasticsearchLuceneTestCase {
     }
 
     SignificanceHeuristic getRandomSignificanceheuristic() {
-        if (random().nextBoolean()) {
+        if (randomBoolean()) {
             return new DefaultHeuristic();
         } else {
-            return new MutualInformation().setIncludeNegatives(random().nextBoolean());
+            return new MutualInformation().setIncludeNegatives(randomBoolean());
         }
     }
 
@@ -207,7 +206,7 @@ public class SignificantTermsUnitTests extends ElasticsearchLuceneTestCase {
             assertTrue(assertionError.getMessage().contains("supersetFreq - subsetFreq > supersetSize - subsetSize"));
         }
         try {
-            int idx = random().nextInt(4);
+            int idx = randomInt(3);
             long[] values = {1, 2, 3, 4};
             values[idx] *= -1;
             mutualInformation.getScore(values[0], values[1], values[2], values[3]);
@@ -244,7 +243,7 @@ public class SignificantTermsUnitTests extends ElasticsearchLuceneTestCase {
         assertThat(score, lessThanOrEqualTo(1.0));
 
         try {
-            int idx = random().nextInt(4);
+            int idx = randomInt(3);
             long[] values = {1, 2, 3, 4};
             values[idx] *= -1;
             mutualInformation.getScore(values[0], values[1], values[2], values[3]);
@@ -256,7 +255,7 @@ public class SignificantTermsUnitTests extends ElasticsearchLuceneTestCase {
 
         DefaultHeuristic defaultHeuristic = new DefaultHeuristic();
         try {
-            int idx = random().nextInt(4);
+            int idx = randomInt(3);
             long[] values = {1, 2, 3, 4};
             values[idx] *= -1;
             defaultHeuristic.getScore(values[0], values[1], values[2], values[3]);
@@ -289,10 +288,10 @@ public class SignificantTermsUnitTests extends ElasticsearchLuceneTestCase {
         assertThat(heuristic.getScore(0, 1, 2, 3), equalTo(0.0));
         double score = 0.0;
         try {
-            long a = random().nextLong();
-            long b = random().nextLong();
-            long c = random().nextLong();
-            long d = random().nextLong();
+            long a = randomLong();
+            long b = randomLong();
+            long c = randomLong();
+            long d = randomLong();
             score = heuristic.getScore(a, b, c, d);
         } catch (ElasticsearchIllegalArgumentException e) {
         }
@@ -313,10 +312,10 @@ public class SignificantTermsUnitTests extends ElasticsearchLuceneTestCase {
 
         double score = 0.0;
         try {
-            long a = random().nextLong();
-            long b = random().nextLong();
-            long c = random().nextLong();
-            long d = random().nextLong();
+            long a = randomLong();
+            long b = randomLong();
+            long c = randomLong();
+            long d = randomLong();
             score = heuristic.getScore(a, b, c, d);
         } catch (ElasticsearchIllegalArgumentException e) {
         }

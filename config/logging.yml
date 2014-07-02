@@ -5,7 +5,7 @@ logger:
   # log action execution errors for easier debugging
   action: DEBUG
   # reduce the logging for aws, too much is logged under the default INFO
-  com.amazonaws: ERROR
+  com.amazonaws: WARN
 
   # gateway
   #gateway: DEBUG

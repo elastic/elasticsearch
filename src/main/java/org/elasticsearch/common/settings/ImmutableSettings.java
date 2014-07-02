@@ -55,6 +55,7 @@ import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 public class ImmutableSettings implements Settings {
 
     public static final Settings EMPTY = new Builder().build();
+    public static final String FLAT_SETTINGS_KEY = "flat_settings";
 
     private ImmutableMap<String, String> settings;
     private transient ClassLoader classLoader;
@@ -615,7 +616,7 @@ public class ImmutableSettings implements Settings {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (!params.paramAsBoolean("flat_settings", false)) {
+        if (!params.paramAsBoolean(FLAT_SETTINGS_KEY, false)) {
             for (Map.Entry<String, Object> entry : getAsStructuredMap().entrySet()) {
                 builder.field(entry.getKey(), entry.getValue());
             }

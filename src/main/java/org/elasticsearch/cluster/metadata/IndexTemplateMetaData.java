@@ -20,6 +20,7 @@ package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -30,10 +31,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.xcontent.ToXContent.DelegatingMapParams;
 
 import java.io.IOException;
 import java.util.Map;
@@ -275,7 +274,9 @@ public class IndexTemplateMetaData {
             builder.field("template", indexTemplateMetaData.template());
 
             builder.startObject("settings");
-            indexTemplateMetaData.settings().toXContent(builder, params);
+            // backward compatibility: flat_settings was ignored before 1.3 and always true
+            final Map<String, String> overrideParams = ImmutableMap.of(ImmutableSettings.FLAT_SETTINGS_KEY, params.param(ImmutableSettings.FLAT_SETTINGS_KEY, Boolean.TRUE.toString()));
+            indexTemplateMetaData.settings().toXContent(builder, new DelegatingMapParams(overrideParams, params));
             builder.endObject();
 
             if (params.paramAsBoolean("reduce_mappings", false)) {

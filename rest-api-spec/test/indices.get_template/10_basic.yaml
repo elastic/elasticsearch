@@ -16,7 +16,7 @@ setup:
         name: test
 
   - match: {test.template: "test-*"}
-  - match: {test.settings: {index: {number_of_shards: '1', number_of_replicas: '0'}}}
+  - match: {test.settings: {index.number_of_shards: '1', index.number_of_replicas: '0'}}
 
 ---
 "Get all templates":
@@ -46,11 +46,11 @@ setup:
   - is_true: test
 
 ---
-"Get template with flat settings":
+"Get template with non flat settings":
 
   - do:
       indices.get_template:
         name: test
-        flat_settings: true
+        flat_settings: false
 
-  - match: {test.settings: {index.number_of_shards: '1', index.number_of_replicas: '0'}}
+  - match: {test.settings: {index: {number_of_shards: '1', number_of_replicas: '0'}}}

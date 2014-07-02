@@ -198,12 +198,14 @@ public class Profile implements Streamable, ToXContent {
         out.writeLong(time);
         out.writeLong(totalTime);
         out.writeString(details);
-        out.writeInt(components.size());
 
         if (components != null && components.size() > 0) {
+            out.writeInt(components.size());
             for (Profile component : components) {
                 component.writeTo(out);
             }
+        } else {
+            out.writeInt(0);
         }
 
     }

@@ -319,7 +319,7 @@ public class SearchPhaseController extends AbstractComponent {
         long totalHits = 0;
         float maxScore = Float.NEGATIVE_INFINITY;
         boolean timedOut = false;
-        List<Profile> profileList = new ArrayList<Profile>(queryResults.size());
+        List<Profile> profileList = null;
 
         for (AtomicArray.Entry<? extends QuerySearchResultProvider> entry : queryResults) {
             QuerySearchResult result = entry.value.queryResult();
@@ -332,6 +332,9 @@ public class SearchPhaseController extends AbstractComponent {
             }
 
             if (entry.value.queryResult().profile() != null) {
+                if (profileList == null) {
+                    profileList = new ArrayList<>(queryResults.size());
+                }
                 profileList.add(entry.value.queryResult().profile());
             }
         }

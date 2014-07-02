@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.internal;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -133,6 +134,11 @@ public class InternalSearchResponse implements Streamable, ToXContent {
         if (in.readBoolean()) {
             suggest = Suggest.readSuggest(Suggest.Fields.SUGGEST, in);
         }
+        if (in.getVersion().onOrAfter(Version.V_1_3_0)) {
+            if (in.readBoolean()) {
+                profile = Profile.readProfile(in);
+            }
+        }
         timedOut = in.readBoolean();
     }
 
@@ -156,6 +162,14 @@ public class InternalSearchResponse implements Streamable, ToXContent {
         } else {
             out.writeBoolean(true);
             suggest.writeTo(out);
+        }
+        if (out.getVersion().onOrAfter(Version.V_1_3_0)) {
+            if (profile == null) {
+                out.writeBoolean(false);
+            } else {
+                out.writeBoolean(true);
+                profile.writeTo(out);
+            }
         }
         out.writeBoolean(timedOut);
     }

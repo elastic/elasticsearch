@@ -101,7 +101,7 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
 
     SignificanceHeuristic getRandomSignificanceheuristic() {
         if (randomBoolean()) {
-            return new DefaultHeuristic();
+            return DefaultHeuristic.INSTANCE;
         } else {
             return new MutualInformation().setIncludeNegatives(randomBoolean());
         }
@@ -253,7 +253,7 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
             assertTrue(illegalArgumentException.getMessage().contains("Frequencies of subset and superset must be positive"));
         }
 
-        DefaultHeuristic defaultHeuristic = new DefaultHeuristic();
+        DefaultHeuristic defaultHeuristic = DefaultHeuristic.INSTANCE;
         try {
             int idx = randomInt(3);
             long[] values = {1, 2, 3, 4};
@@ -282,7 +282,7 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
 
     @Test
     public void scoreDefault() {
-        SignificanceHeuristic heuristic = new DefaultHeuristic();
+        SignificanceHeuristic heuristic = DefaultHeuristic.INSTANCE;
         assertThat(heuristic.getScore(1, 1, 1, 3), greaterThan(0.0));
         assertThat(heuristic.getScore(1, 1, 2, 3), lessThan(heuristic.getScore(1, 1, 1, 3)));
         assertThat(heuristic.getScore(0, 1, 2, 3), equalTo(0.0));

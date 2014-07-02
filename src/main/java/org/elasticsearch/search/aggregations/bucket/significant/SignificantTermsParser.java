@@ -77,7 +77,7 @@ public class SignificantTermsParser implements Aggregator.Parser {
         bucketCountThresholds.ensureValidity();
         SignificanceHeuristic significanceHeuristic = aggParser.getSignificanceHeuristic();
         if (significanceHeuristic == null) {
-            significanceHeuristic = new DefaultHeuristic();
+            significanceHeuristic = DefaultHeuristic.INSTANCE;
         }
         return new SignificantTermsAggregatorFactory(aggregationName, vsParser.config(), bucketCountThresholds, aggParser.getIncludeExclude(), aggParser.getExecutionHint(), aggParser.getFilter(), significanceHeuristic);
     }

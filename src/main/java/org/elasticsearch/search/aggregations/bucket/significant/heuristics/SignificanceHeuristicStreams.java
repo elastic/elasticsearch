@@ -37,7 +37,7 @@ public class SignificanceHeuristicStreams {
         if (in.getVersion().onOrAfter(Version.V_1_3_0)) {
             return stream(in.readString()).readResult(in);
         } else {
-            return new DefaultHeuristic();
+            return DefaultHeuristic.INSTANCE;
         }
     }
 

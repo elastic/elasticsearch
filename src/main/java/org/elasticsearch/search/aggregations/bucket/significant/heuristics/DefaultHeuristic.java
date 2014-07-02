@@ -21,6 +21,7 @@
 package org.elasticsearch.search.aggregations.bucket.significant.heuristics;
 
 
+import com.sun.org.apache.bcel.internal.generic.INSTANCEOF;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -34,7 +35,11 @@ import java.util.EnumSet;
 
 public class DefaultHeuristic implements SignificanceHeuristic {
 
+    public static final DefaultHeuristic INSTANCE = new DefaultHeuristic();
+
     protected static final String[] NAMES = {"default"};
+
+    private DefaultHeuristic() {};
 
     @Override
     public boolean equals(Object other) {
@@ -54,7 +59,7 @@ public class DefaultHeuristic implements SignificanceHeuristic {
     };
 
     public static SignificanceHeuristic readFrom(StreamInput in) throws IOException {
-        return new DefaultHeuristic();
+        return INSTANCE;
     }
 
     /**

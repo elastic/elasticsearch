@@ -189,6 +189,7 @@ should be restored as well as prevent global cluster state from being restored b
 <<search-multi-index-type,multi index syntax>>. The `rename_pattern` and `rename_replacement` options can be also used to
 rename index on restore using regular expression that supports referencing the original text as explained
 http://docs.oracle.com/javase/6/docs/api/java/util/regex/Matcher.html#appendReplacement(java.lang.StringBuffer,%20java.lang.String)[here].
+Set `include_aliases` to `false` to prevent aliases from being restored together with associated indices coming[1.3.0].
 
 [source,js]
 -----------------------------------
@@ -210,7 +211,7 @@ persistent settings are added to the existing persistent settings.
 [float]
 === Partial restore
 
-added[1.3.0]
+coming[1.3.0]
 
 By default, entire restore operation will fail if one or more indices participating in the operation don't have
 snapshots of all shards available. It can occur if some shards failed to snapshot for example. It is still possible to

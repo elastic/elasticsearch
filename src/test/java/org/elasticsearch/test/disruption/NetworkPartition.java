@@ -73,7 +73,7 @@ public abstract class NetworkPartition implements ServiceDisruptionScheme {
         return ImmutableList.copyOf(nodesSideTwo);
     }
 
-    public List<String> getMjaoritySide() {
+    public List<String> getMajoritySide() {
         if (nodesSideOne.size() >= nodesSideTwo.size()) {
             return getNodesSideOne();
         } else {

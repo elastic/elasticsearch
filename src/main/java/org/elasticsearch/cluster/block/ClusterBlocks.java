@@ -117,6 +117,10 @@ public class ClusterBlocks {
         return false;
     }
 
+    public boolean hasGlobalBlock(ClusterBlockLevel level) {
+        return !global(level).isEmpty();
+    }
+
     /**
      * Is there a global block with the provided status?
      */

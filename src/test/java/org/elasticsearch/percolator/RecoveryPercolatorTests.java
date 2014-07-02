@@ -196,6 +196,7 @@ public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
         logger.info("--> Add dummy docs");
         client().prepareIndex("test", "type1", "1").setSource("field1", 0).get();
         client().prepareIndex("test", "type2", "1").setSource("field1", "0").get();
+        waitForConcreteMappingsOnAll("test", "type1", "field1");
 
         logger.info("--> register a queries");
         for (int i = 1; i <= 100; i++) {
@@ -208,6 +209,7 @@ public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
                             .endObject())
                     .get();
         }
+        waitForConcreteMappingsOnAll("test", PercolatorService.TYPE_NAME);
 
         logger.info("--> Percolate doc with field1=95");
         PercolateResponse response = client().preparePercolate()
@@ -222,7 +224,6 @@ public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
         assertAcked(client().admin().indices().prepareClose("test"));
         assertAcked(client().admin().indices().prepareOpen("test"));
         ensureGreen();
-        waitForConcreteMappingsOnAll("test", "type1", "field1");
 
         logger.info("--> Percolate doc with field1=100");
         response = client().preparePercolate()

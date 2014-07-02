@@ -72,15 +72,15 @@ The `more_like_this` top level parameters include:
 |=======================================================================
 |Parameter |Description
 |`fields` |A list of the fields to run the more like this query against.
-Defaults to the `_all` field.
+Defaults to the `_all` field for `like_text` and to all the fields of each
+the document when `ids` or `docs` are specified.
 
 |`like_text` |The text to find documents like it, *required* if `ids` or `docs` are
 not specified.
 
 |`ids` or `docs` |A list of documents following the same syntax as the 
-<<docs-multi-get,Multi GET API>>. This parameter is *required* if
-`like_text` is not specified. The texts are fetched from `fields` unless
-specified in each `doc`, and cannot be set to `_all`.
+<<docs-multi-get,Multi GET API>>. The texts are fetched from `fields`
+unless specified in each `doc`.
 
 |`include` |When using `ids` or `docs`, specifies whether the documents should be
 included from the search. Defaults to `false`.

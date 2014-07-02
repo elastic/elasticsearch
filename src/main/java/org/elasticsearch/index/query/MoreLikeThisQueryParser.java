@@ -169,8 +169,9 @@ public class MoreLikeThisQueryParser implements QueryParser {
         }
         mltQuery.setAnalyzer(analyzer);
 
+        ArrayList<String> allField = Lists.newArrayList(parseContext.defaultField());
         if (moreLikeFields == null) {
-            moreLikeFields = Lists.newArrayList(parseContext.defaultField());
+            moreLikeFields = allField;
         } else if (moreLikeFields.isEmpty()) {
             throw new QueryParsingException(parseContext.index(), "more_like_this requires 'fields' to be non-empty");
         }
@@ -199,11 +200,8 @@ public class MoreLikeThisQueryParser implements QueryParser {
                         item.type(parseContext.queryTypes().iterator().next());
                     }
                 }
-                if (item.fields() == null && item.fetchSourceContext() == null) {
+                if (item.fields() == null && item.fetchSourceContext() == null && !moreLikeFields.equals(allField)) {
                     item.fields(moreLikeFields.toArray(new String[moreLikeFields.size()]));
-                } else {
-                    // TODO how about fields content fetched from _source?
-                    removeUnsupportedFields(item, analyzer, failOnUnsupportedField);
                 }
             }
             // fetching the items with multi-get

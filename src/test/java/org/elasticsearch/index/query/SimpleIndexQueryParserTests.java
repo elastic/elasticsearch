@@ -1718,7 +1718,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchTestCase {
     private static class MockMoreLikeThisFetchService extends MoreLikeThisFetchService {
 
         public MockMoreLikeThisFetchService() {
-            super(null, ImmutableSettings.Builder.EMPTY_SETTINGS);
+            super(null, ImmutableSettings.Builder.EMPTY_SETTINGS, null);
         }
 
         public List<LikeText> fetch(List<MultiGetRequest.Item> items) throws IOException {

@@ -52,7 +52,7 @@ You can also use special flags
 
 Possible flags are `ALL`, `ANYSTRING`, `AUTOMATON`, `COMPLEMENT`,
 `EMPTY`, `INTERSECTION`, `INTERVAL`, or `NONE`. Please check the
-http://lucene.apache.org/core/4_3_0/core/index.html?org%2Fapache%2Flucene%2Futil%2Fautomaton%2FRegExp.html[Lucene
+http://lucene.apache.org/core/4_9_0/core/org/apache/lucene/util/automaton/RegExp.html[Lucene
 documentation] for their meaning
 
 

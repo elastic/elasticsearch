@@ -161,6 +161,10 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                                 // Make sure that the index we are about to create has a validate name
                                 createIndexService.validateIndexName(renamedIndex, currentState);
                                 IndexMetaData.Builder indexMdBuilder = IndexMetaData.builder(snapshotIndexMetaData).state(IndexMetaData.State.OPEN).index(renamedIndex);
+                                if (!request.includeAliases() && !snapshotIndexMetaData.aliases().isEmpty()) {
+                                    // Remove all aliases - they shouldn't be restored
+                                    indexMdBuilder.removeAllAliases();
+                                }
                                 IndexMetaData updatedIndexMetaData = indexMdBuilder.build();
                                 if (partial) {
                                     populateIgnoredShards(index, ignoreShards);
@@ -172,6 +176,16 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                                 // Index exists and it's closed - open it in metadata and start recovery
                                 IndexMetaData.Builder indexMdBuilder = IndexMetaData.builder(snapshotIndexMetaData).state(IndexMetaData.State.OPEN);
                                 indexMdBuilder.version(Math.max(snapshotIndexMetaData.version(), currentIndexMetaData.version() + 1));
+                                if (!request.includeAliases()) {
+                                    // Remove all snapshot aliases
+                                    if (!snapshotIndexMetaData.aliases().isEmpty()) {
+                                        indexMdBuilder.removeAllAliases();
+                                    }
+                                    /// Add existing aliases
+                                    for (ObjectCursor<AliasMetaData> alias : currentIndexMetaData.aliases().values()) {
+                                        indexMdBuilder.putAlias(alias.value);
+                                    }
+                                }
                                 IndexMetaData updatedIndexMetaData = indexMdBuilder.index(renamedIndex).build();
                                 rtBuilder.addAsRestore(updatedIndexMetaData, restoreSource);
                                 blocks.removeIndexBlock(renamedIndex, INDEX_CLOSED_BLOCK);
@@ -553,6 +567,8 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
 
         final private boolean partial;
 
+        final private boolean includeAliases;
+
         /**
          * Constructs new restore request
          *
@@ -570,7 +586,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
          */
         public RestoreRequest(String cause, String repository, String name, String[] indices, IndicesOptions indicesOptions,
                               String renamePattern, String renameReplacement, Settings settings,
-                              TimeValue masterNodeTimeout, boolean includeGlobalState, boolean partial) {
+                              TimeValue masterNodeTimeout, boolean includeGlobalState, boolean partial, boolean includeAliases) {
             this.cause = cause;
             this.name = name;
             this.repository = repository;
@@ -582,6 +598,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
             this.masterNodeTimeout = masterNodeTimeout;
             this.includeGlobalState = includeGlobalState;
             this.partial = partial;
+            this.includeAliases = includeAliases;
         }
 
         /**
@@ -672,6 +689,15 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
          */
         public boolean partial() {
             return partial;
+        }
+
+        /**
+         * Returns true if aliases should be restore during this restore operation
+         *
+         * @return restore aliases state flag
+         */
+        public boolean includeAliases() {
+            return includeAliases;
         }
 
         /**

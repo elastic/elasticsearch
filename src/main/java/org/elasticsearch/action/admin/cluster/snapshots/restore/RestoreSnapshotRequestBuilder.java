@@ -95,7 +95,7 @@ public class RestoreSnapshotRequestBuilder extends MasterNodeOperationRequestBui
      * For example indices that don't exist.
      *
      * @param indicesOptions the desired behaviour regarding indices to ignore and wildcard indices expressions
-     * @return this request
+     * @return this builder
      */
     public RestoreSnapshotRequestBuilder setIndicesOptions(IndicesOptions indicesOptions) {
         request.indicesOptions(indicesOptions);
@@ -124,7 +124,7 @@ public class RestoreSnapshotRequestBuilder extends MasterNodeOperationRequestBui
      * See {@link #setRenamePattern(String)} for more information.
      *
      * @param renameReplacement rename replacement
-     * @return
+     * @return this builder
      */
     public RestoreSnapshotRequestBuilder setRenameReplacement(String renameReplacement) {
         request.renameReplacement(renameReplacement);
@@ -201,7 +201,7 @@ public class RestoreSnapshotRequestBuilder extends MasterNodeOperationRequestBui
      * The global cluster state includes persistent settings and index template definitions.
      *
      * @param restoreGlobalState true if global state should be restored from the snapshot
-     * @return this request
+     * @return this builder
      */
     public RestoreSnapshotRequestBuilder setRestoreGlobalState(boolean restoreGlobalState) {
         request.includeGlobalState(restoreGlobalState);
@@ -212,10 +212,21 @@ public class RestoreSnapshotRequestBuilder extends MasterNodeOperationRequestBui
      * If set to true the restore procedure will restore partially snapshotted indices
      *
      * @param partial true if partially snapshotted indices should be restored
-     * @return this request
+     * @return this builder
      */
     public RestoreSnapshotRequestBuilder setPartial(boolean partial) {
         request.partial(partial);
+        return this;
+    }
+
+    /**
+     * If set to true the restore procedure will restore aliases
+     *
+     * @param restoreAliases true if aliases should be restored from the snapshot
+     * @return this builder
+     */
+    public RestoreSnapshotRequestBuilder setIncludeAliases(boolean restoreAliases) {
+        request.includeAliases(restoreAliases);
         return this;
     }
 

@@ -835,25 +835,28 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     private synchronized void reset(boolean wipeData) throws IOException {
-        TimeValue expectedHealingTime = activeDisruptionScheme != null ? activeDisruptionScheme.expectedTimeToHeal() : null;
-        clearDisruptionScheme();
-        if (expectedHealingTime != null && expectedHealingTime.millis() > 0) {
-            try {
-                Thread.sleep(expectedHealingTime.millis());
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-        }
-        randomlyResetClients();
-        if (wipeData) {
-            wipeDataDirectories();
-        }
         // clear all rules for mock transport services
         for (NodeAndClient nodeAndClient : nodes.values()) {
             TransportService transportService = nodeAndClient.node.injector().getInstance(TransportService.class);
             if (transportService instanceof MockTransportService) {
                 ((MockTransportService) transportService).clearAllRules();
             }
+        }
+        if (activeDisruptionScheme != null) {
+            TimeValue expectedHealingTime = activeDisruptionScheme.expectedTimeToHeal();
+            clearDisruptionScheme();
+            if (expectedHealingTime != null && expectedHealingTime.millis() > 0) {
+                try {
+                    Thread.sleep(expectedHealingTime.millis());
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+            assert !client().admin().cluster().prepareHealth().setWaitForNodes("" + nodes.size()).get().isTimedOut() : "cluster failed to form after disruption was healed";
+        }
+        randomlyResetClients();
+        if (wipeData) {
+            wipeDataDirectories();
         }
         if (nextNodeId.get() == sharedNodesSeeds.length && nodes.size() == sharedNodesSeeds.length) {
             logger.debug("Cluster hasn't changed - moving out - nodes: [{}] nextNodeId: [{}] numSharedNodes: [{}]", nodes.keySet(), nextNodeId.get(), sharedNodesSeeds.length);

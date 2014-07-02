@@ -33,7 +33,7 @@ public class SignificantTermsHeuristicModule extends AbstractModule {
     private List<SignificanceHeuristicStreams.Stream> streams = Lists.newArrayList();
 
     public SignificantTermsHeuristicModule() {
-        registerHeuristic(DefaultHeuristic.DefaultHeuristicParser.class, DefaultHeuristic.STREAM);
+        registerHeuristic(JLHScore.JLHScoreParser.class, JLHScore.STREAM);
         registerHeuristic(MutualInformation.MutualInformationParser.class, MutualInformation.STREAM);
     }
 

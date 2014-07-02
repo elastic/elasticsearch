@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.search.child.TestSearchContext;
+import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.*;
 import org.elasticsearch.search.internal.SearchContext;
@@ -50,13 +51,18 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
         public int numberOfShards() {
             return 1;
         }
+
+        @Override
+        public SearchShardTarget shardTarget() {
+            return new SearchShardTarget("no node, this is a unit test", "no index, this is a unit test", 0);
+        }
     }
 
     // test that stream output can actually be read - does not replace bwc test
     @Test
     public void streamResponse() throws Exception {
         SignificanceHeuristicStreams.registerStream(MutualInformation.STREAM, MutualInformation.STREAM.getName());
-        SignificanceHeuristicStreams.registerStream(DefaultHeuristic.STREAM, DefaultHeuristic.STREAM.getName());
+        SignificanceHeuristicStreams.registerStream(JLHScore.STREAM, JLHScore.STREAM.getName());
         Version version = ElasticsearchIntegrationTest.randomVersion();
         InternalSignificantTerms[] sigTerms = getRandomSignificantTerms(getRandomSignificanceheuristic());
 
@@ -77,7 +83,7 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
         if (version.onOrAfter(Version.V_1_3_0)) {
             assertTrue(sigTerms[1].significanceHeuristic.equals(sigTerms[0].significanceHeuristic));
         } else {
-            assertTrue(sigTerms[1].significanceHeuristic instanceof DefaultHeuristic);
+            assertTrue(sigTerms[1].significanceHeuristic instanceof JLHScore);
         }
     }
 
@@ -101,7 +107,7 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
 
     SignificanceHeuristic getRandomSignificanceheuristic() {
         if (randomBoolean()) {
-            return DefaultHeuristic.INSTANCE;
+            return JLHScore.INSTANCE;
         } else {
             return new MutualInformation(randomBoolean(), true);
         }
@@ -114,13 +120,13 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
     public void testBuilderAndParser() throws Exception {
 
         Set<SignificanceHeuristicParser> parsers = new HashSet<>();
-        parsers.add(new DefaultHeuristic.DefaultHeuristicParser());
+        parsers.add(new JLHScore.JLHScoreParser());
         parsers.add(new MutualInformation.MutualInformationParser());
         SignificanceHeuristicParserMapper heuristicParserMapper = new SignificanceHeuristicParserMapper(parsers);
         SearchContext searchContext = new SignificantTermsTestSearchContext();
 
         // test default with string
-        XContentParser stParser = JsonXContent.jsonXContent.createParser("{\"field\":\"text\", \"default\":{}, \"min_doc_count\":200}");
+        XContentParser stParser = JsonXContent.jsonXContent.createParser("{\"field\":\"text\", \"jlh\":{}, \"min_doc_count\":200}");
         stParser.nextToken();
         SignificantTermsAggregatorFactory aggregatorFactory = (SignificantTermsAggregatorFactory) new SignificantTermsParser(heuristicParserMapper).parse("testagg", stParser, searchContext);
         stParser.nextToken();
@@ -130,7 +136,7 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
 
         // test default with builders
         SignificantTermsBuilder stBuilder = new SignificantTermsBuilder("testagg");
-        stBuilder.significanceHeuristic(new DefaultHeuristic.DefaultHeuristicBuilder()).field("text").minDocCount(200);
+        stBuilder.significanceHeuristic(new JLHScore.JLHScoreBuilder()).field("text").minDocCount(200);
         XContentBuilder stXContentBuilder = XContentFactory.jsonBuilder();
         stBuilder.internalXContent(stXContentBuilder, null);
         stParser = JsonXContent.jsonXContent.createParser(stXContentBuilder.string());
@@ -252,26 +258,26 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
             assertTrue(illegalArgumentException.getMessage().contains("Frequencies of subset and superset must be positive"));
         }
 
-        DefaultHeuristic defaultHeuristic = DefaultHeuristic.INSTANCE;
+        JLHScore jlhScore = JLHScore.INSTANCE;
         try {
             int idx = randomInt(3);
             long[] values = {1, 2, 3, 4};
             values[idx] *= -1;
-            defaultHeuristic.getScore(values[0], values[1], values[2], values[3]);
+            jlhScore.getScore(values[0], values[1], values[2], values[3]);
             fail();
         } catch (ElasticsearchIllegalArgumentException illegalArgumentException) {
             assertNotNull(illegalArgumentException.getMessage());
             assertTrue(illegalArgumentException.getMessage().contains("Frequencies of subset and superset must be positive"));
         }
         try {
-            mutualInformation.getScore(1, 2, 4, 3);
+            jlhScore.getScore(1, 2, 4, 3);
             fail();
         } catch (ElasticsearchIllegalArgumentException illegalArgumentException) {
             assertNotNull(illegalArgumentException.getMessage());
             assertTrue(illegalArgumentException.getMessage().contains("supersetFreq > supersetSize"));
         }
         try {
-            defaultHeuristic.getScore(2, 1, 3, 4);
+            jlhScore.getScore(2, 1, 3, 4);
             fail();
         } catch (ElasticsearchIllegalArgumentException illegalArgumentException) {
             assertNotNull(illegalArgumentException.getMessage());
@@ -281,7 +287,7 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
 
     @Test
     public void scoreDefault() {
-        SignificanceHeuristic heuristic = DefaultHeuristic.INSTANCE;
+        SignificanceHeuristic heuristic = JLHScore.INSTANCE;
         assertThat(heuristic.getScore(1, 1, 1, 3), greaterThan(0.0));
         assertThat(heuristic.getScore(1, 1, 2, 3), lessThan(heuristic.getScore(1, 1, 1, 3)));
         assertThat(heuristic.getScore(0, 1, 2, 3), equalTo(0.0));

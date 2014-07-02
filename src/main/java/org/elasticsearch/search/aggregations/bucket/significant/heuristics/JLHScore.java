@@ -21,9 +21,7 @@
 package org.elasticsearch.search.aggregations.bucket.significant.heuristics;
 
 
-import com.sun.org.apache.bcel.internal.generic.INSTANCEOF;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -31,19 +29,18 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParsingException;
 
 import java.io.IOException;
-import java.util.EnumSet;
 
-public class DefaultHeuristic implements SignificanceHeuristic {
+public class JLHScore implements SignificanceHeuristic {
 
-    public static final DefaultHeuristic INSTANCE = new DefaultHeuristic();
+    public static final JLHScore INSTANCE = new JLHScore();
 
-    protected static final String[] NAMES = {"default"};
+    protected static final String[] NAMES = {"jlh"};
 
-    private DefaultHeuristic() {};
+    private JLHScore() {};
 
     @Override
     public boolean equals(Object other) {
-        return other instanceof DefaultHeuristic;
+        return other instanceof JLHScore;
     }
 
     public static final SignificanceHeuristicStreams.Stream STREAM = new SignificanceHeuristicStreams.Stream() {
@@ -77,13 +74,13 @@ public class DefaultHeuristic implements SignificanceHeuristic {
     @Override
     public double getScore(long subsetFreq, long subsetSize, long supersetFreq, long supersetSize) {
         if (subsetFreq < 0 || subsetSize < 0 || supersetFreq < 0 || supersetSize < 0) {
-            throw new ElasticsearchIllegalArgumentException("Frequencies of subset and superset must be positive in DefaultHeuristic.getScore()");
+            throw new ElasticsearchIllegalArgumentException("Frequencies of subset and superset must be positive in JLHScore.getScore()");
         }
         if (subsetFreq > subsetSize) {
-            throw new ElasticsearchIllegalArgumentException("subsetFreq > subsetSize, in DefaultHeuristic.score(..)");
+            throw new ElasticsearchIllegalArgumentException("subsetFreq > subsetSize, in JLHScore.score(..)");
         }
         if (supersetFreq > supersetSize) {
-            throw new ElasticsearchIllegalArgumentException("supersetFreq > supersetSize, in DefaultHeuristic.score(..)");
+            throw new ElasticsearchIllegalArgumentException("supersetFreq > supersetSize, in JLHScore.score(..)");
         }
         if ((subsetSize == 0) || (supersetSize == 0)) {
             // avoid any divide by zero issues
@@ -127,13 +124,13 @@ public class DefaultHeuristic implements SignificanceHeuristic {
         out.writeString(STREAM.getName());
     }
 
-    public static class DefaultHeuristicParser implements SignificanceHeuristicParser {
+    public static class JLHScoreParser implements SignificanceHeuristicParser {
 
         @Override
         public SignificanceHeuristic parse(XContentParser parser) throws IOException, QueryParsingException {
             // move to the closing bracket
             parser.nextToken();
-            return new DefaultHeuristic();
+            return new JLHScore();
         }
 
         @Override
@@ -142,7 +139,7 @@ public class DefaultHeuristic implements SignificanceHeuristic {
         }
     }
 
-    public static class DefaultHeuristicBuilder implements SignificanceHeuristicBuilder {
+    public static class JLHScoreBuilder implements SignificanceHeuristicBuilder {
 
         @Override
         public void toXContent(XContentBuilder builder) throws IOException {

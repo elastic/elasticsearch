@@ -23,7 +23,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.BucketUtils;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.DefaultHeuristic;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.JLHScore;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParserMapper;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
@@ -77,7 +77,7 @@ public class SignificantTermsParser implements Aggregator.Parser {
         bucketCountThresholds.ensureValidity();
         SignificanceHeuristic significanceHeuristic = aggParser.getSignificanceHeuristic();
         if (significanceHeuristic == null) {
-            significanceHeuristic = DefaultHeuristic.INSTANCE;
+            significanceHeuristic = JLHScore.INSTANCE;
         }
         return new SignificantTermsAggregatorFactory(aggregationName, vsParser.config(), bucketCountThresholds, aggParser.getIncludeExclude(), aggParser.getExecutionHint(), aggParser.getFilter(), significanceHeuristic);
     }

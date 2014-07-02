@@ -29,7 +29,7 @@ import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms.Bucket;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsAggregatorFactory.ExecutionMode;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsBuilder;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.DefaultHeuristic;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.JLHScore;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.MutualInformation;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsBuilder;
@@ -309,7 +309,7 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
                 .addAggregation(new SignificantTermsBuilder("mySignificantTerms")
                         .field("description")
                         .executionHint(randomExecutionHint())
-                        .significanceHeuristic(new DefaultHeuristic.DefaultHeuristicBuilder())
+                        .significanceHeuristic(new JLHScore.JLHScoreBuilder())
                         .minDocCount(2))
                 .execute()
                 .actionGet();

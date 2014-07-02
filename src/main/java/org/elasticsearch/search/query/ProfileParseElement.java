@@ -1,9 +1,3 @@
-package org.elasticsearch.search.query;
-
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.SearchParseElement;
-import org.elasticsearch.search.internal.SearchContext;
-
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -22,6 +16,12 @@ import org.elasticsearch.search.internal.SearchContext;
  * specific language governing permissions and limitations
  * under the License.
  */
+
+package org.elasticsearch.search.query;
+
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.search.SearchParseElement;
+import org.elasticsearch.search.internal.SearchContext;
 
 /**
  *

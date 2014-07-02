@@ -1,7 +1,5 @@
 package org.elasticsearch.search.profile;
 
-import org.apache.lucene.queryparser.xml.builders.BooleanFilterBuilder;
-import org.apache.lucene.search.Query;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 
 
@@ -16,7 +14,6 @@ import org.elasticsearch.index.query.*;
 
 import org.junit.Test;
 
-import java.util.ArrayList;
 
 
 public class ProfileQueryTests extends ElasticsearchIntegrationTest {
@@ -187,7 +184,7 @@ public class ProfileQueryTests extends ElasticsearchIntegrationTest {
 
     @Test
     /**
-     * This test verifies that the output is reasonable (non-zero times, etc) for a non-nested query
+     * This test verifies that the output is reasonable (non-zero times, etc) for a nested query
      */
     public void testBool() throws Exception {
         ImmutableSettings.Builder builder = ImmutableSettings.settingsBuilder().put(indexSettings());
@@ -218,8 +215,6 @@ public class ProfileQueryTests extends ElasticsearchIntegrationTest {
 
 
         Profile first = p.getComponents().get(0);
-        System.out.println(p.totalTime());
-        System.out.println(first.totalTime());
         assertEquals(first.getComponents().size(), 0);
         assertEquals(first.getClassName(), "TermQuery");
         assertEquals(first.getLuceneDetails(), "field1:one");

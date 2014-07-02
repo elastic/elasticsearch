@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.query;
 
-import com.carrotsearch.hppc.ObjectLongOpenHashMap;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;

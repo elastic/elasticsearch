@@ -181,7 +181,7 @@ public class IndexLookupTests extends ElasticsearchIntegrationTest {
                     "got: " + e.getDetailedMessage(),
                     e.getDetailedMessage()
                             .indexOf(
-                                    "You must call get with all required flags! Instead of  _index['int_payload_field'].get('b', _FREQUENCIES) and _index['int_payload_field'].get('b', _POSITIONS) call  _index['int_payload_field'].get('b', _FREQUENCIES | _POSITIONS)  once]; "),
+                                    "You must call get with all required flags! Instead of  _index['int_payload_field'].get('b', _FREQUENCIES) and _index['int_payload_field'].get('b', _POSITIONS) call  _index['int_payload_field'].get('b', _FREQUENCIES | _POSITIONS)  once]"),
                     Matchers.greaterThan(-1));
         }
 

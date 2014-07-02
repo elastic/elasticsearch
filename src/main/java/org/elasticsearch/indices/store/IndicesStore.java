@@ -20,27 +20,36 @@
 package org.elasticsearch.indices.store;
 
 import org.apache.lucene.store.StoreRateLimiting;
-import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.settings.NodeSettingsService;
-import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.*;
 
 import java.io.File;
+import java.io.IOException;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  *
@@ -49,6 +58,9 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
 
     public static final String INDICES_STORE_THROTTLE_TYPE = "indices.store.throttle.type";
     public static final String INDICES_STORE_THROTTLE_MAX_BYTES_PER_SEC = "indices.store.throttle.max_bytes_per_sec";
+
+    private static final String ACTION_SHARD_EXISTS = "index/shard/exists";
+    private static final EnumSet<IndexShardState> ACTIVE_STATES = EnumSet.of(IndexShardState.STARTED, IndexShardState.RELOCATED);
 
     class ApplySettings implements NodeSettingsService.Listener {
         @Override
@@ -96,6 +108,7 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
         this.indicesService = indicesService;
         this.clusterService = clusterService;
         this.transportService = transportService;
+        transportService.registerHandler(ACTION_SHARD_EXISTS, new ShardActiveRequestHandler());
 
         // we limit with 20MB / sec by default with a default type set to merge sice 0.90.1
         this.rateLimitingType = componentSettings.get("throttle.type", StoreRateLimiting.Type.MERGE.name());
@@ -107,6 +120,15 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
 
         nodeSettingsService.addListener(applySettings);
         clusterService.addLast(this);
+    }
+
+    IndicesStore() {
+        super(ImmutableSettings.EMPTY);
+        nodeEnv = null;
+        nodeSettingsService = null;
+        indicesService = null;
+        this.clusterService = null;
+        this.transportService = null;
     }
 
     public StoreRateLimiting rateLimiting() {
@@ -131,75 +153,270 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
         for (IndexRoutingTable indexRoutingTable : event.state().routingTable()) {
             // Note, closed indices will not have any routing information, so won't be deleted
             for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
-                ShardId shardId = indexShardRoutingTable.shardId();
-                // a shard can be deleted if all its copies are active, and its not allocated on this node
-                boolean shardCanBeDeleted = true;
-                if (indexShardRoutingTable.size() == 0) {
-                    // should not really happen, there should always be at least 1 (primary) shard in a
-                    // shard replication group, in any case, protected from deleting something by mistake
-                    shardCanBeDeleted = false;
-                } else {
-                    for (ShardRouting shardRouting : indexShardRoutingTable) {
-                        // be conservative here, check on started, not even active
-                        if (!shardRouting.started()) {
-                            shardCanBeDeleted = false;
-                            break;
-                        }
-
-                        // if the allocated or relocation node id doesn't exists in the cluster state or we're not connected to it
-                        // it may be a stale node, make sure we don't do anything with this until the routing table has properly been
-                        // rerouted to reflect the fact that the node does not exists
-                        DiscoveryNode node = event.state().nodes().get(shardRouting.currentNodeId());
-                        if (node == null || !transportService.nodeConnected(node)) {
-                            shardCanBeDeleted = false;
-                            break;
-                        }
-                        if (shardRouting.relocatingNodeId() != null) {
-                            node = event.state().nodes().get(shardRouting.relocatingNodeId());
-                            if (node == null || !transportService.nodeConnected(node)) {
-                                shardCanBeDeleted = false;
-                                break;
-                            }
-                        }
-
-                        // check if shard is active on the current node or is getting relocated to the our node
-                        String localNodeId = clusterService.localNode().id();
-                        if (localNodeId.equals(shardRouting.currentNodeId()) || localNodeId.equals(shardRouting.relocatingNodeId())) {
-                            shardCanBeDeleted = false;
-                            break;
-                        }
-                    }
-                }
-                if (shardCanBeDeleted) {
-                    IndexService indexService = indicesService.indexService(indexRoutingTable.index());
-                    if (indexService == null) {
-                        // not physical allocation of the index, delete it from the file system if applicable
-                        if (nodeEnv.hasNodeFile()) {
-                            File[] shardLocations = nodeEnv.shardLocations(shardId);
-                            if (FileSystemUtils.exists(shardLocations)) {
-                                logger.debug("[{}][{}] deleting shard that is no longer used", shardId.index().name(), shardId.id());
-                                FileSystemUtils.deleteRecursively(shardLocations);
-                            }
-                        }
-                    } else {
-                        if (!indexService.hasShard(shardId.id())) {
-                            if (indexService.store().canDeleteUnallocated(shardId)) {
-                                logger.debug("[{}][{}] deleting shard that is no longer used", shardId.index().name(), shardId.id());
-                                try {
-                                    indexService.store().deleteUnallocated(indexShardRoutingTable.shardId());
-                                } catch (Exception e) {
-                                    logger.debug("[{}][{}] failed to delete unallocated shard, ignoring", e, indexShardRoutingTable.shardId().index().name(), indexShardRoutingTable.shardId().id());
-                                }
-                            }
-                        } else {
-                            // this state is weird, should we log?
-                            // basically, it means that the shard is not allocated on this node using the routing
-                            // but its still physically exists on an IndexService
-                            // Note, this listener should run after IndicesClusterStateService...
-                        }
+                if (shardCanBeDeleted(event.state(), indexShardRoutingTable)) {
+                    ShardId shardId = indexShardRoutingTable.shardId();
+                    IndexService indexService = indicesService.indexService(shardId.getIndex());
+                    if (indexService == null || !indexService.hasShard(shardId.getId())) {
+                        deleteShardIfExistElseWhere(event.state(), indexShardRoutingTable);
                     }
                 }
             }
+        }
+    }
+
+    boolean shardCanBeDeleted(ClusterState state, IndexShardRoutingTable indexShardRoutingTable) {
+        // a shard can be deleted if all its copies are active, and its not allocated on this node
+        if (indexShardRoutingTable.size() == 0) {
+            // should not really happen, there should always be at least 1 (primary) shard in a
+            // shard replication group, in any case, protected from deleting something by mistake
+            return false;
+        }
+
+        for (ShardRouting shardRouting : indexShardRoutingTable) {
+            // be conservative here, check on started, not even active
+            if (!shardRouting.started()) {
+                return false;
+            }
+
+            // if the allocated or relocation node id doesn't exists in the cluster state  it may be a stale node,
+            // make sure we don't do anything with this until the routing table has properly been rerouted to reflect
+            // the fact that the node does not exists
+            DiscoveryNode node = state.nodes().get(shardRouting.currentNodeId());
+            if (node == null) {
+                return false;
+            }
+            // If all nodes have been upgraded to >= 1.3.0 at some point we get back here and have the chance to
+            // run this api. (when cluster state is then updated)
+            if (node.getVersion().before(Version.V_1_3_0)) {
+                logger.debug("Skip deleting deleting shard instance [{}], a node holding a shard instance is < 1.3.0", shardRouting);
+                return false;
+            }
+            if (shardRouting.relocatingNodeId() != null) {
+                node = state.nodes().get(shardRouting.relocatingNodeId());
+                if (node == null) {
+                    return false;
+                }
+                if (node.getVersion().before(Version.V_1_3_0)) {
+                    logger.debug("Skip deleting deleting shard instance [{}], a node holding a shard instance is < 1.3.0", shardRouting);
+                    return false;
+                }
+            }
+
+            // check if shard is active on the current node or is getting relocated to the our node
+            String localNodeId = state.getNodes().localNode().id();
+            if (localNodeId.equals(shardRouting.currentNodeId()) || localNodeId.equals(shardRouting.relocatingNodeId())) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private void deleteShardIfExistElseWhere(ClusterState state, IndexShardRoutingTable indexShardRoutingTable) {
+        List<Tuple<DiscoveryNode, ShardActiveRequest>> requests = new ArrayList<>(indexShardRoutingTable.size());
+        String indexUUID = state.getMetaData().index(indexShardRoutingTable.shardId().getIndex()).getUUID();
+        ClusterName clusterName = state.getClusterName();
+        for (ShardRouting shardRouting : indexShardRoutingTable) {
+            // Node can't be null, because otherwise shardCanBeDeleted() would have returned false
+            DiscoveryNode currentNode = state.nodes().get(shardRouting.currentNodeId());
+            assert currentNode != null;
+
+            requests.add(new Tuple<>(currentNode, new ShardActiveRequest(clusterName, indexUUID, shardRouting.shardId())));
+            if (shardRouting.relocatingNodeId() != null) {
+                DiscoveryNode relocatingNode = state.nodes().get(shardRouting.relocatingNodeId());
+                assert  relocatingNode != null;
+                requests.add(new Tuple<>(relocatingNode, new ShardActiveRequest(clusterName, indexUUID, shardRouting.shardId())));
+            }
+        }
+
+        ShardActiveResponseHandler responseHandler = new ShardActiveResponseHandler(indexShardRoutingTable.shardId(), state, requests.size());
+        for (Tuple<DiscoveryNode, ShardActiveRequest> request : requests) {
+            transportService.submitRequest(request.v1(), ACTION_SHARD_EXISTS, request.v2(), responseHandler);
+        }
+    }
+
+    private class ShardActiveResponseHandler implements TransportResponseHandler<ShardActiveResponse> {
+
+        private final ShardId shardId;
+        private final int expectedActiveCopies;
+        private final ClusterState clusterState;
+        private final AtomicInteger awaitingResponses;
+        private final AtomicInteger activeCopies;
+
+        public ShardActiveResponseHandler(ShardId shardId, ClusterState clusterState, int expectedActiveCopies) {
+            this.shardId = shardId;
+            this.expectedActiveCopies = expectedActiveCopies;
+            this.clusterState = clusterState;
+            this.awaitingResponses = new AtomicInteger(expectedActiveCopies);
+            this.activeCopies = new AtomicInteger();
+        }
+
+        @Override
+        public ShardActiveResponse newInstance() {
+            return new ShardActiveResponse();
+        }
+
+        @Override
+        public void handleResponse(ShardActiveResponse response) {
+            if (response.shardActive) {
+                logger.trace("[{}] exists on node [{}]", shardId, response.node);
+                activeCopies.incrementAndGet();
+            }
+
+            if (awaitingResponses.decrementAndGet() == 0) {
+                allNodesResponded();
+            }
+        }
+
+        @Override
+        public void handleException(TransportException exp) {
+            logger.debug("shards active request failed for {}", exp, shardId);
+            if (awaitingResponses.decrementAndGet() == 0) {
+                allNodesResponded();
+            }
+        }
+
+        @Override
+        public String executor() {
+            return ThreadPool.Names.SAME;
+        }
+
+        private void allNodesResponded() {
+            if (activeCopies.get() != expectedActiveCopies) {
+                logger.trace("not deleting shard [{}], expected {} active copies, but only {} found active copies", shardId, expectedActiveCopies, activeCopies.get());
+                return;
+            }
+
+            ClusterState latestClusterState = clusterService.state();
+            if (clusterState.getVersion() != latestClusterState.getVersion()) {
+                logger.trace("not deleting shard [{}], the latest cluster state version[{}] is not equal to cluster state before shard active api call [{}]", shardId, latestClusterState.getVersion(), clusterState.getVersion());
+                return;
+            }
+
+            IndexService indexService = indicesService.indexService(shardId.getIndex());
+            if (indexService == null) {
+                // not physical allocation of the index, delete it from the file system if applicable
+                if (nodeEnv.hasNodeFile()) {
+                    File[] shardLocations = nodeEnv.shardLocations(shardId);
+                    if (FileSystemUtils.exists(shardLocations)) {
+                        logger.debug("[{}][{}] deleting shard that is no longer used", shardId.index().name(), shardId.id());
+                        FileSystemUtils.deleteRecursively(shardLocations);
+                    }
+                }
+            } else {
+                if (!indexService.hasShard(shardId.id())) {
+                    if (indexService.store().canDeleteUnallocated(shardId)) {
+                        logger.debug("[{}][{}] deleting shard that is no longer used", shardId.index().name(), shardId.id());
+                        try {
+                            indexService.store().deleteUnallocated(shardId);
+                        } catch (Exception e) {
+                            logger.debug("[{}][{}] failed to delete unallocated shard, ignoring", e, shardId.index().name(), shardId.id());
+                        }
+                    }
+                } else {
+                    // this state is weird, should we log?
+                    // basically, it means that the shard is not allocated on this node using the routing
+                    // but its still physically exists on an IndexService
+                    // Note, this listener should run after IndicesClusterStateService...
+                }
+            }
+        }
+
+    }
+
+    private class ShardActiveRequestHandler extends BaseTransportRequestHandler<ShardActiveRequest> {
+
+        @Override
+        public ShardActiveRequest newInstance() {
+            return new ShardActiveRequest();
+        }
+
+        @Override
+        public String executor() {
+            return ThreadPool.Names.SAME;
+        }
+
+        @Override
+        public void messageReceived(ShardActiveRequest request, TransportChannel channel) throws Exception {
+            channel.sendResponse(new ShardActiveResponse(shardActive(request), clusterService.localNode()));
+        }
+
+        private boolean shardActive(ShardActiveRequest request) {
+            ClusterName thisClusterName = clusterService.state().getClusterName();
+            if (!thisClusterName.equals(request.clusterName)) {
+                logger.trace("shard exists request meant for cluster[{}], but this is cluster[{}], ignoring request", request.clusterName, thisClusterName);
+                return false;
+            }
+
+            ShardId shardId = request.shardId;
+            IndexService indexService = indicesService.indexService(shardId.index().getName());
+            if (indexService != null && indexService.indexUUID().equals(request.indexUUID)) {
+                IndexShard indexShard = indexService.shard(shardId.getId());
+                if (indexShard != null) {
+                    return ACTIVE_STATES.contains(indexShard.state());
+                }
+            }
+            return false;
+        }
+    }
+
+    private static class ShardActiveRequest extends TransportRequest {
+
+        private ClusterName clusterName;
+        private String indexUUID;
+        private ShardId shardId;
+
+        ShardActiveRequest() {
+        }
+
+        ShardActiveRequest(ClusterName clusterName, String indexUUID, ShardId shardId) {
+            this.shardId = shardId;
+            this.indexUUID = indexUUID;
+            this.clusterName = clusterName;
+        }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            super.readFrom(in);
+            clusterName = ClusterName.readClusterName(in);
+            indexUUID = in.readString();
+            shardId = ShardId.readShardId(in);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            clusterName.writeTo(out);
+            out.writeString(indexUUID);
+            shardId.writeTo(out);
+        }
+    }
+
+    private static class ShardActiveResponse extends TransportResponse {
+
+        private boolean shardActive;
+        private DiscoveryNode node;
+
+        ShardActiveResponse() {
+        }
+
+        ShardActiveResponse(boolean shardActive, DiscoveryNode node) {
+            this.shardActive = shardActive;
+            this.node = node;
+        }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            super.readFrom(in);
+            shardActive = in.readBoolean();
+            node = DiscoveryNode.readNode(in);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeBoolean(shardActive);
+            node.writeTo(out);
         }
     }
 }

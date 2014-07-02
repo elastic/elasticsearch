@@ -31,8 +31,8 @@ import org.junit.Test;
  *  eg. BytesRefFieldComparatorSource makes decisions based on whether the field data implements WithOrdinals. */
 public class NoOrdinalsStringFieldDataTests extends PagedBytesStringFieldDataTests {
 
-    public static IndexFieldData<AtomicFieldData<ScriptDocValues>> hideOrdinals(final IndexFieldData<?> in) {
-        return new IndexFieldData<AtomicFieldData<ScriptDocValues>>() {
+    public static IndexFieldData<AtomicFieldData> hideOrdinals(final IndexFieldData<?> in) {
+        return new IndexFieldData<AtomicFieldData>() {
 
             @Override
             public Index index() {
@@ -50,17 +50,12 @@ public class NoOrdinalsStringFieldDataTests extends PagedBytesStringFieldDataTes
             }
 
             @Override
-            public boolean valuesOrdered() {
-                return in.valuesOrdered();
-            }
-
-            @Override
-            public AtomicFieldData<ScriptDocValues> load(AtomicReaderContext context) {
+            public AtomicFieldData load(AtomicReaderContext context) {
                 return in.load(context);
             }
 
             @Override
-            public AtomicFieldData<ScriptDocValues> loadDirect(AtomicReaderContext context) throws Exception {
+            public AtomicFieldData loadDirect(AtomicReaderContext context) throws Exception {
                 return in.loadDirect(context);
             }
 
@@ -84,7 +79,7 @@ public class NoOrdinalsStringFieldDataTests extends PagedBytesStringFieldDataTes
 
     @SuppressWarnings("unchecked")
     @Override
-    public IndexFieldData<AtomicFieldData<ScriptDocValues>> getForField(String fieldName) {
+    public IndexFieldData<AtomicFieldData> getForField(String fieldName) {
         return hideOrdinals(super.getForField(fieldName));
     }
 

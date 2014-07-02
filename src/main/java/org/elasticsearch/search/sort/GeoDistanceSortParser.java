@@ -19,25 +19,30 @@
 
 package org.elasticsearch.search.sort;
 
+import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.SortField.Type;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.geo.GeoDistance;
+import org.elasticsearch.common.geo.GeoDistance.FixedSourceDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
-import org.elasticsearch.index.fielddata.fieldcomparator.GeoDistanceComparatorSource;
-import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.index.fielddata.*;
+import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparator;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.ObjectMappers;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.query.ParsedFilter;
 import org.elasticsearch.index.search.nested.NestedFieldComparatorSource;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
+import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.internal.SearchContext;
+
+import java.io.IOException;
 
 /**
  *
@@ -115,15 +120,34 @@ public class GeoDistanceSortParser implements SortParser {
             throw new ElasticsearchIllegalArgumentException("sort_mode [sum] isn't supported for sorting by geo distance");
         }
 
-        FieldMapper mapper = context.smartNameFieldMapper(fieldName);
+        FieldMapper<?> mapper = context.smartNameFieldMapper(fieldName);
         if (mapper == null) {
             throw new ElasticsearchIllegalArgumentException("failed to find mapper for [" + fieldName + "] for geo distance based sort");
         }
-        IndexGeoPointFieldData indexFieldData = context.fieldData().getForField(mapper);
+        final MultiValueMode finalSortMode = sortMode; // final reference for use in the anonymous class
+        final IndexGeoPointFieldData geoIndexFieldData = context.fieldData().getForField(mapper);
+        final FixedSourceDistance distance = geoDistance.fixedSourceDistance(point.lat(), point.lon(), unit);
+        IndexFieldData.XFieldComparatorSource geoDistanceComparatorSource = new IndexFieldData.XFieldComparatorSource() {
 
-        IndexFieldData.XFieldComparatorSource geoDistanceComparatorSource = new GeoDistanceComparatorSource(
-            indexFieldData, point.lat(), point.lon(), unit, geoDistance, sortMode
-        );
+            @Override
+            public Type reducedType() {
+                return Type.DOUBLE;
+            }
+
+            @Override
+            public FieldComparator<?> newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
+                return new DoubleValuesComparator(null, Double.MAX_VALUE, numHits, finalSortMode) {
+                    @Override
+                    protected NumericDoubleValues getNumericDoubleValues(AtomicReaderContext context) {
+                        final MultiGeoPointValues geoPointValues = geoIndexFieldData.load(context).getGeoPointValues();
+                        final SortedNumericDoubleValues distanceValues = GeoDistance.distanceValues(distance, geoPointValues);
+                        return sortMode.select(distanceValues, Double.MAX_VALUE);
+                    }
+
+                };
+            }
+
+        };
         ObjectMapper objectMapper;
         if (nestedPath != null) {
             ObjectMappers objectMappers = context.mapperService().objectMapper(nestedPath);

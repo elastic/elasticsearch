@@ -24,10 +24,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Field.Store;
 import org.apache.lucene.document.StringField;
-import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.index.*;
 import org.apache.lucene.queries.TermFilter;
 import org.apache.lucene.search.*;
 import org.apache.lucene.search.join.FixedBitSetCachingWrapperFilter;
@@ -424,75 +421,84 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
         fillExtendedMvSet();
         refreshReader();
         FieldDataType fieldDataType = new FieldDataType("string", ImmutableSettings.builder().put("global_values", "fixed"));
-        IndexFieldData.WithOrdinals ifd = getForField(fieldDataType, "value");
-        IndexFieldData.WithOrdinals globalOrdinals = ifd.loadGlobal(topLevelReader);
+        IndexOrdinalsFieldData ifd = getForField(fieldDataType, "value");
+        IndexOrdinalsFieldData globalOrdinals = ifd.loadGlobal(topLevelReader);
         assertThat(topLevelReader.leaves().size(), equalTo(3));
 
         // First segment
         assertThat(globalOrdinals, instanceOf(GlobalOrdinalsIndexFieldData.class));
-        AtomicFieldData.WithOrdinals afd = globalOrdinals.load(topLevelReader.leaves().get(0));
-        BytesValues.WithOrdinals values = afd.getBytesValues();
-        assertThat(values.setDocument(0), equalTo(2));
+        AtomicOrdinalsFieldData afd = globalOrdinals.load(topLevelReader.leaves().get(0));
+        RandomAccessOrds values = afd.getOrdinalsValues();
+        values.setDocument(0);
+        assertThat(values.cardinality(), equalTo(2));
         long ord = values.nextOrd();
         assertThat(ord, equalTo(3l));
-        assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("02"));
+        assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("02"));
         ord = values.nextOrd();
         assertThat(ord, equalTo(5l));
-        assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("04"));
-        assertThat(values.setDocument(1), equalTo(0));
-        assertThat(values.setDocument(2), equalTo(1));
+        assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("04"));
+        values.setDocument(1);
+        assertThat(values.cardinality(), equalTo(0));
+        values.setDocument(2);
+        assertThat(values.cardinality(), equalTo(1));
         ord = values.nextOrd();
         assertThat(ord, equalTo(4l));
-        assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("03"));
+        assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("03"));
 
         // Second segment
         afd = globalOrdinals.load(topLevelReader.leaves().get(1));
-        values = afd.getBytesValues();
-        assertThat(values.setDocument(0), equalTo(3));
+        values = afd.getOrdinalsValues();
+        values.setDocument(0);
+        assertThat(values.cardinality(), equalTo(3));
         ord = values.nextOrd();
         assertThat(ord, equalTo(5l));
-        assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("04"));
+        assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("04"));
         ord = values.nextOrd();
         assertThat(ord, equalTo(6l));
-        assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("05"));
+        assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("05"));
         ord = values.nextOrd();
         assertThat(ord, equalTo(7l));
-        assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("06"));
-        assertThat(values.setDocument(1), equalTo(3));
+        assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("06"));
+        values.setDocument(1);
+        assertThat(values.cardinality(), equalTo(3));
         ord = values.nextOrd();
         assertThat(ord, equalTo(7l));
-        assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("06"));
+        assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("06"));
         ord = values.nextOrd();
         assertThat(ord, equalTo(8l));
-        assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("07"));
+        assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("07"));
         ord = values.nextOrd();
         assertThat(ord, equalTo(9l));
-        assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("08"));
-        assertThat(values.setDocument(2), equalTo(0));
-        assertThat(values.setDocument(3), equalTo(3));
+        assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("08"));
+        values.setDocument(2);
+        assertThat(values.cardinality(), equalTo(0));
+        values.setDocument(3);
+        assertThat(values.cardinality(), equalTo(3));
         ord = values.nextOrd();
         assertThat(ord, equalTo(9l));
-        assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("08"));
+        assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("08"));
         ord = values.nextOrd();
         assertThat(ord, equalTo(10l));
-        assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("09"));
+        assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("09"));
         ord = values.nextOrd();
         assertThat(ord, equalTo(11l));
-        assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("10"));
+        assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("10"));
 
         // Third segment
         afd = globalOrdinals.load(topLevelReader.leaves().get(2));
-        values = afd.getBytesValues();
-        assertThat(values.setDocument(0), equalTo(3));
+        values = afd.getOrdinalsValues();
+        values.setDocument(0);
+        values.setDocument(0);
+        assertThat(values.cardinality(), equalTo(3));
         ord = values.nextOrd();
         assertThat(ord, equalTo(0l));
-        assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("!08"));
+        assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("!08"));
         ord = values.nextOrd();
         assertThat(ord, equalTo(1l));
-        assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("!09"));
+        assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("!09"));
         ord = values.nextOrd();
         assertThat(ord, equalTo(2l));
-        assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("!10"));
+        assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("!10"));
     }
 
     @Test
@@ -500,10 +506,10 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
         fillExtendedMvSet();
         AtomicReaderContext atomicReaderContext = refreshReader();
 
-        IndexFieldData.WithOrdinals ifd = getForField("value");
-        AtomicFieldData.WithOrdinals afd = ifd.load(atomicReaderContext);
+        IndexOrdinalsFieldData ifd = getForField("value");
+        AtomicOrdinalsFieldData afd = ifd.load(atomicReaderContext);
 
-        TermsEnum termsEnum = afd.getBytesValues().getTermsEnum();
+        TermsEnum termsEnum = afd.getOrdinalsValues().termsEnum();
         int size = 0;
         while (termsEnum.next() != null) {
             size++;
@@ -536,16 +542,16 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
         fillExtendedMvSet();
         refreshReader();
         FieldDataType fieldDataType = new FieldDataType("string", ImmutableSettings.builder().put("global_values", "fixed").put("cache", "node"));
-        IndexFieldData.WithOrdinals ifd = getForField(fieldDataType, "value");
-        IndexFieldData.WithOrdinals globalOrdinals = ifd.loadGlobal(topLevelReader);
+        IndexOrdinalsFieldData ifd = getForField(fieldDataType, "value");
+        IndexOrdinalsFieldData globalOrdinals = ifd.loadGlobal(topLevelReader);
         assertThat(ifd.loadGlobal(topLevelReader), sameInstance(globalOrdinals));
         // 3 b/c 1 segment level caches and 1 top level cache
         assertThat(indicesFieldDataCache.getCache().size(), equalTo(4l));
 
-        IndexFieldData.WithOrdinals cachedInstace = null;
+        IndexOrdinalsFieldData cachedInstace = null;
         for (Accountable ramUsage : indicesFieldDataCache.getCache().asMap().values()) {
-            if (ramUsage instanceof IndexFieldData.WithOrdinals) {
-                cachedInstace = (IndexFieldData.WithOrdinals) ramUsage;
+            if (ramUsage instanceof IndexOrdinalsFieldData) {
+                cachedInstace = (IndexOrdinalsFieldData) ramUsage;
                 break;
             }
         }

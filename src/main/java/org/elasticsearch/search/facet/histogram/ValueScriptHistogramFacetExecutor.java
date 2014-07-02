@@ -23,9 +23,9 @@ import com.carrotsearch.hppc.LongObjectOpenHashMap;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.recycler.Recycler;
-import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.facet.DoubleFacetAggregatorBase;
 import org.elasticsearch.search.facet.FacetExecutor;
@@ -85,7 +85,7 @@ public class ValueScriptHistogramFacetExecutor extends FacetExecutor {
 
     class Collector extends FacetExecutor.Collector {
 
-        private DoubleValues values;
+        private SortedNumericDoubleValues values;
         private final HistogramProc histoProc;
 
         public Collector() {

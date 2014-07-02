@@ -20,21 +20,22 @@ package org.elasticsearch.index.fielddata.fieldcomparator;
 
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.FieldComparator;
-import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.NumericDoubleValues;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
 
 abstract class DoubleValuesComparatorBase<T extends Number> extends NumberComparatorBase<T> {
 
-    protected final IndexNumericFieldData<?> indexFieldData;
+    protected final IndexNumericFieldData indexFieldData;
     protected final double missingValue;
     protected double bottom;
-    protected DoubleValues readerValues;
+    protected NumericDoubleValues readerValues;
     protected final MultiValueMode sortMode;
 
-    public DoubleValuesComparatorBase(IndexNumericFieldData<?> indexFieldData, double missingValue, MultiValueMode sortMode) {
+    public DoubleValuesComparatorBase(IndexNumericFieldData indexFieldData, double missingValue, MultiValueMode sortMode) {
         this.indexFieldData = indexFieldData;
         this.missingValue = missingValue;
         this.sortMode = sortMode;
@@ -42,18 +43,23 @@ abstract class DoubleValuesComparatorBase<T extends Number> extends NumberCompar
 
     @Override
     public final int compareBottom(int doc) throws IOException {
-        final double v2 = sortMode.getRelevantValue(readerValues, doc, missingValue);
+        final double v2 = readerValues.get(doc);
         return compare(bottom, v2);
     }
 
     @Override
     public int compareTop(int doc) throws IOException {
-        return compare(top.doubleValue(), sortMode.getRelevantValue(readerValues, doc, missingValue));
+        return compare(top.doubleValue(), readerValues.get(doc));
+    }
+
+    protected NumericDoubleValues getNumericDoubleValues(AtomicReaderContext context) {
+        SortedNumericDoubleValues readerValues = indexFieldData.load(context).getDoubleValues();
+        return sortMode.select(readerValues, missingValue);
     }
 
     @Override
     public final FieldComparator<T> setNextReader(AtomicReaderContext context) throws IOException {
-        readerValues = indexFieldData.load(context).getDoubleValues();
+        this.readerValues = getNumericDoubleValues(context);
         return this;
     }
 

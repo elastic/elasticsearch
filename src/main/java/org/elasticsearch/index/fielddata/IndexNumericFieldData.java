@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
@@ -28,7 +27,7 @@ import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
 
 /**
  */
-public interface IndexNumericFieldData<FD extends AtomicNumericFieldData> extends IndexFieldData<FD> {
+public interface IndexNumericFieldData extends IndexFieldData<AtomicNumericFieldData> {
 
     public static enum NumericType {
         BYTE(8, false, SortField.Type.INT, Byte.MIN_VALUE, Byte.MAX_VALUE) {
@@ -183,14 +182,4 @@ public interface IndexNumericFieldData<FD extends AtomicNumericFieldData> extend
     }
 
     NumericType getNumericType();
-
-    /**
-     * Loads the atomic field data for the reader, possibly cached.
-     */
-    FD load(AtomicReaderContext context);
-
-    /**
-     * Loads directly the atomic field data for the reader, ignoring any caching involved.
-     */
-    FD loadDirect(AtomicReaderContext context) throws Exception;
 }

@@ -21,11 +21,11 @@ package org.elasticsearch.search.facet.datehistogram;
 
 import com.carrotsearch.hppc.LongLongOpenHashMap;
 import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.rounding.TimeZoneRounding;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.fielddata.LongValues;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.InternalFacet;
 import org.elasticsearch.search.facet.LongFacetAggregatorBase;
@@ -76,7 +76,7 @@ public class CountDateHistogramFacetExecutor extends FacetExecutor {
 
     class Collector extends FacetExecutor.Collector {
 
-        private LongValues values;
+        private SortedNumericDocValues values;
         private final DateHistogramProc histoProc;
 
         public Collector() {

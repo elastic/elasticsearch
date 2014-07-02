@@ -86,7 +86,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
             Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource, long estimatedBucketCount,
                               long maxOrd, InternalOrder order, TermsAggregator.BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude,
                               AggregationContext aggregationContext, Aggregator parent, SubAggCollectionMode subAggCollectMode) {
-                if (includeExclude != null || factories != null) {
+                if (includeExclude != null || factories.count() > 0) {
                     return GLOBAL_ORDINALS.create(name, factories, valuesSource, estimatedBucketCount, maxOrd, order, bucketCountThresholds, includeExclude, aggregationContext, parent, subAggCollectMode);
                 }
                 return new GlobalOrdinalsStringTermsAggregator.LowCardinality(name, factories, (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, estimatedBucketCount, maxOrd, order, bucketCountThresholds, aggregationContext, parent, subAggCollectMode);

@@ -60,8 +60,8 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -759,11 +759,12 @@ public class PercolatorService extends AbstractComponent {
                 for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
                     int segmentIdx = ReaderUtil.subIndex(scoreDoc.doc, percolatorSearcher.reader().leaves());
                     AtomicReaderContext atomicReaderContext = percolatorSearcher.reader().leaves().get(segmentIdx);
-                    BytesValues values = idFieldData.load(atomicReaderContext).getBytesValues();
+                    SortedBinaryDocValues values = idFieldData.load(atomicReaderContext).getBytesValues();
                     final int localDocId = scoreDoc.doc - atomicReaderContext.docBase;
-                    final int numValues = values.setDocument(localDocId);
+                    values.setDocument(localDocId);
+                    final int numValues = values.count();
                     assert numValues == 1;
-                    BytesRef bytes = values.nextValue();
+                    BytesRef bytes = values.valueAt(0);
                     matches.add(BytesRef.deepCopyOf(bytes));
                     if (hls != null) {
                         Query query = context.percolateQueries().get(bytes);

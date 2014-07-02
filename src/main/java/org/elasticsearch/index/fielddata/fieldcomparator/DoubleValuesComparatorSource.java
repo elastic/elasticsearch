@@ -32,11 +32,11 @@ import java.io.IOException;
  */
 public class DoubleValuesComparatorSource extends IndexFieldData.XFieldComparatorSource {
 
-    private final IndexNumericFieldData<?> indexFieldData;
+    private final IndexNumericFieldData indexFieldData;
     private final Object missingValue;
     private final MultiValueMode sortMode;
 
-    public DoubleValuesComparatorSource(IndexNumericFieldData<?> indexFieldData, @Nullable Object missingValue, MultiValueMode sortMode) {
+    public DoubleValuesComparatorSource(IndexNumericFieldData indexFieldData, @Nullable Object missingValue, MultiValueMode sortMode) {
         this.indexFieldData = indexFieldData;
         this.missingValue = missingValue;
         this.sortMode = sortMode;

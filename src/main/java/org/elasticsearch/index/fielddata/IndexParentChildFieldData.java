@@ -16,22 +16,28 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.fielddata.plain;
 
-import org.elasticsearch.index.fielddata.DoubleValues;
+package org.elasticsearch.index.fielddata;
+
+import org.apache.lucene.index.IndexReader;
+
+
+
 
 /**
- * Package private base class for dense double values.
+ * Soecialization of {@link IndexFieldData} for parent/child mappings.
  */
-abstract class DenseDoubleValues extends DoubleValues {
+public interface IndexParentChildFieldData extends IndexFieldData.Global<AtomicParentChildFieldData> {
 
-    protected DenseDoubleValues(boolean multiValued) {
-        super(multiValued);
-    }
+    /**
+     * Load a global view of the ordinals for the given {@link IndexReader},
+     * potentially from a cache.
+     */
+    IndexParentChildFieldData loadGlobal(IndexReader indexReader);
 
-    @Override
-    public final int setDocument(int docId) {
-        this.docId = docId;
-        return 1;
-    }
+    /**
+     * Load a global view of the ordinals for the given {@link IndexReader}.
+     */
+    IndexParentChildFieldData localGlobalDirect(IndexReader indexReader) throws Exception;
+
 }

@@ -2,6 +2,7 @@ package org.elasticsearch.search.profile;
 
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -72,6 +73,18 @@ public class Profile implements Streamable, ToXContent {
         }
     }
 
+    public ArrayList<Profile> getComponents() {
+        return this.components;
+    }
+
+    public String getClassName() {
+        return this.className;
+    }
+
+    public String getLuceneDetails() {
+        return this.details;
+    }
+
     public long time() {
         return time;
     }
@@ -129,23 +142,25 @@ public class Profile implements Streamable, ToXContent {
      * @param profiles list of profiles to merge
      * @return         Single Profile object representing the merged set
      */
-    public static Profile merge(List<Profile> profiles) {
+    public static Profile merge(Profile... profiles) {
 
-        if (profiles.size() == 0) {
-            // TODO ???
-        } else if (profiles.size() == 1) {
-            profiles.get(0).setTotalTime(profiles.get(0).time());
-            return profiles.get(0);
+        if (profiles.length == 0) {
+            throw new ElasticsearchException("Cannot merge zero profiles together.");
         }
 
-        Profile p = profiles.remove(0);
-        for (Profile profile : profiles) {
-            p.merge(profile);
+        Profile finalProfile = null;
+        for (Profile p : profiles) {
+            if (finalProfile == null) {
+                finalProfile = p;
+            } else {
+                finalProfile = finalProfile.merge(p);
+            }
         }
 
-        p.setTotalTime(p.time());
+        // finalProfile cannot be null here, since we abort earlier if profiles.len == 0
+        finalProfile.setTotalTime(finalProfile.time());
 
-        return p;
+        return finalProfile;
     }
 
     public static Profile readProfile(StreamInput in) throws IOException {

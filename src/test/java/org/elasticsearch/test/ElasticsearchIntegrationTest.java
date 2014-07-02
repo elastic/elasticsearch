@@ -190,13 +190,6 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     public static final String SETTING_INDEX_SEED = "index.tests.seed";
 
     /**
-     * Property that allows to adapt the tests behaviour to older features/bugs based on the input version
-     */
-    public static final String TESTS_COMPATIBILITY = "tests.compatibility";
-
-    private static final Version COMPATIBILITY_VERSION = Version.fromString(compatibilityVersionProperty());
-
-    /**
      * Threshold at which indexing switches from frequently async to frequently bulk.
      */
     private static final int FREQUENT_BULK_THRESHOLD = 300;
@@ -268,7 +261,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             } else {
                 long masterSeed = SeedUtils.parseSeed(RandomizedContext.current().getRunnerSeedAsString());
                 int numClientNodes;
-                if (COMPATIBILITY_VERSION.before(Version.V_1_2_0)) {
+                if (globalCompatibilityVersion().before(Version.V_1_2_0)) {
                     numClientNodes = 0;
                 } else {
                     numClientNodes = InternalTestCluster.DEFAULT_NUM_CLIENT_NODES;
@@ -1655,44 +1648,4 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     @Ignore
     public @interface SuiteScopeTest {
     }
-
-
-    /**
-     * If a test is annotated with {@link org.elasticsearch.test.ElasticsearchIntegrationTest.CompatibilityVersion}
-     * all randomized settings will only contain settings or mappings which are compatible with the specified version ID.
-     */
-    @Retention(RetentionPolicy.RUNTIME)
-    @Target({ElementType.TYPE})
-    @Ignore
-    public @interface CompatibilityVersion {
-        int version();
-    }
-
-    /**
-     * Retruns the tests compatibility version.
-     */
-    public Version compatibilityVersion() {
-        return compatibiltyVersion(getClass());
-    }
-
-    private Version compatibiltyVersion(Class<?> clazz) {
-        if (clazz == Object.class || clazz == ElasticsearchIntegrationTest.class) {
-            return COMPATIBILITY_VERSION;
-        }
-        CompatibilityVersion annotation = clazz.getAnnotation(CompatibilityVersion.class);
-        if (annotation != null) {
-            return  Version.smallest(Version.fromId(annotation.version()), COMPATIBILITY_VERSION);
-        }
-        return compatibiltyVersion(clazz.getSuperclass());
-    }
-
-    private static String compatibilityVersionProperty() {
-        final String version = System.getProperty(TESTS_COMPATIBILITY);
-        if (Strings.hasLength(version)) {
-            return version;
-        }
-        return System.getProperty(TESTS_BACKWARDS_COMPATIBILITY_VERSION);
-    }
-
-
 }

@@ -29,9 +29,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.plugins.AbstractPlugin;
 import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsAggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsBuilder;
@@ -58,7 +62,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-@ClusterScope(scope = Scope.SUITE, numDataNodes = 1)
+@ClusterScope(scope = Scope.SUITE)
 public class SignificantTermsSignificanceScoreTests extends ElasticsearchIntegrationTest {
 
     static final String INDEX_NAME = "testidx";
@@ -258,6 +262,70 @@ public class SignificantTermsSignificanceScoreTests extends ElasticsearchIntegra
 
     }
 
+    // compute significance score by
+    // 1. terms agg on class and significant terms
+    // 2. filter buckets and set the background to the other class and set is_background false
+    // both should yield exact same result
+    @Test
+    public void testBackgroundVsSeparateSet() throws Exception {
+        String type = randomBoolean() ? "string" : "long";
+        String settings = "{\"index.number_of_shards\": 1, \"index.number_of_replicas\": 0}";
+        index01Docs(type, settings);
+        SearchResponse response1 = client().prepareSearch(INDEX_NAME).setTypes(DOC_TYPE)
+                .addAggregation(new TermsBuilder("class")
+                        .field(CLASS_FIELD)
+                        .subAggregation(
+                                new SignificantTermsBuilder("sig_terms")
+                                        .field(TEXT_FIELD)
+                                        .minDocCount(1)
+                                        .significanceHeuristic(
+                                                new MutualInformation.MutualInformationBuilder()
+                                                        .setIncludeNegatives(true)
+                                                        .setIsBackground(true))))
+                .execute()
+                .actionGet();
+        assertSearchResponse(response1);
+        SearchResponse response2 = client().prepareSearch(INDEX_NAME).setTypes(DOC_TYPE)
+                .addAggregation((new FilterAggregationBuilder("0"))
+                        .filter(FilterBuilders.termFilter(CLASS_FIELD, "0"))
+                        .subAggregation(new SignificantTermsBuilder("sig_terms")
+                                .field(TEXT_FIELD)
+                                .minDocCount(1)
+                                .backgroundFilter(FilterBuilders.termFilter(CLASS_FIELD, "1"))
+                                .significanceHeuristic(new MutualInformation.MutualInformationBuilder()
+                                        .setIncludeNegatives(true)
+                                        .setIsBackground(false))))
+                .addAggregation((new FilterAggregationBuilder("1"))
+                        .filter(FilterBuilders.termFilter(CLASS_FIELD, "1"))
+                        .subAggregation(new SignificantTermsBuilder("sig_terms")
+                                .field(TEXT_FIELD)
+                                .minDocCount(1)
+                                .backgroundFilter(FilterBuilders.termFilter(CLASS_FIELD, "0"))
+                                .significanceHeuristic(new MutualInformation.MutualInformationBuilder()
+                                        .setIncludeNegatives(true)
+                                        .setIsBackground(false))))
+                .execute()
+                .actionGet();
+
+        SignificantTerms sigTerms0 = ((SignificantTerms) (((StringTerms) response1.getAggregations().get("class")).getBucketByKey("0").getAggregations().asMap().get("sig_terms")));
+        assertThat(sigTerms0.getBuckets().size(), equalTo(2));
+        double score00Background = sigTerms0.getBucketByKey("0").getSignificanceScore();
+        double score01Background = sigTerms0.getBucketByKey("1").getSignificanceScore();
+        SignificantTerms sigTerms1 = ((SignificantTerms) (((StringTerms) response1.getAggregations().get("class")).getBucketByKey("0").getAggregations().asMap().get("sig_terms")));
+        double score10Background = sigTerms1.getBucketByKey("0").getSignificanceScore();
+        double score11Background = sigTerms1.getBucketByKey("1").getSignificanceScore();
+
+        double score00SeparateSets = ((SignificantTerms) ((InternalFilter) response2.getAggregations().get("0")).getAggregations().getAsMap().get("sig_terms")).getBucketByKey("0").getSignificanceScore();
+        double score01SeparateSets = ((SignificantTerms) ((InternalFilter) response2.getAggregations().get("0")).getAggregations().getAsMap().get("sig_terms")).getBucketByKey("1").getSignificanceScore();
+        double score10SeparateSets = ((SignificantTerms) ((InternalFilter) response2.getAggregations().get("1")).getAggregations().getAsMap().get("sig_terms")).getBucketByKey("0").getSignificanceScore();
+        double score11SeparateSets = ((SignificantTerms) ((InternalFilter) response2.getAggregations().get("1")).getAggregations().getAsMap().get("sig_terms")).getBucketByKey("1").getSignificanceScore();
+
+        assertThat(score00Background, equalTo(score00SeparateSets));
+        assertThat(score01Background, equalTo(score01SeparateSets));
+        assertThat(score10Background, equalTo(score10SeparateSets));
+        assertThat(score11Background, equalTo(score11SeparateSets));
+    }
+
     private void index01Docs(String type, String settings) throws ExecutionException, InterruptedException {
         String mappings = "{\"doc\": {\"properties\":{\"text\": {\"type\":\"" + type + "\"}}}}";
         assertAcked(prepareCreate(INDEX_NAME).setSettings(settings).addMapping("doc", mappings));
@@ -301,8 +369,8 @@ public class SignificantTermsSignificanceScoreTests extends ElasticsearchIntegra
         assertThat(classA.size(), greaterThan(0));
         for (SignificantTerms.Bucket classABucket : classA) {
             SignificantTerms.Bucket classBBucket = classBBucketIterator.next();
-            assertThat(classABucket.getSignificanceScore(), closeTo(classBBucket.getSignificanceScore(), 1.e-5));
             assertThat(classABucket.getKey(), equalTo(classBBucket.getKey()));
+            assertThat(classABucket.getSignificanceScore(), closeTo(classBBucket.getSignificanceScore(), 1.e-5));
         }
     }
 

@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations.bucket.significant;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
@@ -166,58 +167,118 @@ public class SignificantTermsUnitTests extends ElasticsearchLuceneTestCase {
         stParser.close();
     }
 
-    public void testLEAsserts(SignificanceHeuristic heuristic) throws Exception {
+    @Test
+    public void testAssertions() throws Exception {
+        MutualInformation mutualInformation = new MutualInformation();
+        mutualInformation.setIncludeNegatives(true);
         try {
-            heuristic.getScore(2, 3, 1, 4);
+            mutualInformation.getScore(2, 3, 1, 4);
             fail();
-        } catch (AssertionError assertionError) {
-            assertNotNull(assertionError.getMessage());
-            assertTrue(assertionError.getMessage().contains("subsetFreq <= supersetFreq"));
+        } catch (ElasticsearchIllegalArgumentException illegalArgumentException) {
+            assertNotNull(illegalArgumentException.getMessage());
+            assertTrue(illegalArgumentException.getMessage().contains("subsetFreq > supersetFreq"));
         }
         try {
-            heuristic.getScore(1, 4, 2, 3);
+            mutualInformation.getScore(1, 4, 2, 3);
             fail();
-        } catch (AssertionError assertionError) {
-            assertNotNull(assertionError.getMessage());
-            assertTrue(assertionError.getMessage().contains("subsetSize <= supersetSize"));
+        } catch (ElasticsearchIllegalArgumentException illegalArgumentException) {
+            assertNotNull(illegalArgumentException.getMessage());
+            assertTrue(illegalArgumentException.getMessage().contains("subsetSize > supersetSize"));
         }
         try {
-            heuristic.getScore(2, 1, 3, 4);
+            mutualInformation.getScore(2, 1, 3, 4);
             fail();
-        } catch (AssertionError assertionError) {
-            assertNotNull(assertionError.getMessage());
-            assertTrue(assertionError.getMessage().contains("subsetFreq <= subsetSize"));
+        } catch (ElasticsearchIllegalArgumentException illegalArgumentException) {
+            assertNotNull(illegalArgumentException.getMessage());
+            assertTrue(illegalArgumentException.getMessage().contains("subsetFreq > subsetSize"));
         }
         try {
-            heuristic.getScore(1, 2, 4, 3);
+            mutualInformation.getScore(1, 2, 4, 3);
             fail();
-        } catch (AssertionError assertionError) {
-            assertNotNull(assertionError.getMessage());
-            assertTrue(assertionError.getMessage().contains("supersetFreq <= supersetSize"));
+        } catch (ElasticsearchIllegalArgumentException illegalArgumentException) {
+            assertNotNull(illegalArgumentException.getMessage());
+            assertTrue(illegalArgumentException.getMessage().contains("supersetFreq > supersetSize"));
         }
         try {
-            heuristic.getScore(1, 3, 4, 4);
+            mutualInformation.getScore(1, 3, 4, 4);
             fail();
-        } catch (AssertionError assertionError) {
+        } catch (ElasticsearchIllegalArgumentException assertionError) {
             assertNotNull(assertionError.getMessage());
-            assertTrue(assertionError.getMessage().contains("supersetFreq - subsetFreq <= supersetSize - subsetSize"));
+            assertTrue(assertionError.getMessage().contains("supersetFreq - subsetFreq > supersetSize - subsetSize"));
         }
         try {
             int idx = random().nextInt(4);
             long[] values = {1, 2, 3, 4};
             values[idx] *= -1;
-            heuristic.getScore(values[0], values[1], values[2], values[3]);
+            mutualInformation.getScore(values[0], values[1], values[2], values[3]);
             fail();
-        } catch (AssertionError assertionError) {
-            assertNotNull(assertionError.getMessage());
-            assertTrue(assertionError.getMessage().contains("subsetFreq >= 0 && subsetSize >= 0 && supersetFreq >= 0 && supersetSize >= 0"));
+        } catch (ElasticsearchIllegalArgumentException illegalArgumentException) {
+            assertNotNull(illegalArgumentException.getMessage());
+            assertTrue(illegalArgumentException.getMessage().contains("Frequencies of subset and superset must be positive"));
         }
-    }
+        mutualInformation.setIsBackground(false);
+        double score = mutualInformation.getScore(2, 3, 1, 4);
+        assertThat(score, greaterThanOrEqualTo(0.0));
+        assertThat(score, lessThanOrEqualTo(1.0));
+        score = mutualInformation.getScore(1, 4, 2, 3);
+        assertThat(score, greaterThanOrEqualTo(0.0));
+        assertThat(score, lessThanOrEqualTo(1.0));
 
-    @Test
-    public void testAssertions() throws Exception {
-        testLEAsserts(new DefaultHeuristic());
-        testLEAsserts(new MutualInformation());
+        try {
+            mutualInformation.getScore(2, 1, 3, 4);
+            fail();
+        } catch (ElasticsearchIllegalArgumentException illegalArgumentException) {
+            assertNotNull(illegalArgumentException.getMessage());
+            assertTrue(illegalArgumentException.getMessage().contains("subsetFreq > subsetSize"));
+        }
+        try {
+            mutualInformation.getScore(1, 2, 4, 3);
+            fail();
+        } catch (ElasticsearchIllegalArgumentException illegalArgumentException) {
+            assertNotNull(illegalArgumentException.getMessage());
+            assertTrue(illegalArgumentException.getMessage().contains("supersetFreq > supersetSize"));
+        }
+
+        score = mutualInformation.getScore(1, 3, 4, 4);
+        assertThat(score, greaterThanOrEqualTo(0.0));
+        assertThat(score, lessThanOrEqualTo(1.0));
+
+        try {
+            int idx = random().nextInt(4);
+            long[] values = {1, 2, 3, 4};
+            values[idx] *= -1;
+            mutualInformation.getScore(values[0], values[1], values[2], values[3]);
+            fail();
+        } catch (ElasticsearchIllegalArgumentException illegalArgumentException) {
+            assertNotNull(illegalArgumentException.getMessage());
+            assertTrue(illegalArgumentException.getMessage().contains("Frequencies of subset and superset must be positive"));
+        }
+
+        DefaultHeuristic defaultHeuristic = new DefaultHeuristic();
+        try {
+            int idx = random().nextInt(4);
+            long[] values = {1, 2, 3, 4};
+            values[idx] *= -1;
+            defaultHeuristic.getScore(values[0], values[1], values[2], values[3]);
+            fail();
+        } catch (ElasticsearchIllegalArgumentException illegalArgumentException) {
+            assertNotNull(illegalArgumentException.getMessage());
+            assertTrue(illegalArgumentException.getMessage().contains("Frequencies of subset and superset must be positive"));
+        }
+        try {
+            mutualInformation.getScore(1, 2, 4, 3);
+            fail();
+        } catch (ElasticsearchIllegalArgumentException illegalArgumentException) {
+            assertNotNull(illegalArgumentException.getMessage());
+            assertTrue(illegalArgumentException.getMessage().contains("supersetFreq > supersetSize"));
+        }
+        try {
+            defaultHeuristic.getScore(2, 1, 3, 4);
+            fail();
+        } catch (ElasticsearchIllegalArgumentException illegalArgumentException) {
+            assertNotNull(illegalArgumentException.getMessage());
+            assertTrue(illegalArgumentException.getMessage().contains("subsetFreq > subsetSize"));
+        }
     }
 
     @Test
@@ -228,12 +289,12 @@ public class SignificantTermsUnitTests extends ElasticsearchLuceneTestCase {
         assertThat(heuristic.getScore(0, 1, 2, 3), equalTo(0.0));
         double score = 0.0;
         try {
-            long a = Math.abs(random().nextLong());
-            long b = Math.abs(random().nextLong());
-            long c = Math.abs(random().nextLong());
+            long a = random().nextLong();
+            long b = random().nextLong();
+            long c = random().nextLong();
             long d = random().nextLong();
             score = heuristic.getScore(a, b, c, d);
-        } catch (AssertionError e) {
+        } catch (ElasticsearchIllegalArgumentException e) {
         }
         assertThat(score, greaterThanOrEqualTo(0.0));
     }
@@ -252,12 +313,12 @@ public class SignificantTermsUnitTests extends ElasticsearchLuceneTestCase {
 
         double score = 0.0;
         try {
-            long a = Math.abs(random().nextLong());
-            long b = Math.abs(random().nextLong());
-            long c = Math.abs(random().nextLong());
+            long a = random().nextLong();
+            long b = random().nextLong();
+            long c = random().nextLong();
             long d = random().nextLong();
             score = heuristic.getScore(a, b, c, d);
-        } catch (AssertionError e) {
+        } catch (ElasticsearchIllegalArgumentException e) {
         }
         assertThat(score, lessThanOrEqualTo(1.0));
         assertThat(score, greaterThanOrEqualTo(0.0));

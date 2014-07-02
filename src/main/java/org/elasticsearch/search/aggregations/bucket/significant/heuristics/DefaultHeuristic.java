@@ -21,6 +21,7 @@
 package org.elasticsearch.search.aggregations.bucket.significant.heuristics;
 
 
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -70,12 +71,15 @@ public class DefaultHeuristic implements SignificanceHeuristic {
      */
     @Override
     public double getScore(long subsetFreq, long subsetSize, long supersetFreq, long supersetSize) {
-        assert subsetFreq >= 0 && subsetSize >= 0 && supersetFreq >= 0 && supersetSize >= 0: "subsetFreq >= 0 && subsetSize >= 0 && supersetFreq >= 0 && supersetSize >= 0";
-        assert subsetFreq <= supersetFreq : "subsetFreq <= supersetFreq";
-        assert subsetSize <= supersetSize : "subsetSize <= supersetSize";
-        assert subsetFreq <= subsetSize : "subsetFreq <= subsetSize";
-        assert supersetFreq <= supersetSize : "supersetFreq <= supersetSize";
-        assert supersetFreq - subsetFreq <= supersetSize - subsetSize : "supersetFreq - subsetFreq <= supersetSize - subsetSize";
+        if (subsetFreq < 0 || subsetSize < 0 || supersetFreq < 0 || supersetSize < 0) {
+            throw new ElasticsearchIllegalArgumentException("Frequencies of subset and superset must be positive in DefaultHeuristic.getScore()");
+        }
+        if (subsetFreq > subsetSize) {
+            throw new ElasticsearchIllegalArgumentException("subsetFreq > subsetSize, in DefaultHeuristic.score(..)");
+        }
+        if (supersetFreq > supersetSize) {
+            throw new ElasticsearchIllegalArgumentException("supersetFreq > supersetSize, in DefaultHeuristic.score(..)");
+        }
         if ((subsetSize == 0) || (supersetSize == 0)) {
             // avoid any divide by zero issues
             return 0;

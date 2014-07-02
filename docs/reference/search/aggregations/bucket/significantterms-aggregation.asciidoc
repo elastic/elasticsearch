@@ -298,6 +298,14 @@ Mutual information as described in "Information Retrieval", Manning et al., Chap
 
 Mutual information does not differentiate between terms that are descriptive for the subset or for documents outside the subset. The significant terms therefore can contain terms that appear more or less frequent in the subset than outside the subset. To filter out the terms that appear less often in the subset than in documents outside the subset, `include_negatives` can be set to `false`. 
 
+Per default, the assumption is that the documents in the bucket are also contained in the background. If instead you defined a custom background filter that represents a different set of documents that you want to compare to, set 
+
+[source,js]
+--------------------------------------------------
+
+"is_background": false
+--------------------------------------------------
+
  
 	
 ===== Size & Shard Size

@@ -21,6 +21,7 @@
 package org.elasticsearch.search.aggregations.bucket.significant.heuristics;
 
 
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -37,6 +38,10 @@ public class MutualInformation implements SignificanceHeuristic {
 
     protected static final ParseField INCLUDE_NEGATIVES_FIELD = new ParseField("include_negatives");
 
+    protected static final ParseField IS_BACKGROUND = new ParseField("is_background");
+
+    protected static final String SCORE_ERROR_MESSAGE = ", does you background filter not include all documents in the bucket? If so and it is intentional, set \"" + IS_BACKGROUND.getPreferredName() + "\": false";
+
     private static final double log2 = Math.log(2.0);
 
     /**
@@ -45,19 +50,20 @@ public class MutualInformation implements SignificanceHeuristic {
      * in the subset than in the background without the subset.
      */
     protected boolean includeNegatives = false;
+    private boolean isBackground = true;
 
     @Override
     public boolean equals(Object other) {
         if (! (other instanceof MutualInformation)) {
             return false;
         }
-        return ((MutualInformation)other).includeNegatives == includeNegatives;
+        return ((MutualInformation)other).includeNegatives == includeNegatives && ((MutualInformation)other).isBackground == isBackground ;
     }
 
     public static final SignificanceHeuristicStreams.Stream STREAM = new SignificanceHeuristicStreams.Stream() {
         @Override
         public SignificanceHeuristic readResult(StreamInput in) throws IOException {
-            return new MutualInformation().setIncludeNegatives(in.readBoolean());
+            return new MutualInformation().setIncludeNegatives(in.readBoolean()).setIsBackground(in.readBoolean());
         }
 
         @Override
@@ -78,30 +84,66 @@ public class MutualInformation implements SignificanceHeuristic {
      */
     @Override
     public double getScore(long subsetFreq, long subsetSize, long supersetFreq, long supersetSize) {
-        assert subsetFreq >= 0 && subsetSize >= 0 && supersetFreq >= 0 && supersetSize >= 0: "subsetFreq >= 0 && subsetSize >= 0 && supersetFreq >= 0 && supersetSize >= 0";
-        assert subsetFreq <= supersetFreq : "subsetFreq <= supersetFreq";
-        assert subsetSize <= supersetSize : "subsetSize <= supersetSize";
-        assert subsetFreq <= subsetSize : "subsetFreq <= subsetSize";
-        assert supersetFreq <= supersetSize : "supersetFreq <= supersetSize";
-        assert supersetFreq - subsetFreq <= supersetSize - subsetSize : "supersetFreq - subsetFreq <= supersetSize - subsetSize";
-        //documents not in class and do not contain term
-        double N00 = supersetSize - supersetFreq - (subsetSize - subsetFreq);
-        //documents in class and do not contain term
-        double N01 = (subsetSize - subsetFreq);
-        // documents not in class and do contain term
-        double N10 = supersetFreq - subsetFreq;
-        // documents in class and do contain term
-        double N11 = subsetFreq;
-        //documents that do not contain term
-        double N0_ = supersetSize - supersetFreq;
-        //documents that contain term
-        double N1_ = supersetFreq;
-        //documents that are not in class
-        double N_0 = supersetSize - subsetSize;
-        //documents that are in class
-        double N_1 = subsetSize;
-        //all docs
-        double N = supersetSize;
+        if (subsetFreq < 0 || subsetSize < 0 || supersetFreq < 0 || supersetSize < 0) {
+            throw new ElasticsearchIllegalArgumentException("Frequencies of subset and superset must be positive in MutualInformation.getScore()");
+        }
+        if (subsetFreq > subsetSize) {
+            throw new ElasticsearchIllegalArgumentException("subsetFreq > subsetSize, in MutualInformation.score(..)");
+        }
+        if (supersetFreq > supersetSize) {
+            throw new ElasticsearchIllegalArgumentException("supersetFreq > supersetSize, in MutualInformation.score(..)");
+        }
+        if (isBackground) {
+            if (subsetFreq > supersetFreq) {
+                throw new ElasticsearchIllegalArgumentException("subsetFreq > supersetFreq" + SCORE_ERROR_MESSAGE);
+            }
+            if (subsetSize > supersetSize) {
+                throw new ElasticsearchIllegalArgumentException("subsetSize > supersetSize" + SCORE_ERROR_MESSAGE);
+            }
+            if (supersetFreq - subsetFreq > supersetSize - subsetSize) {
+                throw new ElasticsearchIllegalArgumentException("supersetFreq - subsetFreq > supersetSize - subsetSize" + SCORE_ERROR_MESSAGE);
+            }
+        }
+        double N00, N01, N10, N11, N0_, N1_, N_0, N_1, N;
+        if (isBackground) {
+            //documents not in class and do not contain term
+            N00 = supersetSize - supersetFreq - (subsetSize - subsetFreq);
+            //documents in class and do not contain term
+            N01 = (subsetSize - subsetFreq);
+            // documents not in class and do contain term
+            N10 = supersetFreq - subsetFreq;
+            // documents in class and do contain term
+            N11 = subsetFreq;
+            //documents that do not contain term
+            N0_ = supersetSize - supersetFreq;
+            //documents that contain term
+            N1_ = supersetFreq;
+            //documents that are not in class
+            N_0 = supersetSize - subsetSize;
+            //documents that are in class
+            N_1 = subsetSize;
+            //all docs
+            N = supersetSize;
+        } else {
+            //documents not in class and do not contain term
+            N00 = supersetSize - supersetFreq;
+            //documents in class and do not contain term
+            N01 = subsetSize - subsetFreq;
+            // documents not in class and do contain term
+            N10 = supersetFreq;
+            // documents in class and do contain term
+            N11 = subsetFreq;
+            //documents that do not contain term
+            N0_ = supersetSize - supersetFreq + subsetSize - subsetFreq;
+            //documents that contain term
+            N1_ = supersetFreq + subsetFreq;
+            //documents that are not in class
+            N_0 = supersetSize;
+            //documents that are in class
+            N_1 = subsetSize;
+            //all docs
+            N = supersetSize + subsetSize;
+        }
 
         double score = (getMITerm(N00, N0_, N_0, N) +
                 getMITerm(N01, N0_, N_1, N) +
@@ -146,6 +188,7 @@ public class MutualInformation implements SignificanceHeuristic {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(STREAM.getName());
         out.writeBoolean(includeNegatives);
+        out.writeBoolean(isBackground);
 
     }
 
@@ -158,22 +201,31 @@ public class MutualInformation implements SignificanceHeuristic {
         return includeNegatives;
     }
 
+    public MutualInformation setIsBackground(boolean isBackground) {
+        this.isBackground = isBackground;
+        return this;
+    }
+
     public static class MutualInformationParser implements SignificanceHeuristicParser {
 
         @Override
         public SignificanceHeuristic parse(XContentParser parser) throws IOException, QueryParsingException {
             NAMES_FIELD.match(parser.currentName(), ParseField.EMPTY_FLAGS);
             boolean includeNegatives = false;
+            boolean isBackground = true;
             XContentParser.Token token = parser.nextToken();
-            if (!token.equals(XContentParser.Token.END_OBJECT)) {
+            while (!token.equals(XContentParser.Token.END_OBJECT)) {
                 if (INCLUDE_NEGATIVES_FIELD.match(parser.currentName(), ParseField.EMPTY_FLAGS)) {
                     parser.nextToken();
                     includeNegatives = parser.booleanValue();
+                } else if (IS_BACKGROUND.match(parser.currentName(), ParseField.EMPTY_FLAGS)) {
+                    parser.nextToken();
+                    isBackground = parser.booleanValue();
                 }
+                token = parser.nextToken();
             }
             // move to the closing bracket
-            parser.nextToken();
-            return new MutualInformation().setIncludeNegatives(includeNegatives);
+            return new MutualInformation().setIncludeNegatives(includeNegatives).setIsBackground(isBackground);
         }
 
         @Override
@@ -185,6 +237,7 @@ public class MutualInformation implements SignificanceHeuristic {
     public static class MutualInformationBuilder implements SignificanceHeuristicBuilder {
 
         boolean includeNegatives = true;
+        private boolean isBackground = true;
 
         public MutualInformationBuilder setIncludeNegatives(boolean includeNegatives) {
             this.includeNegatives = includeNegatives;
@@ -193,7 +246,15 @@ public class MutualInformation implements SignificanceHeuristic {
 
         @Override
         public void toXContent(XContentBuilder builder) throws IOException {
-            builder.startObject(STREAM.getName()).field(INCLUDE_NEGATIVES_FIELD.getPreferredName(), includeNegatives).endObject();
+            builder.startObject(STREAM.getName())
+                    .field(INCLUDE_NEGATIVES_FIELD.getPreferredName(), includeNegatives)
+                    .field(IS_BACKGROUND.getPreferredName(), isBackground)
+                    .endObject();
+        }
+
+        public MutualInformationBuilder setIsBackground(boolean isBackground) {
+            this.isBackground = isBackground;
+            return this;
         }
     }
 }

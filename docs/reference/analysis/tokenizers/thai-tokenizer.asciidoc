@@ -1,0 +1,9 @@
+[[analysis-thai-tokenizer]]
+=== Thai Tokenizer
+
+coming[1.3.0]
+
+A tokenizer of type `thai` that segments Thai text into words. This tokenizer
+uses the built-in Thai segmentation algorithm included with Java to divide
+up Thai text. Text in other languages in general will be treated the same
+as `standard`.

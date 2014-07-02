@@ -228,15 +228,17 @@ public class NodesFaultDetection extends AbstractComponent {
                             if (!running) {
                                 return;
                             }
-                            if (exp instanceof ConnectTransportException) {
-                                // ignore this one, we already handle it by registering a connection listener
-                                return;
-                            }
                             NodeFD nodeFD = nodesFD.get(node);
                             if (nodeFD != null) {
                                 if (!nodeFD.running) {
                                     return;
                                 }
+                                if (exp instanceof ConnectTransportException) {
+                                    // ignore this one, we already handle it by registering a connection listener
+                                    handleTransportDisconnect(node);
+                                    return;
+                                }
+
                                 int retryCount = ++nodeFD.retryCount;
                                 logger.trace("[node  ] failed to ping [{}], retry [{}] out of [{}]", exp, node, retryCount, pingRetryCount);
                                 if (retryCount >= pingRetryCount) {

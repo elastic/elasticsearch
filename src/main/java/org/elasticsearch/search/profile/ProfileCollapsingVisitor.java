@@ -170,7 +170,7 @@ public class ProfileCollapsingVisitor extends Visitor<Object, ArrayList> {
     }
 
     public ArrayList<Profile> visit(NotFilter filter) {
-        return apply(filter);
+        return apply(filter.filter());
     }
 
     public ArrayList<Profile> visit(Query query) {

@@ -102,7 +102,8 @@ public class ProfileQueryVisitor extends Visitor<Object, ProfileComponent> {
     }
 
     public ProfileFilter visit(NotFilter filter) {
-        return new ProfileFilter((ProfileFilter)apply(filter));
+        NotFilter newNot = new NotFilter((ProfileFilter)apply(filter.filter()));
+        return new ProfileFilter(newNot);
     }
 
     public ProfileQuery visit(ToParentBlockJoinQuery query) throws NoSuchFieldException, IllegalAccessException {

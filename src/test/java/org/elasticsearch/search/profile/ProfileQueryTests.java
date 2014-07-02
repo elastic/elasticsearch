@@ -16,7 +16,7 @@ import org.elasticsearch.index.query.*;
 
 import org.junit.Test;
 
-
+import java.util.ArrayList;
 
 
 public class ProfileQueryTests extends ElasticsearchIntegrationTest {
@@ -152,6 +152,86 @@ public class ProfileQueryTests extends ElasticsearchIntegrationTest {
             assertNotNull(resp.getProfile());
 
         }
+    }
+
+    @Test
+    /**
+     * This test verifies that the output is reasonable (timing is equal, etc) for a simple, non-nested query
+     */
+    public void testSimpleMatch() throws Exception {
+        ImmutableSettings.Builder builder = ImmutableSettings.settingsBuilder().put(indexSettings());
+        createIndex("test");
+        int numDocs = randomIntBetween(100, 150);
+        IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
+        for (int i = 0; i < numDocs; i++) {
+            docs[i] = client().prepareIndex("test", "type1", String.valueOf(i)).setSource(
+                    "field1", English.intToEnglish(i),
+                    "field2", i
+            );
+        }
+
+        indexRandom(true, docs);
+        ensureGreen();
+
+        QueryBuilder q = QueryBuilders.matchQuery("field1", "one");
+
+        SearchResponse resp = client().prepareSearch().setQuery(q).setProfile(true).setSearchType(SearchType.QUERY_THEN_FETCH).execute().actionGet();
+        Profile p = resp.getProfile();
+        assertNotNull(p);
+        assertEquals(p.getComponents().size(), 0);
+        assertEquals(p.getClassName(), "TermQuery");
+        assertEquals(p.getLuceneDetails(), "field1:one");
+        assertTrue(p.time() > 0);
+        assertEquals(p.time(), p.totalTime());
+    }
+
+    @Test
+    /**
+     * This test verifies that the output is reasonable (non-zero times, etc) for a non-nested query
+     */
+    public void testBool() throws Exception {
+        ImmutableSettings.Builder builder = ImmutableSettings.settingsBuilder().put(indexSettings());
+        createIndex("test");
+        int numDocs = randomIntBetween(100, 150);
+        IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
+        for (int i = 0; i < numDocs; i++) {
+            docs[i] = client().prepareIndex("test", "type1", String.valueOf(i)).setSource(
+                    "field1", English.intToEnglish(i),
+                    "field2", i
+            );
+        }
+
+        indexRandom(true, docs);
+        ensureGreen();
+
+        QueryBuilder q = QueryBuilders.boolQuery().must(QueryBuilders.matchQuery("field1", "one")).must(QueryBuilders.matchQuery("field1", "two"));
+
+        SearchResponse resp = client().prepareSearch().setQuery(q).setProfile(true).setSearchType(SearchType.QUERY_THEN_FETCH).execute().actionGet();
+        Profile p = resp.getProfile();
+
+        assertNotNull(p);
+        assertEquals(p.getComponents().size(), 2);
+        assertEquals(p.getClassName(), "BooleanQuery");
+        assertEquals(p.getLuceneDetails(), "+field1:one +field1:two");
+        assertEquals(p.time(), p.totalTime());
+        assertTrue(p.time() > 0);
+
+
+        Profile first = p.getComponents().get(0);
+        System.out.println(p.totalTime());
+        System.out.println(first.totalTime());
+        assertEquals(first.getComponents().size(), 0);
+        assertEquals(first.getClassName(), "TermQuery");
+        assertEquals(first.getLuceneDetails(), "field1:one");
+        assertEquals(first.totalTime(), p.totalTime());
+        assertTrue(first.time() < first.totalTime());
+
+        Profile second = p.getComponents().get(1);
+        assertEquals(second.getComponents().size(), 0);
+        assertEquals(second.getClassName(), "TermQuery");
+        assertEquals(second.getLuceneDetails(), "field1:two");
+        assertEquals(second.totalTime(), p.totalTime());
+        assertTrue(second.time() < first.totalTime());
     }
 
 

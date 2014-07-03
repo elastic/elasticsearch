@@ -209,6 +209,7 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
     @Test
     public void testIndexUpgradeSingleNode() throws Exception {
         assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder().put("index.routing.allocation.exclude._name", backwardsCluster().newNodePattern()).put(indexSettings())));
+        ensureYellow();
         int numDocs = randomIntBetween(100, 150);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
@@ -222,7 +223,7 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
         CountResponse countResponse = client().prepareCount().get();
         assertHitCount(countResponse, numDocs);
         backwardsCluster().upgradeOneNode();
-        ensureYellow("test");
+        ensureYellow();
         if (randomBoolean()) {
             for (int i = 0; i < numDocs; i++) {
                 docs[i] = client().prepareIndex("test", "type1", String.valueOf(i)).setSource("field1", English.intToEnglish(i));

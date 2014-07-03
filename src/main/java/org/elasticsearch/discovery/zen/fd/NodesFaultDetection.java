@@ -233,7 +233,7 @@ public class NodesFaultDetection extends AbstractComponent {
                                 if (!nodeFD.running) {
                                     return;
                                 }
-                                if (exp instanceof ConnectTransportException) {
+                                if (exp instanceof ConnectTransportException || exp.getCause() instanceof ConnectTransportException) {
                                     handleTransportDisconnect(node);
                                     return;
                                 }

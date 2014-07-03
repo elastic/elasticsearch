@@ -299,7 +299,7 @@ public class MasterFaultDetection extends AbstractComponent {
                             synchronized (masterNodeMutex) {
                                 // check if the master node did not get switched on us...
                                 if (masterToPing.equals(MasterFaultDetection.this.masterNode())) {
-                                    if (exp instanceof ConnectTransportException) {
+                                    if (exp instanceof ConnectTransportException || exp.getCause() instanceof ConnectTransportException) {
                                         handleTransportDisconnect(masterToPing);
                                         return;
                                     } else if (exp.getCause() instanceof NoLongerMasterException) {

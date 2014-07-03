@@ -19,6 +19,7 @@
 package org.elasticsearch.bwcompat;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
 import org.elasticsearch.indices.analysis.PreBuiltAnalyzers;
 import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
@@ -50,7 +51,7 @@ public class BasicAnalysisBackwardCompatibilityTests extends ElasticsearchBackwa
         int fieldId = 0;
         for (int i = 0; i < fields.length; i++) {
             fields[i++] = "field_" + fieldId++;
-            String analyzer = RandomPicks.randomFrom(getRandom(), PreBuiltAnalyzers.values()).name().toLowerCase(Locale.ROOT);
+            String analyzer = randomAnalyzer();
             fields[i] = "type=string,analyzer=" + analyzer;
         }
         assertAcked(prepareCreate("test")
@@ -87,6 +88,17 @@ public class BasicAnalysisBackwardCompatibilityTests extends ElasticsearchBackwa
                 assertThat(msg, expectedTokens.get(j).getType(), equalTo(tokens.get(j).getType()));
             }
         }
+    }
+
+    private String randomAnalyzer() {
+        while(true) {
+            PreBuiltAnalyzers preBuiltAnalyzers = RandomPicks.randomFrom(getRandom(), PreBuiltAnalyzers.values());
+            if (preBuiltAnalyzers == PreBuiltAnalyzers.SORANI && compatibilityVersion().before(Version.V_1_3_0)) {
+                continue; // SORANI was added in 1.3.0
+            }
+            return preBuiltAnalyzers.name().toLowerCase(Locale.ROOT);
+        }
+
     }
 
     private static final class InputOutput {

@@ -77,12 +77,12 @@ public abstract class AbstractRandomizedTest extends RandomizedTest {
     @Retention(RetentionPolicy.RUNTIME)
     @Target(ElementType.TYPE)
     @TestGroup(enabled = false, sysProperty = TESTS_BACKWARDS_COMPATIBILITY)
-    public @interface BackwardsCompatibilityTest {
+    public @interface Backwards {
     }
 
     /**
      * Key used to set the path for the elasticsearch executable used to run backwards compatibility tests from
-     * via the commandline -D{@value #TESTS_BACKWARDS_COMPATIBILITY_PATH}
+     * via the commandline -D{@value #TESTS_BACKWARDS_COMPATIBILITY}
      */
     public static final String TESTS_BACKWARDS_COMPATIBILITY = "tests.bwc";
 
@@ -101,7 +101,7 @@ public abstract class AbstractRandomizedTest extends RandomizedTest {
     @Retention(RetentionPolicy.RUNTIME)
     @Target(ElementType.TYPE)
     @TestGroup(enabled = true, sysProperty = SYSPROP_INTEGRATION)
-    public @interface IntegrationTests {
+    public @interface Integration {
     }
 
     // --------------------------------------------------------------------

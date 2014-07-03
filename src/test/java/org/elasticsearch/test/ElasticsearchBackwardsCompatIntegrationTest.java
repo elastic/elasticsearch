@@ -19,6 +19,7 @@
 package org.elasticsearch.test;
 
 import org.apache.lucene.util.AbstractRandomizedTest;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoveryModule;
@@ -26,6 +27,7 @@ import org.elasticsearch.discovery.zen.ZenDiscoveryModule;
 import org.elasticsearch.transport.TransportModule;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty.NettyTransportModule;
+import org.junit.Before;
 import org.junit.Ignore;
 
 import java.io.File;
@@ -105,6 +107,12 @@ public abstract class ElasticsearchBackwardsCompatIntegrationTest extends Elasti
     @Override
     protected int maximumNumberOfReplicas() {
         return 1;
+    }
+
+    @Before
+    public final void beforeTest() {
+        // 1.0.3 is too flaky - lets get stable first.
+        assumeTrue("BWC tests are disabled currently for version [< 1.1.0]", compatibilityVersion().onOrAfter(Version.V_1_1_0));
     }
 
     protected Settings nodeSettings(int nodeOrdinal) {

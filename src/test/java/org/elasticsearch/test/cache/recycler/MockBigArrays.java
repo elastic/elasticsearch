@@ -68,22 +68,36 @@ public class MockBigArrays extends BigArrays {
                 }
             }
         }
-        for (final BigArrays bigArrays : INSTANCES) {
-            // BigArrays are used on the network layer and the cluster is shared across tests so nodes might still be talking to
-            // each other a bit after the test finished, wait a bit for things to stabilize if so
-            final boolean sizeIsZero = ElasticsearchTestCase.awaitBusy(new Predicate<Object>() {
-                @Override
-                public boolean apply(Object input) {
-                    return bigArrays.sizeInBytes() == 0;
-                }
-            });
-            if (!sizeIsZero) {
-                final long sizeInBytes = bigArrays.sizeInBytes();
-                if (sizeInBytes != 0) {
-                    throw new AssertionError("Expected 0 bytes, got " + sizeInBytes);
+        // arrays that are not fully released.
+        ArrayList<BigArrays> badBigArrays = new ArrayList<>();
+        synchronized (INSTANCES) {
+            for (final BigArrays bigArrays : INSTANCES) {
+                // BigArrays are used on the network layer and the cluster is shared across tests so nodes might still be talking to
+                // each other a bit after the test finished, wait a bit for things to stabilize if so
+                final boolean sizeIsZero = ElasticsearchTestCase.awaitBusy(new Predicate<Object>() {
+                    @Override
+                    public boolean apply(Object input) {
+                        return bigArrays.sizeInBytes() == 0;
+                    }
+                });
+                if (!sizeIsZero) {
+                    final long sizeInBytes = bigArrays.sizeInBytes();
+                    if (sizeInBytes != 0) {
+                        badBigArrays.add(bigArrays);
+                    }
                 }
             }
         }
+
+        if (!badBigArrays.isEmpty()) {
+            INSTANCES.removeAll(badBigArrays);
+            StringBuilder msg = new StringBuilder("Found [").append(badBigArrays.size()).append("] big arrays which were not fully released. Here is a list of the first 20:");
+            for (int i = 0; i < Math.min(20, badBigArrays.size()); i++) {
+                msg.append("\nbigArray instance with [").append(badBigArrays.get(i).sizeInBytes()).append("] bytes");
+            }
+            throw new AssertionError(msg.toString());
+        }
+
     }
 
     private final Random random;

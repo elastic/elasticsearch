@@ -71,6 +71,45 @@ curl 'localhost:9200/test/type/_mget' -d '{
 --------------------------------------------------
 
 [float]
+[[type]]
+=== Optional Type
+
+The mget API allows for `_type` to be optional. Set it to `_all` or leave it empty in order
+to fetch the first document matching the id across all types.
+
+If you don't set the type and have many documents sharing the same `_id`, you will end up
+getting only the first matching document.
+
+For example, if you have a document 1 within typeA and typeB then following request
+will give you back only the same document twice:
+
+[source,js]
+--------------------------------------------------
+curl 'localhost:9200/test/_mget' -d '{
+    "ids" : ["1", "1"]
+}'
+--------------------------------------------------
+
+You need in that case to explicitly set the `_type`:
+
+[source,js]
+--------------------------------------------------
+GET /test/_mget/
+{
+  "docs" : [
+        {
+            "_type":"typeA",
+            "_id" : "1"
+        },
+        {
+            "_type":"typeB",
+            "_id" : "1"
+        }
+    ]
+}
+--------------------------------------------------
+
+[float]
 [[mget-source-filtering]]
 === Source filtering
 

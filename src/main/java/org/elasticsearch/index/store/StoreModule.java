@@ -67,7 +67,7 @@ public class StoreModule extends AbstractModule {
         } else if ("random".equals(type)) {
             distributor = RandomWeightedDistributor.class;
         } else {
-            distributor = settings.getAsClass("index.store.distributor", LeastUsedDistributor.class,
+            distributor = settings.getAsClass(DISTIBUTOR_KEY, LeastUsedDistributor.class,
                     "org.elasticsearch.index.store.distributor.", "Distributor");
         }
         return distributor;

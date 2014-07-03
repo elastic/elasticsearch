@@ -21,7 +21,6 @@ package org.elasticsearch.index.snapshots.blobstore;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
-import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;

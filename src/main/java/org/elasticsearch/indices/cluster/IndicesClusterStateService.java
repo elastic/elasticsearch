@@ -774,17 +774,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
 
         @Override
         public void onRetryRecovery(TimeValue retryAfter, RecoveryStatus recoveryStatus) {
-            /* we should not retry if the source shard is not present in the clusterstate if we do so we can end up in an endless loop
-            * if the recovery source was failed and allocated somewhere else while  we try to start the recovery*/
-            final MutableShardRouting mutableShardRouting = IndicesClusterStateService.this.clusterService.state().getRoutingNodes().activePrimary(shardRouting);
-            if (mutableShardRouting != null && mutableShardRouting.currentNodeId().equals(request.sourceNode().getId())) {
-                recoveryTarget.retryRecovery(request, retryAfter, recoveryStatus, PeerRecoveryListener.this);
-            } else {
-                logger.info("RECOVERY ######## {} Expected source id: {} Actual Routing {}\n ClusterState: {}" , shardRouting, request.sourceNode().getId(), mutableShardRouting, clusterService.state().prettyPrint());
-                recoveryTarget.retryRecovery(request, retryAfter, recoveryStatus, PeerRecoveryListener.this);
-//                // we cancel it in the case the clusterstate doesn't contain the recovery target
-//                onRecoveryFailure(null, true);
-            }
+            recoveryTarget.retryRecovery(request, retryAfter, recoveryStatus, PeerRecoveryListener.this);
         }
 
         @Override

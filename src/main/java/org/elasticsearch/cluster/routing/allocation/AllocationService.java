@@ -422,13 +422,18 @@ public class AllocationService extends AbstractComponent {
         RoutingNodes routingNodes = allocation.routingNodes();
         boolean dirty = false;
         if (failedShard.primary()) {
+            // we have to fail the initializing replicas if the primary fails
+            // since they might now yet have started the recovery and then they will
+            // stick in the cluster-state forever since the replica has a retry logic that
+            // retries infinitely in that case.
             List<MutableShardRouting> initializingReplicas = new ArrayList<>();
             for (MutableShardRouting shard : routingNodes.assignedShards(failedShard)){
                 if (!shard.primary() && shard.initializing()) {
                     initializingReplicas.add(shard);
                 }
             }
-            // we can't do this in the loop above since we 's
+            // we can't do this in the loop above since we modify the iterator and will get
+            // concurrent modification exceptions
             for (MutableShardRouting shard : initializingReplicas) {
                 dirty |= applyFailedShard(allocation, shard, addToIgnoreList);
             }

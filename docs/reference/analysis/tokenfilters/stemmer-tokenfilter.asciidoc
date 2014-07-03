@@ -136,12 +136,12 @@ http://lucene.apache.org/core/4_9_0/analyzers-common/org/apache/lucene/analysis/
 Norwegian (Bokmål)::
 
 http://snowball.tartarus.org/algorithms/norwegian/stemmer.html[*`norwegian`*],
-http://lucene.apache.org/core/4_9_0/analyzers-common/org/apache/lucene/analysis/no/NorwegianLightStemmer.html[*`light_norwegian`*] coming[1.3.0]
+http://lucene.apache.org/core/4_9_0/analyzers-common/org/apache/lucene/analysis/no/NorwegianLightStemmer.html[*`light_norwegian`*] coming[1.3.0],
 http://lucene.apache.org/core/4_9_0/analyzers-common/org/apache/lucene/analysis/no/NorwegianMinimalStemmer.html[`minimal_norwegian`]
 
 Norwegian (Nynorsk)::
 
-http://lucene.apache.org/core/4_9_0/analyzers-common/org/apache/lucene/analysis/no/NorwegianLightStemmer.html[*`light_nynorsk`*] coming[1.3.0]
+http://lucene.apache.org/core/4_9_0/analyzers-common/org/apache/lucene/analysis/no/NorwegianLightStemmer.html[*`light_nynorsk`*] coming[1.3.0],
 http://lucene.apache.org/core/4_9_0/analyzers-common/org/apache/lucene/analysis/no/NorwegianMinimalStemmer.html[`minimal_nynorsk`] coming[1.3.0]
 
 Portuguese::

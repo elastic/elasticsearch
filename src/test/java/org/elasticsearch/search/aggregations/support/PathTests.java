@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.support;
 
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -32,7 +33,7 @@ import static org.junit.Assert.fail;
 /**
  *
  */
-public class PathTests {
+public class PathTests extends ElasticsearchTestCase {
 
     @Test
     public void testInvalidPaths() throws Exception {

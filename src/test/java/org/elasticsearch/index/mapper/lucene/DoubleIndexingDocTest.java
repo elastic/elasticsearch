@@ -24,12 +24,15 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.MapperTestUtils;
+import org.elasticsearch.test.ElasticsearchLuceneTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -38,11 +41,12 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class DoubleIndexingDocTest {
+public class DoubleIndexingDocTest extends ElasticsearchLuceneTestCase {
 
     @Test
     public void testDoubleIndexingSameDoc() throws Exception {
-        IndexWriter writer = new IndexWriter(new RAMDirectory(), new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
+        Directory dir = newDirectory();
+        IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig(random(), TEST_VERSION_CURRENT, Lucene.STANDARD_ANALYZER));
 
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").endObject()
@@ -85,5 +89,8 @@ public class DoubleIndexingDocTest {
 
         topDocs = searcher.search(mapper.mappers().smartName("field5").mapper().termQuery("3", null), 10);
         assertThat(topDocs.totalHits, equalTo(2));
+        writer.close();
+        reader.close();
+        dir.close();
     }
 }

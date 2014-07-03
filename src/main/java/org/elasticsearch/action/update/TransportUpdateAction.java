@@ -24,6 +24,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
@@ -210,9 +211,9 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                         e = ExceptionsHelper.unwrapCause(e);
                         if (e instanceof VersionConflictEngineException || e instanceof DocumentAlreadyExistsException) {
                             if (retryCount < request.retryOnConflict()) {
-                                threadPool.executor(executor()).execute(new Runnable() {
+                                threadPool.executor(executor()).execute(new ActionRunnable<UpdateResponse>(listener) {
                                     @Override
-                                    public void run() {
+                                    protected void doRun() {
                                         shardOperation(request, listener, retryCount + 1);
                                     }
                                 });
@@ -240,9 +241,9 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                         e = ExceptionsHelper.unwrapCause(e);
                         if (e instanceof VersionConflictEngineException) {
                             if (retryCount < request.retryOnConflict()) {
-                                threadPool.executor(executor()).execute(new Runnable() {
+                                threadPool.executor(executor()).execute(new ActionRunnable<UpdateResponse>(listener) {
                                     @Override
-                                    public void run() {
+                                    protected void doRun() {
                                         shardOperation(request, listener, retryCount + 1);
                                     }
                                 });
@@ -268,9 +269,9 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                         e = ExceptionsHelper.unwrapCause(e);
                         if (e instanceof VersionConflictEngineException) {
                             if (retryCount < request.retryOnConflict()) {
-                                threadPool.executor(executor()).execute(new Runnable() {
+                                threadPool.executor(executor()).execute(new ActionRunnable<UpdateResponse>(listener) {
                                     @Override
-                                    public void run() {
+                                    protected void doRun() {
                                         shardOperation(request, listener, retryCount + 1);
                                     }
                                 });

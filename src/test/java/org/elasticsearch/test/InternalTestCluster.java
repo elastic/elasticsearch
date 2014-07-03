@@ -111,6 +111,7 @@ import static org.elasticsearch.test.ElasticsearchTestCase.assertBusy;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertFalse;
 
 /**
  * InternalTestCluster manages a set of JVM private nodes and allows convenient access to them.
@@ -878,18 +879,6 @@ public final class InternalTestCluster extends TestCluster {
                 ((MockTransportService) transportService).clearAllRules();
             }
         }
-        if (activeDisruptionScheme != null) {
-            TimeValue expectedHealingTime = activeDisruptionScheme.expectedTimeToHeal();
-            clearDisruptionScheme();
-            if (expectedHealingTime != null && expectedHealingTime.millis() > 0) {
-                try {
-                    Thread.sleep(expectedHealingTime.millis());
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                }
-            }
-            assert !client().admin().cluster().prepareHealth().setWaitForNodes("" + nodes.size()).get().isTimedOut() : "cluster failed to form after disruption was healed";
-        }
         resetClients(); /* reset all clients - each test gets its own client based on the Random instance created above. */
         if (wipeData) {
             wipeDataDirectories();
@@ -1454,7 +1443,22 @@ public final class InternalTestCluster extends TestCluster {
 
     public void clearDisruptionScheme() {
         if (activeDisruptionScheme != null) {
+            TimeValue expectedHealingTime = activeDisruptionScheme.expectedTimeToHeal();
+            logger.info("Clearing active scheme {}, expected healing time {}", activeDisruptionScheme, expectedHealingTime);
             activeDisruptionScheme.removeFromCluster(this);
+            // We don't what scheme is picked, certain schemes don't partition the cluster, but process slow, so we need
+            // to to sleep, cluster health alone doesn't verify if these schemes have been cleared.
+            if (expectedHealingTime != null && expectedHealingTime.millis() > 0) {
+                try {
+                    Thread.sleep(expectedHealingTime.millis());
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+            assertFalse("cluster failed to form after disruption was healed", client().admin().cluster().prepareHealth()
+                    .setWaitForNodes("" + nodes.size())
+                    .setWaitForRelocatingShards(0)
+                    .get().isTimedOut());
         }
         activeDisruptionScheme = null;
     }

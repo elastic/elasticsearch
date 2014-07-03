@@ -203,6 +203,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      * Maximum number of async operations that indexRandom will kick off at one time.
      */
     private static final int MAX_IN_FLIGHT_ASYNC_INDEXES = 150;
+
     /**
      * Maximum number of documents in a single bulk index request.
      */
@@ -1223,8 +1224,10 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                 }
             }
         } else {
-            logger.info("Index [{}] docs async: [{}] bulk: [{}]", builders.size(), false, true);
-            for (List<IndexRequestBuilder> segmented : Lists.partition(builders, between(MAX_BULK_INDEX_REQUEST_SIZE / 2, MAX_BULK_INDEX_REQUEST_SIZE))) {
+            List<List<IndexRequestBuilder>> partition = Lists.partition(builders, Math.min(MAX_BULK_INDEX_REQUEST_SIZE,
+                    Math.max(1, (int) (builders.size() * randomDouble()))));
+            logger.info("Index [{}] docs async: [{}] bulk: [{}] partitions [{}]", builders.size(), false, true, partition.size());
+            for (List<IndexRequestBuilder> segmented : partition) {
                 BulkRequestBuilder bulkBuilder = client().prepareBulk();
                 for (IndexRequestBuilder indexRequestBuilder : segmented) {
                     bulkBuilder.add(indexRequestBuilder);

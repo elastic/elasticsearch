@@ -27,8 +27,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.fail;
 
 /**
  *
@@ -54,8 +52,8 @@ public class PathTests extends ElasticsearchTestCase {
         assertValidPath("foo[bar]>baz", tokens().add("foo", "bar").add("baz"));
         assertValidPath("foo[bar]>baz[qux]", tokens().add("foo", "bar").add("baz", "qux"));
         assertValidPath("foo[bar]>baz.qux", tokens().add("foo", "bar").add("baz", "qux"));
-        assertValidPath("foo.bar>baz.qux", tokens().add("foo", "bar").add("baz", "qux"));
-        assertValidPath("foo.bar>baz[qux]", tokens().add("foo", "bar").add("baz", "qux"));
+        assertValidPath("foo.bar>baz.qux", tokens().add("foo.bar").add("baz", "qux"));
+        assertValidPath("foo.bar>baz[qux]", tokens().add("foo.bar").add("baz", "qux"));
     }
 
     private void assertInvalidPath(String path, String reason) {

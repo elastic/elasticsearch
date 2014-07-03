@@ -20,13 +20,13 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.CustomAnalyzerWrapper;
+import org.apache.lucene.analysis.SimpleAnalyzerWrapper;
 
 /**
  * Named analyzer is an analyzer wrapper around an actual analyzer ({@link #analyzer} that is associated
  * with a name ({@link #name()}.
  */
-public class NamedAnalyzer extends CustomAnalyzerWrapper {
+public class NamedAnalyzer extends SimpleAnalyzerWrapper {
 
     private final String name;
     private final AnalyzerScope scope;
@@ -46,7 +46,6 @@ public class NamedAnalyzer extends CustomAnalyzerWrapper {
     }
 
     public NamedAnalyzer(String name, AnalyzerScope scope, Analyzer analyzer, int positionOffsetGap) {
-        super(analyzer.getReuseStrategy());
         this.name = name;
         this.scope = scope;
         this.analyzer = analyzer;
@@ -77,11 +76,6 @@ public class NamedAnalyzer extends CustomAnalyzerWrapper {
     @Override
     protected Analyzer getWrappedAnalyzer(String fieldName) {
         return this.analyzer;
-    }
-
-    @Override
-    protected TokenStreamComponents wrapComponents(String fieldName, TokenStreamComponents components) {
-        return components;
     }
 
     @Override

@@ -155,45 +155,53 @@ public final class InternalNode implements Node {
 
         NodeEnvironment nodeEnvironment = new NodeEnvironment(this.settings, this.environment);
 
-        ModulesBuilder modules = new ModulesBuilder();
-        modules.add(new Version.Module(version));
-        modules.add(new CacheRecyclerModule(settings));
-        modules.add(new PageCacheRecyclerModule(settings));
-        modules.add(new BigArraysModule(settings));
-        modules.add(new PluginsModule(settings, pluginsService));
-        modules.add(new SettingsModule(settings));
-        modules.add(new NodeModule(this));
-        modules.add(new NetworkModule());
-        modules.add(new ScriptModule(settings));
-        modules.add(new EnvironmentModule(environment));
-        modules.add(new NodeEnvironmentModule(nodeEnvironment));
-        modules.add(new ClusterNameModule(settings));
-        modules.add(new ThreadPoolModule(settings));
-        modules.add(new DiscoveryModule(settings));
-        modules.add(new ClusterModule(settings));
-        modules.add(new RestModule(settings));
-        modules.add(new TransportModule(settings));
-        if (settings.getAsBoolean("http.enabled", true)) {
-            modules.add(new HttpServerModule(settings));
+        boolean success = false;
+        try {
+            ModulesBuilder modules = new ModulesBuilder();
+            modules.add(new Version.Module(version));
+            modules.add(new CacheRecyclerModule(settings));
+            modules.add(new PageCacheRecyclerModule(settings));
+            modules.add(new BigArraysModule(settings));
+            modules.add(new PluginsModule(settings, pluginsService));
+            modules.add(new SettingsModule(settings));
+            modules.add(new NodeModule(this));
+            modules.add(new NetworkModule());
+            modules.add(new ScriptModule(settings));
+            modules.add(new EnvironmentModule(environment));
+            modules.add(new NodeEnvironmentModule(nodeEnvironment));
+            modules.add(new ClusterNameModule(settings));
+            modules.add(new ThreadPoolModule(settings));
+            modules.add(new DiscoveryModule(settings));
+            modules.add(new ClusterModule(settings));
+            modules.add(new RestModule(settings));
+            modules.add(new TransportModule(settings));
+            if (settings.getAsBoolean("http.enabled", true)) {
+                modules.add(new HttpServerModule(settings));
+            }
+            modules.add(new RiversModule(settings));
+            modules.add(new IndicesModule(settings));
+            modules.add(new SearchModule());
+            modules.add(new ActionModule(false));
+            modules.add(new MonitorModule(settings));
+            modules.add(new GatewayModule(settings));
+            modules.add(new NodeClientModule());
+            modules.add(new BulkUdpModule());
+            modules.add(new ShapeModule());
+            modules.add(new PercolatorModule());
+            modules.add(new ResourceWatcherModule());
+            modules.add(new RepositoriesModule());
+            modules.add(new TribeModule());
+            modules.add(new BenchmarkModule(settings));
+
+            injector = modules.createInjector();
+
+            client = injector.getInstance(Client.class);
+            success = true;
+        } finally {
+            if (!success) {
+                nodeEnvironment.close();
+            }
         }
-        modules.add(new RiversModule(settings));
-        modules.add(new IndicesModule(settings));
-        modules.add(new SearchModule());
-        modules.add(new ActionModule(false));
-        modules.add(new MonitorModule(settings));
-        modules.add(new GatewayModule(settings));
-        modules.add(new NodeClientModule());
-        modules.add(new BulkUdpModule());
-        modules.add(new ShapeModule());
-        modules.add(new PercolatorModule());
-        modules.add(new ResourceWatcherModule());
-        modules.add(new RepositoriesModule());
-        modules.add(new TribeModule());
-        modules.add(new BenchmarkModule(settings));
-
-        injector = modules.createInjector();
-
-        client = injector.getInstance(Client.class);
 
         logger.info("initialized");
     }

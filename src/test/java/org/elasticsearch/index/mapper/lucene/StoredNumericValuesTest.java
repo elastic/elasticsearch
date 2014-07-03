@@ -33,6 +33,7 @@ import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.MapperTestUtils;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.util.*;
@@ -43,7 +44,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class StoredNumericValuesTest {
+public class StoredNumericValuesTest extends ElasticsearchTestCase{
 
     @Test
     public void testBytesAndNumericRepresentation() throws Exception {

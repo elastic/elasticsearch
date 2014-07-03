@@ -71,6 +71,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -167,7 +168,7 @@ import static org.hamcrest.Matchers.equalTo;
  * </p>
  */
 @Ignore
-@AbstractRandomizedTest.IntegrationTests
+@AbstractRandomizedTest.Integration
 public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase {
     private static TestCluster GLOBAL_CLUSTER;
     /**
@@ -186,13 +187,6 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      * It's set once per test via a generic index template.
      */
     public static final String SETTING_INDEX_SEED = "index.tests.seed";
-
-    /**
-     * Property that allows to adapt the tests behaviour to older features/bugs based on the input version
-     */
-    public static final String TESTS_COMPATIBILITY = "tests.compatibility";
-
-    private static final Version COMPATIBILITY_VERSION = Version.fromString(compatibilityVersionProperty());
 
     /**
      * Threshold at which indexing switches from frequently async to frequently bulk.
@@ -266,7 +260,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             } else {
                 long masterSeed = SeedUtils.parseSeed(RandomizedContext.current().getRunnerSeedAsString());
                 int numClientNodes;
-                if (COMPATIBILITY_VERSION.before(Version.V_1_2_0)) {
+                if (globalCompatibilityVersion().before(Version.V_1_2_0)) {
                     numClientNodes = 0;
                 } else {
                     numClientNodes = InternalTestCluster.DEFAULT_NUM_CLIENT_NODES;
@@ -801,12 +795,13 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         if (!applied) {
             fail("failed to find mappings on all nodes for index " + index + ", type " + type + ", and fieldName " + Arrays.toString(fieldNames));
         }
+        waitForMappingOnMaster(index, type, fieldNames);
     }
 
     /**
      * Waits for the given mapping type to exists on the master node.
      */
-    public void waitForMappingOnMaster(final String index, final String type) throws InterruptedException {
+    public void waitForMappingOnMaster(final String index, final String type, final String... fieldNames) throws InterruptedException {
         boolean applied = awaitBusy(new Predicate<Object>() {
             @Override
             public boolean apply(Object input) {
@@ -815,7 +810,32 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                 if (mappings == null) {
                     return false;
                 }
-                return mappings.containsKey(type);
+                MappingMetaData mappingMetaData = mappings.get(type);
+                if (mappingMetaData == null) {
+                    return false;
+                }
+
+                Map<String, Object> mappingSource;
+                try {
+                    mappingSource = mappingMetaData.getSourceAsMap();
+                } catch (IOException e) {
+                    throw ExceptionsHelper.convertToElastic(e);
+                }
+                if (mappingSource.isEmpty() && !mappingSource.containsKey("properties")) {
+                    return false;
+                }
+
+                for (String fieldName : fieldNames) {
+                    Map<String, Object> mappingProperties = (Map<String, Object>) mappingSource.get("properties");
+                    if (fieldName.indexOf('.') != -1) {
+                        fieldName = fieldName.replace(".", ".properties.");
+                    }
+                    if (XContentMapValues.extractValue(fieldName, mappingProperties) == null) {
+                        return false;
+                    }
+                }
+
+                return true;
             }
         });
         if (!applied) {
@@ -1624,44 +1644,4 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     @Ignore
     public @interface SuiteScopeTest {
     }
-
-
-    /**
-     * If a test is annotated with {@link org.elasticsearch.test.ElasticsearchIntegrationTest.CompatibilityVersion}
-     * all randomized settings will only contain settings or mappings which are compatible with the specified version ID.
-     */
-    @Retention(RetentionPolicy.RUNTIME)
-    @Target({ElementType.TYPE})
-    @Ignore
-    public @interface CompatibilityVersion {
-        int version();
-    }
-
-    /**
-     * Retruns the tests compatibility version.
-     */
-    public Version compatibilityVersion() {
-        return compatibiltyVersion(getClass());
-    }
-
-    private Version compatibiltyVersion(Class<?> clazz) {
-        if (clazz == Object.class || clazz == ElasticsearchIntegrationTest.class) {
-            return COMPATIBILITY_VERSION;
-        }
-        CompatibilityVersion annotation = clazz.getAnnotation(CompatibilityVersion.class);
-        if (annotation != null) {
-            return  Version.smallest(Version.fromId(annotation.version()), COMPATIBILITY_VERSION);
-        }
-        return compatibiltyVersion(clazz.getSuperclass());
-    }
-
-    private static String compatibilityVersionProperty() {
-        final String version = System.getProperty(TESTS_COMPATIBILITY);
-        if (Strings.hasLength(version)) {
-            return version;
-        }
-        return System.getProperty(TESTS_BACKWARDS_COMPATIBILITY_VERSION);
-    }
-
-
 }

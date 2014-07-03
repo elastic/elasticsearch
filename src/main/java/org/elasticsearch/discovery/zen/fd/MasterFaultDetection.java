@@ -296,14 +296,13 @@ public class MasterFaultDetection extends AbstractComponent {
                             if (!running) {
                                 return;
                             }
-                            if (exp instanceof ConnectTransportException) {
-                                // ignore this one, we already handle it by registering a connection listener
-                                return;
-                            }
                             synchronized (masterNodeMutex) {
                                 // check if the master node did not get switched on us...
                                 if (masterToPing.equals(MasterFaultDetection.this.masterNode())) {
-                                    if (exp.getCause() instanceof NoLongerMasterException) {
+                                    if (exp instanceof ConnectTransportException) {
+                                        handleTransportDisconnect(masterToPing);
+                                        return;
+                                    } else if (exp.getCause() instanceof NoLongerMasterException) {
                                         logger.debug("[master] pinging a master {} that is no longer a master", masterNode);
                                         notifyMasterFailure(masterToPing, "no longer master");
                                         return;
@@ -316,6 +315,7 @@ public class MasterFaultDetection extends AbstractComponent {
                                         notifyMasterFailure(masterToPing, "do not exists on master, act as master failure");
                                         return;
                                     }
+
                                     int retryCount = ++MasterFaultDetection.this.retryCount;
                                     logger.trace("[master] failed to ping [{}], retry [{}] out of [{}]", exp, masterNode, retryCount, pingRetryCount);
                                     if (retryCount >= pingRetryCount) {
@@ -334,7 +334,8 @@ public class MasterFaultDetection extends AbstractComponent {
                         public String executor() {
                             return ThreadPool.Names.SAME;
                         }
-                    });
+                    }
+            );
         }
     }
 

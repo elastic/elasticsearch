@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.test;
 
+import org.apache.lucene.util.AbstractRandomizedTest;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoveryModule;
@@ -43,12 +44,12 @@ import java.io.IOException;
  * <p>
  *   Note: this base class is still experimental and might have bugs or leave external processes running behind.
  * </p>
- * Backwards compatibility tests are disabled by default via {@link BackwardsCompatibilityTest} annotation.
+ * Backwards compatibility tests are disabled by default via {@link org.apache.lucene.util.AbstractRandomizedTest.Backwards} annotation.
  * The following system variables control the test execution:
  * <ul>
  *     <li>
  *          <tt>{@value #TESTS_BACKWARDS_COMPATIBILITY}</tt> enables / disables
- *          tests annotated with {@link BackwardsCompatibilityTest} (defaults to
+ *          tests annotated with {@link org.apache.lucene.util.AbstractRandomizedTest.Backwards} (defaults to
  *          <tt>false</tt>)
  *     </li>
  *     <li>
@@ -66,7 +67,7 @@ import java.io.IOException;
  *
  */
 // the transportClientRatio is tricky here since we don't fully control the cluster nodes
-@ElasticsearchBackwardsCompatIntegrationTest.BackwardsCompatibilityTest
+@AbstractRandomizedTest.Backwards
 @ElasticsearchIntegrationTest.ClusterScope(minNumDataNodes = 0, maxNumDataNodes = 2, scope = ElasticsearchIntegrationTest.Scope.SUITE, numClientNodes = 0, transportClientRatio = 0.0)
 @Ignore
 public abstract class ElasticsearchBackwardsCompatIntegrationTest extends ElasticsearchIntegrationTest {

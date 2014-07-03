@@ -35,7 +35,7 @@ import java.util.regex.Pattern;
  */
 public class AggregatorParsers {
 
-    public static final Pattern VALID_AGG_NAME = Pattern.compile("[a-zA-Z0-9\\-_]+");
+    public static final Pattern VALID_AGG_NAME = Pattern.compile("[^\\[\\]>]+");
     private final ImmutableMap<String, Aggregator.Parser> parsers;
 
 

@@ -71,7 +71,7 @@ curl 'localhost:9200/test/type/_mget' -d '{
 --------------------------------------------------
 
 [float]
-[[type]]
+[[mget-type]]
 === Optional Type
 
 The mget API allows for `_type` to be optional. Set it to `_all` or leave it empty in order

@@ -75,6 +75,9 @@ public class CompositeTestCluster extends TestCluster {
             }
             externalNodes[i].reset(random.nextLong());
         }
+        if (size() > 0) {
+            client().admin().cluster().prepareHealth().setWaitForNodes(">=" + Integer.toString(this.size())).get();
+        }
     }
 
     private Collection<ExternalNode> runningNodes() {

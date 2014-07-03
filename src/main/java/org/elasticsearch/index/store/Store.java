@@ -629,7 +629,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
     }
 
     /**
-     * Renames all files in this store with a <tt>corruption</tt> suffix
+     * Renames all files in this store with a <tt>corruption_</tt> prefix
      * marking the shard as corrupted to prevent recovering from the at any point.
      */
     public void markStoreCorrupted() throws IOException {

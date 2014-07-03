@@ -806,10 +806,11 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      * Waits for the given mapping type to exists on the master node.
      */
     public void waitForMappingOnMaster(final String index, final String type, final String... fieldNames) throws InterruptedException {
+        final GetMappingsResponse[] lastResponse = new GetMappingsResponse[1];
         boolean applied = awaitBusy(new Predicate<Object>() {
             @Override
             public boolean apply(Object input) {
-                GetMappingsResponse response = client().admin().indices().prepareGetMappings(index).setTypes(type).get();
+                GetMappingsResponse response = lastResponse[0] = client().admin().indices().prepareGetMappings(index).setTypes(type).get();
                 ImmutableOpenMap<String, MappingMetaData> mappings = response.getMappings().get(index);
                 if (mappings == null) {
                     return false;
@@ -843,7 +844,19 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             }
         });
         if (!applied) {
-            fail("failed to find mappings for index " + index + ", type " + type + " on master node");
+            String source = null;
+            ImmutableOpenMap<String, MappingMetaData> mappings = lastResponse[0].getMappings().get(index);
+            if (mappings != null) {
+                MappingMetaData mappingMetaData = mappings.get(type);
+                if (mappingMetaData != null) {
+                    try {
+                        source = mappingMetaData.source().string();
+                    } catch (IOException e) {
+                        throw ExceptionsHelper.convertToElastic(e);
+                    }
+                }
+            }
+            fail("failed to find mappings for index " + index + ", type " + type + " on master node[" + source + "]");
         }
     }
 

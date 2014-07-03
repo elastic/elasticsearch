@@ -2,12 +2,17 @@ package org.elasticsearch.script.expression;
 
 import org.apache.lucene.expressions.Expression;
 import org.apache.lucene.expressions.SimpleBindings;
+import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.script.SearchScript;
@@ -26,13 +31,11 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
 
     private final AtomicLong counter = new AtomicLong();
     private final ClassLoader classLoader; // TODO: should use this instead of the implicit this.getClass().getClassLoader()?
-    private final MapperService mapper;
 
     @Inject
-    public ExpressionScriptEngineService(Settings settings, MapperService m) {
+    public ExpressionScriptEngineService(Settings settings) {
         super(settings);
         classLoader = settings.getClassLoader();
-        mapper = m;
     }
 
     @Override
@@ -53,7 +56,7 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
     @Override
     public Object compile(String script) {
         try {
-            // NOTE: validation is delayed to allow runtime vars
+            // NOTE: validation is delayed to allow runtime vars, and we don't have access to per index stuff here
             return JavascriptCompiler.compile(script);
         } catch (ParseException e) {
             throw new ExpressionScriptCompilationException("Failed to parse expression: " + script, e);
@@ -63,9 +66,35 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
     @Override
     public SearchScript search(Object compiledScript, SearchLookup lookup, @Nullable Map<String, Object> vars) {
         Expression expr = (Expression)compiledScript;
+        MapperService mapper = lookup.doc().mapperService();
+        ExpressionScriptBindings bindings = new ExpressionScriptBindings();
 
-        // TODO: fill in vars into bindings, do validation
-        return new ExpressionScript((Expression)compiledScript, new SimpleBindings());
+        for (String variable : expr.variables) {
+            if (variable.equals("_score")) {
+                // noop: our bindings inherently know how to deal with score
+            } else if (vars != null && vars.containsKey(variable)) {
+                Object value = vars.get(variable);
+                if (value instanceof Double) {
+                    bindings.addConstant(variable, ((Double)value).doubleValue());
+                } else if (value instanceof Long) {
+                    bindings.addConstant(variable, ((Long)value).doubleValue());
+                } else if (value instanceof Integer) {
+                    bindings.addConstant(variable, ((Integer)value).doubleValue());
+                } else {
+                    throw new ExpressionScriptExecutionException("Parameter [" + variable + "] must be a numeric type (double or long)");
+                }
+            } else {
+                FieldMapper<?> field = mapper.smartNameFieldMapper(variable);
+                if (field.isNumeric() == false) {
+                    // TODO: more context (which expression?)
+                    throw new ExpressionScriptExecutionException("Field [" + variable + "] used in expression must be numeric");
+                }
+                IndexFieldData<?> fieldData = lookup.doc().fieldDataService.getForField((NumberFieldMapper)field);
+                bindings.addField(variable, fieldData);
+            }
+        }
+
+        return new ExpressionScript((Expression)compiledScript, bindings);
     }
 
     @Override

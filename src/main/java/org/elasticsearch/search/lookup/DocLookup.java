@@ -42,7 +42,7 @@ public class DocLookup implements Map {
     private final Map<String, ScriptDocValues> localCacheFieldData = Maps.newHashMapWithExpectedSize(4);
 
     private final MapperService mapperService;
-    private final IndexFieldDataService fieldDataService;
+    public final IndexFieldDataService fieldDataService;
 
     @Nullable
     private final String[] types;

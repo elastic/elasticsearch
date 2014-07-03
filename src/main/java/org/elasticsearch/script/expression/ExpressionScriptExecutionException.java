@@ -9,4 +9,7 @@ public class ExpressionScriptExecutionException extends ElasticsearchException {
     public ExpressionScriptExecutionException(String msg, Throwable cause) {
         super(msg, cause);
     }
+    public ExpressionScriptExecutionException(String msg) {
+        super(msg);
+    }
 }

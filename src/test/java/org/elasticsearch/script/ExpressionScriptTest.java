@@ -9,7 +9,7 @@ public class ExpressionScriptTest extends ElasticsearchIntegrationTest {
     @Test
     public void testBasic() {
         client().prepareIndex("test", "doc", "1").setSource("foo", 5).setRefresh(true).get();
-        String script = "1 + 2";
+        String script = "foo + 2";
         SearchResponse resp = client().prepareSearch("test")
         .setSource("{\"query\": {" +
                        "\"function_score\": {" +
@@ -22,7 +22,7 @@ public class ExpressionScriptTest extends ElasticsearchIntegrationTest {
                         "}" +
                     "}}").get();
 
-        assertEquals(3, resp.getHits().getAt(0).getScore(), 0.0001f);
+        assertEquals(7.0, resp.getHits().getAt(0).getScore(), 0.0001f);
     }
 
 

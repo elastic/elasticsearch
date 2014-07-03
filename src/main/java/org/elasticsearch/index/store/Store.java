@@ -239,7 +239,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
      */
     public IndexOutput createVerifyingOutput(final String filename, final IOContext context, final StoreFileMetaData metadata) throws IOException {
         if (metadata.hasLegacyChecksum() || metadata.checksum() == null) {
-            logger.info("create legacy output for {}", filename);
+            logger.debug("create legacy output for {}", filename);
             return directory().createOutput(filename, context);
         }
         assert metadata.writtenBy() != null;

@@ -169,7 +169,7 @@ import static org.hamcrest.Matchers.equalTo;
  * </p>
  */
 @Ignore
-@AbstractRandomizedTest.IntegrationTests
+@AbstractRandomizedTest.Integration
 public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase {
     private static TestCluster GLOBAL_CLUSTER;
     /**

@@ -554,8 +554,11 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                     initializeGlobalCluster(); // re-init that cluster
                 }
             }
-            currentCluster.afterTest();
-            currentCluster = null;
+            if (currentCluster != null) {
+                // this can be null if the test fails due to static initialization ie. missing parameter on the cmd
+                currentCluster.afterTest();
+                currentCluster = null;
+            }
         }
     }
 

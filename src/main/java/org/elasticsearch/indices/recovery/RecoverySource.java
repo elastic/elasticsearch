@@ -222,7 +222,7 @@ public class RecoverySource extends AbstractComponent {
                                     final CorruptIndexException corruptIndexException;
                                     if ((corruptIndexException = ExceptionsHelper.unwrap(e, CorruptIndexException.class)) != null) {
                                        if (store.checkIntegrity(md) == false) { // we are corrupted on the primary -- fail!
-                                           logger.warn("Corrupted file detected {} checksum mismatch", md);
+                                           logger.warn("[{}][{}] Corrupted file detected {} checksum mismatch", shard.shardId().index(), shard.shardId(), md);
                                            CorruptIndexException current = corruptedEngine.get();
                                            if (current != null || corruptedEngine.compareAndSet(null, corruptIndexException)) {
                                                current = corruptedEngine.get();

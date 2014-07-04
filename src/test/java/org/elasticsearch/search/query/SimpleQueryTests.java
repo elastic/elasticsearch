@@ -2457,27 +2457,26 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
     @Test
     public void testQueryStringParserCache() throws Exception {
         createIndex("test");
-        indexRandom(true, Arrays.asList(
-                client().prepareIndex("test", "type", "1").setSource("nameTokens", "xyz")
-        ));
+        indexRandom(true, false, client().prepareIndex("test", "type", "1").setSource("nameTokens", "xyz"));
 
         SearchResponse response = client().prepareSearch("test")
+                .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
                 .setQuery(QueryBuilders.queryString("xyz").boost(100))
                 .get();
-
         assertThat(response.getHits().totalHits(), equalTo(1l));
         assertThat(response.getHits().getAt(0).id(), equalTo("1"));
 
-        float score = response.getHits().getAt(0).getScore();
-
+        float first = response.getHits().getAt(0).getScore();
         for (int i = 0; i < 100; i++) {
             response = client().prepareSearch("test")
+                    .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
                     .setQuery(QueryBuilders.queryString("xyz").boost(100))
                     .get();
 
             assertThat(response.getHits().totalHits(), equalTo(1l));
             assertThat(response.getHits().getAt(0).id(), equalTo("1"));
-            assertThat(Float.compare(score, response.getHits().getAt(0).getScore()), equalTo(0));
+            float actual = response.getHits().getAt(0).getScore();
+            assertThat(i + " expected: " + first + " actual: " + actual, Float.compare(first, actual), equalTo(0));
         }
     }
 

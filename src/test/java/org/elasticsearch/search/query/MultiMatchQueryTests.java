@@ -207,8 +207,7 @@ public class MultiMatchQueryTests extends ElasticsearchIntegrationTest {
         searchResponse = client().prepareSearch("test")
                 .setQuery(randomizeType(multiMatchQuery("the Ul", "full_name_phrase", "first_name_phrase", "last_name_phrase", "category_phrase")
                         .operator(MatchQueryBuilder.Operator.OR).type(MatchQueryBuilder.Type.PHRASE_PREFIX))).get();
-        assertFirstHit(searchResponse, hasId("ultimate2"));
-        assertSecondHit(searchResponse, hasId("ultimate1"));
+        assertSearchHits(searchResponse, "ultimate2", "ultimate1");
         assertHitCount(searchResponse, 2l);
     }
 

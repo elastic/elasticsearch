@@ -30,6 +30,7 @@ import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexDeletionPolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -78,6 +79,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
@@ -1181,6 +1183,80 @@ public class InternalEngineTests extends ElasticsearchTestCase {
             rootLogger.setLevel(savedLevel);
         }
     }
+
+    @Test
+    public void testCloseWaitsOnRecoveries() throws InterruptedException {
+
+        final CountDownLatch blockRecoveries = new CountDownLatch(1);
+        int recoveryCount = 1 + randomInt(9);
+        final CountDownLatch startedRecoveries = new CountDownLatch(recoveryCount);
+        final AtomicLong completedRecoveries = new AtomicLong();
+        for (int i = 0; i < recoveryCount; i++) {
+
+            threadPool.generic().execute(new Runnable() {
+                @Override
+                public void run() {
+                    engine.recover(new Engine.RecoveryHandler() {
+                        @Override
+                        public void phase1(SnapshotIndexCommit snapshot) throws ElasticsearchException {
+                            try {
+                                startedRecoveries.countDown();
+                                blockRecoveries.await();
+                                completedRecoveries.incrementAndGet();
+                            } catch (InterruptedException e) {
+                            }
+                        }
+
+                        @Override
+                        public void phase2(Translog.Snapshot snapshot) throws ElasticsearchException {
+
+                        }
+
+                        @Override
+                        public void phase3(Translog.Snapshot snapshot) throws ElasticsearchException {
+
+                        }
+                    });
+                }
+            });
+        }
+
+        final CountDownLatch readyToClose = new CountDownLatch(1);
+        final CountDownLatch closeEngine = new CountDownLatch(1);
+        final CountDownLatch engineClosed = new CountDownLatch(1);
+
+        threadPool.generic().execute(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    readyToClose.countDown();
+                    closeEngine.await();
+                } catch (InterruptedException e) {
+
+                }
+                engine.close();
+                engineClosed.countDown();
+            }
+        });
+
+        logger.info("waiting for [{}] recoveries to start", recoveryCount);
+        startedRecoveries.await();
+
+        readyToClose.await();
+
+        logger.info("closing engine");
+        closeEngine.countDown();
+        Thread.sleep(100);
+        logger.info("releasing recoveries");
+        blockRecoveries.countDown();
+
+        logger.info("waiting for engine to close");
+        engineClosed.await();
+
+        assertThat(completedRecoveries.get(), equalTo((long) recoveryCount));
+    }
+
+
 
     protected Term newUid(String id) {
         return new Term("_uid", id);

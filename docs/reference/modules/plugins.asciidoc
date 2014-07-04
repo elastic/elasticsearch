@@ -191,6 +191,9 @@ You can disable that check using `plugins.check_lucene: false`.
 * https://github.com/elasticsearch/elasticsearch-cloud-azure[Azure Cloud Plugin] - Azure discovery
 * https://github.com/elasticsearch/elasticsearch-cloud-gce[Google Compute Engine Cloud Plugin] - GCE discovery
 
+.Supported by the community
+* https://github.com/shikhar/eskka[eskka Discovery Plugin] (by Shikhar Bhushan)
+
 [float]
 [[river]]
 ==== River Plugins

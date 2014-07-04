@@ -78,11 +78,13 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
         }
         int docs = builders.size();
         indexRandom(true, builders);
+        ensureYellow();
         SearchResponse allDocsResponse = client().prepareSearch().setQuery(QueryBuilders.filteredQuery(matchAllQuery(),
                 FilterBuilders.boolFilter().must(FilterBuilders.termFilter("foo", "bar"),
                         FilterBuilders.rangeFilter("timeUpdated").gte("2014/0" + randomIntBetween(1, 7) + "/01").cache(randomBoolean()))))
                 .addSort(new FieldSortBuilder("timeUpdated").order(SortOrder.ASC).ignoreUnmapped(true))
                 .setSize(docs).get();
+        assertSearchResponse(allDocsResponse);
 
         final int numiters = randomIntBetween(1, 20);
         for (int i = 0; i < numiters; i++) {
@@ -91,6 +93,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
                             FilterBuilders.rangeFilter("timeUpdated").gte("2014/" + String.format(Locale.ROOT, "%02d", randomIntBetween(1, 7)) + "/01").cache(randomBoolean()))))
                     .addSort(new FieldSortBuilder("timeUpdated").order(SortOrder.ASC).ignoreUnmapped(true))
                     .setSize(scaledRandomIntBetween(1, docs)).get();
+            assertSearchResponse(searchResponse);
             for (int j = 0; j < searchResponse.getHits().hits().length; j++) {
                 assertThat(searchResponse.toString() + "\n vs. \n" + allDocsResponse.toString(), searchResponse.getHits().hits()[j].getId(), equalTo(allDocsResponse.getHits().hits()[j].getId()));
             }

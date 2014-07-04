@@ -123,6 +123,24 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    // see #6722
+    public void test6722() throws ElasticsearchException, IOException {
+        assertAcked(prepareCreate("test")
+                .addMapping("foo")
+                .addMapping("test", "_parent", "type=foo"));
+        ensureGreen();
+
+        // index simple data
+        client().prepareIndex("test", "foo", "1").setSource("foo", 1).get();
+        client().prepareIndex("test", "test").setSource("foo", 1).setParent("1").get();
+        refresh();
+
+        SearchResponse searchResponse = client().prepareSearch("test").setSource("{\"query\":{\"filtered\":{\"filter\":{\"has_parent\":{\"type\":\"test\",\"query\":{\"bool\":{\"must\":[],\"must_not\":[],\"should\":[]}}},\"query\":[]}}}}").get();
+        assertNoFailures(searchResponse);
+        assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
+    }
+
+    @Test
     // see #2744
     public void test2744() throws ElasticsearchException, IOException {
         assertAcked(prepareCreate("test")

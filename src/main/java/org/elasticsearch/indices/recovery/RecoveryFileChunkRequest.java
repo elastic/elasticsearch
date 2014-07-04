@@ -45,7 +45,7 @@ public final class RecoveryFileChunkRequest extends TransportRequest {  // publi
     RecoveryFileChunkRequest() {
     }
 
-    RecoveryFileChunkRequest(long recoveryId, ShardId shardId, StoreFileMetaData metaData, long position, BytesArray content) {
+    public RecoveryFileChunkRequest(long recoveryId, ShardId shardId, StoreFileMetaData metaData, long position, BytesReference content) {
         this.recoveryId = recoveryId;
         this.shardId = shardId;
         this.metaData = metaData;

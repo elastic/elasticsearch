@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.index.store;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.google.common.base.Charsets;
 import com.google.common.base.Predicate;
@@ -41,6 +42,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
@@ -267,11 +269,14 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
             }
         }
         final List<File> files = listShardFiles(shardRouting);
+        File corruptedFile = null;
         for (File file : files) {
-            if ("write.lock".equals(file.getName()) == false) {
-                assertThat(files.toString(), file.getName(), startsWith("corrupted_"));
+            if (file.getName().startsWith("corrupted_")) {
+                corruptedFile = file;
+                break;
             }
         }
+        assertThat(corruptedFile, notNullValue());
     }
 
     /**
@@ -316,7 +321,7 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
         // we have to flush at least once here since we don't corrupt the translog
         CountResponse countResponse = client().prepareCount().get();
         assertHitCount(countResponse, numDocs);
-
+        final boolean truncate = randomBoolean();
         for (NodeStats dataNode : dataNodeStats) {
             MockTransportService mockTransportService = ((MockTransportService) internalCluster().getInstance(TransportService.class, dataNode.getNode().name()));
             mockTransportService.addDelegate(internalCluster().getInstance(Discovery.class, unluckyNode.getNode().name()).localNode(), new MockTransportService.DelegateTransport(mockTransportService.original()) {
@@ -325,9 +330,14 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
                 public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {
                     if (action.equals(RecoveryTarget.Actions.FILE_CHUNK)) {
                         RecoveryFileChunkRequest req = (RecoveryFileChunkRequest) request;
-                        byte[] array = req.content().array();
-                        int i = randomIntBetween(0, req.content().length() - 1);
-                        array[i] = (byte) ~array[i]; // flip one byte in the content
+                        if (truncate && req.length() > 1) {
+                            BytesArray array = new BytesArray(req.content().array(), req.content().arrayOffset(), (int)req.length()-1);
+                            request = new RecoveryFileChunkRequest(req.recoveryId(), req.shardId(), req.metadata(), req.position(), array);
+                        } else {
+                            byte[] array = req.content().array();
+                            int i = randomIntBetween(0, req.content().length() - 1);
+                            array[i] = (byte) ~array[i]; // flip one byte in the content
+                        }
                     }
                     super.sendRequest(node, requestId, action, request, options);
                 }

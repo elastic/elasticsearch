@@ -1219,7 +1219,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                 try {
                     if (markCorrupted) {
                         try {
-                            store.markStoreCorrupted();
+                            store.markStoreCorrupted(ExceptionsHelper.unwrap(failure, CorruptIndexException.class));
                         } catch (IOException e) {
                             logger.trace("Couldn't marks store corrupted", e);
                         }

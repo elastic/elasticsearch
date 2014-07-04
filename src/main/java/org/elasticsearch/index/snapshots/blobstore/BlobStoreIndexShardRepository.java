@@ -21,6 +21,7 @@ package org.elasticsearch.index.snapshots.blobstore;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
+import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
@@ -671,6 +672,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                 int numberOfReusedFiles = 0;
                 long reusedTotalSize = 0;
                 final Store.MetadataSnapshot metadata;
+
                 try {
                     metadata = store.getMetadata();
                 } catch (Throwable e) {

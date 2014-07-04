@@ -30,6 +30,7 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.*;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.Version;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.Compressor;
@@ -121,6 +122,9 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
      */
     public MetadataSnapshot getMetadata() throws IOException {
         ensureOpen();
+        if (isMarkedCorrupted()) {
+            throw new CorruptIndexException("Store is corruputed can't get metadata");
+        }
         return new MetadataSnapshot(distributorDirectory, logger);
     }
 
@@ -632,21 +636,16 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
      * Renames all files in this store with a <tt>corruption_</tt> prefix
      * marking the shard as corrupted to prevent recovering from the at any point.
      */
-    public void markStoreCorrupted() throws IOException {
+    public void markStoreCorrupted(CorruptIndexException exception) throws IOException {
         ensureOpen();
-        String uuid = "corrupted_" + Strings.randomBase64UUID() + ".";
-        /* marking a store as corrupted is basically adding a _corrupted to all
-         * the files. This prevent
-         */
-        final String[] files = directory().listAll();
-        for (String file : files) {
-            if ("write.lock".equals(file) == false && !file.startsWith("corrupted_")) {
-                try {
-                    renameFile(file, uuid + file);
-                } catch (IOException ex) {
-                    logger.warn("Can't rename {} on marking corrupted index", ex, file);
-                }
+        String uuid = "corrupted_" + Strings.randomBase64UUID();
+        try(IndexOutput output = this.directory().createOutput(uuid, IOContext.DEFAULT)) {
+            if (exception != null) {
+                output.writeString(ExceptionsHelper.detailedMessage(exception, true, 0));
             }
+        } catch (IOException ex) {
+            logger.warn("Can't mark store as corrupted", ex);
         }
+        directory().sync(Collections.singleton(uuid));
     }
 }

@@ -116,6 +116,9 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
         indexShard.store().incRef();
         try {
             try {
+                if (indexShard.store().isMarkedCorrupted()) {
+                    throw new IndexShardGatewayRecoveryException(shardId(), "Shard is corrupted can't recover from local gateway");
+                }
                 SegmentInfos si = null;
                 try {
                     si = Lucene.readSegmentInfos(indexShard.store().directory());
@@ -127,9 +130,6 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
                         files += " (failure=" + ExceptionsHelper.detailedMessage(e1) + ")";
                     }
                     if (indexShouldExists && indexShard.store().indexStore().persistent()) {
-                        if (indexShard.store().isMarkedCorrupted()) {
-                            throw new IndexShardGatewayRecoveryException(shardId(), "Shard is corrupted can't recover " + files, e);
-                        }
                         throw new IndexShardGatewayRecoveryException(shardId(), "shard allocated for local recovery (post api), should exist, but doesn't, current files: " + files, e);
                     }
                 }

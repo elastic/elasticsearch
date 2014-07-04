@@ -90,7 +90,8 @@ The `arabic` analyzer could be reimplemented as a `custom` analyzer as follows:
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> Words can be excluded from stemming with the `stem_exclusion`
-    parameter.
+    parameter. This filter should be removed if there are no words 
+    to exclude.
 
 [[armenian-analyzer]]
 ==== `armenian` analyzer
@@ -134,7 +135,8 @@ The `armenian` analyzer could be reimplemented as a `custom` analyzer as follows
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> Words can be excluded from stemming with the `stem_exclusion`
-    parameter.
+    parameter. This filter should be removed if there are no words 
+    to exclude.
 
 [[basque-analyzer]]
 ==== `basque` analyzer
@@ -178,7 +180,8 @@ The `basque` analyzer could be reimplemented as a `custom` analyzer as follows:
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> Words can be excluded from stemming with the `stem_exclusion`
-    parameter.
+    parameter. This filter should be removed if there are no words 
+    to exclude.
 
 [[brazilian-analyzer]]
 ==== `brazilian` analyzer
@@ -222,7 +225,8 @@ The `brazilian` analyzer could be reimplemented as a `custom` analyzer as follow
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> Words can be excluded from stemming with the `stem_exclusion`
-    parameter.
+    parameter. This filter should be removed if there are no words 
+    to exclude.
 
 [[bulgarian-analyzer]]
 ==== `bulgarian` analyzer
@@ -266,7 +270,8 @@ The `bulgarian` analyzer could be reimplemented as a `custom` analyzer as follow
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> Words can be excluded from stemming with the `stem_exclusion`
-    parameter.
+    parameter. This filter should be removed if there are no words 
+    to exclude.
 
 [[catalan-analyzer]]
 ==== `catalan` analyzer
@@ -315,7 +320,8 @@ The `catalan` analyzer could be reimplemented as a `custom` analyzer as follows:
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> Words can be excluded from stemming with the `stem_exclusion`
-    parameter.
+    parameter. This filter should be removed if there are no words 
+    to exclude.
 
 [[chinese-analyzer]]
 ==== `chinese` analyzer
@@ -402,7 +408,8 @@ The `czech` analyzer could be reimplemented as a `custom` analyzer as follows:
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> Words can be excluded from stemming with the `stem_exclusion`
-    parameter.
+    parameter. This filter should be removed if there are no words 
+    to exclude.
 
 [[danish-analyzer]]
 ==== `danish` analyzer
@@ -446,7 +453,8 @@ The `danish` analyzer could be reimplemented as a `custom` analyzer as follows:
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> Words can be excluded from stemming with the `stem_exclusion`
-    parameter.
+    parameter. This filter should be removed if there are no words 
+    to exclude.
 
 [[dutch-analyzer]]
 ==== `dutch` analyzer
@@ -500,7 +508,8 @@ The `dutch` analyzer could be reimplemented as a `custom` analyzer as follows:
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> Words can be excluded from stemming with the `stem_exclusion`
-    parameter.
+    parameter. This filter should be removed if there are no words 
+    to exclude.
 
 [[english-analyzer]]
 ==== `english` analyzer
@@ -549,7 +558,8 @@ The `english` analyzer could be reimplemented as a `custom` analyzer as follows:
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> Words can be excluded from stemming with the `stem_exclusion`
-    parameter.
+    parameter. This filter should be removed if there are no words 
+    to exclude.
 
 [[finnish-analyzer]]
 ==== `finnish` analyzer
@@ -593,7 +603,8 @@ The `finnish` analyzer could be reimplemented as a `custom` analyzer as follows:
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> Words can be excluded from stemming with the `stem_exclusion`
-    parameter.
+    parameter. This filter should be removed if there are no words 
+    to exclude.
 
 [[french-analyzer]]
 ==== `french` analyzer
@@ -645,7 +656,8 @@ The `french` analyzer could be reimplemented as a `custom` analyzer as follows:
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> Words can be excluded from stemming with the `stem_exclusion`
-    parameter.
+    parameter. This filter should be removed if there are no words 
+    to exclude.
 
 [[galician-analyzer]]
 ==== `galician` analyzer
@@ -689,7 +701,8 @@ The `galician` analyzer could be reimplemented as a `custom` analyzer as follows
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> Words can be excluded from stemming with the `stem_exclusion`
-    parameter.
+    parameter. This filter should be removed if there are no words 
+    to exclude.
 
 [[german-analyzer]]
 ==== `german` analyzer
@@ -734,7 +747,8 @@ The `german` analyzer could be reimplemented as a `custom` analyzer as follows:
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> Words can be excluded from stemming with the `stem_exclusion`
-    parameter.
+    parameter. This filter should be removed if there are no words 
+    to exclude.
 
 [[greek-analyzer]]
 ==== `greek` analyzer
@@ -782,7 +796,8 @@ The `greek` analyzer could be reimplemented as a `custom` analyzer as follows:
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> Words can be excluded from stemming with the `stem_exclusion`
-    parameter.
+    parameter. This filter should be removed if there are no words 
+    to exclude.
 
 [[hindi-analyzer]]
 ==== `hindi` analyzer
@@ -828,7 +843,8 @@ The `hindi` analyzer could be reimplemented as a `custom` analyzer as follows:
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> Words can be excluded from stemming with the `stem_exclusion`
-    parameter.
+    parameter. This filter should be removed if there are no words 
+    to exclude.
 
 [[hungarian-analyzer]]
 ==== `hungarian` analyzer
@@ -872,7 +888,8 @@ The `hungarian` analyzer could be reimplemented as a `custom` analyzer as follow
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> Words can be excluded from stemming with the `stem_exclusion`
-    parameter.
+    parameter. This filter should be removed if there are no words 
+    to exclude.
 
 
 [[indonesian-analyzer]]
@@ -917,7 +934,8 @@ The `indonesian` analyzer could be reimplemented as a `custom` analyzer as follo
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> Words can be excluded from stemming with the `stem_exclusion`
-    parameter.
+    parameter. This filter should be removed if there are no words 
+    to exclude.
 
 [[irish-analyzer]]
 ==== `irish` analyzer
@@ -970,7 +988,8 @@ The `irish` analyzer could be reimplemented as a `custom` analyzer as follows:
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> Words can be excluded from stemming with the `stem_exclusion`
-    parameter.
+    parameter. This filter should be removed if there are no words 
+    to exclude.
 
 [[italian-analyzer]]
 ==== `italian` analyzer
@@ -1024,7 +1043,8 @@ The `italian` analyzer could be reimplemented as a `custom` analyzer as follows:
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> Words can be excluded from stemming with the `stem_exclusion`
-    parameter.
+    parameter. This filter should be removed if there are no words 
+    to exclude.
 
 [[norwegian-analyzer]]
 ==== `norwegian` analyzer
@@ -1068,7 +1088,8 @@ The `norwegian` analyzer could be reimplemented as a `custom` analyzer as follow
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> Words can be excluded from stemming with the `stem_exclusion`
-    parameter.
+    parameter. This filter should be removed if there are no words 
+    to exclude.
 
 [[persian-analyzer]]
 ==== `persian` analyzer
@@ -1154,7 +1175,8 @@ The `portuguese` analyzer could be reimplemented as a `custom` analyzer as follo
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> Words can be excluded from stemming with the `stem_exclusion`
-    parameter.
+    parameter. This filter should be removed if there are no words 
+    to exclude.
 
 [[romanian-analyzer]]
 ==== `romanian` analyzer
@@ -1198,7 +1220,8 @@ The `romanian` analyzer could be reimplemented as a `custom` analyzer as follows
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> Words can be excluded from stemming with the `stem_exclusion`
-    parameter.
+    parameter. This filter should be removed if there are no words 
+    to exclude.
 
 
 [[russian-analyzer]]
@@ -1243,7 +1266,8 @@ The `russian` analyzer could be reimplemented as a `custom` analyzer as follows:
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> Words can be excluded from stemming with the `stem_exclusion`
-    parameter.
+    parameter. This filter should be removed if there are no words 
+    to exclude.
 
 [[sorani-analyzer]]
 ==== `sorani` analyzer
@@ -1288,7 +1312,8 @@ The `sorani` analyzer could be reimplemented as a `custom` analyzer as follows:
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> Words can be excluded from stemming with the `stem_exclusion`
-    parameter.
+    parameter. This filter should be removed if there are no words 
+    to exclude.
 
 [[spanish-analyzer]]
 ==== `spanish` analyzer
@@ -1332,7 +1357,8 @@ The `spanish` analyzer could be reimplemented as a `custom` analyzer as follows:
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> Words can be excluded from stemming with the `stem_exclusion`
-    parameter.
+    parameter. This filter should be removed if there are no words 
+    to exclude.
 
 [[swedish-analyzer]]
 ==== `swedish` analyzer
@@ -1376,7 +1402,8 @@ The `swedish` analyzer could be reimplemented as a `custom` analyzer as follows:
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> Words can be excluded from stemming with the `stem_exclusion`
-    parameter.
+    parameter. This filter should be removed if there are no words 
+    to exclude.
 
 [[turkish-analyzer]]
 ==== `turkish` analyzer
@@ -1425,7 +1452,8 @@ The `turkish` analyzer could be reimplemented as a `custom` analyzer as follows:
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.
 <2> Words can be excluded from stemming with the `stem_exclusion`
-    parameter.
+    parameter. This filter should be removed if there are no words 
+    to exclude.
 
 [[thai-analyzer]]
 ==== `thai` analyzer

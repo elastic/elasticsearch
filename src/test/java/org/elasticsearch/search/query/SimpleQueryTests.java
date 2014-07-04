@@ -2455,7 +2455,8 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
     @Test
     public void testQueryStringParserCache() throws Exception {
         createIndex("test");
-        indexRandom(true, false, client().prepareIndex("test", "type", "1").setSource("nameTokens", "xyz"));
+        indexRandom(false, client().prepareIndex("test", "type", "1").setSource("nameTokens", "xyz"));
+        refresh();
 
         SearchResponse response = client().prepareSearch("test")
                 .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)

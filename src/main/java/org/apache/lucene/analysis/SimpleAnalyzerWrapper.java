@@ -32,6 +32,10 @@ import java.io.Reader;
  */
 public abstract class SimpleAnalyzerWrapper extends AnalyzerWrapper {
 
+    static {
+        assert org.elasticsearch.Version.CURRENT.luceneVersion == org.apache.lucene.util.Version.LUCENE_4_9: "Remove this code once we upgrade to Lucene 4.10 (LUCENE-5803)";
+    }
+
     public SimpleAnalyzerWrapper() {
         super(new DelegatingReuseStrategy());
         ((DelegatingReuseStrategy) getReuseStrategy()).wrapper = this;

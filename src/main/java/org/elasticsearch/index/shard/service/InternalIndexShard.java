@@ -664,6 +664,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
             }
             changeState(IndexShardState.CLOSED, reason);
         }
+        engine.close();
     }
 
     public long checkIndexTook() {

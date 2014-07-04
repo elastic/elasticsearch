@@ -1142,6 +1142,25 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
 
     @Override
     public void close() throws ElasticsearchException {
+        if (closed) {
+            return;
+        }
+        // best effort attempt at waiting for recoveries to finish before closing. We do this out of lock to prevent dead locks
+        // (recovery should cancel and finish when the owning IndexShard is marked as CLOSED, which is done before the
+        //  engine is closed)
+        if (onGoingRecoveries.get() > 0) {
+            logger.trace("best effort waiting for current [{}] ongoing recoveries to finish before closing the engine", onGoingRecoveries.get());
+            long waitUntil = System.currentTimeMillis() + 30000; // wait for 30s
+            while (onGoingRecoveries.get() > 0 && System.currentTimeMillis() < waitUntil) {
+                try {
+                    Thread.sleep(100);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new ElasticsearchException("interrupted while waiting for recoveries to complete");
+                }
+            }
+            logger.trace("done waiting for ongoing recoveries. current count is [{}]", onGoingRecoveries.get());
+        }
         try (InternalLock _ = writeLock.acquire()) {
             if (!closed) {
                 try {

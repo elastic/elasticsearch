@@ -35,7 +35,6 @@ import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.filter.ShardFilterCacheModule;
 import org.elasticsearch.index.deletionpolicy.DeletionPolicyModule;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineModule;
 import org.elasticsearch.index.engine.IndexEngine;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
@@ -397,12 +396,6 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
                 logger.debug("failed to close index shard", e);
                 // ignore
             }
-        }
-        try {
-            shardInjector.getInstance(Engine.class).close();
-        } catch (Throwable e) {
-            logger.debug("failed to close engine", e);
-            // ignore
         }
         try {
             shardInjector.getInstance(MergeSchedulerProvider.class).close();

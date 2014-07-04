@@ -108,14 +108,16 @@ public class CompositeTestCluster extends TestCluster {
     public synchronized boolean upgradeOneNode(Settings nodeSettings) throws InterruptedException, IOException {
         Collection<ExternalNode> runningNodes = runningNodes();
         if (!runningNodes.isEmpty()) {
+            final Client existingClient = cluster.client();
             ExternalNode externalNode = RandomPicks.randomFrom(random, runningNodes);
             externalNode.stop();
             String s = cluster.startNode(nodeSettings);
-            ExternalNode.waitForNode(cluster.client(), s);
+            ExternalNode.waitForNode(existingClient, s);
             return true;
         }
         return false;
     }
+
 
     /**
      * Returns the a simple pattern that matches all "new" nodes in the cluster.

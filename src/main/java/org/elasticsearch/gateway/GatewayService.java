@@ -50,6 +50,8 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
 
     public static final ClusterBlock STATE_NOT_RECOVERED_BLOCK = new ClusterBlock(1, "state not recovered / initialized", true, true, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL);
 
+    public static final TimeValue DEFAULT_RECOVER_AFTER_TIME_IF_EXPECTED_NODES_IS_SET = TimeValue.timeValueMinutes(5);
+
     private final Gateway gateway;
 
     private final ThreadPool threadPool;
@@ -81,14 +83,20 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
         this.discoveryService = discoveryService;
         this.threadPool = threadPool;
         // allow to control a delay of when indices will get created
-        this.recoverAfterTime = componentSettings.getAsTime("recover_after_time", null);
-        this.recoverAfterNodes = componentSettings.getAsInt("recover_after_nodes", -1);
         this.expectedNodes = componentSettings.getAsInt("expected_nodes", -1);
-        this.recoverAfterDataNodes = componentSettings.getAsInt("recover_after_data_nodes", -1);
         this.expectedDataNodes = componentSettings.getAsInt("expected_data_nodes", -1);
+        this.expectedMasterNodes = componentSettings.getAsInt("expected_master_nodes", -1);
+
+        TimeValue defaultRecoverAfterTime = null;
+        if (expectedNodes >= 0 || expectedDataNodes >= 0 || expectedMasterNodes >= 0) {
+            defaultRecoverAfterTime = DEFAULT_RECOVER_AFTER_TIME_IF_EXPECTED_NODES_IS_SET;
+        }
+
+        this.recoverAfterTime = componentSettings.getAsTime("recover_after_time", defaultRecoverAfterTime);
+        this.recoverAfterNodes = componentSettings.getAsInt("recover_after_nodes", -1);
+        this.recoverAfterDataNodes = componentSettings.getAsInt("recover_after_data_nodes", -1);
         // default the recover after master nodes to the minimum master nodes in the discovery
         this.recoverAfterMasterNodes = componentSettings.getAsInt("recover_after_master_nodes", settings.getAsInt("discovery.zen.minimum_master_nodes", -1));
-        this.expectedMasterNodes = componentSettings.getAsInt("expected_master_nodes", -1);
 
         // Add the not recovered as initial state block, we don't allow anything until
         this.clusterService.addInitialStateBlock(STATE_NOT_RECOVERED_BLOCK);
@@ -101,36 +109,8 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
         // node from starting until we recovered properly
         if (discoveryService.initialStateReceived()) {
             ClusterState clusterState = clusterService.state();
-            DiscoveryNodes nodes = clusterState.nodes();
             if (clusterState.nodes().localNodeMaster() && clusterState.blocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK)) {
-                if (clusterState.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK)) {
-                    logger.debug("not recovering from gateway, no master elected yet");
-                } else if (recoverAfterNodes != -1 && (nodes.masterAndDataNodes().size()) < recoverAfterNodes) {
-                    logger.debug("not recovering from gateway, nodes_size (data+master) [" + nodes.masterAndDataNodes().size() + "] < recover_after_nodes [" + recoverAfterNodes + "]");
-                } else if (recoverAfterDataNodes != -1 && nodes.dataNodes().size() < recoverAfterDataNodes) {
-                    logger.debug("not recovering from gateway, nodes_size (data) [" + nodes.dataNodes().size() + "] < recover_after_data_nodes [" + recoverAfterDataNodes + "]");
-                } else if (recoverAfterMasterNodes != -1 && nodes.masterNodes().size() < recoverAfterMasterNodes) {
-                    logger.debug("not recovering from gateway, nodes_size (master) [" + nodes.masterNodes().size() + "] < recover_after_master_nodes [" + recoverAfterMasterNodes + "]");
-                } else {
-                    boolean ignoreRecoverAfterTime;
-                    if (expectedNodes == -1 && expectedMasterNodes == -1 && expectedDataNodes == -1) {
-                        // no expected is set, don't ignore the timeout
-                        ignoreRecoverAfterTime = false;
-                    } else {
-                        // one of the expected is set, see if all of them meet the need, and ignore the timeout in this case
-                        ignoreRecoverAfterTime = true;
-                        if (expectedNodes != -1 && (nodes.masterAndDataNodes().size() < expectedNodes)) { // does not meet the expected...
-                            ignoreRecoverAfterTime = false;
-                        }
-                        if (expectedMasterNodes != -1 && (nodes.masterNodes().size() < expectedMasterNodes)) { // does not meet the expected...
-                            ignoreRecoverAfterTime = false;
-                        }
-                        if (expectedDataNodes != -1 && (nodes.dataNodes().size() < expectedDataNodes)) { // does not meet the expected...
-                            ignoreRecoverAfterTime = false;
-                        }
-                    }
-                    performStateRecovery(ignoreRecoverAfterTime);
-                }
+                checkStateMeetsSettingsAndMaybeRecover(clusterState, false);
             }
         } else {
             logger.debug("can't wait on start for (possibly) reading state from gateway, will do it asynchronously");
@@ -161,56 +141,57 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
             scheduledRecovery.set(false);
         }
         if (event.localNodeMaster() && event.state().blocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK)) {
-            ClusterState clusterState = event.state();
-            DiscoveryNodes nodes = clusterState.nodes();
-            if (event.state().blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK)) {
-                logger.debug("not recovering from gateway, no master elected yet");
-            } else if (recoverAfterNodes != -1 && (nodes.masterAndDataNodes().size()) < recoverAfterNodes) {
-                logger.debug("not recovering from gateway, nodes_size (data+master) [" + nodes.masterAndDataNodes().size() + "] < recover_after_nodes [" + recoverAfterNodes + "]");
-            } else if (recoverAfterDataNodes != -1 && nodes.dataNodes().size() < recoverAfterDataNodes) {
-                logger.debug("not recovering from gateway, nodes_size (data) [" + nodes.dataNodes().size() + "] < recover_after_data_nodes [" + recoverAfterDataNodes + "]");
-            } else if (recoverAfterMasterNodes != -1 && nodes.masterNodes().size() < recoverAfterMasterNodes) {
-                logger.debug("not recovering from gateway, nodes_size (master) [" + nodes.masterNodes().size() + "] < recover_after_master_nodes [" + recoverAfterMasterNodes + "]");
-            } else {
-                boolean ignoreRecoverAfterTime;
-                if (expectedNodes == -1 && expectedMasterNodes == -1 && expectedDataNodes == -1) {
-                    // no expected is set, don't ignore the timeout
-                    ignoreRecoverAfterTime = false;
-                } else {
-                    // one of the expected is set, see if all of them meet the need, and ignore the timeout in this case
-                    ignoreRecoverAfterTime = true;
-                    if (expectedNodes != -1 && (nodes.masterAndDataNodes().size() < expectedNodes)) { // does not meet the expected...
-                        ignoreRecoverAfterTime = false;
-                    }
-                    if (expectedMasterNodes != -1 && (nodes.masterNodes().size() < expectedMasterNodes)) { // does not meet the expected...
-                        ignoreRecoverAfterTime = false;
-                    }
-                    if (expectedDataNodes != -1 && (nodes.dataNodes().size() < expectedDataNodes)) { // does not meet the expected...
-                        ignoreRecoverAfterTime = false;
-                    }
-                }
-                final boolean fIgnoreRecoverAfterTime = ignoreRecoverAfterTime;
-                threadPool.generic().execute(new Runnable() {
-                    @Override
-                    public void run() {
-                        performStateRecovery(fIgnoreRecoverAfterTime);
-                    }
-                });
-            }
+            checkStateMeetsSettingsAndMaybeRecover(event.state(), true);
         }
     }
 
-    private void performStateRecovery(boolean ignoreRecoverAfterTime) {
+    protected void checkStateMeetsSettingsAndMaybeRecover(ClusterState state, boolean asyncRecovery) {
+        DiscoveryNodes nodes = state.nodes();
+        if (state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK)) {
+            logger.debug("not recovering from gateway, no master elected yet");
+        } else if (recoverAfterNodes != -1 && (nodes.masterAndDataNodes().size()) < recoverAfterNodes) {
+            logger.debug("not recovering from gateway, nodes_size (data+master) [" + nodes.masterAndDataNodes().size() + "] < recover_after_nodes [" + recoverAfterNodes + "]");
+        } else if (recoverAfterDataNodes != -1 && nodes.dataNodes().size() < recoverAfterDataNodes) {
+            logger.debug("not recovering from gateway, nodes_size (data) [" + nodes.dataNodes().size() + "] < recover_after_data_nodes [" + recoverAfterDataNodes + "]");
+        } else if (recoverAfterMasterNodes != -1 && nodes.masterNodes().size() < recoverAfterMasterNodes) {
+            logger.debug("not recovering from gateway, nodes_size (master) [" + nodes.masterNodes().size() + "] < recover_after_master_nodes [" + recoverAfterMasterNodes + "]");
+        } else {
+            boolean enforceRecoverAfterTime;
+            String reason;
+            if (expectedNodes == -1 && expectedMasterNodes == -1 && expectedDataNodes == -1) {
+                // no expected is set, honor the setting if they are there
+                enforceRecoverAfterTime = true;
+                reason = "recovery_after_time was set to [" + recoverAfterTime + "]";
+            } else {
+                // one of the expected is set, see if all of them meet the need, and ignore the timeout in this case
+                enforceRecoverAfterTime = false;
+                reason = "";
+                if (expectedNodes != -1 && (nodes.masterAndDataNodes().size() < expectedNodes)) { // does not meet the expected...
+                    enforceRecoverAfterTime = true;
+                    reason = "expecting [" + expectedNodes + "] nodes, but only have [" + nodes.masterAndDataNodes().size() + "]";
+                } else if (expectedDataNodes != -1 && (nodes.dataNodes().size() < expectedDataNodes)) { // does not meet the expected...
+                    enforceRecoverAfterTime = true;
+                    reason = "expecting [" + expectedDataNodes + "] data nodes, but only have [" + nodes.dataNodes().size() + "]";
+                } else if (expectedMasterNodes != -1 && (nodes.masterNodes().size() < expectedMasterNodes)) { // does not meet the expected...
+                    enforceRecoverAfterTime = true;
+                    reason = "expecting [" + expectedMasterNodes + "] master nodes, but only have [" + nodes.masterNodes().size() + "]";
+                }
+            }
+            performStateRecovery(asyncRecovery, enforceRecoverAfterTime, reason);
+        }
+    }
+
+    private void performStateRecovery(boolean asyncRecovery, boolean enforceRecoverAfterTime, String reason) {
         final Gateway.GatewayStateRecoveredListener recoveryListener = new GatewayRecoveryListener(new CountDownLatch(1));
 
-        if (!ignoreRecoverAfterTime && recoverAfterTime != null) {
+        if (enforceRecoverAfterTime && recoverAfterTime != null) {
             if (scheduledRecovery.compareAndSet(false, true)) {
-                logger.debug("delaying initial state recovery for [{}]", recoverAfterTime);
+                logger.info("delaying initial state recovery for [{}]. {}", recoverAfterTime, reason);
                 threadPool.schedule(recoverAfterTime, ThreadPool.Names.GENERIC, new Runnable() {
                     @Override
                     public void run() {
                         if (recovered.compareAndSet(false, true)) {
-                            logger.trace("performing state recovery...");
+                            logger.info("recovery_after_time [{}] elapsed. performing state recovery...", recoverAfterTime);
                             gateway.performStateRecovery(recoveryListener);
                         }
                     }
@@ -218,8 +199,17 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
             }
         } else {
             if (recovered.compareAndSet(false, true)) {
-                logger.trace("performing state recovery...");
-                gateway.performStateRecovery(recoveryListener);
+                if (asyncRecovery) {
+                    threadPool.generic().execute(new Runnable() {
+                        @Override
+                        public void run() {
+                            gateway.performStateRecovery(recoveryListener);
+                        }
+                    });
+                } else {
+                    logger.trace("performing state recovery...");
+                    gateway.performStateRecovery(recoveryListener);
+                }
             }
         }
     }
@@ -300,4 +290,10 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
             logger.info("metadata state not restored, reason: {}", message);
         }
     }
+
+    // used for testing
+    public TimeValue recoverAfterTime() {
+        return recoverAfterTime;
+    }
+
 }

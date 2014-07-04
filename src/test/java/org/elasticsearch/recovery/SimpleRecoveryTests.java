@@ -25,6 +25,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import static org.elasticsearch.client.Requests.*;
@@ -49,6 +50,7 @@ public class SimpleRecoveryTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    @TestLogging(value = "cluster.service:TRACE,action.get:TRACE")
     public void testSimpleRecovery() throws Exception {
         assertAcked(prepareCreate("test", 1).execute().actionGet(5000));
 

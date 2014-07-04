@@ -547,16 +547,19 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             }
             throw e;
         } finally {
-            if (!success) {
+            if (!success || suiteFailureMarker.hadFailures()) {
                 // if we failed that means that something broke horribly so we should
                 // clear all clusters and if the current cluster is the global we shut that one
                 // down as well to prevent subsequent tests from failing due to the same problem.
+                // we also reset everything in the case we had a failure in the suite to make sure subsequent
+                // tests get a new / clean cluster
                 clearClusters();
                 if (currentCluster == GLOBAL_CLUSTER) {
                     GLOBAL_CLUSTER.close();
                     GLOBAL_CLUSTER = null;
                     initializeGlobalCluster(); // re-init that cluster
                 }
+                currentCluster = null;
             }
             if (currentCluster != null) {
                 // this can be null if the test fails due to static initialization ie. missing parameter on the cmd

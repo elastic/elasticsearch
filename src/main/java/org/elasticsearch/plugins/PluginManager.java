@@ -241,19 +241,28 @@ public class PluginManager {
         File pluginToDelete = pluginHandle.extractedDir(environment);
         if (pluginToDelete.exists()) {
             debug("Removing: " + pluginToDelete.getPath());
-            FileSystemUtils.deleteRecursively(pluginToDelete, true);
+            if (!FileSystemUtils.deleteRecursively(pluginToDelete, true)) {
+                throw new IOException("Unable to remove " + pluginHandle.name + ". Check file permissions on " +
+                        pluginToDelete.toString());
+            }
             removed = true;
         }
         pluginToDelete = pluginHandle.distroFile(environment);
         if (pluginToDelete.exists()) {
             debug("Removing: " + pluginToDelete.getPath());
-            pluginToDelete.delete();
+            if (!pluginToDelete.delete()) {
+                throw new IOException("Unable to remove " + pluginHandle.name + ". Check file permissions on " +
+                        pluginToDelete.toString());
+            }
             removed = true;
         }
         File binLocation = pluginHandle.binDir(environment);
         if (binLocation.exists()) {
             debug("Removing: " + binLocation.getPath());
-            FileSystemUtils.deleteRecursively(binLocation);
+            if (!FileSystemUtils.deleteRecursively(binLocation)) {
+                throw new IOException("Unable to remove " + pluginHandle.name + ". Check file permissions on " +
+                        binLocation.toString());
+            }
             removed = true;
         }
         if (removed) {

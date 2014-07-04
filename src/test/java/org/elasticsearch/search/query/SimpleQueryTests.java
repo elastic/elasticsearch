@@ -47,10 +47,7 @@ import org.joda.time.format.ISODateTimeFormat;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.HashSet;
-import java.util.Locale;
-import java.util.Random;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
@@ -2454,6 +2451,33 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
             for (String id : oneIds) {
                 assertThat(otherIds.contains(id), is(true));
             }
+        }
+    }
+
+    @Test
+    public void testQueryStringParserCache() throws Exception {
+        createIndex("test");
+        indexRandom(true, Arrays.asList(
+                client().prepareIndex("test", "type", "1").setSource("nameTokens", "xyz")
+        ));
+
+        SearchResponse response = client().prepareSearch("test")
+                .setQuery(QueryBuilders.queryString("xyz").boost(100))
+                .get();
+
+        assertThat(response.getHits().totalHits(), equalTo(1l));
+        assertThat(response.getHits().getAt(0).id(), equalTo("1"));
+
+        float score = response.getHits().getAt(0).getScore();
+
+        for (int i = 0; i < 100; i++) {
+            response = client().prepareSearch("test")
+                    .setQuery(QueryBuilders.queryString("xyz").boost(100))
+                    .get();
+
+            assertThat(response.getHits().totalHits(), equalTo(1l));
+            assertThat(response.getHits().getAt(0).id(), equalTo("1"));
+            assertThat(Float.compare(score, response.getHits().getAt(0).getScore()), equalTo(0));
         }
     }
 

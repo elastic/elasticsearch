@@ -63,7 +63,12 @@ public class ResidentQueryParserCache extends AbstractIndexComponent implements 
 
     @Override
     public Query get(QueryParserSettings queryString) {
-        return cache.getIfPresent(queryString);
+        Query value =  cache.getIfPresent(queryString);
+        if (value != null) {
+            return value.clone();
+        } else {
+            return null;
+        }
     }
 
     @Override

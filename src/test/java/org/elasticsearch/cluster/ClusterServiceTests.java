@@ -450,19 +450,23 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
         }
 
         // The tasks can be re-ordered, so we need to check out-of-order
-        Set<String> controlSources = new HashSet<>(Arrays.asList("2", "3", "4", "5", "6", "7", "8", "9", "10"));
+        Set<String> controlSources = new HashSet<>(Arrays.asList("1", "2", "3", "4", "5", "6", "7", "8", "9", "10"));
         List<PendingClusterTask> pendingClusterTasks = clusterService.pendingTasks();
-        assertThat(pendingClusterTasks.size(), equalTo(9));
+        assertThat(pendingClusterTasks.size(), equalTo(10));
+        assertThat(pendingClusterTasks.get(0).getSource().string(), equalTo("1"));
+        assertThat(pendingClusterTasks.get(0).isExecuting(), equalTo(true));
         for (PendingClusterTask task : pendingClusterTasks) {
-            assertTrue(controlSources.remove(task.source().string()));
+            assertTrue(controlSources.remove(task.getSource().string()));
         }
         assertTrue(controlSources.isEmpty());
 
-        controlSources = new HashSet<>(Arrays.asList("2", "3", "4", "5", "6", "7", "8", "9", "10"));
+        controlSources = new HashSet<>(Arrays.asList("1", "2", "3", "4", "5", "6", "7", "8", "9", "10"));
         PendingClusterTasksResponse response = internalCluster().clientNodeClient().admin().cluster().preparePendingClusterTasks().execute().actionGet();
-        assertThat(response.pendingTasks().size(), equalTo(9));
+        assertThat(response.pendingTasks().size(), equalTo(10));
+        assertThat(response.pendingTasks().get(0).getSource().string(), equalTo("1"));
+        assertThat(response.pendingTasks().get(0).isExecuting(), equalTo(true));
         for (PendingClusterTask task : response) {
-            assertTrue(controlSources.remove(task.source().string()));
+            assertTrue(controlSources.remove(task.getSource().string()));
         }
         assertTrue(controlSources.isEmpty());
         block1.countDown();
@@ -511,18 +515,18 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
         Thread.sleep(100);
 
         pendingClusterTasks = clusterService.pendingTasks();
-        assertThat(pendingClusterTasks.size(), equalTo(4));
-        controlSources = new HashSet<>(Arrays.asList("2", "3", "4", "5"));
+        assertThat(pendingClusterTasks.size(), equalTo(5));
+        controlSources = new HashSet<>(Arrays.asList("1", "2", "3", "4", "5"));
         for (PendingClusterTask task : pendingClusterTasks) {
-            assertTrue(controlSources.remove(task.source().string()));
+            assertTrue(controlSources.remove(task.getSource().string()));
         }
         assertTrue(controlSources.isEmpty());
 
         response = internalCluster().clientNodeClient().admin().cluster().preparePendingClusterTasks().execute().actionGet();
-        assertThat(response.pendingTasks().size(), equalTo(4));
-        controlSources = new HashSet<>(Arrays.asList("2", "3", "4", "5"));
+        assertThat(response.pendingTasks().size(), equalTo(5));
+        controlSources = new HashSet<>(Arrays.asList("1", "2", "3", "4", "5"));
         for (PendingClusterTask task : response) {
-            assertTrue(controlSources.remove(task.source().string()));
+            assertTrue(controlSources.remove(task.getSource().string()));
             assertThat(task.getTimeInQueueInMillis(), greaterThan(0l));
         }
         assertTrue(controlSources.isEmpty());

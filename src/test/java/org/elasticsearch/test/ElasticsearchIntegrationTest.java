@@ -863,7 +863,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                     }
                 }
             }
-            fail("failed to find mappings for index " + index + ", type " + type + " on master node[" + source + "]");
+            fail("failed to find mappings for index " + index + ", type " + type + ", fields " + fieldNames + ", on master node, mapping source [" + source + "]");
         }
     }
 

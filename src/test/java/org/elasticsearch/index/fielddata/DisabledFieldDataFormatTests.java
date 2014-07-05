@@ -148,6 +148,7 @@ public class DisabledFieldDataFormatTests extends ElasticsearchIntegrationTest {
                 return true;
             }
         });
+        waitNoPendingTasksOnAll();
         logger.info(">> put mapping verified {}, applies {}", format, applied);
         if (!applied) {
             fail();

@@ -435,16 +435,20 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
         invoked1.await();
         final CountDownLatch invoked2 = new CountDownLatch(9);
         for (int i = 2; i <= 10; i++) {
-            clusterService.submitStateUpdateTask(Integer.toString(i), new ClusterStateUpdateTask() {
+            clusterService.submitStateUpdateTask(Integer.toString(i), new ProcessedClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    invoked2.countDown();
                     return currentState;
                 }
 
                 @Override
                 public void onFailure(String source, Throwable t) {
                     fail();
+                }
+
+                @Override
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    invoked2.countDown();
                 }
             });
         }

@@ -18,9 +18,12 @@
  */
 package org.elasticsearch.common.util.concurrent;
 
+import com.google.common.collect.Lists;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.unit.TimeValue;
 
+import java.util.List;
+import java.util.Queue;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -34,25 +37,39 @@ import java.util.concurrent.atomic.AtomicLong;
 public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
 
     private AtomicLong insertionOrder = new AtomicLong();
+    private Queue<Runnable> current = ConcurrentCollections.newQueue();
 
     PrioritizedEsThreadPoolExecutor(int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit, ThreadFactory threadFactory) {
         super(corePoolSize, maximumPoolSize, keepAliveTime, unit, new PriorityBlockingQueue<Runnable>(), threadFactory);
     }
 
     public Pending[] getPending() {
-        Object[] objects = getQueue().toArray();
-        Pending[] infos = new Pending[objects.length];
-        for (int i = 0; i < objects.length; i++) {
-            Object obj = objects[i];
-            if (obj instanceof TieBreakingPrioritizedRunnable) {
-                TieBreakingPrioritizedRunnable t = (TieBreakingPrioritizedRunnable) obj;
-                infos[i] = new Pending(t.runnable, t.priority(), t.insertionOrder);
-            } else if (obj instanceof PrioritizedFutureTask) {
-                PrioritizedFutureTask t = (PrioritizedFutureTask) obj;
-                infos[i] = new Pending(t.task, t.priority, t.insertionOrder);
+        List<Pending> pending = Lists.newArrayList();
+        addPending(Lists.newArrayList(current), pending, true);
+        addPending(Lists.newArrayList(getQueue()), pending, false);
+        return pending.toArray(new Pending[pending.size()]);
+    }
+
+    private void addPending(List<Runnable> runnables, List<Pending> pending, boolean executing) {
+        for (Runnable runnable : runnables) {
+            if (runnable instanceof TieBreakingPrioritizedRunnable) {
+                TieBreakingPrioritizedRunnable t = (TieBreakingPrioritizedRunnable) runnable;
+                pending.add(new Pending(t.runnable, t.priority(), t.insertionOrder, executing));
+            } else if (runnable instanceof PrioritizedFutureTask) {
+                PrioritizedFutureTask t = (PrioritizedFutureTask) runnable;
+                pending.add(new Pending(t.task, t.priority, t.insertionOrder, executing));
             }
         }
-        return infos;
+    }
+
+    @Override
+    protected void beforeExecute(Thread t, Runnable r) {
+        current.add(r);
+    }
+
+    @Override
+    protected void afterExecute(Runnable r, Throwable t) {
+        current.remove(r);
     }
 
     public void execute(Runnable command, final ScheduledExecutorService timer, final TimeValue timeout, final Runnable timeoutCallback) {
@@ -106,11 +123,13 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
         public final Object task;
         public final Priority priority;
         public final long insertionOrder;
+        public final boolean executing;
 
-        public Pending(Object task, Priority priority, long insertionOrder) {
+        public Pending(Object task, Priority priority, long insertionOrder, boolean executing) {
             this.task = task;
             this.priority = priority;
             this.insertionOrder = insertionOrder;
+            this.executing = executing;
         }
     }
 

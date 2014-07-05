@@ -279,7 +279,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                 timeInQueue = -1;
             }
 
-            pendingClusterTasks.add(new PendingClusterTask(pending.insertionOrder, pending.priority, new StringText(source), timeInQueue));
+            pendingClusterTasks.add(new PendingClusterTask(pending.insertionOrder, pending.priority, new StringText(source), timeInQueue, pending.executing));
         }
         return pendingClusterTasks;
     }

@@ -182,7 +182,7 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleCustomO
 
     private ImmutableMap<String, FieldMappingMetaData> findFieldMappingsByType(DocumentMapper documentMapper, GetFieldMappingsIndexRequest request) throws ElasticsearchException {
         MapBuilder<String, FieldMappingMetaData> fieldMappings = new MapBuilder<>();
-        List<FieldMapper> allFieldMappers = documentMapper.mappers().mappers();
+        final List<FieldMapper> allFieldMappers = documentMapper.mappers().mappers();
         for (String field : request.fields()) {
             if (Regex.isMatchAllPattern(field)) {
                 for (FieldMapper fieldMapper : allFieldMappers) {

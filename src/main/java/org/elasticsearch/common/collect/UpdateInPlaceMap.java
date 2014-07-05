@@ -37,11 +37,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * <p/>
  * Note, its important to understand the semantics of the class and its mutator, its not an update in place, when
  * CHM is used, changes to the mutator will be reflected in the existing maps!. This class should be used as if
- * its a regular, mutable concurrent map.
+ * its a regular, mutable concurrent map, mutation can affect the existing map.
  * <p/>
  * This class only allows for a single concurrent mutator to execute at the same time.
  */
-public class UpdateInPlaceMap<K, V> {
+public final class UpdateInPlaceMap<K, V> {
 
     final int switchSize;
     final AtomicBoolean mutating = new AtomicBoolean();
@@ -59,18 +59,28 @@ public class UpdateInPlaceMap<K, V> {
         }
     }
 
+    /**
+     * Returns if the map is empty or not.
+     */
     public boolean isEmpty() {
         final ImmutableOpenMap<K, V> immutableMap = this.immutableMap;
         final ConcurrentMap<K, V> concurrentMap = this.concurrentMap;
         return immutableMap != null ? immutableMap.isEmpty() : concurrentMap.isEmpty();
     }
 
+    /**
+     * Returns the value matching a key, or null if not matched.
+     */
     public V get(K key) {
         final ImmutableOpenMap<K, V> immutableMap = this.immutableMap;
         final ConcurrentMap<K, V> concurrentMap = this.concurrentMap;
         return immutableMap != null ? immutableMap.get(key) : concurrentMap.get(key);
     }
 
+    /**
+     * Returns all the values in the map, on going mutator changes might or might not be reflected
+     * in the values.
+     */
     public Iterable<V> values() {
         return new Iterable<V>() {
             @Override
@@ -86,6 +96,9 @@ public class UpdateInPlaceMap<K, V> {
         };
     }
 
+    /**
+     * Opens a mutator allowing to mutate this map. Note, only one mutator is allowed to execute.
+     */
     public Mutator mutator() {
         if (!mutating.compareAndSet(false, true)) {
             throw new ElasticsearchIllegalStateException("map is already mutating, can't have another mutator on it");
@@ -97,28 +110,28 @@ public class UpdateInPlaceMap<K, V> {
         return new UpdateInPlaceMap<>(switchSize);
     }
 
-    public class Mutator implements Releasable {
+    public final class Mutator implements Releasable {
 
-        private ImmutableOpenMap.Builder<K, V> immutableB;
+        private ImmutableOpenMap.Builder<K, V> immutableBuilder;
 
         private Mutator() {
             if (immutableMap != null) {
-                immutableB = ImmutableOpenMap.builder(immutableMap);
+                immutableBuilder = ImmutableOpenMap.builder(immutableMap);
             } else {
-                immutableB = null;
+                immutableBuilder = null;
             }
         }
 
         public V get(K key) {
-            if (immutableB != null) {
-                return immutableB.get(key);
+            if (immutableBuilder != null) {
+                return immutableBuilder.get(key);
             }
             return concurrentMap.get(key);
         }
 
         public V put(K key, V value) {
-            if (immutableB != null) {
-                V v = immutableB.put(key, value);
+            if (immutableBuilder != null) {
+                V v = immutableBuilder.put(key, value);
                 switchIfNeeded();
                 return v;
             } else {
@@ -134,28 +147,30 @@ public class UpdateInPlaceMap<K, V> {
         }
 
         public V remove(K key) {
-            return immutableB != null ? immutableB.remove(key) : concurrentMap.remove(key);
+            return immutableBuilder != null ? immutableBuilder.remove(key) : concurrentMap.remove(key);
         }
 
         private void switchIfNeeded() {
             if (concurrentMap != null) {
+                assert immutableBuilder == null;
                 return;
             }
-            if (immutableB.size() < switchSize) {
+            if (immutableBuilder.size() <= switchSize) {
                 return;
             }
             concurrentMap = ConcurrentCollections.newConcurrentMap();
-            for (ObjectObjectCursor<K, V> cursor : immutableB) {
+            for (ObjectObjectCursor<K, V> cursor : immutableBuilder) {
                 concurrentMap.put(cursor.key, cursor.value);
             }
-            immutableB = null;
+            immutableBuilder = null;
             immutableMap = null;
         }
 
         public void close() {
-            if (immutableB != null) {
-                immutableMap = immutableB.build();
+            if (immutableBuilder != null) {
+                immutableMap = immutableBuilder.build();
             }
+            assert (immutableBuilder != null && concurrentMap == null) || (immutableBuilder == null && concurrentMap != null);
             mutating.set(false);
         }
     }

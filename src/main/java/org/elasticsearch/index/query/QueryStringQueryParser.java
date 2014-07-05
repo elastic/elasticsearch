@@ -41,7 +41,6 @@ import java.io.IOException;
 import java.util.Locale;
 
 import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfNeeded;
-import static org.elasticsearch.common.lucene.search.Queries.optimizeQuery;
 
 /**
  *
@@ -228,7 +227,7 @@ public class QueryStringQueryParser implements QueryParser {
             if (qpSettings.boost() != QueryParserSettings.DEFAULT_BOOST) {
                 query.setBoost(query.getBoost() * qpSettings.boost());
             }
-            query = optimizeQuery(fixNegativeQueryIfNeeded(query));
+            query = fixNegativeQueryIfNeeded(query);
             if (query instanceof BooleanQuery) {
                 Queries.applyMinimumShouldMatch((BooleanQuery) query, qpSettings.minimumShouldMatch());
             }

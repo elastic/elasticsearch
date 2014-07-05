@@ -34,6 +34,7 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 
 import java.util.Set;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 
@@ -105,7 +106,7 @@ public class DisabledFieldDataFormatTests extends ElasticsearchIntegrationTest {
 
     private void updateFormat(final String format) throws Exception {
         logger.info(">> put mapping start {}", format);
-        client().admin().indices().preparePutMapping("test").setType("type").setSource(
+        assertAcked(client().admin().indices().preparePutMapping("test").setType("type").setSource(
                 XContentFactory.jsonBuilder().startObject().startObject("type")
                         .startObject("properties")
                             .startObject("s")
@@ -116,7 +117,7 @@ public class DisabledFieldDataFormatTests extends ElasticsearchIntegrationTest {
                             .endObject()
                         .endObject()
                         .endObject()
-                        .endObject()).execute().actionGet();
+                        .endObject()).get());
         logger.info(">> put mapping end {}", format);
         boolean applied = awaitBusy(new Predicate<Object>() {
             @Override

@@ -149,6 +149,7 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
      * Verify that the proper block is applied when nodes loose their master
      */
     @Test
+    @TestLogging(value = "cluster.service:TRACE,indices.recovery:TRACE")
     public void testVerifyApiBlocksDuringPartition() throws Exception {
         internalCluster().startNodesAsync(3, nodeSettings).get();
         // Wait until a 3 nodes are part of the cluster
@@ -229,6 +230,7 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
         client().admin().cluster().prepareUpdateSettings()
                 .setTransientSettings(ImmutableSettings.builder().put(DiscoverySettings.NO_MASTER_BLOCK, "all"))
                 .get();
+
         networkPartition.startDisrupting();
 
 
@@ -256,6 +258,12 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
         if (!success) {
             fail("isolated node still has a master or the wrong blocks (expected 'all' block). Cluster state:\n" + lastState[0].prettyPrint());
         }
+
+        // make sure we have stable cluster & cross partition recoveries are canceled by the removal of the missing node
+        // the unresponsive partition causes recoveries to only time out after 15m (default) and these will cause
+        // the test to fail due to unfreed resources
+        ensureStableCluster(2, nonIsolatedNode);
+
     }
 
     /**

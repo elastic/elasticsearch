@@ -56,6 +56,7 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.service.PendingClusterTask;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -92,6 +93,7 @@ import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.client.RandomizingClient;
+import org.hamcrest.Matchers;
 import org.junit.*;
 
 import java.io.IOException;
@@ -100,10 +102,7 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 import java.util.*;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
@@ -113,6 +112,7 @@ import static org.elasticsearch.test.InternalTestCluster.clusterName;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * {@link ElasticsearchIntegrationTest} is an abstract base class to run integration
@@ -719,152 +719,89 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     /**
      * Waits until all nodes have no pending tasks.
      */
-    public void waitNoPendingTasksOnAll() throws InterruptedException {
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).get();
-        final PendingClusterTasksResponse[] reference = new PendingClusterTasksResponse[1];
-        boolean applied = awaitBusy(new Predicate<Object>() {
+    public void waitNoPendingTasksOnAll() throws Exception {
+        assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).get());
+        assertBusy(new Runnable() {
             @Override
-            public boolean apply(Object input) {
-                reference[0] = null;
+            public void run() {
                 for (Client client : clients()) {
                     PendingClusterTasksResponse pendingTasks = client.admin().cluster().preparePendingClusterTasks().setLocal(true).get();
-                    if (!pendingTasks.pendingTasks().isEmpty()) {
-                        reference[0] = pendingTasks;
-                        return false;
-                    }
+                    assertThat("client " + client + " still has pending tasks " + pendingTasks.prettyPrint(), pendingTasks, Matchers.emptyIterable());
                 }
-                return true;
             }
         });
-        if (!applied) {
-            fail(reference[0].prettyPrint());
-        }
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).get();
+        assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).get());
     }
 
     /**
      * Waits until the elected master node has no pending tasks.
      */
-    public void waitNoPendingTasksOnMaster() throws InterruptedException {
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).get();
-        final PendingClusterTasksResponse[] reference = new PendingClusterTasksResponse[1];
-        boolean applied = awaitBusy(new Predicate<Object>() {
+    public void waitNoPendingTasksOnMaster() throws Exception {
+        assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).get());
+        assertBusy(new Runnable() {
             @Override
-            public boolean apply(Object input) {
-                reference[0] = null;
-                PendingClusterTasksResponse pendingTasks = client().admin().cluster().preparePendingClusterTasks().get();
-                if (!pendingTasks.pendingTasks().isEmpty()) {
-                    reference[0] = pendingTasks;
-                    return false;
-                }
-                return true;
+            public void run() {
+                PendingClusterTasksResponse pendingTasks = client().admin().cluster().preparePendingClusterTasks().setLocal(true).get();
+                assertThat("master still has pending tasks " + pendingTasks.prettyPrint(), pendingTasks, Matchers.emptyIterable());
             }
         });
-        if (!applied) {
-            fail(reference[0].prettyPrint());
-        }
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).get();
+        assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).get());
     }
 
     /**
      * Waits till a (pattern) field name mappings concretely exists on all nodes. Note, this waits for the current
      * started shards and checks for concrete mappings.
      */
-    public void waitForConcreteMappingsOnAll(final String index, final String type, final String... fieldNames) throws InterruptedException {
-        boolean applied = awaitBusy(new Predicate<Object>() {
+    public void waitForConcreteMappingsOnAll(final String index, final String type, final String... fieldNames) throws Exception {
+        assertBusy(new Runnable() {
             @Override
-            public boolean apply(Object input) {
-                try {
-                    Set<String> nodes = internalCluster().nodesInclude(index);
-                    if (nodes.isEmpty()) { // we expect at least one node to hold an index, so wait if not allocated yet
-                        return false;
+            public void run() {
+                Set<String> nodes = internalCluster().nodesInclude(index);
+                assertThat(nodes, Matchers.not(Matchers.emptyIterable()));
+                for (String node : nodes) {
+                    IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
+                    IndexService indexService = indicesService.indexService(index);
+                    assertThat("index service doesn't exists on " + node, indexService, notNullValue());
+                    DocumentMapper documentMapper = indexService.mapperService().documentMapper(type);
+                    assertThat("document mapper doesn't exists on " + node, documentMapper, notNullValue());
+                    for (String fieldName : fieldNames) {
+                        Set<String> matches = documentMapper.mappers().simpleMatchToFullName(fieldName);
+                        assertThat("field " + fieldName + " doesn't exists on " + node, matches, Matchers.not(emptyIterable()));
                     }
-                    for (String node : nodes) {
-                        IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
-                        IndexService indexService = indicesService.indexService(index);
-                        if (indexService == null) {
-                            return false;
-                        }
-                        DocumentMapper documentMapper = indexService.mapperService().documentMapper(type);
-                        if (documentMapper == null) {
-                            return false;
-                        }
-                        for (String fieldName : fieldNames) {
-                            Set<String> matches = documentMapper.mappers().simpleMatchToFullName(fieldName);
-                            if (matches.isEmpty()) {
-                                return false;
-                            }
-                        }
-                    }
-                } catch (Exception e) {
-                    logger.info("got exception waiting for concrete mappings", e);
-                    return false;
                 }
-                return true;
             }
         });
-        if (!applied) {
-            fail("failed to find mappings on all nodes for index " + index + ", type " + type + ", and fieldName " + Arrays.toString(fieldNames));
-        }
         waitForMappingOnMaster(index, type, fieldNames);
     }
 
     /**
      * Waits for the given mapping type to exists on the master node.
      */
-    public void waitForMappingOnMaster(final String index, final String type, final String... fieldNames) throws InterruptedException {
-        final GetMappingsResponse[] lastResponse = new GetMappingsResponse[1];
-        boolean applied = awaitBusy(new Predicate<Object>() {
+    public void waitForMappingOnMaster(final String index, final String type, final String... fieldNames) throws Exception {
+        assertBusy(new Callable() {
             @Override
-            public boolean apply(Object input) {
-                GetMappingsResponse response = lastResponse[0] = client().admin().indices().prepareGetMappings(index).setTypes(type).get();
+            public Object call() throws Exception {
+                GetMappingsResponse response = client().admin().indices().prepareGetMappings(index).setTypes(type).get();
                 ImmutableOpenMap<String, MappingMetaData> mappings = response.getMappings().get(index);
-                if (mappings == null) {
-                    return false;
-                }
+                assertThat(mappings, notNullValue());
                 MappingMetaData mappingMetaData = mappings.get(type);
-                if (mappingMetaData == null) {
-                    return false;
-                }
+                assertThat(mappingMetaData, notNullValue());
 
-                Map<String, Object> mappingSource;
-                try {
-                    mappingSource = mappingMetaData.getSourceAsMap();
-                } catch (IOException e) {
-                    throw ExceptionsHelper.convertToElastic(e);
-                }
-                if (mappingSource.isEmpty() && !mappingSource.containsKey("properties")) {
-                    return false;
-                }
+                Map<String, Object> mappingSource = mappingMetaData.getSourceAsMap();
+                assertFalse(mappingSource.isEmpty());
+                assertTrue(mappingSource.containsKey("properties"));
 
                 for (String fieldName : fieldNames) {
                     Map<String, Object> mappingProperties = (Map<String, Object>) mappingSource.get("properties");
                     if (fieldName.indexOf('.') != -1) {
                         fieldName = fieldName.replace(".", ".properties.");
                     }
-                    if (XContentMapValues.extractValue(fieldName, mappingProperties) == null) {
-                        return false;
-                    }
+                    assertThat("field " + fieldName + " doesn't exists in mapping " + mappingMetaData.source().string(), XContentMapValues.extractValue(fieldName, mappingProperties), notNullValue());
                 }
 
-                return true;
+                return null;
             }
         });
-        if (!applied) {
-            String source = null;
-            ImmutableOpenMap<String, MappingMetaData> mappings = lastResponse[0].getMappings().get(index);
-            if (mappings != null) {
-                MappingMetaData mappingMetaData = mappings.get(type);
-                if (mappingMetaData != null) {
-                    try {
-                        source = mappingMetaData.source().string();
-                    } catch (IOException e) {
-                        throw ExceptionsHelper.convertToElastic(e);
-                    }
-                }
-            }
-            fail("failed to find mappings for index " + index + ", type " + type + ", fields " + fieldNames + ", on master node, mapping source [" + source + "]");
-        }
     }
 
     /**

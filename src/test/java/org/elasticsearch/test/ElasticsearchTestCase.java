@@ -55,6 +55,8 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.net.URI;
 import java.util.*;
+import java.util.concurrent.Callable;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllFilesClosed;
@@ -96,6 +98,56 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
         }
 
     }
+
+    /**
+     * Runs the code block for 10 seconds waiting for no assertion to trip.
+     */
+    public static void assertBusy(Runnable codeBlock) throws Exception {
+        assertBusy(Executors.callable(codeBlock), 10, TimeUnit.SECONDS);
+    }
+
+    public static void assertBusy(Runnable codeBlock, long maxWaitTime, TimeUnit unit) throws Exception {
+        assertBusy(Executors.callable(codeBlock), maxWaitTime, unit);
+    }
+
+    /**
+     * Runs the code block for 10 seconds waiting for no assertion to trip.
+     */
+    public static <V> V assertBusy(Callable<V> codeBlock) throws Exception {
+        return assertBusy(codeBlock, 10, TimeUnit.SECONDS);
+    }
+
+    /**
+     * Runs the code block for the provided interval, waiting for no assertions to trip.
+     */
+    public static <V> V assertBusy(Callable<V> codeBlock, long maxWaitTime, TimeUnit unit) throws Exception {
+        long maxTimeInMillis = TimeUnit.MILLISECONDS.convert(maxWaitTime, unit);
+        long iterations = Math.max(Math.round(Math.log10(maxTimeInMillis) / Math.log10(2)), 1);
+        long timeInMillis = 1;
+        long sum = 0;
+        List<AssertionError> failures = new ArrayList<>();
+        for (int i = 0; i < iterations; i++) {
+            try {
+                return codeBlock.call();
+            } catch (AssertionError e) {
+                failures.add(e);
+            }
+            sum += timeInMillis;
+            Thread.sleep(timeInMillis);
+            timeInMillis *= 2;
+        }
+        timeInMillis = maxTimeInMillis - sum;
+        Thread.sleep(Math.max(timeInMillis, 0));
+        try {
+            return codeBlock.call();
+        } catch (AssertionError e) {
+            for (AssertionError failure : failures) {
+                e.addSuppressed(failure);
+            }
+            throw e;
+        }
+    }
+
 
     public static boolean awaitBusy(Predicate<?> breakPredicate) throws InterruptedException {
         return awaitBusy(breakPredicate, 10, TimeUnit.SECONDS);

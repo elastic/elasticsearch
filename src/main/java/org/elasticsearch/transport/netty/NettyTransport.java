@@ -71,6 +71,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
+import java.nio.ByteBuffer;
 import java.nio.channels.CancelledKeyException;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -596,8 +597,16 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
                 bytes = bStream.bytes();
                 ChannelBuffer headerBuffer = bytes.toChannelBuffer();
                 ChannelBuffer contentBuffer = bRequest.bytes().toChannelBuffer();
-                // false on gathering, cause gathering causes the NIO layer to combine the buffers into a single direct buffer....
-                buffer = new CompositeChannelBuffer(headerBuffer.order(), ImmutableList.<ChannelBuffer>of(headerBuffer, contentBuffer), false);
+                if (contentBuffer instanceof CompositeChannelBuffer) {
+                    CompositeChannelBuffer compContentBuffer = (CompositeChannelBuffer) contentBuffer;
+                    List<ChannelBuffer> buffers = new ArrayList<>(1 + compContentBuffer.numComponents());
+                    buffers.add(headerBuffer);
+                    buffers.addAll(compContentBuffer.decompose(0, compContentBuffer.readableBytes()));
+                    buffer = new CompositeChannelBuffer(headerBuffer.order(), buffers, false);
+                } else {
+                    // false on gathering, cause gathering causes the NIO layer to combine the buffers into a single direct buffer....
+                    buffer = new CompositeChannelBuffer(headerBuffer.order(), ImmutableList.<ChannelBuffer>of(headerBuffer, contentBuffer), false);
+                }
             } else {
                 request.writeTo(stream);
                 stream.close();

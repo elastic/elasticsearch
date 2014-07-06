@@ -54,12 +54,12 @@ different clusters by simply setting the `cluster.name` setting, or
 explicitly using the `clusterName` method on the builder.
 
 You can define `cluster.name` in the `/src/main/resources/elasticsearch.yml`
-dir in your project. As long as `elasticsearch.yml` is present in the
+file in your project. As long as `elasticsearch.yml` is present in the
 classpath, it will be used when you start your node.
 
-[source,java]
+[source,yaml]
 --------------------------------------------------
-cluster.name=yourclustername
+cluster.name: yourclustername
 --------------------------------------------------
 
 Or in Java:

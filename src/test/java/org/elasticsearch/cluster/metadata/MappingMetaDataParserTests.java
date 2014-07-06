@@ -113,6 +113,19 @@ public class MappingMetaDataParserTests extends ElasticsearchTestCase {
     }
 
     @Test
+    public void testParseTimestampEquals() throws Exception {
+        MappingMetaData md1 = new MappingMetaData("type1", new CompressedString(""),
+                new MappingMetaData.Id("id"),
+                new MappingMetaData.Routing(true, "routing"),
+                new MappingMetaData.Timestamp(true, "timestamp", "dateOptionalTime"), false);
+        MappingMetaData md2 = new MappingMetaData("type1", new CompressedString(""),
+                new MappingMetaData.Id("id"),
+                new MappingMetaData.Routing(true, "routing"),
+                new MappingMetaData.Timestamp(true, "timestamp", "dateOptionalTime"), false);
+        assertThat(md1, equalTo(md2));
+    }
+
+    @Test
     public void testParseIdAndRoutingAndTimestamp() throws Exception {
         MappingMetaData md = new MappingMetaData("type1", new CompressedString(""),
                 new MappingMetaData.Id("id"),

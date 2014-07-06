@@ -18,15 +18,21 @@
  */
 package org.elasticsearch.common.netty;
 
+import com.google.common.collect.Lists;
 import org.elasticsearch.transport.netty.NettyInternalESLoggerFactory;
+import org.jboss.netty.buffer.ChannelBuffer;
+import org.jboss.netty.buffer.ChannelBuffers;
+import org.jboss.netty.buffer.CompositeChannelBuffer;
 import org.jboss.netty.logging.InternalLogger;
 import org.jboss.netty.logging.InternalLoggerFactory;
 import org.jboss.netty.util.ThreadNameDeterminer;
 import org.jboss.netty.util.ThreadRenamingRunnable;
 
+import java.util.List;
+
 /**
  */
-public class NettyStaticSetup {
+public class NettyUtils {
 
     private static EsThreadNameDeterminer ES_THREAD_NAME_DETERMINER = new EsThreadNameDeterminer();
 
@@ -51,5 +57,21 @@ public class NettyStaticSetup {
 
     public static void setup() {
 
+    }
+
+    public static ChannelBuffer buildComposite(boolean useGathering, ChannelBuffer... buffers) {
+        if (buffers == null || buffers.length == 0) {
+            return ChannelBuffers.EMPTY_BUFFER;
+        }
+        List<ChannelBuffer> list = Lists.newArrayList();
+        for (ChannelBuffer buffer : buffers) {
+            if (buffer instanceof CompositeChannelBuffer) {
+                CompositeChannelBuffer compBuffer = (CompositeChannelBuffer) buffer;
+                list.addAll(compBuffer.decompose(0, compBuffer.readableBytes()));
+            } else {
+                list.add(buffer);
+            }
+        }
+        return new CompositeChannelBuffer(buffers[0].order(), list, useGathering);
     }
 }

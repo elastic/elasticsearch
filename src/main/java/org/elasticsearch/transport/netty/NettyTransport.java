@@ -36,7 +36,7 @@ import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.math.MathUtils;
-import org.elasticsearch.common.netty.NettyStaticSetup;
+import org.elasticsearch.common.netty.NettyUtils;
 import org.elasticsearch.common.netty.OpenChannelsHandler;
 import org.elasticsearch.common.netty.ReleaseChannelFutureListener;
 import org.elasticsearch.common.network.NetworkService;
@@ -100,7 +100,7 @@ import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadF
 public class NettyTransport extends AbstractLifecycleComponent<Transport> implements Transport {
 
     static {
-        NettyStaticSetup.setup();
+        NettyUtils.setup();
     }
 
     public static final String WORKER_COUNT = "transport.netty.worker_count";
@@ -596,8 +596,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
                 bytes = bStream.bytes();
                 ChannelBuffer headerBuffer = bytes.toChannelBuffer();
                 ChannelBuffer contentBuffer = bRequest.bytes().toChannelBuffer();
-                // false on gathering, cause gathering causes the NIO layer to combine the buffers into a single direct buffer....
-                buffer = new CompositeChannelBuffer(headerBuffer.order(), ImmutableList.<ChannelBuffer>of(headerBuffer, contentBuffer), false);
+                buffer = NettyUtils.buildComposite(false, headerBuffer, contentBuffer);
             } else {
                 request.writeTo(stream);
                 stream.close();

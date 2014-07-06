@@ -125,6 +125,10 @@ public class UpdateInPlaceMapTests extends ElasticsearchTestCase {
 
         numberOfMutations.await();
 
+        for (Thread thread : threads) {
+            thread.join();
+        }
+
         // verify the 2 maps are the same
         assertThat(Iterables.toArray(map.values(), String.class), arrayContainingInAnyOrder(Iterables.toArray(verifier.values(), String.class)));
     }

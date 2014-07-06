@@ -405,7 +405,6 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @Repeat(iterations = 1000)
     public void testPendingUpdateTask() throws Exception {
         Settings settings = settingsBuilder()
                 .put("discovery.type", "local")

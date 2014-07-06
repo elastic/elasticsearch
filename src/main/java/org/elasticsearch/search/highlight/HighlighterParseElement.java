@@ -22,8 +22,10 @@ package org.elasticsearch.search.highlight;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import org.apache.lucene.search.vectorhighlight.SimpleBoundaryScanner;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.internal.SearchContext;
@@ -66,11 +68,19 @@ public class HighlighterParseElement implements SearchParseElement {
 
     @Override
     public void parse(XContentParser parser, SearchContext context) throws Exception {
+        try {
+            context.highlight(parse(parser, context.queryParserService()));
+        } catch (ElasticsearchIllegalArgumentException ex) {
+            throw new SearchParseException(context, "Error while trying to parse Highlighter element in request");
+        }
+    }
+
+    public SearchContextHighlight parse(XContentParser parser, IndexQueryParserService queryParserService) throws IOException {
         XContentParser.Token token;
         String topLevelFieldName = null;
-        List<Tuple<String, SearchContextHighlight.FieldOptions.Builder>> fieldsOptions = newArrayList();
+        final List<Tuple<String, SearchContextHighlight.FieldOptions.Builder>> fieldsOptions = newArrayList();
 
-        SearchContextHighlight.FieldOptions.Builder globalOptionsBuilder = new SearchContextHighlight.FieldOptions.Builder()
+        final SearchContextHighlight.FieldOptions.Builder globalOptionsBuilder = new SearchContextHighlight.FieldOptions.Builder()
                 .preTags(DEFAULT_PRE_TAGS).postTags(DEFAULT_POST_TAGS).scoreOrdered(false).highlightFilter(false)
                 .requireFieldMatch(false).forceSource(false).fragmentCharSize(100).numberOfFragments(5)
                 .encoder("default").boundaryMaxScan(SimpleBoundaryScanner.DEFAULT_MAX_SCAN)
@@ -100,15 +110,15 @@ public class HighlighterParseElement implements SearchParseElement {
                             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                                 if (token == XContentParser.Token.FIELD_NAME) {
                                     if (highlightFieldName != null) {
-                                        throw new SearchParseException(context, "If highlighter fields is an array it must contain objects containing a single field");
+                                        throw new ElasticsearchIllegalArgumentException("If highlighter fields is an array it must contain objects containing a single field");
                                     }
                                     highlightFieldName = parser.currentName();
                                 } else if (token == XContentParser.Token.START_OBJECT) {
-                                    fieldsOptions.add(Tuple.tuple(highlightFieldName, parseFields(parser, context)));
+                                    fieldsOptions.add(Tuple.tuple(highlightFieldName, parseFields(parser, queryParserService)));
                                 }
                             }
                         } else {
-                            throw new SearchParseException(context, "If highlighter fields is an array it must contain objects containing a single field");
+                            throw new ElasticsearchIllegalArgumentException("If highlighter fields is an array it must contain objects containing a single field");
                         }
                     }
                 }
@@ -160,33 +170,32 @@ public class HighlighterParseElement implements SearchParseElement {
                         if (token == XContentParser.Token.FIELD_NAME) {
                             highlightFieldName = parser.currentName();
                         } else if (token == XContentParser.Token.START_OBJECT) {
-                            fieldsOptions.add(Tuple.tuple(highlightFieldName, parseFields(parser, context)));
+                            fieldsOptions.add(Tuple.tuple(highlightFieldName, parseFields(parser, queryParserService)));
                         }
                     }
                 } else if ("highlight_query".equals(topLevelFieldName) || "highlightQuery".equals(topLevelFieldName)) {
-                    globalOptionsBuilder.highlightQuery(context.queryParserService().parse(parser).query());
+                    globalOptionsBuilder.highlightQuery(queryParserService.parse(parser).query());
                 }
             }
         }
 
-        SearchContextHighlight.FieldOptions globalOptions = globalOptionsBuilder.build();
+        final SearchContextHighlight.FieldOptions globalOptions = globalOptionsBuilder.build();
         if (globalOptions.preTags() != null && globalOptions.postTags() == null) {
-            throw new SearchParseException(context, "Highlighter global preTags are set, but global postTags are not set");
+            throw new ElasticsearchIllegalArgumentException("Highlighter global preTags are set, but global postTags are not set");
         }
 
-        List<SearchContextHighlight.Field> fields = Lists.newArrayList();
+        final List<SearchContextHighlight.Field> fields = Lists.newArrayList();
         // now, go over and fill all fieldsOptions with default values from the global state
-        for (Tuple<String, SearchContextHighlight.FieldOptions.Builder> tuple : fieldsOptions) {
+        for (final Tuple<String, SearchContextHighlight.FieldOptions.Builder> tuple : fieldsOptions) {
             fields.add(new SearchContextHighlight.Field(tuple.v1(), tuple.v2().merge(globalOptions).build()));
         }
-
-        context.highlight(new SearchContextHighlight(fields));
+        return new SearchContextHighlight(fields);
     }
 
-    private SearchContextHighlight.FieldOptions.Builder parseFields(XContentParser parser, SearchContext context) throws IOException {
+    protected SearchContextHighlight.FieldOptions.Builder parseFields(XContentParser parser, IndexQueryParserService queryParserService) throws IOException {
         XContentParser.Token token;
 
-        SearchContextHighlight.FieldOptions.Builder fieldOptionsBuilder = new SearchContextHighlight.FieldOptions.Builder();
+        final SearchContextHighlight.FieldOptions.Builder fieldOptionsBuilder = new SearchContextHighlight.FieldOptions.Builder();
         String fieldName = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -246,7 +255,7 @@ public class HighlighterParseElement implements SearchParseElement {
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("highlight_query".equals(fieldName) || "highlightQuery".equals(fieldName)) {
-                    fieldOptionsBuilder.highlightQuery(context.queryParserService().parse(parser).query());
+                    fieldOptionsBuilder.highlightQuery(queryParserService.parse(parser).query());
                 } else if ("options".equals(fieldName)) {
                     fieldOptionsBuilder.options(parser.map());
                 }

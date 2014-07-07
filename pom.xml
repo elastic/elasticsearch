@@ -725,6 +725,12 @@
                                 <exclude>build.properties</exclude>
                             </excludes>
                         </filter>
+                        <filter>
+                            <artifact>io.netty:netty</artifact>
+                            <includes>
+                                <include>org/jboss/netty/**</include>
+                            </includes>
+                        </filter>
                     </filters>
                 </configuration>
             </plugin>

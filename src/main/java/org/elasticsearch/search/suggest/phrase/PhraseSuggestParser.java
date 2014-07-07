@@ -23,10 +23,12 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.search.suggest.SuggestContextParser;
 import org.elasticsearch.search.suggest.SuggestUtils;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
@@ -122,6 +124,43 @@ public final class PhraseSuggestParser implements SuggestContextParser {
                                 throw new ElasticsearchIllegalArgumentException(
                                     "suggester[phrase][highlight] doesn't support field [" + fieldName + "]");
                             }
+                        }
+                    }
+                } else if ("collate".equals(fieldName)) {
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                        if (token == XContentParser.Token.FIELD_NAME) {
+                            fieldName = parser.currentName();
+                        } else if ("query".equals(fieldName) || "filter".equals(fieldName)) {
+                            String templateNameOrTemplateContent;
+                            if (token == XContentParser.Token.START_OBJECT && !parser.hasTextCharacters()) {
+                                XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent());
+                                builder.copyCurrentStructure(parser);
+                                templateNameOrTemplateContent = builder.string();
+                            } else {
+                                templateNameOrTemplateContent = parser.text();
+                            }
+                            if (templateNameOrTemplateContent == null) {
+                                throw new ElasticsearchIllegalArgumentException("suggester[phrase][collate] no query/filter found in collate object");
+                            }
+                            if (suggestion.getCollateFilterScript() != null) {
+                                throw new ElasticsearchIllegalArgumentException("suggester[phrase][collate] filter already set, doesn't support additional [" + fieldName + "]");
+                            }
+                            if (suggestion.getCollateQueryScript() != null) {
+                                throw new ElasticsearchIllegalArgumentException("suggester[phrase][collate] query already set, doesn't support additional [" + fieldName + "]");
+                            }
+                            CompiledScript compiledScript = suggester.scriptService().compile("mustache", templateNameOrTemplateContent);
+                            if ("query".equals(fieldName)) {
+                                suggestion.setCollateQueryScript(compiledScript);
+                            } else {
+                                suggestion.setCollateFilterScript(compiledScript);
+                            }
+                        } else if ("preference".equals(fieldName)) {
+                            suggestion.setPreference(parser.text());
+                        } else if ("params".equals(fieldName)) {
+                            suggestion.setCollateScriptParams(parser.map());
+                        } else {
+                            throw new ElasticsearchIllegalArgumentException(
+                                    "suggester[phrase][collate] doesn't support field [" + fieldName + "]");
                         }
                     }
                 } else {

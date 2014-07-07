@@ -36,6 +36,15 @@ import static org.hamcrest.Matchers.*;
 public class ImmutableSettingsTests extends ElasticsearchTestCase {
 
     @Test
+    public void testCamelCaseSupport() {
+        Settings settings = settingsBuilder()
+                .put("test.camelCase", "bar")
+                .build();
+        assertThat(settings.get("test.camelCase"), equalTo("bar"));
+        assertThat(settings.get("test.camel_case"), equalTo("bar"));
+    }
+
+    @Test
     public void testGetAsClass() {
         Settings settings = settingsBuilder()
                 .put("test.class", "bar")

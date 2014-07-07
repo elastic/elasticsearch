@@ -57,10 +57,20 @@ public class ImmutableSettings implements Settings {
     public static final Settings EMPTY = new Builder().build();
 
     private ImmutableMap<String, String> settings;
+    private Map<String, String> forcedUnderscoreSettings;
     private transient ClassLoader classLoader;
 
     ImmutableSettings(Map<String, String> settings, ClassLoader classLoader) {
         this.settings = ImmutableMap.copyOf(settings);
+        for (Map.Entry<String, String> entry : settings.entrySet()) {
+            String toUnderscoreCase = Strings.toUnderscoreCase(entry.getKey());
+            if (!toUnderscoreCase.equals(entry.getKey())) {
+                if (forcedUnderscoreSettings == null) {
+                    forcedUnderscoreSettings = new HashMap<>();
+                }
+                forcedUnderscoreSettings.put(toUnderscoreCase, entry.getValue());
+            }
+        }
         this.classLoader = classLoader;
     }
 
@@ -212,18 +222,17 @@ public class ImmutableSettings implements Settings {
         if (retVal != null) {
             return retVal;
         }
-        // try camel case version
-        return settings.get(toCamelCase(setting));
+        // try the forced underscore setting
+        if (forcedUnderscoreSettings != null) {
+            return forcedUnderscoreSettings.get(setting);
+        }
+        return null;
     }
 
     @Override
     public String get(String[] settings) {
         for (String setting : settings) {
-            String retVal = this.settings.get(setting);
-            if (retVal != null) {
-                return retVal;
-            }
-            retVal = this.settings.get(toCamelCase(setting));
+            String retVal = get(setting);
             if (retVal != null) {
                 return retVal;
             }

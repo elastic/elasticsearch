@@ -1,0 +1,8 @@
+= Elasticsearch Security Plugin
+
+This plugins adds security features to elasticsearch
+
+== Access control
+
+== Encrypted communication
+

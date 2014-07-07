@@ -1,0 +1,31 @@
+grant {
+  // permissions for file access, write access only to sandbox:
+  permission java.io.FilePermission "<<ALL FILES>>", "read,execute";
+  permission java.io.FilePermission "${junit4.childvm.cwd}", "read,execute,write";
+  permission java.io.FilePermission "${junit4.childvm.cwd}${/}-", "read,execute,write,delete";
+  permission java.io.FilePermission "${junit4.tempDir}${/}*", "read,execute,write,delete";
+  permission groovy.security.GroovyCodeSourcePermission "/groovy/script";
+
+  // Allow connecting to the internet anywhere
+  permission java.net.SocketPermission "*", "accept,listen,connect,resolve";
+
+  // Basic permissions needed for Lucene / Elasticsearch to work:
+  permission java.util.PropertyPermission "*", "read,write";
+  permission java.lang.reflect.ReflectPermission "*";
+  permission java.lang.RuntimePermission "*";
+
+  // These two *have* to be spelled out a separate
+  permission java.lang.management.ManagementPermission "control";
+  permission java.lang.management.ManagementPermission "monitor";
+
+  permission java.net.NetPermission "*";
+  permission java.util.logging.LoggingPermission "control";
+  permission javax.management.MBeanPermission "*", "*";
+  permission javax.management.MBeanServerPermission "*";
+  permission javax.management.MBeanTrustPermission "*";
+
+  // Needed for some things in DNS caching in the JVM
+  permission java.security.SecurityPermission "getProperty.networkaddress.cache.ttl";
+  permission java.security.SecurityPermission "getProperty.networkaddress.cache.negative.ttl";
+
+};

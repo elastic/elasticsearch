@@ -1,0 +1,397 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>org.elasticsearch</groupId>
+    <artifactId>elasticsearch-shield</artifactId>
+    <version>0.1-SNAPSHOT</version>
+
+    <parent>
+        <groupId>org.sonatype.oss</groupId>
+        <artifactId>oss-parent</artifactId>
+        <version>7</version>
+    </parent>
+
+    <!-- needed for some test features for now, remove with 1.3 release -->
+    <repositories>
+        <repository>
+            <id>oss.sonatype.org-snapshot</id>
+            <url>http://oss.sonatype.org/content/repositories/snapshots</url>
+            <releases>
+                <enabled>false</enabled>
+            </releases>
+            <snapshots>
+                <enabled>true</enabled>
+            </snapshots>
+        </repository>
+    </repositories>
+
+    <properties>
+        <lucene.version>4.9.0</lucene.version>
+        <elasticsearch.version>1.2.1</elasticsearch.version>
+        <!-- TODO enable me, once the snapshot includes test jars -->
+        <elasticsearch.version>1.3.0-SNAPSHOT</elasticsearch.version>
+        <tests.jvms>auto</tests.jvms>
+        <tests.shuffle>true</tests.shuffle>
+        <tests.output>onerror</tests.output>
+        <tests.client.ratio></tests.client.ratio>
+        <tests.bwc.path>${project.basedir}/backwards</tests.bwc.path>
+        <es.logger.level>INFO</es.logger.level>
+        <tests.heap.size>512m</tests.heap.size>
+        <tests.topn>5</tests.topn>
+        <execution.hint.file>.local-${project.version}-execution-hints.log</execution.hint.file>
+    </properties>
+
+    <dependencies>
+        <!-- test deps -->
+        <dependency>
+            <groupId>org.apache.lucene</groupId>
+            <artifactId>lucene-test-framework</artifactId>
+            <version>${lucene.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.elasticsearch</groupId>
+            <artifactId>elasticsearch</artifactId>
+            <version>${elasticsearch.version}</version>
+            <scope>test</scope>
+            <type>test-jar</type>
+        </dependency>
+        <dependency>
+            <groupId>org.hamcrest</groupId>
+            <artifactId>hamcrest-all</artifactId>
+            <version>1.3</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <version>4.11</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.carrotsearch.randomizedtesting</groupId>
+            <artifactId>randomizedtesting-runner</artifactId>
+            <version>2.1.2</version>
+            <scope>test</scope>
+        </dependency>
+
+       <!-- real dependencies -->
+        <dependency>
+            <groupId>org.elasticsearch</groupId>
+            <artifactId>elasticsearch</artifactId>
+            <version>${elasticsearch.version}</version>
+        </dependency>
+
+        <!-- needed for forbidden APIs, embarassing, need to fix -->
+        <dependency>
+            <groupId>com.google.guava</groupId>
+            <artifactId>guava</artifactId>
+            <version>17.0</version>
+        </dependency>
+
+    </dependencies>
+
+
+    <build>
+
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-enforcer-plugin</artifactId>
+                <version>1.3.1</version>
+                <executions>
+                    <execution>
+                        <id>enforce-versions</id>
+                        <goals>
+                            <goal>enforce</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <requireJavaVersion>
+                                    <version>[1.7,)</version>
+                                </requireJavaVersion>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.1</version>
+                <configuration>
+                    <source>1.7</source>
+                    <target>1.7</target>
+                    <fork>true</fork>
+                    <maxmem>512m</maxmem>
+                    <!-- REMOVE WHEN UPGRADE:
+                         see https://jira.codehaus.org/browse/MCOMPILER-209 it's a bug where
+                         incremental compilation doesn't work unless it's set to false causeing
+                         recompilation of the entire codebase each time without any changes. Should
+                         be fixed in version > 3.1
+                     -->
+                    <useIncrementalCompilation>false</useIncrementalCompilation>
+                    <compilerArgs>
+                        <arg>-XDignore.symbol.file</arg>
+                    </compilerArgs>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>com.carrotsearch.randomizedtesting</groupId>
+                <artifactId>junit4-maven-plugin</artifactId>
+                <version>2.1.2</version>
+                <executions>
+                    <execution>
+                        <id>tests</id>
+                        <phase>test</phase>
+                        <goals>
+                            <goal>junit4</goal>
+                        </goals>
+                        <configuration>
+                            <heartbeat>20</heartbeat>
+                            <jvmOutputAction>pipe,warn</jvmOutputAction>
+                            <leaveTemporary>true</leaveTemporary>
+                            <listeners>
+                                <report-ant-xml mavenExtensions="true"
+                                                dir="${project.build.directory}/surefire-reports"/>
+                                <report-text
+                                        showThrowable="true"
+                                        showStackTraces="true"
+                                        showOutput="${tests.output}"
+                                        showStatusOk="false"
+                                        showStatusError="true"
+                                        showStatusFailure="true"
+                                        showStatusIgnored="true"
+                                        showSuiteSummary="true"
+                                        timestamps="false"/>
+                                <report-execution-times historyLength="20" file="${basedir}/${execution.hint.file}"/>
+                            </listeners>
+                            <assertions>
+                                <enable/>
+                                <disable package="${tests.assertion.disabled}"/>
+                                <!-- pass org.elasticsearch to run without assertions -->
+                            </assertions>
+                            <parallelism>${tests.jvms}</parallelism>
+                            <balancers>
+                                <execution-times>
+                                    <fileset dir="${basedir}" includes="${execution.hint.file}"/>
+                                </execution-times>
+                            </balancers>
+                            <includes>
+                                <include>**/*Tests.class</include>
+                                <include>**/*Test.class</include>
+                            </includes>
+                            <excludes>
+                                <exclude>**/Abstract*.class</exclude>
+                                <exclude>**/*StressTest.class</exclude>
+                            </excludes>
+                            <jvmArgs>
+                                <param>-Xmx${tests.heap.size}</param>
+                                <param>-Xms${tests.heap.size}</param>
+                                <param>-Xss256k</param>
+                                <param>-XX:MaxPermSize=128m</param>
+                                <param>-XX:MaxDirectMemorySize=512m</param>
+                                <param>-Des.logger.prefix=</param>
+                            </jvmArgs>
+                            <shuffleOnSlave>${tests.shuffle}</shuffleOnSlave>
+                            <sysouts>${tests.verbose}</sysouts>
+                            <seed>${tests.seed}</seed>
+                            <haltOnFailure>${tests.failfast}</haltOnFailure>
+                            <uniqueSuiteNames>false</uniqueSuiteNames>
+                            <systemProperties>
+                                <java.io.tmpdir>.</java.io.tmpdir>
+                                <!-- we use '.' since this is different per JVM-->
+                                <!-- RandomizedTesting library system properties -->
+                                <tests.bwc>${tests.bwc}</tests.bwc>
+                                <tests.bwc.path>${tests.bwc.path}</tests.bwc.path>
+                                <tests.bwc.version>${tests.bwc.version}</tests.bwc.version>
+                                <tests.jvm.argline>${tests.jvm.argline}</tests.jvm.argline>
+                                <tests.processors>${tests.processors}</tests.processors>
+                                <tests.appendseed>${tests.appendseed}</tests.appendseed>
+                                <tests.iters>${tests.iters}</tests.iters>
+                                <tests.maxfailures>${tests.maxfailures}</tests.maxfailures>
+                                <tests.failfast>${tests.failfast}</tests.failfast>
+                                <tests.class>${tests.class}</tests.class>
+                                <tests.method>${tests.method}</tests.method>
+                                <tests.nightly>${tests.nightly}</tests.nightly>
+                                <tests.verbose>${tests.verbose}</tests.verbose>
+                                <tests.badapples>${tests.badapples}</tests.badapples>
+                                <tests.weekly>${tests.weekly}</tests.weekly>
+                                <tests.slow>${tests.slow}</tests.slow>
+                                <tests.awaitsfix>${tests.awaitsfix}</tests.awaitsfix>
+                                <tests.slow>${tests.slow}</tests.slow>
+                                <tests.timeoutSuite>${tests.timeoutSuite}</tests.timeoutSuite>
+                                <tests.showSuccess>${tests.showSuccess}</tests.showSuccess>
+                                <tests.integration>${tests.integration}</tests.integration>
+                                <tests.client.ratio>${tests.client.ratio}</tests.client.ratio>
+                                <tests.enable_mock_modules>${tests.enable_mock_modules}</tests.enable_mock_modules>
+                                <tests.assertion.disabled>${tests.assertion.disabled}</tests.assertion.disabled>
+                                <tests.rest>${tests.rest}</tests.rest>
+                                <tests.rest.suite>${tests.rest.suite}</tests.rest.suite>
+                                <tests.rest.blacklist>${tests.rest.blacklist}</tests.rest.blacklist>
+                                <tests.rest.spec>${tests.rest.spec}</tests.rest.spec>
+                                <tests.network>${tests.network}</tests.network>
+                                <tests.cluster>${tests.cluster}</tests.cluster>
+                                <tests.heap.size>${tests.heap.size}</tests.heap.size>
+                                <tests.filter>${tests.filter}</tests.filter>
+                                <es.node.local>${env.ES_TEST_LOCAL}</es.node.local>
+                                <es.node.mode>${es.node.mode}</es.node.mode>
+                                <es.logger.level>${es.logger.level}</es.logger.level>
+                                <tests.security.manager>${tests.security.manager}</tests.security.manager>
+                                <tests.compatibility>${tests.compatibility}</tests.compatibility>
+                                <java.awt.headless>true</java.awt.headless>
+                                <!-- everything below is for security manager / test.policy -->
+                                <junit4.tempDir>${project.build.directory}</junit4.tempDir>
+                                <java.security.policy>${basedir}/tests.policy</java.security.policy>
+                            </systemProperties>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <plugin>
+                <!-- we skip surefire to work with randomized testing above -->
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>2.16</version>
+                <configuration>
+                    <skipTests>true</skipTests>
+                </configuration>
+            </plugin>
+
+
+            <plugin>
+                <groupId>de.thetaphi</groupId>
+                <artifactId>forbiddenapis</artifactId>
+                <version>1.5.1</version>
+
+                <executions>
+                    <execution>
+                        <id>check-forbidden-apis</id>
+                        <configuration>
+                            <targetVersion>1.7</targetVersion>
+                            <!-- disallow undocumented classes like sun.misc.Unsafe: -->
+                            <internalRuntimeForbidden>true</internalRuntimeForbidden>
+                            <!-- if the used Java version is too new, don't fail, just do nothing: -->
+                            <failOnUnsupportedJava>false</failOnUnsupportedJava>
+                            <excludes>
+                                <exclude>jsr166e/**</exclude>
+                                <!-- start excludes for valid system-out -->
+                                <exclude>org/elasticsearch/common/logging/log4j/ConsoleAppender*</exclude>
+                                <exclude>org/elasticsearch/plugins/PluginManager.class</exclude>
+                                <exclude>org/elasticsearch/bootstrap/Bootstrap.class</exclude>
+                                <exclude>org/elasticsearch/Version.class</exclude>
+                                <exclude>
+                                    org/elasticsearch/common/lucene/search/Queries$QueryWrapperFilterFactory.class
+                                </exclude>
+                                <!-- end excludes for valid system-out -->
+                                <!-- start excludes for Unsafe -->
+                                <exclude>org/elasticsearch/common/util/UnsafeUtils.class</exclude>
+                                <!-- end excludes for Unsafe -->
+                                <!-- start excludes for Math.abs -->
+                                <exclude>org/elasticsearch/common/util/MathUtils.class</exclude>
+                                <exclude>org/elasticsearch/common/math/UnboxedMathUtils.class</exclude>
+                                <exclude>org/elasticsearch/cluster/routing/operation/plain/PlainOperationRouting.class
+                                </exclude>
+                                <!-- end excludes for Math.abs -->
+                                <!-- start exclude for FilteredQuery -->
+                                <exclude>org/elasticsearch/common/lucene/search/XFilteredQuery.class</exclude>
+                                <!-- end exclude for FilteredQuery -->
+                                <!-- start exclude for Channels utility class -->
+                                <exclude>org/elasticsearch/common/io/Channels.class</exclude>
+                                <!-- end exclude for Channels -->
+                            </excludes>
+                            <bundledSignatures>
+                                <!-- This will automatically choose the right signatures based on 'targetVersion': -->
+                                <bundledSignature>jdk-unsafe</bundledSignature>
+                                <bundledSignature>jdk-deprecated</bundledSignature>
+                                <bundledSignature>jdk-system-out</bundledSignature>
+                            </bundledSignatures>
+                            <signaturesFiles>
+                                <signaturesFile>core-signatures.txt</signaturesFile>
+                                <signaturesFile>all-signatures.txt</signaturesFile>
+                            </signaturesFiles>
+                            <signatures>${forbidden.signatures}</signatures>
+                        </configuration>
+                        <phase>compile</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>check-forbidden-test-apis</id>
+                        <configuration>
+                            <targetVersion>1.7</targetVersion>
+                            <!-- disallow undocumented classes like sun.misc.Unsafe: -->
+                            <internalRuntimeForbidden>true</internalRuntimeForbidden>
+                            <!-- if the used Java version is too new, don't fail, just do nothing: -->
+                            <failOnUnsupportedJava>false</failOnUnsupportedJava>
+                            <bundledSignatures>
+                                <!-- This will automatically choose the right signatures based on 'targetVersion': -->
+                                <bundledSignature>jdk-unsafe</bundledSignature>
+                                <bundledSignature>jdk-deprecated</bundledSignature>
+                            </bundledSignatures>
+                            <signaturesFiles>
+                                <signaturesFile>test-signatures.txt</signaturesFile>
+                                <signaturesFile>all-signatures.txt</signaturesFile>
+                            </signaturesFiles>
+                            <signatures>${forbidden.test.signatures}</signatures>
+                        </configuration>
+                        <phase>test-compile</phase>
+                        <goals>
+                            <goal>testCheck</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <plugin>
+                <artifactId>maven-assembly-plugin</artifactId>
+                <version>2.3</version>
+                <configuration>
+                    <appendAssemblyId>false</appendAssemblyId>
+                    <outputDirectory>${project.build.directory}/releases/</outputDirectory>
+                    <descriptors>
+                        <descriptor>${basedir}/src/main/assemblies/plugin.xml</descriptor>
+                    </descriptors>
+                </configuration>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>single</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+        </plugins>
+
+    </build>
+
+
+    <profiles>
+        <!-- default profile, with randomization setting kicks in -->
+        <profile>
+            <id>default</id>
+            <activation>
+                <activeByDefault>true</activeByDefault>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>com.carrotsearch.randomizedtesting</groupId>
+                        <artifactId>junit4-maven-plugin</artifactId>
+                        <configuration>
+                            <argLine>${tests.jvm.argline}</argLine>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
+
+</project>

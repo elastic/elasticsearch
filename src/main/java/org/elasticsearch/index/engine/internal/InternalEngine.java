@@ -248,7 +248,9 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
 
     @Override
     public void start() throws EngineException {
+        store.incRef();
         try (InternalLock _ = writeLock.acquire()) {
+
             if (indexWriter != null) {
                 throw new EngineAlreadyStartedException(shardId);
             }
@@ -300,6 +302,8 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                 }
                 throw new EngineCreationFailureException(shardId, "failed to open reader on writer", e);
             }
+        } finally {
+            store.decRef();
         }
     }
 
@@ -478,7 +482,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             dirty = true;
             possibleMergeNeeded = true;
             flushNeeded = true;
-        } catch (Throwable t) {
+        } catch (OutOfMemoryError | IllegalStateException | IOException t) {
             maybeFailEngine(t, "index");
             throw new IndexFailedEngineException(shardId, index, t);
         }
@@ -548,7 +552,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             dirty = true;
             possibleMergeNeeded = true;
             flushNeeded = true;
-        } catch (Throwable t) {
+        } catch (OutOfMemoryError | IllegalStateException | IOException t) {
             maybeFailEngine(t, "delete");
             throw new DeleteFailedEngineException(shardId, delete, t);
         }

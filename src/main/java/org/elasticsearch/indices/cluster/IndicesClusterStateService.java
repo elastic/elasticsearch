@@ -42,7 +42,6 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -705,7 +704,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         }
 
         if (sourceNode != null) {
-            boolean storeIsCorrupted = false;
             try {
                 // we don't mark this one as relocated at the end.
                 // For primaries: requests in any case are routed to both when its relocating and that way we handle
@@ -717,7 +715,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 final StartRecoveryRequest request;
                 store.incRef();
                 try {
-                    storeIsCorrupted = store.isMarkedCorrupted();
                     store.failIfCorrupted();
                     request = new StartRecoveryRequest(indexShard.shardId(), sourceNode, nodes.localNode(),
                         false, store.getMetadata().asMap(), type, recoveryIdGenerator.incrementAndGet());
@@ -727,9 +724,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 recoveryTarget.startRecovery(request, indexShard, new PeerRecoveryListener(request, shardRouting, indexService, indexMetaData));
 
             } catch (Throwable e) {
-                if (storeIsCorrupted == false && Lucene.isCorruptionException(e)) {
-                    indexShard.engine().failEngine("corrupted preexisting index", e);
-                }
+                indexShard.engine().failEngine("corrupted preexisting index", e);
                 handleRecoveryFailure(indexService, indexMetaData, shardRouting, true, e);
             }
         } else {

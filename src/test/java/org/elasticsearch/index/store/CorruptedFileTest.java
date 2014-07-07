@@ -81,7 +81,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
 @ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE)
-@Repeat(iterations = 10)
 public class CorruptedFileTest extends ElasticsearchIntegrationTest {
 
     @Override
@@ -101,7 +100,11 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
         int numDocs = scaledRandomIntBetween(100, 1000);
         assertThat(cluster().numDataNodes(), greaterThanOrEqualTo(2));
 
-        if (cluster().numDataNodes() < 3) {
+        while (cluster().numDataNodes() < 4) {
+            /**
+             * We need 4 nodes since if we have 2 replicas and only 3 nodes we can't get into green state since
+             * the corrupted node will never be used reallocate a replica since it's marked as corrupted
+             */
             internalCluster().startNode(ImmutableSettings.builder().put("node.data", true).put("node.client", false).put("node.master", false));
         }
         assertThat(cluster().numDataNodes(), greaterThanOrEqualTo(3));
@@ -127,23 +130,13 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
         assertHitCount(countResponse, numDocs);
 
         final int numShards = numShards("test");
-        corruptRandomFile();
+        ShardRouting corruptedShardRouting = corruptRandomFile();
         enableAllocation("test");
          /*
          * we corrupted the primary shard - now lets make sure we never recover from it successfully
          */
         Settings build = ImmutableSettings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "2").build();
         client().admin().indices().prepareUpdateSettings("test").setSettings(build).get();
-
-        for (int i = 0; i < 3; i++) {
-            logger.info("reroute iteration {}", (i + 1));
-            client().admin().cluster().prepareReroute().get();
-            ClusterHealthResponse test = client().admin().cluster()
-                    .health(Requests.clusterHealthRequest("test").waitForGreenStatus().timeout("5s")).actionGet();
-            if (test.getStatus() == ClusterHealthStatus.GREEN) {
-               break;
-            }
-        }
         ClusterHealthResponse health = client().admin().cluster()
                 .health(Requests.clusterHealthRequest("test").waitForGreenStatus().waitForRelocatingShards(0)).actionGet();
         if (health.isTimedOut()) {
@@ -151,13 +144,13 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
             assertThat("timed out waiting for green state", health.isTimedOut(), equalTo(false));
         }
         assertThat(health.getStatus(), equalTo(ClusterHealthStatus.GREEN));
-
-
         final int numIterations = scaledRandomIntBetween(5, 20);
         for (int i = 0; i < numIterations; i++) {
             SearchResponse response = client().prepareSearch().setSize(numDocs).get();
             assertHitCount(response, numDocs);
         }
+
+
 
         /*
          * now hook into the IndicesService and register a close listener to

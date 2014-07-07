@@ -150,14 +150,16 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
         IndexService indexService = indicesService.indexService(shardId.index().name());
         if (indexService != null) {
             InternalIndexShard indexShard = (InternalIndexShard) indexService.shard(shardId.id());
-            Store store = indexShard.store();
-            store.incRef();
-            try {
-                if (indexShard != null) {
-                    return new StoreFilesMetaData(true, shardId, indexShard.store().getMetadata().asMap());
+            if (indexShard != null) {
+                Store store = indexShard.store();
+                store.incRef();
+                try {
+                    if (indexShard != null) {
+                        return new StoreFilesMetaData(true, shardId, indexShard.store().getMetadata().asMap());
+                    }
+                } finally {
+                    store.decRef();
                 }
-            } finally {
-                store.decRef();
             }
         }
         // try and see if we an list unallocated

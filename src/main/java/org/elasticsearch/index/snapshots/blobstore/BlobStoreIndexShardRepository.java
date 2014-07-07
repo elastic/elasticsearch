@@ -21,7 +21,6 @@ package org.elasticsearch.index.snapshots.blobstore;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
-import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
@@ -40,13 +39,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
-import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.*;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.RepositoryName;
 
 import java.io.FilterInputStream;
@@ -55,6 +54,7 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -671,13 +671,14 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                 long totalSize = 0;
                 int numberOfReusedFiles = 0;
                 long reusedTotalSize = 0;
-                final Store.MetadataSnapshot metadata;
-
+                Map<String, StoreFileMetaData> metadata = Collections.emptyMap();
                 try {
-                    metadata = store.getMetadata();
+                    metadata = store.getMetadata().asMap();
                 } catch (Throwable e) {
-                    throw new IndexShardSnapshotFailedException(shardId, "Failed to get store file metadata", e);
+                    // if the index is broken we might not be able to read it
+                    logger.warn("{} Can't read metadata from store", e, shardId);
                 }
+
                 List<FileInfo> filesToRecover = Lists.newArrayList();
                 for (FileInfo fileInfo : snapshot.indexFiles()) {
                     String fileName = fileInfo.physicalName();

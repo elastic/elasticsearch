@@ -475,6 +475,10 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
         private static boolean checksumFromLuceneFile(Directory directory, String file, ImmutableMap.Builder<String, StoreFileMetaData> builder,  ESLogger logger, Version version) throws IOException {
             try (IndexInput in = directory.openInput(file, IOContext.READONCE)) {
                 try {
+                    if (in.length() < CodecUtil.footerLength()) {
+                        // truncated files trigger IAE if we seek negative... these files are really corrupted though
+                        throw new CorruptIndexException("Can't retrieve checksum from file: " + file + " file length must be >= " + CodecUtil.footerLength());
+                    }
                     String checksum = digestToString(CodecUtil.retrieveChecksum(in));
                     builder.put(file, new StoreFileMetaData(file, directory.fileLength(file), checksum, version));
                     return true;
@@ -661,14 +665,16 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
      */
     public void markStoreCorrupted(CorruptIndexException exception) throws IOException {
         ensureOpen();
-        String uuid = CORRUPTED + Strings.randomBase64UUID();
-        try(IndexOutput output = this.directory().createOutput(uuid, IOContext.DEFAULT)) {
-            CodecUtil.writeHeader(output, CODEC, VERSION);
-            output.writeString(ExceptionsHelper.detailedMessage(exception, true, 0)); // handles null exception
-            CodecUtil.writeFooter(output);
-        } catch (IOException ex) {
-            logger.warn("Can't mark store as corrupted", ex);
+        if (!isMarkedCorrupted()) {
+            String uuid = CORRUPTED + Strings.randomBase64UUID();
+            try(IndexOutput output = this.directory().createOutput(uuid, IOContext.DEFAULT)) {
+                CodecUtil.writeHeader(output, CODEC, VERSION);
+                output.writeString(ExceptionsHelper.detailedMessage(exception, true, 0)); // handles null exception
+                CodecUtil.writeFooter(output);
+            } catch (IOException ex) {
+                logger.warn("Can't mark store as corrupted", ex);
+            }
+            directory().sync(Collections.singleton(uuid));
         }
-        directory().sync(Collections.singleton(uuid));
     }
 }

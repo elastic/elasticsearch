@@ -17,6 +17,10 @@ request body.
 *Note*: the `scroll_id` changes for each scroll request and only the
 most recent one should be used.
 
+*Note*: If the index (in this example, `twitter`) is specified when 
+you send in the query, then you don't have to specify the index when 
+you start scrolling. Doing so will just throw errors.
+
 [source,js]
 --------------------------------------------------
 $ curl -XGET 'http://localhost:9200/twitter/tweet/_search?scroll=5m' -d '{

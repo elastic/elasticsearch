@@ -161,6 +161,53 @@ can contain misspellings (See parameter descriptions below).
     in a row are changed the entire phrase of changed tokens 
     is wrapped rather than each token.
 
+`collate`::
+    Checks each suggestion against the specified `query` or `filter` to
+    prune suggestions for which no matching docs exist in the index. Either
+    a `query` or a `filter` must be specified, and it is run as a
+    <<query-dsl-template-query,`template` query>>. The current suggestion is
+    automatically made available as the `{{suggestion}}`  variable, which
+    should be used in your query/filter.  You can still specify  your own
+    template `params` -- the `suggestion` value will be added to the
+    variables you specify. You can also specify a `preference` to control
+    on which shards the query is executed (see <<search-request-preference>>).
+    The default value is `_only_local`.
+
+[source,js]
+--------------------------------------------------
+curl -XPOST 'localhost:9200/_search' -d {
+   "suggest" : {
+     "text" : "Xor the Got-Jewel",
+     "simple_phrase" : {
+       "phrase" : {
+         "field" :  "bigram",
+         "size" :   1,
+         "direct_generator" : [ {
+           "field" :            "body",
+           "suggest_mode" :     "always",
+           "min_word_length" :  1
+         } ],
+         "collate": {
+           "query": { <1>
+             "match": {
+                 "{{field_name}}" : "{{suggestion}}" <2>
+             }
+           },
+           "params": {"field_name" : "title"}, <3>
+           "preference": "_primary", <4>
+         }
+       }
+     }
+   }
+ }
+--------------------------------------------------
+<1> This query will be run once for every suggestion.
+<2> The `{{suggestion}}` variable will be replaced by the text
+    of each suggestion.
+<3> An additional `field_name` variable has been specified in
+    `params` and is used by the `match` query.
+<4> The default `preference` has been changed to `_primary`.
+
 ==== Smoothing Models
 
 The `phrase` suggester supports multiple smoothing models to balance

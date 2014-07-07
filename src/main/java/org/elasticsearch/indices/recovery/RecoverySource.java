@@ -40,6 +40,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShardClosedException;
@@ -279,8 +280,16 @@ public class RecoverySource extends AbstractComponent {
             }
 
             private void updateMappingOnMaster() {
-                List<DocumentMapper> documentMappersToUpdate = Lists.newArrayList(indexService.mapperService());
-                if (documentMappersToUpdate.size() == 0) {
+                List<DocumentMapper> documentMappersToUpdate = Lists.newArrayList();
+                for (DocumentMapper documentMapper : indexService.mapperService()) {
+                    // default mapping should not be sent back, it can only be updated by put mapping API, and its
+                    // a full in place replace, we don't want to override a potential update coming it
+                    if (documentMapper.type().equals(MapperService.DEFAULT_MAPPING)) {
+                        continue;
+                    }
+                    documentMappersToUpdate.add(documentMapper);
+                }
+                if (documentMappersToUpdate.isEmpty()) {
                     return;
                 }
                 final CountDownLatch countDownLatch = new CountDownLatch(documentMappersToUpdate.size());

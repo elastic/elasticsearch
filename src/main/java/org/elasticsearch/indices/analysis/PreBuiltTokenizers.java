@@ -30,6 +30,7 @@ import org.apache.lucene.analysis.pattern.PatternTokenizer;
 import org.apache.lucene.analysis.standard.ClassicTokenizer;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.apache.lucene.analysis.standard.UAX29URLEmailTokenizer;
+import org.apache.lucene.analysis.th.ThaiTokenizer;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.analysis.TokenizerFactory;
@@ -118,7 +119,16 @@ public enum PreBuiltTokenizers {
         protected Tokenizer create(Reader reader, Version version) {
             return new PatternTokenizer(reader, Regex.compile("\\W+", null), -1);
         }
-    };
+    },
+
+    THAI(CachingStrategy.ONE) {
+        @Override
+        protected Tokenizer create(Reader reader, Version version) {
+            return new ThaiTokenizer(reader);
+        }
+    }
+
+    ;
 
     abstract protected Tokenizer create(Reader reader, Version version);
 

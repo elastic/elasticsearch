@@ -26,6 +26,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.StopWatch;
@@ -68,6 +69,7 @@ public class RecoverySource extends AbstractComponent {
     private final TransportService transportService;
     private final IndicesService indicesService;
     private final RecoverySettings recoverySettings;
+    private final MappingUpdatedAction mappingUpdatedAction;
 
     private final ClusterService clusterService;
 
@@ -77,10 +79,11 @@ public class RecoverySource extends AbstractComponent {
 
     @Inject
     public RecoverySource(Settings settings, TransportService transportService, IndicesService indicesService,
-                          RecoverySettings recoverySettings, ClusterService clusterService) {
+                          RecoverySettings recoverySettings, MappingUpdatedAction mappingUpdatedAction, ClusterService clusterService) {
         super(settings);
         this.transportService = transportService;
         this.indicesService = indicesService;
+        this.mappingUpdatedAction = mappingUpdatedAction;
         this.clusterService = clusterService;
 
         this.recoverySettings = recoverySettings;
@@ -251,18 +254,23 @@ public class RecoverySource extends AbstractComponent {
                 if (shard.state() == IndexShardState.CLOSED) {
                     throw new IndexShardClosedException(request.shardId());
                 }
-                logger.trace("[{}][{}] recovery [phase2] to {}: start", request.shardId().index().name(), request.shardId().id(), request.targetNode());
+                logger.trace("{} recovery [phase2] to {}: start", request.shardId().index().name(), request.shardId().id(), request.targetNode());
                 StopWatch stopWatch = new StopWatch().start();
                 transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.PREPARE_TRANSLOG, new RecoveryPrepareForTranslogOperationsRequest(request.recoveryId(), request.shardId()), TransportRequestOptions.options().withTimeout(internalActionTimeout), EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
                 stopWatch.stop();
                 response.startTime = stopWatch.totalTime().millis();
-                logger.trace("[{}][{}] recovery [phase2] to {}: start took [{}]", request.shardId().index().name(), request.shardId().id(), request.targetNode(), stopWatch.totalTime());
+                logger.trace("{} recovery [phase2] to {}: start took [{}]", request.shardId(), request.targetNode(), request.targetNode(), stopWatch.totalTime());
 
-                logger.trace("[{}][{}] recovery [phase2] to {}: sending transaction log operations", request.shardId().index().name(), request.shardId().id(), request.targetNode());
+                logger.trace("{} recovery [phase2] to {}: waiting on pending mapping update", request.shardId(), request.targetNode());
+                if (!mappingUpdatedAction.processPendingUpdatesAndWait(internalActionTimeout)) {
+                    logger.debug("{} recovery [phase2] to {}: waiting on pending mapping update timed out. waited [{}]", request.shardId(), request.targetNode(), internalActionTimeout);
+                }
+
+                logger.trace("{} recovery [phase2] to {}: sending transaction log operations", request.shardId(), request.targetNode(), request.targetNode());
                 stopWatch = new StopWatch().start();
                 int totalOperations = sendSnapshot(snapshot);
                 stopWatch.stop();
-                logger.trace("[{}][{}] recovery [phase2] to {}: took [{}]", request.shardId().index().name(), request.shardId().id(), request.targetNode(), stopWatch.totalTime());
+                logger.trace("{} recovery [phase2] to {}: took [{}]", request.shardId(), request.targetNode(), stopWatch.totalTime());
                 response.phase2Time = stopWatch.totalTime().millis();
                 response.phase2Operations = totalOperations;
             }

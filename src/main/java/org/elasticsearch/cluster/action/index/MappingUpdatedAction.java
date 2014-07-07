@@ -21,7 +21,6 @@ package org.elasticsearch.cluster.action.index;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -35,7 +34,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaDataMappingService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -52,6 +50,7 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -108,6 +107,30 @@ public class MappingUpdatedAction extends TransportMasterNodeOperationAction<Map
 
     public void updateMappingOnMaster(String index, DocumentMapper documentMapper, String indexUUID, MappingUpdateListener listener) {
         masterMappingUpdater.add(new MappingChange(documentMapper, index, indexUUID, listener));
+    }
+
+    /**
+     * Immediately send any pending mapping update to master and wait until they are processed.
+     * <i>Note:</i> any mapping updates which are already "in-flight" are ignored by this method
+     *
+     * @return false if waiting timed out, true other wise
+     */
+    public boolean processPendingUpdatesAndWait(TimeValue timeOut) {
+        final CountDownLatch latch = new CountDownLatch(1);
+        PendingMappingProcessedListener listener = new PendingMappingProcessedListener() {
+            @Override
+            public void allPendingMappingProcessed() {
+                latch.countDown();
+            }
+        };
+        masterMappingUpdater.addPendingMappingProcessedListener(listener);
+        masterMappingUpdater.forceProcessingPendingChanges();
+        try {
+            return latch.await(timeOut.millis(), TimeUnit.MILLISECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new ElasticsearchException("interrupted while waiting for pending mapping updates");
+        }
     }
 
     @Override
@@ -243,7 +266,11 @@ public class MappingUpdatedAction extends TransportMasterNodeOperationAction<Map
         }
     }
 
-    private static class MappingChange {
+    private static interface QueueItem {
+
+    }
+
+    private static class MappingChange implements QueueItem {
         public final DocumentMapper documentMapper;
         public final String index;
         public final String indexUUID;
@@ -267,6 +294,11 @@ public class MappingUpdatedAction extends TransportMasterNodeOperationAction<Map
         void onFailure(Throwable t);
     }
 
+    private interface PendingMappingProcessedListener extends QueueItem {
+        void allPendingMappingProcessed();
+    }
+
+
     /**
      * The master mapping updater removes the overhead of refreshing the mapping (refreshSource) on the
      * indexing thread.
@@ -279,7 +311,7 @@ public class MappingUpdatedAction extends TransportMasterNodeOperationAction<Map
     private class MasterMappingUpdater extends Thread {
 
         private volatile boolean running = true;
-        private final BlockingQueue<MappingChange> queue = ConcurrentCollections.newBlockingQueue();
+        private final BlockingQueue<QueueItem> queue = ConcurrentCollections.newBlockingQueue();
 
         public MasterMappingUpdater(String name) {
             super(name);
@@ -287,6 +319,14 @@ public class MappingUpdatedAction extends TransportMasterNodeOperationAction<Map
 
         public void add(MappingChange change) {
             queue.add(change);
+        }
+
+        public void addPendingMappingProcessedListener(PendingMappingProcessedListener listener) {
+            queue.add(listener);
+        }
+
+        public void forceProcessingPendingChanges() {
+            this.interrupt();
         }
 
         public void close() {
@@ -305,13 +345,21 @@ public class MappingUpdatedAction extends TransportMasterNodeOperationAction<Map
 
             @Override
             public boolean equals(Object o) {
-                if (this == o) return true;
-                if (o == null || getClass() != o.getClass()) return false;
+                if (this == o) {
+                    return true;
+                }
+                if (o == null || getClass() != o.getClass()) {
+                    return false;
+                }
 
                 UpdateKey updateKey = (UpdateKey) o;
 
-                if (!indexUUID.equals(updateKey.indexUUID)) return false;
-                if (!type.equals(updateKey.type)) return false;
+                if (!indexUUID.equals(updateKey.indexUUID)) {
+                    return false;
+                }
+                if (!type.equals(updateKey.type)) {
+                    return false;
+                }
 
                 return true;
             }
@@ -352,28 +400,45 @@ public class MappingUpdatedAction extends TransportMasterNodeOperationAction<Map
             Map<UpdateKey, UpdateValue> pendingUpdates = Maps.newHashMap();
             while (running) {
                 try {
-                    MappingChange polledChange = queue.poll(10, TimeUnit.MINUTES);
-                    if (polledChange == null) {
+                    QueueItem polledItem = null;
+                    try {
+                        polledItem = queue.poll(10, TimeUnit.MINUTES);
+                        if (polledItem != null && polledItem instanceof MappingChange && additionalMappingChangeTime.millis() > 0) {
+                            Thread.sleep(additionalMappingChangeTime.millis());
+                        }
+                    } catch (InterruptedException e) {
+                        // meh
+                    }
+                    if (polledItem == null) {
                         continue;
                     }
-                    List<MappingChange> changes = Lists.newArrayList(polledChange);
-                    if (additionalMappingChangeTime.millis() > 0) {
-                        Thread.sleep(additionalMappingChangeTime.millis());
-                    }
-                    queue.drainTo(changes);
-                    Collections.reverse(changes); // process then in newest one to oldest
+
+                    final List<PendingMappingProcessedListener> processingListeners = Collections.synchronizedList(new ArrayList<PendingMappingProcessedListener>());
+                    List<QueueItem> items = Lists.newArrayList(polledItem);
+                    queue.drainTo(items);
+
+                    Collections.reverse(items); // process then in newest one to oldest
                     // go over and add to pending updates map
-                    for (MappingChange change : changes) {
-                        UpdateKey key = new UpdateKey(change.indexUUID, change.documentMapper.type());
-                        UpdateValue updateValue = pendingUpdates.get(key);
-                        if (updateValue == null) {
-                            updateValue = new UpdateValue(change);
-                            pendingUpdates.put(key, updateValue);
-                        }
-                        if (change.listener != null) {
-                            updateValue.listeners.add(change.listener);
+                    for (QueueItem item : items) {
+                        if (item instanceof PendingMappingProcessedListener) {
+                            processingListeners.add((PendingMappingProcessedListener) item);
+                        } else if (item instanceof MappingChange) {
+                            MappingChange change = (MappingChange) item;
+                            UpdateKey key = new UpdateKey(change.indexUUID, change.documentMapper.type());
+                            UpdateValue updateValue = pendingUpdates.get(key);
+                            if (updateValue == null) {
+                                updateValue = new UpdateValue(change);
+                                pendingUpdates.put(key, updateValue);
+                            }
+                            if (change.listener != null) {
+                                updateValue.listeners.add(change.listener);
+                            }
+                        } else {
+                            assert false : "unknown QueueItem type: " + item.getClass();
                         }
                     }
+
+                    final AtomicLong pendingRequests = new AtomicLong(pendingUpdates.size());
 
                     for (Iterator<UpdateValue> iterator = pendingUpdates.values().iterator(); iterator.hasNext(); ) {
                         final UpdateValue updateValue = iterator.next();
@@ -400,23 +465,28 @@ public class MappingUpdatedAction extends TransportMasterNodeOperationAction<Map
                             @Override
                             public void onResponse(MappingUpdatedAction.MappingUpdatedResponse mappingUpdatedResponse) {
                                 logger.debug("successfully updated master with mapping update: {}", mappingRequest);
+                                if (pendingRequests.decrementAndGet() == 0) {
+                                    notifyPendingMappingProcessedListeners(processingListeners);
+                                }
                                 updateValue.notifyListeners(null);
                             }
 
                             @Override
                             public void onFailure(Throwable e) {
                                 logger.warn("failed to update master on updated mapping for {}", e, mappingRequest);
+                                if (pendingRequests.decrementAndGet() == 0) {
+                                    notifyPendingMappingProcessedListeners(processingListeners);
+                                }
                                 updateValue.notifyListeners(e);
                             }
                         });
 
                     }
-                } catch (Throwable t) {
-                    if (t instanceof InterruptedException && !running) {
-                        // all is well, we are shutting down
-                    } else {
-                        logger.warn("failed to process mapping updates", t);
+                    if (pendingRequests.get() == 0) {
+                        notifyPendingMappingProcessedListeners(processingListeners);
                     }
+                } catch (Throwable t) {
+                    logger.warn("failed to process mapping updates", t);
                     // cleanup all pending update callbacks that were not processed due to a global failure...
                     for (Iterator<Map.Entry<UpdateKey, UpdateValue>> iterator = pendingUpdates.entrySet().iterator(); iterator.hasNext(); ) {
                         Map.Entry<UpdateKey, UpdateValue> entry = iterator.next();
@@ -424,6 +494,12 @@ public class MappingUpdatedAction extends TransportMasterNodeOperationAction<Map
                         entry.getValue().notifyListeners(t);
                     }
                 }
+            }
+        }
+
+        void notifyPendingMappingProcessedListeners(List<PendingMappingProcessedListener> listeners) {
+            for (PendingMappingProcessedListener listener : listeners) {
+                listener.allPendingMappingProcessed();
             }
         }
     }

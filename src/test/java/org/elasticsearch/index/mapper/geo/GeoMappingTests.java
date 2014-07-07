@@ -45,7 +45,7 @@ public class GeoMappingTests extends ElasticsearchIntegrationTest {
                     .endObject()
                 .endObject()
                 .endObject()).execute().actionGet();
-        ensureYellow();
+        ensureGreen();
         assertPrecision(new Distance(2, DistanceUnit.MILLIMETERS));
 
         client().admin().indices().preparePutMapping("test").setType("type1").setSource(XContentFactory.jsonBuilder().startObject()

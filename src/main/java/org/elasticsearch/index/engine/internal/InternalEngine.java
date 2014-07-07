@@ -32,6 +32,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.routing.operation.hash.djb.DjbHashFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Preconditions;
@@ -1037,7 +1038,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             if (this.failEngineOnCorruption) {
                 failEngine("corrupt file detected source: [" + source + "]", t);
             } else {
-                logger.warn("corrupt file detected source: [{}] but [{}] is set to [] {}", t, source, ENGINE_FAIL_ON_CORRUPTION, this.failEngineOnCorruption);
+                logger.warn("corrupt file detected source: [{}] but [{}] is set to [{}]", t, source, ENGINE_FAIL_ON_CORRUPTION, this.failEngineOnCorruption);
             }
         }else if (ExceptionsHelper.isOOM(t)) {
             failEngine("out of memory", t);
@@ -1189,8 +1190,15 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
     class FailEngineOnMergeFailure implements MergeSchedulerProvider.FailureListener {
         @Override
         public void onFailedMerge(MergePolicy.MergeException e) {
-            // TODO should we respect ENGINE_FAIL_ON_CORRUPTION here too?
-            failEngine("merge exception", e);
+            if (Lucene.isCorruptionException(e)) {
+                if (failEngineOnCorruption) {
+                    failEngine("corrupt file detected source: [merge]", e);
+                } else {
+                    logger.warn("corrupt file detected source: [merge] but [{}] is set to [{}]", e, ENGINE_FAIL_ON_CORRUPTION, failEngineOnCorruption);
+                }
+            } else {
+                failEngine("merge exception", e);
+            }
         }
     }
 

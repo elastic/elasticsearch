@@ -222,7 +222,7 @@ public class RecoverySource extends AbstractComponent {
                                     final CorruptIndexException corruptIndexException;
                                     if ((corruptIndexException = ExceptionsHelper.unwrap(e, CorruptIndexException.class)) != null) {
                                        if (store.checkIntegrity(md) == false) { // we are corrupted on the primary -- fail!
-                                           logger.warn("[{}][{}] Corrupted file detected {} checksum mismatch", shard.shardId().index(), shard.shardId(), md);
+                                           logger.warn("{} Corrupted file detected {} checksum mismatch", shard.shardId(), md);
                                            CorruptIndexException current = corruptedEngine.get();
                                            if (current != null || corruptedEngine.compareAndSet(null, corruptIndexException)) {
                                                current = corruptedEngine.get();
@@ -234,7 +234,7 @@ public class RecoverySource extends AbstractComponent {
                                            RemoteTransportException exception = new RemoteTransportException("File corruption occured on recovery but checksums are ok", null);
                                            exception.addSuppressed(e);
                                            exceptions.add(0, exception); // last exception first
-                                           logger.warn("File corruption on recovery {} local checksum OK", corruptIndexException, md);
+                                           logger.warn("{} File corruption on recovery {} local checksum OK", corruptIndexException, shard.shardId(), md);
                                        }
                                     } else {
                                         exceptions.add(0, e); // last exceptions first

@@ -79,18 +79,18 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class Store extends AbstractIndexShardComponent implements CloseableIndexComponent, Closeable {
 
+    private static final String CODEC = "store";
+    private static final int VERSION = 0;
+    private static final String CORRUPTED = "corrupted_";
 
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
     private final AtomicInteger refCount = new AtomicInteger(1);
-
     private final IndexStore indexStore;
     private final CodecService codecService;
     private final DirectoryService directoryService;
     private final StoreDirectory directory;
     private final boolean sync;
     private final DistributorDirectory distributorDirectory;
-    private static final String CODEC = "store";
-    private static final int VERSION = 0;
 
     @Inject
     public Store(ShardId shardId, @IndexSettings Settings indexSettings, IndexStore indexStore, CodecService codecService, DirectoryService directoryService, Distributor distributor) throws IOException {
@@ -275,7 +275,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
          */
         final String[] files = directory().listAll();
         for (String file : files) {
-            if (file.startsWith("corrupted_")) {
+            if (file.startsWith(CORRUPTED)) {
                 return true;
             }
         }
@@ -287,11 +287,15 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
         final String[] files = directory().listAll();
         List<CorruptIndexException> ex = new ArrayList<>();
         for (String file : files) {
-            if (file.startsWith("corrupted_")) {
+            if (file.startsWith(CORRUPTED)) {
                 try(ChecksumIndexInput input = directory().openChecksumInput(file, IOContext.READONCE)) {
                     CodecUtil.checkHeader(input, CODEC, VERSION, VERSION);
                     String msg = input.readString();
-                    ex.add(new CorruptIndexException(msg));
+                    StringBuilder builder = new StringBuilder(this.shardId.toString());
+                    builder.append(" Corrupted index [");
+                    builder.append(file).append("] caused by: ");
+                    builder.append(msg);
+                    ex.add(new CorruptIndexException(builder.toString()));
                     CodecUtil.checkFooter(input);
                 }
             }
@@ -657,7 +661,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
      */
     public void markStoreCorrupted(CorruptIndexException exception) throws IOException {
         ensureOpen();
-        String uuid = "corrupted_" + Strings.randomBase64UUID();
+        String uuid = CORRUPTED + Strings.randomBase64UUID();
         try(IndexOutput output = this.directory().createOutput(uuid, IOContext.DEFAULT)) {
             CodecUtil.writeHeader(output, CODEC, VERSION);
             output.writeString(ExceptionsHelper.detailedMessage(exception, true, 0)); // handles null exception

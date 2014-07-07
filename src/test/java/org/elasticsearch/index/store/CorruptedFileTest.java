@@ -81,7 +81,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
 @ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE)
-@Repeat(iterations = 100)
+@Repeat(iterations = 10)
 public class CorruptedFileTest extends ElasticsearchIntegrationTest {
 
     @Override

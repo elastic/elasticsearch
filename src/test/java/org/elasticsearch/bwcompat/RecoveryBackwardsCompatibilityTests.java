@@ -25,7 +25,6 @@ import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryResponse;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
-import org.elasticsearch.cluster.routing.allocation.decider.DisableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -34,7 +33,6 @@ import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -99,7 +97,7 @@ public class RecoveryBackwardsCompatibilityTests extends ElasticsearchBackwardsC
                 RecoveryState recoveryState = response.recoveryState();
                 if (!recoveryState.getPrimary()) {
                     RecoveryState.Index index = recoveryState.getIndex();
-                    if (COMPATIBILITY_VERSION.onOrAfter(Version.V_1_3_0)) {
+                    if (compatibilityVersion().onOrAfter(Version.V_1_3_0)) {
                         assertThat(index.toString(), index.recoveredByteCount(), equalTo(0l));
                         assertThat(index.toString(), index.reusedByteCount(), greaterThan(0l));
                         assertThat(index.toString(), index.reusedByteCount(), equalTo(index.totalByteCount()));

@@ -4,8 +4,6 @@
         indices.create:
           index: test_index
           body:
-              settings:
-                number_of_replicas: 0
               mappings:
                 test_type:
                   properties:
@@ -15,7 +13,7 @@
 
   - do:
         cluster.health:
-         wait_for_status: green
+         wait_for_status: yellow
 
   - do:
       indices.exists_type:
@@ -28,7 +26,7 @@
       indices.delete_mapping:
         index: test_index
         type: test_type
-
+  
   - do:
       indices.exists_type:
         index: test_index

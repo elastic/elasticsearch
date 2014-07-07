@@ -65,12 +65,16 @@ public interface Terms extends MultiBucketsAggregation {
         public abstract Number getKeyAsNumber();
 
         abstract int compareTerm(Terms.Bucket other);
+        
+        public abstract long getDocCountError();
 
     }
 
     Collection<Bucket> getBuckets();
 
     Bucket getBucketByKey(String term);
+    
+    long getDocCountError();
 
     /**
      * Determines the order by which the term buckets will be sorted

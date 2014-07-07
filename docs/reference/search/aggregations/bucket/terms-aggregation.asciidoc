@@ -43,7 +43,7 @@ Response:
 By default, the `terms` aggregation will return the buckets for the top ten terms ordered by the `doc_count`. One can
 change this default behaviour by setting the `size` parameter.
 
-==== Size & Shard Size
+==== Size
 
 The `size` parameter can be set to define how many term buckets should be returned out of the overall terms list. By
 default, the node coordinating the search process will request each shard to provide its own top `size` term buckets
@@ -52,6 +52,87 @@ This means that if the number of unique terms is greater than `size`, the return
 (it could be that the term counts are slightly off and it could even be that a term that should have been in the top
 size buckets was not returned). If set to `0`, the `size` will be set to `Integer.MAX_VALUE`.
 
+==== Document counts are approximate
+
+As described above, the document counts (and the results of any sub aggregations) in the terms aggregation are not always 
+accurate.  This is because each shard provides its own view of what the ordered list of terms should be and these are 
+combined to give a final view. Consider the following scenario:
+
+A request is made to obtain the top 5 terms in the field product, ordered by descending document count from an index with 
+3 shards. In this case each shard is asked to give its top 5 terms. 
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs" : {
+        "products" : {
+            "terms" : { 
+                "field" : "product",
+                "size" : 5
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+The terms for each of the three shards are shown below with their 
+respective document counts in brackets:
+
+[width="100%",cols="^2,^2,^2,^2",options="header"]
+|=========================================================
+|    | Shard A        | Shard B        | Shard C
+
+| 1  | Product A (25) | Product A (30) | Product A (45) 
+| 2  | Product B (18) | Product B (25) | Product C (44) 
+| 3  | Product C (6)  | Product F (17) | Product Z (36) 
+| 4  | Product D (3)  | Product Z (16) | Product G (30) 
+| 5  | Product E (2)  | Product G (15) | Product E (29) 
+| 6  | Product F (2)  | Product H (14) | Product H (28)  
+| 7  | Product G (2)  | Product I (10) | Product Q (2)  
+| 8  | Product H (2)  | Product Q (6)  | Product D (1)  
+| 9  | Product I (1)  | Product J (8)  | 
+| 10 | Product J (1)  | Product C (4)  | 
+
+|=========================================================
+
+The shards will return their top 5 terms so the results from the shards will be:
+
+
+[width="100%",cols="^2,^2,^2,^2",options="header"]
+|=========================================================
+|    | Shard A        | Shard B        | Shard C
+
+| 1  | Product A (25) | Product A (30) | Product A (45) 
+| 2  | Product B (18) | Product B (25) | Product C (44) 
+| 3  | Product C (6)  | Product F (17) | Product Z (36) 
+| 4  | Product D (3)  | Product Z (16) | Product G (30) 
+| 5  | Product E (2)  | Product G (15) | Product E (29) 
+
+|=========================================================
+
+Taking the top 5 results from each of the shards (as requested) and combining them to make a final top 5 list produces 
+the following:
+
+[width="40%",cols="^2,^2"]
+|=========================================================
+
+| 1  | Product A (100) 
+| 2  | Product Z (52) 
+| 3  | Product C (50) 
+| 4  | Product G (45) 
+| 5  | Product B (43) 
+
+|=========================================================
+
+Because Product A was returned from all shards we know that its document count value is accurate. Product C was only 
+returned by shards A and C so its document count is shown as 50 but this is not an accurate count. Product C exists on 
+shard B, but its count of 4 was not high enough to put Product C into the top 5 list for that shard. Product Z was also 
+returned only by 2 shards but the third shard does not contain the term. There is no way of knowing, at the point of 
+combining the results to produce the final list of terms, that there is an error in the document count for Product C and 
+not for Product Z. Product H has a document count of 44 across all 3 shards but was not included in the final list of 
+terms because it did not make it into the top five terms on any of the shards.
+
+==== Shard Size
 
 The higher the requested `size` is, the more accurate the results will be, but also, the more expensive it will be to
 compute the final results (both due to bigger priority queues that are managed on a shard level and due to bigger data
@@ -69,6 +150,81 @@ NOTE:   `shard_size` cannot be smaller than `size` (as it doesn't make much sens
 
 added[1.1.0] It is possible to not limit the number of terms that are returned by setting `size` to `0`. Don't use this
 on high-cardinality fields as this will kill both your CPU since terms need to be return sorted, and your network.
+
+==== Calculating Document Count Error
+
+coming[1.4.0] 
+
+There are two error values which can be shown on the terms aggregation.  The first gives a value for the aggregation as 
+a whole which represents the maximum potential document count for a term which did not make it into the final list of 
+terms. This is calculated as the sum of the document count from the last term returned from each shard .For the example 
+given above the value would be 46 (2 + 15 + 29). This means that in the worst case scenario a term which was not returned 
+could have the 4th highest document count.
+
+[source,js]
+--------------------------------------------------
+{
+    ...
+
+    "aggregations" : {
+        "products" : {
+            "doc_count_error_upper_bound" : 46,
+            "buckets" : [
+                {
+                    "key" : "Product A",
+                    "doc_count" : 100
+                },
+                {
+                    "key" : "Product Z",
+                    "doc_count" : 52
+                },
+                ...
+            ]
+        }
+    }
+}
+--------------------------------------------------
+
+The second error value can be enabled by setting the `show_term_doc_count_error` parameter to true. This shows an error value 
+for each term returned by the aggregation which represents the 'worst case' error in the document count and can be useful when 
+deciding on a value for the `shard_size` parameter. This is calculated by summing the document counts for the last term returned 
+by all shards which did not return the term. In the example above the error in the document count for Product C would be 15 as 
+Shard B was the only shard not to return the term and the document count of the last termit did return was 15. The actual document 
+count of Product C was 54 so the document count was only actually off by 4 even though the worst case was that it would be off by 
+15.  Product A, however has an error of 0 for its document count, since every shard returned it we can be confident that the count 
+returned is accurate.
+
+[source,js]
+--------------------------------------------------
+{
+    ...
+
+    "aggregations" : {
+        "products" : {
+            "doc_count_error_upper_bound" : 46,
+            "buckets" : [
+                {
+                    "key" : "Product A",
+                    "doc_count" : 100,
+                    "doc_count_error_upper_bound" : 0
+                },
+                {
+                    "key" : "Product Z",
+                    "doc_count" : 52,
+                    "doc_count_error_upper_bound" : 2
+                },
+                ...
+            ]
+        }
+    }
+}
+--------------------------------------------------
+
+These errors can only be calculated in this way when the terms are ordered by descending document count. When the aggregation is 
+ordered by the terms values themselves (either ascending or descending) there is no error in the document count since if a shard 
+does not return a particular term which appears in the results from another shard, it must not have that term in its index. When the 
+aggregation is either sorted by a sub aggregation or in order of ascending document count, the error in the document counts cannot be 
+determined and is given a value of -1 to indicate this.
 
 ==== Order
 

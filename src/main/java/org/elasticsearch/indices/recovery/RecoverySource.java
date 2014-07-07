@@ -39,6 +39,8 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -54,6 +56,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -94,7 +97,8 @@ public class RecoverySource extends AbstractComponent {
     }
 
     private RecoveryResponse recover(final StartRecoveryRequest request) {
-        final InternalIndexShard shard = (InternalIndexShard) indicesService.indexServiceSafe(request.shardId().index().name()).shardSafe(request.shardId().id());
+        final IndexService indexService = indicesService.indexServiceSafe(request.shardId().index().name());
+        final InternalIndexShard shard = (InternalIndexShard) indexService.shardSafe(request.shardId().id());
 
         // verify that our (the source) shard state is marking the shard to be in recovery mode as well, otherwise
         // the index operations will not be routed to it properly
@@ -261,18 +265,46 @@ public class RecoverySource extends AbstractComponent {
                 response.startTime = stopWatch.totalTime().millis();
                 logger.trace("{} recovery [phase2] to {}: start took [{}]", request.shardId(), request.targetNode(), request.targetNode(), stopWatch.totalTime());
 
-                logger.trace("{} recovery [phase2] to {}: waiting on pending mapping update", request.shardId(), request.targetNode());
-                if (!mappingUpdatedAction.processPendingUpdatesAndWait(internalActionTimeout)) {
-                    logger.debug("{} recovery [phase2] to {}: waiting on pending mapping update timed out. waited [{}]", request.shardId(), request.targetNode(), internalActionTimeout);
-                }
 
-                logger.trace("{} recovery [phase2] to {}: sending transaction log operations", request.shardId(), request.targetNode(), request.targetNode());
+                logger.trace("{} recovery [phase2] to {}: updating current mapping to master", request.shardId(), request.targetNode());
+                updateMappingOnMaster();
+
+                logger.trace("{} recovery [phase2] to {}: sending transaction log operations", request.shardId(), request.targetNode());
                 stopWatch = new StopWatch().start();
                 int totalOperations = sendSnapshot(snapshot);
                 stopWatch.stop();
                 logger.trace("{} recovery [phase2] to {}: took [{}]", request.shardId(), request.targetNode(), stopWatch.totalTime());
                 response.phase2Time = stopWatch.totalTime().millis();
                 response.phase2Operations = totalOperations;
+            }
+
+            private void updateMappingOnMaster() {
+                List<DocumentMapper> documentMappersToUpdate = Lists.newArrayList(indexService.mapperService());
+                final CountDownLatch countDownLatch = new CountDownLatch(documentMappersToUpdate.size());
+                MappingUpdatedAction.MappingUpdateListener listener = new MappingUpdatedAction.MappingUpdateListener() {
+                    @Override
+                    public void onMappingUpdate() {
+                        countDownLatch.countDown();
+                    }
+
+                    @Override
+                    public void onFailure(Throwable t) {
+                        logger.debug("{} recovery to {}: failed to update mapping on master", request.shardId(), request.targetNode(), t);
+                        countDownLatch.countDown();
+                    }
+                };
+                for (DocumentMapper documentMapper : documentMappersToUpdate) {
+                    mappingUpdatedAction.updateMappingOnMaster(indexService.index().getName(), documentMapper, indexService.indexUUID(), listener);
+                }
+                try {
+                    if (!countDownLatch.await(internalActionTimeout.millis(), TimeUnit.MILLISECONDS)) {
+                        logger.debug("{} recovery [phase2] to {}: waiting on pending mapping update timed out. waited [{}]", request.shardId(), request.targetNode(), internalActionTimeout);
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    logger.debug("interrupted while waiting for mapping to update on master");
+                }
+
             }
 
             @Override

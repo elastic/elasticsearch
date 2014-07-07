@@ -43,6 +43,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -108,6 +109,7 @@ public class MappingUpdatedAction extends TransportMasterNodeOperationAction<Map
     }
 
     public void updateMappingOnMaster(String index, DocumentMapper documentMapper, String indexUUID, MappingUpdateListener listener) {
+        assert !documentMapper.type().equals(MapperService.DEFAULT_MAPPING) : "_default_ mapping should not be updated";
         masterMappingUpdater.add(new MappingChange(documentMapper, index, indexUUID, listener));
     }
 

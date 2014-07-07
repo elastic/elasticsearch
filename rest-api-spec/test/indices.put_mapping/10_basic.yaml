@@ -3,6 +3,12 @@
   - do:
       indices.create:
         index: test_index
+        body:
+            settings:
+                number_of_replicas: 0
+  - do:
+      cluster.health:
+            wait_for_status: green
 
   - do:
       indices.put_mapping:
@@ -21,7 +27,7 @@
   - do:
       indices.get_mapping:
         index: test_index
-  
+
   - match: {test_index.mappings.test_type.properties.text1.type:     string}
   - match: {test_index.mappings.test_type.properties.text1.analyzer: whitespace}
   - match: {test_index.mappings.test_type.properties.text2.type:     string}
@@ -55,7 +61,7 @@
   - do:
       indices.get_mapping:
         index: test_index
-  
+
   - match: {test_index.mappings.test_type.properties.text1.type:     string}
   - match: {test_index.mappings.test_type.properties.text1.fields.text_raw.index: not_analyzed}
   - match: {test_index.mappings.test_type.properties.text2.type:     string}

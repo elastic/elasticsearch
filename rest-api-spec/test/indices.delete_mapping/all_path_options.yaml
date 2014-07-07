@@ -5,21 +5,24 @@ setup:
         index: test_index1
         body:
             mappings: { test_type1: { }}
+            settings: { number_of_replicas: 0 }
 
   - do:
       indices.create:
         index: test_index2
         body:
             mappings: { test_type2: { }}
+            settings: { number_of_replicas: 0 }
   - do:
       indices.create:
         index: foo
         body:
             mappings: { test_type2: {  }}
+            settings: { number_of_replicas: 0 }
 
   - do:
         cluster.health:
-         wait_for_status: yellow
+         wait_for_status: green
 ---
 "delete with _all index":
   - do:

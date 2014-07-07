@@ -55,8 +55,7 @@ public class TermsParser implements Aggregator.Parser {
                     context.numberOfShards()));
         }
         bucketCountThresholds.ensureValidity();
-        return new TermsAggregatorFactory(aggregationName, vsParser.config(), order, bucketCountThresholds, aggParser.getIncludeExclude(),
-                aggParser.getExecutionHint(), aggParser.getCollectionMode());
+        return new TermsAggregatorFactory(aggregationName, vsParser.config(), order, bucketCountThresholds, aggParser.getIncludeExclude(), aggParser.getExecutionHint(), aggParser.getCollectionMode(), aggParser.showTermDocCountError());
     }
 
     static InternalOrder resolveOrder(String key, boolean asc) {

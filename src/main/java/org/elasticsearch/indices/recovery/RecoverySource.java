@@ -27,10 +27,13 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.inject.Inject;
@@ -280,6 +283,11 @@ public class RecoverySource extends AbstractComponent {
             }
 
             private void updateMappingOnMaster() {
+                IndexMetaData indexMetaData = clusterService.state().metaData().getIndices().get(indexService.index().getName());
+                ImmutableOpenMap<String, MappingMetaData> metaDataMappings = null;
+                if (indexMetaData != null) {
+                    metaDataMappings = indexMetaData.getMappings();
+                }
                 List<DocumentMapper> documentMappersToUpdate = Lists.newArrayList();
                 for (DocumentMapper documentMapper : indexService.mapperService()) {
                     // default mapping should not be sent back, it can only be updated by put mapping API, and its
@@ -287,7 +295,12 @@ public class RecoverySource extends AbstractComponent {
                     if (documentMapper.type().equals(MapperService.DEFAULT_MAPPING)) {
                         continue;
                     }
-                    documentMappersToUpdate.add(documentMapper);
+
+                    MappingMetaData mappingMetaData = metaDataMappings == null ? null : metaDataMappings.get(documentMapper.type());
+                    if (mappingMetaData == null || !documentMapper.refreshSource().equals(mappingMetaData.source())) {
+                        // not on master yet in the right form
+                        documentMappersToUpdate.add(documentMapper);
+                    }
                 }
                 if (documentMappersToUpdate.isEmpty()) {
                     return;

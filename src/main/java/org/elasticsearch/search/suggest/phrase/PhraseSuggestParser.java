@@ -23,10 +23,12 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.search.suggest.SuggestContextParser;
 import org.elasticsearch.search.suggest.SuggestUtils;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
@@ -37,6 +39,7 @@ import java.io.IOException;
 public final class PhraseSuggestParser implements SuggestContextParser {
 
     private PhraseSuggester suggester;
+    private static final int MAX_RESULT_SIZE_FILTER = 20;
 
     public PhraseSuggestParser(PhraseSuggester suggester) {
         this.suggester = suggester;
@@ -83,6 +86,23 @@ public final class PhraseSuggestParser implements SuggestContextParser {
                             throw new ElasticsearchIllegalArgumentException("token_limit must be >= 1");
                         }
                         suggestion.setTokenLimit(tokenLimit);
+                    } else if ("filter".equals(fieldName)) {
+                            String templateNameOrTemplateContent;
+                            if (token == XContentParser.Token.START_OBJECT && !parser.hasTextCharacters()) {
+                                XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent());
+                                builder.copyCurrentStructure(parser);
+                                templateNameOrTemplateContent = builder.string();
+                            } else {
+                                templateNameOrTemplateContent = parser.text();
+                            }
+                            if (templateNameOrTemplateContent == null) {
+                                throw new ElasticsearchIllegalArgumentException("no template found in filter field");
+                            }
+                            CompiledScript compiledScript = suggester.scriptService().compile("mustache", templateNameOrTemplateContent);
+                            suggestion.setFilterQueryScript(compiledScript);
+                            if (suggestion.getSize() >= MAX_RESULT_SIZE_FILTER) {
+                                throw new ElasticsearchIllegalArgumentException("size must be <= " + MAX_RESULT_SIZE_FILTER + " for using filter");
+                            }
                     } else {
                         throw new ElasticsearchIllegalArgumentException("suggester[phrase] doesn't support field [" + fieldName + "]");
                     }

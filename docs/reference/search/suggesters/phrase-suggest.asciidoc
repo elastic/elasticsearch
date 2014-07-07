@@ -161,6 +161,13 @@ can contain misspellings (See parameter descriptions below).
     in a row are changed the entire phrase of changed tokens 
     is wrapped rather than each token.
 
+`filter`::
+    Sets a template query to filter out suggestions that do not match
+    any documents returned by the query. If provided must contain
+    the suggestion variable `suggestion` which is used to populate
+    the query with the phrase suggestions. If provided the `size`
+    parameter can be at most `20`.
+
 ==== Smoothing Models
 
 The `phrase` suggester supports multiple smoothing models to balance

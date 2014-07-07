@@ -42,6 +42,7 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
     private Integer tokenLimit;
     private String preTag;
     private String postTag;
+    private String filter;
 
     public PhraseSuggestionBuilder(String name) {
         super(name, "phrase");
@@ -166,6 +167,14 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
         return this;
     }
 
+    /**
+     * Sets a query used for filtering out suggested phrases.
+     */
+    public PhraseSuggestionBuilder filter(String filter) {
+        this.filter = filter;
+        return this;
+    }
+
     @Override
     public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
         if (realWordErrorLikelihood != null) {
@@ -209,6 +218,9 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
             builder.field("pre_tag", preTag);
             builder.field("post_tag", postTag);
             builder.endObject();
+        }
+        if (filter != null) {
+            builder.field("filter", filter);
         }
         return builder;
     }

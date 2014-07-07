@@ -1093,7 +1093,82 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
         assertSuggestion(searchSuggest, 0, 0, "title", "united states house of representatives elections in washington 2006");
         // assertThat(total, lessThan(1000L)); // Takes many seconds without fix - just for debugging
     }
-    
+
+    @Test
+    public void suggestPhrasesInIndex() throws InterruptedException, ExecutionException, IOException {
+        CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
+                .put(indexSettings())
+                .put(SETTING_NUMBER_OF_SHARDS, 1) // A single shard will help to keep the tests repeatable.
+                .put("index.analysis.analyzer.text.tokenizer", "standard")
+                .putArray("index.analysis.analyzer.text.filter", "lowercase", "my_shingle")
+                .put("index.analysis.filter.my_shingle.type", "shingle")
+                .put("index.analysis.filter.my_shingle.output_unigrams", true)
+                .put("index.analysis.filter.my_shingle.min_shingle_size", 2)
+                .put("index.analysis.filter.my_shingle.max_shingle_size", 3));
+
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("type1")
+                .startObject("properties")
+                .startObject("title")
+                .field("type", "string")
+                .field("analyzer", "text")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject();
+        assertAcked(builder.addMapping("type1", mapping));
+        ensureGreen();
+
+        ImmutableList.Builder<String> titles = ImmutableList.<String>builder();
+
+        titles.add("United States House of Representatives Elections in Washington 2006");
+        titles.add("United States House of Representatives Elections in Washington 2005");
+        titles.add("State");
+        titles.add("Houses of Parliament");
+        titles.add("Representative Government");
+        titles.add("Election");
+
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+        for (String title: titles.build()) {
+            builders.add(client().prepareIndex("test", "type1").setSource("title", title));
+        }
+        indexRandom(true, builders);
+
+        // suggest without filtering
+        PhraseSuggestionBuilder suggest = phraseSuggestion("title")
+                .field("title")
+                .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("title")
+                        .suggestMode("always")
+                        .maxTermFreq(.99f)
+                        .size(10)
+                        .maxInspections(200)
+                )
+                .confidence(0f)
+                .maxErrors(2f)
+                .shardSize(30000)
+                .size(10);
+        Suggest searchSuggest = searchSuggest("united states house of representatives elections in washington 2006", suggest);
+        assertSuggestionSize(searchSuggest, 0, 10, "title");
+
+        // suggest with filtering
+        String filterString = XContentFactory.jsonBuilder()
+                .startObject()
+                    .startObject("match_phrase")
+                        .field("title", "{{suggestion}}")
+                    .endObject()
+                .endObject()
+                .string();
+        PhraseSuggestionBuilder filteredSuggest = suggest.filter(filterString);
+        searchSuggest = searchSuggest("united states house of representatives elections in washington 2006", filteredSuggest);
+        assertSuggestionSize(searchSuggest, 0, 2, "title");
+
+        // filtered suggest with no result (boundary case)
+        searchSuggest = searchSuggest("Elections of Representatives Parliament", filteredSuggest);
+        assertSuggestionSize(searchSuggest, 0, 0, "title");
+
+    }
+
     protected Suggest searchSuggest(SuggestionBuilder<?>... suggestion) {
         return searchSuggest(null, suggestion);
     }

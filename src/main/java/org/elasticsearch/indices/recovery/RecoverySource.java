@@ -258,7 +258,7 @@ public class RecoverySource extends AbstractComponent {
                 if (shard.state() == IndexShardState.CLOSED) {
                     throw new IndexShardClosedException(request.shardId());
                 }
-                logger.trace("{} recovery [phase2] to {}: start", request.shardId().index().name(), request.shardId().id(), request.targetNode());
+                logger.trace("{} recovery [phase2] to {}: start", request.shardId(), request.targetNode());
                 StopWatch stopWatch = new StopWatch().start();
                 transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.PREPARE_TRANSLOG, new RecoveryPrepareForTranslogOperationsRequest(request.recoveryId(), request.shardId()), TransportRequestOptions.options().withTimeout(internalActionTimeout), EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
                 stopWatch.stop();
@@ -280,6 +280,9 @@ public class RecoverySource extends AbstractComponent {
 
             private void updateMappingOnMaster() {
                 List<DocumentMapper> documentMappersToUpdate = Lists.newArrayList(indexService.mapperService());
+                if (documentMappersToUpdate.size() == 0) {
+                    return;
+                }
                 final CountDownLatch countDownLatch = new CountDownLatch(documentMappersToUpdate.size());
                 MappingUpdatedAction.MappingUpdateListener listener = new MappingUpdatedAction.MappingUpdateListener() {
                     @Override

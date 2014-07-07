@@ -48,9 +48,9 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
 
     public StringTermsAggregator(String name, AggregatorFactories factories, ValuesSource valuesSource, long estimatedBucketCount,
                                  InternalOrder order, BucketCountThresholds bucketCountThresholds,
-                                 IncludeExclude includeExclude, AggregationContext aggregationContext, Aggregator parent, SubAggCollectionMode collectionMode) {
+                                 IncludeExclude includeExclude, AggregationContext aggregationContext, Aggregator parent, SubAggCollectionMode collectionMode, boolean showTermDocCountError) {
 
-        super(name, factories, estimatedBucketCount, aggregationContext, parent, order, bucketCountThresholds, collectionMode);
+        super(name, factories, estimatedBucketCount, aggregationContext, parent, order, bucketCountThresholds, collectionMode, showTermDocCountError);
         this.valuesSource = valuesSource;
         this.includeExclude = includeExclude;
         bucketOrds = new BytesRefHash(estimatedBucketCount, aggregationContext.bigArrays());
@@ -123,7 +123,7 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
         StringTerms.Bucket spare = null;
         for (int i = 0; i < bucketOrds.size(); i++) {
             if (spare == null) {
-                spare = new StringTerms.Bucket(new BytesRef(), 0, null);
+                spare = new StringTerms.Bucket(new BytesRef(), 0, null, showTermDocCountError, 0);
             }
             bucketOrds.get(i, spare.termBytes);
             spare.docCount = bucketDocCount(i);
@@ -142,21 +142,22 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
             list[i] = bucket;
         }
         // replay any deferred collections
-        runDeferredCollections(survivingBucketOrds);    
+        runDeferredCollections(survivingBucketOrds);
+        
         // Now build the aggs
         for (int i = 0; i < list.length; i++) {
           final StringTerms.Bucket bucket = (StringTerms.Bucket)list[i];
           bucket.termBytes = BytesRef.deepCopyOf(bucket.termBytes);
           bucket.aggregations = bucketAggregations(bucket.bucketOrd);
-        }        
+          bucket.docCountError = 0;
+        }
         
-        
-        return new StringTerms(name, order, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), Arrays.asList(list));
+        return new StringTerms(name, order, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getShardSize(), bucketCountThresholds.getMinDocCount(), Arrays.asList(list), showTermDocCountError, 0);
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new StringTerms(name, order, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), Collections.<InternalTerms.Bucket>emptyList());
+        return new StringTerms(name, order, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getShardSize(), bucketCountThresholds.getMinDocCount(), Collections.<InternalTerms.Bucket>emptyList(), showTermDocCountError, 0);
     }
 
     @Override

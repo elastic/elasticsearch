@@ -116,9 +116,7 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
         indexShard.store().incRef();
         try {
             try {
-                if (indexShard.store().isMarkedCorrupted()) {
-                    throw new IndexShardGatewayRecoveryException(shardId(), "Shard is corrupted can't recover from local gateway");
-                }
+                indexShard.store().failIfCorrupted();
                 SegmentInfos si = null;
                 try {
                     si = Lucene.readSegmentInfos(indexShard.store().directory());

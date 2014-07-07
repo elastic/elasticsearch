@@ -202,7 +202,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         this.optimizeAutoGenerateId = indexSettings.getAsBoolean("index.optimize_auto_generated_id", true);
 
         this.indexSettingsService.addListener(applySettings);
-        this.failEngineOnCorruption = indexSettings.getAsBoolean(ENGINE_FAIL_ON_CORRUPTION, false);
+        this.failEngineOnCorruption = indexSettings.getAsBoolean(ENGINE_FAIL_ON_CORRUPTION, true);
         this.failOnMergeFailure = indexSettings.getAsBoolean(INDEX_FAIL_ON_MERGE_FAILURE, true);
         if (failOnMergeFailure) {
             this.mergeScheduler.addFailureListener(new FailEngineOnMergeFailure());
@@ -263,6 +263,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                 this.throttle = new IndexThrottle(mergeScheduler.getMaxMerges(), logger);
                 mergeScheduler.addListener(throttle);
             } catch (IOException e) {
+                maybeFailEngine(e, "start");
                 throw new EngineCreationFailureException(shardId, "failed to create engine", e);
             }
 
@@ -288,6 +289,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                 versionMap.setManager(searcherManager);
                 readLastCommittedSegmentsInfo();
             } catch (IOException e) {
+                maybeFailEngine(e, "start");
                 try {
                     indexWriter.rollback();
                 } catch (IOException e1) {
@@ -391,16 +393,11 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             possibleMergeNeeded = true;
             flushNeeded = true;
         } catch (OutOfMemoryError | IllegalStateException | IOException t) {
-            maybeFailEngine(t);
+            maybeFailEngine(t, "create");
             throw new CreateFailedEngineException(shardId, create, t);
         }
     }
 
-    private void maybeFailEngine(Throwable t) {
-        if (t instanceof OutOfMemoryError || (t instanceof IllegalStateException && t.getMessage().contains("OutOfMemoryError"))) {
-            failEngine("out of memory", t, false);
-        }
-    }
 
     private void innerCreate(Create create, IndexWriter writer) throws IOException {
         synchronized (dirtyLock(create.uid())) {
@@ -480,8 +477,8 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             dirty = true;
             possibleMergeNeeded = true;
             flushNeeded = true;
-        } catch (OutOfMemoryError | IllegalStateException | IOException t) {
-            maybeFailEngine(t);
+        } catch (Throwable t) {
+            maybeFailEngine(t, "index");
             throw new IndexFailedEngineException(shardId, index, t);
         }
     }
@@ -550,8 +547,8 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             dirty = true;
             possibleMergeNeeded = true;
             flushNeeded = true;
-        } catch (OutOfMemoryError | IllegalStateException | IOException t) {
-            maybeFailEngine(t);
+        } catch (Throwable t) {
+            maybeFailEngine(t, "delete");
             throw new DeleteFailedEngineException(shardId, delete, t);
         }
     }
@@ -627,7 +624,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             possibleMergeNeeded = true;
             flushNeeded = true;
         } catch (Throwable t) {
-            maybeFailEngine(t);
+            maybeFailEngine(t, "delete_by_query");
             throw new DeleteByQueryFailedEngineException(shardId, delete, t);
         }
         //TODO: This is heavy, since we refresh, but we really have to...
@@ -839,7 +836,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             }
 
         } catch (FlushFailedEngineException ex) {
-            maybeFailEngine(ex.getCause());
+            maybeFailEngine(ex.getCause(), "flush");
             throw ex;
         } finally {
             flushLock.unlock();
@@ -903,7 +900,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         try (InternalLock _ = readLock.acquire()) {
             currentIndexWriter().maybeMerge();
         } catch (Throwable t) {
-            maybeFailEngine(t);
+            maybeFailEngine(t, "maybe_merge");
             throw new OptimizeFailedEngineException(shardId, t);
         }
     }
@@ -944,7 +941,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                     writer.forceMerge(optimize.maxNumSegments(), false);
                 }
             } catch (Throwable t) {
-                maybeFailEngine(t);
+                maybeFailEngine(t, "optimize");
                 throw new OptimizeFailedEngineException(shardId, t);
             } finally {
                 if (elasticsearchMergePolicy != null) {
@@ -990,7 +987,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         try {
             phase1Snapshot = deletionPolicy.snapshot();
         } catch (Throwable e) {
-            failEngineIfCorrupted(e, "recovery");
+            maybeFailEngine(e, "recovery");
             Releasables.closeWhileHandlingException(onGoingRecoveries);
             throw new RecoveryEngineException(shardId, 1, "Snapshot failed", e);
         }
@@ -998,7 +995,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         try {
             recoveryHandler.phase1(phase1Snapshot);
         } catch (Throwable e) {
-            failEngineIfCorrupted(e, "recovery phase 1");
+            maybeFailEngine(e, "recovery phase 1");
             Releasables.closeWhileHandlingException(onGoingRecoveries, phase1Snapshot);
             throw new RecoveryEngineException(shardId, 1, "Execution failed", wrapIfClosed(e));
         }
@@ -1007,14 +1004,14 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         try {
             phase2Snapshot = translog.snapshot();
         } catch (Throwable e) {
-            failEngineIfCorrupted(e, "snapshot recovery");
+            maybeFailEngine(e, "snapshot recovery");
             Releasables.closeWhileHandlingException(onGoingRecoveries, phase1Snapshot);
             throw new RecoveryEngineException(shardId, 2, "Snapshot failed", wrapIfClosed(e));
         }
         try {
             recoveryHandler.phase2(phase2Snapshot);
         } catch (Throwable e) {
-            failEngineIfCorrupted(e, "recovery phase 2");
+            maybeFailEngine(e, "recovery phase 2");
             Releasables.closeWhileHandlingException(onGoingRecoveries, phase1Snapshot, phase2Snapshot);
             throw new RecoveryEngineException(shardId, 2, "Execution failed", wrapIfClosed(e));
         }
@@ -1027,7 +1024,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             recoveryHandler.phase3(phase3Snapshot);
             success = true;
         } catch (Throwable e) {
-            failEngineIfCorrupted(e, "recovery phase 3");
+            maybeFailEngine(e, "recovery phase 3");
             throw new RecoveryEngineException(shardId, 3, "Execution failed", wrapIfClosed(e));
         } finally {
             Releasables.close(success, onGoingRecoveries, writeLock, phase1Snapshot,
@@ -1035,13 +1032,15 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         }
     }
 
-    private void failEngineIfCorrupted(Throwable e, String source) {
-        if (this.failEngineOnCorruption) {
-            if (Lucene.isCorruptionException(e)) {
-                failEngine("corrupt file detected by [" + source + "]", e, true);
+    private void maybeFailEngine(Throwable t, String source) {
+        if (Lucene.isCorruptionException(t)) {
+            if (this.failEngineOnCorruption) {
+                failEngine("corrupt file detected source: [" + source + "]", t);
             } else {
-                logger.warn("Detected file corruption due to {}", e, source);
+                logger.warn("corrupt file detected source: [{}] but [{}] is set to [] {}", t, source, ENGINE_FAIL_ON_CORRUPTION, this.failEngineOnCorruption);
             }
+        }else if (ExceptionsHelper.isOOM(t)) {
+            failEngine("out of memory", t);
         }
     }
 
@@ -1190,16 +1189,13 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
     class FailEngineOnMergeFailure implements MergeSchedulerProvider.FailureListener {
         @Override
         public void onFailedMerge(MergePolicy.MergeException e) {
+            // TODO should we respect ENGINE_FAIL_ON_CORRUPTION here too?
             failEngine("merge exception", e);
         }
     }
 
     @Override
     public void failEngine(String reason, Throwable failure) {
-        failEngine(reason, failure, Lucene.isCorruptionException(failure));
-    }
-
-    private void failEngine(String reason, Throwable failure, boolean markCorrupted) {
         assert failure != null;
         if (failEngineLock.tryLock()) {
 
@@ -1217,11 +1213,11 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                 }
             } finally {
                 try {
-                    if (markCorrupted) {
+                    if (Lucene.isCorruptionException(failure)) {
                         try {
                             store.markStoreCorrupted(ExceptionsHelper.unwrap(failure, CorruptIndexException.class));
                         } catch (IOException e) {
-                            logger.trace("Couldn't marks store corrupted", e);
+                            logger.warn("Couldn't marks store corrupted", e);
                         }
                     }
                 } finally {

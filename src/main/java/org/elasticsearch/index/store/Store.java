@@ -89,6 +89,8 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
     private final StoreDirectory directory;
     private final boolean sync;
     private final DistributorDirectory distributorDirectory;
+    private static final String CODEC = "store";
+    private static final int VERSION = 0;
 
     @Inject
     public Store(ShardId shardId, @IndexSettings Settings indexSettings, IndexStore indexStore, CodecService codecService, DirectoryService directoryService, Distributor distributor) throws IOException {
@@ -122,9 +124,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
      */
     public MetadataSnapshot getMetadata() throws IOException {
         ensureOpen();
-        if (isMarkedCorrupted()) {
-            throw new CorruptIndexException("Store is corruputed can't get metadata");
-        }
+        failIfCorrupted();
         return new MetadataSnapshot(distributorDirectory, logger);
     }
 
@@ -280,6 +280,25 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
             }
         }
         return false;
+    }
+
+    public void failIfCorrupted() throws IOException {
+        ensureOpen();
+        final String[] files = directory().listAll();
+        List<CorruptIndexException> ex = new ArrayList<>();
+        for (String file : files) {
+            if (file.startsWith("corrupted_")) {
+                try(ChecksumIndexInput input = directory().openChecksumInput(file, IOContext.READONCE)) {
+                    CodecUtil.checkHeader(input, CODEC, VERSION, VERSION);
+                    String msg = input.readString();
+                    ex.add(new CorruptIndexException(msg));
+                    CodecUtil.checkFooter(input);
+                }
+            }
+        }
+        if (ex.isEmpty() == false) {
+            ExceptionsHelper.rethrowAndSuppress(ex);
+        }
     }
 
     /**
@@ -633,16 +652,16 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
     }
 
     /**
-     * Renames all files in this store with a <tt>corruption_</tt> prefix
-     * marking the shard as corrupted to prevent recovering from the at any point.
+     * Marks this store as corrupted. This method writes a <tt>corrupted_${uuid}</tt> file containing the given exception
+     * message. If a store contains a <tt>corrupted_${uuid}</tt> file {@link #isMarkedCorrupted()} will return <code>true</code>.
      */
     public void markStoreCorrupted(CorruptIndexException exception) throws IOException {
         ensureOpen();
         String uuid = "corrupted_" + Strings.randomBase64UUID();
         try(IndexOutput output = this.directory().createOutput(uuid, IOContext.DEFAULT)) {
-            if (exception != null) {
-                output.writeString(ExceptionsHelper.detailedMessage(exception, true, 0));
-            }
+            CodecUtil.writeHeader(output, CODEC, VERSION);
+            output.writeString(ExceptionsHelper.detailedMessage(exception, true, 0)); // handles null exception
+            CodecUtil.writeFooter(output);
         } catch (IOException ex) {
             logger.warn("Can't mark store as corrupted", ex);
         }

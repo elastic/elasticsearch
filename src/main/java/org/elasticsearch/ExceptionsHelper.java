@@ -19,7 +19,6 @@
 
 package org.elasticsearch;
 
-import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.rest.RestStatus;
@@ -27,7 +26,6 @@ import org.elasticsearch.rest.RestStatus;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  *
@@ -152,5 +150,18 @@ public final class ExceptionsHelper {
             } while ((t = t.getCause()) != null);
         }
         return null;
+    }
+
+    /**
+     * Returns <code>true</code> iff the given throwable is and OutOfMemoryException, otherwise <code>false</code>
+     */
+    public static boolean isOOM(Throwable t) {
+        return t != null
+                && (t instanceof OutOfMemoryError
+                    || (t instanceof IllegalStateException
+                        && t.getMessage() != null
+                        && t.getMessage().contains("OutOfMemoryError")
+                        )
+                    );
     }
 }

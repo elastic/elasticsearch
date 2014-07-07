@@ -23,7 +23,6 @@ import com.carrotsearch.hppc.IntOpenHashSet;
 import com.carrotsearch.hppc.ObjectContainer;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.collect.Lists;
-import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -706,6 +705,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         }
 
         if (sourceNode != null) {
+            boolean storeIsCorrupted = false;
             try {
                 // we don't mark this one as relocated at the end.
                 // For primaries: requests in any case are routed to both when its relocating and that way we handle
@@ -717,15 +717,17 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 final StartRecoveryRequest request;
                 store.incRef();
                 try {
-                     request = new StartRecoveryRequest(indexShard.shardId(), sourceNode, nodes.localNode(),
-                            false, store.getMetadata().asMap(), type, recoveryIdGenerator.incrementAndGet());
+                    storeIsCorrupted = store.isMarkedCorrupted();
+                    store.failIfCorrupted();
+                    request = new StartRecoveryRequest(indexShard.shardId(), sourceNode, nodes.localNode(),
+                        false, store.getMetadata().asMap(), type, recoveryIdGenerator.incrementAndGet());
                 } finally {
                     store.decRef();
                 }
                 recoveryTarget.startRecovery(request, indexShard, new PeerRecoveryListener(request, shardRouting, indexService, indexMetaData));
 
             } catch (Throwable e) {
-                if (Lucene.isCorruptionException(e)) {
+                if (storeIsCorrupted == false && Lucene.isCorruptionException(e)) {
                     indexShard.engine().failEngine("corrupted preexisting index", e);
                 }
                 handleRecoveryFailure(indexService, indexMetaData, shardRouting, true, e);

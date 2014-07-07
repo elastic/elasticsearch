@@ -81,6 +81,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
 @ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE)
+@Repeat(iterations = 100)
 public class CorruptedFileTest extends ElasticsearchIntegrationTest {
 
     @Override
@@ -168,8 +169,9 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
             @Override
             public void beforeIndexShardClosed(ShardId sid, @Nullable IndexShard indexShard) {
                 if (indexShard != null) {
+                    Store store = ((InternalIndexShard) indexShard).store();
+                    store.incRef();
                     try {
-                        Store store = ((InternalIndexShard) indexShard).store();
                         if (!Lucene.indexExists(store.directory()) && indexShard.state() == IndexShardState.STARTED) {
                             return;
                         }
@@ -186,6 +188,7 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
                     } catch (Throwable t) {
                         exception.add(t);
                     } finally {
+                        store.decRef();
                         latch.countDown();
                     }
                 }

@@ -24,6 +24,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.routing.operation.plain.PreferenceType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
@@ -48,7 +49,8 @@ public class SearchPreferenceTests extends ElasticsearchIntegrationTest {
         refresh();
         internalCluster().stopRandomDataNode();
         client().admin().cluster().prepareHealth().setWaitForStatus(ClusterHealthStatus.RED).execute().actionGet();
-        String[] preferences = new String[] {"_primary", "_local", "_primary_first", "_prefer_node:somenode", "_prefer_node:server2"};
+        String[] preferences = new String[] {PreferenceType.PRIMARY, PreferenceType.LOCAL, PreferenceType.PRIMARY_FIRST,
+                PreferenceType.PREFER_NODE + "somenode", PreferenceType.PREFER_NODE + "server2"};
         for (String pref : preferences) {
             SearchResponse searchResponse = client().prepareSearch().setSearchType(SearchType.COUNT).setPreference(pref).execute().actionGet();
             assertThat(RestStatus.OK, equalTo(searchResponse.status()));
@@ -59,12 +61,12 @@ public class SearchPreferenceTests extends ElasticsearchIntegrationTest {
         }
 
         //_only_local is a stricter preference, we need to send the request to a data node
-        SearchResponse searchResponse = dataNodeClient().prepareSearch().setSearchType(SearchType.COUNT).setPreference("_only_local").execute().actionGet();
+        SearchResponse searchResponse = dataNodeClient().prepareSearch().setSearchType(SearchType.COUNT).setPreference(PreferenceType.ONLY_LOCAL).execute().actionGet();
         assertThat(RestStatus.OK, equalTo(searchResponse.status()));
-        assertThat("_only_local", searchResponse.getFailedShards(), greaterThanOrEqualTo(0));
-        searchResponse = dataNodeClient().prepareSearch().setPreference("_only_local").execute().actionGet();
+        assertThat(PreferenceType.ONLY_LOCAL, searchResponse.getFailedShards(), greaterThanOrEqualTo(0));
+        searchResponse = dataNodeClient().prepareSearch().setPreference(PreferenceType.ONLY_LOCAL).execute().actionGet();
         assertThat(RestStatus.OK, equalTo(searchResponse.status()));
-        assertThat("_only_local", searchResponse.getFailedShards(), greaterThanOrEqualTo(0));
+        assertThat(PreferenceType.ONLY_LOCAL, searchResponse.getFailedShards(), greaterThanOrEqualTo(0));
     }
 
     @Test
@@ -95,14 +97,14 @@ public class SearchPreferenceTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", "type1").setSource("field1", "value1").execute().actionGet();
         refresh();
 
-        SearchResponse searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_local").execute().actionGet();
+        SearchResponse searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference(PreferenceType.LOCAL).execute().actionGet();
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
-        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_local").execute().actionGet();
+        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference(PreferenceType.LOCAL).execute().actionGet();
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
-        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_primary").execute().actionGet();
+        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference(PreferenceType.PRIMARY).execute().actionGet();
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
-        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_primary").execute().actionGet();
+        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference(PreferenceType.PRIMARY).execute().actionGet();
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
         searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("1234").execute().actionGet();
@@ -116,6 +118,6 @@ public class SearchPreferenceTests extends ElasticsearchIntegrationTest {
         createIndex("test");
         ensureGreen();
 
-        client().prepareSearch().setQuery(matchAllQuery()).setPreference("_only_node:DOES-NOT-EXIST").execute().actionGet();
+        client().prepareSearch().setQuery(matchAllQuery()).setPreference(PreferenceType.ONLY_NODE + "DOES-NOT-EXIST").execute().actionGet();
     }
 }

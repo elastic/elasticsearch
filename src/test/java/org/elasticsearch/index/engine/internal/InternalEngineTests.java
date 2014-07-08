@@ -1197,7 +1197,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
                                            engineSettingsService,
                                            new ShardIndexingService(shardId, settings,
                                                                     new ShardSlowLogIndexingService(shardId, EMPTY_SETTINGS, engineSettingsService)),
-                                           null, store, createSnapshotDeletionPolicy(), createTranslog(), createMergePolicy(), createMergeScheduler(engineSettingsService),
+                                           null, store, createSnapshotDeletionPolicy(), createTranslog(), createMergePolicy(), createMergeScheduler(),
                                            new AnalysisService(shardId.index()), new SimilarityService(shardId.index()), new CodecService(shardId.index()));
         engine.start();
         engine.enableGcDeletes(false);

@@ -82,22 +82,26 @@ public class ManyMappingsBenchmark {
     private static final String TYPE_NAME = "type";
     private static final int FIELD_COUNT = 100000;
     private static final int DOC_COUNT = 10000000;
+    private static final boolean TWO_NODES = false;
 
     public static void main(String[] args) throws Exception {
         System.setProperty("es.logger.prefix", "");
         Natives.tryMlockall();
         Settings settings = settingsBuilder()
-                .put("index.refresh_interval", "-1")
                 .put("gateway.type", "local")
                 .put(SETTING_NUMBER_OF_SHARDS, 5)
                 .put(SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(TransportModule.TRANSPORT_TYPE_KEY, "local")
                 .build();
 
         String clusterName = ManyMappingsBenchmark.class.getSimpleName();
         Node node = nodeBuilder().clusterName(clusterName)
                 .settings(settingsBuilder().put(settings))
                 .node();
+        if (TWO_NODES) {
+            Node node2 = nodeBuilder().clusterName(clusterName)
+                    .settings(settingsBuilder().put(settings))
+                    .node();
+        }
 
         Client client = node.client();
 

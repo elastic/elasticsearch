@@ -58,6 +58,8 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
     private static final AtomicLong transportAddressIdGenerator = new AtomicLong();
     private final ConcurrentMap<DiscoveryNode, LocalTransport> connectedNodes = newConcurrentMap();
 
+    public static final String TRANSPORT_LOCAL_ADDRESS = "transport.local_address";
+
     @Inject
     public LocalTransport(Settings settings, ThreadPool threadPool, Version version) {
         super(settings);
@@ -77,8 +79,15 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
 
     @Override
     protected void doStart() throws ElasticsearchException {
-        localAddress = new LocalTransportAddress(Long.toString(transportAddressIdGenerator.incrementAndGet()));
-        transports.put(localAddress, this);
+        String address = settings.get(TRANSPORT_LOCAL_ADDRESS);
+        if (address == null) {
+            address = Long.toString(transportAddressIdGenerator.incrementAndGet());
+        }
+        localAddress = new LocalTransportAddress(address);
+        LocalTransport previous = transports.put(localAddress, this);
+        if (previous != null) {
+            throw new ElasticsearchException("local address [" + address + "] is already bound");
+        }
         boundAddress = new BoundTransportAddress(localAddress, localAddress);
     }
 

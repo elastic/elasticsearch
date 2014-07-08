@@ -94,7 +94,7 @@ public class ElasticsearchAssertions {
     }
 
     public static void assertNoTimeout(ClusterHealthResponse response) {
-        assertThat("ClusterHealthResponse has timed out - returned status: [" + response.getStatus() + "]", response.isTimedOut(), is(false));
+        assertThat("ClusterHealthResponse has timed out - returned: [" + response + "]", response.isTimedOut(), is(false));
     }
 
     public static void assertAcked(AcknowledgedResponse response) {

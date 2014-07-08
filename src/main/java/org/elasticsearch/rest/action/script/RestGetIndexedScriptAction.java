@@ -21,6 +21,8 @@ package org.elasticsearch.rest.action.script;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.indexedscripts.get.GetIndexedScriptRequest;
+import org.elasticsearch.action.indexedscripts.get.GetIndexedScriptResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -45,45 +47,35 @@ import static org.elasticsearch.rest.RestStatus.OK;
 public class RestGetIndexedScriptAction extends BaseRestHandler {
 
     @Inject
-    public RestGetIndexedScriptAction(Settings settings, Client client, RestController controller) {
+    public RestGetIndexedScriptAction(Settings settings, Client client,
+                                      ScriptService scriptService, RestController controller) {
         super(settings, client);
-
-        //controller.registerHandler(GET, "/template", this);
         controller.registerHandler(GET, "/_search/script/{lang}/{id}", this);
     }
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, Client client) {
-        final GetRequest getRequest = new GetRequest(ScriptService.SCRIPT_INDEX, request.param("lang"), request.param("id"));
-        getRequest.listenerThreaded(false);
-        getRequest.operationThreaded(true);
 
-
-        client.get(getRequest, new RestResponseListener<GetResponse>(channel) {
+        final GetIndexedScriptRequest getRequest = new GetIndexedScriptRequest(ScriptService.SCRIPT_INDEX, request.param("lang"), request.param("id"));
+        RestResponseListener<GetIndexedScriptResponse> responseListener = new RestResponseListener<GetIndexedScriptResponse>(channel) {
             @Override
-            public RestResponse buildResponse(GetResponse response) throws Exception {
+            public RestResponse buildResponse(GetIndexedScriptResponse response) throws Exception {
                 XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
                 if (!response.isExists()) {
                     return new BytesRestResponse(NOT_FOUND, builder);
                 } else {
-                    String templateString;
                     try{
-                        XContentBuilder internalBuilder = XContentFactory.contentBuilder(XContentType.JSON);
-                        if(response.getSource().containsKey("script")) {
-                            templateString = response.getSource().get("script").toString();
-                        } else {
-                            internalBuilder.map(response.getSource());
-                            templateString = internalBuilder.string();
-                        }
+                        String script = response.getScript();
                         builder.startObject();
-                        builder.field("script",templateString);
+                        builder.field("script",script);
                         builder.endObject();
                         return new BytesRestResponse(OK, builder);
-                    } catch( IOException |ClassCastException e ){
-                        throw new ElasticsearchIllegalStateException("Unable to parse "  + response.getSourceAsString() + " as json",e);
+                    } catch( IOException|ClassCastException e ){
+                        throw new ElasticsearchIllegalStateException("Unable to parse "  + response.getScript() + " as json",e);
                     }
                 }
             }
-        });
+        };
+        client.getIndexedScript(getRequest, responseListener);
     }
 }

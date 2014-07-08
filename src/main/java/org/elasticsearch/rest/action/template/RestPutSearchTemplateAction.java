@@ -21,6 +21,8 @@ package org.elasticsearch.rest.action.template;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptRequest;
+import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -81,33 +83,17 @@ public class RestPutSearchTemplateAction extends BaseRestHandler {
     }
 
 
-    private static void validate(BytesReference scriptBytes, ScriptService scriptService) throws IOException{
-        XContentParser parser = XContentFactory.xContent(scriptBytes).createParser(scriptBytes);
-        TemplateQueryParser.TemplateContext context = TemplateQueryParser.parse(parser, "template", "params");
-        if(Strings.hasLength(context.template())){
-            //Just try and compile it
-            //This will have the benefit of also adding the script to the cache if it compiles
-            CompiledScript compiledScript =
-                    scriptService.compile("mustache", context.template(), ScriptService.ScriptType.INLINE);
-            if (compiledScript == null) {
-                throw new ElasticsearchIllegalArgumentException("Unable to parse template ["+context.template()+"] (ScriptService.compile returned null)");
-            }
-        }
-    }
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, Client client) {
-        IndexRequest indexRequest = new IndexRequest(ScriptService.SCRIPT_INDEX, "mustache", request.param("id"));
-        indexRequest.listenerThreaded(false);
-        indexRequest.operationThreaded(true);
-        indexRequest.refresh(true); //Always refresh after indexing a template
+        PutIndexedScriptRequest putRequest = new PutIndexedScriptRequest("mustache", request.param("id"));
+        putRequest.listenerThreaded(false);
 
-        indexRequest.source(request.content(), request.contentUnsafe());
-        indexRequest.timeout(request.paramAsTime("timeout", IndexRequest.DEFAULT_TIMEOUT));
+        putRequest.source(request.content(), request.contentUnsafe());
         String sOpType = request.param("op_type");
         if (sOpType != null) {
             try {
-                indexRequest.opType(IndexRequest.OpType.fromString(sOpType));
+                putRequest.opType(IndexRequest.OpType.fromString(sOpType));
             } catch (ElasticsearchIllegalArgumentException eia){
                 try {
                     XContentBuilder builder = channel.newBuilder();
@@ -120,24 +106,9 @@ public class RestPutSearchTemplateAction extends BaseRestHandler {
             }
         }
 
-        //verify that the script compiles
-        BytesReference scriptBytes = request.content();
-        try {
-            validate(scriptBytes,scriptService);
-        } catch (Throwable t) {
-            try {
-                XContentBuilder builder = channel.newBuilder();
-                channel.sendResponse(new BytesRestResponse(BAD_REQUEST, builder.startObject().field("error","Failed to parse template : " + t.getMessage()).endObject()));
-                return;
-            } catch (IOException e1) {
-                logger.warn("Failed to send response", e1);
-                return;
-            }
-        }
-
-        client.index(indexRequest, new RestBuilderListener<IndexResponse>(channel) {
+        client.putIndexedScript(putRequest, new RestBuilderListener<PutIndexedScriptResponse>(channel) {
             @Override
-            public RestResponse buildResponse(IndexResponse response, XContentBuilder builder) throws Exception {
+            public RestResponse buildResponse(PutIndexedScriptResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject()
                         .field(Fields._ID, response.getId())
                         .field(Fields._VERSION, response.getVersion())

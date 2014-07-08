@@ -5,14 +5,14 @@
       indexed_script.create:
         id: "1"
         lang: "groovy"
-        body: { "script" :  "_score * doc[\"myParent.weight\"].value" }
+        body: { "script":  "_score * doc[\"myParent.weight\"].value" }
   - match: { _id: "1" }
 
   - do:
      indexed_script.get:
        id: "1"
        lang: "groovy"
-  - match: { "script" :  "_score * doc[\"myParent.weight\"].value" }
+  - match: { "script":  "_score * doc[\"myParent.weight\"].value" }
 
   - do:
      indexed_script.delete:
@@ -27,5 +27,15 @@
       indexed_script.create:
         id: "1"
         lang: "groovy"
-        body: { "script" :  "_score * foo bar + doc[\"myParent.weight\"].value" }
-  - match: { "error" : /Failed\sto\sparse.*/ }
+        body: { "script":  "_score * foo bar + doc[\"myParent.weight\"].value" }
+  - match: { "error": /ElasticsearchIllegalArgumentException\SUnable\sto\sparse.*/ }
+
+
+  - do:
+      catch: request
+      indexed_script.create:
+        id: "1"
+        lang: "foobar"
+        body: { "script" :  "_score * doc[\"myParent.weight\"].value" }
+  - match: { "error": /ElasticsearchIllegalArgumentException\Sscript_lang\snot\ssupported/ }
+

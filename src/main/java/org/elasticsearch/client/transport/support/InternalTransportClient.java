@@ -57,7 +57,6 @@ public class InternalTransportClient extends AbstractClient {
         this.threadPool = threadPool;
         this.nodesService = nodesService;
         this.adminClient = adminClient;
-
         MapBuilder<Action, TransportActionNodeProxy> actionsBuilder = new MapBuilder<>();
         for (GenericAction action : actions.values()) {
             if (action instanceof Action) {

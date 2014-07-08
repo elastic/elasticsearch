@@ -21,6 +21,10 @@ package org.elasticsearch.index.query;
 import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.indexedscripts.delete.DeleteIndexedScriptResponse;
+import org.elasticsearch.action.indexedscripts.get.GetIndexedScriptResponse;
+import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -40,10 +44,7 @@ import java.util.Map;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertExists;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -220,6 +221,73 @@ public class TemplateQueryTest extends ElasticsearchIntegrationTest {
         templateParams.put("myField", "otherField");
         searchResponse = client().prepareSearch("test").setTypes("type").setTemplateName("full-query-template").setTemplateParams(templateParams).get();
         assertHitCount(searchResponse, 1);
+    }
+
+    @Test
+    public void testIndexedTemplateClient() throws Exception {
+        createIndex(ScriptService.SCRIPT_INDEX);
+        ensureGreen(ScriptService.SCRIPT_INDEX);
+
+        PutIndexedScriptResponse scriptResponse = client().preparePutIndexedScript("mustache", "testTemplate", "{" +
+                "\"template\":{" +
+                "                \"query\":{" +
+                "                   \"match\":{" +
+                "                    \"theField\" : \"{{fieldParam}}\"}" +
+                "       }" +
+                "}" +
+                "}").get();
+
+        assertTrue(scriptResponse.isCreated());
+
+        scriptResponse = client().preparePutIndexedScript("mustache", "testTemplate", "{" +
+                "\"template\":{" +
+                "                \"query\":{" +
+                "                   \"match\":{" +
+                "                    \"theField\" : \"{{fieldParam}}\"}" +
+                "       }" +
+                "}" +
+                "}").get();
+
+        assertEquals(scriptResponse.getVersion(), 2);
+
+        GetIndexedScriptResponse getResponse = client().prepareGetIndexedScript("mustache", "testTemplate").get();
+        assertTrue(getResponse.isExists());
+
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+
+        builders.add(client().prepareIndex("test", "type", "1").setSource("{\"theField\":\"foo\"}"));
+        builders.add(client().prepareIndex("test", "type", "2").setSource("{\"theField\":\"foo 2\"}"));
+        builders.add(client().prepareIndex("test", "type", "3").setSource("{\"theField\":\"foo 3\"}"));
+        builders.add(client().prepareIndex("test", "type", "4").setSource("{\"theField\":\"foo 4\"}"));
+        builders.add(client().prepareIndex("test", "type", "5").setSource("{\"theField\":\"bar\"}"));
+
+        indexRandom(true,builders);
+
+
+        Map<String, String> templateParams = Maps.newHashMap();
+        templateParams.put("fieldParam", "foo");
+
+        SearchResponse searchResponse = client().prepareSearch("test").setTypes("type").
+                setTemplateName("testTemplate").setTemplateType(ScriptService.ScriptType.INDEXED).setTemplateType(ScriptService.ScriptType.INDEXED).setTemplateParams(templateParams).get();
+        assertHitCount(searchResponse, 4);
+
+
+        DeleteIndexedScriptResponse deleteResponse = client().prepareDeleteIndexedScript("mustache","testTemplate").get();
+        assertTrue(deleteResponse.isFound() == true);
+
+        getResponse = client().prepareGetIndexedScript("mustache", "testTemplate").get();
+        assertFalse(getResponse.isExists());
+
+        Exception e = null;
+        try {
+            client().prepareSearch("test").setTypes("type").
+                    setTemplateName("/template_index/mustache/1000").setTemplateType(ScriptService.ScriptType.INDEXED).setTemplateParams(templateParams).get();
+        } catch (SearchPhaseExecutionException spee) {
+            e = spee;
+        }
+        assert e != null;
+        e = null;
+
     }
 
     @Test

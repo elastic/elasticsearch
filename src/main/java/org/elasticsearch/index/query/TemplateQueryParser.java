@@ -90,9 +90,12 @@ public class TemplateQueryParser implements QueryParser {
         }
     }
 
-    public static TemplateContext parse(XContentParser parser, String parameter, String paramsFieldname) throws IOException {
+    public static TemplateContext parse(XContentParser parser, String paramsFieldname, String ... parameters) throws IOException {
+
         Map<String,ScriptService.ScriptType> parameterMap = new HashMap<>(parametersToTypes);
-        parameterMap.put(parameter,ScriptService.ScriptType.INLINE);
+        for (String parameter : parameters) {
+            parameterMap.put(parameter, ScriptService.ScriptType.INLINE);
+        }
         return parse(parser,paramsFieldname,parameterMap);
     }
 
@@ -112,6 +115,9 @@ public class TemplateQueryParser implements QueryParser {
                 currentFieldName = parser.currentName();
             } else if (parameterMap.containsKey(currentFieldName)) {
                 type = parameterMap.get(currentFieldName);
+
+
+
                 if (token == XContentParser.Token.START_OBJECT && !parser.hasTextCharacters()) {
                     XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent());
                     builder.copyCurrentStructure(parser);

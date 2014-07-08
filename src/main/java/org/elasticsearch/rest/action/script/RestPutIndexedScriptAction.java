@@ -21,6 +21,8 @@ package org.elasticsearch.rest.action.script;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptRequest;
+import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -80,38 +82,17 @@ public class RestPutIndexedScriptAction extends BaseRestHandler {
         }
     }
 
-    private static void validate(BytesReference scriptBytes, String lang, ScriptService scriptService) throws IOException{
-        XContentParser parser = XContentFactory.xContent(scriptBytes).createParser(scriptBytes);
-        Map<String,ScriptService.ScriptType> scriptParameterMap = new HashMap();
-        scriptParameterMap.put("script", ScriptService.ScriptType.INLINE);
-        TemplateQueryParser.TemplateContext context = TemplateQueryParser.parse(parser, "params", scriptParameterMap);
-        if(Strings.hasLength(context.template())){
-            //Just try and compile it
-            //This will have the benefit of also adding the script to the cache if it compiles
-            CompiledScript compiledScript =
-                    scriptService.compile(lang, context.template(), ScriptService.ScriptType.INLINE);
-            if (compiledScript == null) {
-                throw new ElasticsearchIllegalArgumentException("Unable to parse script ["+context.template()+"] (ScriptService.compile returned null)");
-            }
-        }
-    }
-
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, Client client) {
-        String lang = request.param("lang");
-        BytesReference scriptBytes = request.content();
 
-        IndexRequest indexRequest = new IndexRequest(ScriptService.SCRIPT_INDEX, lang, request.param("id"));
-        indexRequest.listenerThreaded(false);
-        indexRequest.operationThreaded(true);
-        indexRequest.refresh(true); //Always refresh after indexing a script
+        PutIndexedScriptRequest putRequest = new PutIndexedScriptRequest(request.param("lang"), request.param("id"));
+        putRequest.listenerThreaded(false);
 
-        indexRequest.source(scriptBytes, request.contentUnsafe());
-        indexRequest.timeout(request.paramAsTime("timeout", IndexRequest.DEFAULT_TIMEOUT));
+        putRequest.source(request.content(), request.contentUnsafe());
         String sOpType = request.param("op_type");
         if (sOpType != null) {
             try {
-                indexRequest.opType(IndexRequest.OpType.fromString(sOpType));
+                putRequest.opType(IndexRequest.OpType.fromString(sOpType));
             } catch (ElasticsearchIllegalArgumentException eia){
                 try {
                     XContentBuilder builder = channel.newBuilder();
@@ -123,23 +104,10 @@ public class RestPutIndexedScriptAction extends BaseRestHandler {
                 }
             }
         }
-        //verify that the script compiles
-        try {
-            validate(scriptBytes, lang, scriptService);
-        } catch (Throwable t) {
-            try {
-                XContentBuilder builder = channel.newBuilder();
-                channel.sendResponse(new BytesRestResponse(BAD_REQUEST, builder.startObject().field("error", "Failed to parse script : " + t.getMessage()).endObject()));
-                return;
-            } catch (IOException e1) {
-                logger.warn("Failed to send response", e1);
-                return;
-            }
-        }
 
-        client.index(indexRequest, new RestBuilderListener<IndexResponse>(channel) {
+        client.putIndexedScript(putRequest, new RestBuilderListener<PutIndexedScriptResponse>(channel) {
             @Override
-            public RestResponse buildResponse(IndexResponse response, XContentBuilder builder) throws Exception {
+            public RestResponse buildResponse(PutIndexedScriptResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject()
                         .field(Fields._ID, response.getId())
                         .field(Fields._VERSION, response.getVersion())

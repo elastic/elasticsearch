@@ -22,6 +22,7 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
@@ -35,24 +36,20 @@ import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 
 public class RestDeleteSearchTemplateAction extends BaseRestHandler {
 
+    private ScriptService scriptService;
+
     @Inject
-    public RestDeleteSearchTemplateAction(Settings settings, Client client, RestController controller) {
+    public RestDeleteSearchTemplateAction(Settings settings, Client client, RestController controller, ScriptService scriptService) {
         super(settings, client);
         controller.registerHandler(DELETE, "/_search/template/{id}", this);
+        this.scriptService = scriptService;
     }
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, Client client) {
         final String id = request.param("id");
-        DeleteRequest deleteRequest = new DeleteRequest(ScriptService.SCRIPT_INDEX, "mustache", id);
-
-        deleteRequest.listenerThreaded(false);
-        deleteRequest.operationThreaded(true);
-
-        deleteRequest.timeout(request.paramAsTime("timeout", DeleteRequest.DEFAULT_TIMEOUT));
-        deleteRequest.refresh(request.paramAsBoolean("refresh", true));
-
-        client.delete(deleteRequest, new RestBuilderListener<DeleteResponse>(channel) {
+        final long version = request.paramAsLong("version", Versions.MATCH_ANY);
+        scriptService.deleteScriptFromIndex(client,"mustache", id, version, new RestBuilderListener<DeleteResponse>(channel) {
             @Override
             public RestResponse buildResponse(DeleteResponse result, XContentBuilder builder) throws Exception {
                 builder.startObject()

@@ -22,6 +22,7 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
@@ -35,24 +36,22 @@ import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestDeleteIndexedScriptAction extends BaseRestHandler {
 
+    private ScriptService scriptService;
+
     @Inject
-    public RestDeleteIndexedScriptAction(Settings settings, Client client, RestController controller) {
+    public RestDeleteIndexedScriptAction(Settings settings, Client client,
+                                         ScriptService scriptService, RestController controller) {
         super(settings, client);
         controller.registerHandler(DELETE, "/_search/script/{lang}/{id}", this);
+        this.scriptService = scriptService;
     }
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, Client client) {
 
-        DeleteRequest deleteRequest = new DeleteRequest(ScriptService.SCRIPT_INDEX, request.param("lang"), request.param("id"));
-
-        deleteRequest.listenerThreaded(false);
-        deleteRequest.operationThreaded(true);
-
-        deleteRequest.timeout(request.paramAsTime("timeout", DeleteRequest.DEFAULT_TIMEOUT));
-        deleteRequest.refresh(request.paramAsBoolean("refresh", true));
-
-        client.delete(deleteRequest, new RestBuilderListener<DeleteResponse>(channel) {
+        final String id = request.param("id");
+        final long version = request.paramAsLong("version", Versions.MATCH_ANY);
+        scriptService.deleteScriptFromIndex(client,request.param("lang"), id, version, new RestBuilderListener<DeleteResponse>(channel) {
             @Override
             public RestResponse buildResponse(DeleteResponse result, XContentBuilder builder) throws Exception {
                 builder.startObject()

@@ -29,9 +29,15 @@ public class IndexRequestTests extends ElasticsearchTestCase {
     public void testIndexRequestOpTypeFromString() throws Exception {
         String create = "create";
         String index = "index";
+        String createUpper = "CREATE";
+        String indexUpper = "INDEX";
+
         String foobar = "foobar";
         assertTrue(IndexRequest.OpType.fromString(create)==IndexRequest.OpType.CREATE);
         assertTrue(IndexRequest.OpType.fromString(index)==IndexRequest.OpType.INDEX);
+        assertTrue(IndexRequest.OpType.fromString(createUpper)==IndexRequest.OpType.CREATE);
+        assertTrue(IndexRequest.OpType.fromString(indexUpper)==IndexRequest.OpType.INDEX);
+
         try {
             IndexRequest.OpType.fromString(foobar);
             assertTrue(false); //The above should throw an exception

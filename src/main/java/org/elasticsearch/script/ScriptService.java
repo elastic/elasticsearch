@@ -28,10 +28,20 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.indexedscripts.delete.DeleteIndexedScriptResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.metadata.MetaDataIndexTemplateService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -39,15 +49,20 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
+import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.query.TemplateQueryParser;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
@@ -265,7 +280,7 @@ public class ScriptService extends AbstractComponent {
 
     public CompiledScript compile(String lang,  String script, ScriptType scriptType) {
         if (logger.isTraceEnabled()) {
-            logger.trace("Compiling lang: [{}] type: [{}] script: {}",  lang, scriptType, script);
+            logger.trace("Compiling lang: [{}] type: [{}] script: {}", lang, scriptType, script);
         }
 
         CacheKey cacheKey;
@@ -286,7 +301,7 @@ public class ScriptService extends AbstractComponent {
             verifyDynamicScripting(indexedScript.lang); //Since anyone can index a script, disable indexed scripting
                                           // if dynamic scripting is disabled, perhaps its own setting ?
 
-            script = getScriptFromIndex(client, SCRIPT_INDEX, indexedScript.lang, indexedScript.id);
+            script = getScriptFromIndex(client, indexedScript.lang, indexedScript.id);
         } else if (scriptType == ScriptType.FILE) {
 
             compiled = staticCache.get(script); //On disk scripts will be loaded into the staticCache by the listener
@@ -351,17 +366,101 @@ public class ScriptService extends AbstractComponent {
 
     private void verifyDynamicScripting(String lang) {
         if (!dynamicScriptEnabled(lang)) {
-            throw new ScriptException("dynamic scripting disabled for [" + lang + "]");
+            throw new ScriptException("dynamic scripting for [" + lang + "] disabled");
         }
     }
 
-    public static String getScriptFromIndex(Client client, String index, String scriptLang, String id) {
-        GetResponse responseFields = client.prepareGet(index, scriptLang, id).get();
+    public GetResponse queryScriptIndex(Client client, String scriptLang, String id){
+        return queryScriptIndex(client, scriptLang, id, Versions.MATCH_ANY, VersionType.INTERNAL);
+    }
+
+    public GetResponse queryScriptIndex(Client client, String scriptLang, String id,
+                                        long version, VersionType versionType){
+        scriptLang = validateScriptLanguage(scriptLang);
+        return client.prepareGet(SCRIPT_INDEX, scriptLang, id)
+                .setVersion(version)
+                .setVersionType(versionType)
+                .get();
+    }
+
+    private String validateScriptLanguage(String scriptLang) {
+        if (scriptLang == null){
+            scriptLang = defaultLang;
+        } else if (!scriptEngines.containsKey(scriptLang)){
+            throw new ElasticsearchIllegalArgumentException("script_lang not supported ["+scriptLang+"]");
+        }
+        return scriptLang;
+    }
+
+    private String getScriptFromIndex(Client client, String scriptLang, String id) {
+        GetResponse responseFields = queryScriptIndex(client,scriptLang,id);
         if (responseFields.isExists()) {
             return getScriptFromResponse(responseFields);
         }
-        throw new ElasticsearchIllegalArgumentException("Unable to find script [" + index + "/" + scriptLang + "/" + id + "]");
+        throw new ElasticsearchIllegalArgumentException("Unable to find script [" + SCRIPT_INDEX + "/"
+                + scriptLang + "/" + id + "]");
+    }
 
+    private void validate(BytesReference scriptBytes, String scriptLang) throws IOException{
+        XContentParser parser = XContentFactory.xContent(scriptBytes).createParser(scriptBytes);
+        TemplateQueryParser.TemplateContext context = TemplateQueryParser.parse(parser, "params", "script", "template");
+        if (Strings.hasLength(context.template()) == true){
+            //Just try and compile it
+            //This will have the benefit of also adding the script to the cache if it compiles
+            try {
+                CompiledScript compiledScript = compile(scriptLang, context.template(), ScriptService.ScriptType.INLINE);
+                if (compiledScript == null) {
+                    throw new ElasticsearchIllegalArgumentException("Unable to parse [" + context.template() +
+                            "] lang [" + scriptLang + "] (ScriptService.compile returned null)");
+                }
+            } catch (Exception e) {
+                throw new ElasticsearchIllegalArgumentException("Unable to parse [" + context.template() +
+                        "] lang [" + scriptLang + "]", e);
+            }
+        } else {
+            throw new ElasticsearchIllegalArgumentException("Unable to find script in : " + scriptBytes.toUtf8());
+        }
+
+    }
+
+    public void putScriptToIndex(Client client, BytesReference scriptBytes, @Nullable String scriptLang, String id,
+                                 @Nullable TimeValue timeout, @Nullable String sOpType, ActionListener<IndexResponse> listener)
+            throws ElasticsearchIllegalArgumentException, IOException {
+        putScriptToIndex(client,scriptBytes,scriptLang,id,timeout,sOpType, Versions.MATCH_ANY, VersionType.INTERNAL, listener);
+    }
+
+    public void putScriptToIndex(Client client, BytesReference scriptBytes, @Nullable String scriptLang, String id,
+                                 @Nullable TimeValue timeout, @Nullable String sOpType, long version,
+                                 VersionType versionType, ActionListener<IndexResponse> listener)
+            throws ElasticsearchIllegalArgumentException, IOException {
+        scriptLang = validateScriptLanguage(scriptLang);
+
+        //verify that the script compiles
+        validate(scriptBytes, scriptLang);
+
+        IndexRequest indexRequest = new IndexRequest(SCRIPT_INDEX, scriptLang, id);
+        indexRequest.listenerThreaded(false);
+        indexRequest.operationThreaded(false);
+        indexRequest.version(version);
+        indexRequest.versionType(versionType);
+        indexRequest.refresh(true); //Always refresh after indexing a template
+
+        indexRequest.source(scriptBytes, true);
+        if (timeout != null){
+            indexRequest.timeout(timeout);
+        }
+
+        if (sOpType != null) {
+            indexRequest.opType(IndexRequest.OpType.fromString(sOpType));
+        }
+
+        client.index(indexRequest, listener);
+    }
+
+    public void deleteScriptFromIndex(Client client, @Nullable String scriptLang, String id,
+                                      long version, ActionListener<DeleteResponse> listener) {
+        scriptLang = validateScriptLanguage(scriptLang);
+        client.delete((new DeleteRequest(SCRIPT_INDEX,scriptLang,id)).refresh(true).version(version), listener);
     }
 
     public static String getScriptFromResponse(GetResponse responseFields) {
@@ -392,7 +491,6 @@ public class ScriptService extends AbstractComponent {
             }
         }
     }
-
 
     public ExecutableScript executable(String lang, String script, ScriptType scriptType, Map vars) {
         return executable(compile(lang, script, scriptType), vars);

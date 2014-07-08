@@ -25,7 +25,8 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * Provides the infrastructure for Lucene expressions as a scripting language for Elasticsearch.
+ * Provides the infrastructure for Lucene expressions as a scripting language for Elasticsearch.  Only
+ * {@link SearchScript}s are supported.
  */
 public class ExpressionScriptEngineService extends AbstractComponent implements ScriptEngineService {
 
@@ -73,6 +74,9 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
             if (variable.equals("_score")) {
                 // noop: our bindings inherently know how to deal with score
             } else if (vars != null && vars.containsKey(variable)) {
+                // TODO: document and/or error if vars contains _score?
+                // NOTE: by checking for the variable in vars first, it allows masking document fields with a global constant,
+                // but if we were to reverse it, we could provide a way to supply dynamic defaults for documents missing the field?
                 Object value = vars.get(variable);
                 if (value instanceof Double) {
                     bindings.addConstant(variable, ((Double)value).doubleValue());
@@ -84,6 +88,7 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
                     throw new ExpressionScriptExecutionException("Parameter [" + variable + "] must be a numeric type (double or long)");
                 }
             } else {
+                // TODO: extract field name/access pattern from variable
                 FieldMapper<?> field = mapper.smartNameFieldMapper(variable);
                 if (field.isNumeric() == false) {
                     // TODO: more context (which expression?)

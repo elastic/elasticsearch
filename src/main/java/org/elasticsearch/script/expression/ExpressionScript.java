@@ -9,29 +9,71 @@ import org.apache.lucene.search.Scorer;
 import org.elasticsearch.script.SearchScript;
 
 import java.io.IOException;
-import java.util.HashMap;
+import java.util.Collections;
 import java.util.Map;
 
 /**
- *
+ * A bridge to evaluate an {@link Expression} against {@link Bindings} in the context
+ * of a {@link SearchScript}.
  */
 class ExpressionScript implements SearchScript {
+
+    /** Fake scorer for a single document */
+    class CannedScorer extends Scorer {
+        protected int docid;
+        protected float score;
+
+        public CannedScorer() {
+            super(null);
+        }
+
+        @Override
+        public int docID() {
+            return docid;
+        }
+
+        @Override
+        public float score() throws IOException {
+            return score;
+        }
+
+        @Override
+        public int freq() throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public int nextDoc() throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public int advance(int target) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public long cost() {
+            return 1;
+        }
+    }
 
     Expression expression;
     Bindings bindings;
     AtomicReaderContext leaf;
-    int docid;
+    CannedScorer scorer;
 
     ExpressionScript(Expression e, Bindings b) {
         expression = e;
         bindings = b;
+        scorer = new CannedScorer();
     }
 
     double evaluate() {
         try {
             ValueSource vs = expression.getValueSource(bindings);
-            FunctionValues fv = vs.getValues(new HashMap<String, Object>(), leaf);
-            return fv.doubleVal(docid);
+            FunctionValues fv = vs.getValues(Collections.singletonMap("scorer", scorer), leaf);
+            return fv.doubleVal(scorer.docid);
         } catch (IOException e) {
             throw new ExpressionScriptExecutionException("Failed to run expression", e);
         }
@@ -54,8 +96,11 @@ class ExpressionScript implements SearchScript {
 
     @Override
     public void setNextDocId(int d) {
-        docid = d;
+        scorer.docid = d;
     }
+
+    @Override
+    public void setNextScore(float score) { scorer.score = score; }
 
     @Override
     public void setNextReader(AtomicReaderContext l) {
@@ -63,25 +108,17 @@ class ExpressionScript implements SearchScript {
     }
 
     @Override
-    public void setNextSource(Map<String, Object> source) {
-
-    }
+    public void setScorer(Scorer s) { /* noop: score isn't actually set for scoring... */ }
 
     @Override
-    public void setNextScore(float score) {
-
+    public void setNextSource(Map<String, Object> source) {
+        // noop: expressions don't use source data
     }
-
 
     @Override
     public void setNextVar(String name, Object value) {
-
+        //  nocommit: comment on why this isn't needed...wtf is it?
     }
 
 
-
-    @Override
-    public void setScorer(Scorer scorer) {
-
-    }
 }

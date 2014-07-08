@@ -8,7 +8,9 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import java.util.HashMap;
 import java.util.Map;
 
-
+/**
+ * TODO: We could get rid of this entirely if SimpleBindings had add(String, ValueSource) instead of only add(SortField)
+ */
 class ExpressionScriptBindings extends Bindings {
 
     Map<String, ValueSource> variables = new HashMap<>();
@@ -23,6 +25,7 @@ class ExpressionScriptBindings extends Bindings {
 
     @Override
     public ValueSource getValueSource(String variable) {
+        // TODO: is _score a constant anywhere?
         if (variable.equals("_score")) {
             return getScoreValueSource();
         } else {

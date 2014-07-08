@@ -119,8 +119,7 @@ public class NodesFaultDetection extends AbstractComponent {
             }
             if (!nodesFD.containsKey(newNode)) {
                 nodesFD.put(newNode, new NodeFD());
-                // we use schedule with a 0 time value to run the pinger on the pool as it will run on later
-                threadPool.schedule(TimeValue.timeValueMillis(0), ThreadPool.Names.SAME, new SendPingRequest(newNode));
+                threadPool.schedule(pingInterval, ThreadPool.Names.SAME, new SendPingRequest(newNode));
             }
         }
         for (DiscoveryNode removedNode : delta.removedNodes()) {
@@ -166,8 +165,7 @@ public class NodesFaultDetection extends AbstractComponent {
             try {
                 transportService.connectToNode(node);
                 nodesFD.put(node, new NodeFD());
-                // we use schedule with a 0 time value to run the pinger on the pool as it will run on later
-                threadPool.schedule(TimeValue.timeValueMillis(0), ThreadPool.Names.SAME, new SendPingRequest(node));
+                threadPool.schedule(pingInterval, ThreadPool.Names.SAME, new SendPingRequest(node));
             } catch (Exception e) {
                 logger.trace("[node  ] [{}] transport disconnected (with verified connect)", node);
                 notifyNodeFailure(node, "transport disconnected (with verified connect)");

@@ -203,6 +203,13 @@ public class MutualInformation implements SignificanceHeuristic {
         return includeNegatives;
     }
 
+    @Override
+    public int hashCode() {
+        int result = (includeNegatives ? 1 : 0);
+        result = 31 * result + (isBackground ? 1 : 0);
+        return result;
+    }
+
     public static class MutualInformationParser implements SignificanceHeuristicParser {
 
         @Override

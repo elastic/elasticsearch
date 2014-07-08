@@ -38,11 +38,6 @@ public class JLHScore implements SignificanceHeuristic {
 
     private JLHScore() {};
 
-    @Override
-    public boolean equals(Object other) {
-        return other instanceof JLHScore;
-    }
-
     public static final SignificanceHeuristicStreams.Stream STREAM = new SignificanceHeuristicStreams.Stream() {
         @Override
         public SignificanceHeuristic readResult(StreamInput in) throws IOException {

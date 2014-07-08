@@ -19,16 +19,20 @@
 
 package org.elasticsearch.search.functionscore;
 
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.MatchAllFilterBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.DecayFunctionBuilder;
@@ -38,6 +42,7 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.joda.time.DateTime;
 import org.junit.Test;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -843,4 +848,94 @@ public class DecayFunctionScoreTests extends ElasticsearchIntegrationTest {
         }
     }
 
+    // issue https://github.com/elasticsearch/elasticsearch/issues/6292
+    @Test
+    public void testMissingFunctionThrowsElasticsearchParseException() throws IOException {
+
+        // example from issue https://github.com/elasticsearch/elasticsearch/issues/6292
+        String doc = "{\n" +
+                "  \"text\": \"baseball bats\"\n" +
+                "}\n";
+
+        String query = "{\n" +
+                "    \"function_score\": {\n" +
+                "      \"score_mode\": \"sum\",\n" +
+                "      \"boost_mode\": \"replace\",\n" +
+                "      \"functions\": [\n" +
+                "        {\n" +
+                "          \"filter\": {\n" +
+                "            \"term\": {\n" +
+                "              \"text\": \"baseball\"\n" +
+                "            }\n" +
+                "          }\n" +
+                "        }\n" +
+                "      ]\n" +
+                "    }\n" +
+                "}\n";
+
+        client().prepareIndex("t", "test").setSource(doc).get();
+        refresh();
+        ensureYellow("t");
+        try {
+            client().search(
+                    searchRequest().source(
+                            searchSource().query(query))).actionGet();
+            fail("Should fail with SearchPhaseExecutionException");
+        } catch (SearchPhaseExecutionException failure) {
+            assertTrue(failure.getMessage().contains("SearchParseException"));
+            assertFalse(failure.getMessage().contains("NullPointerException"));
+        }
+
+        query = "{\n" +
+                "    \"function_score\": {\n" +
+                "      \"score_mode\": \"sum\",\n" +
+                "      \"boost_mode\": \"replace\",\n" +
+                "      \"functions\": [\n" +
+                "        {\n" +
+                "          \"filter\": {\n" +
+                "            \"term\": {\n" +
+                "              \"text\": \"baseball\"\n" +
+                "            }\n" +
+                "          },\n" +
+                "          \"boost_factor\": 2\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"filter\": {\n" +
+                "            \"term\": {\n" +
+                "              \"text\": \"baseball\"\n" +
+                "            }\n" +
+                "          }\n" +
+                "        }\n" +
+                "      ]\n" +
+                "    }\n" +
+                "}";
+
+        try {
+            client().search(
+                    searchRequest().source(
+                            searchSource().query(query))).actionGet();
+            fail("Should fail with SearchPhaseExecutionException");
+        } catch (SearchPhaseExecutionException failure) {
+            assertTrue(failure.getMessage().contains("SearchParseException"));
+            assertFalse(failure.getMessage().contains("NullPointerException"));
+            assertTrue(failure.getMessage().contains("One entry in functions list is missing a function"));
+        }
+
+        // next test java client
+        try {
+            client().prepareSearch("t").setQuery(QueryBuilders.functionScoreQuery(FilterBuilders.matchAllFilter(), null)).get();
+        } catch (ElasticsearchIllegalArgumentException failure) {
+            assertTrue(failure.getMessage().contains("function must not be null"));
+        }
+        try {
+            client().prepareSearch("t").setQuery(QueryBuilders.functionScoreQuery().add(FilterBuilders.matchAllFilter(), null)).get();
+        } catch (ElasticsearchIllegalArgumentException failure) {
+            assertTrue(failure.getMessage().contains("function must not be null"));
+        }
+        try {
+            client().prepareSearch("t").setQuery(QueryBuilders.functionScoreQuery().add(null)).get();
+        } catch (ElasticsearchIllegalArgumentException failure) {
+            assertTrue(failure.getMessage().contains("function must not be null"));
+        }
+    }
 }

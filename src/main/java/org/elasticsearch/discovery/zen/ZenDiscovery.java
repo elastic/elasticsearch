@@ -566,7 +566,9 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                         logger.warn("received cluster state from [{}] which is also master but with an older cluster_state, telling [{}] to rejoin the cluster", newState.nodes().masterNode(), newState.nodes().masterNode());
 
                         try {
-                            // make sure we're connect to this node (connect to node exists if we already are
+                            // make sure we're connected to this node (connect to node does nothing if we're already connected)
+                            // since the network connections are asymmetric, it may be that we received a state but have disconnected from the node
+                            // in the past (after a master failure, for example)
                             transportService.connectToNode(newState.nodes().masterNode());
                             transportService.sendRequest(newState.nodes().masterNode(), RejoinClusterRequestHandler.ACTION, new RejoinClusterRequest(currentState.nodes().localNodeId()), new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
                                 @Override

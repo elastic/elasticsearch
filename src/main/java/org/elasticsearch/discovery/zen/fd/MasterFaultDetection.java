@@ -153,9 +153,8 @@ public class MasterFaultDetection extends AbstractComponent {
             masterPinger.stop();
         }
         this.masterPinger = new MasterPinger();
-
-        // we use schedule with a 0 time value to run the pinger on the pool as it will run on later
-        threadPool.schedule(TimeValue.timeValueMillis(0), ThreadPool.Names.SAME, masterPinger);
+        // start the ping process
+        threadPool.schedule(pingInterval, ThreadPool.Names.SAME, masterPinger);
     }
 
     public void stop(String reason) {
@@ -199,8 +198,7 @@ public class MasterFaultDetection extends AbstractComponent {
                         masterPinger.stop();
                     }
                     this.masterPinger = new MasterPinger();
-                    // we use schedule with a 0 time value to run the pinger on the pool as it will run on later
-                    threadPool.schedule(TimeValue.timeValueMillis(0), ThreadPool.Names.SAME, masterPinger);
+                    threadPool.schedule(pingInterval, ThreadPool.Names.SAME, masterPinger);
                 } catch (Exception e) {
                     logger.trace("[master] [{}] transport disconnected (with verified connect)", masterNode);
                     notifyMasterFailure(masterNode, "transport disconnected (with verified connect)");

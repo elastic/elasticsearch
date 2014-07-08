@@ -303,7 +303,7 @@ Per default, the assumption is that the documents in the bucket are also contain
 [source,js]
 --------------------------------------------------
 
-"is_background": false
+"background_is_superset": false
 --------------------------------------------------
 
  

@@ -30,7 +30,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParsingException;
 
 import java.io.IOException;
-import java.util.EnumSet;
 
 public class MutualInformation implements SignificanceHeuristic {
 
@@ -38,9 +37,9 @@ public class MutualInformation implements SignificanceHeuristic {
 
     protected static final ParseField INCLUDE_NEGATIVES_FIELD = new ParseField("include_negatives");
 
-    protected static final ParseField IS_BACKGROUND = new ParseField("is_background");
+    protected static final ParseField BACKGROUND_IS_SUPERSET = new ParseField("background_is_superset");
 
-    protected static final String SCORE_ERROR_MESSAGE = ", does you background filter not include all documents in the bucket? If so and it is intentional, set \"" + IS_BACKGROUND.getPreferredName() + "\": false";
+    protected static final String SCORE_ERROR_MESSAGE = ", does you background filter not include all documents in the bucket? If so and it is intentional, set \"" + BACKGROUND_IS_SUPERSET.getPreferredName() + "\": false";
 
     private static final double log2 = Math.log(2.0);
 
@@ -50,13 +49,13 @@ public class MutualInformation implements SignificanceHeuristic {
      * in the subset than in the background without the subset.
      */
     protected boolean includeNegatives = false;
-    private boolean isBackground = true;
+    private boolean backgroundIsSuperset = true;
 
     private MutualInformation() {};
 
-    public MutualInformation(boolean includeNegatives, boolean isBackground) {
+    public MutualInformation(boolean includeNegatives, boolean backgroundIsSuperset) {
         this.includeNegatives = includeNegatives;
-        this.isBackground = isBackground;
+        this.backgroundIsSuperset = backgroundIsSuperset;
     }
 
     @Override
@@ -64,7 +63,7 @@ public class MutualInformation implements SignificanceHeuristic {
         if (! (other instanceof MutualInformation)) {
             return false;
         }
-        return ((MutualInformation)other).includeNegatives == includeNegatives && ((MutualInformation)other).isBackground == isBackground ;
+        return ((MutualInformation)other).includeNegatives == includeNegatives && ((MutualInformation)other).backgroundIsSuperset == backgroundIsSuperset;
     }
 
     public static final SignificanceHeuristicStreams.Stream STREAM = new SignificanceHeuristicStreams.Stream() {
@@ -100,7 +99,7 @@ public class MutualInformation implements SignificanceHeuristic {
         if (supersetFreq > supersetSize) {
             throw new ElasticsearchIllegalArgumentException("supersetFreq > supersetSize, in MutualInformation.score(..)");
         }
-        if (isBackground) {
+        if (backgroundIsSuperset) {
             if (subsetFreq > supersetFreq) {
                 throw new ElasticsearchIllegalArgumentException("subsetFreq > supersetFreq" + SCORE_ERROR_MESSAGE);
             }
@@ -112,7 +111,7 @@ public class MutualInformation implements SignificanceHeuristic {
             }
         }
         double N00, N01, N10, N11, N0_, N1_, N_0, N_1, N;
-        if (isBackground) {
+        if (backgroundIsSuperset) {
             //documents not in class and do not contain term
             N00 = supersetSize - supersetFreq - (subsetSize - subsetFreq);
             //documents in class and do not contain term
@@ -195,7 +194,7 @@ public class MutualInformation implements SignificanceHeuristic {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(STREAM.getName());
         out.writeBoolean(includeNegatives);
-        out.writeBoolean(isBackground);
+        out.writeBoolean(backgroundIsSuperset);
 
     }
 
@@ -206,7 +205,7 @@ public class MutualInformation implements SignificanceHeuristic {
     @Override
     public int hashCode() {
         int result = (includeNegatives ? 1 : 0);
-        result = 31 * result + (isBackground ? 1 : 0);
+        result = 31 * result + (backgroundIsSuperset ? 1 : 0);
         return result;
     }
 
@@ -216,20 +215,20 @@ public class MutualInformation implements SignificanceHeuristic {
         public SignificanceHeuristic parse(XContentParser parser) throws IOException, QueryParsingException {
             NAMES_FIELD.match(parser.currentName(), ParseField.EMPTY_FLAGS);
             boolean includeNegatives = false;
-            boolean isBackground = true;
+            boolean backgroundIsSuperset = true;
             XContentParser.Token token = parser.nextToken();
             while (!token.equals(XContentParser.Token.END_OBJECT)) {
                 if (INCLUDE_NEGATIVES_FIELD.match(parser.currentName(), ParseField.EMPTY_FLAGS)) {
                     parser.nextToken();
                     includeNegatives = parser.booleanValue();
-                } else if (IS_BACKGROUND.match(parser.currentName(), ParseField.EMPTY_FLAGS)) {
+                } else if (BACKGROUND_IS_SUPERSET.match(parser.currentName(), ParseField.EMPTY_FLAGS)) {
                     parser.nextToken();
-                    isBackground = parser.booleanValue();
+                    backgroundIsSuperset = parser.booleanValue();
                 }
                 token = parser.nextToken();
             }
             // move to the closing bracket
-            return new MutualInformation(includeNegatives, isBackground);
+            return new MutualInformation(includeNegatives, backgroundIsSuperset);
         }
 
         @Override
@@ -241,19 +240,19 @@ public class MutualInformation implements SignificanceHeuristic {
     public static class MutualInformationBuilder implements SignificanceHeuristicBuilder {
 
         boolean includeNegatives = true;
-        private boolean isBackground = true;
+        private boolean backgroundIsSuperset = true;
 
         private MutualInformationBuilder() {};
 
-        public MutualInformationBuilder(boolean includeNegatives, boolean isBackground) {
+        public MutualInformationBuilder(boolean includeNegatives, boolean backgroundIsSuperset) {
             this.includeNegatives = includeNegatives;
-            this.isBackground = isBackground;
+            this.backgroundIsSuperset = backgroundIsSuperset;
         }
         @Override
         public void toXContent(XContentBuilder builder) throws IOException {
             builder.startObject(STREAM.getName())
                     .field(INCLUDE_NEGATIVES_FIELD.getPreferredName(), includeNegatives)
-                    .field(IS_BACKGROUND.getPreferredName(), isBackground)
+                    .field(BACKGROUND_IS_SUPERSET.getPreferredName(), backgroundIsSuperset)
                     .endObject();
         }
     }

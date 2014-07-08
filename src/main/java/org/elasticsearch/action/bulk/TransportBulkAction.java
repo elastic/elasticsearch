@@ -38,6 +38,7 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
@@ -45,8 +46,10 @@ import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
+import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BaseTransportRequestHandler;
@@ -115,7 +118,6 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
                     throw new ElasticsearchException("Parsed unknown request in bulk actions: " + request.getClass().getSimpleName());
                 }
             }
-
             final AtomicInteger counter = new AtomicInteger(indices.size());
             ClusterState state = clusterService.state();
             for (final String index : indices) {
@@ -207,6 +209,10 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
                 MappingMetaData mappingMd = null;
                 if (metaData.hasIndex(indexRequest.index())) {
                     mappingMd = metaData.index(indexRequest.index()).mappingOrDefault(indexRequest.type());
+                    boolean isClosed = addFailureIfIndexIsClosed(indexRequest.index(), indexRequest.type(), indexRequest.id(), bulkRequest, responses, i);
+                    if (isClosed) {
+                        continue;
+                    }
                 }
                 try {
                     indexRequest.process(metaData, aliasOrIndex, mappingMd, allowIdGeneration);
@@ -219,10 +225,18 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
                 }
             } else if (request instanceof DeleteRequest) {
                 DeleteRequest deleteRequest = (DeleteRequest) request;
+                boolean isClosed = addFailureIfIndexIsClosed(deleteRequest.index(), deleteRequest.type(), deleteRequest.id(), bulkRequest, responses, i);
+                if (isClosed) {
+                    continue;
+                }
                 deleteRequest.routing(clusterState.metaData().resolveIndexRouting(deleteRequest.routing(), deleteRequest.index()));
                 deleteRequest.index(clusterState.metaData().concreteSingleIndex(deleteRequest.index()));
             } else if (request instanceof UpdateRequest) {
                 UpdateRequest updateRequest = (UpdateRequest) request;
+                boolean isClosed = addFailureIfIndexIsClosed(updateRequest.index(), updateRequest.type(), updateRequest.id(), bulkRequest, responses, i);
+                if (isClosed) {
+                    continue;
+                }
                 updateRequest.routing(clusterState.metaData().resolveIndexRouting(updateRequest.routing(), updateRequest.index()));
                 updateRequest.index(clusterState.metaData().concreteSingleIndex(updateRequest.index()));
             }
@@ -334,6 +348,58 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
                     listener.onResponse(new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]), System.currentTimeMillis() - startTime));
                 }
             });
+        }
+    }
+
+    private boolean addFailureIfIndexIsClosed(String index, String type, String id, BulkRequest bulkRequest, AtomicArray<BulkItemResponse> responses, int idx) {
+        MetaData metaData = this.clusterService.state().metaData();
+        String concreteIndex = this.clusterService.state().metaData().concreteSingleIndex(index);
+        boolean isClosed = metaData.index(concreteIndex).getState() == IndexMetaData.State.CLOSE;
+
+        if (isClosed) {
+            BulkItemResponse.Failure failure = new BulkItemResponse.Failure(index, type, id,
+                    new IndexClosedException(new Index(metaData.index(index).getIndex())));
+            BulkItemResponse bulkItemResponse = new BulkItemResponse(idx, "index", failure);
+            responses.set(idx, bulkItemResponse);
+            // make sure the request gets never processed again
+            bulkRequest.requests.set(idx, null);
+        }
+
+        return isClosed;
+    }
+
+    private void addFailureIfIndexIsClosed(MetaData metaData, ActionRequest request, BulkRequest bulkRequest, AtomicArray<BulkItemResponse> responses, int idx) {
+        String index = null;
+        String type = null;
+        String id = null;
+        boolean isClosed = false;
+        if (request instanceof IndexRequest) {
+            IndexRequest indexRequest = (IndexRequest) request;
+            index = indexRequest.index();
+            type = indexRequest.type();
+            id = indexRequest.id();
+            isClosed = metaData.index(indexRequest.index()).getState() == IndexMetaData.State.CLOSE;
+        } else if (request instanceof DeleteRequest) {
+            DeleteRequest deleteRequest = (DeleteRequest) request;
+            index = deleteRequest.index();
+            type = deleteRequest.type();
+            id = deleteRequest.id();
+            isClosed = metaData.index(deleteRequest.index()).getState() == IndexMetaData.State.CLOSE;
+        } else if (request instanceof UpdateRequest) {
+            UpdateRequest updateRequest = (UpdateRequest) request;
+            index = updateRequest.index();
+            type = updateRequest.type();
+            id = updateRequest.id();
+            isClosed = metaData.index(updateRequest.index()).getState() == IndexMetaData.State.CLOSE;
+        }
+
+        if (isClosed) {
+            BulkItemResponse.Failure failure = new BulkItemResponse.Failure(index, type, id,
+                    new IndexClosedException(new Index(metaData.index(index).getIndex())));
+            BulkItemResponse bulkItemResponse = new BulkItemResponse(idx, "index", failure);
+            responses.set(idx, bulkItemResponse);
+            // make sure the request gets never processed again
+            bulkRequest.requests.set(idx, null);
         }
     }
 

@@ -21,8 +21,10 @@ package org.elasticsearch.index.translog;
 
 import org.apache.lucene.index.Term;
 import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -39,6 +41,8 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShardComponent;
 
 import java.io.IOException;
+import java.io.InputStream;
+
 
 /**
  *
@@ -133,7 +137,8 @@ public interface Translog extends IndexShardComponent, CloseableIndexComponent, 
      */
     TranslogStats stats();
 
-    static class Location {
+    static class Location implements Accountable {
+
         public final long translogId;
         public final long translogLocation;
         public final int size;
@@ -142,6 +147,11 @@ public interface Translog extends IndexShardComponent, CloseableIndexComponent, 
             this.translogId = translogId;
             this.translogLocation = translogLocation;
             this.size = size;
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            return RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + 2*RamUsageEstimator.NUM_BYTES_LONG + RamUsageEstimator.NUM_BYTES_INT;
         }
     }
 

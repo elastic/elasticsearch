@@ -77,8 +77,15 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
 
     @Override
     protected void doStart() throws ElasticsearchException {
-        localAddress = new LocalTransportAddress(Long.toString(transportAddressIdGenerator.incrementAndGet()));
-        transports.put(localAddress, this);
+        String address = componentSettings.get("address", null);
+        if (address == null) {
+            address = Long.toString(transportAddressIdGenerator.incrementAndGet());
+        }
+        localAddress = new LocalTransportAddress(address);
+        LocalTransport previous = transports.put(localAddress, this);
+        if (previous != null) {
+            throw new ElasticsearchException("local address [" + address + "] is already bound");
+        }
         boundAddress = new BoundTransportAddress(localAddress, localAddress);
     }
 

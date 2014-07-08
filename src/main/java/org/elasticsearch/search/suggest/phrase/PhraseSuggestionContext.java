@@ -24,6 +24,7 @@ import java.util.List;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.cluster.routing.operation.plain.PreferenceType;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.search.suggest.DirectSpellcheckerSettings;
 import org.elasticsearch.search.suggest.Suggest;
@@ -43,6 +44,7 @@ class PhraseSuggestionContext extends SuggestionContext {
     private BytesRef preTag;
     private BytesRef postTag;
     private CompiledScript filterQueryScript;
+    private String preference = PreferenceType.ONLY_LOCAL;
 
     private WordScorer.WordScorerFactory scorer;
 
@@ -190,6 +192,14 @@ class PhraseSuggestionContext extends SuggestionContext {
 
     void setFilterQueryScript(CompiledScript filterQueryScript) {
         this.filterQueryScript = filterQueryScript;
+    }
+
+    String getPreference() {
+        return preference;
+    }
+
+    void setPreference(String preference) {
+        this.preference = preference;
     }
 
 }

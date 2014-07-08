@@ -23,6 +23,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
@@ -39,7 +40,6 @@ import java.io.IOException;
 public final class PhraseSuggestParser implements SuggestContextParser {
 
     private PhraseSuggester suggester;
-    private static final int MAX_RESULT_SIZE_FILTER = 20;
 
     public PhraseSuggestParser(PhraseSuggester suggester) {
         this.suggester = suggester;
@@ -86,23 +86,6 @@ public final class PhraseSuggestParser implements SuggestContextParser {
                             throw new ElasticsearchIllegalArgumentException("token_limit must be >= 1");
                         }
                         suggestion.setTokenLimit(tokenLimit);
-                    } else if ("filter".equals(fieldName)) {
-                            String templateNameOrTemplateContent;
-                            if (token == XContentParser.Token.START_OBJECT && !parser.hasTextCharacters()) {
-                                XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent());
-                                builder.copyCurrentStructure(parser);
-                                templateNameOrTemplateContent = builder.string();
-                            } else {
-                                templateNameOrTemplateContent = parser.text();
-                            }
-                            if (templateNameOrTemplateContent == null) {
-                                throw new ElasticsearchIllegalArgumentException("no template found in filter field");
-                            }
-                            CompiledScript compiledScript = suggester.scriptService().compile("mustache", templateNameOrTemplateContent);
-                            suggestion.setFilterQueryScript(compiledScript);
-                            if (suggestion.getSize() >= MAX_RESULT_SIZE_FILTER) {
-                                throw new ElasticsearchIllegalArgumentException("size must be <= " + MAX_RESULT_SIZE_FILTER + " for using filter");
-                            }
                     } else {
                         throw new ElasticsearchIllegalArgumentException("suggester[phrase] doesn't support field [" + fieldName + "]");
                     }
@@ -142,6 +125,32 @@ public final class PhraseSuggestParser implements SuggestContextParser {
                                 throw new ElasticsearchIllegalArgumentException(
                                     "suggester[phrase][highlight] doesn't support field [" + fieldName + "]");
                             }
+                        }
+                    }
+                } else if ("filter".equals(fieldName)) {
+                    //parseFilter(parser, suggestion);
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                        if (token == XContentParser.Token.FIELD_NAME) {
+                            fieldName = parser.currentName();
+                        } else if ("template".equals(fieldName)) {
+                            String templateNameOrTemplateContent;
+                            if (token == XContentParser.Token.START_OBJECT && !parser.hasTextCharacters()) {
+                                XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent());
+                                builder.copyCurrentStructure(parser);
+                                templateNameOrTemplateContent = builder.string();
+                            } else {
+                                templateNameOrTemplateContent = parser.text();
+                            }
+                            if (templateNameOrTemplateContent == null) {
+                                throw new ElasticsearchIllegalArgumentException("no template found in filter field");
+                            }
+                            CompiledScript compiledScript = suggester.scriptService().compile("mustache", templateNameOrTemplateContent);
+                            suggestion.setFilterQueryScript(compiledScript);
+                        } else if ("preference".equals(fieldName)) {
+                            suggestion.setPreference(parser.text());
+                        } else {
+                            throw new ElasticsearchIllegalArgumentException(
+                                    "suggester[phrase][filter] doesn't support field [" + fieldName + "]");
                         }
                     }
                 } else {
@@ -189,6 +198,43 @@ public final class PhraseSuggestParser implements SuggestContextParser {
         
         
         return suggestion;
+    }
+
+    private void parseFilter(XContentParser parser, PhraseSuggestionContext suggestion) throws IOException {
+        XContentParser.Token token;
+        String fieldName = null;
+        XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent());
+        builder.copyCurrentStructure(parser);
+        String lol = builder.string();
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == Token.FIELD_NAME) {
+                fieldName = parser.currentName();
+            } else if (token.isValue()) {
+                if ("preference".equals(fieldName)) {
+                    suggestion.setPreference(parser.text());
+                } else if ("template".equals(fieldName)) {
+                    String templateNameOrTemplateContent;
+                    if (token == XContentParser.Token.START_OBJECT && !parser.hasTextCharacters()) {
+                        builder = XContentBuilder.builder(parser.contentType().xContent());
+                        builder.copyCurrentStructure(parser);
+                        templateNameOrTemplateContent = builder.string();
+                    } else {
+                        templateNameOrTemplateContent = parser.text();
+                    }
+                    if (templateNameOrTemplateContent == null) {
+                        throw new ElasticsearchIllegalArgumentException("no template found in filter field");
+                    }
+                    CompiledScript compiledScript = suggester.scriptService().compile("mustache", templateNameOrTemplateContent);
+                    suggestion.setFilterQueryScript(compiledScript);
+                    {
+                        throw new ElasticsearchIllegalArgumentException("suggester[phrase] doesn't support field [" + fieldName + "]");
+                    }
+                } else {
+                    throw new ElasticsearchIllegalArgumentException("suggester[phrase] doesn't support field [" + fieldName + "]");
+                }
+            }
+
+        }
     }
 
     public void parseSmoothingModel(XContentParser parser, PhraseSuggestionContext suggestion, String fieldName) throws IOException {

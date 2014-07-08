@@ -162,11 +162,49 @@ can contain misspellings (See parameter descriptions below).
     is wrapped rather than each token.
 
 `filter`::
-    Sets a template query to filter out suggestions that do not match
+    Sets up template query to filter out suggestions that do not match
     any documents returned by the query. If provided must contain
-    the suggestion variable `suggestion` which is used to populate
-    the query with the phrase suggestions. If provided the `size`
-    parameter can be at most `20`.
+    exactly `template` representing the query template with
+    suggestion variable `suggestion` which is used to populate
+    the query with the phrase suggestions. If `preference` is provided,
+    it is used to route the filter query.
+
+The following example shows a `phrase` suggest call with a filter query
+to prune generated suggestions that do not match any documents
+for the provided match query. The routing preference sets up the
+filter query execution only on local shard.
+
+[source,js]
+--------------------------------------------------
+curl -XPOST 'localhost:9200/_search' -d {
+  "suggest" : {
+    "text" : "Xor the Got-Jewel",
+    "simple_phrase" : {
+      "phrase" : {
+        "analyzer" : "body",
+        "field" : "bigram",
+        "size" : 1,
+        "real_word_error_likelihood" : 0.95,
+        "max_errors" : 0.5,
+        "gram_size" : 2,
+        "direct_generator" : [ {
+          "field" : "body",
+          "suggest_mode" : "always",
+          "min_word_length" : 1
+        } ],
+        "filter": {
+          "template": {
+            "match": {
+                "title" : "{{suggestion}}"
+            }
+          },
+          "preference": "_only_local"
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
 
 ==== Smoothing Models
 

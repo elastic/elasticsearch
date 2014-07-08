@@ -42,7 +42,8 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
     private Integer tokenLimit;
     private String preTag;
     private String postTag;
-    private String filter;
+    private String filterTemplate;
+    private String filterPreference;
 
     public PhraseSuggestionBuilder(String name) {
         super(name, "phrase");
@@ -170,8 +171,16 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
     /**
      * Sets a query used for filtering out suggested phrases.
      */
-    public PhraseSuggestionBuilder filter(String filter) {
-        this.filter = filter;
+    public PhraseSuggestionBuilder filterTemplate(String filterTemplate) {
+        this.filterTemplate = filterTemplate;
+        return this;
+    }
+
+    /**
+     * Sets routing preferences for executing filter query
+     */
+    public PhraseSuggestionBuilder filterPreference(String filterPreference) {
+        this.filterPreference = filterPreference;
         return this;
     }
 
@@ -219,8 +228,13 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
             builder.field("post_tag", postTag);
             builder.endObject();
         }
-        if (filter != null) {
-            builder.field("filter", filter);
+        if (filterTemplate != null) {
+            builder.startObject("filter");
+            builder.field("template", filterTemplate);
+            if (filterPreference != null) {
+                builder.field("preference", filterPreference);
+            }
+            builder.endObject();
         }
         return builder;
     }

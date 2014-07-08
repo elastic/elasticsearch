@@ -29,6 +29,7 @@ import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.action.search.*;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.routing.operation.plain.PreferenceType;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.text.StringText;
@@ -105,13 +106,11 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
             CompiledScript filterQueryScript = suggestion.getFilterQueryScript();
             MultiSearchResponse multiSearchResponse = null;
             if (filterQueryScript != null) {
-                multiSearchResponse = fetchMatchingDocCountResponses(checkerResult.corrections, filterQueryScript, byteSpare, spare);
+                multiSearchResponse = fetchMatchingDocCountResponses(checkerResult.corrections, filterQueryScript, suggestion, byteSpare, spare);
             }
             for (int i = 0; i < checkerResult.corrections.length; i++) {
-                if (multiSearchResponse != null) {
-                    if (!hasMatchingDocs(multiSearchResponse, i)) {
-                        continue;
-                    }
+                if (!hasMatchingDocs(multiSearchResponse, i)) {
+                    continue;
                 }
                 Correction correction = checkerResult.corrections[i];
                 UnicodeUtil.UTF8toUTF16(correction.join(SEPARATOR, byteSpare, null, null), spare);
@@ -134,7 +133,9 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
         return new PhraseSuggestion.Entry(new StringText(spare.toString()), 0, spare.length, cutoffScore);
     }
 
-    private MultiSearchResponse fetchMatchingDocCountResponses(Correction[] corrections, CompiledScript filterQueryScript, BytesRef byteSpare, CharsRef spare) {
+    private MultiSearchResponse fetchMatchingDocCountResponses(Correction[] corrections, CompiledScript filterQueryScript,
+                                                               PhraseSuggestionContext suggestions,
+                                                               BytesRef byteSpare, CharsRef spare) {
         Map<String, String> vars = new HashMap<>(1);
         MultiSearchResponse multiSearchResponse = null;
         MultiSearchRequestBuilder multiSearchRequestBuilder = client.prepareMultiSearch();
@@ -146,7 +147,7 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
             BytesReference querySource = (BytesReference) executable.run();
             requestAdded = true;
             SearchRequestBuilder req = client.prepareSearch()
-                    .setPreference("_only_local")
+                    .setPreference(suggestions.getPreference())
                     .setQuery(querySource)
                     .setSearchType(SearchType.COUNT);
             multiSearchRequestBuilder.add(req);
@@ -158,7 +159,10 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
         return multiSearchResponse;
     }
 
-    private boolean hasMatchingDocs(MultiSearchResponse multiSearchResponse, int index) {
+    private static boolean hasMatchingDocs(MultiSearchResponse multiSearchResponse, int index) {
+        if (multiSearchResponse == null) {
+            return true;
+        }
         MultiSearchResponse.Item item = multiSearchResponse.getResponses()[index];
         if (!item.isFailure()) {
             SearchResponse resp = item.getResponse();

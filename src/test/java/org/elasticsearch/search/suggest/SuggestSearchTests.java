@@ -1153,13 +1153,13 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
 
         // suggest with filtering
         String filterString = XContentFactory.jsonBuilder()
-                .startObject()
-                    .startObject("match_phrase")
-                        .field("title", "{{suggestion}}")
+                    .startObject()
+                        .startObject("match_phrase")
+                            .field("title", "{{suggestion}}")
+                        .endObject()
                     .endObject()
-                .endObject()
                 .string();
-        PhraseSuggestionBuilder filteredSuggest = suggest.filter(filterString);
+        PhraseSuggestionBuilder filteredSuggest = suggest.filterTemplate(filterString);
         searchSuggest = searchSuggest("united states house of representatives elections in washington 2006", filteredSuggest);
         assertSuggestionSize(searchSuggest, 0, 2, "title");
 

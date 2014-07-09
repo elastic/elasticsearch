@@ -215,6 +215,15 @@ public class PluginManager {
             debug("Installed " + name + " into " + toLocation.getAbsolutePath());
         }
 
+        File configFile = new File(extractLocation, "config");
+        if (configFile.exists() && configFile.isDirectory()) {
+            File toLocation = pluginHandle.configDir(environment);
+            debug("Found config, moving to " + toLocation.getAbsolutePath());
+            FileSystemUtils.deleteRecursively(toLocation);
+            configFile.renameTo(toLocation);
+            debug("Installed " + name + " into " + toLocation.getAbsolutePath());
+        }
+
         // try and identify the plugin type, see if it has no .class or .jar files in it
         // so its probably a _site, and it it does not have a _site in it, move everything to _site
         if (!new File(extractLocation, "_site").exists()) {
@@ -269,6 +278,15 @@ public class PluginManager {
             if (!FileSystemUtils.deleteRecursively(binLocation)) {
                 throw new IOException("Unable to remove " + pluginHandle.name + ". Check file permissions on " +
                         binLocation.toString());
+            }
+            removed = true;
+        }
+        File configLocation = pluginHandle.configDir(environment);
+        if (configLocation.exists()) {
+            debug("Removing: " + configLocation.getPath());
+            if (!FileSystemUtils.deleteRecursively(configLocation)) {
+                throw new IOException("Unable to remove " + pluginHandle.name + ". Check file permissions on " +
+                        configLocation.toString());
             }
             removed = true;
         }
@@ -583,6 +601,10 @@ public class PluginManager {
 
         File binDir(Environment env) {
             return new File(new File(env.homeFile(), "bin"), name);
+        }
+
+        File configDir(Environment env) {
+            return new File(new File(env.homeFile(), "config"), name);
         }
 
         static PluginHandle parse(String name) {

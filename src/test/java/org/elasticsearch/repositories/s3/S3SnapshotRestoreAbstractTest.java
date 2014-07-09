@@ -55,7 +55,7 @@ import static org.hamcrest.Matchers.*;
  */
 @AwsTest
 @ClusterScope(scope = Scope.SUITE, numDataNodes = 2, numClientNodes = 0, transportClientRatio = 0.0)
-public class S3SnapshotRestoreTest extends AbstractAwsTest {
+abstract public class S3SnapshotRestoreAbstractTest extends AbstractAwsTest {
 
     @Override
     public Settings indexSettings() {

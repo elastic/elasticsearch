@@ -61,6 +61,7 @@ public class AwsEc2Service extends AbstractLifecycleComponent<AwsEc2Service> {
 
         ClientConfiguration clientConfiguration = new ClientConfiguration();
         String protocol = componentSettings.get("protocol", "http").toLowerCase();
+        protocol = componentSettings.get("ec2.protocol", protocol).toLowerCase();
         if ("http".equals(protocol)) {
             clientConfiguration.setProtocol(Protocol.HTTP);
         } else if ("https".equals(protocol)) {

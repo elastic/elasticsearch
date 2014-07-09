@@ -73,7 +73,7 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<ParentChil
         parentTypes = new TreeSet<>(BytesRef.getUTF8SortedAsUnicodeComparator());
         this.breakerService = breakerService;
         this.globalOrdinalsBuilder = globalOrdinalsBuilder;
-        for (DocumentMapper documentMapper : mapperService) {
+        for (DocumentMapper documentMapper : mapperService.docMappers(false)) {
             beforeCreate(documentMapper);
         }
         mapperService.addTypeListener(this);

@@ -140,7 +140,7 @@ public class HunspellService extends AbstractComponent {
      */
     private Dictionary loadDictionary(String locale, Settings nodeSettings, Environment env) throws Exception {
         if (logger.isDebugEnabled()) {
-            logger.debug("Loading huspell dictionary [{}]...", locale);
+            logger.debug("Loading hunspell dictionary [{}]...", locale);
         }
         File dicDir = new File(hunspellDir, locale);
         if (!dicDir.exists() || !dicDir.isDirectory()) {

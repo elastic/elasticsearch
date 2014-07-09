@@ -374,7 +374,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 }
             }
             // go over and remove mappings
-            for (DocumentMapper documentMapper : mapperService) {
+            for (DocumentMapper documentMapper : mapperService.docMappers(true)) {
                 if (seenMappings.containsKey(new Tuple<>(index, documentMapper.type())) && !indexMetaData.mappings().containsKey(documentMapper.type())) {
                     // we have it in our mappings, but not in the metadata, and we have seen it in the cluster state, remove it
                     mapperService.remove(documentMapper.type());

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.client.Client;
@@ -127,7 +128,7 @@ public class SimpleClusterStateTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testLargeClusterStatePublishing() throws Exception {
-        int estimatedBytesSize = scaledRandomIntBetween(ByteSizeValue.parseBytesSizeValue("10k").bytesAsInt(), ByteSizeValue.parseBytesSizeValue("1m").bytesAsInt());
+        int estimatedBytesSize = scaledRandomIntBetween(ByteSizeValue.parseBytesSizeValue("10k").bytesAsInt(), ByteSizeValue.parseBytesSizeValue("256k").bytesAsInt());
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties");
         int counter = 0;
         int numberOfFields = 0;
@@ -143,6 +144,7 @@ public class SimpleClusterStateTests extends ElasticsearchIntegrationTest {
         mapping.endObject().endObject().endObject();
         // if the create index is ack'ed, then all nodes have successfully processed the cluster state
         assertAcked(client().admin().indices().prepareCreate("test").addMapping("type", mapping).get());
+        ensureGreen(); // wait for green state, so its both green, and there are no more pending events
         MappingMetaData masterMappingMetaData = client().admin().indices().prepareGetMappings("test").setTypes("type").get().getMappings().get("test").get("type");
         for (Client client : clients()) {
             MappingMetaData mappingMetadata = client.admin().indices().prepareGetMappings("test").setTypes("type").setLocal(true).get().getMappings().get("test").get("type");

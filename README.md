@@ -42,6 +42,23 @@ cloud:
         secret_key: vExyMThREXeRMm/b/LRzEB8jWwvzQeXgjqMX+6br
 ```
 
+### Transport security
+
+By default this plugin uses HTTP for all API calls to AWS endpoints. If you wish to configure HTTPS you can set 
+`cloud.aws.protocol` in the elasticsearch config. You can optionally override this setting per individual service 
+via: `cloud.aws.ec2.protocol` or `cloud.aws.s3.protocol`. 
+
+```
+cloud:
+    aws:
+        protocol: http
+        s3: 
+            protocol: https
+        ec2: 
+            protocol: http
+
+```
+
 ### Region
 
 The `cloud.aws.region` can be set to a region and will automatically use the relevant settings for both `ec2` and `s3`. The available values are:

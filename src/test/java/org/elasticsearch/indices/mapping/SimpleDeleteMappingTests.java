@@ -67,22 +67,14 @@ public class SimpleDeleteMappingTests extends ElasticsearchIntegrationTest {
             CountResponse countResponse = client().prepareCount().setQuery(matchAllQuery()).execute().actionGet();
             assertThat(countResponse.getCount(), equalTo(0l));
         }
-
-        boolean applied = awaitBusy(new Predicate<Object>() {
+        assertBusy(new Runnable() {
             @Override
-            public boolean apply(Object input) {
-                GetMappingsResponse response = client().admin().indices().prepareGetMappings("test").setTypes("type1").get();
-                ImmutableOpenMap<String, MappingMetaData> mappings = response.getMappings().get("test");
-                if (mappings == null) {
-                    return true;
-                }
-                return !mappings.containsKey("type1");
+            public void run() {
+                GetMappingsResponse response = client().admin().indices().prepareGetMappings().get();
+                assertTrue(response.getMappings().containsKey("test"));
+                assertFalse(response.getMappings().get("test").containsKey("type1"));
             }
         });
-        if (!applied) {
-            fail("failed to wait for the mapping to be removed from the master cluster state");
-        }
-
     }
     
     

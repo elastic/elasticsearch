@@ -1,14 +1,34 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 package org.elasticsearch.script.expression;
 
 import org.apache.lucene.expressions.Expression;
-import org.apache.lucene.expressions.SimpleBindings;
-import org.apache.lucene.index.AtomicReaderContext;
-import org.elasticsearch.ElasticsearchException;
+import org.apache.lucene.expressions.XSimpleBindings;
+import org.apache.lucene.expressions.js.XJavascriptCompiler;
+import org.apache.lucene.expressions.js.XVariableContext;
+import org.apache.lucene.queries.function.valuesource.DoubleConstValueSource;
+import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -18,11 +38,8 @@ import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.lookup.SearchLookup;
 
-import org.apache.lucene.expressions.js.JavascriptCompiler;
-
 import java.text.ParseException;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Provides the infrastructure for Lucene expressions as a scripting language for Elasticsearch.  Only
@@ -30,13 +47,9 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public class ExpressionScriptEngineService extends AbstractComponent implements ScriptEngineService {
 
-    private final AtomicLong counter = new AtomicLong();
-    private final ClassLoader classLoader; // TODO: should use this instead of the implicit this.getClass().getClassLoader()?
-
     @Inject
     public ExpressionScriptEngineService(Settings settings) {
         super(settings);
-        classLoader = settings.getClassLoader();
     }
 
     @Override
@@ -58,7 +71,7 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
     public Object compile(String script) {
         try {
             // NOTE: validation is delayed to allow runtime vars, and we don't have access to per index stuff here
-            return JavascriptCompiler.compile(script);
+            return XJavascriptCompiler.compile(script);
         } catch (ParseException e) {
             throw new ExpressionScriptCompilationException("Failed to parse expression: " + script, e);
         }
@@ -68,34 +81,47 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
     public SearchScript search(Object compiledScript, SearchLookup lookup, @Nullable Map<String, Object> vars) {
         Expression expr = (Expression)compiledScript;
         MapperService mapper = lookup.doc().mapperService();
-        ExpressionScriptBindings bindings = new ExpressionScriptBindings();
+        // NOTE: if we need to do anything complicated with bindings in the future, we can just extend Bindings,
+        // instead of complicating SimpleBindings (which should stay simple)
+        XSimpleBindings bindings = new XSimpleBindings();
 
         for (String variable : expr.variables) {
             if (variable.equals("_score")) {
-                // noop: our bindings inherently know how to deal with score
+                bindings.add(new SortField("_score", SortField.Type.SCORE));
             } else if (vars != null && vars.containsKey(variable)) {
                 // TODO: document and/or error if vars contains _score?
                 // NOTE: by checking for the variable in vars first, it allows masking document fields with a global constant,
                 // but if we were to reverse it, we could provide a way to supply dynamic defaults for documents missing the field?
                 Object value = vars.get(variable);
                 if (value instanceof Double) {
-                    bindings.addConstant(variable, ((Double)value).doubleValue());
+                    bindings.add(variable, new DoubleConstValueSource(((Double)value).doubleValue()));
                 } else if (value instanceof Long) {
-                    bindings.addConstant(variable, ((Long)value).doubleValue());
+                    bindings.add(variable, new DoubleConstValueSource(((Long)value).doubleValue()));
                 } else if (value instanceof Integer) {
-                    bindings.addConstant(variable, ((Integer)value).doubleValue());
+                    bindings.add(variable, new DoubleConstValueSource(((Integer)value).doubleValue()));
                 } else {
-                    throw new ExpressionScriptExecutionException("Parameter [" + variable + "] must be a numeric type (double or long)");
+                    throw new ExpressionScriptExecutionException("Parameter [" + variable + "] must be a numeric type");
                 }
             } else {
-                // TODO: extract field name/access pattern from variable
-                FieldMapper<?> field = mapper.smartNameFieldMapper(variable);
+                XVariableContext[] parts = XVariableContext.parse(variable);
+                if (parts[0].text.equals("doc") == false) {
+                    throw new ExpressionScriptExecutionException("Unknown variable [" + parts[0].text + "] in expression");
+                }
+                if (parts.length < 2 || parts[1].type != XVariableContext.Type.STR_INDEX) {
+                    throw new ExpressionScriptExecutionException("Variable 'doc' in expression must be used with a specific field like: doc['myfield'].value");
+                }
+                if (parts.length < 3 || parts[2].type != XVariableContext.Type.MEMBER || parts[2].text.equals("value") == false) {
+                    throw new ExpressionScriptExecutionException("Invalid member for field data in expression.  Only '.value' is currently supported.");
+                }
+                String fieldname = parts[1].text;
+
+                FieldMapper<?> field = mapper.smartNameFieldMapper(fieldname);
                 if (field.isNumeric() == false) {
                     // TODO: more context (which expression?)
                     throw new ExpressionScriptExecutionException("Field [" + variable + "] used in expression must be numeric");
                 }
                 IndexFieldData<?> fieldData = lookup.doc().fieldDataService.getForField((NumberFieldMapper)field);
-                bindings.addField(variable, fieldData);
+                bindings.add(variable, new ExpressionScriptValueSource(fieldData));
             }
         }
 

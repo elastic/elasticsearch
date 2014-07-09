@@ -1,0 +1,186 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+package org.elasticsearch.script.expression;
+
+import org.apache.lucene.expressions.Expression;
+import org.apache.lucene.expressions.js.XJavascriptCompiler;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
+
+import static org.hamcrest.Matchers.equalTo;
+
+public class ExpressionScriptTests extends ElasticsearchIntegrationTest {
+
+    private SearchResponse runScript(String script, Object... params) {
+        StringBuilder buf = new StringBuilder();
+        buf.append("{query: {match_all:{}}, sort: [{\"_uid\": {\"order\":\"asc\"}}], script_fields: {foo: {lang: \"expression\", script: \"" + script + "\"");
+        if (params.length > 0) {
+            assert(params.length % 2 == 0);
+            buf.append(",params:{");
+            for (int i = 0; i < params.length; i += 2) {
+                if (i != 0) buf.append(",");
+                buf.append("\"" + params[i] + "\":");
+                Object v = params[i + 1];
+                if (v instanceof String) {
+                    buf.append("\"" + v + "\"");
+                } else {
+                    buf.append(v);
+                }
+            }
+            buf.append("}");
+        }
+        buf.append("}}}");
+        return client().prepareSearch("test").setSource(buf.toString()).get();
+    }
+
+    public void testBasic() throws Exception {
+        Expression x = XJavascriptCompiler.compile("1 + 1");
+        System.out.println(x.sourceText);
+        client().prepareIndex("test", "doc", "1").setSource("foo", 4).setRefresh(true).get();
+        SearchResponse rsp = runScript("doc['foo'].value + 1");
+        assertEquals(1, rsp.getHits().getTotalHits());
+        assertEquals(5.0, rsp.getHits().getAt(0).field("foo").getValue());
+    }
+
+    public void testScore() throws Exception {
+        client().prepareIndex("test", "doc", "1").setSource("text", "hello goodbye").get();
+        client().prepareIndex("test", "doc", "2").setSource("text", "hello hello hello goodbye").get();
+        client().prepareIndex("test", "doc", "3").setSource("text", "hello hello goodebye").get();
+        refresh();
+        String req = "{query: {function_score: {query:{term:{text:\"hello\"}}," +
+                "boost_mode: \"replace\"," +
+                "script_score: {" +
+                    "script: \"1 / _score\"," + // invert the order given by score
+                    "lang: \"expression\"" +
+                "}}}}";
+        SearchResponse rsp = client().prepareSearch("test").setSource(req).get();
+        SearchHits hits = rsp.getHits();
+        assertEquals(3, hits.getTotalHits());
+        assertEquals("1", hits.getAt(0).getId());
+        assertEquals("3", hits.getAt(1).getId());
+        assertEquals("2", hits.getAt(2).getId());
+    }
+
+    public void testFieldMissing() {
+        client().prepareIndex("test", "doc", "1").setSource("x", 4).get();
+        client().prepareIndex("test", "doc", "2").setSource("y", 2).get();
+        refresh();
+        SearchResponse rsp = runScript("doc['x'].value + 1");
+        SearchHits hits = rsp.getHits();
+        assertEquals(2, rsp.getHits().getTotalHits());
+        assertEquals(5.0, hits.getAt(0).field("foo").getValue());
+        assertEquals(1.0, hits.getAt(1).field("foo").getValue());
+    }
+
+    public void testParams() {
+        client().prepareIndex("test", "doc", "1").setSource("x", 10).get();
+        client().prepareIndex("test", "doc", "2").setSource("x", 3).get();
+        client().prepareIndex("test", "doc", "3").setSource("x", 5).get();
+        refresh();
+        // a = int, b = double, c = long
+        SearchResponse rsp = runScript("doc['x'].value * a + b + ((c + doc['x'].value) > 5000000009 ? 1 : 0)", "a", 2, "b", 3.5, "c", 5000000000L);
+        SearchHits hits = rsp.getHits();
+        assertEquals(3, hits.getTotalHits());
+        assertEquals(24.5, hits.getAt(0).field("foo").getValue());
+        assertEquals(9.5, hits.getAt(1).field("foo").getValue());
+        assertEquals(13.5, hits.getAt(2).field("foo").getValue());
+    }
+
+    public void testCompileFailure() {
+        client().prepareIndex("test", "doc", "1").setSource("x", 1).setRefresh(true).get();
+        try {
+            runScript("garbage%@#%@");
+            fail("Expected expression compilation failure");
+        } catch (SearchPhaseExecutionException e) {
+            assertThat(ExceptionsHelper.detailedMessage(e) + "should have contained ExpressionScriptCompilationException",
+                       ExceptionsHelper.detailedMessage(e).contains("ExpressionScriptCompilationException"), equalTo(true));
+            assertThat(ExceptionsHelper.detailedMessage(e) + "should have contained compilation failure",
+                       ExceptionsHelper.detailedMessage(e).contains("Failed to parse expression"), equalTo(true));
+        }
+    }
+
+    public void testNonNumericParam() {
+        client().prepareIndex("test", "doc", "1").setSource("x", 1).setRefresh(true).get();
+        try {
+            runScript("a", "a", "astring");
+            fail("Expected string parameter to cause failure");
+        } catch (SearchPhaseExecutionException e) {
+            assertThat(ExceptionsHelper.detailedMessage(e) + "should have contained ExpressionScriptExecutiontException",
+                       ExceptionsHelper.detailedMessage(e).contains("ExpressionScriptExecutionException"), equalTo(true));
+            assertThat(ExceptionsHelper.detailedMessage(e) + "should have contained non-numeric parameter error",
+                       ExceptionsHelper.detailedMessage(e).contains("must be a numeric type"), equalTo(true));
+        }
+    }
+
+    public void testNonNumericField() {
+        client().prepareIndex("test", "doc", "1").setSource("text", "this is not a number").setRefresh(true).get();
+        try {
+            runScript("doc['text'].value");
+            fail("Expected text field to cause execution failure");
+        } catch (SearchPhaseExecutionException e) {
+            assertThat(ExceptionsHelper.detailedMessage(e) + "should have contained ExpressionScriptExecutiontException",
+                       ExceptionsHelper.detailedMessage(e).contains("ExpressionScriptExecutionException"), equalTo(true));
+            assertThat(ExceptionsHelper.detailedMessage(e) + "should have contained non-numeric field error",
+                       ExceptionsHelper.detailedMessage(e).contains("must be numeric"), equalTo(true));
+        }
+    }
+
+    public void testInvalidGlobalVariable() {
+        client().prepareIndex("test", "doc", "1").setSource("foo", 5).setRefresh(true).get();
+        try {
+            runScript("bogus");
+            fail("Expected bogus variable to cause execution failure");
+        } catch (SearchPhaseExecutionException e) {
+            assertThat(ExceptionsHelper.detailedMessage(e) + "should have contained ExpressionScriptExecutiontException",
+                       ExceptionsHelper.detailedMessage(e).contains("ExpressionScriptExecutionException"), equalTo(true));
+            assertThat(ExceptionsHelper.detailedMessage(e) + "should have contained unknown variable error",
+                       ExceptionsHelper.detailedMessage(e).contains("Unknown variable"), equalTo(true));
+        }
+    }
+
+    public void testDocWithoutField() {
+        client().prepareIndex("test", "doc", "1").setSource("foo", 5).setRefresh(true).get();
+        try {
+            runScript("doc");
+            fail("Expected doc variable without field to cause execution failure");
+        } catch (SearchPhaseExecutionException e) {
+            assertThat(ExceptionsHelper.detailedMessage(e) + "should have contained ExpressionScriptExecutiontException",
+                    ExceptionsHelper.detailedMessage(e).contains("ExpressionScriptExecutionException"), equalTo(true));
+            assertThat(ExceptionsHelper.detailedMessage(e) + "should have contained a missing specific field error",
+                    ExceptionsHelper.detailedMessage(e).contains("must be used with a specific field"), equalTo(true));
+        }
+    }
+
+    public void testInvalidFieldMember() {
+        client().prepareIndex("test", "doc", "1").setSource("foo", 5).setRefresh(true).get();
+        try {
+            runScript("doc['foo'].bogus");
+            fail("Expected bogus field member to cause execution failure");
+        } catch (SearchPhaseExecutionException e) {
+            assertThat(ExceptionsHelper.detailedMessage(e) + "should have contained ExpressionScriptExecutiontException",
+                    ExceptionsHelper.detailedMessage(e).contains("ExpressionScriptExecutionException"), equalTo(true));
+            assertThat(ExceptionsHelper.detailedMessage(e) + "should have contained field member error",
+                    ExceptionsHelper.detailedMessage(e).contains("Invalid member for field"), equalTo(true));
+        }
+    }
+}

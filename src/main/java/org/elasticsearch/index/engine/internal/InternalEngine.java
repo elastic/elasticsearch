@@ -20,7 +20,6 @@
 package org.elasticsearch.index.engine.internal;
 
 import com.google.common.collect.Lists;
-
 import org.apache.lucene.index.*;
 import org.apache.lucene.index.IndexWriter.IndexReaderWarmer;
 import org.apache.lucene.search.IndexSearcher;
@@ -80,7 +79,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -389,10 +387,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
     public void create(Create create) throws EngineException {
         final IndexWriter writer;
         try (InternalLock _ = readLock.acquire()) {
-            writer = this.indexWriter;
-            if (writer == null) {
-                throw new EngineClosedException(shardId, failedEngine);
-            }
+            writer = currentIndexWriter();
             try (Releasable r = throttle.acquireThrottle()) {
                 innerCreate(create, writer);
             }
@@ -403,7 +398,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             maybeFailEngine(t);
             throw new CreateFailedEngineException(shardId, create, t);
         }
-        checkVersionMapRefresh(writer);
+        checkVersionMapRefresh();
     }
 
     private void maybeFailEngine(Throwable t) {
@@ -485,10 +480,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
     public void index(Index index) throws EngineException {
         final IndexWriter writer;
         try (InternalLock _ = readLock.acquire()) {
-            writer = this.indexWriter;
-            if (writer == null) {
-                throw new EngineClosedException(shardId, failedEngine);
-            }
+            writer = currentIndexWriter();
             try (Releasable r = throttle.acquireThrottle()) {
                 innerIndex(index, writer);
             }
@@ -499,29 +491,32 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             maybeFailEngine(t);
             throw new IndexFailedEngineException(shardId, index, t);
         }
-        checkVersionMapRefresh(writer);
+        checkVersionMapRefresh();
     }
 
-    /** Forces a refresh if the versionMap is using too much RAM (currently > 25% of IndexWriter's RAM buffer).
-     * */
-    private void checkVersionMapRefresh(final IndexWriter indexWriter) {
+    /**
+     * Forces a refresh if the versionMap is using too much RAM (currently > 25% of IndexWriter's RAM buffer).
+     */
+    private void checkVersionMapRefresh() {
         // TODO: we force refresh when versionMap is using > 25% of IW's RAM buffer; should we make this separately configurable?
-        if (versionMap.ramBytesUsedForRefresh()/1024/1024. > 0.25 * indexWriter.getConfig().getRAMBufferSizeMB() && versionMapRefreshPending.getAndSet(true) == false) {
-            if (!closed) {
-                try {
-                    // Now refresh to clear versionMap:
-                    threadPool.executor(ThreadPool.Names.REFRESH).execute(new Runnable() {
-                            public void run() {
-                                try {
-                                    refresh(new Refresh("version_table_full"));
-                                } catch (EngineClosedException ex) {
-                                    // ignore
-                                }
-                            }
-                        });
-                } catch (EsRejectedExecutionException ex) {
-                    // that is fine too.. we might be shutting down
+        if (versionMap.ramBytesUsedForRefresh() > 0.25 * indexingBufferSize.bytes() && versionMapRefreshPending.getAndSet(true) == false) {
+            try {
+                if (closed) {
+                    // no point...
+                    return;
                 }
+                // Now refresh to clear versionMap:
+                threadPool.executor(ThreadPool.Names.REFRESH).execute(new Runnable() {
+                    public void run() {
+                        try {
+                            refresh(new Refresh("version_table_full"));
+                        } catch (EngineClosedException ex) {
+                            // ignore
+                        }
+                    }
+                });
+            } catch (EsRejectedExecutionException ex) {
+                // that is fine too.. we might be shutting down
             }
         }
     }
@@ -596,11 +591,11 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
 
         maybePruneDeletedTombstones();
     }
-    
+
     private void maybePruneDeletedTombstones() {
         // It's expensive to prune because we walk the deletes map acquiring dirtyLock for each uid so we only do it
         // every 1/4 of gcDeletesInMillis:
-        if (enableGcDeletes && threadPool.estimatedTimeInMillis() - lastDeleteVersionPruneTimeMSec > gcDeletesInMillis*0.25) {
+        if (enableGcDeletes && threadPool.estimatedTimeInMillis() - lastDeleteVersionPruneTimeMSec > gcDeletesInMillis * 0.25) {
             pruneDeletedTombstones();
         }
     }

@@ -71,12 +71,15 @@ public class PluginManager {
     private String url;
     private OutputMode outputMode;
     private TimeValue timeout;
+    private BasicAuthCredentials basicAuthCredentials;
 
-    public PluginManager(Environment environment, String url, OutputMode outputMode, TimeValue timeout) {
+    public PluginManager(Environment environment, String url, OutputMode outputMode, TimeValue timeout,
+                         BasicAuthCredentials basicAuthCredentials) {
         this.environment = environment;
         this.url = url;
         this.outputMode = outputMode;
         this.timeout = timeout;
+        this.basicAuthCredentials = basicAuthCredentials;
 
         TrustManager[] trustAllCerts = new TrustManager[]{
                 new X509TrustManager() {
@@ -135,7 +138,7 @@ public class PluginManager {
             URL pluginUrl = new URL(url);
             log("Trying " + pluginUrl.toExternalForm() + "...");
             try {
-                downloadHelper.download(pluginUrl, pluginFile, progress, this.timeout);
+                downloadHelper.download(pluginUrl, pluginFile, progress, this.timeout, basicAuthCredentials);
                 downloaded = true;
             } catch (ElasticsearchTimeoutException e) {
                 throw e;
@@ -150,7 +153,7 @@ public class PluginManager {
             for (URL url : pluginHandle.urls()) {
                 log("Trying " + url.toExternalForm() + "...");
                 try {
-                    downloadHelper.download(url, pluginFile, progress, this.timeout);
+                    downloadHelper.download(url, pluginFile, progress, this.timeout, basicAuthCredentials);
                     downloaded = true;
                     break;
                 } catch (ElasticsearchTimeoutException e) {
@@ -336,6 +339,8 @@ public class PluginManager {
         OutputMode outputMode = OutputMode.DEFAULT;
         String pluginName = null;
         TimeValue timeout = DEFAULT_TIMEOUT;
+        String username = null;
+        String password = null;
         int action = ACTION.NONE;
 
         if (args.length < 1) {
@@ -356,6 +361,14 @@ public class PluginManager {
                         // By specifying this action, we also avoid silently failing without
                         //  dubious checks.
                         action = ACTION.INSTALL;
+                        break;
+                    case "-user":
+                    case "--username":
+                        username = getCommandValue(args, ++c, "--username");
+                        break;
+                    case "-pass":
+                    case "--password":
+                        password = getCommandValue(args, ++c, "--password");
                         break;
                     case "-v":
                     case "--verbose":
@@ -417,7 +430,14 @@ public class PluginManager {
 
         if (action > ACTION.NONE) {
             int exitCode = EXIT_CODE_ERROR; // we fail unless it's reset
-            PluginManager pluginManager = new PluginManager(initialSettings.v2(), url, outputMode, timeout);
+            BasicAuthCredentials credentials;
+            if (username != null && password != null) {
+                credentials = new BasicAuthCredentials(username, password);
+            } else {
+                credentials = BasicAuthCredentials.NONE;
+            }
+
+            PluginManager pluginManager = new PluginManager(initialSettings.v2(), url, outputMode, timeout, credentials);
             switch (action) {
                 case ACTION.INSTALL:
                     try {
@@ -503,6 +523,8 @@ public class PluginManager {
         System.out.println("Usage:");
         System.out.println("    -u, --url     [plugin location]   : Set exact URL to download the plugin from");
         System.out.println("    -i, --install [plugin name]       : Downloads and installs listed plugins [*]");
+        System.out.println("    -user, --username [username]      : Set the http basic authentication username");
+        System.out.println("    -pass, --password [password]      : Set the http basic authentication password");
         System.out.println("    -t, --timeout [duration]          : Timeout setting: 30s, 1m, 1h... (infinite by default)");
         System.out.println("    -r, --remove  [plugin name]       : Removes listed plugins");
         System.out.println("    -l, --list                        : List installed plugins");

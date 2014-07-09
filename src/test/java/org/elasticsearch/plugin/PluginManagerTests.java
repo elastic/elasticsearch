@@ -19,6 +19,7 @@
 package org.elasticsearch.plugin;
 
 import com.google.common.base.Predicate;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
@@ -90,6 +91,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    @LuceneTestCase.AwaitsFix(bugUrl = "@uboness works on this")
     public void testLocalPluginInstallWithBinAndConfig() throws Exception {
         String pluginName = "plugin-test";
         Tuple<Settings, Environment> initialSettings = InternalSettingsPreparer.prepareSettings(

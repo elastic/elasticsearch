@@ -22,6 +22,7 @@ package org.elasticsearch.options.jsonp;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.helper.HttpClient;
 import org.elasticsearch.rest.helper.HttpClientResponse;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -39,8 +40,13 @@ public class JsonpOptionDisabledTest extends ElasticsearchIntegrationTest {
     // Build our cluster settings
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
+        // false is the default!
+        if (randomBoolean()) {
+            logger.info("using default jsonp settings (should be false)");
+            return super.nodeSettings(nodeOrdinal);
+        }
         return ImmutableSettings.settingsBuilder()
-                .put("http.jsonp.enable", false)
+                .put(RestController.HTTP_JSON_ENABLE, false)
                 .put(super.nodeSettings(nodeOrdinal))
                 .build();
     }

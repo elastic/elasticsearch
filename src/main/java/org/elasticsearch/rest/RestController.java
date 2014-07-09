@@ -43,6 +43,8 @@ import static org.elasticsearch.rest.RestStatus.FORBIDDEN;
  */
 public class RestController extends AbstractLifecycleComponent<RestController> {
 
+    public static final String HTTP_JSON_ENABLE = "http.jsonp.enable";
+
     private final PathTrie<RestHandler> getHandlers = new PathTrie<>(RestUtils.REST_DECODER);
     private final PathTrie<RestHandler> postHandlers = new PathTrie<>(RestUtils.REST_DECODER);
     private final PathTrie<RestHandler> putHandlers = new PathTrie<>(RestUtils.REST_DECODER);
@@ -140,7 +142,7 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
 
     public void dispatchRequest(final RestRequest request, final RestChannel channel) {
         // If JSONP is disabled and someone sends a callback parameter we should bail out before querying
-        if (!settings.getAsBoolean("http.jsonp.enable", true) && request.hasParam("callback")){
+        if (!settings.getAsBoolean(HTTP_JSON_ENABLE, false) && request.hasParam("callback")){
             try {
                 XContentBuilder builder = channel.newBuilder();
                 builder.startObject().field("error","JSONP is disabled.").endObject().string();

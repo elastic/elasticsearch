@@ -140,7 +140,7 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
 
     public void dispatchRequest(final RestRequest request, final RestChannel channel) {
         // If JSONP is disabled and someone sends a callback parameter we should bail out before querying
-        if (!settings.getAsBoolean("http.jsonp.enable", true) && request.hasParam("callback")){
+        if (!settings.getAsBoolean("http.jsonp.enable", false) && request.hasParam("callback")){
             try {
                 XContentBuilder builder = channel.newBuilder();
                 builder.startObject().field("error","JSONP is disabled.").endObject().string();

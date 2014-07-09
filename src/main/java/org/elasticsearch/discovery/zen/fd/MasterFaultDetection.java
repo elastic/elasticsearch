@@ -154,8 +154,8 @@ public class MasterFaultDetection extends AbstractComponent {
         }
         this.masterPinger = new MasterPinger();
 
-        // we use schedule with a 0 time value to run the pinger on the pool as it will run on later
-        threadPool.schedule(TimeValue.timeValueMillis(0), ThreadPool.Names.SAME, masterPinger);
+        // we start pinging slightly later to allow the chosen master to complete it's own master election
+        threadPool.schedule(pingInterval, ThreadPool.Names.SAME, masterPinger);
     }
 
     public void stop(String reason) {

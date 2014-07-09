@@ -211,7 +211,9 @@ public class PluginManager {
             File toLocation = pluginHandle.binDir(environment);
             debug("Found bin, moving to " + toLocation.getAbsolutePath());
             FileSystemUtils.deleteRecursively(toLocation);
-            binFile.renameTo(toLocation);
+            if (!binFile.renameTo(toLocation)) {
+                throw new IOException("Could not move ["+ binFile.getAbsolutePath() + "] to [" + toLocation.getAbsolutePath() + "]");
+            }
             debug("Installed " + name + " into " + toLocation.getAbsolutePath());
         }
 
@@ -220,7 +222,9 @@ public class PluginManager {
             File toLocation = pluginHandle.configDir(environment);
             debug("Found config, moving to " + toLocation.getAbsolutePath());
             FileSystemUtils.deleteRecursively(toLocation);
-            configFile.renameTo(toLocation);
+            if (!configFile.renameTo(toLocation)) {
+                throw new IOException("Could not move ["+ configFile.getAbsolutePath() + "] to [" + configFile.getAbsolutePath() + "]");
+            }
             debug("Installed " + name + " into " + toLocation.getAbsolutePath());
         }
 

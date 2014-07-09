@@ -132,7 +132,7 @@ public class HasParentFilterParser implements FilterParser {
         Set<String> parentTypes = new HashSet<>(5);
         parentTypes.add(parentType);
         ParentChildIndexFieldData parentChildIndexFieldData = null;
-        for (DocumentMapper documentMapper : parseContext.mapperService()) {
+        for (DocumentMapper documentMapper : parseContext.mapperService().docMappers(false)) {
             ParentFieldMapper parentFieldMapper = documentMapper.parentFieldMapper();
             if (parentFieldMapper.active()) {
                 DocumentMapper parentTypeDocumentMapper = parseContext.mapperService().documentMapper(parentFieldMapper.type());

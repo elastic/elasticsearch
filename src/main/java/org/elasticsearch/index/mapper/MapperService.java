@@ -21,9 +21,9 @@ package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.hppc.ObjectOpenHashSet;
 import com.google.common.base.Charsets;
+import com.google.common.base.Predicate;
 import com.google.common.collect.*;
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.AnalyzerWrapper;
 import org.apache.lucene.analysis.SimpleAnalyzerWrapper;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.FilterClause;
@@ -75,7 +75,7 @@ import static org.elasticsearch.index.mapper.DocumentMapper.MergeFlags.mergeFlag
 /**
  *
  */
-public class MapperService extends AbstractIndexComponent implements Iterable<DocumentMapper> {
+public class MapperService extends AbstractIndexComponent  {
 
     public static final String DEFAULT_MAPPING = "_default_";
     private static ObjectOpenHashSet<String> META_FIELDS = ObjectOpenHashSet.from(
@@ -226,9 +226,24 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
         return this.hasNested;
     }
 
-    @Override
-    public UnmodifiableIterator<DocumentMapper> iterator() {
-        return Iterators.unmodifiableIterator(mappers.values().iterator());
+    public Iterable<DocumentMapper> docMappers(final boolean includingDefaultMapping) {
+        return  new Iterable<DocumentMapper>() {
+            @Override
+            public Iterator<DocumentMapper> iterator() {
+                Iterator iter;
+                if (includingDefaultMapping) {
+                    iter = mappers.values().iterator();
+                } else {
+                    iter = Iterators.filter(mappers.values().iterator(), new Predicate<DocumentMapper>() {
+                        @Override
+                        public boolean apply(DocumentMapper input) {
+                            return !DEFAULT_MAPPING.equals(input.type());
+                        }
+                    });
+                }
+                return Iterators.unmodifiableIterator(iter);
+            }
+        };
     }
 
     public AnalysisService analysisService() {

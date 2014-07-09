@@ -20,17 +20,17 @@
 package org.elasticsearch.search.rescore;
 
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.ComplexExplanation;
-import org.apache.lucene.search.Explanation;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.*;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.Set;
 
 public final class QueryRescorer implements Rescorer {
@@ -109,17 +109,62 @@ public final class QueryRescorer implements Rescorer {
         if (topDocs == null || topDocs.totalHits == 0 || topDocs.scoreDocs.length == 0) {
             return topDocs;
         }
-        return newRescorer((QueryRescoreContext) rescoreContext).rescore(context.searcher(), topDocs, rescoreContext.window());
+        org.apache.lucene.search.Rescorer rescorer = newRescorer((QueryRescoreContext) rescoreContext);
+        if (rescoreContext.window() < topDocs.scoreDocs.length) {
+            ScoreDoc[] subset = new ScoreDoc[rescoreContext.window()];
+            System.arraycopy(topDocs.scoreDocs, 0, subset, 0, rescoreContext.window());
+            final TopDocs rescore = rescorer.rescore(context.searcher(), new TopDocs(topDocs.totalHits, subset, topDocs.getMaxScore()), rescoreContext.window());
+            return combine(topDocs, rescore, (QueryRescoreContext) rescoreContext);
+        }
+        return rescorer.rescore(context.searcher(), topDocs, Math.max(topDocs.scoreDocs.length, rescoreContext.window()));
     }
+
+    // THIS RETRUNS BOGUS explains
+//    @Override
+//    public Explanation explain(int topLevelDocId, SearchContext context, RescoreSearchContext rescoreContext,
+//            Explanation sourceExplanation) throws IOException {
+//        if (sourceExplanation == null) {
+//            // this should not happen but just in case
+//            return new ComplexExplanation(false, 0.0f, "nothing matched");
+//        }
+//        return newRescorer((QueryRescoreContext) rescoreContext).explain(context.searcher(), sourceExplanation, topLevelDocId);
+//    }
+
 
     @Override
     public Explanation explain(int topLevelDocId, SearchContext context, RescoreSearchContext rescoreContext,
-            Explanation sourceExplanation) throws IOException {
+                               Explanation sourceExplanation) throws IOException {
+        QueryRescoreContext rescore = ((QueryRescoreContext) rescoreContext);
+        ContextIndexSearcher searcher = context.searcher();
         if (sourceExplanation == null) {
             // this should not happen but just in case
             return new ComplexExplanation(false, 0.0f, "nothing matched");
         }
-        return newRescorer((QueryRescoreContext) rescoreContext).explain(context.searcher(), sourceExplanation, topLevelDocId);
+        Explanation rescoreExplain = searcher.explain(rescore.query(), topLevelDocId);
+        float primaryWeight = rescore.queryWeight();
+        ComplexExplanation prim = new ComplexExplanation(sourceExplanation.isMatch(),
+                sourceExplanation.getValue() * primaryWeight,
+                "product of:");
+        prim.addDetail(sourceExplanation);
+        prim.addDetail(new Explanation(primaryWeight, "primaryWeight"));
+        if (rescoreExplain != null && rescoreExplain.isMatch()) {
+            float secondaryWeight = rescore.rescoreQueryWeight();
+            ComplexExplanation sec = new ComplexExplanation(rescoreExplain.isMatch(),
+                    rescoreExplain.getValue() * secondaryWeight,
+                    "product of:");
+            sec.addDetail(rescoreExplain);
+            sec.addDetail(new Explanation(secondaryWeight, "secondaryWeight"));
+            ScoreMode scoreMode = rescore.scoreMode();
+            ComplexExplanation calcExpl = new ComplexExplanation();
+            calcExpl.setDescription(scoreMode + " of:");
+            calcExpl.addDetail(prim);
+            calcExpl.setMatch(prim.isMatch());
+            calcExpl.addDetail(sec);
+            calcExpl.setValue(scoreMode.combine(prim.getValue(), sec.getValue()));
+            return calcExpl;
+        } else {
+            return prim;
+        }
     }
 
     private org.apache.lucene.search.Rescorer newRescorer(final QueryRescoreContext ctx) {
@@ -174,6 +219,38 @@ public final class QueryRescorer implements Rescorer {
         }
         return rescoreContext;
     }
+    private final static Comparator<ScoreDoc> DOC_ID_COMPARATOR = new Comparator<ScoreDoc>() {
+        @Override
+        public int compare(ScoreDoc o1, ScoreDoc o2) {
+            return Integer.compare(o1.doc, o2.doc);
+        }
+    };
+
+    private final static Comparator<ScoreDoc> SCORE_DOC_COMPARATOR = new Comparator<ScoreDoc>() {
+        @Override
+        public int compare(ScoreDoc o1, ScoreDoc o2) {
+            int cmp = Float.compare(o2.score, o1.score);
+            return cmp == 0 ?  Integer.compare(o1.doc, o2.doc) : cmp;
+        }
+    };
+
+    private TopDocs combine(TopDocs primary, TopDocs secondary, QueryRescoreContext context) {
+        ScoreDoc[] secondaryDocs = secondary.scoreDocs;
+        ScoreDoc[] primaryDocs = primary.scoreDocs;
+        Arrays.sort(primary.scoreDocs, DOC_ID_COMPARATOR);
+        Arrays.sort(secondary.scoreDocs, DOC_ID_COMPARATOR);
+        int j = 0;
+        for (int i = 0; i < primaryDocs.length; i++) {
+            if (j < secondaryDocs.length && primaryDocs[i].doc == secondaryDocs[j].doc) {
+                primaryDocs[i].score =  secondaryDocs[j++].score;
+            }
+        }
+        Arrays.sort(primaryDocs, SCORE_DOC_COMPARATOR);
+        primary.setMaxScore(primaryDocs[0].score);
+        return primary;
+    }
+
+
 
     public static class QueryRescoreContext extends RescoreSearchContext {
 

@@ -20,6 +20,7 @@
 package org.elasticsearch.search.rescore;
 
 import com.google.common.collect.ImmutableMap;
+import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -58,6 +59,11 @@ public class RescorePhase extends AbstractComponent implements SearchPhase {
             TopDocs topDocs = context.queryResult().topDocs();
             for (RescoreSearchContext ctx : context.rescore()) {
                topDocs = ctx.rescorer().rescore(topDocs, context, ctx);
+            }
+            if (context.size() < topDocs.scoreDocs.length) {
+                ScoreDoc[] hits = new ScoreDoc[context.size()];
+                System.arraycopy(topDocs.scoreDocs, 0, hits, 0, hits.length);
+                topDocs = new TopDocs(topDocs.totalHits, hits, topDocs.getMaxScore());
             }
             context.queryResult().topDocs(topDocs);
         } catch (IOException e) {

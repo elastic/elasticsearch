@@ -33,7 +33,7 @@ Here is a sample mapping:
                 "type" : "object",
                 "dynamic" : false,
                 "properties" : {
-                    "first" : {"type" : "string", "store" : true , "include_in_all" : false},
+                    "first" : {"type" : "string", include_in_all" : false},
                     "last" : {"type" : "string", "index" : "not_analyzed"}
                 }
             },
@@ -43,7 +43,7 @@ Here is a sample mapping:
                 "properties" : {
                     "first" : {
                         "properties" : {
-                            "location" : {"type" : "string", "store" : true, "index_name" : "firstLocation"}
+                            "location" : {"type" : "string" }
                         }
                     },
                     "last" : {

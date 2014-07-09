@@ -45,6 +45,7 @@ import org.junit.Test;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
+import java.nio.file.Files;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
@@ -86,6 +87,33 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
 
         assertPluginLoaded(pluginName);
         assertPluginAvailable(pluginName);
+    }
+
+    @Test
+    public void testLocalPluginInstallWithBinAndConfig() throws Exception {
+        String pluginName = "plugin-test";
+        Tuple<Settings, Environment> initialSettings = InternalSettingsPreparer.prepareSettings(
+                ImmutableSettings.settingsBuilder().build(), false);
+        Environment env = initialSettings.v2();
+        File pluginBinDir = new File(new File(env.homeFile(), "bin"), pluginName);
+        File pluginConfigDir = new File(env.configFile(), pluginName);
+        try {
+
+            PluginManager pluginManager = pluginManager(getPluginUrlForResource("plugin_with_bin_and_config.zip"), initialSettings);
+
+            pluginManager.downloadAndExtract(pluginName);
+
+            File[] plugins = pluginManager.getListInstalledPlugins();
+
+            assertThat(plugins.length, is(1));
+            assertTrue(pluginBinDir.exists());
+            assertTrue(pluginConfigDir.exists());
+
+        } finally {
+            // we need to clean up the copied dirs
+            FileSystemUtils.deleteRecursively(pluginBinDir);
+            FileSystemUtils.deleteRecursively(pluginConfigDir);
+        }
     }
 
     @Test
@@ -131,13 +159,17 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
         downloadAndExtract(pluginName, getPluginUrlForResource("plugin_with_sourcefiles.zip"));
     }
 
+    private static PluginManager pluginManager(String pluginUrl) {
+        Tuple<Settings, Environment> initialSettings = InternalSettingsPreparer.prepareSettings(
+                ImmutableSettings.settingsBuilder().build(), false);
+        return pluginManager(pluginUrl, initialSettings);
+    }
+
     /**
      * We build a plugin manager instance which wait only for 30 seconds before
      * raising an ElasticsearchTimeoutException
      */
-    private static PluginManager pluginManager(String pluginUrl) {
-        Tuple<Settings, Environment> initialSettings = InternalSettingsPreparer.prepareSettings(
-                ImmutableSettings.settingsBuilder().build(), false);
+    private static PluginManager pluginManager(String pluginUrl, Tuple<Settings, Environment> initialSettings) {
         if (!initialSettings.v2().pluginsFile().exists()) {
             FileSystemUtils.mkdirs(initialSettings.v2().pluginsFile());
         }

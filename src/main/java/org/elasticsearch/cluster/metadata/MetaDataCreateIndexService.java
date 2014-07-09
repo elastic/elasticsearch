@@ -372,7 +372,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
                     // now, update the mappings with the actual source
                     Map<String, MappingMetaData> mappingsMetaData = Maps.newHashMap();
-                    for (DocumentMapper mapper : mapperService) {
+                    for (DocumentMapper mapper : mapperService.docMappers(true)) {
                         MappingMetaData mappingMd = new MappingMetaData(mapper);
                         mappingsMetaData.put(mapper.type(), mappingMd);
                     }

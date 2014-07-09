@@ -226,25 +226,33 @@ public class MapperService extends AbstractIndexComponent  {
         return this.hasNested;
     }
 
+    /**
+     * returns an immutable iterator over current document mappers.
+     *
+     * @param includingDefaultMapping indicates whether the iterator should contain the {@link #DEFAULT_MAPPING} document mapper.
+     *                                As is this not really an active type, you would typically set this to false
+     */
     public Iterable<DocumentMapper> docMappers(final boolean includingDefaultMapping) {
         return  new Iterable<DocumentMapper>() {
             @Override
             public Iterator<DocumentMapper> iterator() {
-                Iterator iter;
+                final Iterator<DocumentMapper> iterator;
                 if (includingDefaultMapping) {
-                    iter = mappers.values().iterator();
+                    iterator = mappers.values().iterator();
                 } else {
-                    iter = Iterators.filter(mappers.values().iterator(), new Predicate<DocumentMapper>() {
-                        @Override
-                        public boolean apply(DocumentMapper input) {
-                            return !DEFAULT_MAPPING.equals(input.type());
-                        }
-                    });
+                    iterator = Iterators.filter(mappers.values().iterator(), NOT_A_DEFAULT_DOC_MAPPER);
                 }
-                return Iterators.unmodifiableIterator(iter);
+                return Iterators.unmodifiableIterator(iterator);
             }
         };
     }
+
+    private static final Predicate<DocumentMapper> NOT_A_DEFAULT_DOC_MAPPER = new Predicate<DocumentMapper>() {
+        @Override
+        public boolean apply(DocumentMapper input) {
+            return !DEFAULT_MAPPING.equals(input.type());
+        }
+    };
 
     public AnalysisService analysisService() {
         return this.analysisService;

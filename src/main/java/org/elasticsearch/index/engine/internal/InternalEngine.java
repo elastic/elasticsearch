@@ -394,11 +394,11 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             dirty = true;
             possibleMergeNeeded = true;
             flushNeeded = true;
-            checkVersionMapRefresh(writer);
         } catch (OutOfMemoryError | IllegalStateException | IOException t) {
             maybeFailEngine(t);
             throw new CreateFailedEngineException(shardId, create, t);
         }
+        checkVersionMapRefresh();
     }
 
     private void maybeFailEngine(Throwable t) {
@@ -487,19 +487,19 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             dirty = true;
             possibleMergeNeeded = true;
             flushNeeded = true;
-            checkVersionMapRefresh(writer);
         } catch (OutOfMemoryError | IllegalStateException | IOException t) {
             maybeFailEngine(t);
             throw new IndexFailedEngineException(shardId, index, t);
         }
+        checkVersionMapRefresh();
     }
 
     /**
      * Forces a refresh if the versionMap is using too much RAM (currently > 25% of IndexWriter's RAM buffer).
      */
-    private void checkVersionMapRefresh(final IndexWriter indexWriter) {
+    private void checkVersionMapRefresh() {
         // TODO: we force refresh when versionMap is using > 25% of IW's RAM buffer; should we make this separately configurable?
-        if (versionMap.ramBytesUsedForRefresh() / 1024 / 1024. > 0.25 * indexWriter.getConfig().getRAMBufferSizeMB() && versionMapRefreshPending.getAndSet(true) == false) {
+        if (versionMap.ramBytesUsedForRefresh() > 0.25 * indexingBufferSize.bytes() && versionMapRefreshPending.getAndSet(true) == false) {
             try {
                 // Now refresh to clear versionMap:
                 threadPool.executor(ThreadPool.Names.REFRESH).execute(new Runnable() {

@@ -97,8 +97,16 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
         Tuple<Settings, Environment> initialSettings = InternalSettingsPreparer.prepareSettings(
                 ImmutableSettings.settingsBuilder().build(), false);
         Environment env = initialSettings.v2();
-        File pluginBinDir = new File(new File(env.homeFile(), "bin"), pluginName);
-        File pluginConfigDir = new File(env.configFile(), pluginName);
+        File binDir = new File(env.homeFile(), "bin");
+        if (!binDir.exists() && !FileSystemUtils.mkdirs(binDir)) {
+            throw new IOException("Could not create bin directory [" + binDir.getAbsolutePath() + "]");
+        }
+        File pluginBinDir = new File(binDir, pluginName);
+        File configDir = env.configFile();
+        if (!configDir.exists() && !FileSystemUtils.mkdirs(configDir)) {
+            throw new IOException("Could not create config directory [" + configDir.getAbsolutePath() + "]");
+        }
+        File pluginConfigDir = new File(configDir, pluginName);
         try {
 
             PluginManager pluginManager = pluginManager(getPluginUrlForResource("plugin_with_bin_and_config.zip"), initialSettings);

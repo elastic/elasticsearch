@@ -32,6 +32,7 @@ import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.TransportAddress;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -247,6 +248,11 @@ public class CompositeTestCluster extends TestCluster {
     }
 
     @Override
+    public String getClusterName() {
+        return cluster.getClusterName();
+    }
+
+    @Override
     public synchronized Iterator<Client> iterator() {
         return Iterators.singletonIterator(client());
     }
@@ -270,6 +276,14 @@ public class CompositeTestCluster extends TestCluster {
      */
     public int numBackwardsDataNodes() {
         return runningNodes().size();
+    }
+
+    public TransportAddress externalTransportAddress() {
+        return RandomPicks.randomFrom(random, externalNodes).getTransportAddress();
+    }
+
+    public InternalTestCluster internalCluster() {
+        return cluster;
     }
 
     private synchronized Client internalClient() {

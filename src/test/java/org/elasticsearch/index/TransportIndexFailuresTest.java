@@ -22,6 +22,7 @@ package org.elasticsearch.index;
 import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -112,12 +113,12 @@ public class TransportIndexFailuresTest extends ElasticsearchIntegrationTest {
         TransportService mockTransportService = internalCluster().getInstance(TransportService.class, primaryNode);
         ((MockTransportService) mockTransportService).addFailToSendNoConnectRule(
                 internalCluster().getInstance(Discovery.class, replicaNode).localNode(),
-                ImmutableSet.of("index/replica")
+                ImmutableSet.of(IndexAction.NAME + "[r]")
         );
         mockTransportService = internalCluster().getInstance(TransportService.class, replicaNode);
         ((MockTransportService) mockTransportService).addFailToSendNoConnectRule(
                 internalCluster().getInstance(Discovery.class, primaryNode).localNode(),
-                ImmutableSet.of("index/replica")
+                ImmutableSet.of(IndexAction.NAME + "[r]")
         );
 
         logger.info("--> indexing into primary");

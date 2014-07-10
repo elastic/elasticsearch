@@ -78,6 +78,8 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
  */
 public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implements Discovery, DiscoveryNodesProvider {
 
+    public static final String DISCOVERY_REJOIN_ACTION_NAME = "internal:discovery/zen/rejoin";
+
     private final ThreadPool threadPool;
     private final TransportService transportService;
     private final ClusterService clusterService;
@@ -156,7 +158,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         this.pingService.setNodesProvider(this);
         this.membership = new MembershipAction(settings, clusterService, transportService, this, new MembershipListener());
 
-        transportService.registerHandler(RejoinClusterRequestHandler.ACTION, new RejoinClusterRequestHandler());
+        transportService.registerHandler(DISCOVERY_REJOIN_ACTION_NAME, new RejoinClusterRequestHandler());
     }
 
     @Override
@@ -570,7 +572,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                             // since the network connections are asymmetric, it may be that we received a state but have disconnected from the node
                             // in the past (after a master failure, for example)
                             transportService.connectToNode(newState.nodes().masterNode());
-                            transportService.sendRequest(newState.nodes().masterNode(), RejoinClusterRequestHandler.ACTION, new RejoinClusterRequest(currentState.nodes().localNodeId()), new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
+                            transportService.sendRequest(newState.nodes().masterNode(), DISCOVERY_REJOIN_ACTION_NAME, new RejoinClusterRequest(currentState.nodes().localNodeId()), new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
                                 @Override
                                 public void handleException(TransportException exp) {
                                     logger.warn("failed to send rejoin request to [{}]", exp, newState.nodes().masterNode());
@@ -945,8 +947,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     }
 
     class RejoinClusterRequestHandler extends BaseTransportRequestHandler<RejoinClusterRequest> {
-
-        static final String ACTION = "discovery/zen/rejoin";
 
         @Override
         public RejoinClusterRequest newInstance() {

@@ -397,7 +397,7 @@ public class TransportClientNodesService extends AbstractComponent {
                             if (!transportService.nodeConnected(listedNode)) {
                                 try {
 
-                                    // if its one of hte actual nodes we will talk to, not to listed nodes, fully connect
+                                    // if its one of the actual nodes we will talk to, not to listed nodes, fully connect
                                     if (nodes.contains(listedNode)) {
                                         logger.trace("connecting to cluster node [{}]", listedNode);
                                         transportService.connectToNode(listedNode);

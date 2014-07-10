@@ -51,7 +51,7 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
  */
 public class TransportNodesSnapshotsStatus extends TransportNodesOperationAction<TransportNodesSnapshotsStatus.Request, TransportNodesSnapshotsStatus.NodesSnapshotStatus, TransportNodesSnapshotsStatus.NodeRequest, TransportNodesSnapshotsStatus.NodeSnapshotStatus> {
 
-    private static final String ACTION_NAME = "cluster/snapshot/status/nodes";
+    public static final String ACTION_NAME = SnapshotsStatusAction.NAME + "[nodes]";
 
     private final SnapshotsService snapshotsService;
 

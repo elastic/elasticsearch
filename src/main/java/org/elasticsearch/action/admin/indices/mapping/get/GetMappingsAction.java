@@ -27,7 +27,7 @@ import org.elasticsearch.client.IndicesAdminClient;
 public class GetMappingsAction extends IndicesAction<GetMappingsRequest, GetMappingsResponse, GetMappingsRequestBuilder> {
 
     public static final GetMappingsAction INSTANCE = new GetMappingsAction();
-    public static final String NAME = "mappings/get";
+    public static final String NAME = "indices:admin/mappings/get";
 
     private GetMappingsAction() {
         super(NAME);

@@ -43,7 +43,7 @@ import org.elasticsearch.transport.TransportService;
 
 public class TransportShardMultiGetAction extends TransportShardSingleOperationAction<MultiGetShardRequest, MultiGetShardResponse> {
 
-    private static final String ACTION_NAME = MultiGetAction.NAME + "/shard";
+    private static final String ACTION_NAME = MultiGetAction.NAME + "[shard]";
 
     private final IndicesService indicesService;
 

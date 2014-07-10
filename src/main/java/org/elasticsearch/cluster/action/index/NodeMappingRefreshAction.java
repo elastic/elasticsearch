@@ -41,6 +41,8 @@ import java.io.IOException;
  */
 public class NodeMappingRefreshAction extends AbstractComponent {
 
+    public static final String ACTION_NAME = "internal:cluster/node/mapping/refresh";
+
     private final TransportService transportService;
     private final MetaDataMappingService metaDataMappingService;
 
@@ -49,7 +51,7 @@ public class NodeMappingRefreshAction extends AbstractComponent {
         super(settings);
         this.transportService = transportService;
         this.metaDataMappingService = metaDataMappingService;
-        transportService.registerHandler(NodeMappingRefreshTransportHandler.ACTION, new NodeMappingRefreshTransportHandler());
+        transportService.registerHandler(ACTION_NAME, new NodeMappingRefreshTransportHandler());
     }
 
     public void nodeMappingRefresh(final ClusterState state, final NodeMappingRefreshRequest request) throws ElasticsearchException {
@@ -58,7 +60,7 @@ public class NodeMappingRefreshAction extends AbstractComponent {
             innerMappingRefresh(request);
         } else {
             transportService.sendRequest(state.nodes().masterNode(),
-                    NodeMappingRefreshTransportHandler.ACTION, request, EmptyTransportResponseHandler.INSTANCE_SAME);
+                    ACTION_NAME, request, EmptyTransportResponseHandler.INSTANCE_SAME);
         }
     }
 
@@ -67,8 +69,6 @@ public class NodeMappingRefreshAction extends AbstractComponent {
     }
 
     private class NodeMappingRefreshTransportHandler extends BaseTransportRequestHandler<NodeMappingRefreshRequest> {
-
-        static final String ACTION = "cluster/nodeMappingRefresh";
 
         @Override
         public NodeMappingRefreshRequest newInstance() {

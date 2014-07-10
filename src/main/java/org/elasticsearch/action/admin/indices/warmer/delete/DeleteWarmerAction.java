@@ -27,7 +27,7 @@ import org.elasticsearch.client.IndicesAdminClient;
 public class DeleteWarmerAction extends IndicesAction<DeleteWarmerRequest, DeleteWarmerResponse, DeleteWarmerRequestBuilder> {
 
     public static final DeleteWarmerAction INSTANCE = new DeleteWarmerAction();
-    public static final String NAME = "indices/warmer/delete";
+    public static final String NAME = "indices:admin/warmers/delete";
 
     private DeleteWarmerAction() {
         super(NAME);

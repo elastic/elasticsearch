@@ -20,6 +20,7 @@
 package org.elasticsearch.action.indexedscripts.put;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.Client;
@@ -60,21 +61,12 @@ public class TransportPutIndexedScriptAction extends TransportAction<PutIndexedS
 
     @Override
     protected void doExecute(final PutIndexedScriptRequest request, final ActionListener<PutIndexedScriptResponse> listener) {
-        try {
-            scriptService.putScriptToIndex(client, request.safeSource(), request.scriptLang(), request.id(), null, request.opType().toString(), request.version(), request.versionType(), new ActionListener<IndexResponse>() {
-                @Override
-                public void onResponse(IndexResponse indexResponse) {
-                    listener.onResponse(new PutIndexedScriptResponse(indexResponse.getType(),indexResponse.getId(),indexResponse.getVersion(),indexResponse.isCreated()));
-                }
-
-                @Override
-                public void onFailure(Throwable e) {
-                    listener.onFailure(e);
-                }
-            });
-        } catch (IOException ioe) {
-            listener.onFailure(ioe);
-        }
+        scriptService.putScriptToIndex(client, request.safeSource(), request.scriptLang(), request.id(), null, request.opType().toString(), request.version(), request.versionType(), new DelegatingActionListener<IndexResponse,PutIndexedScriptResponse>(listener) {
+            @Override
+                public PutIndexedScriptResponse getDelegatedFromInstigator(IndexResponse indexResponse){
+                return new PutIndexedScriptResponse(indexResponse.getType(),indexResponse.getId(),indexResponse.getVersion(),indexResponse.isCreated());
+            }
+        });
     }
 
     class TransportHandler extends BaseTransportRequestHandler<PutIndexedScriptRequest> {

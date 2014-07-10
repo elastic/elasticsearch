@@ -22,6 +22,8 @@ package org.elasticsearch.action.indexedscripts.delete;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
@@ -51,9 +53,7 @@ import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.BaseTransportRequestHandler;
-import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.*;
 
 /**
  * Performs the delete operation.
@@ -69,26 +69,31 @@ public class TransportDeleteIndexedScriptAction extends TransportAction<DeleteIn
         super(settings, threadPool);
         this.scriptService = scriptService;
         this.client = client;
-        transportService.registerHandler(DeleteIndexedScriptAction.NAME, new TransportHandler());
-    }
 
+        transportService.registerHandler(DeleteIndexedScriptAction.NAME, new TransportHandler(DeleteIndexedScriptAction.NAME) {
+            @Override
+            public DeleteIndexedScriptRequest newInstance() {
+                return new DeleteIndexedScriptRequest();
+            }
+        });
+    }
 
     @Override
     protected void doExecute(final DeleteIndexedScriptRequest request, final ActionListener<DeleteIndexedScriptResponse> listener) {
-        scriptService.deleteScriptFromIndex(client, request.scriptLang(), request.id(), request.version(), new ActionListener<DeleteResponse>() {
+        scriptService.deleteScriptFromIndex(client, request.scriptLang(), request.id(), request.version(), new DelegatingActionListener<DeleteResponse, DeleteIndexedScriptResponse>(listener) {
             @Override
-            public void onResponse(DeleteResponse deleteResponse) {
-                listener.onResponse(new DeleteIndexedScriptResponse(deleteResponse.getIndex(),deleteResponse.getType(),deleteResponse.getType(),deleteResponse.getVersion(), deleteResponse.isFound()));
-            }
-
-            @Override
-            public void onFailure(Throwable e) {
-                listener.onFailure(e);
+            public DeleteIndexedScriptResponse getDelegatedFromInstigator(DeleteResponse deleteResponse){
+                return new DeleteIndexedScriptResponse(deleteResponse.getIndex(),deleteResponse.getType(),deleteResponse.getType(),deleteResponse.getVersion(), deleteResponse.isFound());
             }
         });
     }
 
     class TransportHandler extends BaseTransportRequestHandler<DeleteIndexedScriptRequest> {
+
+        String actionName;
+        TransportHandler(String actionName){
+            this.actionName = actionName;
+        }
 
         @Override
         public DeleteIndexedScriptRequest newInstance() {
@@ -115,7 +120,7 @@ public class TransportDeleteIndexedScriptAction extends TransportAction<DeleteIn
                         channel.sendResponse(e);
                     } catch (Exception e1) {
                         logger.warn("Failed to send error response for action [{}] and request [{}]",
-                                DeleteIndexedScriptAction.NAME, request, e1);
+                                actionName, request, e1);
                     }
                 }
             });
@@ -126,4 +131,5 @@ public class TransportDeleteIndexedScriptAction extends TransportAction<DeleteIn
             return ThreadPool.Names.SAME;
         }
     }
+
 }

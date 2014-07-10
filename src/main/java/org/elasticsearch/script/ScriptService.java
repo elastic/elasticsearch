@@ -23,26 +23,20 @@ import com.google.common.base.Charsets;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.collect.ImmutableMap;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 
 import org.elasticsearch.ElasticsearchIllegalStateException;
-import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.indexedscripts.delete.DeleteIndexedScriptResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.MetaDataIndexTemplateService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -60,7 +54,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
-import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.TemplateQueryParser;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -88,7 +81,9 @@ public class ScriptService extends AbstractComponent {
     public static final String DISABLE_DYNAMIC_SCRIPTING_DEFAULT = "sandbox";
     public static final String SCRIPT_INDEX = ".scripts";
 
-    private final String defaultLang;
+    //Make static so that it has visibility in IndexedScript
+    //Looked up from settings in ctor
+    private static String defaultLang = "groovy";
 
     private final ImmutableMap<String, ScriptEngineService> scriptEngines;
 
@@ -179,14 +174,24 @@ public class ScriptService extends AbstractComponent {
 
         public static void writeTo(ScriptType scriptType, StreamOutput out) throws IOException{
             if (scriptType != null) {
-                out.writeVInt(scriptType.ordinal());
+                switch (scriptType){
+                    case INDEXED:
+                        out.writeVInt(INDEXED_VAL);
+                        return;
+                    case INLINE:
+                        out.writeVInt(INLINE_VAL);
+                        return;
+                    case FILE:
+                        out.writeVInt(FILE_VAL);
+                        return;
+                }
             } else {
-                out.writeVInt(INLINE.ordinal()); //Default to inline
+                out.writeVInt(INLINE_VAL); //Default to inline
             }
         }
     }
 
-    class IndexedScript {
+    static class IndexedScript {
         String lang;
         String id;
 
@@ -246,7 +251,9 @@ public class ScriptService extends AbstractComponent {
 
         // add file watcher for static scripts
         scriptsDirectory = new File(env.configFile(), "scripts");
-        logger.debug("ScriptsDir : " + scriptsDirectory.toString());
+        if (logger.isTraceEnabled()) {
+            logger.trace("Using scripts directory [{}] ", scriptsDirectory);
+        }
         FileWatcher fileWatcher = new FileWatcher(scriptsDirectory);
         fileWatcher.addListener(new ScriptChangesListener());
 
@@ -259,6 +266,7 @@ public class ScriptService extends AbstractComponent {
         }
     }
 
+    //This isn't set in the ctor because doing so creates a guice circular
     @Inject(optional=true)
     public void setClient(Client client) {
         this.client = client;
@@ -431,30 +439,33 @@ public class ScriptService extends AbstractComponent {
 
     public void putScriptToIndex(Client client, BytesReference scriptBytes, @Nullable String scriptLang, String id,
                                  @Nullable TimeValue timeout, @Nullable String sOpType, long version,
-                                 VersionType versionType, ActionListener<IndexResponse> listener)
-            throws ElasticsearchIllegalArgumentException, IOException {
-        scriptLang = validateScriptLanguage(scriptLang);
+                                 VersionType versionType, ActionListener<IndexResponse> listener) {
+        try {
+            scriptLang = validateScriptLanguage(scriptLang);
 
-        //verify that the script compiles
-        validate(scriptBytes, scriptLang);
+            //verify that the script compiles
+            validate(scriptBytes, scriptLang);
 
-        IndexRequest indexRequest = new IndexRequest(SCRIPT_INDEX, scriptLang, id);
-        indexRequest.listenerThreaded(false);
-        indexRequest.operationThreaded(false);
-        indexRequest.version(version);
-        indexRequest.versionType(versionType);
-        indexRequest.refresh(true); //Always refresh after indexing a template
+            IndexRequest indexRequest = new IndexRequest(SCRIPT_INDEX, scriptLang, id);
+            indexRequest.listenerThreaded(false);
+            indexRequest.operationThreaded(false);
+            indexRequest.version(version);
+            indexRequest.versionType(versionType);
+            indexRequest.refresh(true); //Always refresh after indexing a template
 
-        indexRequest.source(scriptBytes, true);
-        if (timeout != null){
-            indexRequest.timeout(timeout);
+            indexRequest.source(scriptBytes, true);
+            if (timeout != null) {
+                indexRequest.timeout(timeout);
+            }
+
+            if (sOpType != null) {
+                indexRequest.opType(IndexRequest.OpType.fromString(sOpType));
+            }
+
+            client.index(indexRequest, listener);
+        } catch (Throwable t){
+            listener.onFailure(t);
         }
-
-        if (sOpType != null) {
-            indexRequest.opType(IndexRequest.OpType.fromString(sOpType));
-        }
-
-        client.index(indexRequest, listener);
     }
 
     public void deleteScriptFromIndex(Client client, @Nullable String scriptLang, String id,
@@ -465,7 +476,6 @@ public class ScriptService extends AbstractComponent {
 
     public static String getScriptFromResponse(GetResponse responseFields) {
         Map<String, Object> source = responseFields.getSourceAsMap();
-
         if (source.containsKey("template")) {
             try {
                 XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -476,7 +486,7 @@ public class ScriptService extends AbstractComponent {
                 } else {
                     return template.toString();
                 }
-            } catch (IOException |ClassCastException e) {
+            } catch (IOException | ClassCastException e) {
                 throw new ElasticsearchIllegalStateException("Unable to parse "  + responseFields.getSourceAsString() + " as json", e);
             }
         } else  if (source.containsKey("script")) {
@@ -553,7 +563,9 @@ public class ScriptService extends AbstractComponent {
 
         @Override
         public void onFileInit(File file) {
-            logger.trace("Loading script file : [{}]", file.toString());
+            if (logger.isTraceEnabled()) {
+                logger.trace("Loading script file : [{}]", file);
+            }
             Tuple<String, String> scriptNameExt = scriptNameExt(file);
             if (scriptNameExt != null) {
                 boolean found = false;
@@ -605,8 +617,7 @@ public class ScriptService extends AbstractComponent {
         public final String script;
 
         private CacheKey(){
-            this.lang = null;
-            this.script = null;
+            throw new ElasticsearchIllegalStateException("CacheKey default constructor should never be called.");
         }
 
         public CacheKey(String lang, String script) {

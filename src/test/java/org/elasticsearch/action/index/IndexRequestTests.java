@@ -18,8 +18,10 @@
  */
 package org.elasticsearch.action.index;
 
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
   */
@@ -32,17 +34,15 @@ public class IndexRequestTests extends ElasticsearchTestCase {
         String createUpper = "CREATE";
         String indexUpper = "INDEX";
 
-        String foobar = "foobar";
-        assertTrue(IndexRequest.OpType.fromString(create)==IndexRequest.OpType.CREATE);
-        assertTrue(IndexRequest.OpType.fromString(index)==IndexRequest.OpType.INDEX);
-        assertTrue(IndexRequest.OpType.fromString(createUpper)==IndexRequest.OpType.CREATE);
-        assertTrue(IndexRequest.OpType.fromString(indexUpper)==IndexRequest.OpType.INDEX);
+        assertThat(IndexRequest.OpType.fromString(create), equalTo(IndexRequest.OpType.CREATE));
+        assertThat(IndexRequest.OpType.fromString(index), equalTo(IndexRequest.OpType.INDEX));
+        assertThat(IndexRequest.OpType.fromString(createUpper), equalTo(IndexRequest.OpType.CREATE));
+        assertThat(IndexRequest.OpType.fromString(indexUpper), equalTo(IndexRequest.OpType.INDEX));
+    }
 
-        try {
-            IndexRequest.OpType.fromString(foobar);
-            assertTrue(false); //The above should throw an exception
-        } catch (Exception e){
-            //All is well
-        }
+    @Test(expected= ElasticsearchIllegalArgumentException.class)
+    public void testReadBogusString(){
+        String foobar = "foobar";
+        IndexRequest.OpType.fromString(foobar);
     }
 }

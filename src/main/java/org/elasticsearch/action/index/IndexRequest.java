@@ -112,12 +112,11 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
         }
 
         public static OpType fromString(String sOpType) throws ElasticsearchIllegalArgumentException {
-            switch(sOpType){
+            String lowersOpType = sOpType.toLowerCase(Locale.ROOT);
+            switch(lowersOpType){
                 case "create":
-                case "CREATE":
                     return OpType.CREATE;
                 case "index":
-                case "INDEX":
                     return OpType.INDEX;
                 default:
                     throw new ElasticsearchIllegalArgumentException("opType [" + sOpType + "] not allowed, either [index] or [create] are allowed");

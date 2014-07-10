@@ -93,7 +93,13 @@ public abstract class ElasticsearchBackwardsCompatIntegrationTest extends Elasti
 
     protected TestCluster buildTestCluster(Scope scope) throws IOException {
         TestCluster cluster = super.buildTestCluster(scope);
-        return new CompositeTestCluster((InternalTestCluster) cluster, between(minExternalNodes(), maxExternalNodes()), new ExternalNode(backwardsCompatibilityPath(), randomLong()));
+        ExternalNode externalNode = new ExternalNode(backwardsCompatibilityPath(), randomLong(), new NodeSettingsSource() {
+            @Override
+            public Settings settings(int nodeOrdinal) {
+                return externalNodeSettings(nodeOrdinal);
+            }
+        });
+        return new CompositeTestCluster((InternalTestCluster) cluster, between(minExternalNodes(), maxExternalNodes()), externalNode);
     }
 
     protected int minExternalNodes() {
@@ -124,5 +130,9 @@ public abstract class ElasticsearchBackwardsCompatIntegrationTest extends Elasti
                 .put("discovery.type", "zen") // zen is needed since we start external nodes
                 .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, TransportService.class.getName())
                 .build();
+    }
+
+    protected Settings externalNodeSettings(int nodeOrdinal) {
+        return ImmutableSettings.EMPTY;
     }
 }

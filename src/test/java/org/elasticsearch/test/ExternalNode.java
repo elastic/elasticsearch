@@ -25,6 +25,7 @@ import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 
@@ -45,27 +46,29 @@ final class ExternalNode implements Closeable {
 
     private final File path;
     private final Random random;
+    private final NodeSettingsSource nodeSettingsSource;
     private Process process;
     private NodeInfo nodeInfo;
     private final String clusterName;
     private TransportClient client;
 
-    ExternalNode(File path, long seed) {
-        this(path, null, seed);
+    ExternalNode(File path, long seed, NodeSettingsSource nodeSettingsSource) {
+        this(path, null, seed, nodeSettingsSource);
     }
 
-    ExternalNode(File path, String clusterName, long seed) {
+    ExternalNode(File path, String clusterName, long seed, NodeSettingsSource nodeSettingsSource) {
         if (!path.isDirectory()) {
             throw new IllegalArgumentException("path must be a directory");
         }
         this.path = path;
         this.clusterName = clusterName;
         this.random = new Random(seed);
+        this.nodeSettingsSource = nodeSettingsSource;
     }
 
-
-    synchronized ExternalNode start(Client localNode, Settings settings, String nodeName, String clusterName) throws IOException, InterruptedException {
-        ExternalNode externalNode = new ExternalNode(path, clusterName, random.nextLong());
+    synchronized ExternalNode start(Client localNode, Settings defaultSettings, String nodeName, String clusterName, int nodeOrdinal) throws IOException, InterruptedException {
+        ExternalNode externalNode = new ExternalNode(path, clusterName, random.nextLong(), nodeSettingsSource);
+        Settings settings = ImmutableSettings.builder().put(nodeSettingsSource.settings(nodeOrdinal)).put(defaultSettings).build();
         externalNode.startInternal(localNode, settings, nodeName, clusterName);
         return externalNode;
     }

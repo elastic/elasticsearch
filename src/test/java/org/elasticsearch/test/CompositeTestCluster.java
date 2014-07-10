@@ -67,7 +67,7 @@ public class CompositeTestCluster extends TestCluster {
         for (int i = 0; i < externalNodes.length; i++) {
             if (!externalNodes[i].running()) {
                 try {
-                    externalNodes[i] = externalNodes[i].start(client, defaultSettings, NODE_PREFIX + i, cluster.getClusterName());
+                    externalNodes[i] = externalNodes[i].start(client, defaultSettings, NODE_PREFIX + i, cluster.getClusterName(), i);
                 } catch (InterruptedException e) {
                     Thread.interrupted();
                     return;

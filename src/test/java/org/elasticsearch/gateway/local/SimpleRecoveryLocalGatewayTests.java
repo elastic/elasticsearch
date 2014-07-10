@@ -61,7 +61,7 @@ public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTes
 
     @Test
     @Slow
-    public void testX() throws Exception {
+    public void testOneNodeRecoverFromGateway() throws Exception {
 
         internalCluster().startNode(settingsBuilder().build());
 
@@ -69,6 +69,7 @@ public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTes
                 .startObject("properties").startObject("appAccountIds").field("type", "string").endObject().endObject()
                 .endObject().endObject().string();
         assertAcked(prepareCreate("test").addMapping("type1", mapping));
+
 
         client().prepareIndex("test", "type1", "10990239").setSource(jsonBuilder().startObject()
                 .field("_id", "10990239")
@@ -88,6 +89,8 @@ public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTes
 
         refresh();
         assertHitCount(client().prepareCount().setQuery(termQuery("appAccountIds", 179)).execute().actionGet(), 2);
+        ensureYellow("test"); // wait for primary allocations here otherwise if we have a lot of shards we might have a
+        // shard that is still in post recovery when we restart and the ensureYellow() below will timeout
         internalCluster().fullRestart();
 
         logger.info("Running Cluster Health (wait for the shards to startup)");

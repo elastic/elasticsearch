@@ -39,6 +39,7 @@ import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.store.TransportShardActive;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.DefaultSearchContext;
 import org.elasticsearch.search.internal.SearchContext;
@@ -64,8 +65,9 @@ public class TransportShardDeleteByQueryAction extends TransportShardReplication
     public TransportShardDeleteByQueryAction(Settings settings, TransportService transportService,
                                              ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool,
                                              ShardStateAction shardStateAction, ScriptService scriptService, CacheRecycler cacheRecycler,
-                                             PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, ActionFilters actionFilters) {
-        super(settings, ACTION_NAME, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters);
+                                             PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, ActionFilters actionFilters,
+                                             TransportShardActive transportShardActive) {
+        super(settings, ACTION_NAME, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters, transportShardActive);
         this.scriptService = scriptService;
         this.cacheRecycler = cacheRecycler;
         this.pageCacheRecycler = pageCacheRecycler;

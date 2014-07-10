@@ -73,6 +73,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
 
     private ReplicationType replicationType = ReplicationType.DEFAULT;
     private WriteConsistencyLevel consistencyLevel = WriteConsistencyLevel.DEFAULT;
+    private Boolean validateWriteConsistency;
 
     private IndexRequest upsertRequest;
 
@@ -390,6 +391,15 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         return this;
     }
 
+    public Boolean validateWriteConsistency() {
+        return validateWriteConsistency;
+    }
+
+    public UpdateRequest validateWriteConsistency(Boolean validateWriteConsistency) {
+        this.validateWriteConsistency = validateWriteConsistency;
+        return this;
+    }
+
     /**
      * Sets the doc to use for updates when a script is not specified.
      */
@@ -676,6 +686,9 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
             detectNoop = in.readBoolean();
             scriptedUpsert = in.readBoolean();
         }
+        if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
+            validateWriteConsistency = in.readOptionalBoolean();
+        }
     }
 
     @Override
@@ -728,6 +741,9 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
             out.writeBoolean(detectNoop);
             out.writeBoolean(scriptedUpsert);
+        }
+        if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
+            out.writeOptionalBoolean(validateWriteConsistency);
         }
     }
 

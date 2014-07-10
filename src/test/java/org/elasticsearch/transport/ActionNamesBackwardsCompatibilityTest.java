@@ -31,7 +31,7 @@ import org.elasticsearch.action.indexedscripts.get.GetIndexedScriptAction;
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.indices.store.IndicesStore;
+import org.elasticsearch.indices.store.TransportShardActive;
 import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -127,7 +127,7 @@ public class ActionNamesBackwardsCompatibilityTest extends ElasticsearchBackward
         actionsVersions.put(ExistsAction.NAME, Version.V_1_4_0);
         actionsVersions.put(ExistsAction.NAME + "[s]", Version.V_1_4_0);
 
-        actionsVersions.put(IndicesStore.ACTION_SHARD_EXISTS, Version.V_1_3_0);
+        actionsVersions.put(TransportShardActive.ACTION_SHARD_EXISTS, Version.V_1_3_0);
 
         actionsVersions.put(GetIndexedScriptAction.NAME, Version.V_1_3_0);
         actionsVersions.put(DeleteIndexedScriptAction.NAME, Version.V_1_3_0);

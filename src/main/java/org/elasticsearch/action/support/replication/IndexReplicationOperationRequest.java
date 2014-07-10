@@ -41,12 +41,14 @@ public abstract class IndexReplicationOperationRequest<T extends IndexReplicatio
     private final String index;
     private final ReplicationType replicationType;
     private final WriteConsistencyLevel consistencyLevel;
+    private final Boolean validateWriteConsistency;
 
-    protected IndexReplicationOperationRequest(String index, TimeValue timeout, ReplicationType replicationType, WriteConsistencyLevel consistencyLevel) {
+    protected IndexReplicationOperationRequest(String index, TimeValue timeout, ReplicationType replicationType, WriteConsistencyLevel consistencyLevel, Boolean validateWriteConsistency) {
         this.index = index;
         this.timeout = timeout;
         this.replicationType = replicationType;
         this.consistencyLevel = consistencyLevel;
+        this.validateWriteConsistency = validateWriteConsistency;
     }
 
     @Override
@@ -78,6 +80,10 @@ public abstract class IndexReplicationOperationRequest<T extends IndexReplicatio
 
     public WriteConsistencyLevel consistencyLevel() {
         return this.consistencyLevel;
+    }
+
+    public Boolean validateWriteConsistency() {
+        return validateWriteConsistency;
     }
 
     @Override

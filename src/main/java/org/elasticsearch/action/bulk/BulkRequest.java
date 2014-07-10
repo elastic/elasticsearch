@@ -22,6 +22,10 @@ package org.elasticsearch.action.bulk;
 import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.*;
+import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.replication.ReplicationType;
@@ -60,6 +64,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
     protected TimeValue timeout = BulkShardRequest.DEFAULT_TIMEOUT;
     private ReplicationType replicationType = ReplicationType.DEFAULT;
     private WriteConsistencyLevel consistencyLevel = WriteConsistencyLevel.DEFAULT;
+    private Boolean validateWriteConsistency;
     private boolean refresh = false;
 
     private long sizeInBytes = 0;
@@ -424,6 +429,15 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
         return this.replicationType;
     }
 
+    public Boolean validateWriteConsistency() {
+        return validateWriteConsistency;
+    }
+
+    public BulkRequest validateWriteConsistency(Boolean validateWriteConsistency) {
+        this.validateWriteConsistency = validateWriteConsistency;
+        return this;
+    }
+
     /**
      * A timeout to wait if the index operation can't be performed immediately. Defaults to <tt>1m</tt>.
      */
@@ -495,6 +509,9 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
         }
         refresh = in.readBoolean();
         timeout = TimeValue.readTimeValue(in);
+        if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
+            validateWriteConsistency = in.readOptionalBoolean();
+        }
     }
 
     @Override
@@ -515,5 +532,8 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
         }
         out.writeBoolean(refresh);
         timeout.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
+            out.writeOptionalBoolean(validateWriteConsistency);
+        }
     }
 }

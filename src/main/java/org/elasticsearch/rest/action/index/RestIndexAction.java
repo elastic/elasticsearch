@@ -106,6 +106,10 @@ public class RestIndexAction extends BaseRestHandler {
         if (consistencyLevel != null) {
             indexRequest.consistencyLevel(WriteConsistencyLevel.fromString(consistencyLevel));
         }
+        Boolean validateWriteConsistency = request.paramAsBoolean("validate_consistency", null);
+        if (validateWriteConsistency != null) {
+            indexRequest.validateWriteConsistency(validateWriteConsistency);
+        }
         client.index(indexRequest, new RestBuilderListener<IndexResponse>(channel) {
             @Override
             public RestResponse buildResponse(IndexResponse response, XContentBuilder builder) throws Exception {

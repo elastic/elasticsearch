@@ -58,6 +58,7 @@ public class ShardDeleteByQueryRequest extends ShardReplicationOperationRequest<
         this.shardId = shardId;
         replicationType(request.replicationType());
         consistencyLevel(request.consistencyLevel());
+        validateWriteConsistency(request.validateWriteConsistency());
         timeout = request.timeout();
         this.routing = request.routing();
         filteringAliases = request.filteringAliases();

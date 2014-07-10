@@ -81,6 +81,10 @@ public class RestDeleteByQueryAction extends BaseRestHandler {
         if (consistencyLevel != null) {
             deleteByQueryRequest.consistencyLevel(WriteConsistencyLevel.fromString(consistencyLevel));
         }
+        Boolean validateWriteConsistency = request.paramAsBoolean("validate_consistency", null);
+        if (validateWriteConsistency != null) {
+            deleteByQueryRequest.validateWriteConsistency(validateWriteConsistency);
+        }
         deleteByQueryRequest.indicesOptions(IndicesOptions.fromRequest(request, deleteByQueryRequest.indicesOptions()));
         client.deleteByQuery(deleteByQueryRequest, new RestBuilderListener<DeleteByQueryResponse>(channel) {
             @Override

@@ -95,4 +95,13 @@ public abstract class IndicesReplicationOperationRequestBuilder<Request extends 
         request.consistencyLevel(consistencyLevel);
         return (RequestBuilder) this;
     }
+
+    /**
+     * Sets whether the write consistency should be validated
+     */
+    @SuppressWarnings("unchecked")
+    public RequestBuilder setValidateWriteConsistency(boolean validateWriteConsistency) {
+        request.validateWriteConsistency(validateWriteConsistency);
+        return (RequestBuilder) this;
+    }
 }

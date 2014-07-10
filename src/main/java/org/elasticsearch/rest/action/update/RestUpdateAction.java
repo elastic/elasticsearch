@@ -68,6 +68,10 @@ public class RestUpdateAction extends BaseRestHandler {
         if (consistencyLevel != null) {
             updateRequest.consistencyLevel(WriteConsistencyLevel.fromString(consistencyLevel));
         }
+        Boolean validateWriteConsistency = request.paramAsBoolean("validate_consistency", null);
+        if (validateWriteConsistency != null) {
+            updateRequest.validateWriteConsistency(validateWriteConsistency);
+        }
         updateRequest.docAsUpsert(request.paramAsBoolean("doc_as_upsert", updateRequest.docAsUpsert()));
         if( request.hasParam("script") ) {
             updateRequest.script(request.param("script"), ScriptService.ScriptType.INLINE);

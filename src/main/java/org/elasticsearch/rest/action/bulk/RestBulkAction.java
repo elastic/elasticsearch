@@ -84,6 +84,10 @@ public class RestBulkAction extends BaseRestHandler {
         if (consistencyLevel != null) {
             bulkRequest.consistencyLevel(WriteConsistencyLevel.fromString(consistencyLevel));
         }
+        Boolean validateWriteConsistency = request.paramAsBoolean("validate_consistency", null);
+        if (validateWriteConsistency != null) {
+            bulkRequest.validateWriteConsistency(validateWriteConsistency);
+        }
         bulkRequest.timeout(request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT));
         bulkRequest.refresh(request.paramAsBoolean("refresh", bulkRequest.refresh()));
         bulkRequest.add(request.content(), request.contentUnsafe(), defaultIndex, defaultType, defaultRouting, null, allowExplicitIndex);

@@ -70,6 +70,10 @@ public class RestDeleteAction extends BaseRestHandler {
         if (consistencyLevel != null) {
             deleteRequest.consistencyLevel(WriteConsistencyLevel.fromString(consistencyLevel));
         }
+        Boolean validateWriteConsistency = request.paramAsBoolean("validate_consistency", null);
+        if (validateWriteConsistency != null) {
+            deleteRequest.validateWriteConsistency(validateWriteConsistency);
+        }
 
         client.delete(deleteRequest, new RestBuilderListener<DeleteResponse>(channel) {
             @Override

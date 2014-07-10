@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.support.replication;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -41,6 +42,7 @@ public class IndicesReplicationOperationRequest<T extends IndicesReplicationOper
 
     protected ReplicationType replicationType = ReplicationType.DEFAULT;
     protected WriteConsistencyLevel consistencyLevel = WriteConsistencyLevel.DEFAULT;
+    protected Boolean validateWriteConsistency;
 
     public TimeValue timeout() {
         return timeout;
@@ -130,6 +132,16 @@ public class IndicesReplicationOperationRequest<T extends IndicesReplicationOper
         return (T) this;
     }
 
+    public Boolean validateWriteConsistency() {
+        return validateWriteConsistency;
+    }
+
+    @SuppressWarnings("unchecked")
+    public T validateWriteConsistency(Boolean validateWriteConsistencyLevel) {
+        this.validateWriteConsistency = validateWriteConsistencyLevel;
+        return (T) this;
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         return null;
@@ -143,6 +155,9 @@ public class IndicesReplicationOperationRequest<T extends IndicesReplicationOper
         timeout = TimeValue.readTimeValue(in);
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
+        if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
+            validateWriteConsistency = in.readOptionalBoolean();
+        }
     }
 
     @Override
@@ -153,5 +168,8 @@ public class IndicesReplicationOperationRequest<T extends IndicesReplicationOper
         timeout.writeTo(out);
         out.writeStringArrayNullable(indices);
         indicesOptions.writeIndicesOptions(out);
+        if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
+            out.writeOptionalBoolean(validateWriteConsistency);
+        }
     }
 }

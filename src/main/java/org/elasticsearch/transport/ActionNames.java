@@ -111,8 +111,8 @@ import org.elasticsearch.gateway.local.state.meta.TransportNodesListGatewayMetaS
 import org.elasticsearch.gateway.local.state.shards.TransportNodesListGatewayStartedShards;
 import org.elasticsearch.indices.recovery.RecoverySource;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
-import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
+import org.elasticsearch.indices.store.TransportShardActive;
 import org.elasticsearch.river.cluster.PublishRiverClusterStateAction;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.snapshots.RestoreService;
@@ -322,7 +322,7 @@ final class ActionNames {
         builder.put(RecoveryTarget.Actions.TRANSLOG_OPS, "index/shard/recovery/translogOps");
         builder.put(RecoverySource.Actions.START_RECOVERY, "index/shard/recovery/startRecovery");
 
-        builder.put(IndicesStore.ACTION_SHARD_EXISTS, "index/shard/exists");
+        builder.put(TransportShardActive.ACTION_SHARD_EXISTS, "index/shard/exists");
 
         builder.put(PublishRiverClusterStateAction.ACTION_NAME, "river/state/publish");
 

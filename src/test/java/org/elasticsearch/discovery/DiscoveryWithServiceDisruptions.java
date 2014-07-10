@@ -22,6 +22,7 @@ package org.elasticsearch.discovery;
 import com.google.common.base.Predicate;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.get.GetResponse;
@@ -369,15 +370,41 @@ public class DiscoveryWithServiceDisruptions extends ElasticsearchIntegrationTes
      * We also collect & report the type of indexing failures that occur.
      */
     @Test
-    @LuceneTestCase.AwaitsFix(bugUrl = "MvG will fix")
-    @TestLogging("action.index:TRACE,action.get:TRACE,discovery:TRACE,cluster.service:TRACE,indices.recovery:TRACE,indices.cluster:TRACE")
-    public void testAckedIndexing() throws Exception {
-        final List<String> nodes = startCluster(3);
+    @TestLogging("action.index:TRACE,action.get:TRACE,discovery:TRACE,cluster.service:TRACE,indices.recovery:TRACE,indices.cluster:TRACE,indices.store:TRACE")
+    public void testAckedIndexing_withReplicas() throws Exception {
+        int numReplicas = randomIntBetween(2, 5);
+        int numNodes = numReplicas % 2 == 0 ? numReplicas + 1 : numReplicas;
+        testAckedIndexing(numReplicas, numNodes, WriteConsistencyLevel.DEFAULT);
+    }
+
+    /**
+     * Same as {@link #testAckedIndexing_withReplicas()} ()}, but then with one replica.
+     */
+    @Test
+    @TestLogging("action.index:TRACE,action.get:TRACE,discovery:TRACE,cluster.service:TRACE,indices.recovery:TRACE,indices.cluster:TRACE,indices.store:TRACE")
+    public void testAckedIndexing_withOneReplica() throws Exception {
+        // When the number of replicas is equal to 1, then write consistency level quorum is
+        // actually ONE instead, so in order for the validate write consistency to be helpful
+        // we require all shard copies to be active.
+        testAckedIndexing(1, 3, WriteConsistencyLevel.ALL);
+    }
+
+    /**
+     * Same as {@link #testAckedIndexing_withReplicas()} ()}, but then with no replicas.
+     */
+    @Test
+    @TestLogging("action.index:TRACE,action.get:TRACE,discovery:TRACE,cluster.service:TRACE,indices.recovery:TRACE,indices.cluster:TRACE,zen.ping.unicast:TRACE")
+    public void testAckedIndexing_withoutReplicas() throws Exception {
+        testAckedIndexing(0, 3, WriteConsistencyLevel.DEFAULT);
+    }
+
+    private void testAckedIndexing(final int numReplicas, int numNodes, final WriteConsistencyLevel level) throws Exception {
+        final List<String> nodes = startCluster(numNodes);
 
         assertAcked(prepareCreate("test")
                 .setSettings(ImmutableSettings.builder()
                                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1 + randomInt(2))
-                                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomInt(2))
+                                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, numReplicas)
                 ));
         ensureGreen();
 
@@ -415,7 +442,11 @@ public class DiscoveryWithServiceDisruptions extends ElasticsearchIntegrationTes
                                     id = Integer.toString(idGenerator.incrementAndGet());
                                     int shard = ((InternalTestCluster) cluster()).getInstance(DjbHashFunction.class).hash(id) % numPrimaries;
                                     logger.trace("[{}] indexing id [{}] through node [{}] targeting shard [{}]", name, id, node, shard);
-                                    IndexResponse response = client.prepareIndex("test", "type", id).setSource("{}").setTimeout("1s").get();
+                                    IndexResponse response = client.prepareIndex("test", "type", id).setSource("{}")
+                                            .setTimeout("1s")
+                                            .setValidateWriteConsistency(true)
+                                            .setConsistencyLevel(level)
+                                            .get();
                                     assertThat(response.getVersion(), equalTo(1l));
                                     ackedDocs.put(id, node);
                                     logger.trace("[{}] indexed id [{}] through node [{}]", name, id, node);
@@ -461,11 +492,13 @@ public class DiscoveryWithServiceDisruptions extends ElasticsearchIntegrationTes
                     assertThat(semaphore.availablePermits(), equalTo(0));
                     semaphore.release(docsPerIndexer);
                 }
-                assertTrue(countDownLatchRef.get().await(60000 + disruptionScheme.expectedTimeToHeal().millis() * (docsPerIndexer * indexers.size()), TimeUnit.MILLISECONDS));
+                long awaitTime = 60000 + (disruptionScheme.expectedTimeToHeal().millis() * (docsPerIndexer * indexers.size()));
+                logger.info("await time: {} ms", awaitTime);
+                assertTrue(countDownLatchRef.get().await(awaitTime, TimeUnit.MILLISECONDS));
 
                 logger.info("stopping disruption");
                 disruptionScheme.stopDisrupting();
-                ensureStableCluster(3, TimeValue.timeValueMillis(disruptionScheme.expectedTimeToHeal().millis() + DISRUPTION_HEALING_OVERHEAD.millis()));
+                ensureStableCluster(numNodes, TimeValue.timeValueMillis(disruptionScheme.expectedTimeToHeal().millis() + DISRUPTION_HEALING_OVERHEAD.millis()));
                 ensureGreen("test");
 
                 logger.info("validating successful docs");

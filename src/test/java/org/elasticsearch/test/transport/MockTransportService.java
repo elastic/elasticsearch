@@ -32,6 +32,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
 import java.io.IOException;
+import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 
 /**
@@ -87,6 +88,33 @@ public class MockTransportService extends TransportService {
             @Override
             public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {
                 throw new ConnectTransportException(node, "DISCONNECT: simulated");
+            }
+        });
+    }
+
+    /**
+     * Adds a rule that will cause matching operations to throw ConnectTransportExceptions
+     */
+    public void addFailToSendNoConnectRule(DiscoveryNode node, final Set<String> blockedActions) {
+
+        ((LookupTestTransport) transport).transports.put(node, new DelegateTransport(original) {
+            @Override
+            public void connectToNode(DiscoveryNode node) throws ConnectTransportException {
+                original.connectToNode(node);
+            }
+
+            @Override
+            public void connectToNodeLight(DiscoveryNode node) throws ConnectTransportException {
+                original.connectToNodeLight(node);
+            }
+
+            @Override
+            public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {
+                if (blockedActions.contains(action)) {
+                    logger.info("--> preventing {} request", action);
+                    throw new ConnectTransportException(node, "DISCONNECT: prevented " + action + " request");
+                }
+                original.sendRequest(node, requestId, action, request, options);
             }
         });
     }

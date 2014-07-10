@@ -48,6 +48,11 @@ import org.apache.lucene.search.SortField;
  * @lucene.experimental
  */
 public final class XSimpleBindings extends Bindings {
+
+    static {
+        assert org.elasticsearch.Version.CURRENT.luceneVersion == org.apache.lucene.util.Version.LUCENE_4_9: "Remove this code once we upgrade to Lucene 4.10 (LUCENE-5806)";
+    }
+
     final Map<String,Object> map = new HashMap<>();
 
     /** Creates a new empty Bindings */

@@ -12,6 +12,11 @@ import java.util.ArrayList;
 
 @SuppressWarnings("all")
 class XJavascriptLexer extends Lexer {
+
+    static {
+        assert org.elasticsearch.Version.CURRENT.luceneVersion == org.apache.lucene.util.Version.LUCENE_4_9: "Remove this code once we upgrade to Lucene 4.10 (LUCENE-5806)";
+    }
+
     public static final int EOF=-1;
     public static final int ARRAY=4;
     public static final int AT_ADD=5;

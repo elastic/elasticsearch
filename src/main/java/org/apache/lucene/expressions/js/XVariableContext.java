@@ -25,6 +25,11 @@ import java.util.List;
  * sequence of array (integer or string indexed) and member accesses.
  */
 public class XVariableContext {
+
+    static {
+        assert org.elasticsearch.Version.CURRENT.luceneVersion == org.apache.lucene.util.Version.LUCENE_4_9: "Remove this code once we upgrade to Lucene 4.10 (LUCENE-5806)";
+    }
+
     public static enum Type {
         MEMBER,         // "dot" access
         STR_INDEX,      // brackets with a string

@@ -15,6 +15,11 @@ import org.antlr.runtime.tree.*;
 
 @SuppressWarnings("all")
 class XJavascriptParser extends Parser {
+
+    static {
+        assert org.elasticsearch.Version.CURRENT.luceneVersion == org.apache.lucene.util.Version.LUCENE_4_9: "Remove this code once we upgrade to Lucene 4.10 (LUCENE-5806)";
+    }
+
     public static final String[] tokenNames = new String[] {
             "<invalid>", "<EOR>", "<DOWN>", "<UP>", "ARRAY", "AT_ADD", "AT_BIT_AND",
             "AT_BIT_NOT", "AT_BIT_OR", "AT_BIT_SHL", "AT_BIT_SHR", "AT_BIT_SHU", "AT_BIT_XOR",

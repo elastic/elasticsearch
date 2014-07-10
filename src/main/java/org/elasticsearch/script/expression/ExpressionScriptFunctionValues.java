@@ -39,6 +39,7 @@ class ExpressionScriptFunctionValues extends DoubleDocValues {
     public double doubleVal(int i) {
         int numValues = dataAccessor.setDocument(i);
         if (numValues == 0) {
+            // sparse fields get a value of 0 when the field doesn't exist
             return 0.0;
         }
         return dataAccessor.nextValue();

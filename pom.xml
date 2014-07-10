@@ -154,6 +154,7 @@
             <artifactId>lucene-expressions</artifactId>
             <version>${lucene.version}</version>
             <scope>compile</scope>
+            <optional>true</optional>
         </dependency>
         <dependency>
             <groupId>com.spatial4j</groupId>
@@ -879,7 +880,7 @@
                                 </data>
                                 <data>
                                     <src>${project.build.directory}/lib</src>
-                                    <includes>lucene*, log4j*, jna*, spatial4j*, jts*, groovy*</includes>
+                                    <includes>lucene*, log4j*, jna*, spatial4j*, jts*, groovy*, </includes>
                                     <type>directory</type>
                                     <mapper>
                                         <type>perm</type>

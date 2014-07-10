@@ -120,7 +120,14 @@ class ExpressionScript implements SearchScript {
     }
 
     @Override
-    public void setNextScore(float score) { scorer.score = score; }
+    public void setNextScore(float score) {
+        // TODO: fix this API to remove setNextScore and just use a Scorer
+        // Expressions know if they use the score or not, and should be able to pull from the scorer only
+        // if they need it. Right now, score can only be used within a ScriptScoreFunction.  But there shouldn't
+        // be any reason a script values or aggregation can't use the score.  It is also possible
+        // these layers are preventing inlining of scoring into expressions.
+        scorer.score = score;
+    }
 
     @Override
     public void setNextReader(AtomicReaderContext leaf) {

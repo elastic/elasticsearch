@@ -281,32 +281,22 @@ public class ShardGetService extends AbstractIndexShardComponent {
                     // We must first apply the field mapper filtering to make sure we get correct results
                     // in the case that the fetchSourceContext white lists something that's not included by the field mapper
 
-                    Map<String, Object> sourceAsMap = null;
-                    XContentType sourceContentType = null;
-                    if (fetchSourceContext.transformSource()) {
+                    boolean sourceFieldFiltering = sourceFieldMapper.includes().length > 0 || sourceFieldMapper.excludes().length > 0;
+                    boolean sourceFetchFiltering = fetchSourceContext.includes().length > 0 || fetchSourceContext.excludes().length > 0;
+                    if (fetchSourceContext.transformSource() || sourceFieldFiltering || sourceFetchFiltering) {
                         // TODO: The source might parsed and available in the sourceLookup but that one uses unordered maps so different. Do we care?
                         Tuple<XContentType, Map<String, Object>> typeMapTuple = XContentHelper.convertToMap(source.source, true);
-                        sourceContentType = typeMapTuple.v1();
-                        sourceAsMap = typeMapTuple.v2();
-                        sourceAsMap = docMapper.transformSourceAsMap(sourceAsMap);
-                    }
-                    if (sourceFieldMapper.includes().length > 0 || sourceFieldMapper.excludes().length > 0) {
-                        if (sourceAsMap == null) {
-                            Tuple<XContentType, Map<String, Object>> typeMapTuple = XContentHelper.convertToMap(source.source, true);
-                            sourceContentType = typeMapTuple.v1();
-                            sourceAsMap = typeMapTuple.v2();
+                        XContentType sourceContentType = typeMapTuple.v1();
+                        Map<String, Object> sourceAsMap = typeMapTuple.v2();
+                        if (fetchSourceContext.transformSource()) {
+                            sourceAsMap = docMapper.transformSourceAsMap(sourceAsMap);
                         }
-                        sourceAsMap = XContentMapValues.filter(sourceAsMap, sourceFieldMapper.includes(), sourceFieldMapper.excludes());
-                    }
-                    if (fetchSourceContext.includes().length > 0 || fetchSourceContext.excludes().length > 0) {
-                        if (sourceAsMap == null) {
-                            Tuple<XContentType, Map<String, Object>> typeMapTuple = XContentHelper.convertToMap(source.source, true);
-                            sourceContentType = typeMapTuple.v1();
-                            sourceAsMap = typeMapTuple.v2();
+                        if (sourceFieldFiltering) {
+                            sourceAsMap = XContentMapValues.filter(sourceAsMap, sourceFieldMapper.includes(), sourceFieldMapper.excludes());
                         }
-                        sourceAsMap = XContentMapValues.filter(sourceAsMap, fetchSourceContext.includes(), fetchSourceContext.excludes());
-                    }
-                    if (sourceAsMap != null) {
+                        if (sourceFetchFiltering) {
+                            sourceAsMap = XContentMapValues.filter(sourceAsMap, fetchSourceContext.includes(), fetchSourceContext.excludes());
+                        }
                         try {
                             sourceToBeReturned = XContentFactory.contentBuilder(sourceContentType).map(sourceAsMap).bytes();
                         } catch (IOException e) {

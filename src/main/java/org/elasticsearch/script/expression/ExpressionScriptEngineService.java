@@ -116,9 +116,12 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
                 String fieldname = parts[1].text;
 
                 FieldMapper<?> field = mapper.smartNameFieldMapper(fieldname);
+                if (field == null) {
+                    throw new ExpressionScriptExecutionException("Field [" + fieldname + "] used in expression does not exist in mappings");
+                }
                 if (field.isNumeric() == false) {
                     // TODO: more context (which expression?)
-                    throw new ExpressionScriptExecutionException("Field [" + variable + "] used in expression must be numeric");
+                    throw new ExpressionScriptExecutionException("Field [" + fieldname + "] used in expression must be numeric");
                 }
                 IndexFieldData<?> fieldData = lookup.doc().fieldDataService.getForField((NumberFieldMapper)field);
                 bindings.add(variable, new ExpressionScriptValueSource(fieldData));

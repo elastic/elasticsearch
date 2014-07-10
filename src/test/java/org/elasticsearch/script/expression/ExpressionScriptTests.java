@@ -19,19 +19,19 @@
 
 package org.elasticsearch.script.expression;
 
-import org.apache.lucene.expressions.Expression;
-import org.apache.lucene.expressions.js.XJavascriptCompiler;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class ExpressionScriptTests extends ElasticsearchIntegrationTest {
 
     private SearchResponse runScript(String script, Object... params) {
+        ensureGreen("test");
         StringBuilder buf = new StringBuilder();
         buf.append("{query: {match_all:{}}, sort: [{\"_uid\": {\"order\":\"asc\"}}], script_fields: {foo: {lang: \"expression\", script: \"" + script + "\"");
         if (params.length > 0) {
@@ -54,8 +54,8 @@ public class ExpressionScriptTests extends ElasticsearchIntegrationTest {
     }
 
     public void testBasic() throws Exception {
-        Expression x = XJavascriptCompiler.compile("1 + 1");
-        System.out.println(x.sourceText);
+        createIndex("test");
+        ensureGreen("test");
         client().prepareIndex("test", "doc", "1").setSource("foo", 4).setRefresh(true).get();
         SearchResponse rsp = runScript("doc['foo'].value + 1");
         assertEquals(1, rsp.getHits().getTotalHits());
@@ -63,6 +63,8 @@ public class ExpressionScriptTests extends ElasticsearchIntegrationTest {
     }
 
     public void testScore() throws Exception {
+        createIndex("test");
+        ensureGreen("test");
         client().prepareIndex("test", "doc", "1").setSource("text", "hello goodbye").get();
         client().prepareIndex("test", "doc", "2").setSource("text", "hello hello hello goodbye").get();
         client().prepareIndex("test", "doc", "3").setSource("text", "hello hello goodebye").get();
@@ -81,18 +83,38 @@ public class ExpressionScriptTests extends ElasticsearchIntegrationTest {
         assertEquals("2", hits.getAt(2).getId());
     }
 
-    public void testFieldMissing() {
+    public void testSparseField() throws Exception {
+        ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("doc", "x", "type=long", "y", "type=long"));
+        ensureGreen("test");
         client().prepareIndex("test", "doc", "1").setSource("x", 4).get();
         client().prepareIndex("test", "doc", "2").setSource("y", 2).get();
         refresh();
         SearchResponse rsp = runScript("doc['x'].value + 1");
+        ElasticsearchAssertions.assertSearchResponse(rsp);
         SearchHits hits = rsp.getHits();
         assertEquals(2, rsp.getHits().getTotalHits());
         assertEquals(5.0, hits.getAt(0).field("foo").getValue());
         assertEquals(1.0, hits.getAt(1).field("foo").getValue());
     }
 
+    public void testMissingField() throws Exception {
+        createIndex("test");
+        ensureGreen("test");
+        client().prepareIndex("test", "doc", "1").setSource("x", 4).setRefresh(true).get();
+        try {
+            runScript("doc['bogus'].value");
+            fail("Expected missing field to cause failure");
+        } catch (SearchPhaseExecutionException e) {
+            assertThat(ExceptionsHelper.detailedMessage(e) + "should have contained ExpressionScriptExecutionException",
+                    ExceptionsHelper.detailedMessage(e).contains("ExpressionScriptExecutionException"), equalTo(true));
+            assertThat(ExceptionsHelper.detailedMessage(e) + "should have contained missing field error",
+                    ExceptionsHelper.detailedMessage(e).contains("does not exist in mappings"), equalTo(true));
+        }
+    }
+
     public void testParams() {
+        createIndex("test");
+        ensureGreen("test");
         client().prepareIndex("test", "doc", "1").setSource("x", 10).get();
         client().prepareIndex("test", "doc", "2").setSource("x", 3).get();
         client().prepareIndex("test", "doc", "3").setSource("x", 5).get();

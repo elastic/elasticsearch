@@ -27,7 +27,7 @@ import org.elasticsearch.client.IndicesAdminClient;
 public class GetWarmersAction extends IndicesAction<GetWarmersRequest, GetWarmersResponse, GetWarmersRequestBuilder> {
 
     public static final GetWarmersAction INSTANCE = new GetWarmersAction();
-    public static final String NAME = "warmers/get";
+    public static final String NAME = "indices:admin/warmers/get";
 
     private GetWarmersAction() {
         super(NAME);

@@ -27,7 +27,7 @@ import org.elasticsearch.client.IndicesAdminClient;
 public class GetIndexTemplatesAction extends IndicesAction<GetIndexTemplatesRequest, GetIndexTemplatesResponse, GetIndexTemplatesRequestBuilder> {
 
     public static final GetIndexTemplatesAction INSTANCE = new GetIndexTemplatesAction();
-    public static final String NAME = "indices/template/get";
+    public static final String NAME = "indices:admin/template/get";
 
     protected GetIndexTemplatesAction() {
         super(NAME);

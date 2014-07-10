@@ -27,7 +27,7 @@ import org.elasticsearch.client.Client;
 public class SearchScrollAction extends ClientAction<SearchScrollRequest, SearchResponse, SearchScrollRequestBuilder> {
 
     public static final SearchScrollAction INSTANCE = new SearchScrollAction();
-    public static final String NAME = "search/scroll";
+    public static final String NAME = "indices:data/read/scroll";
 
     private SearchScrollAction() {
         super(NAME);

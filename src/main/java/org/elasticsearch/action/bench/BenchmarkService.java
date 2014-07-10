@@ -59,6 +59,10 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
     private final TransportService transportService;
     protected final BenchmarkExecutor executor;
 
+    public static final String ABORT_ACTION_NAME = "indices:data/benchmark/executor/abort";
+    public static final String STATUS_ACTION_NAME = "indices:data/benchmark/executor/status";
+    public static final String START_ACTION_NAME = "indices:data/benchmark/executor/start";
+
     /**
      * Constructs a service component for running benchmarks
      *
@@ -76,9 +80,9 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
         this.executor = new BenchmarkExecutor(client, clusterService);
         this.clusterService = clusterService;
         this.transportService = transportService;
-        transportService.registerHandler(BenchExecutionHandler.ACTION, new BenchExecutionHandler());
-        transportService.registerHandler(AbortExecutionHandler.ACTION, new AbortExecutionHandler());
-        transportService.registerHandler(StatusExecutionHandler.ACTION, new StatusExecutionHandler());
+        transportService.registerHandler(START_ACTION_NAME, new BenchExecutionHandler());
+        transportService.registerHandler(ABORT_ACTION_NAME, new AbortExecutionHandler());
+        transportService.registerHandler(STATUS_ACTION_NAME, new StatusExecutionHandler());
     }
 
     @Override
@@ -105,7 +109,7 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
             BenchmarkStatusAsyncHandler async = new BenchmarkStatusAsyncHandler(nodes.size(), request, listener);
             for (DiscoveryNode node : nodes) {
                 assert isBenchmarkNode(node);
-                transportService.sendRequest(node, StatusExecutionHandler.ACTION, new NodeStatusRequest(request), async);
+                transportService.sendRequest(node, STATUS_ACTION_NAME, new NodeStatusRequest(request), async);
             }
         }
     }
@@ -142,7 +146,7 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
                                 for (String nodeId : nodeNames) {
                                     final DiscoveryNode node = nodes.get(nodeId);
                                     if (node != null) {
-                                        transportService.sendRequest(node, AbortExecutionHandler.ACTION, new NodeAbortRequest(benchmarkNames), asyncHandler);
+                                        transportService.sendRequest(node, ABORT_ACTION_NAME, new NodeAbortRequest(benchmarkNames), asyncHandler);
                                     } else {
                                         asyncHandler.countDown.countDown();
                                         logger.debug("Node for ID [" + nodeId + "] not found in cluster state - skipping");
@@ -194,7 +198,7 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
                                             new ElasticsearchIllegalStateException("Node for ID [" + nodeId + "] not found in cluster state - skipping"));
                                 } else {
                                     logger.debug("Starting benchmark [{}] node [{}]", request.benchmarkName(), node.name());
-                                    transportService.sendRequest(node, BenchExecutionHandler.ACTION, new NodeBenchRequest(request), async);
+                                    transportService.sendRequest(node, START_ACTION_NAME, new NodeBenchRequest(request), async);
                                 }
                             }
                         }
@@ -257,8 +261,6 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
 
     private class BenchExecutionHandler extends BaseTransportRequestHandler<NodeBenchRequest> {
 
-        static final String ACTION = "benchmark/executor/start";
-
         @Override
         public NodeBenchRequest newInstance() {
             return new NodeBenchRequest();
@@ -277,8 +279,6 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
     }
 
     private class StatusExecutionHandler extends BaseTransportRequestHandler<NodeStatusRequest> {
-
-        static final String ACTION = "benchmark/executor/status";
 
         @Override
         public NodeStatusRequest newInstance() {
@@ -300,8 +300,6 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
     }
 
     private class AbortExecutionHandler extends BaseTransportRequestHandler<NodeAbortRequest> {
-
-        static final String ACTION = "benchmark/executor/abort";
 
         @Override
         public NodeAbortRequest newInstance() {

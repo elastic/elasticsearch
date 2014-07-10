@@ -53,6 +53,8 @@ public final class ExternalTestCluster extends TestCluster {
 
     private final InetSocketAddress[] httpAddresses;
 
+    private final String clusterName;
+
     private final int numDataNodes;
     private final int numBenchNodes;
 
@@ -64,6 +66,7 @@ public final class ExternalTestCluster extends TestCluster {
 
         NodesInfoResponse nodeInfos = this.client.admin().cluster().prepareNodesInfo().clear().setSettings(true).setHttp(true).get();
         httpAddresses = new InetSocketAddress[nodeInfos.getNodes().length];
+        this.clusterName = nodeInfos.getClusterName().value();
         int dataNodes = 0;
         int benchNodes = 0;
         for (int i = 0; i < nodeInfos.getNodes().length; i++) {
@@ -142,5 +145,10 @@ public final class ExternalTestCluster extends TestCluster {
     @Override
     public boolean hasFilterCache() {
         return true; // default
+    }
+
+    @Override
+    public String getClusterName() {
+        return clusterName;
     }
 }

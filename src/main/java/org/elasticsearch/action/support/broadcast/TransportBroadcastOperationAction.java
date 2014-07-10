@@ -59,7 +59,7 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.threadPool = threadPool;
-        this.transportShardAction = actionName + "/s";
+        this.transportShardAction = actionName + "[s]";
         this.executor = executor();
 
         transportService.registerHandler(actionName, new TransportHandler());

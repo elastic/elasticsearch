@@ -41,7 +41,7 @@ public class TransportSingleShardMultiTermsVectorAction extends TransportShardSi
 
     private final IndicesService indicesService;
 
-    private static final String ACTION_NAME = MultiTermVectorsAction.NAME + "/shard";
+    private static final String ACTION_NAME = MultiTermVectorsAction.NAME + "[shard]";
 
     @Inject
     public TransportSingleShardMultiTermsVectorAction(Settings settings, ClusterService clusterService, TransportService transportService,

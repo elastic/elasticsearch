@@ -56,7 +56,7 @@ public abstract class TransportSingleCustomOperationAction<Request extends Singl
         this.clusterService = clusterService;
         this.transportService = transportService;
 
-        this.transportShardAction = actionName + "/s";
+        this.transportShardAction = actionName + "[s]";
         this.executor = executor();
 
         transportService.registerHandler(actionName, new TransportHandler());

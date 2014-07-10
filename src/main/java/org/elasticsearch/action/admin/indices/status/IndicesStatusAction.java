@@ -30,7 +30,7 @@ import org.elasticsearch.client.IndicesAdminClient;
 public class IndicesStatusAction extends IndicesAction<IndicesStatusRequest, IndicesStatusResponse, IndicesStatusRequestBuilder> {
 
     public static final IndicesStatusAction INSTANCE = new IndicesStatusAction();
-    public static final String NAME = "indices/status";
+    public static final String NAME = "indices:monitor/status";
 
     private IndicesStatusAction() {
         super(NAME);

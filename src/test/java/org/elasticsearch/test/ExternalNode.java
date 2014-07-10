@@ -158,13 +158,6 @@ final class ExternalNode implements Closeable {
         return nodeInfo.getTransport().getAddress().publishAddress();
     }
 
-    TransportAddress address() {
-        if (nodeInfo == null) {
-            throw new IllegalStateException("Node has not started yet");
-        }
-        return nodeInfo.getTransport().getAddress().publishAddress();
-    }
-
     synchronized Client getClient() {
         if (nodeInfo == null) {
             throw new IllegalStateException("Node has not started yet");

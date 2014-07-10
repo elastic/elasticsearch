@@ -88,6 +88,10 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
         for (String variable : expr.variables) {
             if (variable.equals("_score")) {
                 bindings.add(new SortField("_score", SortField.Type.SCORE));
+            } else if (variable.equals("_value")) {
+                // noop: _value is special for aggregations, and is added to bindings dynamically
+                // TODO: if some uses it in a scoring expression, they will get a nasty failure when evaluating...need a
+                // way to know this is for aggregations and so _value is ok to have...
             } else if (vars != null && vars.containsKey(variable)) {
                 // TODO: document and/or error if vars contains _score?
                 // NOTE: by checking for the variable in vars first, it allows masking document fields with a global constant,

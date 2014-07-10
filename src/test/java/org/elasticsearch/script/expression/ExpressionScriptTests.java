@@ -23,10 +23,13 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.aggregations.metrics.stats.Stats;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class ExpressionScriptTests extends ElasticsearchIntegrationTest {
 
@@ -204,5 +207,65 @@ public class ExpressionScriptTests extends ElasticsearchIntegrationTest {
             assertThat(ExceptionsHelper.detailedMessage(e) + "should have contained field member error",
                     ExceptionsHelper.detailedMessage(e).contains("Invalid member for field"), equalTo(true));
         }
+    }
+
+    public void testSpecialValueVariable() throws Exception {
+        // i.e. _value for aggregations
+        createIndex("test");
+        ensureGreen("test");
+        client().prepareIndex("test", "doc", "1").setSource("x", 5,  "y", 1.2).get();
+        client().prepareIndex("test", "doc", "2").setSource("x", 10, "y", 1.4).get();
+        client().prepareIndex("test", "doc", "3").setSource("x", 13, "y", 1.8).get();
+        refresh();
+        String req = "{query: {match_all:{}}, aggs: {" +
+                          "int_agg: {stats: {" +
+                              "field: \"x\"," +
+                              "script: \"_value * 3\"," +
+                              "lang: \"expression\"" +
+                           "}},double_agg: {stats: {" +
+                              "field: \"y\"," +
+                              "script: \"_value - 1.1\"," +
+                              "lang: \"expression\"" +
+                     "}}}}";
+        SearchResponse rsp = client().prepareSearch("test").setSource(req).get();
+        assertEquals(3, rsp.getHits().getTotalHits());
+
+        Stats stats = rsp.getAggregations().get("int_agg");
+        assertEquals(39.0, stats.getMax(), 0.0001);
+        assertEquals(15.0, stats.getMin(), 0.0001);
+
+        stats = rsp.getAggregations().get("double_agg");
+        assertEquals(0.7, stats.getMax(), 0.0001);
+        assertEquals(0.1, stats.getMin(), 0.0001);
+    }
+
+    public void testStringSpecialValueVariable() throws Exception {
+        // i.e. expression script for term aggregations, which is not allowed
+        createIndex("test");
+        ensureGreen("test");
+        client().prepareIndex("test", "doc", "1").setSource("text", "hello").get();
+        client().prepareIndex("test", "doc", "2").setSource("text", "goodbye").get();
+        client().prepareIndex("test", "doc", "3").setSource("text", "hello").get();
+        refresh();
+        String req = "{query: {match_all:{}}, aggs: {term_agg: {terms: {" +
+                        "field: \"text\"," +
+                        "script: \"_value\"," +
+                        "lang: \"expression\"" +
+                     "}}}}";
+
+        Throwable t;
+        try {
+            // shards that don't have docs with the "text" field will not fail,
+            // so we may or may not get a total failure
+            SearchResponse rsp = client().prepareSearch("test").setSource(req).get();
+            assertThat(rsp.getShardFailures().length, greaterThan(0)); // at least the shards containing the docs should have failed
+            t = rsp.getShardFailures()[0].failure();
+        } catch (SearchPhaseExecutionException e) {
+            t = e;
+        }
+        assertThat(ExceptionsHelper.detailedMessage(t) + "should have contained ExpressionScriptExecutiontException",
+                ExceptionsHelper.detailedMessage(t).contains("ExpressionScriptExecutionException"), equalTo(true));
+        assertThat(ExceptionsHelper.detailedMessage(t) + "should have contained text variable error",
+                ExceptionsHelper.detailedMessage(t).contains("text variable"), equalTo(true));
     }
 }

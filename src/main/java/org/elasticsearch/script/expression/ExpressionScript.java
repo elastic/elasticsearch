@@ -21,9 +21,11 @@ package org.elasticsearch.script.expression;
 
 import org.apache.lucene.expressions.Bindings;
 import org.apache.lucene.expressions.Expression;
+import org.apache.lucene.expressions.XSimpleBindings;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.queries.function.FunctionValues;
 import org.apache.lucene.queries.function.ValueSource;
+import org.apache.lucene.queries.function.valuesource.DoubleConstValueSource;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.script.SearchScript;
 
@@ -78,11 +80,11 @@ class ExpressionScript implements SearchScript {
     }
 
     Expression expression;
-    Bindings bindings;
+    XSimpleBindings bindings;
     AtomicReaderContext leaf;
     CannedScorer scorer;
 
-    ExpressionScript(Expression e, Bindings b) {
+    ExpressionScript(Expression e, XSimpleBindings b) {
         expression = e;
         bindings = b;
         scorer = new CannedScorer();
@@ -136,7 +138,15 @@ class ExpressionScript implements SearchScript {
 
     @Override
     public void setNextVar(String name, Object value) {
-        //  nono commit: comment on why this isn't needed...wtf is it?
+        // this assumes that the same variable will be set for every document evaluated, thus
+        // the variable never needs to be removed from the bindings, but only overwritten
+        if (value instanceof Double) {
+            bindings.add(name, new DoubleConstValueSource(((Double)value).doubleValue()));
+        } else if (value instanceof Long) {
+            bindings.add(name, new DoubleConstValueSource(((Long)value).doubleValue()));
+        } else {
+            throw new ExpressionScriptExecutionException("Cannot use expression with text variable");
+        }
     }
 
 

@@ -27,18 +27,20 @@ field.  Example:
 }
 --------------------------------------------------
 
-Its also possible to specify transform in short form which uses the
-default scripting language and no parameters:
+Its also possible to specify multiple transforms:
 [source,js]
 --------------------------------------------------
 {
     "example" : {
-        "transform" : "source['suggest'] = source['content']"
+        "transform" : [
+            {"script": "source['suggest'] = source['content']"}
+            {"script": "source['foo'] = source['bar'];"}
+        ]
     }
 }
 --------------------------------------------------
 
-Because the result isn't stored in the source it can't be fetched by
+Because the result isn't stored in the source it can't normally be fetched by
 source filtering.  It can be highlighted if it is marked as stored.
 
 === Get Transformed
@@ -47,11 +49,11 @@ parameter is set.  Example:
 
 [source,bash]
 --------------------------------------------------
-curl -XGET "http://localhost:9200/test/test/3?pretty&_source_transform"
+curl -XGET "http://localhost:9200/test/example/3?pretty&_source_transform"
 --------------------------------------------------
 
 The transform is performed before any source filtering but it is mostly
-designed to make it easy to see what was passed to the index.
+designed to make it easy to see what was passed to the index for debugging.
 
 === Immutable Transformation
 Once configured the transform script cannot be modified.  This is not

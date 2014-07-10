@@ -27,7 +27,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
@@ -72,24 +71,59 @@ public class TransformOnIndexMapperIntegrationTest extends ElasticsearchIntegrat
         assertRightTitleSourceTransformed(response.getSource());
     }
 
-    private void setup(boolean realtime) throws IOException, InterruptedException, ExecutionException {
-        String script = "if (source['title']?.startsWith('t')) { source['destination'] = source[sourceField] }; source.remove(sourceField);";
+    /**
+     * Setup an index with some source transforms. Randomly picks the number of
+     * transforms but all but one of the transforms is a noop. The other is a
+     * script that fills the 'destination' field with the 'content' field only
+     * if the 'title' field starts with 't' and then always removes the
+     * 'content' field regarless of the contents of 't'. The actual script
+     * randomly uses parameters or not.
+     * 
+     * @param flush
+     *            should the data be flushed to disk? Set to false to test real
+     *            time fetching
+     */
+    private void setup(boolean flush) throws IOException, InterruptedException, ExecutionException {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+        builder.field("transform");
         if (getRandom().nextBoolean()) {
-            builder.startObject("transform");
-            builder.field("script", script);
+            // Single transform
+            builder.startObject();
+            buildTransformScript(builder);
             builder.field("lang", "groovy");
-            builder.field("params", ImmutableMap.of("sourceField", "content"));
             builder.endObject();
         } else {
-            script = script.replace("sourceField", "'content'");
-            builder.field("transform", script);
+            // Multiple transforms
+            int total = between(1, 10);
+            int actual = between(0, total - 1);
+            builder.startArray();
+            for (int s = 0; s < total; s++) {
+                builder.startObject();
+                if (s == actual) {
+                    buildTransformScript(builder);
+                } else {
+                    builder.field("script", "true");
+                }
+                builder.field("lang", "groovy");
+                builder.endObject();
+            }
+            builder.endArray();
         }
         assertAcked(client().admin().indices().prepareCreate("test").addMapping("test", builder));
 
-        indexRandom(!realtime, client().prepareIndex("test", "test", "notitle").setSource("content", "findme"),
+        indexRandom(!flush, client().prepareIndex("test", "test", "notitle").setSource("content", "findme"),
                 client().prepareIndex("test", "test", "badtitle").setSource("content", "findme", "title", "cat"),
                 client().prepareIndex("test", "test", "righttitle").setSource("content", "findme", "title", "table"));
+    }
+
+    private void buildTransformScript(XContentBuilder builder) throws IOException {
+        String script = "if (source['title']?.startsWith('t')) { source['destination'] = source[sourceField] }; source.remove(sourceField);";
+        if (getRandom().nextBoolean()) {
+            script = script.replace("sourceField", "'content'");
+        } else {
+            builder.field("params", ImmutableMap.of("sourceField", "content"));
+        }
+        builder.field("script", script);
     }
 
     private void assertRightTitleSourceUntransformed(Map<String, Object> source) {
@@ -102,11 +136,7 @@ public class TransformOnIndexMapperIntegrationTest extends ElasticsearchIntegrat
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        // Groovy is easier to write....
-        
         return ImmutableSettings.settingsBuilder().put(super.nodeSettings(nodeOrdinal))
-                // TODO when the default scripting language becomes groovy remove this
-                .put(ScriptService.DEFAULT_SCRIPTING_LANGUAGE_SETTING, "groovy")
                 // Set the refresh interval to super duper long so we can force realtime
                 // behavior.
                 .put(InternalIndexShard.INDEX_REFRESH_INTERVAL, "120m").build();

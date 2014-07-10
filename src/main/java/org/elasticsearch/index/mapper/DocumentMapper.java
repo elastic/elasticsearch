@@ -48,6 +48,7 @@ import org.elasticsearch.index.mapper.internal.*;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
 import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.ScriptService;
 
 import java.io.IOException;
 import java.util.*;
@@ -142,18 +143,7 @@ public class DocumentMapper implements ToXContent {
 
         private NamedAnalyzer searchQuoteAnalyzer;
 
-        /**
-         * Contents of the script to transform the source document before indexing.
-         */
-        private String transformScript;
-        /**
-         * Language of the script to transform the source document before indexing.
-         */
-        private String transformLanguage;
-        /**
-         * Parameters passed to the transform script.
-         */
-        private Map<String, Object> transformParameters;
+        private List<SourceTransform> sourceTransforms;
 
         private final String index;
 
@@ -241,18 +231,18 @@ public class DocumentMapper implements ToXContent {
             return searchQuoteAnalyzer != null;
         }
 
-        public Builder transform(String script, String language, Map<String, Object> parameters) {
-            transformScript = script;
-            transformLanguage = language;
-            transformParameters = parameters;
+        public Builder transform(ScriptService scriptService, String script, String language, Map<String, Object> parameters) {
+            if (sourceTransforms == null) {
+                sourceTransforms = new ArrayList<>();
+            }
+            sourceTransforms.add(new ScriptTransform(scriptService, script, language, parameters));
             return this;
         }
 
         public DocumentMapper build(DocumentMapperParser docMapperParser) {
             Preconditions.checkNotNull(rootObjectMapper, "Mapper builder must have the root object mapper set");
             return new DocumentMapper(index, indexSettings, docMapperParser, rootObjectMapper, meta,
-                    indexAnalyzer, searchAnalyzer, searchQuoteAnalyzer, rootMappers,
-                    transformScript, transformLanguage, transformParameters);
+                    indexAnalyzer, searchAnalyzer, searchQuoteAnalyzer, rootMappers, sourceTransforms);
         }
     }
 
@@ -304,25 +294,13 @@ public class DocumentMapper implements ToXContent {
 
     private final Object mappersMutex = new Object();
 
-    /**
-     * Contents of the script to transform the source document before indexing.
-     */
-    private final String transformScript;
-    /**
-     * Language of the script to transform the source document before indexing.
-     */
-    private final String transformLanguage;
-    /**
-     * Parameters passed to the transform script.
-     */
-    private final Map<String, Object> transformParameters;
+    private final List<SourceTransform> sourceTransforms;
 
     public DocumentMapper(String index, @Nullable Settings indexSettings, DocumentMapperParser docMapperParser,
                           RootObjectMapper rootObjectMapper,
                           ImmutableMap<String, Object> meta,
                           NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer, NamedAnalyzer searchQuoteAnalyzer,
-                          Map<Class<? extends RootMapper>, RootMapper> rootMappers,
-                          String transformScript, String transformLanguage, Map<String, Object> transformParameters) {
+                          Map<Class<? extends RootMapper>, RootMapper> rootMappers, List<SourceTransform> sourceTransforms) {
         this.index = index;
         this.indexSettings = indexSettings;
         this.type = rootObjectMapper.name();
@@ -330,6 +308,7 @@ public class DocumentMapper implements ToXContent {
         this.docMapperParser = docMapperParser;
         this.meta = meta;
         this.rootObjectMapper = rootObjectMapper;
+        this.sourceTransforms = sourceTransforms;
 
         this.rootMappers = ImmutableMap.copyOf(rootMappers);
         this.rootMappersOrdered = rootMappers.values().toArray(new RootMapper[rootMappers.values().size()]);
@@ -382,10 +361,6 @@ public class DocumentMapper implements ToXContent {
                 hasNestedObjects = true;
             }
         }
-
-        this.transformScript = transformScript;
-        this.transformLanguage = transformLanguage;
-        this.transformParameters = transformParameters;
 
         refreshSource();
     }
@@ -520,7 +495,7 @@ public class DocumentMapper implements ToXContent {
             if (parser == null) {
                 parser = XContentHelper.createParser(source.source());
             }
-            if (transformScript != null) {
+            if (sourceTransforms != null) {
                 parser = transform(parser);
             }
             context.reset(parser, new ParseContext.Document(), source, listener);
@@ -615,21 +590,14 @@ public class DocumentMapper implements ToXContent {
      * @param sourceAsMap source to transform.  This may be mutated by the script.
      * @return transformed version of transformMe.  This may actually be the same object as sourceAsMap
      */
-    @SuppressWarnings("unchecked")
     public Map<String, Object> transformSourceAsMap(Map<String, Object> sourceAsMap) {
-        try {
-            if (transformScript == null) {
-                return sourceAsMap;
-            }
-            // TODO putting the scriptService on the DocumentMapperParser feels silly
-            ExecutableScript script = docMapperParser.scriptService().executable(transformLanguage, transformScript, transformParameters);
-            script.setNextVar("source", sourceAsMap);
-            script.run();
-            // TODO it feels weird to unwrap the map and return it rather then just make this void but this is how Updates work with scripts
-            return (Map<String, Object>) script.unwrap(sourceAsMap);
-        } catch (Exception e) {
-            throw new ElasticsearchIllegalArgumentException("failed to execute script", e);
+        if (sourceTransforms == null) {
+            return sourceAsMap;
         }
+        for (SourceTransform transform : sourceTransforms) {
+            sourceAsMap = transform.transformSourceAsMap(sourceAsMap);
+        }
+        return sourceAsMap;
     }
 
     private XContentParser transform(XContentParser parser) throws IOException {
@@ -764,15 +732,16 @@ public class DocumentMapper implements ToXContent {
                         }
                     }
                 }
-                if (transformScript != null) {
-                    if (transformLanguage == null && transformParameters == null) {
-                        builder.field("transform", transformScript);
+                if (sourceTransforms != null) {
+                    if (sourceTransforms.size() == 1) {
+                        builder.field("transform");
+                        sourceTransforms.get(0).toXContent(builder, params);
                     } else {
-                        builder.startObject("transform");
-                        builder.field("script", transformScript);
-                        builder.field("lang", transformLanguage);
-                        builder.field("params", transformParameters);
-                        builder.endObject();
+                        builder.startArray("transform");
+                        for (SourceTransform transform: sourceTransforms) {
+                            transform.toXContent(builder, params);
+                        }
+                        builder.endArray();
                     }
                 }
 
@@ -785,5 +754,67 @@ public class DocumentMapper implements ToXContent {
             // in the constructor
         }, rootMappersNotIncludedInObject);
         return builder;
+    }
+
+    /**
+     * Transformations to be applied to the source before indexing and/or after loading.
+     */
+    private interface SourceTransform extends ToXContent {
+        /**
+         * Transform the source when it is expressed as a map.  This is public so it can be transformed the source is loaded.
+         * @param sourceAsMap source to transform.  This may be mutated by the script.
+         * @return transformed version of transformMe.  This may actually be the same object as sourceAsMap
+         */
+        Map<String, Object> transformSourceAsMap(Map<String, Object> sourceAsMap);
+    }
+
+    /**
+     * Script based source transformation.
+     */
+    private static class ScriptTransform implements SourceTransform {
+        private final ScriptService scriptService;
+        /**
+         * Contents of the script to transform the source document before indexing.
+         */
+        private final String script;
+        /**
+         * Language of the script to transform the source document before indexing.
+         */
+        private final String language;
+        /**
+         * Parameters passed to the transform script.
+         */
+        private final Map<String, Object> parameters;
+
+        public ScriptTransform(ScriptService scriptService, String script, String language, Map<String, Object> parameters) {
+            this.scriptService = scriptService;
+            this.script = script;
+            this.language = language;
+            this.parameters = parameters;
+        }
+
+        @SuppressWarnings("unchecked")
+        public Map<String, Object> transformSourceAsMap(Map<String, Object> sourceAsMap) {
+            try {
+                ExecutableScript executable = scriptService.executable(language, script, parameters);
+                executable.setNextVar("source", sourceAsMap);
+                executable.run();
+                return (Map<String, Object>) executable.unwrap(sourceAsMap);
+            } catch (Exception e) {
+                throw new ElasticsearchIllegalArgumentException("failed to execute script", e);
+            }
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("script", script);
+            builder.field("lang", language);
+            if (parameters != null) {
+                builder.field("params", parameters);
+            }
+            builder.endObject();
+            return builder;
+        }
     }
 }

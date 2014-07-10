@@ -49,6 +49,7 @@ import org.elasticsearch.index.similarity.SimilarityLookupService;
 import org.elasticsearch.script.ScriptService;
 
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.index.mapper.MapperBuilders.doc;
@@ -244,18 +245,16 @@ public class DocumentMapperParser extends AbstractIndexComponent {
             } else if ("transform".equals(fieldName)) {
                 iterator.remove();
                 if (fieldNode instanceof Map) {
-                    // Long form allows script, language, and parameters.
-                    Map<String, Object> transformConfig = (Map<String, Object>) fieldNode;
-                    docBuilder.transform(
-                            (String)transformConfig.remove("script"),
-                            (String)transformConfig.remove("lang"),
-                            (Map<String, Object>)transformConfig.remove("params"));
-                    if (!transformConfig.isEmpty()) {
-                        throw new MapperParsingException("Unrecognized fields in transform:  " + getRemainingFields(transformConfig));
+                    parseTransform(docBuilder, (Map<String, Object>) fieldNode);
+                } else if (fieldNode instanceof List) {
+                    for (Object transformItem: (List)fieldNode) {
+                        if (!(transformItem instanceof Map)) {
+                            throw new MapperParsingException("Elements of transform list must be objects but one was:  " + fieldNode);
+                        }
+                        parseTransform(docBuilder, (Map<String, Object>) transformItem);
                     }
                 } else {
-                    // Short form only allows script and uses default language.
-                    docBuilder.transform(fieldNode.toString(), null, null);
+                    throw new MapperParsingException("Transform must be an object or an array but was:  " + fieldNode);
                 }
             } else {
                 Mapper.TypeParser typeParser = rootTypeParsers.get(fieldName);
@@ -299,7 +298,17 @@ public class DocumentMapperParser extends AbstractIndexComponent {
         return remainingFields.toString();
     }
 
-    @SuppressWarnings({"unchecked"})
+    @SuppressWarnings("unchecked")
+    private void parseTransform(DocumentMapper.Builder docBuilder, Map<String, Object> transformConfig) {
+        String script = (String)transformConfig.remove("script");
+        if (script != null) {
+            docBuilder.transform(scriptService, script, (String)transformConfig.remove("lang"), (Map<String, Object>)transformConfig.remove("params"));
+        }
+        if (!transformConfig.isEmpty()) {
+            throw new MapperParsingException("Unrecognized parameter in transform config:  " + getRemainingFields(transformConfig));
+        }
+    }
+
     private Tuple<String, Map<String, Object>> extractMapping(String type, String source) throws MapperParsingException {
         Map<String, Object> root;
         try {
@@ -324,9 +333,5 @@ public class DocumentMapperParser extends AbstractIndexComponent {
             mapping = new Tuple<>(type, root);
         }
         return mapping;
-    }
-
-    public ScriptService scriptService() {
-        return scriptService;
     }
 }

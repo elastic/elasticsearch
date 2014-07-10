@@ -21,9 +21,10 @@ package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.hppc.ObjectOpenHashSet;
 import com.google.common.base.Charsets;
+import com.google.common.base.Predicate;
 import com.google.common.collect.*;
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.AnalyzerWrapper;
+import org.apache.lucene.analysis.SimpleAnalyzerWrapper;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.FilterClause;
 import org.apache.lucene.queries.TermFilter;
@@ -34,6 +35,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.Streams;
@@ -73,13 +75,23 @@ import static org.elasticsearch.index.mapper.DocumentMapper.MergeFlags.mergeFlag
 /**
  *
  */
-public class MapperService extends AbstractIndexComponent implements Iterable<DocumentMapper> {
+public class MapperService extends AbstractIndexComponent  {
 
     public static final String DEFAULT_MAPPING = "_default_";
     private static ObjectOpenHashSet<String> META_FIELDS = ObjectOpenHashSet.from(
             "_uid", "_id", "_type", "_all", "_analyzer", "_boost", "_parent", "_routing", "_index",
             "_size", "_timestamp", "_ttl"
     );
+
+    public static final String FIELD_MAPPERS_COLLECTION_SWITCH = "index.mapper.field_mappers_collection_switch";
+    public static final int DEFAULT_FIELD_MAPPERS_COLLECTION_SWITCH = 100;
+
+    public static int getFieldMappersCollectionSwitch(@Nullable Settings settings) {
+        if (settings == null) {
+            return DEFAULT_FIELD_MAPPERS_COLLECTION_SWITCH;
+        }
+        return settings.getAsInt(MapperService.FIELD_MAPPERS_COLLECTION_SWITCH, MapperService.DEFAULT_FIELD_MAPPERS_COLLECTION_SWITCH);
+    }
 
     private final AnalysisService analysisService;
     private final IndexFieldDataService fieldDataService;
@@ -97,7 +109,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
     private final Object typeMutex = new Object();
     private final Object mappersMutex = new Object();
 
-    private final FieldMappersLookup fieldMappers = new FieldMappersLookup();
+    private final FieldMappersLookup fieldMappers;
     private volatile ImmutableOpenMap<String, ObjectMappers> fullPathObjectMappers = ImmutableOpenMap.of();
     private boolean hasNested = false; // updated dynamically to true when a nested object is added
 
@@ -117,6 +129,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
         super(index, indexSettings);
         this.analysisService = analysisService;
         this.fieldDataService = fieldDataService;
+        this.fieldMappers = new FieldMappersLookup(indexSettings);
         this.documentParser = new DocumentMapperParser(index, indexSettings, analysisService, postingsFormatService, docValuesFormatService, similarityLookupService);
         this.searchAnalyzer = new SmartIndexNameSearchAnalyzer(analysisService.defaultSearchAnalyzer());
         this.searchQuoteAnalyzer = new SmartIndexNameSearchQuoteAnalyzer(analysisService.defaultSearchQuoteAnalyzer());
@@ -213,10 +226,33 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
         return this.hasNested;
     }
 
-    @Override
-    public UnmodifiableIterator<DocumentMapper> iterator() {
-        return Iterators.unmodifiableIterator(mappers.values().iterator());
+    /**
+     * returns an immutable iterator over current document mappers.
+     *
+     * @param includingDefaultMapping indicates whether the iterator should contain the {@link #DEFAULT_MAPPING} document mapper.
+     *                                As is this not really an active type, you would typically set this to false
+     */
+    public Iterable<DocumentMapper> docMappers(final boolean includingDefaultMapping) {
+        return  new Iterable<DocumentMapper>() {
+            @Override
+            public Iterator<DocumentMapper> iterator() {
+                final Iterator<DocumentMapper> iterator;
+                if (includingDefaultMapping) {
+                    iterator = mappers.values().iterator();
+                } else {
+                    iterator = Iterators.filter(mappers.values().iterator(), NOT_A_DEFAULT_DOC_MAPPER);
+                }
+                return Iterators.unmodifiableIterator(iterator);
+            }
+        };
     }
+
+    private static final Predicate<DocumentMapper> NOT_A_DEFAULT_DOC_MAPPER = new Predicate<DocumentMapper>() {
+        @Override
+        public boolean apply(DocumentMapper input) {
+            return !DEFAULT_MAPPING.equals(input.type());
+        }
+    };
 
     public AnalysisService analysisService() {
         return this.analysisService;
@@ -328,7 +364,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
         }
     }
 
-    private void addFieldMappers(Iterable<FieldMapper>  fieldMappers) {
+    private void addFieldMappers(List<FieldMapper> fieldMappers) {
         synchronized (mappersMutex) {
             this.fieldMappers.addNewMappers(fieldMappers);
         }
@@ -399,10 +435,14 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
         return mappers.get(type);
     }
 
-    public DocumentMapper documentMapperWithAutoCreate(String type) {
+    /**
+     * Returns the document mapper created, including if the document mapper ended up
+     * being actually created or not in the second tuple value.
+     */
+    public Tuple<DocumentMapper, Boolean> documentMapperWithAutoCreate(String type) {
         DocumentMapper mapper = mappers.get(type);
         if (mapper != null) {
-            return mapper;
+            return Tuple.tuple(mapper, Boolean.FALSE);
         }
         if (!dynamic) {
             throw new TypeMissingException(index, type, "trying to auto create mapping, but dynamic mapping is disabled");
@@ -411,10 +451,10 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
         synchronized (typeMutex) {
             mapper = mappers.get(type);
             if (mapper != null) {
-                return mapper;
+                return Tuple.tuple(mapper, Boolean.FALSE);
             }
             merge(type, null, true);
-            return mappers.get(type);
+            return Tuple.tuple(mappers.get(type), Boolean.TRUE);
         }
     }
 
@@ -971,7 +1011,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
         }
     }
 
-    final class SmartIndexNameSearchAnalyzer extends AnalyzerWrapper {
+    final class SmartIndexNameSearchAnalyzer extends SimpleAnalyzerWrapper {
 
         private final Analyzer defaultAnalyzer;
 
@@ -1000,14 +1040,9 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             }
             return defaultAnalyzer;
         }
-
-        @Override
-        protected TokenStreamComponents wrapComponents(String fieldName, TokenStreamComponents components) {
-            return components;
-        }
     }
 
-    final class SmartIndexNameSearchQuoteAnalyzer extends AnalyzerWrapper {
+    final class SmartIndexNameSearchQuoteAnalyzer extends SimpleAnalyzerWrapper {
 
         private final Analyzer defaultAnalyzer;
 
@@ -1036,11 +1071,6 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             }
             return defaultAnalyzer;
         }
-
-        @Override
-        protected TokenStreamComponents wrapComponents(String fieldName, TokenStreamComponents components) {
-            return components;
-        }
     }
 
     class InternalFieldMapperListener extends FieldMapperListener {
@@ -1050,7 +1080,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
         }
 
         @Override
-        public void fieldMappers(Iterable<FieldMapper>  fieldMappers) {
+        public void fieldMappers(List<FieldMapper> fieldMappers) {
             addFieldMappers(fieldMappers);
         }
     }

@@ -23,17 +23,16 @@ import com.google.common.base.Predicate;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.count.CountResponse;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.junit.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  *
@@ -42,6 +41,7 @@ public class SimpleDeleteMappingTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void simpleDeleteMapping() throws Exception {
+        assertAcked(prepareCreate("test").addMapping("type1", "value", "type=string").execute().actionGet());
         for (int i = 0; i < 10; i++) {
             client().prepareIndex("test", "type1", Integer.toString(i)).setSource(jsonBuilder().startObject()
                     .field("value", "test" + i)
@@ -67,22 +67,14 @@ public class SimpleDeleteMappingTests extends ElasticsearchIntegrationTest {
             CountResponse countResponse = client().prepareCount().setQuery(matchAllQuery()).execute().actionGet();
             assertThat(countResponse.getCount(), equalTo(0l));
         }
-
-        boolean applied = awaitBusy(new Predicate<Object>() {
+        assertBusy(new Runnable() {
             @Override
-            public boolean apply(Object input) {
-                GetMappingsResponse response = client().admin().indices().prepareGetMappings("test").setTypes("type1").get();
-                ImmutableOpenMap<String, MappingMetaData> mappings = response.getMappings().get("test");
-                if (mappings == null) {
-                    return true;
-                }
-                return !mappings.containsKey("type1");
+            public void run() {
+                GetMappingsResponse response = client().admin().indices().prepareGetMappings().get();
+                assertTrue(response.getMappings().containsKey("test"));
+                assertFalse(response.getMappings().get("test").containsKey("type1"));
             }
         });
-        if (!applied) {
-            fail("failed to wait for the mapping to be removed from the master cluster state");
-        }
-
     }
     
     

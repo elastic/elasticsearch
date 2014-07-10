@@ -106,7 +106,7 @@ public class AnalyzerMapper implements Mapper, InternalMapper, RootMapper {
             List<IndexableField> fields = context.doc().getFields();
             for (int i = 0, fieldsSize = fields.size(); i < fieldsSize; i++) {
                 IndexableField field = fields.get(i);
-                if (field.name() == path) {
+                if (field.name().equals(path)) {
                     value = field.stringValue();
                     break;
                 }

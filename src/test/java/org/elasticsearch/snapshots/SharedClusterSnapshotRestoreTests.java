@@ -22,6 +22,7 @@ package org.elasticsearch.snapshots;
 import com.carrotsearch.randomizedtesting.LifecycleScope;
 import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableList;
+import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ListenableActionFuture;
@@ -42,14 +43,12 @@ import org.elasticsearch.cluster.metadata.SnapshotMetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.store.support.AbstractIndexStore;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.snapshots.mockstore.MockRepositoryModule;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.elasticsearch.test.store.MockDirectoryHelper;
 import org.junit.Test;
 
 import java.io.File;
@@ -61,16 +60,6 @@ import static org.hamcrest.Matchers.*;
 
 @Slow
 public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
-
-    @Override
-    public Settings indexSettings() {
-        // During restore we frequently restore index to exactly the same state it was before, that might cause the same
-        // checksum file to be written twice during restore operation
-        return ImmutableSettings.builder().put(super.indexSettings())
-                .put(MockDirectoryHelper.RANDOM_PREVENT_DOUBLE_WRITE, false)
-                .put(MockDirectoryHelper.RANDOM_NO_DELETE_OPEN_FILE, false) //TODO: Ask Simon if this is hiding an issue
-                .build();
-    }
 
     @Test
     public void basicWorkFlowTest() throws Exception {

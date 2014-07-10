@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -319,7 +320,9 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     }
 
                     if (indexSettingsBuilder.get(SETTING_VERSION_CREATED) == null) {
-                        indexSettingsBuilder.put(SETTING_VERSION_CREATED, version);
+                        DiscoveryNodes nodes = currentState.nodes();
+                        final Version createdVersion = Version.smallest(version, nodes.smallestNonClientNodeVersion());
+                        indexSettingsBuilder.put(SETTING_VERSION_CREATED, createdVersion);
                     }
                     indexSettingsBuilder.put(SETTING_UUID, Strings.randomBase64UUID());
 
@@ -369,7 +372,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
                     // now, update the mappings with the actual source
                     Map<String, MappingMetaData> mappingsMetaData = Maps.newHashMap();
-                    for (DocumentMapper mapper : mapperService) {
+                    for (DocumentMapper mapper : mapperService.docMappers(true)) {
                         MappingMetaData mappingMd = new MappingMetaData(mapper);
                         mappingsMetaData.put(mapper.type(), mappingMd);
                     }

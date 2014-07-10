@@ -217,28 +217,28 @@
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-core</artifactId>
-            <version>2.3.3</version>
+            <version>2.4.1.1</version>
             <scope>compile</scope>
         </dependency>
 
         <dependency>
             <groupId>com.fasterxml.jackson.dataformat</groupId>
             <artifactId>jackson-dataformat-smile</artifactId>
-            <version>2.3.3</version>
+            <version>2.4.1</version>
             <scope>compile</scope>
         </dependency>
 
         <dependency>
             <groupId>com.fasterxml.jackson.dataformat</groupId>
             <artifactId>jackson-dataformat-yaml</artifactId>
-            <version>2.3.3</version>
+            <version>2.4.1</version>
             <scope>compile</scope>
         </dependency>
 
         <dependency>
             <groupId>com.fasterxml.jackson.dataformat</groupId>
             <artifactId>jackson-dataformat-cbor</artifactId>
-            <version>2.3.3</version>
+            <version>2.4.1</version>
             <scope>compile</scope>
         </dependency>
 
@@ -507,6 +507,7 @@
                                 <tests.network>${tests.network}</tests.network>
                                 <tests.cluster>${tests.cluster}</tests.cluster>
                                 <tests.heap.size>${tests.heap.size}</tests.heap.size>
+                                <tests.filter>${tests.filter}</tests.filter>
                                 <es.node.local>${env.ES_TEST_LOCAL}</es.node.local>
                                 <es.node.mode>${es.node.mode}</es.node.mode>
                                 <es.logger.level>${es.logger.level}</es.logger.level>
@@ -717,6 +718,12 @@
                                 <exclude>/*.txt</exclude>
                                 <exclude>build.properties</exclude>
                             </excludes>
+                        </filter>
+                        <filter>
+                            <artifact>io.netty:netty</artifact>
+                            <includes>
+                                <include>org/jboss/netty/**</include>
+                            </includes>
                         </filter>
                     </filters>
                 </configuration>
@@ -1161,6 +1168,9 @@
                                 <!-- start exclude for FilteredQuery -->
                                 <exclude>org/elasticsearch/common/lucene/search/XFilteredQuery.class</exclude>
                                 <!-- end exclude for FilteredQuery -->
+                                <!-- start exclude for Channels utility class -->
+                                <exclude>org/elasticsearch/common/io/Channels.class</exclude>
+                                <!-- end exclude for Channels -->
                             </excludes>
                             <bundledSignatures>
                                 <!-- This will automatically choose the right signatures based on 'targetVersion': -->

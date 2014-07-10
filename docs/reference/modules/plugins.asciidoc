@@ -191,6 +191,9 @@ You can disable that check using `plugins.check_lucene: false`.
 * https://github.com/elasticsearch/elasticsearch-cloud-azure[Azure Cloud Plugin] - Azure discovery
 * https://github.com/elasticsearch/elasticsearch-cloud-gce[Google Compute Engine Cloud Plugin] - GCE discovery
 
+.Supported by the community
+* https://github.com/shikhar/eskka[eskka Discovery Plugin] (by Shikhar Bhushan)
+
 [float]
 [[river]]
 ==== River Plugins
@@ -225,6 +228,8 @@ You can disable that check using `plugins.check_lucene: false`.
 * https://github.com/plombard/SubversionRiver[Subversion River Plugin] (by Pascal Lombard)
 * https://github.com/kzwang/elasticsearch-river-dynamodb[DynamoDB River Plugin] (by Kevin Wang)
 * https://github.com/salyh/elasticsearch-river-imap[IMAP/POP3 Email River Plugin] (by Hendrik Saly)
+* https://github.com/codelibs/elasticsearch-river-web[Web River Plugin] (by CodeLibs Project)
+* https://github.com/eea/eea.elasticsearch.river.rdf[EEA ElasticSearch RDF River Plugin] (by the European Environment Agency)
 
 [float]
 [[transport]]
@@ -298,4 +303,5 @@ You can disable that check using `plugins.check_lucene: false`.
 * https://github.com/kzwang/elasticsearch-image[Elasticsearch Image Plugin] (by Kevin Wang)
 * https://github.com/wikimedia/search-highlighter[Elasticsearch Experimental Highlighter] (by Wikimedia Foundation/Nik Everett)
 * https://github.com/salyh/elasticsearch-security-plugin[Elasticsearch Security Plugin] (by Hendrik Saly)
+* https://github.com/codelibs/elasticsearch-taste[Elasticsearch Taste Plugin] (by CodeLibs Project)
 

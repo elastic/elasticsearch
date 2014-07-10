@@ -51,14 +51,21 @@ public class MockTransportService extends TransportService {
      * Clears all the registered rules.
      */
     public void clearAllRules() {
-        ((LookupTestTransport) transport).transports.clear();
+        transport().transports.clear();
     }
 
     /**
      * Clears the rule associated with the provided node.
      */
     public void clearRule(DiscoveryNode node) {
-        ((LookupTestTransport) transport).transports.remove(node);
+        transport().transports.remove(node);
+    }
+
+    /**
+     * Returns the original Transport service wrapped by this mock transport service.
+     */
+    public Transport original() {
+        return original;
     }
 
     /**
@@ -66,7 +73,7 @@ public class MockTransportService extends TransportService {
      * is added to fail as well.
      */
     public void addFailToSendNoConnectRule(DiscoveryNode node) {
-        ((LookupTestTransport) transport).transports.put(node, new DelegateTransport(original) {
+        addDelegate(node, new DelegateTransport(original) {
             @Override
             public void connectToNode(DiscoveryNode node) throws ConnectTransportException {
                 throw new ConnectTransportException(node, "DISCONNECT: simulated");
@@ -90,7 +97,7 @@ public class MockTransportService extends TransportService {
      */
     public void addUnresponsiveRule(DiscoveryNode node) {
         // TODO add a parameter to delay the connect timeout?
-        ((LookupTestTransport) transport).transports.put(node, new DelegateTransport(original) {
+        addDelegate(node, new DelegateTransport(original) {
             @Override
             public void connectToNode(DiscoveryNode node) throws ConnectTransportException {
                 throw new ConnectTransportException(node, "UNRESPONSIVE: simulated");
@@ -106,6 +113,18 @@ public class MockTransportService extends TransportService {
                 // don't send anything, the receiving node is unresponsive
             }
         });
+    }
+
+    /**
+     * Adds a new delegate transport that is used for communication with the given node.
+     * @return <tt>true</tt> iff no other delegate was registered for this node before, otherwise <tt>false</tt>
+     */
+    public boolean addDelegate(DiscoveryNode node, DelegateTransport transport) {
+        return transport().transports.put(node, transport) == null;
+    }
+
+    private LookupTestTransport transport() {
+        return (LookupTestTransport) transport;
     }
 
     /**
@@ -159,13 +178,15 @@ public class MockTransportService extends TransportService {
      * A pure delegate transport.
      * Can be extracted to a common class if needed in other places in the codebase.
      */
-    private static class DelegateTransport implements Transport {
+    public static class DelegateTransport implements Transport {
 
         protected final Transport transport;
 
-        DelegateTransport(Transport transport) {
+        public DelegateTransport(Transport transport) {
             this.transport = transport;
         }
+
+
 
         @Override
         public void transportServiceAdapter(TransportServiceAdapter service) {

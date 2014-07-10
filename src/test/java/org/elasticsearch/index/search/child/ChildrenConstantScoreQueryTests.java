@@ -34,6 +34,7 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.compress.CompressedString;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.search.NotFilter;
 import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
@@ -84,7 +85,9 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
 
     @AfterClass
     public static void after() throws IOException {
+        SearchContext current = SearchContext.current();
         SearchContext.removeCurrent();
+        Releasables.close(current);
     }
 
     @Test
@@ -365,7 +368,7 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
         NodeSettingsService nodeSettingsService = new NodeSettingsService(settings);
         IndicesFilterCache indicesFilterCache = new IndicesFilterCache(settings, threadPool, cacheRecycler, nodeSettingsService);
         WeightedFilterCache filterCache = new WeightedFilterCache(index, settings, indicesFilterCache);
-        return new TestSearchContext(cacheRecycler, pageCacheRecycler, bigArrays, indexService, filterCache, indexFieldDataService);
+        return new TestSearchContext(threadPool, cacheRecycler, pageCacheRecycler, bigArrays, indexService, filterCache, indexFieldDataService);
     }
 
 }

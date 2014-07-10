@@ -20,9 +20,14 @@
 package org.elasticsearch.index.translog;
 
 import org.apache.lucene.index.Term;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.io.stream.BytesStreamInput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
 import org.junit.After;
@@ -30,28 +35,32 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CountDownLatch;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
  *
  */
-public abstract class AbstractSimpleTranslogTests {
+public abstract class AbstractSimpleTranslogTests extends ElasticsearchTestCase {
 
     protected final ShardId shardId = new ShardId(new Index("index"), 1);
 
     protected Translog translog;
 
     @Before
-    public void setUp() {
+    public void setUp() throws Exception {
+        super.setUp();
         translog = create();
         translog.newTranslog(1);
     }
 
     @After
-    public void tearDown() {
+    public void tearDown() throws Exception {
         translog.closeWithDelete();
+        super.tearDown();
     }
 
     protected abstract Translog create();
@@ -260,6 +269,134 @@ public abstract class AbstractSimpleTranslogTests {
         assertThat(create.id(), equalTo("2"));
         snapshot.close();
     }
+
+
+    static class LocationOperation {
+        final Translog.Operation operation;
+        final Translog.Location location;
+
+        public LocationOperation(Translog.Operation operation, Translog.Location location) {
+            this.operation = operation;
+            this.location = location;
+        }
+    }
+
+    @Test
+    public void testConcurrentWritesWithVaryingSize() throws Throwable {
+        final int opsPerThread = randomIntBetween(10, 200);
+        int threadCount = 2 + randomInt(5);
+
+        logger.info("testing with [{}] threads, each doing [{}] ops", threadCount, opsPerThread);
+        final BlockingQueue<LocationOperation> writtenOperations = new ArrayBlockingQueue<>(threadCount * opsPerThread);
+
+        Thread[] threads = new Thread[threadCount];
+        final Throwable[] threadExceptions = new Throwable[threadCount];
+        final CountDownLatch downLatch = new CountDownLatch(1);
+        for (int i = 0; i < threadCount; i++) {
+            final int threadId = i;
+            threads[i] = new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        downLatch.await();
+                        for (int opCount = 0; opCount < opsPerThread; opCount++) {
+                            Translog.Operation op;
+                            switch (randomFrom(Translog.Operation.Type.values())) {
+                                case CREATE:
+                                    op = new Translog.Create("test", threadId + "_" + opCount,
+                                            randomUnicodeOfLengthBetween(1, 20 * 1024).getBytes("UTF-8"));
+                                    break;
+                                case SAVE:
+                                    op = new Translog.Index("test", threadId + "_" + opCount,
+                                            randomUnicodeOfLengthBetween(1, 20 * 1024).getBytes("UTF-8"));
+                                    break;
+                                case DELETE:
+                                    op = new Translog.Delete(new Term("_uid", threadId + "_" + opCount),
+                                            1 + randomInt(100000),
+                                            randomFrom(VersionType.values()));
+                                    break;
+                                case DELETE_BY_QUERY:
+                                    op = new Translog.DeleteByQuery(
+                                            new BytesArray(randomRealisticUnicodeOfLengthBetween(10, 400).getBytes("UTF-8")),
+                                            new String[]{randomRealisticUnicodeOfLengthBetween(10, 400)},
+                                            "test");
+                                    break;
+                                default:
+                                    throw new ElasticsearchException("not supported op type");
+                            }
+
+                            Translog.Location loc = translog.add(op);
+                            writtenOperations.add(new LocationOperation(op, loc));
+                        }
+                    } catch (Throwable t) {
+                        threadExceptions[threadId] = t;
+                    }
+                }
+            });
+            threads[i].setDaemon(true);
+            threads[i].start();
+        }
+
+        downLatch.countDown();
+
+        for (int i = 0; i < threadCount; i++) {
+            if (threadExceptions[i] != null) {
+                throw threadExceptions[i];
+            }
+            threads[i].join(60 * 1000);
+        }
+
+        for (LocationOperation locationOperation : writtenOperations) {
+            byte[] data = translog.read(locationOperation.location);
+            StreamInput streamInput = new BytesStreamInput(data, false);
+            streamInput.readInt(); // size
+            Translog.Operation op = TranslogStreams.readTranslogOperation(streamInput);
+            Translog.Operation expectedOp = locationOperation.operation;
+            assertEquals(expectedOp.opType(), op.opType());
+            switch (op.opType()) {
+                case SAVE:
+                    Translog.Index indexOp = (Translog.Index) op;
+                    Translog.Index expIndexOp = (Translog.Index) expectedOp;
+                    assertEquals(expIndexOp.id(), indexOp.id());
+                    assertEquals(expIndexOp.routing(), indexOp.routing());
+                    assertEquals(expIndexOp.type(), indexOp.type());
+                    assertEquals(expIndexOp.source(), indexOp.source());
+                    assertEquals(expIndexOp.version(), indexOp.version());
+                    assertEquals(expIndexOp.versionType(), indexOp.versionType());
+                    break;
+                case CREATE:
+                    Translog.Create createOp = (Translog.Create) op;
+                    Translog.Create expCreateOp = (Translog.Create) expectedOp;
+                    assertEquals(expCreateOp.id(), createOp.id());
+                    assertEquals(expCreateOp.routing(), createOp.routing());
+                    assertEquals(expCreateOp.type(), createOp.type());
+                    assertEquals(expCreateOp.source(), createOp.source());
+                    assertEquals(expCreateOp.version(), createOp.version());
+                    assertEquals(expCreateOp.versionType(), createOp.versionType());
+                    break;
+                case DELETE:
+                    Translog.Delete delOp = (Translog.Delete) op;
+                    Translog.Delete expDelOp = (Translog.Delete) expectedOp;
+                    assertEquals(expDelOp.uid(), delOp.uid());
+                    assertEquals(expDelOp.version(), delOp.version());
+                    assertEquals(expDelOp.versionType(), delOp.versionType());
+                    break;
+                case DELETE_BY_QUERY:
+                    Translog.DeleteByQuery delQueryOp = (Translog.DeleteByQuery) op;
+                    Translog.DeleteByQuery expDelQueryOp = (Translog.DeleteByQuery) expectedOp;
+                    assertThat(expDelQueryOp.source(), equalTo(delQueryOp.source()));
+                    assertThat(expDelQueryOp.filteringAliases(), equalTo(delQueryOp.filteringAliases()));
+                    assertThat(expDelQueryOp.types(), equalTo(delQueryOp.types()));
+                    break;
+
+                default:
+                    throw new ElasticsearchException("unsupported opType");
+            }
+
+        }
+
+    }
+
 
     private Term newUid(String id) {
         return new Term("_uid", id);

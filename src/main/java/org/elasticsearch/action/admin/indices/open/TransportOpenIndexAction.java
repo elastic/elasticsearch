@@ -80,15 +80,15 @@ public class TransportOpenIndexAction extends TransportMasterNodeOperationAction
 
     @Override
     protected ClusterBlockException checkBlock(OpenIndexRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, request.indices());
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, state.metaData().concreteIndices(request.indicesOptions(), request.indices()));
     }
 
     @Override
     protected void masterOperation(final OpenIndexRequest request, final ClusterState state, final ActionListener<OpenIndexResponse> listener) throws ElasticsearchException {
-        request.indices(state.metaData().concreteIndices(request.indicesOptions(), request.indices()));
+        final String[] concreteIndices = state.metaData().concreteIndices(request.indicesOptions(), request.indices());
         OpenIndexClusterStateUpdateRequest updateRequest = new OpenIndexClusterStateUpdateRequest()
                 .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
-                .indices(request.indices());
+                .indices(concreteIndices);
 
         indexStateService.openIndex(updateRequest, new ActionListener<ClusterStateUpdateResponse>() {
 
@@ -99,7 +99,7 @@ public class TransportOpenIndexAction extends TransportMasterNodeOperationAction
 
             @Override
             public void onFailure(Throwable t) {
-                logger.debug("failed to open indices [{}]", t, request.indices());
+                logger.debug("failed to open indices [{}]", t, concreteIndices);
                 listener.onFailure(t);
             }
         });

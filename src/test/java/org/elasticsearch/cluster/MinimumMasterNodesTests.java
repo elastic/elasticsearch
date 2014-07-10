@@ -61,6 +61,7 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
         logger.info("--> should be blocked, no master...");
         ClusterState state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
         assertThat(state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK), equalTo(true));
+        assertThat(state.nodes().size(), equalTo(1)); // verify that we still see the local node in the cluster state
 
         logger.info("--> start second node, cluster should be formed");
         internalCluster().startNode(settings);
@@ -102,6 +103,7 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
         });
         state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
         assertThat(state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK), equalTo(true));
+        assertThat(state.nodes().size(), equalTo(1)); // verify that we still see the local node in the cluster state
 
         logger.info("--> starting the previous master node again...");
         internalCluster().startNode(settings);

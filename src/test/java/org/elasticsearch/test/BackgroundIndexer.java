@@ -25,7 +25,6 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.recovery.RecoveryWhileUnderLoadTests;
 import org.junit.Assert;
 
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -40,7 +39,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class BackgroundIndexer implements AutoCloseable {
 
-    private final ESLogger logger = Loggers.getLogger(RecoveryWhileUnderLoadTests.class);
+    private final ESLogger logger = Loggers.getLogger(getClass());
 
     final Thread[] writers;
     final CountDownLatch stopLatch;

@@ -226,7 +226,7 @@ public class SimpleValidateQueryTests extends ElasticsearchIntegrationTest {
             assertThat(response.getQueryExplanation().get(0).getExplanation(), nullValue());
 
         }
-        
+
         for (Client client : internalCluster()) {
                 ValidateQueryResponse response = client.admin().indices().prepareValidateQuery("test")
                     .setQuery(QueryBuilders.queryString("foo"))
@@ -295,6 +295,43 @@ public class SimpleValidateQueryTests extends ElasticsearchIntegrationTest {
         assertThat(validateQueryResponse.getQueryExplanation().size(), equalTo(1));
         assertThat(validateQueryResponse.getQueryExplanation().get(0).getIndex(), equalTo("test"));
         assertThat(validateQueryResponse.getQueryExplanation().get(0).getExplanation(), containsString("field:value1"));
+    }
+
+    @Test
+    public void explainMatchPhrasePrefix() {
+        assertAcked(prepareCreate("test").setSettings(
+                ImmutableSettings.settingsBuilder().put(indexSettings())
+                        .put("index.analysis.filter.syns.type", "synonym")
+                        .putArray("index.analysis.filter.syns.synonyms", "one,two")
+                        .put("index.analysis.analyzer.syns.tokenizer", "standard")
+                        .putArray("index.analysis.analyzer.syns.filter", "syns")
+                    ).addMapping("test", "field","type=string,analyzer=syns"));
+        ensureGreen();
+
+        ValidateQueryResponse validateQueryResponse = client().admin().indices().prepareValidateQuery("test")
+                .setQuery(QueryBuilders.matchPhrasePrefixQuery("field", "foo")).setExplain(true).get();
+        assertThat(validateQueryResponse.isValid(), equalTo(true));
+        assertThat(validateQueryResponse.getQueryExplanation().size(), equalTo(1));
+        assertThat(validateQueryResponse.getQueryExplanation().get(0).getExplanation(), containsString("field:\"foo*\""));
+
+        validateQueryResponse = client().admin().indices().prepareValidateQuery("test")
+                .setQuery(QueryBuilders.matchPhrasePrefixQuery("field", "foo bar")).setExplain(true).get();
+        assertThat(validateQueryResponse.isValid(), equalTo(true));
+        assertThat(validateQueryResponse.getQueryExplanation().size(), equalTo(1));
+        assertThat(validateQueryResponse.getQueryExplanation().get(0).getExplanation(), containsString("field:\"foo bar*\""));
+
+        // Stacked tokens
+        validateQueryResponse = client().admin().indices().prepareValidateQuery("test")
+                .setQuery(QueryBuilders.matchPhrasePrefixQuery("field", "one bar")).setExplain(true).get();
+        assertThat(validateQueryResponse.isValid(), equalTo(true));
+        assertThat(validateQueryResponse.getQueryExplanation().size(), equalTo(1));
+        assertThat(validateQueryResponse.getQueryExplanation().get(0).getExplanation(), containsString("field:\"(one two) bar*\""));
+
+        validateQueryResponse = client().admin().indices().prepareValidateQuery("test")
+                .setQuery(QueryBuilders.matchPhrasePrefixQuery("field", "foo one")).setExplain(true).get();
+        assertThat(validateQueryResponse.isValid(), equalTo(true));
+        assertThat(validateQueryResponse.getQueryExplanation().size(), equalTo(1));
+        assertThat(validateQueryResponse.getQueryExplanation().get(0).getExplanation(), containsString("field:\"foo (one* two*)\""));
     }
 
     @Test

@@ -521,7 +521,7 @@ public class SearchSourceBuilder implements ToXContent {
      * @param exclude An optional exclude (optionally wildcarded) pattern to filter the returned _source
      */
     public SearchSourceBuilder fetchSource(@Nullable String include, @Nullable String exclude) {
-        return fetchSource(include == null ? Strings.EMPTY_ARRAY : new String[]{include}, include == null ? Strings.EMPTY_ARRAY : new String[]{exclude});
+        return fetchSource(include == null ? Strings.EMPTY_ARRAY : new String[]{include}, exclude == null ? Strings.EMPTY_ARRAY : new String[]{exclude});
     }
 
     /**

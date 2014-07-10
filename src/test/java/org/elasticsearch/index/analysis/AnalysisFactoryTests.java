@@ -43,6 +43,7 @@ public class AnalysisFactoryTests extends ElasticsearchTestCase {
         put("russianletter", Deprecated.class);
         
         // exposed in ES
+        put("classic",       ClassicTokenizerFactory.class);
         put("edgengram",     EdgeNGramTokenizerFactory.class);
         put("keyword",       KeywordTokenizerFactory.class);
         put("letter",        LetterTokenizerFactory.class);
@@ -51,16 +52,10 @@ public class AnalysisFactoryTests extends ElasticsearchTestCase {
         put("pathhierarchy", PathHierarchyTokenizerFactory.class);
         put("pattern",       PatternTokenizerFactory.class);
         put("standard",      StandardTokenizerFactory.class);
+        put("thai",          ThaiTokenizerFactory.class);
         put("uax29urlemail", UAX29URLEmailTokenizerFactory.class);
         put("whitespace",    WhitespaceTokenizerFactory.class);
-                
-        // TODO: these tokenizers are not yet exposed: useful?
         
-        // historical version of standardtokenizer... tries to recognize 
-        // company names and a few other things. not good for asian languages etc.
-        put("classic",       Void.class);
-        // we should add this, the thaiwordfilter is deprecated. this one has correct offsets
-        put("thai",          Void.class);
         // this one "seems to mess up offsets". probably shouldn't be a tokenizer...
         put("wikipedia",     Void.class);
     }};
@@ -80,6 +75,7 @@ public class AnalysisFactoryTests extends ElasticsearchTestCase {
         
         
         // exposed in ES
+        put("apostrophe",                ApostropheFilterFactory.class);
         put("arabicnormalization",       ArabicNormalizationFilterFactory.class);
         put("arabicstem",                ArabicStemTokenFilterFactory.class);
         put("asciifolding",              ASCIIFoldingTokenFilterFactory.class);
@@ -87,6 +83,7 @@ public class AnalysisFactoryTests extends ElasticsearchTestCase {
         put("bulgarianstem",             StemmerTokenFilterFactory.class);
         put("cjkbigram",                 CJKBigramFilterFactory.class);
         put("cjkwidth",                  CJKWidthFilterFactory.class);
+        put("classic",                   ClassicFilterFactory.class);
         put("commongrams",               CommonGramsTokenFilterFactory.class);
         put("commongramsquery",          CommonGramsTokenFilterFactory.class);
         put("czechstem",                 CzechStemTokenFilterFactory.class);
@@ -99,16 +96,21 @@ public class AnalysisFactoryTests extends ElasticsearchTestCase {
         put("finnishlightstem",          StemmerTokenFilterFactory.class);
         put("frenchlightstem",           StemmerTokenFilterFactory.class);
         put("frenchminimalstem",         StemmerTokenFilterFactory.class);
+        put("galicianminimalstem",       StemmerTokenFilterFactory.class);
+        put("galicianstem",              StemmerTokenFilterFactory.class);
         put("germanstem",                GermanStemTokenFilterFactory.class);
         put("germanlightstem",           StemmerTokenFilterFactory.class);
         put("germanminimalstem",         StemmerTokenFilterFactory.class);
+        put("germannormalization",       GermanNormalizationFilterFactory.class);
         put("greeklowercase",            LowerCaseTokenFilterFactory.class);
         put("greekstem",                 StemmerTokenFilterFactory.class);
-        put("hindistem",                 StemmerTokenFilterFactory.class);
+        put("hindinormalization",        HindiNormalizationFilterFactory.class);
         put("hindistem",                 StemmerTokenFilterFactory.class);
         put("hungarianlightstem",        StemmerTokenFilterFactory.class);
         put("hunspellstem",              HunspellTokenFilterFactory.class);
         put("hyphenationcompoundword",   HyphenationCompoundWordTokenFilterFactory.class);
+        put("indicnormalization",        IndicNormalizationFilterFactory.class);
+        put("irishlowercase",            LowerCaseTokenFilterFactory.class);
         put("indonesianstem",            StemmerTokenFilterFactory.class);
         put("italianlightstem",          StemmerTokenFilterFactory.class);
         put("keepword",                  KeepWordFilterFactory.class);
@@ -119,17 +121,23 @@ public class AnalysisFactoryTests extends ElasticsearchTestCase {
         put("limittokencount",           LimitTokenCountFilterFactory.class);
         put("lowercase",                 LowerCaseTokenFilterFactory.class);
         put("ngram",                     NGramTokenFilterFactory.class);
+        put("norwegianlightstem",        StemmerTokenFilterFactory.class);
         put("norwegianminimalstem",      StemmerTokenFilterFactory.class);
         put("patterncapturegroup",       PatternCaptureGroupTokenFilterFactory.class);
         put("patternreplace",            PatternReplaceTokenFilterFactory.class);
         put("persiannormalization",      PersianNormalizationFilterFactory.class);
         put("porterstem",                PorterStemTokenFilterFactory.class);
+        put("portuguesestem",            StemmerTokenFilterFactory.class);
         put("portugueselightstem",       StemmerTokenFilterFactory.class);
         put("portugueseminimalstem",     StemmerTokenFilterFactory.class);
         put("reversestring",             ReverseTokenFilterFactory.class);
         put("russianlightstem",          StemmerTokenFilterFactory.class);
+        put("scandinavianfolding",       ScandinavianFoldingFilterFactory.class);
+        put("scandinaviannormalization", ScandinavianNormalizationFilterFactory.class);
         put("shingle",                   ShingleTokenFilterFactory.class);
         put("snowballporter",            SnowballTokenFilterFactory.class);
+        put("soraninormalization",       SoraniNormalizationFilterFactory.class);
+        put("soranistem",                StemmerTokenFilterFactory.class);
         put("spanishlightstem",          StemmerTokenFilterFactory.class);
         put("standard",                  StandardTokenFilterFactory.class);
         put("stemmeroverride",           StemmerOverrideTokenFilterFactory.class);
@@ -144,46 +152,20 @@ public class AnalysisFactoryTests extends ElasticsearchTestCase {
                 
         // TODO: these tokenfilters are not yet exposed: useful?
         
-        // useful for turkish language
-        put("apostrophe",                Void.class);
         // capitalizes tokens
         put("capitalization",            Void.class);
-        // cleans up after classic tokenizer
-        put("classic",                   Void.class);
         // like length filter (but codepoints)
         put("codepointcount",            Void.class);
-        // galician language stemmers
-        put("galicianminimalstem",       Void.class);
-        put("galicianstem",              Void.class);
-        // o+umlaut=oe type normalization for german
-        put("germannormalization",       Void.class);
-        // hindi text normalization
-        put("hindinormalization",        Void.class);
         // puts hyphenated words back together
         put("hyphenatedwords",           Void.class);
-        // unicode normalization for indian languages
-        put("indicnormalization",        Void.class);
-        // lowercasing for irish: add to LowerCase (has a stemmer, too)
-        put("irishlowercase",            Void.class);
         // repeats anything marked as keyword
         put("keywordrepeat",             Void.class);
         // like limittokencount, but by position
         put("limittokenposition",        Void.class);
         // ???
         put("numericpayload",            Void.class);
-        // RSLP stemmer for portuguese
-        put("portuguesestem",            Void.class);
-        // light stemming for norwegian (has nb/nn options too)
-        put("norwegianlightstem",        Void.class);
         // removes duplicates at the same position (this should be used by the existing factory)
         put("removeduplicates",          Void.class);
-        // accent handling for scandinavian languages
-        put("scandinavianfolding",       Void.class);
-        // less aggressive accent handling for scandinavian languages
-        put("scandinaviannormalization", Void.class);
-        // kurdish language support
-        put("soraninormalization",       Void.class);
-        put("soranistem",                Void.class);
         // ???
         put("tokenoffsetpayload",        Void.class);
         // like a stop filter but by token-type

@@ -67,15 +67,10 @@ public class TransportUpdateSettingsAction extends TransportMasterNodeOperationA
     }
 
     @Override
-    protected void doExecute(UpdateSettingsRequest request, ActionListener<UpdateSettingsResponse> listener) {
-        request.indices(clusterService.state().metaData().concreteIndices(request.indicesOptions(), request.indices()));
-        super.doExecute(request, listener);
-    }
-
-    @Override
     protected void masterOperation(final UpdateSettingsRequest request, final ClusterState state, final ActionListener<UpdateSettingsResponse> listener) throws ElasticsearchException {
+        final String[] concreteIndices = clusterService.state().metaData().concreteIndices(request.indicesOptions(), request.indices());
         UpdateSettingsClusterStateUpdateRequest clusterStateUpdateRequest = new UpdateSettingsClusterStateUpdateRequest()
-                .indices(request.indices())
+                .indices(concreteIndices)
                 .settings(request.settings())
                 .ackTimeout(request.timeout())
                 .masterNodeTimeout(request.masterNodeTimeout());
@@ -88,7 +83,7 @@ public class TransportUpdateSettingsAction extends TransportMasterNodeOperationA
 
             @Override
             public void onFailure(Throwable t) {
-                logger.debug("failed to update settings on indices [{}]", t, request.indices());
+                logger.debug("failed to update settings on indices [{}]", t, concreteIndices);
                 listener.onFailure(t);
             }
         });

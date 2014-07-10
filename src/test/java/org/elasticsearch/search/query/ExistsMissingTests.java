@@ -89,7 +89,7 @@ public class ExistsMissingTests extends ElasticsearchIntegrationTest {
             for (Map<String, Object> source : sources) {
                 reqs.add(client().prepareIndex("idx", "type").setSource(source));
             }
-            indexRandom(true, reqs);
+        indexRandom(true, reqs);
 
         final Map<String, Integer> expected = new LinkedHashMap<String, Integer>();
         expected.put("foo", 1);
@@ -103,7 +103,7 @@ public class ExistsMissingTests extends ElasticsearchIntegrationTest {
         expected.put("foobar", 0);
 
         final long numDocs = client().prepareSearch("idx").execute().actionGet().getHits().totalHits();
-
+        ensureYellow("idx");
         for (Map.Entry<String, Integer> entry : expected.entrySet()) {
             final String fieldName = entry.getKey();
             final int count = entry.getValue();

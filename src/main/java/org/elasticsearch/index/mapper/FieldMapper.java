@@ -66,11 +66,11 @@ public interface FieldMapper<T> extends Mapper {
         }
 
         public Names(String name, String indexName, String indexNameClean, String fullName, @Nullable String sourcePath) {
-            this.name = name.intern();
-            this.indexName = indexName.intern();
-            this.indexNameClean = indexNameClean.intern();
-            this.fullName = fullName.intern();
-            this.sourcePath = sourcePath == null ? this.fullName : sourcePath.intern();
+            this.name = name;
+            this.indexName = indexName;
+            this.indexNameClean = indexNameClean;
+            this.fullName = fullName;
+            this.sourcePath = sourcePath == null ? this.fullName : sourcePath;
         }
 
         /**

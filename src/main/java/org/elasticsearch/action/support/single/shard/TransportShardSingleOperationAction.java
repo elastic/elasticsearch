@@ -107,6 +107,9 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
             this.listener = listener;
 
             ClusterState clusterState = clusterService.state();
+            if (logger.isTraceEnabled()) {
+                logger.trace("executing [{}] based on cluster state version [{}]", request, clusterState.version());
+            }
             nodes = clusterState.nodes();
             ClusterBlockException blockException = checkGlobalBlock(clusterState, request);
             if (blockException != null) {
@@ -151,8 +154,10 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
                 listener.onFailure(failure);
                 return;
             }
-
             if (shardRouting.currentNodeId().equals(nodes.localNodeId())) {
+                if (logger.isTraceEnabled()) {
+                    logger.trace("executing [{}] on shard [{}]", request, shardRouting.shardId());
+                }
                 try {
                     if (request.operationThreaded()) {
                         request.beforeLocalFork();
@@ -260,6 +265,9 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
 
         @Override
         public void messageReceived(final ShardSingleOperationRequest request, final TransportChannel channel) throws Exception {
+            if (logger.isTraceEnabled()) {
+                logger.trace("executing [{}] on shard [{}]", request.request(), request.shardId());
+            }
             Response response = shardOperation(request.request(), request.shardId());
             channel.sendResponse(response);
         }

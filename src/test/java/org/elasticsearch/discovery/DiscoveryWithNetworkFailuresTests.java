@@ -67,6 +67,7 @@ import static org.hamcrest.Matchers.is;
 public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationTest {
 
     private static final Settings nodeSettings = ImmutableSettings.settingsBuilder()
+            .put("gateway.type", "local")
             .put("discovery.type", "zen") // <-- To override the local setting if set externally
             .put("discovery.zen.fd.ping_timeout", "1s") // <-- for hitting simulated network failures quickly
             .put("discovery.zen.fd.ping_retries", "1") // <-- for hitting simulated network failures quickly

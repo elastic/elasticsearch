@@ -75,6 +75,7 @@ import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
@@ -86,7 +87,7 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
     protected Settings nodeSettings(int nodeOrdinal) {
         return ImmutableSettings.builder()
                 // we really need local GW here since this also checks for corruption etc.
-                // and we need to make sure primaries are not just trashed if we dont' have replicase
+                // and we need to make sure primaries are not just trashed if we don'tmvn have replicas
                 .put(super.nodeSettings(nodeOrdinal)).put("gateway.type", "local")
                 .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, MockTransportService.class.getName()).build();
     }
@@ -237,17 +238,18 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
         client().admin().indices().prepareUpdateSettings("test").setSettings(build).get();
         client().admin().cluster().prepareReroute().get();
 
-        awaitBusy(new Predicate<Object>() {
+        boolean didClusterTurnRed = awaitBusy(new Predicate<Object>() {
             @Override
             public boolean apply(Object input) {
                 ClusterHealthStatus test = client().admin().cluster()
                         .health(Requests.clusterHealthRequest("test")).actionGet().getStatus();
                 return test == ClusterHealthStatus.RED;
             }
-        });
+        }, 5, TimeUnit.MINUTES);// sometimes on slow nodes the replication / recovery is just dead slow
         final ClusterHealthResponse response = client().admin().cluster()
                 .health(Requests.clusterHealthRequest("test")).get();
         if (response.getStatus() != ClusterHealthStatus.RED) {
+            logger.info("Cluster turned red in busy loop: {}", didClusterTurnRed);
             logger.info("cluster state:\n{}\n{}", client().admin().cluster().prepareState().get().getState().prettyPrint(), client().admin().cluster().preparePendingClusterTasks().get().prettyPrint());
         }
         assertThat(response.getStatus(), is(ClusterHealthStatus.RED));

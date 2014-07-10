@@ -25,7 +25,6 @@ import org.apache.lucene.expressions.XSimpleBindings;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.queries.function.FunctionValues;
 import org.apache.lucene.queries.function.ValueSource;
-import org.apache.lucene.queries.function.valuesource.DoubleConstValueSource;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.script.SearchScript;
 
@@ -81,23 +80,23 @@ class ExpressionScript implements SearchScript {
 
     Expression expression;
     XSimpleBindings bindings;
-    AtomicReaderContext leaf;
     CannedScorer scorer;
+    ValueSource source;
+    FunctionValues values;
+    Map<String, CannedScorer> context;
+    ReplaceableConstValueSource specialValue; // _value
 
-    ExpressionScript(Expression e, XSimpleBindings b) {
+    ExpressionScript(Expression e, XSimpleBindings b, ReplaceableConstValueSource v) {
         expression = e;
         bindings = b;
         scorer = new CannedScorer();
+        context = Collections.singletonMap("scorer", scorer);
+        source = expression.getValueSource(bindings);
+        specialValue = v;
     }
 
     double evaluate() {
-        try {
-            ValueSource vs = expression.getValueSource(bindings);
-            FunctionValues fv = vs.getValues(Collections.singletonMap("scorer", scorer), leaf);
-            return fv.doubleVal(scorer.docid);
-        } catch (IOException e) {
-            throw new ExpressionScriptExecutionException("Failed to run expression", e);
-        }
+        return values.doubleVal(scorer.docid);
     }
 
     @Override
@@ -124,12 +123,19 @@ class ExpressionScript implements SearchScript {
     public void setNextScore(float score) { scorer.score = score; }
 
     @Override
-    public void setNextReader(AtomicReaderContext l) {
-        leaf = l;
+    public void setNextReader(AtomicReaderContext leaf) {
+        try {
+            values = source.getValues(context, leaf);
+        } catch (IOException e) {
+            throw new ExpressionScriptExecutionException("Failed to run expression", e);
+        }
     }
 
     @Override
-    public void setScorer(Scorer s) { /* noop: score isn't actually set for scoring... */ }
+    public void setScorer(Scorer s) {
+         // noop: The scorer isn't actually ever set.  Instead setNextScore is called.
+         // NOTE: This seems broken.  Why can't we just use the scorer and get rid of setNextScore?
+    }
 
     @Override
     public void setNextSource(Map<String, Object> source) {
@@ -138,12 +144,12 @@ class ExpressionScript implements SearchScript {
 
     @Override
     public void setNextVar(String name, Object value) {
-        // this assumes that the same variable will be set for every document evaluated, thus
-        // the variable never needs to be removed from the bindings, but only overwritten
-        if (value instanceof Double) {
-            bindings.add(name, new DoubleConstValueSource(((Double)value).doubleValue()));
-        } else if (value instanceof Long) {
-            bindings.add(name, new DoubleConstValueSource(((Long)value).doubleValue()));
+        assert(specialValue != null);
+        // this should only be used for the special "_value" variable used in aggregations
+        assert(name.equals("_value"));
+
+        if (value instanceof Number) {
+            specialValue.setValue(((Number)value).doubleValue());
         } else {
             throw new ExpressionScriptExecutionException("Cannot use expression with text variable");
         }

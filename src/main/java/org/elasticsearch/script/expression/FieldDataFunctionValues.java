@@ -27,10 +27,10 @@ import org.elasticsearch.index.fielddata.DoubleValues;
 /**
  * A {@link org.apache.lucene.queries.function.FunctionValues} which wrap field data.
  */
-class ExpressionScriptFunctionValues extends DoubleDocValues {
+class FieldDataFunctionValues extends DoubleDocValues {
     DoubleValues dataAccessor;
 
-    ExpressionScriptFunctionValues(ValueSource parent, AtomicNumericFieldData d) {
+    FieldDataFunctionValues(ValueSource parent, AtomicNumericFieldData d) {
         super(parent);
         dataAccessor = d.getDoubleValues();
     }

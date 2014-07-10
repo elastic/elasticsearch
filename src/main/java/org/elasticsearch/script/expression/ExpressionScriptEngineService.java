@@ -84,13 +84,16 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
         // NOTE: if we need to do anything complicated with bindings in the future, we can just extend Bindings,
         // instead of complicating SimpleBindings (which should stay simple)
         XSimpleBindings bindings = new XSimpleBindings();
+        ReplaceableConstValueSource specialValue = null;
 
         for (String variable : expr.variables) {
             if (variable.equals("_score")) {
                 bindings.add(new SortField("_score", SortField.Type.SCORE));
 
             } else if (variable.equals("_value")) {
-                // noop: _value is special for aggregations, and is added to bindings dynamically
+                specialValue = new ReplaceableConstValueSource();
+                bindings.add("_value", specialValue);
+                // noop: _value is special for aggregations, and is handled in ExpressionScriptBindings
                 // TODO: if some uses it in a scoring expression, they will get a nasty failure when evaluating...need a
                 // way to know this is for aggregations and so _value is ok to have...
 
@@ -99,12 +102,8 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
                 // NOTE: by checking for the variable in vars first, it allows masking document fields with a global constant,
                 // but if we were to reverse it, we could provide a way to supply dynamic defaults for documents missing the field?
                 Object value = vars.get(variable);
-                if (value instanceof Double) {
-                    bindings.add(variable, new DoubleConstValueSource(((Double)value).doubleValue()));
-                } else if (value instanceof Long) {
-                    bindings.add(variable, new DoubleConstValueSource(((Long)value).doubleValue()));
-                } else if (value instanceof Integer) {
-                    bindings.add(variable, new DoubleConstValueSource(((Integer)value).doubleValue()));
+                if (value instanceof Number) {
+                    bindings.add(variable, new DoubleConstValueSource(((Number)value).doubleValue()));
                 } else {
                     throw new ExpressionScriptExecutionException("Parameter [" + variable + "] must be a numeric type");
                 }
@@ -131,22 +130,21 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
                     throw new ExpressionScriptExecutionException("Field [" + fieldname + "] used in expression must be numeric");
                 }
                 IndexFieldData<?> fieldData = lookup.doc().fieldDataService.getForField((NumberFieldMapper)field);
-                bindings.add(variable, new ExpressionScriptValueSource(fieldData));
+                bindings.add(variable, new FieldDataValueSource(fieldData));
             }
         }
 
-        return new ExpressionScript((Expression)compiledScript, bindings);
+        return new ExpressionScript((Expression)compiledScript, bindings, specialValue);
     }
 
     @Override
     public ExecutableScript executable(Object compiledScript, @Nullable Map<String, Object> vars) {
-        // cannot use expressions for updates (yet)
-        throw new UnsupportedOperationException();
+        throw new UnsupportedOperationException("Cannot use expressions for updates");
     }
 
     @Override
     public Object execute(Object compiledScript, Map<String, Object> vars) {
-        throw new UnsupportedOperationException();
+        throw new UnsupportedOperationException("Cannot use expressions for updates");
     }
 
     @Override

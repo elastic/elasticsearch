@@ -33,11 +33,11 @@ import java.util.Map;
 /**
  * A {@link ValueSource} wrapper for field data.
  */
-class ExpressionScriptValueSource extends ValueSource {
+class FieldDataValueSource extends ValueSource {
 
     IndexFieldData<?> fieldData;
 
-    ExpressionScriptValueSource(IndexFieldData<?> d) {
+    FieldDataValueSource(IndexFieldData<?> d) {
         fieldData = d;
     }
 
@@ -45,7 +45,7 @@ class ExpressionScriptValueSource extends ValueSource {
     public FunctionValues getValues(Map context, AtomicReaderContext leaf) throws IOException {
         AtomicFieldData leafData = fieldData.load(leaf);
         assert(leafData instanceof AtomicNumericFieldData);
-        return new ExpressionScriptFunctionValues(this, (AtomicNumericFieldData)leafData);
+        return new FieldDataFunctionValues(this, (AtomicNumericFieldData)leafData);
     }
 
     @Override

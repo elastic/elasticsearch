@@ -26,7 +26,6 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.metrics.stats.Stats;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -68,10 +67,10 @@ public class ExpressionScriptTests extends ElasticsearchIntegrationTest {
     public void testScore() throws Exception {
         createIndex("test");
         ensureGreen("test");
-        client().prepareIndex("test", "doc", "1").setSource("text", "hello goodbye").get();
-        client().prepareIndex("test", "doc", "2").setSource("text", "hello hello hello goodbye").get();
-        client().prepareIndex("test", "doc", "3").setSource("text", "hello hello goodebye").get();
-        refresh();
+        indexRandom(true,
+                client().prepareIndex("test", "doc", "1").setSource("text", "hello goodbye"),
+                client().prepareIndex("test", "doc", "2").setSource("text", "hello hello hello goodbye"),
+                client().prepareIndex("test", "doc", "3").setSource("text", "hello hello goodebye"));
         String req = "{query: {function_score: {query:{term:{text:\"hello\"}}," +
                 "boost_mode: \"replace\"," +
                 "script_score: {" +
@@ -89,9 +88,9 @@ public class ExpressionScriptTests extends ElasticsearchIntegrationTest {
     public void testSparseField() throws Exception {
         ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("doc", "x", "type=long", "y", "type=long"));
         ensureGreen("test");
-        client().prepareIndex("test", "doc", "1").setSource("x", 4).get();
-        client().prepareIndex("test", "doc", "2").setSource("y", 2).get();
-        refresh();
+        indexRandom(true,
+                client().prepareIndex("test", "doc", "1").setSource("x", 4),
+                client().prepareIndex("test", "doc", "2").setSource("y", 2));
         SearchResponse rsp = runScript("doc['x'].value + 1");
         ElasticsearchAssertions.assertSearchResponse(rsp);
         SearchHits hits = rsp.getHits();
@@ -115,13 +114,13 @@ public class ExpressionScriptTests extends ElasticsearchIntegrationTest {
         }
     }
 
-    public void testParams() {
+    public void testParams() throws Exception {
         createIndex("test");
         ensureGreen("test");
-        client().prepareIndex("test", "doc", "1").setSource("x", 10).get();
-        client().prepareIndex("test", "doc", "2").setSource("x", 3).get();
-        client().prepareIndex("test", "doc", "3").setSource("x", 5).get();
-        refresh();
+        indexRandom(true,
+                    client().prepareIndex("test", "doc", "1").setSource("x", 10),
+                    client().prepareIndex("test", "doc", "2").setSource("x", 3),
+                    client().prepareIndex("test", "doc", "3").setSource("x", 5));
         // a = int, b = double, c = long
         SearchResponse rsp = runScript("doc['x'].value * a + b + ((c + doc['x'].value) > 5000000009 ? 1 : 0)", "a", 2, "b", 3.5, "c", 5000000000L);
         SearchHits hits = rsp.getHits();
@@ -213,10 +212,10 @@ public class ExpressionScriptTests extends ElasticsearchIntegrationTest {
         // i.e. _value for aggregations
         createIndex("test");
         ensureGreen("test");
-        client().prepareIndex("test", "doc", "1").setSource("x", 5,  "y", 1.2).get();
-        client().prepareIndex("test", "doc", "2").setSource("x", 10, "y", 1.4).get();
-        client().prepareIndex("test", "doc", "3").setSource("x", 13, "y", 1.8).get();
-        refresh();
+        indexRandom(true,
+                client().prepareIndex("test", "doc", "1").setSource("x", 5, "y", 1.2),
+                client().prepareIndex("test", "doc", "2").setSource("x", 10, "y", 1.4),
+                client().prepareIndex("test", "doc", "3").setSource("x", 13, "y", 1.8));
         String req = "{query: {match_all:{}}, aggs: {" +
                           "int_agg: {stats: {" +
                               "field: \"x\"," +
@@ -243,10 +242,10 @@ public class ExpressionScriptTests extends ElasticsearchIntegrationTest {
         // i.e. expression script for term aggregations, which is not allowed
         createIndex("test");
         ensureGreen("test");
-        client().prepareIndex("test", "doc", "1").setSource("text", "hello").get();
-        client().prepareIndex("test", "doc", "2").setSource("text", "goodbye").get();
-        client().prepareIndex("test", "doc", "3").setSource("text", "hello").get();
-        refresh();
+        indexRandom(true,
+                client().prepareIndex("test", "doc", "1").setSource("text", "hello"),
+                client().prepareIndex("test", "doc", "2").setSource("text", "goodbye"),
+                client().prepareIndex("test", "doc", "3").setSource("text", "hello"));
         String req = "{query: {match_all:{}}, aggs: {term_agg: {terms: {" +
                         "field: \"text\"," +
                         "script: \"_value\"," +

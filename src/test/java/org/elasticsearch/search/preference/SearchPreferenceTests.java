@@ -48,7 +48,7 @@ public class SearchPreferenceTests extends ElasticsearchIntegrationTest {
         refresh();
         internalCluster().stopRandomDataNode();
         client().admin().cluster().prepareHealth().setWaitForStatus(ClusterHealthStatus.RED).execute().actionGet();
-        String[] preferences = new String[] {"_primary", "_local", "_primary_first", "_prefer_node:" + "somenode", "_prefer_node:" + "server2"};
+        String[] preferences = new String[] {"_primary", "_local", "_primary_first", "_prefer_node:somenode", "_prefer_node:server2"};
         for (String pref : preferences) {
             SearchResponse searchResponse = client().prepareSearch().setSearchType(SearchType.COUNT).setPreference(pref).execute().actionGet();
             assertThat(RestStatus.OK, equalTo(searchResponse.status()));

@@ -21,7 +21,6 @@ package org.elasticsearch.cluster.shards;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.elasticsearch.cluster.metadata.AliasAction;
-import org.elasticsearch.cluster.routing.operation.plain.Preference;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;

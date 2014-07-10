@@ -120,7 +120,7 @@ The `default` type stores the shard index on the file system depending on
 the file type by mapping a file into memory (mmap) or using Java NIO. Currently
 only the Lucene term dictionary and doc values files are memory mapped to reduce
 the impact on the operating system. All other files are opened using Lucene `NIOFSDirectory`.
-Address space settings (<<vm-map-map-count>>) might also apply if your term
+Address space settings (<<vm-max-map-count>>) might also apply if your term
 dictionaries are large.
 
 [float]

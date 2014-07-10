@@ -27,13 +27,15 @@ import org.apache.lucene.search.spell.DirectSpellChecker;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.UnicodeUtil;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.*;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.routing.operation.plain.PreferenceType;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.index.query.FilterBuilders;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptService;
@@ -45,7 +47,6 @@ import org.elasticsearch.search.suggest.phrase.NoisyChannelSpellChecker.Result;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -103,11 +104,9 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
             response.addTerm(resultEntry);
 
             BytesRef byteSpare = new BytesRef();
-            CompiledScript filterQueryScript = suggestion.getFilterQueryScript();
-            MultiSearchResponse multiSearchResponse = null;
-            if (filterQueryScript != null) {
-                multiSearchResponse = fetchMatchingDocCountResponses(checkerResult.corrections, filterQueryScript, suggestion, byteSpare, spare);
-            }
+
+            MultiSearchResponse multiSearchResponse = collate(suggestion, checkerResult, byteSpare, spare);
+
             for (int i = 0; i < checkerResult.corrections.length; i++) {
                 if (!hasMatchingDocs(multiSearchResponse, i)) {
                     continue;
@@ -133,23 +132,43 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
         return new PhraseSuggestion.Entry(new StringText(spare.toString()), 0, spare.length, cutoffScore);
     }
 
-    private MultiSearchResponse fetchMatchingDocCountResponses(Correction[] corrections, CompiledScript filterQueryScript,
-                                                               PhraseSuggestionContext suggestions,
-                                                               BytesRef byteSpare, CharsRef spare) {
-        Map<String, String> vars = new HashMap<>(1);
+    private MultiSearchResponse collate(PhraseSuggestionContext suggestion, Result checkerResult, BytesRef byteSpare, CharsRef spare) throws IOException {
+        CompiledScript collateQueryScript = suggestion.getCollateQueryScript();
+        CompiledScript collateFilterScript = suggestion.getCollateFilterScript();
+        MultiSearchResponse multiSearchResponse = null;
+        if (collateQueryScript != null) {
+            multiSearchResponse = fetchMatchingDocCountResponses(checkerResult.corrections, collateQueryScript, false, suggestion, byteSpare, spare);
+        } else if (collateFilterScript != null) {
+            multiSearchResponse = fetchMatchingDocCountResponses(checkerResult.corrections, collateFilterScript, true, suggestion, byteSpare, spare);
+        }
+        return multiSearchResponse;
+    }
+
+    private MultiSearchResponse fetchMatchingDocCountResponses(Correction[] corrections, CompiledScript collateScript,
+                                                               boolean isFilter, PhraseSuggestionContext suggestions,
+                                                               BytesRef byteSpare, CharsRef spare) throws IOException {
+        Map<String, Object> vars = suggestions.getCollateScriptParams();
         MultiSearchResponse multiSearchResponse = null;
         MultiSearchRequestBuilder multiSearchRequestBuilder = client.prepareMultiSearch();
         boolean requestAdded = false;
         for (Correction correction : corrections) {
             UnicodeUtil.UTF8toUTF16(correction.join(SEPARATOR, byteSpare, null, null), spare);
             vars.put(SUGGESTION_TEMPLATE_VAR_NAME, spare.toString());
-            ExecutableScript executable = scriptService.executable(filterQueryScript, vars);
+            ExecutableScript executable = scriptService.executable(collateScript, vars);
             BytesReference querySource = (BytesReference) executable.run();
             requestAdded = true;
-            SearchRequestBuilder req = client.prepareSearch()
-                    .setPreference(suggestions.getPreference())
-                    .setQuery(querySource)
-                    .setSearchType(SearchType.COUNT);
+            SearchRequestBuilder req;
+            if (isFilter) {
+                req = client.prepareSearch()
+                        .setPreference(suggestions.getPreference())
+                        .setQuery(QueryBuilders.constantScoreQuery(FilterBuilders.bytesFilter(querySource)))
+                        .setSearchType(SearchType.COUNT);
+            } else {
+                req = client.prepareSearch()
+                        .setPreference(suggestions.getPreference())
+                        .setQuery(querySource)
+                        .setSearchType(SearchType.COUNT);
+            }
             multiSearchRequestBuilder.add(req);
         }
         if (requestAdded) {
@@ -167,8 +186,9 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
         if (!item.isFailure()) {
             SearchResponse resp = item.getResponse();
             return resp.getHits().totalHits() > 0;
+        } else {
+            throw new ElasticsearchException("Collate request failed: " + item.getFailureMessage());
         }
-        return false;
     }
 
     ScriptService scriptService() {

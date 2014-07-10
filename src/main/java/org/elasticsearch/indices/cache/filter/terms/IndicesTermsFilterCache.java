@@ -28,7 +28,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.routing.operation.plain.PreferenceType;
+import org.elasticsearch.cluster.routing.operation.plain.Preference;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -106,7 +106,7 @@ public class IndicesTermsFilterCache extends AbstractComponent {
     }
 
     TermsFilterValue buildTermsFilterValue(TermsLookup lookup) {
-        GetResponse getResponse = client.get(new GetRequest(lookup.getIndex(), lookup.getType(), lookup.getId()).preference(PreferenceType.LOCAL).routing(lookup.getRouting())).actionGet();
+        GetResponse getResponse = client.get(new GetRequest(lookup.getIndex(), lookup.getType(), lookup.getId()).preference("_local").routing(lookup.getRouting())).actionGet();
         if (!getResponse.isExists()) {
             return NO_TERMS;
         }

@@ -21,7 +21,7 @@ package org.elasticsearch.cluster.shards;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.elasticsearch.cluster.metadata.AliasAction;
-import org.elasticsearch.cluster.routing.operation.plain.PreferenceType;
+import org.elasticsearch.cluster.routing.operation.plain.Preference;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -86,7 +86,7 @@ public class ClusterSearchShardsTests extends ElasticsearchIntegrationTest {
         response = client().admin().cluster().prepareSearchShards("test").setRouting("ABC").execute().actionGet();
         assertThat(response.getGroups().length, equalTo(1));
 
-        response = client().admin().cluster().prepareSearchShards("test").setPreference(PreferenceType.SHARDS + "2").execute().actionGet();
+        response = client().admin().cluster().prepareSearchShards("test").setPreference("_shards:2").execute().actionGet();
         assertThat(response.getGroups().length, equalTo(1));
         assertThat(response.getGroups()[0].getShardId(), equalTo(2));
     }

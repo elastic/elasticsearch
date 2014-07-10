@@ -23,7 +23,6 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
@@ -127,11 +126,11 @@ public final class PhraseSuggestParser implements SuggestContextParser {
                             }
                         }
                     }
-                } else if ("filter".equals(fieldName)) {
+                } else if ("collate".equals(fieldName)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         if (token == XContentParser.Token.FIELD_NAME) {
                             fieldName = parser.currentName();
-                        } else if ("template".equals(fieldName)) {
+                        } else if ("query".equals(fieldName) || "filter".equals(fieldName)) {
                             String templateNameOrTemplateContent;
                             if (token == XContentParser.Token.START_OBJECT && !parser.hasTextCharacters()) {
                                 XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent());
@@ -141,12 +140,18 @@ public final class PhraseSuggestParser implements SuggestContextParser {
                                 templateNameOrTemplateContent = parser.text();
                             }
                             if (templateNameOrTemplateContent == null) {
-                                throw new ElasticsearchIllegalArgumentException("no template found in filter field");
+                                throw new ElasticsearchIllegalArgumentException("no query/filter found in collate object");
                             }
                             CompiledScript compiledScript = suggester.scriptService().compile("mustache", templateNameOrTemplateContent);
-                            suggestion.setFilterQueryScript(compiledScript);
+                            if ("query".equals(fieldName)) {
+                                suggestion.setCollateQueryScript(compiledScript);
+                            } else {
+                                suggestion.setCollateFilterScript(compiledScript);
+                            }
                         } else if ("preference".equals(fieldName)) {
                             suggestion.setPreference(parser.text());
+                        } else if ("params".equals(fieldName)) {
+                            suggestion.setCollateScriptParams(parser.map());
                         } else {
                             throw new ElasticsearchIllegalArgumentException(
                                     "suggester[phrase][filter] doesn't support field [" + fieldName + "]");

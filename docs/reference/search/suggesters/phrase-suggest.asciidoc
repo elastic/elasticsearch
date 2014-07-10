@@ -161,18 +161,20 @@ can contain misspellings (See parameter descriptions below).
     in a row are changed the entire phrase of changed tokens 
     is wrapped rather than each token.
 
-`filter`::
-    Sets up template query to filter out suggestions that do not match
-    any documents returned by the query. If provided must contain
-    exactly `template` representing the query template with
-    suggestion variable `suggestion` which is used to populate
-    the query with the phrase suggestions. If `preference` is provided,
-    it is used to route the filter query.
+`collate`::
+    Sets up a template query/filter to filter out suggestions that do not match
+    any documents returned by the query/filter. If provided must contain
+    exactly `query` or `filter` representing the query/filter template with
+    suggestion variable `suggestion` which is used to populate the
+    query/filter with the phrase suggestions. Additional parameters for the
+    query/filter template can be set by providing the `params` object.
+    If `preference` is provided, it is used to route the filter query.
+    `preference` defaults to `_only_local`.
 
-The following example shows a `phrase` suggest call with a filter query
+The following example shows a `phrase` suggest call with a collate query
 to prune generated suggestions that do not match any documents
 for the provided match query. The routing preference sets up the
-filter query execution only on local shard.
+filter query execution on primary shard.
 
 [source,js]
 --------------------------------------------------
@@ -192,13 +194,14 @@ curl -XPOST 'localhost:9200/_search' -d {
           "suggest_mode" : "always",
           "min_word_length" : 1
         } ],
-        "filter": {
-          "template": {
+        "collate": {
+          "query": {
             "match": {
-                "title" : "{{suggestion}}"
+                "{{field_name}}" : "{{suggestion}}"
             }
           },
-          "preference": "_only_local"
+          "preference": "_primary",
+          "params": {"field_name" : "title"},
         }
       }
     }

@@ -167,14 +167,14 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
             }
         }
         if (preference.charAt(0) == '_') {
-            if (preference.startsWith(PreferenceType.SHARDS)) {
+            if (preference.startsWith("_shards:")) {
                 // starts with _shards, so execute on specific ones
                 int index = preference.indexOf(';');
                 String shards;
                 if (index == -1) {
-                    shards = preference.substring(PreferenceType.SHARDS.length());
+                    shards = preference.substring("_shards:".length());
                 } else {
-                    shards = preference.substring(PreferenceType.SHARDS.length(), index);
+                    shards = preference.substring("_shards:".length(), index);
                 }
                 String[] ids = Strings.splitStringByCommaToArray(shards);
                 boolean found = false;
@@ -200,23 +200,23 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
                     preference = preference.substring(index + 1);
                 }
             }
-            if (preference.startsWith(PreferenceType.PREFER_NODE)) {
-                return indexShard.preferNodeActiveInitializingShardsIt(preference.substring(PreferenceType.PREFER_NODE.length()));
+            if (preference.startsWith("_prefer_node:")) {
+                return indexShard.preferNodeActiveInitializingShardsIt(preference.substring("_prefer_node:".length()));
             }
-            if (PreferenceType.LOCAL.equals(preference)) {
+            if ("_local".equals(preference)) {
                 return indexShard.preferNodeActiveInitializingShardsIt(localNodeId);
             }
-            if (PreferenceType.PRIMARY.equals(preference)) {
+            if ("_primary".equals(preference)) {
                 return indexShard.primaryActiveInitializingShardIt();
             }
-            if (PreferenceType.PRIMARY_FIRST.equals(preference) || "_primaryFirst".equals(preference)) {
+            if ("_primary_first".equals(preference) || "_primaryFirst".equals(preference)) {
                 return indexShard.primaryFirstActiveInitializingShardsIt();
             }
-            if (PreferenceType.ONLY_LOCAL.equals(preference) || "_onlyLocal".equals(preference)) {
+            if ("_onlyLocal".equals(preference) || "_onlyLocal".equals(preference)) {
                 return indexShard.onlyNodeActiveInitializingShardsIt(localNodeId);
             }
-            if (preference.startsWith(PreferenceType.ONLY_NODE)) {
-                String nodeId = preference.substring(PreferenceType.ONLY_NODE.length());
+            if (preference.startsWith("_only_node:")) {
+                String nodeId = preference.substring("_only_node:".length());
                 ensureNodeIdExists(nodes, nodeId);
                 return indexShard.onlyNodeActiveInitializingShardsIt(nodeId);
             }

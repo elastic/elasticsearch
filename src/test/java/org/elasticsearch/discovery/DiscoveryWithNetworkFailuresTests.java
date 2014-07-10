@@ -66,6 +66,8 @@ import static org.hamcrest.Matchers.is;
 @TestLogging("discovery.zen:TRACE")
 public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationTest {
 
+    private static final TimeValue DISRUPTION_HEALING_OVERHEAD = TimeValue.timeValueSeconds(40); // we use 30s as timeout in many places.
+
     private static final Settings nodeSettings = ImmutableSettings.settingsBuilder()
             .put("gateway.type", "local")
             .put("discovery.type", "zen") // <-- To override the local setting if set externally
@@ -224,8 +226,8 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
 
         networkPartition.stopDisrupting();
 
-        // Wait until the master node sees all 3 nodes again.
-        ensureStableCluster(3, new TimeValue(30000 + networkPartition.expectedTimeToHeal().millis()));
+        // Wait until the master node sees al 3 nodes again.
+        ensureStableCluster(3, new TimeValue(DISRUPTION_HEALING_OVERHEAD.millis() + networkPartition.expectedTimeToHeal().millis()));
 
         logger.info("Verify no master block with {} set to {}", DiscoverySettings.NO_MASTER_BLOCK, "all");
         client().admin().cluster().prepareUpdateSettings()
@@ -296,7 +298,7 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
         // restore isolation
         networkPartition.stopDisrupting();
 
-        ensureStableCluster(3, new TimeValue(30000 + networkPartition.expectedTimeToHeal().millis()));
+        ensureStableCluster(3, new TimeValue(DISRUPTION_HEALING_OVERHEAD.millis() + networkPartition.expectedTimeToHeal().millis()));
 
         logger.info("issue a reroute");
         // trigger a reroute now, instead of waiting for the background reroute of RerouteService
@@ -432,7 +434,7 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
 
                 logger.info("stopping disruption");
                 disruptionScheme.stopDisrupting();
-                ensureStableCluster(3, TimeValue.timeValueMillis(disruptionScheme.expectedTimeToHeal().millis() + 30000));
+                ensureStableCluster(3, TimeValue.timeValueMillis(disruptionScheme.expectedTimeToHeal().millis() + DISRUPTION_HEALING_OVERHEAD.millis()));
                 ensureGreen("test");
 
                 logger.info("validating successful docs");

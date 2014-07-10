@@ -23,14 +23,19 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Collections2;
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.client.*;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.client.ClusterAdminClient;
+import org.elasticsearch.client.FilterClient;
+import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.util.*;
-import java.util.concurrent.ExecutionException;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.Random;
 
 /**
  * A test cluster implementation that holds a fixed set of external nodes as well as a InternalTestCluster
@@ -102,7 +107,7 @@ public class CompositeTestCluster extends TestCluster {
      * All nodes are shut down before the first upgrade happens.
      * @return <code>true</code> iff at least one node as upgraded.
      */
-    public synchronized boolean upgradeAllNodes() throws InterruptedException, ExecutionException {
+    public synchronized boolean upgradeAllNodes() throws InterruptedException, IOException {
         return upgradeAllNodes(ImmutableSettings.EMPTY);
     }
 
@@ -113,20 +118,12 @@ public class CompositeTestCluster extends TestCluster {
      * @return <code>true</code> iff at least one node as upgraded.
      * @param nodeSettings settings for the upgrade nodes
      */
-    public synchronized boolean upgradeAllNodes(Settings nodeSettings) throws InterruptedException, ExecutionException {
-        Collection<ExternalNode> runningNodes = runningNodes();
-        final int numRunningNodes = runningNodes.size();
-        for (ExternalNode node : runningNodes) {
-            node.stop(true);
+    public synchronized boolean upgradeAllNodes(Settings nodeSettings) throws InterruptedException, IOException {
+        boolean upgradedOneNode = false;
+        while(upgradeOneNode(nodeSettings)) {
+            upgradedOneNode = true;
         }
-        if (numRunningNodes > 0)     {
-            List<String> names = cluster.startNodesAsync(numRunningNodes, nodeSettings).get();
-            for (String nodeName : names) {
-                ExternalNode.waitForNode(cluster.client(), nodeName);
-            }
-            return true;
-        }
-        return false;
+        return upgradedOneNode;
     }
 
     /**

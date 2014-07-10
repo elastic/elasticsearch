@@ -19,24 +19,8 @@
 
 package org.elasticsearch.plugins;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.common.Base64;
+public abstract class AuthCredentials {
 
-public class BasicAuthCredentials extends AuthCredentials {
+    public abstract String encodedAuthorization();
 
-    private final String username;
-    private final String password;
-
-    public BasicAuthCredentials(String username, String password) {
-        this.username = username;
-        this.password = password;
-    }
-
-    public String encodedAuthorization() {
-        if (username == null || password == null) {
-            throw new ElasticsearchIllegalArgumentException("username and password are empty");
-        }
-
-        return Base64.encodeBytes( (username + ":" + password).getBytes() );
-    }
 }

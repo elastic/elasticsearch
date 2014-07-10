@@ -71,15 +71,15 @@ public class PluginManager {
     private String url;
     private OutputMode outputMode;
     private TimeValue timeout;
-    private BasicAuthCredentials basicAuthCredentials;
+    private AuthCredentials authCredentials;
 
     public PluginManager(Environment environment, String url, OutputMode outputMode, TimeValue timeout,
-                         BasicAuthCredentials basicAuthCredentials) {
+                         AuthCredentials authCredentials) {
         this.environment = environment;
         this.url = url;
         this.outputMode = outputMode;
         this.timeout = timeout;
-        this.basicAuthCredentials = basicAuthCredentials;
+        this.authCredentials = authCredentials;
 
         TrustManager[] trustAllCerts = new TrustManager[]{
                 new X509TrustManager() {
@@ -138,7 +138,7 @@ public class PluginManager {
             URL pluginUrl = new URL(url);
             log("Trying " + pluginUrl.toExternalForm() + "...");
             try {
-                downloadHelper.download(pluginUrl, pluginFile, progress, this.timeout, basicAuthCredentials);
+                downloadHelper.download(pluginUrl, pluginFile, progress, this.timeout, authCredentials);
                 downloaded = true;
             } catch (ElasticsearchTimeoutException e) {
                 throw e;
@@ -153,7 +153,7 @@ public class PluginManager {
             for (URL url : pluginHandle.urls()) {
                 log("Trying " + url.toExternalForm() + "...");
                 try {
-                    downloadHelper.download(url, pluginFile, progress, this.timeout, basicAuthCredentials);
+                    downloadHelper.download(url, pluginFile, progress, this.timeout, authCredentials);
                     downloaded = true;
                     break;
                 } catch (ElasticsearchTimeoutException e) {
@@ -430,11 +430,11 @@ public class PluginManager {
 
         if (action > ACTION.NONE) {
             int exitCode = EXIT_CODE_ERROR; // we fail unless it's reset
-            BasicAuthCredentials credentials;
+            AuthCredentials credentials;
             if (username != null && password != null) {
                 credentials = new BasicAuthCredentials(username, password);
             } else {
-                credentials = BasicAuthCredentials.NONE;
+                credentials = new EmptyAuthCredentials();
             }
 
             PluginManager pluginManager = new PluginManager(initialSettings.v2(), url, outputMode, timeout, credentials);

@@ -23,6 +23,7 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.plugins.AuthCredentials;
 import org.elasticsearch.plugins.BasicAuthCredentials;
 
 import java.io.*;
@@ -39,7 +40,7 @@ public class HttpDownloadHelper {
     private boolean skipExisting = false;
 
     public boolean download(URL source, File dest, @Nullable DownloadProgress progress, TimeValue timeout,
-                            BasicAuthCredentials basicAuthCredentials) throws Exception {
+                            AuthCredentials authCredentials) throws Exception {
         if (dest.exists() && skipExisting) {
             return true;
         }
@@ -58,7 +59,7 @@ public class HttpDownloadHelper {
             hasTimestamp = true;
         }
 
-        GetThread getThread = new GetThread(source, dest, hasTimestamp, timestamp, progress, basicAuthCredentials);
+        GetThread getThread = new GetThread(source, dest, hasTimestamp, timestamp, progress, authCredentials);
 
         try {
             getThread.setDaemon(true);
@@ -179,7 +180,7 @@ public class HttpDownloadHelper {
         private final boolean hasTimestamp;
         private final long timestamp;
         private final DownloadProgress progress;
-        private final BasicAuthCredentials basicAuthCredentials;
+        private final AuthCredentials authCredentials;
 
         private boolean success = false;
         private IOException ioexception = null;
@@ -188,13 +189,13 @@ public class HttpDownloadHelper {
         private URLConnection connection;
         private int redirections = 0;
 
-        GetThread(URL source, File dest, boolean h, long t, DownloadProgress p, BasicAuthCredentials basicAuthCredentials) {
+        GetThread(URL source, File dest, boolean h, long t, DownloadProgress p, AuthCredentials authCredentials) {
             this.source = source;
             this.dest = dest;
             hasTimestamp = h;
             timestamp = t;
             progress = p;
-            this.basicAuthCredentials = basicAuthCredentials;
+            this.authCredentials = authCredentials;
         }
 
         public void run() {
@@ -207,7 +208,7 @@ public class HttpDownloadHelper {
 
         private boolean get() throws IOException {
 
-            connection = openConnection(source, basicAuthCredentials);
+            connection = openConnection(source, authCredentials);
 
             if (connection == null) {
                 return false;
@@ -247,7 +248,7 @@ public class HttpDownloadHelper {
             return true;
         }
 
-        private URLConnection openConnection(URL aSource, BasicAuthCredentials basicAuthCredentials) throws IOException {
+        private URLConnection openConnection(URL aSource, AuthCredentials authCredentials) throws IOException {
 
             // set up the URL connection
             URLConnection connection = aSource.openConnection();
@@ -262,8 +263,8 @@ public class HttpDownloadHelper {
                 ((HttpURLConnection) connection).setUseCaches(true);
                 ((HttpURLConnection) connection).setConnectTimeout(5000);
 
-                if (basicAuthCredentials != null && !basicAuthCredentials.isEmpty()) {
-                    connection.setRequestProperty("Authorization", "Basic " + basicAuthCredentials.encodedAuthorization());
+                if (authCredentials != null && authCredentials instanceof BasicAuthCredentials) {
+                    connection.setRequestProperty("Authorization", "Basic " + authCredentials.encodedAuthorization());
                 }
             }
             // connect to the remote site (may take some time)
@@ -284,7 +285,7 @@ public class HttpDownloadHelper {
                     if (!redirectionAllowed(aSource, newURL)) {
                         return null;
                     }
-                    return openConnection(newURL, basicAuthCredentials);
+                    return openConnection(newURL, authCredentials);
                 }
                 // next test for a 304 result (HTTP only)
                 long lastModified = httpConnection.getLastModified();

@@ -123,6 +123,8 @@ public class PluginManager {
         }
 
         PluginHandle pluginHandle = PluginHandle.parse(name);
+        checkForForbiddenName(pluginHandle.name);
+
         File pluginFile = pluginHandle.distroFile(environment);
         // extract the plugin
         File extractLocation = pluginHandle.extractedDir(environment);
@@ -241,10 +243,7 @@ public class PluginManager {
         PluginHandle pluginHandle = PluginHandle.parse(name);
         boolean removed = false;
 
-        if (Strings.isNullOrEmpty(pluginHandle.name)) {
-            throw new ElasticsearchIllegalArgumentException("plugin name is incorrect");
-        }
-
+        checkForForbiddenName(pluginHandle.name);
         File pluginToDelete = pluginHandle.extractedDir(environment);
         if (pluginToDelete.exists()) {
             debug("Removing: " + pluginToDelete.getPath());
@@ -276,6 +275,21 @@ public class PluginManager {
             log("Removed " + name);
         } else {
             log("Plugin " + name + " not found. Run plugin --list to get list of installed plugins.");
+        }
+    }
+
+    private static void checkForForbiddenName(String name) {
+        if (Strings.isNullOrEmpty(name) ||
+                "elasticsearch.in.sh".equalsIgnoreCase(name) ||
+                "elasticsearch".equalsIgnoreCase(name) ||
+                "plugin".equalsIgnoreCase(name) ||
+                "elasticsearch.bat".equalsIgnoreCase(name) ||
+                "plugin.bat".equalsIgnoreCase(name) ||
+                "service.bat".equalsIgnoreCase(name) ||
+                "elasticsearch-service-x86.exe".equalsIgnoreCase(name) ||
+                "elasticsearch-service-x64.exe".equalsIgnoreCase(name) ||
+                "elasticsearch-service-mgr.exe".equalsIgnoreCase(name)) {
+            throw new ElasticsearchIllegalArgumentException("this plugin name is not allowed.");
         }
     }
 

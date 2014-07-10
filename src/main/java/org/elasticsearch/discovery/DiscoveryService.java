@@ -20,6 +20,7 @@
 package org.elasticsearch.discovery;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
@@ -37,11 +38,28 @@ import java.util.concurrent.TimeUnit;
  */
 public class DiscoveryService extends AbstractLifecycleComponent<DiscoveryService> {
 
+    private static class InitialStateListener implements InitialStateDiscoveryListener {
+
+        private final CountDownLatch latch = new CountDownLatch(1);
+        private volatile boolean initialStateReceived;
+
+        @Override
+        public void initialStateProcessed() {
+            initialStateReceived = true;
+            latch.countDown();
+        }
+
+        public boolean waitForInitialState(TimeValue timeValue) throws InterruptedException {
+            if (timeValue.millis() > 0) {
+                latch.await(timeValue.millis(), TimeUnit.MILLISECONDS);
+            }
+            return initialStateReceived;
+        }
+    }
+
     private final TimeValue initialStateTimeout;
-
     private final Discovery discovery;
-
-    private volatile boolean initialStateReceived;
+    private InitialStateListener initialStateListener;
 
     @Inject
     public DiscoveryService(Settings settings, Discovery discovery) {
@@ -52,38 +70,28 @@ public class DiscoveryService extends AbstractLifecycleComponent<DiscoveryServic
 
     @Override
     protected void doStart() throws ElasticsearchException {
-        final CountDownLatch latch = new CountDownLatch(1);
-        InitialStateDiscoveryListener listener = new InitialStateDiscoveryListener() {
-            @Override
-            public void initialStateProcessed() {
-                latch.countDown();
-            }
-        };
-        discovery.addListener(listener);
-        try {
-            discovery.start();
-            if (initialStateTimeout.millis() > 0) {
-                try {
-                    logger.trace("waiting for {} for the initial state to be set by the discovery", initialStateTimeout);
-                    if (latch.await(initialStateTimeout.millis(), TimeUnit.MILLISECONDS)) {
-                        logger.trace("initial state set from discovery");
-                        initialStateReceived = true;
-                    } else {
-                        initialStateReceived = false;
-                        logger.warn("waited for {} and no initial state was set by the discovery", initialStateTimeout);
-                    }
-                } catch (InterruptedException e) {
-                    // ignore
-                }
-            }
-        } finally {
-            discovery.removeListener(listener);
-        }
+        initialStateListener = new InitialStateListener();
+        discovery.addListener(initialStateListener);
+        discovery.start();
         logger.info(discovery.nodeDescription());
+    }
+
+    public void waitForInitialState() {
+        try {
+            if (!initialStateListener.waitForInitialState(initialStateTimeout)) {
+                logger.warn("waited for {} and no initial state was set by the discovery", initialStateTimeout);
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new ElasticsearchTimeoutException("Interrupted while waiting for initial discovery state");
+        }
     }
 
     @Override
     protected void doStop() throws ElasticsearchException {
+        if (initialStateListener != null) {
+            discovery.removeListener(initialStateListener);
+        }
         discovery.stop();
     }
 
@@ -101,7 +109,7 @@ public class DiscoveryService extends AbstractLifecycleComponent<DiscoveryServic
      * on {@link #doStart()}.
      */
     public boolean initialStateReceived() {
-        return initialStateReceived;
+        return initialStateListener.initialStateReceived;
     }
 
     public String nodeDescription() {

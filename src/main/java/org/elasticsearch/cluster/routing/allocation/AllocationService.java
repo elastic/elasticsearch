@@ -278,23 +278,18 @@ public class AllocationService extends AbstractComponent {
         }
 
         // go over and remove dangling replicas that are initializing for primary shards
-        List<ShardRouting> shardsToFail = null;
+        List<ShardRouting> shardsToFail = Lists.newArrayList();
         for (MutableShardRouting shardEntry : routingNodes.unassigned()) {
             if (shardEntry.primary()) {
                 for (MutableShardRouting routing : routingNodes.assignedShards(shardEntry)) {
                     if (!routing.primary() && routing.initializing()) {
-                        if (shardsToFail == null) {
-                            shardsToFail = new ArrayList<>();
-                        }
                         shardsToFail.add(routing);
                     }
                 }
             }
         }
-        if (shardsToFail != null) {
-            for (ShardRouting shardToFail : shardsToFail) {
-               changed |= applyFailedShard(allocation, shardToFail, false);
-            }
+        for (ShardRouting shardToFail : shardsToFail) {
+           changed |= applyFailedShard(allocation, shardToFail, false);
         }
 
         // now, go over and elect a new primary if possible, not, from this code block on, if one is elected,

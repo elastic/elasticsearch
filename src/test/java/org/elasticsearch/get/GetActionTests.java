@@ -33,12 +33,14 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
+import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.client.Requests.clusterHealthRequest;
@@ -885,4 +887,49 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
         assertThat(getResponse.getField(field).getValues().get(1).toString(), equalTo("value2"));
     }
 
+    @Test
+    public void testRealTimeGet() throws IOException {
+        XContentBuilder mappingBuilder = jsonBuilder()
+                .startObject()
+                .startObject("test")
+                .startObject("properties")
+                .startObject("foo")
+                .field("type", "multi_field")
+                .startObject("fields")
+                .startObject("foo")
+                .field("type", "string")
+                .field("store", true)
+                .field("analyzer", "simple")
+                .endObject()
+                .startObject("token_count")
+                .field("type", "token_count")
+                .field("analyzer", "standard")
+                .field("store", true)
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject();
+        logger.info(mappingBuilder.string());
+        prepareCreate("test").addMapping("test",mappingBuilder
+        )
+                .setSettings(
+                        jsonBuilder().startObject()
+                                .field("index.translog.disable_flush", true)
+                                .field("refresh_interval", "1h")
+                                .endObject()
+                ).get();
+        ensureGreen();
+        client().prepareIndex("test", "test", "1").setSource(jsonBuilder().startObject().field("foo", "bar").endObject()).get();
+        GetResponse response = client().prepareGet().setIndex("test").setType("test").setId("1").setFields("foo.token_count").get();
+        assertNull(response.getField("foo.token_count"));
+        assertThat(response.getId(), equalTo("1"));
+        assertTrue(response.isExists());
+        flush();
+        response = client().prepareGet().setIndex("test").setType("test").setId("1").setFields("foo.token_count").get();
+        assertThat(response.getId(), equalTo("1"));
+        assertTrue(response.isExists());
+        assertNotNull(response.getField("foo.token_count"));
+    }
 }

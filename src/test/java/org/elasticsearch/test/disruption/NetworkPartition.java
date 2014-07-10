@@ -41,6 +41,7 @@ public abstract class NetworkPartition implements ServiceDisruptionScheme {
     volatile boolean autoExpand;
     protected final Random random;
     protected volatile InternalTestCluster cluster;
+    protected volatile boolean activeDisruption = false;
 
 
     public NetworkPartition(Random random) {
@@ -157,6 +158,7 @@ public abstract class NetworkPartition implements ServiceDisruptionScheme {
             return;
         }
         logger.info("nodes {} will be partitioned from {}. partition type [{}]", nodesSideOne, nodesSideTwo, getPartitionDescription());
+        activeDisruption = true;
         for (String node1 : nodesSideOne) {
             MockTransportService transportService1 = (MockTransportService) cluster.getInstance(TransportService.class, node1);
             DiscoveryNode discoveryNode1 = discoveryNode(node1);
@@ -170,8 +172,8 @@ public abstract class NetworkPartition implements ServiceDisruptionScheme {
 
 
     @Override
-    public void stopDisrupting() {
-        if (nodesSideOne.size() == 0 || nodesSideTwo.size() == 0) {
+    public synchronized void stopDisrupting() {
+        if (nodesSideOne.size() == 0 || nodesSideTwo.size() == 0 || !activeDisruption) {
             return;
         }
         logger.info("restoring partition between nodes {} & nodes {}", nodesSideOne, nodesSideTwo);
@@ -184,6 +186,7 @@ public abstract class NetworkPartition implements ServiceDisruptionScheme {
                 removeDisruption(discoveryNode1, transportService1, discoveryNode2, transportService2);
             }
         }
+        activeDisruption = false;
     }
 
     abstract void applyDisruption(DiscoveryNode node1, MockTransportService transportService1,

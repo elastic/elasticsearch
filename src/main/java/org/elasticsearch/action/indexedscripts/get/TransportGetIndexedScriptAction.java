@@ -21,6 +21,7 @@ package org.elasticsearch.action.indexedscripts.get;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
@@ -34,7 +35,7 @@ import org.elasticsearch.transport.TransportService;
 /**
  * Performs the get operation.
  */
-public class TransportGetIndexedScriptAction extends TransportAction<GetIndexedScriptRequest, GetIndexedScriptResponse> {
+public class TransportGetIndexedScriptAction extends HandledTransportAction<GetIndexedScriptRequest, GetIndexedScriptResponse> {
 
     public static final boolean REFRESH_FORCE = false;
     ScriptService scriptService;
@@ -43,10 +44,14 @@ public class TransportGetIndexedScriptAction extends TransportAction<GetIndexedS
     @Inject
     public TransportGetIndexedScriptAction(Settings settings, ThreadPool threadPool, ScriptService scriptService,
                                            TransportService transportService, Client client) {
-        super(settings, threadPool);
+        super(settings, threadPool,transportService, GetIndexedScriptAction.NAME);
         this.scriptService = scriptService;
         this.client = client;
-        transportService.registerHandler(GetIndexedScriptAction.NAME, new TransportHandler());
+    }
+
+    @Override
+    public GetIndexedScriptRequest newRequestInstance(){
+        return new GetIndexedScriptRequest();
     }
 
     @Override
@@ -58,44 +63,4 @@ public class TransportGetIndexedScriptAction extends TransportAction<GetIndexedS
             listener.onFailure(e);
         }
     }
-
-    class TransportHandler extends BaseTransportRequestHandler<GetIndexedScriptRequest> {
-
-        @Override
-        public GetIndexedScriptRequest newInstance() {
-            return new GetIndexedScriptRequest();
-        }
-
-        @Override
-        public void messageReceived(final GetIndexedScriptRequest request, final TransportChannel channel) throws Exception {
-            // no need to use threaded listener, since we just send a response
-            request.listenerThreaded(false);
-            execute(request, new ActionListener<GetIndexedScriptResponse>() {
-                @Override
-                public void onResponse(GetIndexedScriptResponse response) {
-                    try {
-                        channel.sendResponse(response);
-                    } catch (Throwable e) {
-                        onFailure(e);
-                    }
-                }
-
-                @Override
-                public void onFailure(Throwable e) {
-                    try {
-                        channel.sendResponse(e);
-                    } catch (Exception e1) {
-                        logger.warn("Failed to send error response for action [{}] and request [{}]",
-                                GetIndexedScriptAction.NAME, request, e1);
-                    }
-                }
-            });
-        }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.SAME;
-        }
-    }
-
 }

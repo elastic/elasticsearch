@@ -19,38 +19,14 @@
 
 package org.elasticsearch.action.indexedscripts.delete;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.DelegatingActionListener;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
-import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
+import org.elasticsearch.action.delete.DeleteAction;
+import org.elasticsearch.action.support.DelegatingActionListener;
 import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.delete.index.IndexDeleteRequest;
-import org.elasticsearch.action.delete.index.IndexDeleteResponse;
-import org.elasticsearch.action.delete.index.ShardDeleteResponse;
-import org.elasticsearch.action.delete.index.TransportIndexDeleteAction;
-import org.elasticsearch.action.support.AutoCreateIndex;
-import org.elasticsearch.action.support.TransportAction;
-import org.elasticsearch.action.support.replication.TransportShardReplicationOperationAction;
+import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.action.shard.ShardStateAction;
-import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
-import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.shard.service.IndexShard;
-import org.elasticsearch.indices.IndexAlreadyExistsException;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
@@ -58,7 +34,7 @@ import org.elasticsearch.transport.*;
 /**
  * Performs the delete operation.
  */
-public class TransportDeleteIndexedScriptAction extends TransportAction<DeleteIndexedScriptRequest,  DeleteIndexedScriptResponse> {
+public class TransportDeleteIndexedScriptAction extends HandledTransportAction<DeleteIndexedScriptRequest,  DeleteIndexedScriptResponse> {
 
     private ScriptService scriptService;
     private Client client;
@@ -66,16 +42,14 @@ public class TransportDeleteIndexedScriptAction extends TransportAction<DeleteIn
     @Inject
     public TransportDeleteIndexedScriptAction(Settings settings, ThreadPool threadPool, ScriptService scriptService,
                                               Client client, TransportService transportService) {
-        super(settings, threadPool);
+        super(settings, threadPool, transportService, DeleteAction.NAME);
         this.scriptService = scriptService;
         this.client = client;
+    }
 
-        transportService.registerHandler(DeleteIndexedScriptAction.NAME, new TransportHandler(DeleteIndexedScriptAction.NAME) {
-            @Override
-            public DeleteIndexedScriptRequest newInstance() {
-                return new DeleteIndexedScriptRequest();
-            }
-        });
+    @Override
+    public DeleteIndexedScriptRequest newRequestInstance(){
+        return new DeleteIndexedScriptRequest();
     }
 
     @Override
@@ -87,49 +61,4 @@ public class TransportDeleteIndexedScriptAction extends TransportAction<DeleteIn
             }
         });
     }
-
-    class TransportHandler extends BaseTransportRequestHandler<DeleteIndexedScriptRequest> {
-
-        String actionName;
-        TransportHandler(String actionName){
-            this.actionName = actionName;
-        }
-
-        @Override
-        public DeleteIndexedScriptRequest newInstance() {
-            return new DeleteIndexedScriptRequest();
-        }
-
-        @Override
-        public void messageReceived(final DeleteIndexedScriptRequest request, final TransportChannel channel) throws Exception {
-            // no need to use threaded listener, since we just send a response
-            request.listenerThreaded(false);
-            execute(request, new ActionListener<DeleteIndexedScriptResponse>() {
-                @Override
-                public void onResponse(DeleteIndexedScriptResponse response) {
-                    try {
-                        channel.sendResponse(response);
-                    } catch (Throwable e) {
-                        onFailure(e);
-                    }
-                }
-
-                @Override
-                public void onFailure(Throwable e) {
-                    try {
-                        channel.sendResponse(e);
-                    } catch (Exception e1) {
-                        logger.warn("Failed to send error response for action [{}] and request [{}]",
-                                actionName, request, e1);
-                    }
-                }
-            });
-        }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.SAME;
-        }
-    }
-
 }

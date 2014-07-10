@@ -310,12 +310,6 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         for (RoutingNode routingNode : this) {
             shards.addAll(routingNode.shardsWithState(state));
         }
-        for (ShardRoutingState s : state) {
-            if (s == ShardRoutingState.UNASSIGNED) {
-                Iterables.addAll(shards, unassigned());
-                break;
-            }
-        }
         return shards;
     }
 
@@ -324,16 +318,6 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         List<MutableShardRouting> shards = newArrayList();
         for (RoutingNode routingNode : this) {
             shards.addAll(routingNode.shardsWithState(index, state));
-        }
-        for (ShardRoutingState s : state) {
-            if (s == ShardRoutingState.UNASSIGNED) {
-                for (MutableShardRouting unassignedShard : unassignedShards) {
-                    if (unassignedShard.index().equals(index)) {
-                        shards.add(unassignedShard);
-                    }
-                }
-                break;
-            }
         }
         return shards;
     }

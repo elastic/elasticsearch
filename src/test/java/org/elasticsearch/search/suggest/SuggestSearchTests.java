@@ -23,13 +23,14 @@ import com.carrotsearch.randomizedtesting.annotations.Nightly;
 import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableList;
 import com.google.common.io.Resources;
-import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.*;
+import org.elasticsearch.action.suggest.SuggestRequestBuilder;
+import org.elasticsearch.action.suggest.SuggestResponse;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.suggest.SuggestBuilder.SuggestionBuilder;
@@ -1103,15 +1104,32 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
     }
 
     protected Suggest searchSuggest(String suggestText, int expectShardsFailed, SuggestionBuilder<?>... suggestions) {
-        SearchRequestBuilder builder = client().prepareSearch().setSearchType(SearchType.COUNT);
-        if (suggestText != null) {
-            builder.setSuggestText(suggestText);
+        if (randomBoolean()) {
+            SearchRequestBuilder builder = client().prepareSearch().setSearchType(SearchType.COUNT);
+            if (suggestText != null) {
+                builder.setSuggestText(suggestText);
+            }
+            for (SuggestionBuilder<?> suggestion : suggestions) {
+                builder.addSuggestion(suggestion);
+            }
+            SearchResponse actionGet = builder.execute().actionGet();
+            assertThat(Arrays.toString(actionGet.getShardFailures()), actionGet.getFailedShards(), equalTo(expectShardsFailed));
+            return actionGet.getSuggest();
+        } else {
+            SuggestRequestBuilder builder = client().prepareSuggest();
+            if (suggestText != null) {
+                builder.setSuggestText(suggestText);
+            }
+            for (SuggestionBuilder<?> suggestion : suggestions) {
+                builder.addSuggestion(suggestion);
+            }
+
+            SuggestResponse actionGet = builder.execute().actionGet();
+            assertThat(Arrays.toString(actionGet.getShardFailures()), actionGet.getFailedShards(), equalTo(expectShardsFailed));
+            if (expectShardsFailed > 0) {
+                throw new SearchPhaseExecutionException("suggest", "Suggest execution failed", new ShardSearchFailure[0]);
+            }
+            return actionGet.getSuggest();
         }
-        for (SuggestionBuilder<?> suggestion : suggestions) {
-            builder.addSuggestion(suggestion);
-        }
-        SearchResponse actionGet = builder.execute().actionGet();
-        assertThat(Arrays.toString(actionGet.getShardFailures()), actionGet.getFailedShards(), equalTo(expectShardsFailed));
-        return actionGet.getSuggest();
     }
 }

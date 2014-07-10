@@ -170,9 +170,6 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             return true;
         }
         Throwable cause = ExceptionsHelper.unwrapCause(e);
-        if (cause instanceof ConnectTransportException) {
-            return true;
-        }
         // on version conflict or document missing, it means
         // that a news change has crept into the replica, and its fine
         if (cause instanceof VersionConflictEngineException) {
@@ -697,7 +694,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                     @Override
                     public void handleException(TransportException exp) {
                         logger.trace("[{}] Transport failure during replica request [{}] ", exp, node, request);
-                        if (!ignoreReplicaException(exp.unwrapCause())) {
+                        if (!ignoreReplicaException(exp)) {
                             logger.warn("Failed to perform " + transportAction + " on remote replica " + node + shardIt.shardId(), exp);
                             shardStateAction.shardFailed(shard, indexMetaData.getUUID(),
                                     "Failed to perform [" + transportAction + "] on replica, message [" + ExceptionsHelper.detailedMessage(exp) + "]");

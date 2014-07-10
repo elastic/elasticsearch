@@ -39,6 +39,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.service.InternalClusterService;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.Lifecycle;
@@ -245,6 +246,7 @@ public final class InternalNode implements Node {
         injector.getInstance(RestController.class).start();
         injector.getInstance(TransportService.class).start();
         DiscoveryService discoService = injector.getInstance(DiscoveryService.class).start();
+        discoService.waitForInitialState();
 
         // gateway should start after disco, so it can try and recovery from gateway on "start"
         injector.getInstance(GatewayService.class).start();

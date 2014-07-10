@@ -212,7 +212,7 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
             if ("_primary_first".equals(preference) || "_primaryFirst".equals(preference)) {
                 return indexShard.primaryFirstActiveInitializingShardsIt();
             }
-            if ("_onlyLocal".equals(preference) || "_onlyLocal".equals(preference)) {
+            if ("_only_local".equals(preference) || "_onlyLocal".equals(preference)) {
                 return indexShard.onlyNodeActiveInitializingShardsIt(localNodeId);
             }
             if (preference.startsWith("_only_node:")) {

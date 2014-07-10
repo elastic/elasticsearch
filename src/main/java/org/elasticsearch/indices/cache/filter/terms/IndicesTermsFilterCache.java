@@ -28,7 +28,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.routing.operation.plain.Preference;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;

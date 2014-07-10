@@ -24,7 +24,6 @@ import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.routing.operation.plain.Preference;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;

@@ -45,10 +45,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.distributor.Distributor;
 import org.elasticsearch.index.store.support.ForceSyncDirectory;
 
-import java.io.Closeable;
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.IOException;
+import java.io.*;
 import java.nio.file.NoSuchFileException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -396,6 +393,9 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
                     // no segments file -- can't read metadata
                     logger.trace("Can't read segment infos", ex);
                     return ImmutableMap.of();
+                } catch (EOFException eof) {
+                    // TODO this should be caught by lucene - EOF is almost certainly an index corruption
+                    throw new CorruptIndexException("Read past EOF while reading segment infos", eof);
                 }
                 Version maxVersion = Version.LUCENE_3_0; // we don't know which version was used to write so we take the max version.
                 Set<String> added = new HashSet<>();

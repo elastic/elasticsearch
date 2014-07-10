@@ -26,18 +26,18 @@ import org.elasticsearch.common.logging.log4j.Log4jESLoggerFactory;
 import org.elasticsearch.common.logging.log4j.LogConfigurator;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.io.File;
 import java.net.URL;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
  *
  */
-public class LoggingConfigurationTests {
+public class LoggingConfigurationTests extends ElasticsearchTestCase {
 
     @Test
     public void testMultipleConfigs() throws Exception {

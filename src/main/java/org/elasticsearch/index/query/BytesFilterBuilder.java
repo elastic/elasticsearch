@@ -41,12 +41,11 @@ public class BytesFilterBuilder extends BaseFilterBuilder {
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        //builder = XContentBuilder.builder(source.contentType().xContent());
         try (XContentParser parser = XContentFactory.xContent(source).createParser(source)) {
+            // unwrap the first layer of json dictionary
             parser.nextToken();
             parser.nextToken();
             builder.copyCurrentStructure(parser);
         }
-        //builder.copyCurrentStructure(source);
     }
 }

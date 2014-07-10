@@ -36,6 +36,8 @@ import java.io.IOException;
  */
 public class PublishRiverClusterStateAction extends AbstractComponent {
 
+    public static final String ACTION_NAME = "internal:river/state/publish";
+
     public static interface NewClusterStateListener {
         void onNewClusterState(RiverClusterState clusterState);
     }
@@ -52,11 +54,11 @@ public class PublishRiverClusterStateAction extends AbstractComponent {
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.listener = listener;
-        transportService.registerHandler(PublishClusterStateRequestHandler.ACTION, new PublishClusterStateRequestHandler());
+        transportService.registerHandler(ACTION_NAME, new PublishClusterStateRequestHandler());
     }
 
     public void close() {
-        transportService.removeHandler(PublishClusterStateRequestHandler.ACTION);
+        transportService.removeHandler(ACTION_NAME);
     }
 
     public void publish(RiverClusterState clusterState) {
@@ -76,7 +78,7 @@ public class PublishRiverClusterStateAction extends AbstractComponent {
                 continue;
             }
 
-            transportService.sendRequest(node, PublishClusterStateRequestHandler.ACTION, new PublishClusterStateRequest(clusterState), new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
+            transportService.sendRequest(node, ACTION_NAME, new PublishClusterStateRequest(clusterState), new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
                 @Override
                 public void handleException(TransportException exp) {
                     logger.debug("failed to send cluster state to [{}], should be detected as failed soon...", exp, node);
@@ -110,8 +112,6 @@ public class PublishRiverClusterStateAction extends AbstractComponent {
     }
 
     private class PublishClusterStateRequestHandler extends BaseTransportRequestHandler<PublishClusterStateRequest> {
-
-        static final String ACTION = "river/state/publish";
 
         @Override
         public PublishClusterStateRequest newInstance() {

@@ -20,10 +20,7 @@
 package org.elasticsearch.discovery.zen.ping.unicast;
 
 import com.google.common.collect.Lists;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
-import org.elasticsearch.Version;
+import org.elasticsearch.*;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -58,12 +55,13 @@ import static org.elasticsearch.discovery.zen.ping.ZenPing.PingResponse.readPing
  */
 public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implements ZenPing {
 
+    public static final String ACTION_NAME = "internal:discovery/zen/unicast";
+
     public static final int LIMIT_PORTS_COUNT = 1;
 
     private final ThreadPool threadPool;
     private final TransportService transportService;
     private final ClusterName clusterName;
-    private final Version version;
 
     private final int concurrentConnects;
 
@@ -85,7 +83,6 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
         this.threadPool = threadPool;
         this.transportService = transportService;
         this.clusterName = clusterName;
-        this.version = version;
 
         if (unicastHostsProviders != null) {
             for (UnicastHostsProvider unicastHostsProvider : unicastHostsProviders) {
@@ -109,7 +106,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                 TransportAddress[] addresses = transportService.addressesFromString(host);
                 // we only limit to 1 addresses, makes no sense to ping 100 ports
                 for (int i = 0; (i < addresses.length && i < LIMIT_PORTS_COUNT); i++) {
-                    nodes.add(new DiscoveryNode("#zen_unicast_" + (++idCounter) + "#", addresses[i], version));
+                    nodes.add(new DiscoveryNode("#zen_unicast_" + (++idCounter) + "#", addresses[i], version.minimumCompatibilityVersion()));
                 }
             } catch (Exception e) {
                 throw new ElasticsearchIllegalArgumentException("Failed to resolve address for [" + host + "]", e);
@@ -117,7 +114,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
         }
         this.nodes = nodes.toArray(new DiscoveryNode[nodes.size()]);
 
-        transportService.registerHandler(UnicastPingRequestHandler.ACTION, new UnicastPingRequestHandler());
+        transportService.registerHandler(ACTION_NAME, new UnicastPingRequestHandler());
     }
 
     @Override
@@ -130,7 +127,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
 
     @Override
     protected void doClose() throws ElasticsearchException {
-        transportService.removeHandler(UnicastPingRequestHandler.ACTION);
+        transportService.removeHandler(ACTION_NAME);
     }
 
     public void addHostsProvider(UnicastHostsProvider provider) {
@@ -328,9 +325,9 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
         }
     }
 
-    private void sendPingRequestToNode(final int id, TimeValue timeout, UnicastPingRequest pingRequest, final CountDownLatch latch, final DiscoveryNode node, final DiscoveryNode nodeToSend) {
+    private void sendPingRequestToNode(final int id, final TimeValue timeout, final UnicastPingRequest pingRequest, final CountDownLatch latch, final DiscoveryNode node, final DiscoveryNode nodeToSend) {
         logger.trace("[{}] sending to {}", id, nodeToSend);
-        transportService.sendRequest(nodeToSend, UnicastPingRequestHandler.ACTION, pingRequest, TransportRequestOptions.options().withTimeout((long) (timeout.millis() * 1.25)), new BaseTransportResponseHandler<UnicastPingResponse>() {
+        transportService.sendRequest(nodeToSend, ACTION_NAME, pingRequest, TransportRequestOptions.options().withTimeout((long) (timeout.millis() * 1.25)), new BaseTransportResponseHandler<UnicastPingResponse>() {
 
             @Override
             public UnicastPingResponse newInstance() {
@@ -417,8 +414,6 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
     }
 
     class UnicastPingRequestHandler extends BaseTransportRequestHandler<UnicastPingRequest> {
-
-        static final String ACTION = "discovery/zen/unicast";
 
         @Override
         public UnicastPingRequest newInstance() {

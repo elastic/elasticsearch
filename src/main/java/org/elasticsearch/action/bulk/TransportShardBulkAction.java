@@ -76,7 +76,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
     private final static String OP_TYPE_UPDATE = "update";
     private final static String OP_TYPE_DELETE = "delete";
 
-    private static final String ACTION_NAME = BulkAction.NAME + "/shard";
+    private static final String ACTION_NAME = BulkAction.NAME + "[s]";
 
     private final MappingUpdatedAction mappingUpdatedAction;
     private final UpdateHelper updateHelper;

@@ -58,7 +58,7 @@ public abstract class TransportNodesOperationAction<Request extends NodesOperati
         this.clusterService = clusterService;
         this.transportService = transportService;
 
-        this.transportNodeAction = actionName + "/n";
+        this.transportNodeAction = actionName + "[n]";
         this.executor = executor();
 
         transportService.registerHandler(actionName, new TransportHandler());

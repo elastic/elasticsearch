@@ -27,7 +27,7 @@ import org.elasticsearch.client.Client;
 public class IndexAction extends ClientAction<IndexRequest, IndexResponse, IndexRequestBuilder> {
 
     public static final IndexAction INSTANCE = new IndexAction();
-    public static final String NAME = "index";
+    public static final String NAME = "indices:data/write/index";
 
     private IndexAction() {
         super(NAME);

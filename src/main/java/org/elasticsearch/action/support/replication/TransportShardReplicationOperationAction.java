@@ -151,7 +151,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
     }
 
     private String transportReplicaAction() {
-        return actionName + "/replica";
+        return actionName + "[r]";
     }
 
     protected boolean retryPrimaryException(Throwable e) {

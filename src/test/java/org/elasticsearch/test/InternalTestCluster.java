@@ -282,6 +282,7 @@ public final class InternalTestCluster extends TestCluster {
         }
     }
 
+    @Override
     public String getClusterName() {
         return clusterName;
     }

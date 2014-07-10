@@ -47,7 +47,7 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
  */
 public class TransportNodesListGatewayMetaState extends TransportNodesOperationAction<TransportNodesListGatewayMetaState.Request, TransportNodesListGatewayMetaState.NodesLocalGatewayMetaState, TransportNodesListGatewayMetaState.NodeRequest, TransportNodesListGatewayMetaState.NodeLocalGatewayMetaState> {
 
-    private static final String ACTION_NAME = "/gateway/local/meta-state";
+    public static final String ACTION_NAME = "internal:gateway/local/meta_state";
 
     private LocalGatewayMetaState metaState;
 

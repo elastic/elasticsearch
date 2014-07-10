@@ -27,7 +27,7 @@ import org.elasticsearch.client.IndicesAdminClient;
 public class ClearIndicesCacheAction extends IndicesAction<ClearIndicesCacheRequest, ClearIndicesCacheResponse, ClearIndicesCacheRequestBuilder> {
 
     public static final ClearIndicesCacheAction INSTANCE = new ClearIndicesCacheAction();
-    public static final String NAME = "indices/cache/clear";
+    public static final String NAME = "indices:admin/cache/clear";
 
     private ClearIndicesCacheAction() {
         super(NAME);

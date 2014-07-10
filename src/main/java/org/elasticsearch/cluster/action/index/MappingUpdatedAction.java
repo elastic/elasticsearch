@@ -67,8 +67,7 @@ import java.util.concurrent.atomic.AtomicLong;
 public class MappingUpdatedAction extends TransportMasterNodeOperationAction<MappingUpdatedAction.MappingUpdatedRequest, MappingUpdatedAction.MappingUpdatedResponse> {
 
     public static final String INDICES_MAPPING_ADDITIONAL_MAPPING_CHANGE_TIME = "indices.mapping.additional_mapping_change_time";
-
-    private static final String ACTION_NAME = "cluster/mappingUpdated";
+    public static final String ACTION_NAME = "internal:cluster/mapping_updated";
 
     private final AtomicLong mappingUpdateOrderGen = new AtomicLong();
     private final MetaDataMappingService metaDataMappingService;

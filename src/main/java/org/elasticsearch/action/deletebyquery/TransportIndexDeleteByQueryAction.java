@@ -39,7 +39,7 @@ import java.util.List;
  */
 public class TransportIndexDeleteByQueryAction extends TransportIndexReplicationOperationAction<IndexDeleteByQueryRequest, IndexDeleteByQueryResponse, ShardDeleteByQueryRequest, ShardDeleteByQueryRequest, ShardDeleteByQueryResponse> {
 
-    private static final String ACTION_NAME = DeleteByQueryAction.NAME + "/index";
+    private static final String ACTION_NAME = DeleteByQueryAction.NAME + "[index]";
 
     @Inject
     public TransportIndexDeleteByQueryAction(Settings settings, ClusterService clusterService, TransportService transportService,

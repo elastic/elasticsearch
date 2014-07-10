@@ -27,7 +27,7 @@ import org.elasticsearch.client.ClusterAdminClient;
 public class ClusterStateAction extends ClusterAction<ClusterStateRequest, ClusterStateResponse, ClusterStateRequestBuilder> {
 
     public static final ClusterStateAction INSTANCE = new ClusterStateAction();
-    public static final String NAME = "cluster/state";
+    public static final String NAME = "cluster:monitor/state";
 
     private ClusterStateAction() {
         super(NAME);

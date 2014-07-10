@@ -27,7 +27,7 @@ import org.elasticsearch.client.Client;
 public class DeleteIndexedScriptAction extends ClientAction<DeleteIndexedScriptRequest, DeleteIndexedScriptResponse, DeleteIndexedScriptRequestBuilder> {
 
     public static final DeleteIndexedScriptAction INSTANCE = new DeleteIndexedScriptAction();
-    public static final String NAME = "deleteIndexedScript";
+    public static final String NAME = "indices:data/write/script/delete";
 
     private DeleteIndexedScriptAction() {
         super(NAME);

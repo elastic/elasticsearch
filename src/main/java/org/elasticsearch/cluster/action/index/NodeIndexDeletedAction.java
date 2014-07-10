@@ -39,6 +39,9 @@ import java.util.concurrent.CopyOnWriteArrayList;
  */
 public class NodeIndexDeletedAction extends AbstractComponent {
 
+    public static final String INDEX_DELETED_ACTION_NAME = "internal:cluster/node/index/deleted";
+    public static final String INDEX_STORE_DELETED_ACTION_NAME = "internal:cluster/node/index_store/deleted";
+
     private final ThreadPool threadPool;
     private final TransportService transportService;
     private final List<Listener> listeners = new CopyOnWriteArrayList<>();
@@ -48,8 +51,8 @@ public class NodeIndexDeletedAction extends AbstractComponent {
         super(settings);
         this.threadPool = threadPool;
         this.transportService = transportService;
-        transportService.registerHandler(NodeIndexDeletedTransportHandler.ACTION, new NodeIndexDeletedTransportHandler());
-        transportService.registerHandler(NodeIndexStoreDeletedTransportHandler.ACTION, new NodeIndexStoreDeletedTransportHandler());
+        transportService.registerHandler(INDEX_DELETED_ACTION_NAME, new NodeIndexDeletedTransportHandler());
+        transportService.registerHandler(INDEX_STORE_DELETED_ACTION_NAME, new NodeIndexStoreDeletedTransportHandler());
     }
 
     public void add(Listener listener) {
@@ -71,7 +74,7 @@ public class NodeIndexDeletedAction extends AbstractComponent {
             });
         } else {
             transportService.sendRequest(clusterState.nodes().masterNode(),
-                    NodeIndexDeletedTransportHandler.ACTION, new NodeIndexDeletedMessage(index, nodeId), EmptyTransportResponseHandler.INSTANCE_SAME);
+                    INDEX_DELETED_ACTION_NAME, new NodeIndexDeletedMessage(index, nodeId), EmptyTransportResponseHandler.INSTANCE_SAME);
         }
     }
 
@@ -86,7 +89,7 @@ public class NodeIndexDeletedAction extends AbstractComponent {
             });
         } else {
             transportService.sendRequest(clusterState.nodes().masterNode(),
-                    NodeIndexStoreDeletedTransportHandler.ACTION, new NodeIndexStoreDeletedMessage(index, nodeId), EmptyTransportResponseHandler.INSTANCE_SAME);
+                    INDEX_STORE_DELETED_ACTION_NAME, new NodeIndexStoreDeletedMessage(index, nodeId), EmptyTransportResponseHandler.INSTANCE_SAME);
         }
     }
 
@@ -110,8 +113,6 @@ public class NodeIndexDeletedAction extends AbstractComponent {
 
     private class NodeIndexDeletedTransportHandler extends BaseTransportRequestHandler<NodeIndexDeletedMessage> {
 
-        static final String ACTION = "cluster/nodeIndexDeleted";
-
         @Override
         public NodeIndexDeletedMessage newInstance() {
             return new NodeIndexDeletedMessage();
@@ -130,8 +131,6 @@ public class NodeIndexDeletedAction extends AbstractComponent {
     }
 
     private class NodeIndexStoreDeletedTransportHandler extends BaseTransportRequestHandler<NodeIndexStoreDeletedMessage> {
-
-        static final String ACTION = "cluster/nodeIndexStoreDeleted";
 
         @Override
         public NodeIndexStoreDeletedMessage newInstance() {

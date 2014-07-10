@@ -27,7 +27,7 @@ import org.elasticsearch.client.Client;
 public class GetIndexedScriptAction extends ClientAction<GetIndexedScriptRequest, GetIndexedScriptResponse, GetIndexedScriptRequestBuilder> {
 
     public static final GetIndexedScriptAction INSTANCE = new GetIndexedScriptAction();
-    public static final String NAME = "getIndexedScript";
+    public static final String NAME = "indices:data/read/script/get";
 
     private GetIndexedScriptAction() {
         super(NAME);

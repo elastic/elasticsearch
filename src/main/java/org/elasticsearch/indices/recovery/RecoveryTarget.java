@@ -65,12 +65,12 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 public class RecoveryTarget extends AbstractComponent {
 
     public static class Actions {
-        public static final String FILES_INFO = "index/shard/recovery/filesInfo";
-        public static final String FILE_CHUNK = "index/shard/recovery/fileChunk";
-        public static final String CLEAN_FILES = "index/shard/recovery/cleanFiles";
-        public static final String TRANSLOG_OPS = "index/shard/recovery/translogOps";
-        public static final String PREPARE_TRANSLOG = "index/shard/recovery/prepareTranslog";
-        public static final String FINALIZE = "index/shard/recovery/finalize";
+        public static final String FILES_INFO = "internal:index/shard/recovery/filesInfo";
+        public static final String FILE_CHUNK = "internal:index/shard/recovery/file_chunk";
+        public static final String CLEAN_FILES = "internal:index/shard/recovery/clean_files";
+        public static final String TRANSLOG_OPS = "internal:index/shard/recovery/translog_ops";
+        public static final String PREPARE_TRANSLOG = "internal:index/shard/recovery/prepare_translog";
+        public static final String FINALIZE = "internal:index/shard/recovery/finalize";
     }
 
     private final ThreadPool threadPool;

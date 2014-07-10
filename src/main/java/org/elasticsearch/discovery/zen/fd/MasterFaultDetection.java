@@ -43,6 +43,8 @@ import static org.elasticsearch.transport.TransportRequestOptions.options;
  */
 public class MasterFaultDetection extends AbstractComponent {
 
+    public static final String MASTER_PING_ACTION_NAME = "internal:discovery/zen/fd/master_ping";
+
     public static interface Listener {
 
         void onMasterFailure(DiscoveryNode masterNode, String reason);
@@ -102,7 +104,7 @@ public class MasterFaultDetection extends AbstractComponent {
             transportService.addConnectionListener(connectionListener);
         }
 
-        transportService.registerHandler(MasterPingRequestHandler.ACTION, new MasterPingRequestHandler());
+        transportService.registerHandler(MASTER_PING_ACTION_NAME, new MasterPingRequestHandler());
     }
 
     public DiscoveryNode masterNode() {
@@ -182,7 +184,7 @@ public class MasterFaultDetection extends AbstractComponent {
         stop("closing");
         this.listeners.clear();
         transportService.removeConnectionListener(connectionListener);
-        transportService.removeHandler(MasterPingRequestHandler.ACTION);
+        transportService.removeHandler(MASTER_PING_ACTION_NAME);
     }
 
     private void handleTransportDisconnect(DiscoveryNode node) {
@@ -266,7 +268,7 @@ public class MasterFaultDetection extends AbstractComponent {
                 threadPool.schedule(pingInterval, ThreadPool.Names.SAME, MasterPinger.this);
                 return;
             }
-            transportService.sendRequest(masterToPing, MasterPingRequestHandler.ACTION, new MasterPingRequest(nodesProvider.nodes().localNode().id(), masterToPing.id()), options().withType(TransportRequestOptions.Type.PING).withTimeout(pingRetryTimeout),
+            transportService.sendRequest(masterToPing, MASTER_PING_ACTION_NAME, new MasterPingRequest(nodesProvider.nodes().localNode().id(), masterToPing.id()), options().withType(TransportRequestOptions.Type.PING).withTimeout(pingRetryTimeout),
                     new BaseTransportResponseHandler<MasterPingResponseResponse>() {
                         @Override
                         public MasterPingResponseResponse newInstance() {
@@ -324,7 +326,7 @@ public class MasterFaultDetection extends AbstractComponent {
                                         notifyMasterFailure(masterToPing, "failed to ping, tried [" + pingRetryCount + "] times, each with  maximum [" + pingRetryTimeout + "] timeout");
                                     } else {
                                         // resend the request, not reschedule, rely on send timeout
-                                        transportService.sendRequest(masterToPing, MasterPingRequestHandler.ACTION, new MasterPingRequest(nodesProvider.nodes().localNode().id(), masterToPing.id()), options().withType(TransportRequestOptions.Type.PING).withTimeout(pingRetryTimeout), this);
+                                        transportService.sendRequest(masterToPing, MASTER_PING_ACTION_NAME, new MasterPingRequest(nodesProvider.nodes().localNode().id(), masterToPing.id()), options().withType(TransportRequestOptions.Type.PING).withTimeout(pingRetryTimeout), this);
                                     }
                                 }
                             }
@@ -361,8 +363,6 @@ public class MasterFaultDetection extends AbstractComponent {
     }
 
     private class MasterPingRequestHandler extends BaseTransportRequestHandler<MasterPingRequest> {
-
-        public static final String ACTION = "discovery/zen/fd/masterPing";
 
         @Override
         public MasterPingRequest newInstance() {

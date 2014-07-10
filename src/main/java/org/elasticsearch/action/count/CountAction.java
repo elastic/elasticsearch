@@ -27,7 +27,7 @@ import org.elasticsearch.client.Client;
 public class CountAction extends ClientAction<CountRequest, CountResponse, CountRequestBuilder> {
 
     public static final CountAction INSTANCE = new CountAction();
-    public static final String NAME = "count";
+    public static final String NAME = "indices:data/read/count";
 
     private CountAction() {
         super(NAME);

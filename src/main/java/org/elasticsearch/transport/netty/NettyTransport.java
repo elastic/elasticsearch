@@ -56,7 +56,6 @@ import org.elasticsearch.transport.support.TransportStatus;
 import org.jboss.netty.bootstrap.ClientBootstrap;
 import org.jboss.netty.bootstrap.ServerBootstrap;
 import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.buffer.CompositeChannelBuffer;
 import org.jboss.netty.channel.*;
 import org.jboss.netty.channel.socket.nio.NioClientSocketChannelFactory;
 import org.jboss.netty.channel.socket.nio.NioServerSocketChannelFactory;
@@ -507,6 +506,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 
     @Override
     public void sendRequest(final DiscoveryNode node, final long requestId, final String action, final TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {
+
         Channel targetChannel = nodeChannel(node, options);
 
         if (compress) {
@@ -535,7 +535,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             Version version = Version.smallest(this.version, node.version());
 
             stream.setVersion(version);
-            stream.writeString(action);
+            stream.writeString(transportServiceAdapter.action(action, version));
 
             ReleasableBytesReference bytes;
             ChannelBuffer buffer;

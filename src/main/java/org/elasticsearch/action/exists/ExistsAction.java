@@ -25,7 +25,7 @@ import org.elasticsearch.client.Client;
 public class ExistsAction extends ClientAction<ExistsRequest, ExistsResponse, ExistsRequestBuilder> {
 
     public static final ExistsAction INSTANCE = new ExistsAction();
-    public static final String NAME = "exists";
+    public static final String NAME = "indices:data/read/exists";
 
     private ExistsAction() {
         super(NAME);

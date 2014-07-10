@@ -32,6 +32,7 @@ import org.elasticsearch.discovery.zen.ZenDiscoveryModule;
 import org.elasticsearch.transport.TransportModule;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty.NettyTransportModule;
+import org.hamcrest.CoreMatchers;
 import org.junit.Before;
 import org.junit.Ignore;
 
@@ -100,7 +101,13 @@ public abstract class ElasticsearchBackwardsCompatIntegrationTest extends Elasti
 
     protected TestCluster buildTestCluster(Scope scope) throws IOException {
         TestCluster cluster = super.buildTestCluster(scope);
-        return new CompositeTestCluster((InternalTestCluster) cluster, between(minExternalNodes(), maxExternalNodes()), new ExternalNode(backwardsCompatibilityPath(), randomLong()));
+        ExternalNode externalNode = new ExternalNode(backwardsCompatibilityPath(), randomLong(), new NodeSettingsSource() {
+            @Override
+            public Settings settings(int nodeOrdinal) {
+                return externalNodeSettings(nodeOrdinal);
+            }
+        });
+        return new CompositeTestCluster((InternalTestCluster) cluster, between(minExternalNodes(), maxExternalNodes()), externalNode);
     }
 
     protected int minExternalNodes() {
@@ -138,12 +145,16 @@ public abstract class ElasticsearchBackwardsCompatIntegrationTest extends Elasti
         for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
             for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
                 for (ShardRouting shardRouting : indexShardRoutingTable) {
-                    if (shardRouting.currentNodeId() != null &&  index.equals(shardRouting.getIndex())) {
+                    if (shardRouting.currentNodeId() != null && index.equals(shardRouting.getIndex())) {
                         String name = clusterState.nodes().get(shardRouting.currentNodeId()).name();
                         assertThat("Allocated on new node: " + name, Regex.simpleMatch(pattern, name), is(true));
                     }
                 }
             }
         }
+    }
+
+    protected Settings externalNodeSettings(int nodeOrdinal) {
+        return ImmutableSettings.EMPTY;
     }
 }

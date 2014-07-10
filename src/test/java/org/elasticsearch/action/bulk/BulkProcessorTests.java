@@ -187,6 +187,7 @@ public class BulkProcessorTests extends ElasticsearchIntegrationTest {
 
         assertThat(listener.bulkFailures.size(), equalTo(totalExpectedBulkActions));
         assertThat(listener.bulkItems.size(), equalTo(0));
+        transportClient.close();
     }
 
     @Test

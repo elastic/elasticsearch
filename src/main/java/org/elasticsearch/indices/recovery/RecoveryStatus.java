@@ -21,6 +21,7 @@ package org.elasticsearch.indices.recovery;
 
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
@@ -41,10 +42,12 @@ public class RecoveryStatus {
     final long recoveryId;
     final InternalIndexShard indexShard;
     final RecoveryState recoveryState;
+    final DiscoveryNode sourceNode;
 
-    public RecoveryStatus(long recoveryId, InternalIndexShard indexShard) {
+    public RecoveryStatus(long recoveryId, InternalIndexShard indexShard, DiscoveryNode sourceNode) {
         this.recoveryId = recoveryId;
         this.indexShard = indexShard;
+        this.sourceNode = sourceNode;
         this.shardId = indexShard.shardId();
         this.recoveryState = new RecoveryState(shardId);
         recoveryState.getTimer().startTime(System.currentTimeMillis());
@@ -56,6 +59,10 @@ public class RecoveryStatus {
 
     private volatile ConcurrentMap<String, IndexOutput> openIndexOutputs = ConcurrentCollections.newConcurrentMap();
     public final Store.LegacyChecksums legacyChecksums = new Store.LegacyChecksums();
+
+    public DiscoveryNode sourceNode() {
+        return this.sourceNode;
+    }
 
     public RecoveryState recoveryState() {
         return recoveryState;

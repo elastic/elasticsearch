@@ -19,8 +19,13 @@
 
 package org.elasticsearch.plugins;
 
-public abstract class AuthCredentials {
+import java.net.URLConnection;
 
-    public abstract String encodedAuthorization();
+public interface AuthCredentials {
+
+    /**
+     * Modify the URLConnection if needed for your Authorization Scheme
+     */
+    public abstract void applyAuthorization(URLConnection connection);
 
 }

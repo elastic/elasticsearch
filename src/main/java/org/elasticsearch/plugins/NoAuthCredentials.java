@@ -19,10 +19,14 @@
 
 package org.elasticsearch.plugins;
 
-public class EmptyAuthCredentials extends AuthCredentials {
+import java.net.URLConnection;
 
-    public String encodedAuthorization() {
-        return "";
+/**
+ * No Auth needed so we don't modify the URLConnection
+ */
+public class NoAuthCredentials implements AuthCredentials {
+
+    @Override
+    public void applyAuthorization(URLConnection connection) {
     }
-
 }

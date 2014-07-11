@@ -21,22 +21,31 @@ package org.elasticsearch.plugins;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Base64;
+import org.elasticsearch.common.Strings;
 
-public class BasicAuthCredentials extends AuthCredentials {
+import java.net.URLConnection;
+
+/**
+ * This implementation provides basic HTTP Auth by adding
+ * `Authorization: Basic (Base 64 encoded username:password)`
+ * to the URLConnection.
+ */
+public class BasicAuthCredentials implements AuthCredentials {
 
     private final String username;
     private final String password;
 
     public BasicAuthCredentials(String username, String password) {
+        if (!Strings.hasText(username) || !Strings.hasText(password)) {
+            throw new ElasticsearchIllegalArgumentException("username or password is empty");
+        }
+
         this.username = username;
         this.password = password;
     }
 
-    public String encodedAuthorization() {
-        if (username == null || password == null) {
-            throw new ElasticsearchIllegalArgumentException("username and password are empty");
-        }
-
-        return Base64.encodeBytes( (username + ":" + password).getBytes() );
+    @Override
+    public void applyAuthorization(URLConnection connection) {
+        connection.setRequestProperty("Authorization", "Basic " + Base64.encodeBytes( (username + ":" + password).getBytes() ));
     }
 }

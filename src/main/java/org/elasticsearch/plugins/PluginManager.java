@@ -431,10 +431,10 @@ public class PluginManager {
         if (action > ACTION.NONE) {
             int exitCode = EXIT_CODE_ERROR; // we fail unless it's reset
             AuthCredentials credentials;
-            if (username != null && password != null) {
+            if (username != null) {
                 credentials = new BasicAuthCredentials(username, password);
             } else {
-                credentials = new EmptyAuthCredentials();
+                credentials = new NoAuthCredentials();
             }
 
             PluginManager pluginManager = new PluginManager(initialSettings.v2(), url, outputMode, timeout, credentials);

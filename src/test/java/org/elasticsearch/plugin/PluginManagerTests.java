@@ -31,7 +31,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
-import org.elasticsearch.plugins.EmptyAuthCredentials;
+import org.elasticsearch.plugins.NoAuthCredentials;
 import org.elasticsearch.plugins.PluginManager;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.helper.HttpClient;
@@ -143,7 +143,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
             FileSystemUtils.mkdirs(initialSettings.v2().pluginsFile());
         }
         return new PluginManager(initialSettings.v2(), pluginUrl, PluginManager.OutputMode.SILENT,
-                TimeValue.timeValueSeconds(30), new EmptyAuthCredentials());
+                TimeValue.timeValueSeconds(30), new NoAuthCredentials());
     }
 
     private static void downloadAndExtract(String pluginName, String pluginUrl) throws IOException {

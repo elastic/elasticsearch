@@ -24,7 +24,6 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.plugins.AuthCredentials;
-import org.elasticsearch.plugins.BasicAuthCredentials;
 
 import java.io.*;
 import java.net.HttpURLConnection;
@@ -263,9 +262,7 @@ public class HttpDownloadHelper {
                 ((HttpURLConnection) connection).setUseCaches(true);
                 ((HttpURLConnection) connection).setConnectTimeout(5000);
 
-                if (authCredentials != null && authCredentials instanceof BasicAuthCredentials) {
-                    connection.setRequestProperty("Authorization", "Basic " + authCredentials.encodedAuthorization());
-                }
+                authCredentials.applyAuthorization(connection);
             }
             // connect to the remote site (may take some time)
             connection.connect();

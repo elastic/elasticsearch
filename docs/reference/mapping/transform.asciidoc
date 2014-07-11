@@ -12,7 +12,7 @@ field.  Example:
 {
     "example" : {
         "transform" : {
-            "script" : "if (source['title']?.startsWith('t')) source['suggest'] = source['content']",
+            "script" : "if (ctx._source['title']?.startsWith('t')) ctx._source['suggest'] = ctx._source['content']",
             "params" : {
                 "variable" : "not used but an example anyway"
             },
@@ -33,8 +33,8 @@ Its also possible to specify multiple transforms:
 {
     "example" : {
         "transform" : [
-            {"script": "source['suggest'] = source['content']"}
-            {"script": "source['foo'] = source['bar'];"}
+            {"script": "ctx._source['suggest'] = ctx._source['content']"}
+            {"script": "ctx._source['foo'] = ctx._source['bar'];"}
         ]
     }
 }

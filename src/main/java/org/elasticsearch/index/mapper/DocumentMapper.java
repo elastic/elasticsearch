@@ -796,10 +796,14 @@ public class DocumentMapper implements ToXContent {
         @SuppressWarnings("unchecked")
         public Map<String, Object> transformSourceAsMap(Map<String, Object> sourceAsMap) {
             try {
+                // We use the ctx variable and the _source name to be consistent with the update api.
                 ExecutableScript executable = scriptService.executable(language, script, parameters);
-                executable.setNextVar("source", sourceAsMap);
+                Map<String, Object> ctx = new HashMap<>(1);
+                ctx.put("_source", sourceAsMap);
+                executable.setNextVar("ctx", ctx);
                 executable.run();
-                return (Map<String, Object>) executable.unwrap(sourceAsMap);
+                ctx = (Map<String, Object>) executable.unwrap(ctx);
+                return (Map<String, Object>) ctx.get("_source");
             } catch (Exception e) {
                 throw new ElasticsearchIllegalArgumentException("failed to execute script", e);
             }

@@ -117,7 +117,7 @@ public class TransformOnIndexMapperIntegrationTest extends ElasticsearchIntegrat
     }
 
     private void buildTransformScript(XContentBuilder builder) throws IOException {
-        String script = "if (source['title']?.startsWith('t')) { source['destination'] = source[sourceField] }; source.remove(sourceField);";
+        String script = "if (ctx._source['title']?.startsWith('t')) { ctx._source['destination'] = ctx._source[sourceField] }; ctx._source.remove(sourceField);";
         if (getRandom().nextBoolean()) {
             script = script.replace("sourceField", "'content'");
         } else {

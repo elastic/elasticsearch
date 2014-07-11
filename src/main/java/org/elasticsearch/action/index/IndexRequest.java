@@ -23,6 +23,7 @@ import com.google.common.base.Charsets;
 import org.elasticsearch.*;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.RoutingMissingException;
+import org.elasticsearch.action.SingleDocumentWriteRequest;
 import org.elasticsearch.action.support.replication.ShardReplicationOperationRequest;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
@@ -62,7 +63,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * @see org.elasticsearch.client.Requests#indexRequest(String)
  * @see org.elasticsearch.client.Client#index(IndexRequest)
  */
-public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest> {
+public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest> implements SingleDocumentWriteRequest {
 
     /**
      * Operation type controls if the type of the index operation.

@@ -27,6 +27,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.SingleDocumentWriteRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
@@ -201,44 +202,39 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
         MetaData metaData = clusterState.metaData();
         for (int i = 0; i < bulkRequest.requests.size(); i++) {
             ActionRequest request = bulkRequest.requests.get(i);
-            if (request instanceof IndexRequest) {
-                IndexRequest indexRequest = (IndexRequest) request;
-                String aliasOrIndex = indexRequest.index();
-                indexRequest.index(clusterState.metaData().concreteSingleIndex(indexRequest.index()));
+            if (request instanceof SingleDocumentWriteRequest) {
+                SingleDocumentWriteRequest req = (SingleDocumentWriteRequest) request;
+                if (addFailureIfIndexIsClosed(req.index(), req.type(), req.id(), bulkRequest, responses, i)) {
+                    continue;
+                }
 
-                MappingMetaData mappingMd = null;
-                if (metaData.hasIndex(indexRequest.index())) {
-                    mappingMd = metaData.index(indexRequest.index()).mappingOrDefault(indexRequest.type());
-                    boolean isClosed = addFailureIfIndexIsClosed(indexRequest.index(), indexRequest.type(), indexRequest.id(), bulkRequest, responses, i);
-                    if (isClosed) {
-                        continue;
+                if (request instanceof IndexRequest) {
+                    IndexRequest indexRequest = (IndexRequest) request;
+                    String aliasOrIndex = indexRequest.index();
+                    indexRequest.index(clusterState.metaData().concreteSingleIndex(indexRequest.index()));
+
+                    MappingMetaData mappingMd = null;
+                    if (metaData.hasIndex(indexRequest.index())) {
+                        mappingMd = metaData.index(indexRequest.index()).mappingOrDefault(indexRequest.type());
                     }
+                    try {
+                        indexRequest.process(metaData, aliasOrIndex, mappingMd, allowIdGeneration);
+                    } catch (ElasticsearchParseException e) {
+                        BulkItemResponse.Failure failure = new BulkItemResponse.Failure(indexRequest.index(), indexRequest.type(), indexRequest.id(), e);
+                        BulkItemResponse bulkItemResponse = new BulkItemResponse(i, "index", failure);
+                        responses.set(i, bulkItemResponse);
+                        // make sure the request gets never processed again
+                        bulkRequest.requests.set(i, null);
+                    }
+                } else if (request instanceof DeleteRequest) {
+                    DeleteRequest deleteRequest = (DeleteRequest) request;
+                    deleteRequest.routing(clusterState.metaData().resolveIndexRouting(deleteRequest.routing(), deleteRequest.index()));
+                    deleteRequest.index(clusterState.metaData().concreteSingleIndex(deleteRequest.index()));
+                } else if (request instanceof UpdateRequest) {
+                    UpdateRequest updateRequest = (UpdateRequest) request;
+                    updateRequest.routing(clusterState.metaData().resolveIndexRouting(updateRequest.routing(), updateRequest.index()));
+                    updateRequest.index(clusterState.metaData().concreteSingleIndex(updateRequest.index()));
                 }
-                try {
-                    indexRequest.process(metaData, aliasOrIndex, mappingMd, allowIdGeneration);
-                } catch (ElasticsearchParseException e) {
-                    BulkItemResponse.Failure failure = new BulkItemResponse.Failure(indexRequest.index(), indexRequest.type(), indexRequest.id(), e);
-                    BulkItemResponse bulkItemResponse = new BulkItemResponse(i, "index", failure);
-                    responses.set(i, bulkItemResponse);
-                    // make sure the request gets never processed again
-                    bulkRequest.requests.set(i, null);
-                }
-            } else if (request instanceof DeleteRequest) {
-                DeleteRequest deleteRequest = (DeleteRequest) request;
-                boolean isClosed = addFailureIfIndexIsClosed(deleteRequest.index(), deleteRequest.type(), deleteRequest.id(), bulkRequest, responses, i);
-                if (isClosed) {
-                    continue;
-                }
-                deleteRequest.routing(clusterState.metaData().resolveIndexRouting(deleteRequest.routing(), deleteRequest.index()));
-                deleteRequest.index(clusterState.metaData().concreteSingleIndex(deleteRequest.index()));
-            } else if (request instanceof UpdateRequest) {
-                UpdateRequest updateRequest = (UpdateRequest) request;
-                boolean isClosed = addFailureIfIndexIsClosed(updateRequest.index(), updateRequest.type(), updateRequest.id(), bulkRequest, responses, i);
-                if (isClosed) {
-                    continue;
-                }
-                updateRequest.routing(clusterState.metaData().resolveIndexRouting(updateRequest.routing(), updateRequest.index()));
-                updateRequest.index(clusterState.metaData().concreteSingleIndex(updateRequest.index()));
             }
         }
 

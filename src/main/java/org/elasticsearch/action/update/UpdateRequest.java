@@ -21,6 +21,7 @@ package org.elasticsearch.action.update;
 
 import com.google.common.collect.Maps;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.SingleDocumentWriteRequest;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.replication.ReplicationType;
@@ -44,7 +45,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  */
-public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> {
+public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> implements SingleDocumentWriteRequest {
 
     private String type;
     private String id;

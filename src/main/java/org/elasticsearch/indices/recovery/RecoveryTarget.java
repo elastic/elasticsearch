@@ -163,7 +163,7 @@ public class RecoveryTarget extends AbstractComponent {
             return;
         }
         // create a new recovery status, and process...
-        final RecoveryStatus recoveryStatus = new RecoveryStatus(request.recoveryId(), indexShard);
+        final RecoveryStatus recoveryStatus = new RecoveryStatus(request.recoveryId(), indexShard, request.sourceNode());
         recoveryStatus.recoveryState.setType(request.recoveryType());
         recoveryStatus.recoveryState.setSourceNode(request.sourceNode());
         recoveryStatus.recoveryState.setTargetNode(request.targetNode());

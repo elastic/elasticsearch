@@ -202,6 +202,9 @@ public class SimpleIndexStatsTests extends ElasticsearchIntegrationTest {
         assertThat(stats.getTotal().getSegments().getCount(), equalTo((long)test1.totalNumShards));
         assumeTrue(org.elasticsearch.Version.CURRENT.luceneVersion != Version.LUCENE_46);
         assertThat(stats.getTotal().getSegments().getMemoryInBytes(), greaterThan(0l));
+        //TODO add tests for new stat entries
+        //assertThat(stats.getTotal().getSegments().getIndexWriterMemoryInBytes(), greaterThan(0l));
+        //assertThat(stats.getTotal().getSegments().getVersionMapMemoryInBytes(), greaterThan(0l));
     }
 
     @Test

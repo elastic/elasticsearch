@@ -1136,6 +1136,8 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                 for (AtomicReaderContext reader : searcher.reader().leaves()) {
                     stats.add(1, getReaderRamBytesUsed(reader));
                 }
+                stats.addVersionMayMemoryInBytes(versionMap.ramBytesUsed());
+                stats.addIndexWriterMemoryInBytes(indexWriter.ramBytesUsed());
                 return stats;
             } finally {
                 searcher.close();

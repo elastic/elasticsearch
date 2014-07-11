@@ -193,9 +193,10 @@ scheduler supports this setting:
 
 `index.merge.scheduler.max_thread_count`::
 
-The maximum number of concurrent merge threads that may run at once. Defaults
-to `1` which works best with spinning-magnets disks.  If you are using
-a good solid-state disk (SSD) instead then try setting this to `3`.
+The maximum number of threads that may be merging at once. Defaults to
+`Math.max(1, Math.min(3, Runtime.getRuntime().availableProcessors() / 2))`,
+which works well for a good solid-state-disk (SSD).  If your index is on
+spinning platter drives instead, decrease this to 1.
 
 [float]
 ==== SerialMergeScheduler

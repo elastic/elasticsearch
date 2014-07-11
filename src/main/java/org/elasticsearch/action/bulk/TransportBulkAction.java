@@ -100,20 +100,10 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
         if (autoCreateIndex.needToCheck()) {
             final Set<String> indices = Sets.newHashSet();
             for (ActionRequest request : bulkRequest.requests) {
-                if (request instanceof IndexRequest) {
-                    IndexRequest indexRequest = (IndexRequest) request;
-                    if (!indices.contains(indexRequest.index())) {
-                        indices.add(indexRequest.index());
-                    }
-                } else if (request instanceof DeleteRequest) {
-                    DeleteRequest deleteRequest = (DeleteRequest) request;
-                    if (!indices.contains(deleteRequest.index())) {
-                        indices.add(deleteRequest.index());
-                    }
-                } else if (request instanceof UpdateRequest) {
-                    UpdateRequest updateRequest = (UpdateRequest) request;
-                    if (!indices.contains(updateRequest.index())) {
-                        indices.add(updateRequest.index());
+                if (request instanceof SingleDocumentWriteRequest) {
+                    SingleDocumentWriteRequest req = (SingleDocumentWriteRequest) request;
+                    if (!indices.contains(req.index())) {
+                        indices.add(req.index());
                     }
                 } else {
                     throw new ElasticsearchException("Parsed unknown request in bulk actions: " + request.getClass().getSimpleName());
@@ -204,7 +194,7 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
             ActionRequest request = bulkRequest.requests.get(i);
             if (request instanceof SingleDocumentWriteRequest) {
                 SingleDocumentWriteRequest req = (SingleDocumentWriteRequest) request;
-                if (addFailureIfIndexIsClosed(req.index(), req.type(), req.id(), bulkRequest, responses, i)) {
+                if (addFailureIfIndexIsClosed(req, bulkRequest, responses, i)) {
                     continue;
                 }
 
@@ -347,14 +337,14 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
         }
     }
 
-    private boolean addFailureIfIndexIsClosed(String index, String type, String id, BulkRequest bulkRequest, AtomicArray<BulkItemResponse> responses, int idx) {
+    private boolean addFailureIfIndexIsClosed(SingleDocumentWriteRequest request, BulkRequest bulkRequest, AtomicArray<BulkItemResponse> responses, int idx) {
         MetaData metaData = this.clusterService.state().metaData();
-        String concreteIndex = this.clusterService.state().metaData().concreteSingleIndex(index);
+        String concreteIndex = this.clusterService.state().metaData().concreteSingleIndex(request.index());
         boolean isClosed = metaData.index(concreteIndex).getState() == IndexMetaData.State.CLOSE;
 
         if (isClosed) {
-            BulkItemResponse.Failure failure = new BulkItemResponse.Failure(index, type, id,
-                    new IndexClosedException(new Index(metaData.index(index).getIndex())));
+            BulkItemResponse.Failure failure = new BulkItemResponse.Failure(request.index(), request.type(), request.id(),
+                    new IndexClosedException(new Index(metaData.index(request.index()).getIndex())));
             BulkItemResponse bulkItemResponse = new BulkItemResponse(idx, "index", failure);
             responses.set(idx, bulkItemResponse);
             // make sure the request gets never processed again
@@ -362,41 +352,6 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
         }
 
         return isClosed;
-    }
-
-    private void addFailureIfIndexIsClosed(MetaData metaData, ActionRequest request, BulkRequest bulkRequest, AtomicArray<BulkItemResponse> responses, int idx) {
-        String index = null;
-        String type = null;
-        String id = null;
-        boolean isClosed = false;
-        if (request instanceof IndexRequest) {
-            IndexRequest indexRequest = (IndexRequest) request;
-            index = indexRequest.index();
-            type = indexRequest.type();
-            id = indexRequest.id();
-            isClosed = metaData.index(indexRequest.index()).getState() == IndexMetaData.State.CLOSE;
-        } else if (request instanceof DeleteRequest) {
-            DeleteRequest deleteRequest = (DeleteRequest) request;
-            index = deleteRequest.index();
-            type = deleteRequest.type();
-            id = deleteRequest.id();
-            isClosed = metaData.index(deleteRequest.index()).getState() == IndexMetaData.State.CLOSE;
-        } else if (request instanceof UpdateRequest) {
-            UpdateRequest updateRequest = (UpdateRequest) request;
-            index = updateRequest.index();
-            type = updateRequest.type();
-            id = updateRequest.id();
-            isClosed = metaData.index(updateRequest.index()).getState() == IndexMetaData.State.CLOSE;
-        }
-
-        if (isClosed) {
-            BulkItemResponse.Failure failure = new BulkItemResponse.Failure(index, type, id,
-                    new IndexClosedException(new Index(metaData.index(index).getIndex())));
-            BulkItemResponse bulkItemResponse = new BulkItemResponse(idx, "index", failure);
-            responses.set(idx, bulkItemResponse);
-            // make sure the request gets never processed again
-            bulkRequest.requests.set(idx, null);
-        }
     }
 
     class TransportHandler extends BaseTransportRequestHandler<BulkRequest> {

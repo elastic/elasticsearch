@@ -281,7 +281,7 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
      * to the replica. The file on disk stays uncorrupted
      */
     @Test
-    public void testCorrupteOnNetworkLayer() throws ExecutionException, InterruptedException {
+    public void testCorruptionOnNetworkLayer() throws ExecutionException, InterruptedException {
         int numDocs = scaledRandomIntBetween(100, 1000);
         assertThat(cluster().numDataNodes(), greaterThanOrEqualTo(2));
         if (cluster().numDataNodes() < 3) {

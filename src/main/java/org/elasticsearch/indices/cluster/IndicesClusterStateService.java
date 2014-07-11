@@ -544,7 +544,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                     indexService.removeShard(shardRouting.id(), "removing shard (different instance of it allocated on this node)");
                 } else if (isPeerRecovery(shardRouting)) {
                     // check if there is an existing recovery going, and if so, and the source node is not the same, cancel the recovery to restart it
-                    RecoveryStatus recoveryStatus = recoveryTarget.recoveryStatus(indexShard.shardId());
+                    RecoveryStatus recoveryStatus = recoveryTarget.recoveryStatus(indexShard);
                     if (recoveryStatus != null && recoveryStatus.stage() != RecoveryState.Stage.DONE) {
                         // we have an ongoing recovery, find the source based on current routing and compare them
                         DiscoveryNode sourceNode = findSourceNodeForPeerRecovery(routingTable, nodes, shardRouting);

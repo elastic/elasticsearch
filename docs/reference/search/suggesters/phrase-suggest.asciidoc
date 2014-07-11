@@ -200,7 +200,7 @@ curl -XPOST 'localhost:9200/_search' -d {
      }
    }
  }
- --------------------------------------------------
+--------------------------------------------------
 <1> This query will be run once for every suggestion.
 <2> The `{{suggestion}}` variable will be replaced by the text
     of each suggestion.

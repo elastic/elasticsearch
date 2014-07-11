@@ -17,8 +17,8 @@ different languages. Currently supported plugins are `lang-javascript`
 for JavaScript, `lang-mvel` for Mvel, and `lang-python` for Python.
 All places where a `script` parameter can be used, a `lang` parameter
 (on the same level) can be provided to define the language of the
-script. The `lang` options are `groovy`, `js`, `mvel`, `python`, and
-`native`.
+script. The `lang` options are `groovy`, `js`, `mvel`, `python`,
+`expression` and `native`.
 
 added[1.2.0, Dynamic scripting is disabled for non-sandboxed languages by default since version 1.2.0]
 
@@ -184,14 +184,38 @@ the name of the script as the `script`.
 
 Note, the scripts need to be in the classpath of elasticsearch. One
 simple way to do it is to create a directory under plugins (choose a
-descriptive name), and place the jar / classes files there, they will be
+descriptive name), and place the jar / classes files there. They will be
 automatically loaded.
+
+[float]
+=== Lucene Expressions Scripts
+
+Lucene's expressions module provides a mechanism to compile a
+`javascript` expression to bytecode.  This allows very fast execution,
+as if you had written a `native` script.  Expression scripts can be
+used in `script_score`, `script_fields` and numeric aggregation scripts.
+
+See the link:http://lucene.apache.org/core/4_9_0/expressions/index.html?org/apache/lucene/expressions/package-summary.html[expressions module documentation]
+for details on what operators and functions are available.
+
+Variables in `expression` scripts are available to access:
+
+* Single valued document fields, e.g. `doc['myfield'].value`
+* Parameters passed into the script, e.g. `mymodifier`
+* The current document's score, `_score` (only available when used in a `script_score`)
+
+There are a few limitations relative to other script languages:
+
+* Only numeric fields may be accessed
+* Stored fields are not available
+* If a field is sparse (only some documents contain a value), documents missing the field will have a value of `0`
 
 [float]
 === Score
 
-In all scripts that can be used in facets, allow to access the current
-doc score using `doc.score`.
+In all scripts that can be used in facets, the current
+document's score is accessible in `doc.score`.  When using a `script_score`,
+the current score is available in `_score`.
 
 [float]
 === Computing scores based on terms in scripts
@@ -402,3 +426,4 @@ integer with the value of `8`, the result is `0` even though you were
 expecting it to be `0.125`. You may need to enforce precision by
 explicitly using a double like `1.0/num` in order to get the expected
 result.
+

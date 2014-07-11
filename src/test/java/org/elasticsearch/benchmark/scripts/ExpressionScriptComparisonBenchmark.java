@@ -17,20 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.script.expression;
+package org.elasticsearch.benchmark.scripts;
 
-import org.elasticsearch.ElasticsearchException;
+import java.util.Random;
 
-import java.text.ParseException;
+public class ExpressionScriptComparisonBenchmark {
 
-/**
- * Exception representing a compilation error in an expression.
- */
-public class ExpressionScriptCompilationException extends ElasticsearchException {
-    public ExpressionScriptCompilationException(String msg, ParseException e) {
-        super(msg, e);
-    }
-    public ExpressionScriptCompilationException(String msg) {
-        super(msg);
+    public static void main(String[] args) {
+        Random r = new Random();
+
     }
 }

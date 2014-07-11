@@ -134,7 +134,7 @@ class ExpressionScript implements SearchScript {
         try {
             values = source.getValues(context, leaf);
         } catch (IOException e) {
-            throw new ExpressionScriptExecutionException("Failed to run expression", e);
+            throw new ExpressionScriptExecutionException("Expression failed to bind for segment", e);
         }
     }
 

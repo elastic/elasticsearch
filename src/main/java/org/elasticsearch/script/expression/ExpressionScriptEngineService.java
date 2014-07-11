@@ -105,31 +105,31 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
                 if (value instanceof Number) {
                     bindings.add(variable, new DoubleConstValueSource(((Number)value).doubleValue()));
                 } else {
-                    throw new ExpressionScriptExecutionException("Parameter [" + variable + "] must be a numeric type");
+                    throw new ExpressionScriptCompilationException("Parameter [" + variable + "] must be a numeric type");
                 }
 
             } else {
                 XVariableContext[] parts = XVariableContext.parse(variable);
                 if (parts[0].text.equals("doc") == false) {
-                    throw new ExpressionScriptExecutionException("Unknown variable [" + parts[0].text + "] in expression");
+                    throw new ExpressionScriptCompilationException("Unknown variable [" + parts[0].text + "] in expression");
                 }
                 if (parts.length < 2 || parts[1].type != XVariableContext.Type.STR_INDEX) {
-                    throw new ExpressionScriptExecutionException("Variable 'doc' in expression must be used with a specific field like: doc['myfield'].value");
+                    throw new ExpressionScriptCompilationException("Variable 'doc' in expression must be used with a specific field like: doc['myfield'].value");
                 }
                 if (parts.length < 3 || parts[2].type != XVariableContext.Type.MEMBER || parts[2].text.equals("value") == false) {
-                    throw new ExpressionScriptExecutionException("Invalid member for field data in expression.  Only '.value' is currently supported.");
+                    throw new ExpressionScriptCompilationException("Invalid member for field data in expression.  Only '.value' is currently supported.");
                 }
                 String fieldname = parts[1].text;
 
                 FieldMapper<?> field = mapper.smartNameFieldMapper(fieldname);
                 if (field == null) {
-                    throw new ExpressionScriptExecutionException("Field [" + fieldname + "] used in expression does not exist in mappings");
+                    throw new ExpressionScriptCompilationException("Field [" + fieldname + "] used in expression does not exist in mappings");
                 }
                 if (field.isNumeric() == false) {
                     // TODO: more context (which expression?)
-                    throw new ExpressionScriptExecutionException("Field [" + fieldname + "] used in expression must be numeric");
+                    throw new ExpressionScriptCompilationException("Field [" + fieldname + "] used in expression must be numeric");
                 }
-                IndexFieldData<?> fieldData = lookup.doc().fieldDataService.getForField((NumberFieldMapper)field);
+                IndexFieldData<?> fieldData = lookup.doc().fieldDataService().getForField((NumberFieldMapper)field);
                 bindings.add(variable, new FieldDataValueSource(fieldData));
             }
         }

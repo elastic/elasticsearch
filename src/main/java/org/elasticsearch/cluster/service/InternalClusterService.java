@@ -136,7 +136,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         discoveryService.addLifecycleListener(new LifecycleListener() {
             @Override
             public void afterStart() {
-                submitStateUpdateTask("update local node", Priority.IMMEDIATE, new ClusterStateUpdateTask() {
+                submitStateUpdateTask("update local node", Priority.IMMEDIATE, new ClusterStateNonMasterUpdateTask() {
                     @Override
                     public ClusterState execute(ClusterState currentState) throws Exception {
                         return ClusterState.builder(currentState)
@@ -146,7 +146,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
 
                     @Override
                     public void onFailure(String source, Throwable t) {
-                        logger.warn("failed ot update local node", t);
+                        logger.warn("failed to update local node", t);
                     }
                 });
             }

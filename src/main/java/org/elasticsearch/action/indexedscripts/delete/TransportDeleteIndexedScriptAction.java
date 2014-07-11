@@ -42,7 +42,7 @@ public class TransportDeleteIndexedScriptAction extends HandledTransportAction<D
     @Inject
     public TransportDeleteIndexedScriptAction(Settings settings, ThreadPool threadPool, ScriptService scriptService,
                                               Client client, TransportService transportService) {
-        super(settings, threadPool, transportService, DeleteAction.NAME);
+        super(settings, threadPool, transportService, DeleteIndexedScriptAction.NAME);
         this.scriptService = scriptService;
         this.client = client;
     }

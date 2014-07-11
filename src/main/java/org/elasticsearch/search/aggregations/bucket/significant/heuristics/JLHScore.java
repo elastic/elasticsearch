@@ -22,6 +22,7 @@ package org.elasticsearch.search.aggregations.bucket.significant.heuristics;
 
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -124,7 +125,9 @@ public class JLHScore implements SignificanceHeuristic {
         @Override
         public SignificanceHeuristic parse(XContentParser parser) throws IOException, QueryParsingException {
             // move to the closing bracket
-            parser.nextToken();
+            if (!parser.nextToken().equals(XContentParser.Token.END_OBJECT)) {
+                throw new ElasticsearchParseException("expected }, got " + parser.currentName() + " instead in jhl score");
+            }
             return new JLHScore();
         }
 

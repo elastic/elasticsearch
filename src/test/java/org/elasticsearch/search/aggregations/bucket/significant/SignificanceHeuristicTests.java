@@ -20,6 +20,7 @@ package org.elasticsearch.search.aggregations.bucket.significant;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
@@ -170,6 +171,27 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
         assertTrue(!((MutualInformation) aggregatorFactory.getSignificanceHeuristic()).getIncludeNegatives());
         assertThat(stParser.currentToken(), equalTo(null));
         stParser.close();
+
+        // test exceptions
+        try {
+            // 1. invalid field
+            stParser = JsonXContent.jsonXContent.createParser("{\"field\":\"text\", \"mutual_information\":{\"include_negatives\": false, \"some_unknown_field\": false}\"min_doc_count\":200}");
+            stParser.nextToken();
+            new SignificantTermsParser(heuristicParserMapper).parse("testagg", stParser, searchContext);
+            fail();
+        } catch (ElasticsearchParseException e) {
+            assertTrue(e.getMessage().contains("unknown for mutual_information"));
+        }
+
+        try {
+            // 2. unknown field in jlh_score
+            stParser = JsonXContent.jsonXContent.createParser("{\"field\":\"text\", \"jlh\":{\"unknown_field\": true}, \"min_doc_count\":200}");
+            stParser.nextToken();
+            new SignificantTermsParser(heuristicParserMapper).parse("testagg", stParser, searchContext);
+            fail();
+        } catch (ElasticsearchParseException e) {
+            assertTrue(e.getMessage().contains("expected }, got "));
+        }
     }
 
     @Test

@@ -22,6 +22,7 @@ package org.elasticsearch.search.aggregations.bucket.significant.heuristics;
 
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -224,6 +225,8 @@ public class MutualInformation implements SignificanceHeuristic {
                 } else if (BACKGROUND_IS_SUPERSET.match(parser.currentName(), ParseField.EMPTY_FLAGS)) {
                     parser.nextToken();
                     backgroundIsSuperset = parser.booleanValue();
+                } else {
+                    throw new ElasticsearchParseException("Field " + parser.currentName().toString() + " unknown for mutual_information.");
                 }
                 token = parser.nextToken();
             }

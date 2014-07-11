@@ -179,4 +179,8 @@ operations |9
 |`segments.count` |`sc`, `segmentsCount` |No |Number of segments |4
 |`segments.memory` |`sm`, `segmentsMemory` |No |Memory used by
 segments |1.4kb
+|`segments.index_writer_memory` |`siwm`, `segmentsIndexWriterMemory` |No
+|Memory used by index writer |1.2kb
+|`segments.version_map_memory` |`svmm`, `segmentsVersionMapMemory` |No
+|Memory used by version map |1.0kb
 |=======================================================================

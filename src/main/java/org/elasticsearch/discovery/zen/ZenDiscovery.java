@@ -818,6 +818,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         // if we don't have enough master nodes, we bail, even if we get a response that indicates
         // there is a master by other node, we don't see enough...
         if (!electMaster.hasEnoughMasterNodes(possibleMasterNodes)) {
+            logger.trace("not enough master nodes [{}]", possibleMasterNodes);
             return null;
         }
 

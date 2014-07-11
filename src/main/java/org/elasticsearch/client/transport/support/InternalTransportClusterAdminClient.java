@@ -20,9 +20,9 @@
 package org.elasticsearch.client.transport.support;
 
 import com.google.common.collect.ImmutableMap;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.*;
 import org.elasticsearch.action.admin.cluster.ClusterAction;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.client.support.AbstractClusterAdminClient;
 import org.elasticsearch.client.transport.TransportClientNodesService;
@@ -69,13 +69,9 @@ public class InternalTransportClusterAdminClient extends AbstractClusterAdminCli
     @SuppressWarnings("unchecked")
     @Override
     public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, ClusterAdminClient>> ActionFuture<Response> execute(final Action<Request, Response, RequestBuilder, ClusterAdminClient> action, final Request request) {
-        final TransportActionNodeProxy<Request, Response> proxy = actions.get(action);
-        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<Response>>() {
-            @Override
-            public ActionFuture<Response> doWithNode(DiscoveryNode node) throws ElasticsearchException {
-                return proxy.execute(node, request);
-            }
-        });
+        PlainActionFuture<Response> actionFuture = PlainActionFuture.newFuture();
+        execute(action, request, actionFuture);
+        return actionFuture;
     }
 
     @SuppressWarnings("unchecked")
@@ -84,7 +80,7 @@ public class InternalTransportClusterAdminClient extends AbstractClusterAdminCli
         final TransportActionNodeProxy<Request, Response> proxy = actions.get(action);
         nodesService.execute(new TransportClientNodesService.NodeListenerCallback<Response>() {
             @Override
-            public void doWithNode(DiscoveryNode node, ActionListener<Response> listener) throws ElasticsearchException {
+            public void doWithNode(DiscoveryNode node, ActionListener<Response> listener) {
                 proxy.execute(node, request, listener);
             }
         }, listener);

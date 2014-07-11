@@ -279,17 +279,26 @@ public class PluginManager {
     }
 
     private static void checkForForbiddenName(String name) {
-        if (Strings.isNullOrEmpty(name) ||
-                "elasticsearch.in.sh".equalsIgnoreCase(name) ||
-                "elasticsearch".equalsIgnoreCase(name) ||
-                "plugin".equalsIgnoreCase(name) ||
-                "elasticsearch.bat".equalsIgnoreCase(name) ||
-                "plugin.bat".equalsIgnoreCase(name) ||
-                "service.bat".equalsIgnoreCase(name) ||
-                "elasticsearch-service-x86.exe".equalsIgnoreCase(name) ||
-                "elasticsearch-service-x64.exe".equalsIgnoreCase(name) ||
-                "elasticsearch-service-mgr.exe".equalsIgnoreCase(name)) {
-            throw new ElasticsearchIllegalArgumentException("this plugin name is not allowed.");
+        boolean forbidden = Strings.isNullOrEmpty(name);
+
+        String[] forbiddenNames = {
+                "elasticsearch",
+                "elasticsearch.bat",
+                "elasticsearch.in.sh",
+                "plugin",
+                "plugin.bat",
+                "service.bat"
+        };
+
+        for (String forbiddenName : forbiddenNames) {
+            if (forbiddenName.equalsIgnoreCase(name)) {
+                forbidden = true;
+                break;
+            }
+        }
+
+        if (forbidden) {
+            throw new ElasticsearchIllegalArgumentException("This plugin name is not allowed");
         }
     }
 

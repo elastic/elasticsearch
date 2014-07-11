@@ -59,7 +59,7 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
 
     @Override
     public String[] extensions() {
-        return new String[]{"expr"};
+        return new String[]{"expression"};
     }
 
     @Override

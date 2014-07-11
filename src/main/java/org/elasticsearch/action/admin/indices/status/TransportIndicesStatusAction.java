@@ -39,12 +39,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.gateway.IndexShardGatewayService;
-import org.elasticsearch.index.store.Store;
-import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.index.service.InternalIndexService;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryStatus;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -185,7 +185,7 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
             // check on going recovery (from peer or gateway)
             RecoveryStatus peerRecoveryStatus = indexShard.recoveryStatus();
             if (peerRecoveryStatus == null) {
-                peerRecoveryStatus = peerRecoveryTarget.recoveryStatus(indexShard.shardId());
+                peerRecoveryStatus = peerRecoveryTarget.recoveryStatus(indexShard);
             }
             if (peerRecoveryStatus != null) {
                 PeerRecoveryStatus.Stage stage;

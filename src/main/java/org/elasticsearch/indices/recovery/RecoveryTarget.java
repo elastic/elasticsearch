@@ -109,16 +109,15 @@ public class RecoveryTarget extends AbstractComponent {
         });
     }
 
-    public RecoveryStatus recoveryStatus(ShardId shardId) {
-        RecoveryStatus peerRecoveryStatus = findRecoveryByShardId(shardId);
-        if (peerRecoveryStatus == null) {
+    public RecoveryStatus recoveryStatus(IndexShard indexShard) {
+        RecoveryStatus recoveryStatus = findRecoveryByShard(indexShard);
+        if (recoveryStatus == null) {
             return null;
         }
-        // update how long it takes if we are still recovering...
-        if (peerRecoveryStatus.recoveryState().getTimer().startTime() > 0 && peerRecoveryStatus.stage() != RecoveryState.Stage.DONE) {
-            peerRecoveryStatus.recoveryState().getTimer().time(System.currentTimeMillis() - peerRecoveryStatus.recoveryState().getTimer().startTime());
+        if (recoveryStatus.recoveryState().getTimer().startTime() > 0 && recoveryStatus.stage() != RecoveryState.Stage.DONE) {
+            recoveryStatus.recoveryState().getTimer().time(System.currentTimeMillis() - recoveryStatus.recoveryState().getTimer().startTime());
         }
-        return peerRecoveryStatus;
+        return recoveryStatus;
     }
 
     public void cancelRecovery(IndexShard indexShard) {
@@ -179,7 +178,7 @@ public class RecoveryTarget extends AbstractComponent {
     }
 
     public void retryRecovery(final StartRecoveryRequest request, TimeValue retryAfter, final RecoveryStatus status, final RecoveryListener listener) {
-        threadPool.schedule(retryAfter, ThreadPool.Names.GENERIC ,new Runnable() {
+        threadPool.schedule(retryAfter, ThreadPool.Names.GENERIC, new Runnable() {
             @Override
             public void run() {
                 doRecovery(request, status, listener);
@@ -317,16 +316,6 @@ public class RecoveryTarget extends AbstractComponent {
         void onIgnoreRecovery(boolean removeShard, String reason);
 
         void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure);
-    }
-
-    @Nullable
-    private RecoveryStatus findRecoveryByShardId(ShardId shardId) {
-        for (RecoveryStatus recoveryStatus : onGoingRecoveries.values()) {
-            if (recoveryStatus.shardId.equals(shardId)) {
-                return recoveryStatus;
-            }
-        }
-        return null;
     }
 
     @Nullable

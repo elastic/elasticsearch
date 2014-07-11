@@ -20,6 +20,10 @@
 package org.elasticsearch.client.transport;
 
 import com.google.common.base.Predicate;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.support.PlainListenableActionFuture;
+import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -32,6 +36,7 @@ import org.elasticsearch.transport.TransportService;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
@@ -43,7 +48,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 public class TransportClientRetryTests extends ElasticsearchIntegrationTest {
 
     @Test
-    public void testRetry() throws IOException {
+    public void testRetry() throws IOException, ExecutionException, InterruptedException {
 
         Iterable<TransportService> instances = internalCluster().getInstances(TransportService.class);
         TransportAddress[] addresses = new TransportAddress[internalCluster().size()];
@@ -71,8 +76,18 @@ public class TransportClientRetryTests extends ElasticsearchIntegrationTest {
                         return true;
                     }
                 });
-                ClusterState state = transportClient.admin().cluster().prepareState().setLocal(true).get().getState();
-                assertThat(state.nodes().size(), greaterThanOrEqualTo(1));
+
+                ClusterStateRequest clusterStateRequest = Requests.clusterStateRequest().local(true);
+                ClusterState clusterState;
+                //use both variants of execute method: with and without listener
+                if (randomBoolean()) {
+                  clusterState = transportClient.admin().cluster().state(clusterStateRequest).get().getState();
+                } else {
+                    PlainListenableActionFuture<ClusterStateResponse> future = new PlainListenableActionFuture<>(clusterStateRequest.listenerThreaded(), transportClient.threadPool());
+                    transportClient.admin().cluster().state(clusterStateRequest, future);
+                    clusterState = future.get().getState();
+                }
+                assertThat(clusterState.nodes().size(), greaterThanOrEqualTo(1));
             }
         }
     }

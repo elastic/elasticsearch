@@ -143,7 +143,7 @@ public final class InternalTestCluster extends TestCluster {
 
     static final boolean DEFAULT_ENABLE_RANDOM_BENCH_NODES = true;
 
-    private static final String NODE_MODE = nodeMode();
+    static final String NODE_MODE = nodeMode();
 
     /* sorted map to make traverse order reproducible, concurrent since we do checks on it not within a sync block */
     private final NavigableMap<String, NodeAndClient> nodes = new TreeMap<>();
@@ -255,7 +255,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
 
-    private static String nodeMode() {
+    public static String nodeMode() {
         Builder builder = ImmutableSettings.builder();
         if (Strings.isEmpty(System.getProperty("es.node.mode"))&& Strings.isEmpty(System.getProperty("es.node.local"))) {
             return "local"; // default if nothing is specified

@@ -111,9 +111,6 @@ public class TransportClientNodesService extends AbstractComponent {
             this.nodesSampler = new SimpleNodeSampler();
         }
         this.nodesSamplerFuture = threadPool.schedule(nodesSamplerInterval, ThreadPool.Names.GENERIC, new ScheduledNodeSampler());
-
-        // we want the transport service to throw connect exceptions, so we can retry
-        transportService.throwConnectException(true);
     }
 
     public ImmutableList<TransportAddress> transportAddresses() {
@@ -190,25 +187,6 @@ public class TransportClientNodesService extends AbstractComponent {
         return this;
     }
 
-    public <T> T execute(NodeCallback<T> callback) throws ElasticsearchException {
-        ImmutableList<DiscoveryNode> nodes = this.nodes;
-        ensureNodesAreAvailable(nodes);
-        int index = getNodeNumber();
-        for (int i = 0; i < nodes.size(); i++) {
-            DiscoveryNode node = nodes.get((index + i) % nodes.size());
-            try {
-                return callback.doWithNode(node);
-            } catch (ElasticsearchException e) {
-                if (e.unwrapCause() instanceof ConnectTransportException) {
-                    logConnectTransportException((ConnectTransportException) e.unwrapCause());
-                } else {
-                    throw e;
-                }
-            }
-        }
-        throw new NoNodeAvailableException("None of the configured nodes were available: " + nodes);
-    }
-
     public <Response> void execute(NodeListenerCallback<Response> callback, ActionListener<Response> listener) throws ElasticsearchException {
         ImmutableList<DiscoveryNode> nodes = this.nodes;
         ensureNodesAreAvailable(nodes);
@@ -217,12 +195,9 @@ public class TransportClientNodesService extends AbstractComponent {
         DiscoveryNode node = nodes.get((index) % nodes.size());
         try {
             callback.doWithNode(node, retryListener);
-        } catch (ElasticsearchException e) {
-            if (e.unwrapCause() instanceof ConnectTransportException) {
-                retryListener.onFailure(e);
-            } else {
-                throw e;
-            }
+        } catch (Throwable t) {
+            //this exception can't come from the TransportService as it doesn't throw exception at all
+            listener.onFailure(t);
         }
     }
 
@@ -255,9 +230,9 @@ public class TransportClientNodesService extends AbstractComponent {
                 } else {
                     try {
                         callback.doWithNode(nodes.get((index + i) % nodes.size()), this);
-                    } catch (Throwable e1) {
-                        // retry the next one...
-                        onFailure(e1);
+                    } catch(Throwable t) {
+                        //this exception can't come from the TransportService as it doesn't throw exceptions at all
+                        listener.onFailure(t);
                     }
                 }
             } else {
@@ -296,14 +271,6 @@ public class TransportClientNodesService extends AbstractComponent {
         if (nodes.isEmpty()) {
             String message = String.format(Locale.ROOT, "None of the configured nodes are available: %s", nodes);
             throw new NoNodeAvailableException(message);
-        }
-    }
-
-    private void logConnectTransportException(ConnectTransportException connectTransportException) {
-        if (logger.isTraceEnabled()) {
-            logger.trace("Could not connect to [{}] for action [{}], error [{}] [{}]", connectTransportException, connectTransportException.node(), connectTransportException.action(), connectTransportException.status().name(), connectTransportException.getMessage());
-        } else {
-            logger.debug("Could not connect to [{}] for action [{}], error [{}] [{}]", connectTransportException.node(), connectTransportException.action(), connectTransportException.status().name(), connectTransportException.getMessage());
         }
     }
 
@@ -507,13 +474,8 @@ public class TransportClientNodesService extends AbstractComponent {
         }
     }
 
-    public static interface NodeCallback<T> {
-
-        T doWithNode(DiscoveryNode node) throws ElasticsearchException;
-    }
-
     public static interface NodeListenerCallback<Response> {
 
-        void doWithNode(DiscoveryNode node, ActionListener<Response> listener) throws ElasticsearchException;
+        void doWithNode(DiscoveryNode node, ActionListener<Response> listener);
     }
 }

@@ -290,7 +290,7 @@ public class DocumentMapperParser extends AbstractIndexComponent {
         return documentMapper;
     }
 
-    private String getRemainingFields(Map<String, ? extends Object> map) {
+    private String getRemainingFields(Map<String, ?> map) {
         StringBuilder remainingFields = new StringBuilder();
         for (String key : map.keySet()) {
             remainingFields.append(" [").append(key).append(" : ").append(map.get(key).toString()).append("]");

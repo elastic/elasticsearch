@@ -19,8 +19,6 @@
 
 package org.elasticsearch.action;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -30,8 +28,6 @@ import org.elasticsearch.transport.BaseTransportResponseHandler;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
-
-import static org.elasticsearch.action.support.PlainActionFuture.newFuture;
 
 /**
  * A generic proxy that will execute the given action against a specific node.
@@ -50,13 +46,6 @@ public class TransportActionNodeProxy<Request extends ActionRequest, Response ex
         this.action = action;
         this.transportService = transportService;
         this.transportOptions = action.transportOptions(settings);
-    }
-
-    public ActionFuture<Response> execute(DiscoveryNode node, Request request) throws ElasticsearchException {
-        PlainActionFuture<Response> future = newFuture();
-        request.listenerThreaded(false);
-        execute(node, request, future);
-        return future;
     }
 
     public void execute(DiscoveryNode node, final Request request, final ActionListener<Response> listener) {

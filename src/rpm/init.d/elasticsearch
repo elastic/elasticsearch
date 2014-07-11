@@ -10,6 +10,7 @@
 # Provides: Elasticsearch
 # Required-Start: $network $named
 # Required-Stop: $network $named
+# Should-Start: ntp $syslog
 # Default-Start: 2 3 4 5
 # Default-Stop: 0 1 6
 # Short-Description: This service manages the elasticsearch daemon

@@ -13,6 +13,7 @@
 # Provides:          elasticsearch
 # Required-Start:    $network $remote_fs $named
 # Required-Stop:     $network $remote_fs $named
+# Should-Start:      $syslog ntp
 # Default-Start:     2 3 4 5
 # Default-Stop:      0 1 6
 # Short-Description: Starts elasticsearch

@@ -255,7 +255,12 @@ public class TransportClientNodesService extends AbstractComponent {
                         callback.doWithNode(nodes.get((index + i) % nodes.size()), this);
                     } catch (Throwable e1) {
                         //no need to retry here, the transport service will notify this same listener
-                        //of the failure through the request holder
+                        //of the failure through the request holder, which will retry
+                        //ConnectTransportException gets thrown as well by TransportService due to throwConnectException option
+                        //fail though in case an exception gets thrown before that
+                        if (!(ExceptionsHelper.unwrapCause(e1) instanceof ConnectTransportException)) {
+                            listener.onFailure(e1);
+                        }
                     }
                 }
             } else {

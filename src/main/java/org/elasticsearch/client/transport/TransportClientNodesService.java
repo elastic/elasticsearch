@@ -218,9 +218,7 @@ public class TransportClientNodesService extends AbstractComponent {
         try {
             callback.doWithNode(node, retryListener);
         } catch (ElasticsearchException e) {
-            if (e.unwrapCause() instanceof ConnectTransportException) {
-                retryListener.onFailure(e);
-            } else {
+            if (!(e.unwrapCause() instanceof ConnectTransportException)) {
                 throw e;
             }
         }
@@ -256,8 +254,8 @@ public class TransportClientNodesService extends AbstractComponent {
                     try {
                         callback.doWithNode(nodes.get((index + i) % nodes.size()), this);
                     } catch (Throwable e1) {
-                        // retry the next one...
-                        onFailure(e1);
+                        //no need to retry here, the transport service will notify this same listener
+                        //of the failure through the request holder
                     }
                 }
             } else {

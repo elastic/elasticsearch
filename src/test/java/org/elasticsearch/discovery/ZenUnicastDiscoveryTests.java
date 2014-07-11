@@ -19,17 +19,13 @@
 
 package org.elasticsearch.discovery;
 
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.local.LocalTransport;
 import org.junit.Before;
 import org.junit.Test;
@@ -37,7 +33,6 @@ import org.junit.Test;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
@@ -82,19 +77,12 @@ public class ZenUnicastDiscoveryTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testSimpleDiscovery() throws ExecutionException, InterruptedException {
+    public void testNormalClusterForming() throws ExecutionException, InterruptedException {
         internalCluster().startNodesAsync(currentNumNodes).get();
 
-        for (Client client : clients()) {
-            ClusterState state = client.admin().cluster().prepareState().execute().actionGet().getState();
-            //client nodes might be added randomly
-            int dataNodes = 0;
-            for (DiscoveryNode discoveryNode : state.nodes()) {
-                if (discoveryNode.isDataNode()) {
-                    dataNodes++;
-                }
-            }
-            assertThat(dataNodes, equalTo(internalCluster().numDataNodes()));
+        if (client().admin().cluster().prepareHealth().setWaitForNodes("" + currentNumNodes).get().isTimedOut()) {
+            logger.info("cluster forming timed out, cluster state:\n{}", client().admin().cluster().prepareState().get().getState().prettyPrint());
+            fail("timed out waiting for cluster to form with [" + currentNumNodes + "] nodes");
         }
     }
 
@@ -102,8 +90,8 @@ public class ZenUnicastDiscoveryTests extends ElasticsearchIntegrationTest {
     // Without the 'include temporalResponses responses to nodesToConnect' improvement in UnicastZenPing#sendPings this
     // test fails, because 2 nodes elect themselves as master and the health request times out b/c waiting_for_nodes=N
     // can't be satisfied.
-    public void testMinimumMasterNode() throws Exception {
-        final Settings settings = ImmutableSettings.settingsBuilder().put("discovery.zen.minimum_master_nodes", currentNumNodes).build();
+    public void testMinimumMasterNodes() throws Exception {
+        final Settings settings = ImmutableSettings.settingsBuilder().put("discovery.zen.minimum_master_nodes", currentNumNodes / 2 + 1).build();
 
         List<String> nodes = internalCluster().startNodesAsync(currentNumNodes, settings).get();
 
@@ -113,37 +101,6 @@ public class ZenUnicastDiscoveryTests extends ElasticsearchIntegrationTest {
         for (String node : nodes) {
             ClusterState state = internalCluster().client(node).admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
             assertThat(state.nodes().size(), equalTo(currentNumNodes));
-            if (masterDiscoNode == null) {
-                masterDiscoNode = state.nodes().masterNode();
-            } else {
-                assertThat(masterDiscoNode.equals(state.nodes().masterNode()), equalTo(true));
-            }
-        }
-    }
-
-    @Test
-    @TestLogging("discovery.zen:TRACE")
-    // The bug zen unicast ping override bug, may rarely manifest itself, it is very timing dependant.
-    // Without the fix in UnicastZenPing, this test fails roughly 1 out of 10 runs from the command line.
-    public void testMasterElectionNotMissed() throws Exception {
-        final Settings settings = settingsBuilder()
-                // Failure only manifests if multicast ping is disabled!
-                .put("discovery.zen.ping.multicast.ping.enabled", false)
-                .put("discovery.zen.minimum_master_nodes", 2)
-                        // Can't use this, b/c at the moment all node will only ping localhost:9300
-//                .put("discovery.zen.ping.unicast.hosts", "localhost")
-                .put("discovery.zen.ping.unicast.hosts", "localhost:15300,localhost:15301,localhost:15302")
-                .put("transport.tcp.port", "15300-15400")
-                .build();
-        List<String> nodes = internalCluster().startNodesAsync(3, settings).get();
-
-        ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("3").execute().actionGet();
-        assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
-
-        DiscoveryNode masterDiscoNode = null;
-        for (String node : nodes) {
-            ClusterState state = internalCluster().client(node).admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-            assertThat(state.nodes().size(), equalTo(3));
             if (masterDiscoNode == null) {
                 masterDiscoNode = state.nodes().masterNode();
             } else {

@@ -217,7 +217,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
                     if (TransportStatus.isError(status)) {
                         handlerResponseError(stream, handler);
                     } else {
-                        handleResponse(stream, handler);
+                        handleResponse(stream, sourceTransport, handler);
                     }
                 }
             }
@@ -242,6 +242,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
                 throw new ActionNotFoundTransportException("Action [" + action + "] not found");
             }
             final TransportRequest request = handler.newInstance();
+            request.remoteAddress(sourceTransport.boundAddress.publishAddress());
             request.readFrom(stream);
             if (handler.executor() == ThreadPool.Names.SAME) {
                 //noinspection unchecked
@@ -282,9 +283,9 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
         }
     }
 
-
-    protected void handleResponse(StreamInput buffer, final TransportResponseHandler handler) {
+    protected void handleResponse(StreamInput buffer, LocalTransport sourceTransport, final TransportResponseHandler handler) {
         final TransportResponse response = handler.newInstance();
+        response.remoteAddress(sourceTransport.boundAddress.publishAddress());
         try {
             response.readFrom(buffer);
         } catch (Throwable e) {

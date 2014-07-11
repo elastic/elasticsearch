@@ -48,6 +48,11 @@ public class LocalTransportAddress implements TransportAddress {
     }
 
     @Override
+    public boolean sameHost(TransportAddress other) {
+        return other instanceof LocalTransportAddress && id.equals(((LocalTransportAddress) other).id);
+    }
+
+    @Override
     public void readFrom(StreamInput in) throws IOException {
         id = in.readString();
     }

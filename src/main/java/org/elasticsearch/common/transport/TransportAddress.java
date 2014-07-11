@@ -29,4 +29,6 @@ import java.io.Serializable;
 public interface TransportAddress extends Streamable, Serializable {
 
     short uniqueAddressTypeId();
+
+    boolean sameHost(TransportAddress other);
 }

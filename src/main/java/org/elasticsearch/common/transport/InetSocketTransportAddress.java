@@ -67,6 +67,12 @@ public class InetSocketTransportAddress implements TransportAddress {
         return 1;
     }
 
+    @Override
+    public boolean sameHost(TransportAddress other) {
+        return other instanceof InetSocketTransportAddress &&
+                address.getAddress().equals(((InetSocketTransportAddress) other).address.getAddress());
+    }
+
     public InetSocketAddress address() {
         return this.address;
     }

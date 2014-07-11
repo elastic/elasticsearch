@@ -39,7 +39,7 @@ public class MutualInformation implements SignificanceHeuristic {
 
     protected static final ParseField BACKGROUND_IS_SUPERSET = new ParseField("background_is_superset");
 
-    protected static final String SCORE_ERROR_MESSAGE = ", does you background filter not include all documents in the bucket? If so and it is intentional, set \"" + BACKGROUND_IS_SUPERSET.getPreferredName() + "\": false";
+    protected static final String SCORE_ERROR_MESSAGE = ", does your background filter not include all documents in the bucket? If so and it is intentional, set \"" + BACKGROUND_IS_SUPERSET.getPreferredName() + "\": false";
 
     private static final double log2 = Math.log(2.0);
 

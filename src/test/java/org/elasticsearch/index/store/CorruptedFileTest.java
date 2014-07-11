@@ -23,6 +23,7 @@ import com.google.common.base.Charsets;
 import com.google.common.base.Predicate;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CheckIndex;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.store.*;
@@ -68,10 +69,7 @@ import org.elasticsearch.transport.*;
 import org.junit.Test;
 
 import java.io.*;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -388,60 +386,89 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
         assertTrue(shardRouting.assignedToNode());
         String nodeId = shardRouting.currentNodeId();
         NodesStatsResponse nodeStatses = client().admin().cluster().prepareNodesStats(nodeId).setFs(true).get();
-        File fileToCorrupt = null;
+        Set<File> files = new TreeSet<>(); // treeset makes sure iteration order is deterministic
         for (FsStats.Info info : nodeStatses.getNodes()[0].getFs()) {
             String path = info.getPath();
             final String relativeDataLocationPath =  "indices/test/" + Integer.toString(shardRouting.getId()) + "/index";
             File file = new File(path, relativeDataLocationPath);
-            final File[] files = file.listFiles(new FileFilter() {
+            files.addAll(Arrays.asList(file.listFiles(new FileFilter() {
                 @Override
                 public boolean accept(File pathname) {
-                    return pathname.isFile() && !"write.lock".equals(pathname.getName())
-                            && !pathname.getName().endsWith(".del"); // temporary fix - del files might be generational and we corrupt an old generation
-                    // TODO(simonw): fix this method to select the oldest del gen if we pick a del file
+                    return pathname.isFile() && !"write.lock".equals(pathname.getName());
                 }
-            });
-            if (files.length > 1) {
-                fileToCorrupt = RandomPicks.randomFrom(getRandom(), files);
-                try (Directory dir = FSDirectory.open(file)) {
-                    long checksumBeforeCorruption;
-                    try (IndexInput input = dir.openInput(fileToCorrupt.getName(), IOContext.DEFAULT)) {
-                        checksumBeforeCorruption = CodecUtil.retrieveChecksum(input);
-                    }
-                    try (RandomAccessFile raf = new RandomAccessFile(fileToCorrupt, "rw")) {
-                        raf.seek(randomIntBetween(0, (int)Math.min(Integer.MAX_VALUE, raf.length()-1)));
-                        long filePointer = raf.getFilePointer();
-                        byte b = raf.readByte();
-                        raf.seek(filePointer);
-                        raf.writeByte(~b);
-                        raf.getFD().sync();
-                        logger.info("Corrupting file for shard {} --  flipping at position {} from {} to {} file: {}", shardRouting, filePointer, Integer.toHexString(b),  Integer.toHexString(~b), fileToCorrupt.getName());
-                    }
-                    long checksumAfterCorruption;
-                    long actualChecksumAfterCorruption;
-                    try (ChecksumIndexInput input = dir.openChecksumInput(fileToCorrupt.getName(), IOContext.DEFAULT)) {
-                        assertThat(input.getFilePointer(), is(0l));
-                        input.seek(input.length() - 8); // one long is the checksum... 8 bytes
-                        checksumAfterCorruption = input.getChecksum();
-                        actualChecksumAfterCorruption = input.readLong();
-                    }
-                    // we need to add assumptions here that the checksums actually really don't match there is a small chance to get collisions
-                    // in the checksum which is ok though....
-                    StringBuilder msg = new StringBuilder();
-                    msg.append("Checksum before: [").append(checksumBeforeCorruption).append("]");
-                    msg.append(" after: [").append(checksumAfterCorruption).append("]");
-                    msg.append(" checksum value after corruption: ").append(actualChecksumAfterCorruption).append("]");
-                    msg.append(" file: ").append(fileToCorrupt.getName()).append(" length: ").append(dir.fileLength(fileToCorrupt.getName()));
-                    logger.info(msg.toString());
-                    assumeTrue("Checksum collision - " + msg.toString(),
-                                    checksumAfterCorruption != checksumBeforeCorruption // collision
-                                    || actualChecksumAfterCorruption != checksumBeforeCorruption); // checksum corrupted
+            })));
+        }
+        pruneOldDeleteGenerations(files);
+        File fileToCorrupt = null;
+        if (!files.isEmpty()) {
+            fileToCorrupt = RandomPicks.randomFrom(getRandom(), files);
+            try (Directory dir = FSDirectory.open(fileToCorrupt.getParentFile())) {
+                long checksumBeforeCorruption;
+                try (IndexInput input = dir.openInput(fileToCorrupt.getName(), IOContext.DEFAULT)) {
+                    checksumBeforeCorruption = CodecUtil.retrieveChecksum(input);
                 }
-                break;
+                try (RandomAccessFile raf = new RandomAccessFile(fileToCorrupt, "rw")) {
+                    raf.seek(randomIntBetween(0, (int)Math.min(Integer.MAX_VALUE, raf.length()-1)));
+                    long filePointer = raf.getFilePointer();
+                    byte b = raf.readByte();
+                    raf.seek(filePointer);
+                    raf.writeByte(~b);
+                    raf.getFD().sync();
+                    logger.info("Corrupting file for shard {} --  flipping at position {} from {} to {} file: {}", shardRouting, filePointer, Integer.toHexString(b),  Integer.toHexString(~b), fileToCorrupt.getName());
+                }
+                long checksumAfterCorruption;
+                long actualChecksumAfterCorruption;
+                try (ChecksumIndexInput input = dir.openChecksumInput(fileToCorrupt.getName(), IOContext.DEFAULT)) {
+                    assertThat(input.getFilePointer(), is(0l));
+                    input.seek(input.length() - 8); // one long is the checksum... 8 bytes
+                    checksumAfterCorruption = input.getChecksum();
+                    actualChecksumAfterCorruption = input.readLong();
+                }
+                // we need to add assumptions here that the checksums actually really don't match there is a small chance to get collisions
+                // in the checksum which is ok though....
+                StringBuilder msg = new StringBuilder();
+                msg.append("Checksum before: [").append(checksumBeforeCorruption).append("]");
+                msg.append(" after: [").append(checksumAfterCorruption).append("]");
+                msg.append(" checksum value after corruption: ").append(actualChecksumAfterCorruption).append("]");
+                msg.append(" file: ").append(fileToCorrupt.getName()).append(" length: ").append(dir.fileLength(fileToCorrupt.getName()));
+                logger.info(msg.toString());
+                assumeTrue("Checksum collision - " + msg.toString(),
+                                checksumAfterCorruption != checksumBeforeCorruption // collision
+                                || actualChecksumAfterCorruption != checksumBeforeCorruption); // checksum corrupted
             }
         }
         assertThat("no file corrupted", fileToCorrupt, notNullValue());
         return shardRouting;
+    }
+
+    /**
+     * prunes the list of index files such that only the latest del generation files are contained.
+     */
+    private void pruneOldDeleteGenerations(Set<File> files) {
+        final TreeSet<File> delFiles = new TreeSet<>();
+        for (File file : files) {
+            if (file.getName().endsWith(".del")) {
+                delFiles.add(file);
+            }
+        }
+        File last = null;
+        for (File current : delFiles) {
+            if (last != null) {
+                final String newSegmentName = IndexFileNames.parseSegmentName(current.getName());
+                final String oldSegmentName = IndexFileNames.parseSegmentName(last.getName());
+                if (newSegmentName.equals(oldSegmentName)) {
+                    int oldGen = Integer.parseInt(IndexFileNames.stripExtension(IndexFileNames.stripSegmentName(last.getName())).replace("_", ""), Character.MAX_RADIX);
+                    int newGen = Integer.parseInt(IndexFileNames.stripExtension(IndexFileNames.stripSegmentName(current.getName())).replace("_", ""), Character.MAX_RADIX);
+                    if (newGen > oldGen) {
+                        files.remove(last);
+                    } else {
+                        files.remove(current);
+                        continue;
+                    }
+                }
+            }
+            last = current;
+        }
     }
 
     public List<File> listShardFiles(ShardRouting routing) {

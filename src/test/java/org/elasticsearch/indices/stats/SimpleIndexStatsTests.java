@@ -193,10 +193,15 @@ public class SimpleIndexStatsTests extends ElasticsearchIntegrationTest {
         for (int i = 0; i < 20; i++) {
             index("test1", "type1", Integer.toString(i), "field", "value");
             index("test1", "type2", Integer.toString(i), "field", "value");
-            client().admin().indices().prepareFlush().get();
         }
-        client().admin().indices().prepareOptimize().setWaitForMerge(true).setMaxNumSegments(1).execute().actionGet();
+
         IndicesStatsResponse stats = client().admin().indices().prepareStats().setSegments(true).get();
+        assertThat(stats.getTotal().getSegments().getIndexWriterMemoryInBytes(), greaterThan(0l));
+        assertThat(stats.getTotal().getSegments().getVersionMapMemoryInBytes(), greaterThan(0l));
+
+        client().admin().indices().prepareFlush().get();
+        client().admin().indices().prepareOptimize().setWaitForMerge(true).setMaxNumSegments(1).execute().actionGet();
+        stats = client().admin().indices().prepareStats().setSegments(true).get();
 
         assertThat(stats.getTotal().getSegments(), notNullValue());
         assertThat(stats.getTotal().getSegments().getCount(), equalTo((long)test1.totalNumShards));

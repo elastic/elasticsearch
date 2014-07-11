@@ -396,7 +396,9 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
             final File[] files = file.listFiles(new FileFilter() {
                 @Override
                 public boolean accept(File pathname) {
-                    return pathname.isFile() && !"write.lock".equals(pathname.getName());
+                    return pathname.isFile() && !"write.lock".equals(pathname.getName())
+                            && !pathname.getName().endsWith(".del"); // temporary fix - del files might be generational and we corrupt an old generation
+                    // TODO(simonw): fix this method to select the oldest del gen if we pick a del file
                 }
             });
             if (files.length > 1) {

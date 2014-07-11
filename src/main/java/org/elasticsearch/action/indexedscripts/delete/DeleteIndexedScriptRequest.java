@@ -142,7 +142,7 @@ public class DeleteIndexedScriptRequest extends ActionRequest<DeleteIndexedScrip
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        scriptLang = in.readSharedString();
+        scriptLang = in.readString();
         id = in.readString();
         version = Versions.readVersion(in);
         versionType = VersionType.fromValue(in.readByte());
@@ -151,7 +151,7 @@ public class DeleteIndexedScriptRequest extends ActionRequest<DeleteIndexedScrip
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeSharedString(scriptLang);
+        out.writeString(scriptLang);
         out.writeString(id);
         Versions.writeVersion(version, out);
         out.writeByte(versionType.getValue());

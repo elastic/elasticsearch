@@ -151,13 +151,13 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
         MultiSearchResponse multiSearchResponse = null;
         MultiSearchRequestBuilder multiSearchRequestBuilder = client.prepareMultiSearch();
         boolean requestAdded = false;
+        SearchRequestBuilder req;
         for (Correction correction : corrections) {
             UnicodeUtil.UTF8toUTF16(correction.join(SEPARATOR, byteSpare, null, null), spare);
             vars.put(SUGGESTION_TEMPLATE_VAR_NAME, spare.toString());
             ExecutableScript executable = scriptService.executable(collateScript, vars);
             BytesReference querySource = (BytesReference) executable.run();
             requestAdded = true;
-            SearchRequestBuilder req;
             if (isFilter) {
                 req = client.prepareSearch()
                         .setPreference(suggestions.getPreference())

@@ -19,16 +19,14 @@
 
 package org.elasticsearch.index.query;
 
-import org.elasticsearch.common.bytes.ByteBufferBytesReference;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.*;
 
 import java.io.IOException;
-import java.nio.*;
-import java.nio.charset.Charset;
 
 /**
- *
+ * FilterBuilder that constructs filters from {@link org.elasticsearch.common.bytes.BytesReference}
+ * source
  */
 public class BytesFilterBuilder extends BaseFilterBuilder {
 

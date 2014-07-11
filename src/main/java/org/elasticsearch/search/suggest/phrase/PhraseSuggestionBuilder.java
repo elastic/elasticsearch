@@ -250,7 +250,8 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
             builder.startObject("collate");
             if (collateQuery != null) {
                 builder.field("query", collateQuery);
-            } else {
+            }
+            if (collateFilter != null) {
                 builder.field("filter", collateFilter);
             }
             if (collatePreference != null) {

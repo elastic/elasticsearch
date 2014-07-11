@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.cluster.routing.operation.plain;
 
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
+
 /**
  * Routing Preference Type
  */
@@ -108,7 +110,7 @@ public enum  Preference {
             case "_only_node":
                 return ONLY_NODE.setValue(value);
         }
-        return null;
+        throw new ElasticsearchIllegalArgumentException("no Preference for [" + preferenceType + "]");
     }
 }
 

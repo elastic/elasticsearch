@@ -1182,6 +1182,7 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
             // expected
         }
 
+        // suggest with filter collation
         String filterStringAsFilter = XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject("query")
@@ -1239,6 +1240,15 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
         PhraseSuggestionBuilder phraseSuggestWithParams = suggest.collateFilter(null).collateQuery(collateWithParams).collateParams(params);
         searchSuggest = searchSuggest("united states house of representatives elections in washington 2006", phraseSuggestWithParams);
         assertSuggestionSize(searchSuggest, 0, 2, "title");
+
+        //collate request defining both query/filter should fail
+        PhraseSuggestionBuilder phraseSuggestWithFilterAndQuery = suggest.collateFilter(filterStringAsFilter).collateQuery(filterString);
+        try {
+            searchSuggest("united states house of representatives elections in washington 2006", phraseSuggestWithFilterAndQuery);
+            fail("expected parse failure, as both filter and query are set in collate");
+        } catch (ElasticsearchException e) {
+            // expected
+        }
     }
 
     protected Suggest searchSuggest(SuggestionBuilder<?>... suggestion) {

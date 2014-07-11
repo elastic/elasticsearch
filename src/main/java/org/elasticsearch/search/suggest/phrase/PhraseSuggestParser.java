@@ -140,7 +140,13 @@ public final class PhraseSuggestParser implements SuggestContextParser {
                                 templateNameOrTemplateContent = parser.text();
                             }
                             if (templateNameOrTemplateContent == null) {
-                                throw new ElasticsearchIllegalArgumentException("no query/filter found in collate object");
+                                throw new ElasticsearchIllegalArgumentException("suggester[phrase][collate] no query/filter found in collate object");
+                            }
+                            if (suggestion.getCollateFilterScript() != null) {
+                                throw new ElasticsearchIllegalArgumentException("suggester[phrase][collate] filter already set, doesn't support additional [" + fieldName + "]");
+                            }
+                            if (suggestion.getCollateQueryScript() != null) {
+                                throw new ElasticsearchIllegalArgumentException("suggester[phrase][collate] query already set, doesn't support additional [" + fieldName + "]");
                             }
                             CompiledScript compiledScript = suggester.scriptService().compile("mustache", templateNameOrTemplateContent);
                             if ("query".equals(fieldName)) {
@@ -154,7 +160,7 @@ public final class PhraseSuggestParser implements SuggestContextParser {
                             suggestion.setCollateScriptParams(parser.map());
                         } else {
                             throw new ElasticsearchIllegalArgumentException(
-                                    "suggester[phrase][filter] doesn't support field [" + fieldName + "]");
+                                    "suggester[phrase][collate] doesn't support field [" + fieldName + "]");
                         }
                     }
                 } else {

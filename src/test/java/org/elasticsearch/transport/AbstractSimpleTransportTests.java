@@ -1065,9 +1065,9 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
 
             @Override
             public void messageReceived(TestRequest request, TransportChannel channel) throws Exception {
-                latch.countDown();
                 addressA.set(request.remoteAddress());
                 channel.sendResponse(new TestResponse());
+                latch.countDown();
             }
 
             @Override
@@ -1088,8 +1088,8 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
 
             @Override
             public void handleResponse(TestResponse response) {
-                latch.countDown();
                 addressB.set(response.remoteAddress());
+                latch.countDown();
             }
 
             @Override

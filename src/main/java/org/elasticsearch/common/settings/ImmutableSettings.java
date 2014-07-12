@@ -220,6 +220,11 @@ public class ImmutableSettings implements Settings {
     }
 
     @Override
+    public Settings getAsSettings(String setting) {
+        return getByPrefix(setting + ".");
+    }
+
+    @Override
     public String get(String setting) {
         String retVal = settings.get(setting);
         if (retVal != null) {
@@ -562,6 +567,20 @@ public class ImmutableSettings implements Settings {
         } catch (Exception e) {
             throw new SettingsException("Failed to parse version setting [" + setting + "] with value [" + sValue + "]", e);
         }
+    }
+
+    @Override
+    public Set<String> names() {
+        Set<String> names = new HashSet<>();
+        for (String key : settings.keySet()) {
+            int i = key.indexOf(".");
+            if (i < 0) {
+                names.add(key);
+            } else {
+                names.add(key.substring(0, i));
+            }
+        }
+        return names;
     }
 
     @Override

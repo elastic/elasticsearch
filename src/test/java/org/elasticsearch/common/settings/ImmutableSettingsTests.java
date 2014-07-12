@@ -27,6 +27,7 @@ import org.junit.Test;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.hamcrest.Matchers.*;
@@ -183,5 +184,38 @@ public class ImmutableSettingsTests extends ElasticsearchTestCase {
                 Matchers.<String, Object>hasEntry("foo", "abc"),
                 Matchers.<String, Object>hasEntry("foo.bar", "def"),
                 Matchers.<String, Object>hasEntry("foo.baz", "ghi")));
+    }
+
+    @Test
+    public void testGetAsSettings() {
+        Settings settings = settingsBuilder()
+                .put("foo", "abc")
+                .put("foo.bar", "def")
+                .put("foo.baz", "ghi").build();
+
+        Settings fooSettings = settings.getAsSettings("foo");
+        assertThat(fooSettings.get("bar"), equalTo("def"));
+        assertThat(fooSettings.get("baz"), equalTo("ghi"));
+    }
+
+    @Test
+    public void testNames() {
+        Settings settings = settingsBuilder()
+                .put("bar", "baz")
+                .put("foo", "abc")
+                .put("foo.bar", "def")
+                .put("foo.baz", "ghi").build();
+
+        Set<String> names = settings.names();
+        assertThat(names.size(), equalTo(2));
+        assertTrue(names.contains("bar"));
+        assertTrue(names.contains("foo"));
+
+        Settings fooSettings = settings.getAsSettings("foo");
+        names = fooSettings.names();
+        assertThat(names.size(), equalTo(2));
+        assertTrue(names.contains("bar"));
+        assertTrue(names.contains("baz"));
+
     }
 }

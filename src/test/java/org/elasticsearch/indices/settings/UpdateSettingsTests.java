@@ -19,8 +19,11 @@
 
 package org.elasticsearch.indices.settings;
 
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Priority;
@@ -29,6 +32,7 @@ import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -111,5 +115,122 @@ public class UpdateSettingsTests extends ElasticsearchIntegrationTest {
         Thread.sleep(300); // wait for cache time to change TODO: this needs to be solved better. To be discussed.
         assertThrows(client().prepareIndex("test", "type", "1").setSource("f", 3).setVersion(4), VersionConflictEngineException.class); // delete is should not be in cache
 
+    }
+
+    // #6626: make sure we can update throttle settings and the changes take effect
+    @Test
+    @Slow
+    public void testUpdateThrottleSettings() {
+
+        // No throttling at first, only 1 non-replicated shard, force lots of merging:
+        assertAcked(prepareCreate("test")
+                    .setSettings(ImmutableSettings.builder()
+                                 .put("index.store.throttle.type", "none")
+                                 .put("index.number_of_shards", "1")
+                                 .put("index.number_of_replicas", "0")
+                                 .put("index.merge.policy.floor_segment", "1k")
+                                 .put("index.merge.policy.max_merge_at_once", "2")
+                                 .put("index.merge.policy.segments_per_tier", "2")
+                                 ));
+        ensureGreen();
+        long termUpto = 0;
+        for(int i=0;i<1000;i++) {
+            // Provoke slowish merging by making many unique terms:
+            StringBuilder sb = new StringBuilder();
+            for(int j=0;j<100;j++) {
+                sb.append(' ');
+                sb.append(termUpto++);
+            }
+            client().prepareIndex("test", "type", ""+termUpto).setSource("field" + (i%10), sb.toString()).get();
+            if (i % 2 == 0) {
+                refresh();
+            }
+        }
+
+        // No merge IO throttling should have happened:
+        NodesStatsResponse nodesStats = client().admin().cluster().prepareNodesStats().setIndices(true).get();
+        for(NodeStats stats : nodesStats.getNodes()) {
+            assertThat(stats.getIndices().getStore().getThrottleTime().getMillis(), equalTo(0l));
+        }
+
+        // Now updates settings to turn on merge throttling lowish rate
+        client()
+            .admin()
+            .indices()
+            .prepareUpdateSettings("test")
+            .setSettings(ImmutableSettings.builder()
+                         .put("index.store.throttle.type", "merge")
+                         .put("index.store.throttle.max_bytes_per_sec", "1mb"))
+            .get();
+
+        // Make sure setting says it is in fact changed:
+        GetSettingsResponse getSettingsResponse = client().admin().indices().prepareGetSettings("test").get();
+        assertThat(getSettingsResponse.getSetting("test", "index.store.throttle.type"), equalTo("merge"));
+
+        // Also make sure we see throttling kicking in:
+        boolean done = false;
+        while (done == false) {
+            // Provoke slowish merging by making many unique terms:
+            for(int i=0;i<5;i++) {
+                StringBuilder sb = new StringBuilder();
+                for(int j=0;j<100;j++) {
+                    sb.append(' ');
+                    sb.append(termUpto++);
+                    sb.append(" some random text that keeps repeating over and over again hambone");
+                }
+                client().prepareIndex("test", "type", ""+termUpto).setSource("field" + (i%10), sb.toString()).get();
+            }
+            refresh();
+            nodesStats = client().admin().cluster().prepareNodesStats().setIndices(true).get();
+            for(NodeStats stats : nodesStats.getNodes()) {
+                long throttleMillis = stats.getIndices().getStore().getThrottleTime().getMillis();
+                if (throttleMillis > 0) {
+                    done = true;
+                    break;
+                }
+            }
+        }
+
+        // Optimize does a waitForMerges, which we must do to make sure all in-flight (throttled) merges finish:
+        client().admin().indices().prepareOptimize("test").get();
+
+        // Now updates settings to disable merge throttling
+        client()
+            .admin()
+            .indices()
+            .prepareUpdateSettings("test")
+            .setSettings(ImmutableSettings.builder()
+                         .put("index.store.throttle.type", "none"))
+            .get();
+
+        // Record current throttling so far
+        long sumThrottleTime = 0;
+        nodesStats = client().admin().cluster().prepareNodesStats().setIndices(true).get();
+        for(NodeStats stats : nodesStats.getNodes()) {
+            sumThrottleTime += stats.getIndices().getStore().getThrottleTime().getMillis();
+        }
+
+        // Make sure no further throttling happens:
+        for(int i=0;i<1000;i++) {
+            // Provoke slowish merging by making many unique terms:
+            StringBuilder sb = new StringBuilder();
+            for(int j=0;j<100;j++) {
+                sb.append(' ');
+                sb.append(termUpto++);
+            }
+            client().prepareIndex("test", "type", ""+termUpto).setSource("field" + (i%10), sb.toString()).get();
+            if (i % 2 == 0) {
+                refresh();
+            }
+        }
+
+        long newSumThrottleTime = 0;
+        nodesStats = client().admin().cluster().prepareNodesStats().setIndices(true).get();
+        for(NodeStats stats : nodesStats.getNodes()) {
+            newSumThrottleTime += stats.getIndices().getStore().getThrottleTime().getMillis();
+        }
+
+        // No additional merge IO throttling should have happened:
+        assertEquals(sumThrottleTime, newSumThrottleTime);
     }
 }

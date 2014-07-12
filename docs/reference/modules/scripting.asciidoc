@@ -193,9 +193,9 @@ automatically loaded.
 Lucene's expressions module provides a mechanism to compile a
 `javascript` expression to bytecode.  This allows very fast execution,
 as if you had written a `native` script.  Expression scripts can be
-used in `script_score`, `script_fields` and numeric aggregation scripts.
+used in `script_score`, `script_fields`, sort scripts and numeric aggregation scripts.
 
-See the link:http://lucene.apache.org/core/4_9_0/expressions/index.html?org/apache/lucene/expressions/package-summary.html[expressions module documentation]
+See the link:http://lucene.apache.org/core/4_9_0/expressions/index.html?org/apache/lucene/expressions/js/package-summary.html[expressions module documentation]
 for details on what operators and functions are available.
 
 Variables in `expression` scripts are available to access:

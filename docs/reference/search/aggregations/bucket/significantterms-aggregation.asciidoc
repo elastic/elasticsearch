@@ -306,7 +306,45 @@ Per default, the assumption is that the documents in the bucket are also contain
 "background_is_superset": false
 --------------------------------------------------
 
- 
+
+===== Chi square
+added[1.4.0]
+
+Chi square as described in "Information Retrieval", Manning et al., Chapter 13.5.2 can be used as significance score by adding the parameter
+	
+[source,js]
+--------------------------------------------------
+
+	 "chi_square": {
+	 }
+--------------------------------------------------
+
+Chi square behaves like mutual information and can be configured with the same parameters `include_negatives` and `background_is_superset`.
+
+
+===== google normalized distance
+added[1.4.0]
+
+Google normalized distance  as described in "The Google Similarity Distance", Cilibrasi and Vitanyi, 2007 (http://arxiv.org/pdf/cs/0412098v3.pdf) can be used as significance score by adding the parameter
+	
+[source,js]
+--------------------------------------------------
+
+	 "gnd": {
+	 }
+--------------------------------------------------
+
+`gnd` also accepts the `background_is_superset` parameter. 
+
+===== Which one is best?
+
+
+Roughly, `mutual_information` prefers high frequent terms even if they occur also frequently in the background. For example, in an analysis of natural language text this might lead to selection of stop words. `mutual_information` is unlikely to select very rare terms like misspellings. `gnd` prefers terms with a high co-occurence and avoids selection of stopwords. It might be better suited for synonym detection. However, `gnd` has a tendency to select very rare terms that are, for example, a result of misspelling. `chi_square` and `jlh` are somewhat in-between.
+
+It is hard to say which one of the different heuristics will be the best choice as it depends on what the significant terms are used for (see for example [Yang and Pedersen, "A Comparative Study on Feature Selection in Text Categorization", 1997](http://courses.ischool.berkeley.edu/i256/f06/papers/yang97comparative.pdf) for a study on using significant terms for feature selection for text classification).
+
+
+
 	
 ===== Size & Shard Size
 

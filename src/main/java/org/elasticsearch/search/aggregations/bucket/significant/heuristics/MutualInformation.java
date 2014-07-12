@@ -199,10 +199,6 @@ public class MutualInformation implements SignificanceHeuristic {
 
     }
 
-    public boolean getIncludeNegatives() {
-        return includeNegatives;
-    }
-
     @Override
     public int hashCode() {
         int result = (includeNegatives ? 1 : 0);

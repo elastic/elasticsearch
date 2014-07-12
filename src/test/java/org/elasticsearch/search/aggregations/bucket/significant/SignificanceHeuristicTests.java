@@ -39,8 +39,10 @@ import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.*;
@@ -49,6 +51,7 @@ import static org.hamcrest.Matchers.*;
  *
  */
 public class SignificanceHeuristicTests extends ElasticsearchTestCase {
+
     static class SignificantTermsTestSearchContext extends TestSearchContext {
         @Override
         public int numberOfShards() {
@@ -66,6 +69,7 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
     public void streamResponse() throws Exception {
         SignificanceHeuristicStreams.registerStream(MutualInformation.STREAM, MutualInformation.STREAM.getName());
         SignificanceHeuristicStreams.registerStream(JLHScore.STREAM, JLHScore.STREAM.getName());
+        SignificanceHeuristicStreams.registerStream(GND.STREAM, GND.STREAM.getName());
         Version version = ElasticsearchIntegrationTest.randomVersion();
         InternalSignificantTerms[] sigTerms = getRandomSignificantTerms(getRandomSignificanceheuristic());
 
@@ -109,11 +113,11 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
     }
 
     SignificanceHeuristic getRandomSignificanceheuristic() {
-        if (randomBoolean()) {
-            return JLHScore.INSTANCE;
-        } else {
-            return new MutualInformation(randomBoolean(), true);
-        }
+        List<SignificanceHeuristic> heuristics = new ArrayList<>();
+        heuristics.add(JLHScore.INSTANCE);
+        heuristics.add(new MutualInformation(randomBoolean(), true));
+        heuristics.add(GND.INSTANCE);
+        return heuristics.get(randomInt(2));
     }
 
     // test that
@@ -125,75 +129,71 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
         Set<SignificanceHeuristicParser> parsers = new HashSet<>();
         parsers.add(new JLHScore.JLHScoreParser());
         parsers.add(new MutualInformation.MutualInformationParser());
+        parsers.add(new GND.GNDParser());
         SignificanceHeuristicParserMapper heuristicParserMapper = new SignificanceHeuristicParserMapper(parsers);
         SearchContext searchContext = new SignificantTermsTestSearchContext();
 
-        // test default with string
-        XContentParser stParser = JsonXContent.jsonXContent.createParser("{\"field\":\"text\", \"jlh\":{}, \"min_doc_count\":200}");
+        // test jlh with string
+        assertTrue(parseFromString(heuristicParserMapper, searchContext, "\"jlh\":{}") instanceof JLHScore);
+        // test gnd with string
+        assertTrue(parseFromString(heuristicParserMapper, searchContext, "\"gnd\":{}") instanceof GND);
+        // test mutual information with string
+        boolean includeNegatives = randomBoolean();
+        boolean backgroundIsSuperset = randomBoolean();
+        assertThat(parseFromString(heuristicParserMapper, searchContext, "\"mutual_information\":{\"include_negatives\": " + includeNegatives + ", \"background_is_superset\":" + backgroundIsSuperset + "}"), equalTo((SignificanceHeuristic) (new MutualInformation(includeNegatives, backgroundIsSuperset))));
+
+        // test with builders
+        assertTrue(parseFromBuilder(heuristicParserMapper, searchContext, new JLHScore.JLHScoreBuilder()) instanceof JLHScore);
+        assertTrue(parseFromBuilder(heuristicParserMapper, searchContext, new GND.GNDBuilder()) instanceof GND);
+        assertThat(parseFromBuilder(heuristicParserMapper, searchContext, new MutualInformation.MutualInformationBuilder(includeNegatives, backgroundIsSuperset)), equalTo((SignificanceHeuristic) new MutualInformation(includeNegatives, backgroundIsSuperset)));
+
+        // test exceptions
+        String faultyHeuristicdefinition = "\"mutual_information\":{\"include_negatives\": false, \"some_unknown_field\": false}";
+        String expectedError = "unknown for mutual_information";
+        checkParseException(heuristicParserMapper, searchContext, faultyHeuristicdefinition, expectedError);
+
+        faultyHeuristicdefinition = "\"jlh\":{\"unknown_field\": true}";
+        expectedError = "expected }, got ";
+        checkParseException(heuristicParserMapper, searchContext, faultyHeuristicdefinition, expectedError);
+
+        faultyHeuristicdefinition = "\"gnd\":{\"unknown_field\": true}";
+        expectedError = "expected }, got ";
+        checkParseException(heuristicParserMapper, searchContext, faultyHeuristicdefinition, expectedError);
+    }
+
+    protected void checkParseException(SignificanceHeuristicParserMapper heuristicParserMapper, SearchContext searchContext, String faultyHeuristicDefinition, String expectedError) throws IOException {
+        try {
+            XContentParser stParser = JsonXContent.jsonXContent.createParser("{\"field\":\"text\", " + faultyHeuristicDefinition + ",\"min_doc_count\":200}");
+            stParser.nextToken();
+            new SignificantTermsParser(heuristicParserMapper).parse("testagg", stParser, searchContext);
+            fail();
+        } catch (ElasticsearchParseException e) {
+            assertTrue(e.getMessage().contains(expectedError));
+        }
+    }
+
+    protected SignificanceHeuristic parseFromBuilder(SignificanceHeuristicParserMapper heuristicParserMapper, SearchContext searchContext, SignificanceHeuristicBuilder significanceHeuristicBuilder) throws IOException {
+        SignificantTermsBuilder stBuilder = new SignificantTermsBuilder("testagg");
+        stBuilder.significanceHeuristic(significanceHeuristicBuilder).field("text").minDocCount(200);
+        XContentBuilder stXContentBuilder = XContentFactory.jsonBuilder();
+        stBuilder.internalXContent(stXContentBuilder, null);
+        XContentParser stParser = JsonXContent.jsonXContent.createParser(stXContentBuilder.string());
+        return parseSignificanceHeuristic(heuristicParserMapper, searchContext, stParser);
+    }
+
+    private SignificanceHeuristic parseSignificanceHeuristic(SignificanceHeuristicParserMapper heuristicParserMapper, SearchContext searchContext, XContentParser stParser) throws IOException {
         stParser.nextToken();
         SignificantTermsAggregatorFactory aggregatorFactory = (SignificantTermsAggregatorFactory) new SignificantTermsParser(heuristicParserMapper).parse("testagg", stParser, searchContext);
         stParser.nextToken();
         assertThat(aggregatorFactory.getBucketCountThresholds().getMinDocCount(), equalTo(200l));
         assertThat(stParser.currentToken(), equalTo(null));
         stParser.close();
+        return aggregatorFactory.getSignificanceHeuristic();
+    }
 
-        // test default with builders
-        SignificantTermsBuilder stBuilder = new SignificantTermsBuilder("testagg");
-        stBuilder.significanceHeuristic(new JLHScore.JLHScoreBuilder()).field("text").minDocCount(200);
-        XContentBuilder stXContentBuilder = XContentFactory.jsonBuilder();
-        stBuilder.internalXContent(stXContentBuilder, null);
-        stParser = JsonXContent.jsonXContent.createParser(stXContentBuilder.string());
-        stParser.nextToken();
-        aggregatorFactory = (SignificantTermsAggregatorFactory) new SignificantTermsParser(heuristicParserMapper).parse("testagg", stParser, searchContext);
-        stParser.nextToken();
-        assertThat(aggregatorFactory.getBucketCountThresholds().getMinDocCount(), equalTo(200l));
-        assertThat(stParser.currentToken(), equalTo(null));
-        stParser.close();
-
-        // test mutual_information with string
-        stParser = JsonXContent.jsonXContent.createParser("{\"field\":\"text\", \"mutual_information\":{\"include_negatives\": false}, \"min_doc_count\":200}");
-        stParser.nextToken();
-        aggregatorFactory = (SignificantTermsAggregatorFactory) new SignificantTermsParser(heuristicParserMapper).parse("testagg", stParser, searchContext);
-        stParser.nextToken();
-        assertThat(aggregatorFactory.getBucketCountThresholds().getMinDocCount(), equalTo(200l));
-        assertTrue(!((MutualInformation) aggregatorFactory.getSignificanceHeuristic()).getIncludeNegatives());
-        assertThat(stParser.currentToken(), equalTo(null));
-        stParser.close();
-
-        // test mutual_information with builders
-        stBuilder = new SignificantTermsBuilder("testagg");
-        stBuilder.significanceHeuristic(new MutualInformation.MutualInformationBuilder(false, true)).field("text").minDocCount(200);
-        stXContentBuilder = XContentFactory.jsonBuilder();
-        stBuilder.internalXContent(stXContentBuilder, null);
-        stParser = JsonXContent.jsonXContent.createParser(stXContentBuilder.string());
-        stParser.nextToken();
-        aggregatorFactory = (SignificantTermsAggregatorFactory) new SignificantTermsParser(heuristicParserMapper).parse("testagg", stParser, searchContext);
-        stParser.nextToken();
-        assertThat(aggregatorFactory.getBucketCountThresholds().getMinDocCount(), equalTo(200l));
-        assertTrue(!((MutualInformation) aggregatorFactory.getSignificanceHeuristic()).getIncludeNegatives());
-        assertThat(stParser.currentToken(), equalTo(null));
-        stParser.close();
-
-        // test exceptions
-        try {
-            // 1. invalid field
-            stParser = JsonXContent.jsonXContent.createParser("{\"field\":\"text\", \"mutual_information\":{\"include_negatives\": false, \"some_unknown_field\": false}\"min_doc_count\":200}");
-            stParser.nextToken();
-            new SignificantTermsParser(heuristicParserMapper).parse("testagg", stParser, searchContext);
-            fail();
-        } catch (ElasticsearchParseException e) {
-            assertTrue(e.getMessage().contains("unknown for mutual_information"));
-        }
-
-        try {
-            // 2. unknown field in jlh_score
-            stParser = JsonXContent.jsonXContent.createParser("{\"field\":\"text\", \"jlh\":{\"unknown_field\": true}, \"min_doc_count\":200}");
-            stParser.nextToken();
-            new SignificantTermsParser(heuristicParserMapper).parse("testagg", stParser, searchContext);
-            fail();
-        } catch (ElasticsearchParseException e) {
-            assertTrue(e.getMessage().contains("expected }, got "));
-        }
+    protected SignificanceHeuristic parseFromString(SignificanceHeuristicParserMapper heuristicParserMapper, SearchContext searchContext, String heuristicString) throws IOException {
+        XContentParser stParser = JsonXContent.jsonXContent.createParser("{\"field\":\"text\", " + heuristicString + ", \"min_doc_count\":200}");
+        return parseSignificanceHeuristic(heuristicParserMapper, searchContext, stParser);
     }
 
     @Test
@@ -282,26 +282,26 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
             assertTrue(illegalArgumentException.getMessage().contains("Frequencies of subset and superset must be positive"));
         }
 
-        JLHScore jlhScore = JLHScore.INSTANCE;
+        SignificanceHeuristic heuristic = randomBoolean() ? JLHScore.INSTANCE : GND.INSTANCE;
         try {
             int idx = randomInt(3);
             long[] values = {1, 2, 3, 4};
             values[idx] *= -1;
-            jlhScore.getScore(values[0], values[1], values[2], values[3]);
+            heuristic.getScore(values[0], values[1], values[2], values[3]);
             fail();
         } catch (ElasticsearchIllegalArgumentException illegalArgumentException) {
             assertNotNull(illegalArgumentException.getMessage());
             assertTrue(illegalArgumentException.getMessage().contains("Frequencies of subset and superset must be positive"));
         }
         try {
-            jlhScore.getScore(1, 2, 4, 3);
+            heuristic.getScore(1, 2, 4, 3);
             fail();
         } catch (ElasticsearchIllegalArgumentException illegalArgumentException) {
             assertNotNull(illegalArgumentException.getMessage());
             assertTrue(illegalArgumentException.getMessage().contains("supersetFreq > supersetSize"));
         }
         try {
-            jlhScore.getScore(2, 1, 3, 4);
+            heuristic.getScore(2, 1, 3, 4);
             fail();
         } catch (ElasticsearchIllegalArgumentException illegalArgumentException) {
             assertNotNull(illegalArgumentException.getMessage());
@@ -310,8 +310,8 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
     }
 
     @Test
-    public void scoreDefault() {
-        SignificanceHeuristic heuristic = JLHScore.INSTANCE;
+    public void basicScoreProperties() {
+        SignificanceHeuristic heuristic = randomBoolean() ? JLHScore.INSTANCE : GND.INSTANCE;
         assertThat(heuristic.getScore(1, 1, 1, 3), greaterThan(0.0));
         assertThat(heuristic.getScore(1, 1, 2, 3), lessThan(heuristic.getScore(1, 1, 1, 3)));
         assertThat(heuristic.getScore(0, 1, 2, 3), equalTo(0.0));

@@ -306,7 +306,17 @@ Per default, the assumption is that the documents in the bucket are also contain
 "background_is_superset": false
 --------------------------------------------------
 
- 
+===== google normalized distance
+added[1.3.1]
+
+Google normalized distance  as described in "The Google Similarity Distance", Cilibrasi and Vitanyi, 2007 (http://arxiv.org/pdf/cs/0412098v3.pdf) can be used as significance score by adding the parameter
+	
+[source,js]
+--------------------------------------------------
+
+	 "gnd": {
+	 }
+--------------------------------------------------
 	
 ===== Size & Shard Size
 

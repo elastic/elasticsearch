@@ -28,19 +28,17 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public class MutualInformation extends NXYSignificanceHeuristic {
+public class ChiSquare extends NXYSignificanceHeuristic {
 
-    protected static final ParseField NAMES_FIELD = new ParseField("mutual_information");
+    protected static final ParseField NAMES_FIELD = new ParseField("chi_square");
 
-    private static final double log2 = Math.log(2.0);
-
-    public MutualInformation(boolean includeNegatives, boolean backgroundIsSuperset) {
+    public ChiSquare(boolean includeNegatives, boolean backgroundIsSuperset) {
         super(includeNegatives, backgroundIsSuperset);
     }
 
     @Override
     public boolean equals(Object other) {
-        if (!(other instanceof MutualInformation)) {
+        if (!(other instanceof ChiSquare)) {
             return false;
         }
         return super.equals(other);
@@ -56,7 +54,7 @@ public class MutualInformation extends NXYSignificanceHeuristic {
     public static final SignificanceHeuristicStreams.Stream STREAM = new SignificanceHeuristicStreams.Stream() {
         @Override
         public SignificanceHeuristic readResult(StreamInput in) throws IOException {
-            return new MutualInformation(in.readBoolean(), in.readBoolean());
+            return new ChiSquare(in.readBoolean(), in.readBoolean());
         }
 
         @Override
@@ -66,50 +64,19 @@ public class MutualInformation extends NXYSignificanceHeuristic {
     };
 
     /**
-     * Calculates mutual information
-     * see "Information Retrieval", Manning et al., Eq. 13.17
+     * Calculates Chi^2
+     * see "Information Retrieval", Manning et al., Eq. 13.19
      */
     @Override
     public double getScore(long subsetFreq, long subsetSize, long supersetFreq, long supersetSize) {
-        Frequencies frequencies = computeNxys(subsetFreq, subsetSize, supersetFreq, supersetSize, "MutualInformation");
+        Frequencies frequencies = computeNxys(subsetFreq, subsetSize, supersetFreq, supersetSize, "ChiSquare");
 
-        double score = (getMITerm(frequencies.N00, frequencies.N0_, frequencies.N_0, frequencies.N) +
-                getMITerm(frequencies.N01, frequencies.N0_, frequencies.N_1, frequencies.N) +
-                getMITerm(frequencies.N10, frequencies.N1_, frequencies.N_0, frequencies.N) +
-                getMITerm(frequencies.N11, frequencies.N1_, frequencies.N_1, frequencies.N))
-                / log2;
-
-        if (Double.isNaN(score)) {
-            score = Double.NEGATIVE_INFINITY;
-        }
         // here we check if the term appears more often in subset than in background without subset.
         if (!includeNegatives && frequencies.N11 / frequencies.N_1 < frequencies.N10 / frequencies.N_0) {
-            score = Double.NEGATIVE_INFINITY;
+            return Double.NEGATIVE_INFINITY;
         }
-        return score;
-    }
-
-    /*  make sure that
-        0 * log(0/0) = 0
-        0 * log(0) = 0
-        Else, this would be the score:
-        double score =
-                  N11 / N * Math.log((N * N11) / (N1_ * N_1))
-                + N01 / N * Math.log((N * N01) / (N0_ * N_1))
-                + N10 / N * Math.log((N * N10) / (N1_ * N_0))
-                + N00 / N * Math.log((N * N00) / (N0_ * N_0));
-
-        but we get many NaN if we do not take case of the 0s */
-
-    double getMITerm(double Nxy, double Nx_, double N_y, double N) {
-        double numerator = Math.abs(N * Nxy);
-        double denominator = Math.abs(Nx_ * N_y);
-        double factor = Math.abs(Nxy / N);
-        if (numerator < 1.e-7 && factor < 1.e-7) {
-            return 0.0;
-        } else {
-            return factor * Math.log(numerator / denominator);
-        }
+        return (frequencies.N * Math.pow((frequencies.N11 * frequencies.N00 - frequencies.N01 * frequencies.N10), 2.0) /
+                ((frequencies.N_1) * (frequencies.N1_) * (frequencies.N0_) * (frequencies.N_0)));
     }
 
     @Override
@@ -118,11 +85,11 @@ public class MutualInformation extends NXYSignificanceHeuristic {
         super.writeTo(out);
     }
 
-    public static class MutualInformationParser extends NXYParser {
+    public static class ChiSquareParser extends NXYParser {
 
         @Override
         protected SignificanceHeuristic newHeuristic(boolean includeNegatives, boolean backgroundIsSuperset) {
-            return new MutualInformation(includeNegatives, backgroundIsSuperset);
+            return new ChiSquare(includeNegatives, backgroundIsSuperset);
         }
 
         @Override
@@ -131,9 +98,9 @@ public class MutualInformation extends NXYSignificanceHeuristic {
         }
     }
 
-    public static class MutualInformationBuilder extends NXYBuilder {
+    public static class ChiSquareBuilder extends NXYSignificanceHeuristic.NXYBuilder {
 
-        public MutualInformationBuilder(boolean includeNegatives, boolean backgroundIsSuperset) {
+        public ChiSquareBuilder(boolean includeNegatives, boolean backgroundIsSuperset) {
             super(includeNegatives, backgroundIsSuperset);
         }
 

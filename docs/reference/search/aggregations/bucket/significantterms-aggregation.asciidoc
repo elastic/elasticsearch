@@ -306,6 +306,22 @@ Per default, the assumption is that the documents in the bucket are also contain
 "background_is_superset": false
 --------------------------------------------------
 
+
+===== Chi square
+added[1.3.1]
+
+Chi square as described in "Information Retrieval", Manning et al., Chapter 13.5.2 can be used as significance score by adding the parameter
+	
+[source,js]
+--------------------------------------------------
+
+	 "chi_square": {
+	 }
+--------------------------------------------------
+
+Chi square behaves like mutual information and can be configured with the same parameters `include_negatives` and `background_is_superset`.
+
+
 ===== google normalized distance
 added[1.3.1]
 

@@ -51,7 +51,6 @@ import static org.hamcrest.Matchers.*;
  *
  */
 public class SignificanceHeuristicTests extends ElasticsearchTestCase {
-
     static class SignificantTermsTestSearchContext extends TestSearchContext {
         @Override
         public int numberOfShards() {
@@ -70,6 +69,7 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
         SignificanceHeuristicStreams.registerStream(MutualInformation.STREAM, MutualInformation.STREAM.getName());
         SignificanceHeuristicStreams.registerStream(JLHScore.STREAM, JLHScore.STREAM.getName());
         SignificanceHeuristicStreams.registerStream(GND.STREAM, GND.STREAM.getName());
+        SignificanceHeuristicStreams.registerStream(ChiSquare.STREAM, ChiSquare.STREAM.getName());
         Version version = ElasticsearchIntegrationTest.randomVersion();
         InternalSignificantTerms[] sigTerms = getRandomSignificantTerms(getRandomSignificanceheuristic());
 
@@ -115,9 +115,10 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
     SignificanceHeuristic getRandomSignificanceheuristic() {
         List<SignificanceHeuristic> heuristics = new ArrayList<>();
         heuristics.add(JLHScore.INSTANCE);
-        heuristics.add(new MutualInformation(randomBoolean(), true));
+        heuristics.add(new MutualInformation(randomBoolean(), randomBoolean()));
         heuristics.add(GND.INSTANCE);
-        return heuristics.get(randomInt(2));
+        heuristics.add(new ChiSquare(randomBoolean(), randomBoolean()));
+        return heuristics.get(randomInt(3));
     }
 
     // test that
@@ -130,6 +131,7 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
         parsers.add(new JLHScore.JLHScoreParser());
         parsers.add(new MutualInformation.MutualInformationParser());
         parsers.add(new GND.GNDParser());
+        parsers.add(new ChiSquare.ChiSquareParser());
         SignificanceHeuristicParserMapper heuristicParserMapper = new SignificanceHeuristicParserMapper(parsers);
         SearchContext searchContext = new SignificantTermsTestSearchContext();
 
@@ -141,15 +143,21 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
         boolean includeNegatives = randomBoolean();
         boolean backgroundIsSuperset = randomBoolean();
         assertThat(parseFromString(heuristicParserMapper, searchContext, "\"mutual_information\":{\"include_negatives\": " + includeNegatives + ", \"background_is_superset\":" + backgroundIsSuperset + "}"), equalTo((SignificanceHeuristic) (new MutualInformation(includeNegatives, backgroundIsSuperset))));
+        assertThat(parseFromString(heuristicParserMapper, searchContext, "\"chi_square\":{\"include_negatives\": " + includeNegatives + ", \"background_is_superset\":" + backgroundIsSuperset + "}"), equalTo((SignificanceHeuristic) (new ChiSquare(includeNegatives, backgroundIsSuperset))));
 
         // test with builders
         assertTrue(parseFromBuilder(heuristicParserMapper, searchContext, new JLHScore.JLHScoreBuilder()) instanceof JLHScore);
         assertTrue(parseFromBuilder(heuristicParserMapper, searchContext, new GND.GNDBuilder()) instanceof GND);
         assertThat(parseFromBuilder(heuristicParserMapper, searchContext, new MutualInformation.MutualInformationBuilder(includeNegatives, backgroundIsSuperset)), equalTo((SignificanceHeuristic) new MutualInformation(includeNegatives, backgroundIsSuperset)));
+        assertThat(parseFromBuilder(heuristicParserMapper, searchContext, new ChiSquare.ChiSquareBuilder(includeNegatives, backgroundIsSuperset)), equalTo((SignificanceHeuristic) new ChiSquare(includeNegatives, backgroundIsSuperset)));
 
         // test exceptions
         String faultyHeuristicdefinition = "\"mutual_information\":{\"include_negatives\": false, \"some_unknown_field\": false}";
         String expectedError = "unknown for mutual_information";
+        checkParseException(heuristicParserMapper, searchContext, faultyHeuristicdefinition, expectedError);
+
+        faultyHeuristicdefinition = "\"chi_square\":{\"unknown_field\": true}";
+        expectedError = "unknown for chi_square";
         checkParseException(heuristicParserMapper, searchContext, faultyHeuristicdefinition, expectedError);
 
         faultyHeuristicdefinition = "\"jlh\":{\"unknown_field\": true}";
@@ -196,39 +204,37 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
         return parseSignificanceHeuristic(heuristicParserMapper, searchContext, stParser);
     }
 
-    @Test
-    public void testAssertions() throws Exception {
-        MutualInformation mutualInformation = new MutualInformation(true, true);
+    void testBackgroundAssertions(SignificanceHeuristic heuristicIsSuperset, SignificanceHeuristic heuristicNotSuperset) {
         try {
-            mutualInformation.getScore(2, 3, 1, 4);
+            heuristicIsSuperset.getScore(2, 3, 1, 4);
             fail();
         } catch (ElasticsearchIllegalArgumentException illegalArgumentException) {
             assertNotNull(illegalArgumentException.getMessage());
             assertTrue(illegalArgumentException.getMessage().contains("subsetFreq > supersetFreq"));
         }
         try {
-            mutualInformation.getScore(1, 4, 2, 3);
+            heuristicIsSuperset.getScore(1, 4, 2, 3);
             fail();
         } catch (ElasticsearchIllegalArgumentException illegalArgumentException) {
             assertNotNull(illegalArgumentException.getMessage());
             assertTrue(illegalArgumentException.getMessage().contains("subsetSize > supersetSize"));
         }
         try {
-            mutualInformation.getScore(2, 1, 3, 4);
+            heuristicIsSuperset.getScore(2, 1, 3, 4);
             fail();
         } catch (ElasticsearchIllegalArgumentException illegalArgumentException) {
             assertNotNull(illegalArgumentException.getMessage());
             assertTrue(illegalArgumentException.getMessage().contains("subsetFreq > subsetSize"));
         }
         try {
-            mutualInformation.getScore(1, 2, 4, 3);
+            heuristicIsSuperset.getScore(1, 2, 4, 3);
             fail();
         } catch (ElasticsearchIllegalArgumentException illegalArgumentException) {
             assertNotNull(illegalArgumentException.getMessage());
             assertTrue(illegalArgumentException.getMessage().contains("supersetFreq > supersetSize"));
         }
         try {
-            mutualInformation.getScore(1, 3, 4, 4);
+            heuristicIsSuperset.getScore(1, 3, 4, 4);
             fail();
         } catch (ElasticsearchIllegalArgumentException assertionError) {
             assertNotNull(assertionError.getMessage());
@@ -238,51 +244,39 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
             int idx = randomInt(3);
             long[] values = {1, 2, 3, 4};
             values[idx] *= -1;
-            mutualInformation.getScore(values[0], values[1], values[2], values[3]);
+            heuristicIsSuperset.getScore(values[0], values[1], values[2], values[3]);
             fail();
         } catch (ElasticsearchIllegalArgumentException illegalArgumentException) {
             assertNotNull(illegalArgumentException.getMessage());
             assertTrue(illegalArgumentException.getMessage().contains("Frequencies of subset and superset must be positive"));
         }
-        mutualInformation = new MutualInformation(true, false);
-        double score = mutualInformation.getScore(2, 3, 1, 4);
-        assertThat(score, greaterThanOrEqualTo(0.0));
-        assertThat(score, lessThanOrEqualTo(1.0));
-        score = mutualInformation.getScore(1, 4, 2, 3);
-        assertThat(score, greaterThanOrEqualTo(0.0));
-        assertThat(score, lessThanOrEqualTo(1.0));
-
         try {
-            mutualInformation.getScore(2, 1, 3, 4);
+            heuristicNotSuperset.getScore(2, 1, 3, 4);
             fail();
         } catch (ElasticsearchIllegalArgumentException illegalArgumentException) {
             assertNotNull(illegalArgumentException.getMessage());
             assertTrue(illegalArgumentException.getMessage().contains("subsetFreq > subsetSize"));
         }
         try {
-            mutualInformation.getScore(1, 2, 4, 3);
+            heuristicNotSuperset.getScore(1, 2, 4, 3);
             fail();
         } catch (ElasticsearchIllegalArgumentException illegalArgumentException) {
             assertNotNull(illegalArgumentException.getMessage());
             assertTrue(illegalArgumentException.getMessage().contains("supersetFreq > supersetSize"));
         }
-
-        score = mutualInformation.getScore(1, 3, 4, 4);
-        assertThat(score, greaterThanOrEqualTo(0.0));
-        assertThat(score, lessThanOrEqualTo(1.0));
-
         try {
             int idx = randomInt(3);
             long[] values = {1, 2, 3, 4};
             values[idx] *= -1;
-            mutualInformation.getScore(values[0], values[1], values[2], values[3]);
+            heuristicNotSuperset.getScore(values[0], values[1], values[2], values[3]);
             fail();
         } catch (ElasticsearchIllegalArgumentException illegalArgumentException) {
             assertNotNull(illegalArgumentException.getMessage());
             assertTrue(illegalArgumentException.getMessage().contains("Frequencies of subset and superset must be positive"));
         }
+    }
 
-        SignificanceHeuristic heuristic = randomBoolean() ? JLHScore.INSTANCE : GND.INSTANCE;
+    void testAssertions(SignificanceHeuristic heuristic) {
         try {
             int idx = randomInt(3);
             long[] values = {1, 2, 3, 4};
@@ -310,11 +304,29 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
     }
 
     @Test
+    public void testAssertions() throws Exception {
+        testBackgroundAssertions(new MutualInformation(true, true), new MutualInformation(true, false));
+        testBackgroundAssertions(new ChiSquare(true, true), new ChiSquare(true, false));
+        testAssertions(JLHScore.INSTANCE);
+        testAssertions(GND.INSTANCE);
+    }
+
+    @Test
     public void basicScoreProperties() {
-        SignificanceHeuristic heuristic = randomBoolean() ? JLHScore.INSTANCE : GND.INSTANCE;
+        basicScoreProperties(JLHScore.INSTANCE, true);
+        basicScoreProperties(GND.INSTANCE, true);
+        basicScoreProperties(new MutualInformation(true, true), false);
+        basicScoreProperties(new ChiSquare(true, true), false);
+    }
+
+    public void basicScoreProperties(SignificanceHeuristic heuristic, boolean test0) {
+
         assertThat(heuristic.getScore(1, 1, 1, 3), greaterThan(0.0));
         assertThat(heuristic.getScore(1, 1, 2, 3), lessThan(heuristic.getScore(1, 1, 1, 3)));
-        assertThat(heuristic.getScore(0, 1, 2, 3), equalTo(0.0));
+        if (test0) {
+            assertThat(heuristic.getScore(0, 1, 2, 3), equalTo(0.0));
+        }
+
         double score = 0.0;
         try {
             long a = randomLong();
@@ -352,5 +364,15 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
         heuristic = new MutualInformation(false, true);
         assertThat(heuristic.getScore(0, 1, 2, 3), equalTo(-1.0 * Double.MAX_VALUE));
 
+        heuristic = new MutualInformation(true, false);
+        score = heuristic.getScore(2, 3, 1, 4);
+        assertThat(score, greaterThanOrEqualTo(0.0));
+        assertThat(score, lessThanOrEqualTo(1.0));
+        score = heuristic.getScore(1, 4, 2, 3);
+        assertThat(score, greaterThanOrEqualTo(0.0));
+        assertThat(score, lessThanOrEqualTo(1.0));
+        score = heuristic.getScore(1, 3, 4, 4);
+        assertThat(score, greaterThanOrEqualTo(0.0));
+        assertThat(score, lessThanOrEqualTo(1.0));
     }
 }

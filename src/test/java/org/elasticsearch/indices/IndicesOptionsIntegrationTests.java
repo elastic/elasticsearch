@@ -475,7 +475,7 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
     @Test
     public void testDeleteMapping() throws Exception {
         assertAcked(prepareCreate("foobar").addMapping("type1", "field", "type=string"));
-        ensureYellow();
+        ensureGreen();
 
         verify(client().admin().indices().prepareDeleteMapping("foo").setType("type1"), true);
         assertThat(client().admin().indices().prepareTypesExists("foobar").setTypes("type1").get().isExists(), equalTo(true));
@@ -577,7 +577,7 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
         assertAcked(prepareCreate("bar").addMapping("type3", "field", "type=string"));
         assertAcked(prepareCreate("barbaz").addMapping("type4", "field", "type=string"));
         
-        ensureYellow();
+        ensureGreen();
 
         assertThat(client().admin().indices().prepareTypesExists("foo").setTypes("type1").get().isExists(), equalTo(true));
         assertThat(client().admin().indices().prepareTypesExists("foobar").setTypes("type2").get().isExists(), equalTo(true));

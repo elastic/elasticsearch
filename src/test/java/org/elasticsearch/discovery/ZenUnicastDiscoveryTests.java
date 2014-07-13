@@ -26,7 +26,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
-import org.elasticsearch.transport.local.LocalTransport;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -38,46 +37,24 @@ import static org.hamcrest.Matchers.equalTo;
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class ZenUnicastDiscoveryTests extends ElasticsearchIntegrationTest {
 
-    private static int currentNumNodes = -1;
-
-    static int currentBaseHttpPort = -1;
-    static int currentNumOfUnicastHosts = -1;
-
-    @Before
-    public void setUP() throws Exception {
-        ElasticsearchIntegrationTest.beforeClass();
-        currentNumNodes = randomIntBetween(3, 5);
-        currentNumOfUnicastHosts = randomIntBetween(1, currentNumNodes);
-        currentBaseHttpPort = 25000 + randomInt(100);
-    }
+    private ClusterDiscoveryConfiguration discoveryConfig;
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        ImmutableSettings.Builder builder = ImmutableSettings.settingsBuilder()
-                .put("discovery.type", "zen")
-                .put("discovery.zen.ping.multicast.enabled", false)
-                .put("http.enabled", false) // just to make test quicker
-                .put(super.nodeSettings(nodeOrdinal));
+        return discoveryConfig.settings(nodeOrdinal);
+    }
 
-        String[] unicastHosts = new String[currentNumOfUnicastHosts];
-        if (internalCluster().getDefaultSettings().get("node.mode").equals("local")) {
-            builder.put(LocalTransport.TRANSPORT_LOCAL_ADDRESS, "unicast_test_" + nodeOrdinal);
-            for (int i = 0; i < unicastHosts.length; i++) {
-                unicastHosts[i] = "unicast_test_" + i;
-            }
-        } else {
-            // we need to pin the node ports so we'd know where to point things
-            builder.put("transport.tcp.port", currentBaseHttpPort + nodeOrdinal);
-            for (int i = 0; i < unicastHosts.length; i++) {
-                unicastHosts[i] = "localhost:" + (currentBaseHttpPort + i);
-            }
-        }
-        builder.putArray("discovery.zen.ping.unicast.hosts", unicastHosts);
-        return builder.build();
+    @Before
+    public void clearConfig() {
+        discoveryConfig = null;
     }
 
     @Test
     public void testNormalClusterForming() throws ExecutionException, InterruptedException {
+        int currentNumNodes = randomIntBetween(3, 5);
+        int currentNumOfUnicastHosts = randomIntBetween(1, currentNumNodes);
+        discoveryConfig = new ClusterDiscoveryConfiguration.UnicastZen(currentNumNodes, currentNumOfUnicastHosts);
+
         internalCluster().startNodesAsync(currentNumNodes).get();
 
         if (client().admin().cluster().prepareHealth().setWaitForNodes("" + currentNumNodes).get().isTimedOut()) {
@@ -91,9 +68,12 @@ public class ZenUnicastDiscoveryTests extends ElasticsearchIntegrationTest {
     // test fails, because 2 nodes elect themselves as master and the health request times out b/c waiting_for_nodes=N
     // can't be satisfied.
     public void testMinimumMasterNodes() throws Exception {
+        int currentNumNodes = randomIntBetween(3, 5);
+        int currentNumOfUnicastHosts = randomIntBetween(1, currentNumNodes);
         final Settings settings = ImmutableSettings.settingsBuilder().put("discovery.zen.minimum_master_nodes", currentNumNodes / 2 + 1).build();
+        discoveryConfig = new ClusterDiscoveryConfiguration.UnicastZen(currentNumNodes, currentNumOfUnicastHosts, settings);
 
-        List<String> nodes = internalCluster().startNodesAsync(currentNumNodes, settings).get();
+        List<String> nodes = internalCluster().startNodesAsync(currentNumNodes).get();
 
         ensureGreen();
 

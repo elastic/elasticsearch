@@ -145,7 +145,7 @@ public final class InternalTestCluster extends TestCluster {
 
     static final boolean DEFAULT_ENABLE_RANDOM_BENCH_NODES = true;
 
-    private static final String NODE_MODE = nodeMode();
+    public static final String NODE_MODE = nodeMode();
 
     /* sorted map to make traverse order reproducible, concurrent since we do checks on it not within a sync block */
     private final NavigableMap<String, NodeAndClient> nodes = new TreeMap<>();

@@ -41,7 +41,6 @@ import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
-import org.elasticsearch.indices.fielddata.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCacheListener;
 
@@ -139,6 +138,7 @@ public class IndexFieldDataService extends AbstractIndexComponent {
     private final IndicesFieldDataCache indicesFieldDataCache;
     private final ConcurrentMap<String, IndexFieldData<?>> loadedFieldData = ConcurrentCollections.newConcurrentMap();
     private final KeyedLock.GlobalLockable<String> fieldLoadingLock = new KeyedLock.GlobalLockable<>();
+    private final ConcurrentMap<String, IndexFieldData<?>> loadedDirectFieldData = ConcurrentCollections.newConcurrentMap();
     private final Map<String, IndexFieldDataCache> fieldDataCaches = Maps.newHashMap(); // no need for concurrency support, always used under lock
 
     IndexService indexService;
@@ -193,6 +193,9 @@ public class IndexFieldDataService extends AbstractIndexComponent {
         } finally {
             fieldLoadingLock.globalLock().unlock();
         }
+        synchronized (loadedDirectFieldData) {
+            loadedDirectFieldData.clear();
+        }
     }
 
     public void clearField(final String fieldName) {
@@ -219,6 +222,9 @@ public class IndexFieldDataService extends AbstractIndexComponent {
         } finally {
             fieldLoadingLock.release(fieldName);
         }
+        synchronized (loadedDirectFieldData) {
+            loadedDirectFieldData.remove(fieldName);
+        }
     }
 
     public void onMappingUpdate() {
@@ -229,6 +235,9 @@ public class IndexFieldDataService extends AbstractIndexComponent {
             loadedFieldData.clear();
         } finally {
             fieldLoadingLock.globalLock().unlock();
+        }
+        synchronized (loadedDirectFieldData) {
+            loadedDirectFieldData.clear();
         }
     }
 
@@ -301,39 +310,46 @@ public class IndexFieldDataService extends AbstractIndexComponent {
 
     public <IFD extends IndexFieldData<?>> IFD getForFieldDirect(FieldMapper<?> mapper) {
         final FieldMapper.Names fieldNames = mapper.names();
-        final FieldDataType type = mapper.fieldDataType();
-        if (type == null) {
-            throw new ElasticsearchIllegalArgumentException("found no fielddata type for field [" + fieldNames.fullName() + "]");
-        }
-        final boolean docValues = mapper.hasDocValues();
-
-        IndexFieldData.Builder builder = null;
-        String format = type.getFormat(indexSettings);
-        if (format != null && FieldDataType.DOC_VALUES_FORMAT_VALUE.equals(format) && !docValues) {
-            logger.warn("field [" + fieldNames.fullName() + "] has no doc values, will use default field data format");
-            format = null;
-        }
-        if (format != null) {
-            builder = buildersByTypeAndFormat.get(Tuple.tuple(type.getType(), format));
-            if (builder == null) {
-                logger.warn("failed to find format [" + format + "] for field [" + fieldNames.fullName() + "], will use default");
+        IndexFieldData<?> fieldData = loadedDirectFieldData.get(fieldNames.indexName());
+        if (fieldData == null) {
+            // By caching IFD instances we prevent that we end up with equal to number of percolator instances
+            // `loadedFieldData` can't be used b/c we forcefully always use a different IndexFieldDataCache impl
+            synchronized (loadedDirectFieldData) {
+                fieldData = loadedDirectFieldData.get(fieldNames.indexName());
+                if (fieldData == null) {
+                    final FieldDataType type = mapper.fieldDataType();
+                    if (type == null) {
+                        throw new ElasticsearchIllegalArgumentException("found no fielddata type for field [" + fieldNames.fullName() + "]");
+                    }
+                    IndexFieldData.Builder builder = null;
+                    String format = type.getFormat(indexSettings);
+                    final boolean docValues = mapper.hasDocValues();
+                    if (format != null && FieldDataType.DOC_VALUES_FORMAT_VALUE.equals(format) && !docValues) {
+                        logger.warn("field [" + fieldNames.fullName() + "] has no doc values, will use default field data format");
+                        format = null;
+                    }
+                    if (format != null) {
+                        builder = buildersByTypeAndFormat.get(Tuple.tuple(type.getType(), format));
+                        if (builder == null) {
+                            logger.warn("failed to find format [" + format + "] for field [" + fieldNames.fullName() + "], will use default");
+                        }
+                    }
+                    if (builder == null && docValues) {
+                        builder = docValuesBuildersByType.get(type.getType());
+                    }
+                    if (builder == null) {
+                        builder = buildersByType.get(type.getType());
+                    }
+                    if (builder == null) {
+                        throw new ElasticsearchIllegalArgumentException("failed to find field data builder for field " + fieldNames.fullName() + ", and type " + type.getType());
+                    }
+                    GlobalOrdinalsBuilder globalOrdinalBuilder = new InternalGlobalOrdinalsBuilder(index(), indexSettings);
+                    fieldData = builder.build(index, indexSettings, mapper, new IndexFieldDataCache.None(), circuitBreakerService, indexService.mapperService(), globalOrdinalBuilder);
+                    loadedDirectFieldData.put(fieldNames.indexName(), fieldData);
+                }
             }
         }
-        if (builder == null && docValues) {
-            builder = docValuesBuildersByType.get(type.getType());
-        }
-        if (builder == null) {
-            builder = buildersByType.get(type.getType());
-        }
-        if (builder == null) {
-            throw new ElasticsearchIllegalArgumentException("failed to find field data builder for field " + fieldNames.fullName() + ", and type " + type.getType());
-        }
-
-        CircuitBreakerService circuitBreakerService = new NoneCircuitBreakerService();
-        GlobalOrdinalsBuilder globalOrdinalBuilder = new InternalGlobalOrdinalsBuilder(index(), indexSettings);
-        @SuppressWarnings("unchecked")
-        IFD ifd = (IFD) builder.build(index, indexSettings, mapper, new IndexFieldDataCache.None(), circuitBreakerService, indexService.mapperService(), globalOrdinalBuilder);
-        return ifd;
+        return (IFD) fieldData;
     }
 
 }

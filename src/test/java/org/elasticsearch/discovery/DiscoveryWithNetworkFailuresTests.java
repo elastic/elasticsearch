@@ -37,19 +37,18 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.disruption.*;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportModule;
+import org.junit.Before;
 import org.junit.Test;
 
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Semaphore;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -68,15 +67,18 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
 
     private static final TimeValue DISRUPTION_HEALING_OVERHEAD = TimeValue.timeValueSeconds(40); // we use 30s as timeout in many places.
 
-    private static final Settings nodeSettings = ImmutableSettings.settingsBuilder()
-            .put("gateway.type", "local")
-            .put("discovery.type", "zen") // <-- To override the local setting if set externally
-            .put("discovery.zen.fd.ping_timeout", "1s") // <-- for hitting simulated network failures quickly
-            .put("discovery.zen.fd.ping_retries", "1") // <-- for hitting simulated network failures quickly
-            .put(DiscoverySettings.PUBLISH_TIMEOUT, "1s") // <-- for hitting simulated network failures quickly
-            .put("discovery.zen.minimum_master_nodes", 2)
-            .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, MockTransportService.class.getName())
-            .build();
+    private ClusterDiscoveryConfiguration discoveryConfig;
+
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return discoveryConfig.settings(nodeOrdinal);
+    }
+
+    @Before
+    public void clearConfig() {
+        discoveryConfig = null;
+    }
 
     @Override
     protected int numberOfShards() {
@@ -88,6 +90,31 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
         return 1;
     }
 
+    private List<String> startCluster(int numberOfNodes) throws ExecutionException, InterruptedException {
+        Settings settings = ImmutableSettings.builder()
+                // TODO: this is a temporary solution so that nodes will not base their reaction to a partition based on previous successful results
+                .put("discovery.zen.ping_timeout", "0.5s")
+                        // end of temporary solution
+                .put("discovery.zen.fd.ping_timeout", "1s") // <-- for hitting simulated network failures quickly
+                .put("discovery.zen.fd.ping_retries", "1") // <-- for hitting simulated network failures quickly
+                .put(DiscoverySettings.PUBLISH_TIMEOUT, "1s") // <-- for hitting simulated network failures quickly
+                .put("http.enabled", false) // just to make test quicker
+                .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, MockTransportService.class.getName())
+                .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, numberOfNodes / 2 + 1).build();
+
+        if (discoveryConfig == null) {
+            if (randomBoolean()) {
+                discoveryConfig = new ClusterDiscoveryConfiguration.UnicastZen(numberOfNodes, numberOfNodes, settings);
+            } else {
+                discoveryConfig = new ClusterDiscoveryConfiguration(numberOfNodes, settings);
+            }
+        }
+        List<String> nodes = internalCluster().startNodesAsync(numberOfNodes).get();
+        ensureStableCluster(numberOfNodes);
+
+        return nodes;
+    }
+
     /**
      * Test that no split brain occurs under partial network partition. See https://github.com/elasticsearch/elasticsearch/issues/2488
      *
@@ -96,10 +123,7 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
     @Test
     public void failWithMinimumMasterNodesConfigured() throws Exception {
 
-        List<String> nodes = internalCluster().startNodesAsync(3, nodeSettings).get();
-
-        // Wait until 3 nodes are part of the cluster
-        ensureStableCluster(3);
+        List<String> nodes = startCluster(3);
 
         // Figure out what is the elected master node
         final String masterNode = internalCluster().getMasterName();
@@ -154,9 +178,7 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
     @Test
     @TestLogging(value = "cluster.service:TRACE,indices.recovery:TRACE")
     public void testVerifyApiBlocksDuringPartition() throws Exception {
-        internalCluster().startNodesAsync(3, nodeSettings).get();
-        // Wait until a 3 nodes are part of the cluster
-        ensureStableCluster(3);
+        startCluster(3);
 
         // Makes sure that the get request can be executed on each node locally:
         assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder()
@@ -276,8 +298,7 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
     @Test
     @TestLogging("discovery.zen:TRACE,action:TRACE,cluster.service:TRACE,indices.recovery:TRACE,indices.cluster:TRACE")
     public void testIsolateMasterAndVerifyClusterStateConsensus() throws Exception {
-        final List<String> nodes = internalCluster().startNodesAsync(3, nodeSettings).get();
-        ensureStableCluster(3);
+        final List<String> nodes = startCluster(3);
 
         assertAcked(prepareCreate("test")
                 .setSettings(ImmutableSettings.builder()
@@ -340,8 +361,7 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
     @LuceneTestCase.AwaitsFix(bugUrl = "MvG will fix")
     @TestLogging("action.index:TRACE,action.get:TRACE,discovery:TRACE,cluster.service:TRACE,indices.recovery:TRACE,indices.cluster:TRACE")
     public void testAckedIndexing() throws Exception {
-        final List<String> nodes = internalCluster().startNodesAsync(3, nodeSettings).get();
-        ensureStableCluster(3);
+        final List<String> nodes = startCluster(3);
 
         assertAcked(prepareCreate("test")
                 .setSettings(ImmutableSettings.builder()
@@ -478,8 +498,7 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
     @Test
     @TestLogging("discovery.zen:TRACE,action:TRACE,cluster.service:TRACE,indices.recovery:TRACE,indices.cluster:TRACE")
     public void testRejoinDocumentExistsInAllShardCopies() throws Exception {
-        List<String> nodes = internalCluster().startNodesAsync(3, nodeSettings).get();
-        ensureStableCluster(3);
+        List<String> nodes = startCluster(3);
 
         assertAcked(prepareCreate("test")
                 .setSettings(ImmutableSettings.builder()

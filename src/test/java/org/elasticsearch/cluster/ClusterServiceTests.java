@@ -30,6 +30,7 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Singleton;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.plugins.AbstractPlugin;
@@ -585,11 +586,10 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
         assertThat(clusterService1.state().nodes().localNodeMaster(), is(true));
         assertThat(testService1.master(), is(true));
 
-        Settings newSettings = settingsBuilder()
+        Settings transientSettings = settingsBuilder()
                 .put("discovery.zen.minimum_master_nodes", 2)
-                .put("discovery.type", "zen")
                 .build();
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(newSettings).get();
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(transientSettings).get();
 
         // there should not be any master as the minimum number of required eligible masters is not met
         awaitBusy(new Predicate<Object>() {
@@ -600,13 +600,13 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
         assertThat(testService1.master(), is(false));
 
 
-        String node_2 = internalCluster().startNode(newSettings);
+        String node_2 = internalCluster().startNode(ImmutableSettings.builder().put(settings).put(transientSettings));
         ClusterService clusterService2 = internalCluster().getInstance(ClusterService.class, node_2);
         MasterAwareService testService2 = internalCluster().getInstance(MasterAwareService.class, node_2);
 
         // make sure both nodes see each other otherwise the masternode below could be null if node 2 is master and node 1 did'r receive the updated cluster state...
-        assertThat(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setLocal(true).setWaitForNodes("2").get().isTimedOut(), is(false));
-        assertThat(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setLocal(true).setWaitForNodes("2").get().isTimedOut(), is(false));
+        assertThat(internalCluster().client(node_1).admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setLocal(true).setWaitForNodes("2").get().isTimedOut(), is(false));
+        assertThat(internalCluster().client(node_2).admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setLocal(true).setWaitForNodes("2").get().isTimedOut(), is(false));
 
         // now that we started node1 again, a new master should be elected
         assertThat(clusterService2.state().nodes().masterNode(), is(notNullValue()));

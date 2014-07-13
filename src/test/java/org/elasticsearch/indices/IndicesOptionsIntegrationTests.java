@@ -491,7 +491,9 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
         assertAcked(prepareCreate("foobar").addMapping("type1", "field", "type=string"));
         assertAcked(prepareCreate("bar").addMapping("type1", "field", "type=string"));
         assertAcked(prepareCreate("barbaz").addMapping("type1", "field", "type=string"));
-        ensureYellow();
+        // we wait for green to make sure indices with mappings have been created on all relevant
+        // nodes, and that recovery won't re-introduce a mapping
+        ensureGreen();
 
         verify(client().admin().indices().prepareDeleteMapping("foo*").setType("type1"), false);
         assertThat(client().admin().indices().prepareTypesExists("foo").setTypes("type1").get().isExists(), equalTo(false));

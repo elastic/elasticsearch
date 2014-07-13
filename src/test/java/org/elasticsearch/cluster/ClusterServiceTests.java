@@ -545,7 +545,7 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testListenerCallbacks() throws Exception {
+    public void testLocalNodeMasterListenerCallbacks() throws Exception {
         Settings settings = settingsBuilder()
                 .put("discovery.type", "zen")
                 .put("discovery.zen.minimum_master_nodes", 1)
@@ -555,35 +555,35 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
                 .build();
 
         internalCluster().startNode(settings);
-        ClusterService clusterService1 = internalCluster().getInstance(ClusterService.class);
-        MasterAwareService testService1 = internalCluster().getInstance(MasterAwareService.class);
+        ClusterService clusterService = internalCluster().getInstance(ClusterService.class);
+        MasterAwareService testService = internalCluster().getInstance(MasterAwareService.class);
 
         ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("1").get();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
 
         // the first node should be a master as the minimum required is 1
-        assertThat(clusterService1.state().nodes().masterNode(), notNullValue());
-        assertThat(clusterService1.state().nodes().localNodeMaster(), is(true));
-        assertThat(testService1.master(), is(true));
+        assertThat(clusterService.state().nodes().masterNode(), notNullValue());
+        assertThat(clusterService.state().nodes().localNodeMaster(), is(true));
+        assertThat(testService.master(), is(true));
 
         String node_1 = internalCluster().startNode(settings);
-        final ClusterService clusterService2 = internalCluster().getInstance(ClusterService.class, node_1);
-        MasterAwareService testService2 = internalCluster().getInstance(MasterAwareService.class, node_1);
+        final ClusterService clusterService1 = internalCluster().getInstance(ClusterService.class, node_1);
+        MasterAwareService testService1 = internalCluster().getInstance(MasterAwareService.class, node_1);
 
         clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("2").get();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
 
         // the second node should not be the master as node1 is already the master.
-        assertThat(clusterService2.state().nodes().localNodeMaster(), is(false));
-        assertThat(testService2.master(), is(false));
+        assertThat(clusterService1.state().nodes().localNodeMaster(), is(false));
+        assertThat(testService1.master(), is(false));
 
         internalCluster().stopCurrentMasterNode();
         clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("1").get();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
 
         // now that node1 is closed, node2 should be elected as master
-        assertThat(clusterService2.state().nodes().localNodeMaster(), is(true));
-        assertThat(testService2.master(), is(true));
+        assertThat(clusterService1.state().nodes().localNodeMaster(), is(true));
+        assertThat(testService1.master(), is(true));
 
         Settings newSettings = settingsBuilder()
                 .put("discovery.zen.minimum_master_nodes", 2)
@@ -594,28 +594,28 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
         // there should not be any master as the minimum number of required eligible masters is not met
         awaitBusy(new Predicate<Object>() {
             public boolean apply(Object obj) {
-                return clusterService2.state().nodes().masterNode() == null;
+                return clusterService1.state().nodes().masterNode() == null;
             }
         });
-        assertThat(testService2.master(), is(false));
+        assertThat(testService1.master(), is(false));
 
 
-        String node_2 = internalCluster().startNode(settings);
-        clusterService1 = internalCluster().getInstance(ClusterService.class, node_2);
-        testService1 = internalCluster().getInstance(MasterAwareService.class, node_2);
+        String node_2 = internalCluster().startNode(newSettings);
+        ClusterService clusterService2 = internalCluster().getInstance(ClusterService.class, node_2);
+        MasterAwareService testService2 = internalCluster().getInstance(MasterAwareService.class, node_2);
 
         // make sure both nodes see each other otherwise the masternode below could be null if node 2 is master and node 1 did'r receive the updated cluster state...
         assertThat(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setLocal(true).setWaitForNodes("2").get().isTimedOut(), is(false));
         assertThat(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setLocal(true).setWaitForNodes("2").get().isTimedOut(), is(false));
 
         // now that we started node1 again, a new master should be elected
-        assertThat(clusterService1.state().nodes().masterNode(), is(notNullValue()));
-        if (node_2.equals(clusterService1.state().nodes().masterNode().name())) {
-            assertThat(testService1.master(), is(true));
-            assertThat(testService2.master(), is(false));
-        } else {
+        assertThat(clusterService2.state().nodes().masterNode(), is(notNullValue()));
+        if (node_2.equals(clusterService2.state().nodes().masterNode().name())) {
             assertThat(testService1.master(), is(false));
             assertThat(testService2.master(), is(true));
+        } else {
+            assertThat(testService1.master(), is(true));
+            assertThat(testService2.master(), is(false));
         }
     }
 

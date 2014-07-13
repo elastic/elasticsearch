@@ -20,7 +20,7 @@ package org.elasticsearch.test;
 
 import org.elasticsearch.common.settings.Settings;
 
-abstract class SettingsSource {
+public abstract class SettingsSource {
 
     public static final SettingsSource EMPTY = new SettingsSource() {
         @Override
@@ -35,7 +35,7 @@ abstract class SettingsSource {
     };
 
     /**
-     * @return  the settings for the node represented by the given ordinal, or {@code null} if there are no settings defined
+     * @return the settings for the node represented by the given ordinal, or {@code null} if there are no settings defined
      */
     public abstract Settings node(int nodeOrdinal);
 

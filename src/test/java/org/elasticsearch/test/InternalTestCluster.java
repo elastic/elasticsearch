@@ -104,14 +104,13 @@ import static com.carrotsearch.randomizedtesting.RandomizedTest.systemPropertyAs
 import static junit.framework.Assert.fail;
 import static org.apache.lucene.util.LuceneTestCase.rarely;
 import static org.apache.lucene.util.LuceneTestCase.usually;
-import static org.elasticsearch.common.settings.ImmutableSettings.EMPTY;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 import static org.elasticsearch.test.ElasticsearchTestCase.assertBusy;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.hamcrest.Matchers.equalTo;
-import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertThat;
 
 /**
  * InternalTestCluster manages a set of JVM private nodes and allows convenient access to them.
@@ -155,7 +154,7 @@ public final class InternalTestCluster extends TestCluster {
 
     static final boolean DEFAULT_ENABLE_RANDOM_BENCH_NODES = true;
 
-    static final String NODE_MODE = nodeMode();
+    public static final String NODE_MODE = nodeMode();
 
     /* sorted map to make traverse order reproducible, concurrent since we do checks on it not within a sync block */
     private final NavigableMap<String, NodeAndClient> nodes = new TreeMap<>();

@@ -146,6 +146,13 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
         this.nodesProvider = nodesProvider;
     }
 
+    /**
+     * Clears the list of cached ping responses.
+     */
+    public void clearTemporalReponses() {
+        temporalResponses.clear();
+    }
+
     public PingResponse[] pingAndWait(TimeValue timeout) {
         final AtomicReference<PingResponse[]> response = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(1);

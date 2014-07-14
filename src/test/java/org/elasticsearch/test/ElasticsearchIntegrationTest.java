@@ -1120,7 +1120,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
 
     /**
      * Indexes the given {@link IndexRequestBuilder} instances randomly. It shuffles the given builders and either
-     * indexes they in a blocking or async fashion. This is very useful to catch problems that relate to internal document
+     * indexes them in a blocking or async fashion. This is very useful to catch problems that relate to internal document
      * ids or index segment creations. Some features might have bug when a given document is the first or the last in a
      * segment or if only one document is in a segment etc. This method prevents issues like this by randomizing the index
      * layout.
@@ -1143,7 +1143,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      * layout.
      *
      * @param forceRefresh   if <tt>true</tt> all involved indices are refreshed once the documents are indexed.
-     * @param dummyDocuments if <tt>true</tt> some empty dummy documents are may be randomly inserted into the document list and deleted once
+     * @param dummyDocuments if <tt>true</tt> some empty dummy documents may be randomly inserted into the document list and deleted once
      *                       all documents are indexed. This is useful to produce deleted documents on the server side.
      * @param builders       the documents to index.
      */

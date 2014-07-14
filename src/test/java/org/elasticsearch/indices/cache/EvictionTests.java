@@ -111,7 +111,7 @@ public class EvictionTests extends ElasticsearchIntegrationTest {
 
         //Should be no evictions to start
         for (NodeStats n : nodesStats.getNodes()) {
-            EvictionStats ev = n.getIndices().getFieldData().getEvictionStats();
+            EvictionStats ev = n.getIndices().getFilterCache().getEvictionStats();
             assertThat(ev.getEvictions(), equalTo(0l));
             assertThat(ev.getEvictionsOneMinuteRate(), equalTo(0D));
             assertThat(ev.getEvictionsFiveMinuteRate(), equalTo(0D));

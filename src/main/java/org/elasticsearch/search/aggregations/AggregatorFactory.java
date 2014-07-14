@@ -82,6 +82,7 @@ public abstract class AggregatorFactory {
      * @return                      The created aggregator
      */
     protected abstract Aggregator createInternal(AggregationContext context, Aggregator parent, long expectedBucketsCount);
+
     public Aggregator create(AggregationContext context, Aggregator parent, long expectedBucketsCount) {
         Aggregator aggregator = createInternal(context, parent, expectedBucketsCount);
         aggregator.setMetaData(this.metaData);

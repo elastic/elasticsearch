@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.IntIntMap;
 import com.carrotsearch.hppc.IntIntOpenHashMap;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -37,6 +38,8 @@ import sun.security.util.BigInt;
 
 import java.math.BigInteger;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
@@ -51,11 +54,7 @@ import static org.hamcrest.core.IsNull.notNullValue;
 public class MetaDataTests extends ElasticsearchIntegrationTest {
 
     /**
-     * Making sure that if there are multiple aggregations, working on the same field, yet require different
-     * value source type, they can all still work. It used to fail as we used to cache the ValueSource by the
-     * field name. If the cached value source was of type "bytes" and another aggregation on the field required to see
-     * it as "numeric", it didn't work. Now we cache the Value Sources by a custom key (field name + ValueSource type)
-     * so there's no conflict there.
+
      */
     @Test
     public void meta_data_set_on_aggregation_result() throws Exception {
@@ -85,19 +84,32 @@ public class MetaDataTests extends ElasticsearchIntegrationTest {
         indexRandom(true, builders);
         ensureSearchable();
 
-        Integer missingValueMetaData = 1;
+        Map<String, Object> metaData = new HashMap<String, Object>() {{
+            put("key", "value");
+            put("numeric", 1.2);
+        }};
+
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(missing("missing_values").field("value").setMetaData(missingValueMetaData))
+                .addAggregation(missing("missing_values")
+                .field("value")
+                .setMetaData(metaData))
                 .execute().actionGet();
 
         assertSearchResponse(response);
 
         Aggregations aggs = response.getAggregations();
+        assertNotNull(aggs);
 
         Missing missing = aggs.get("missing_values");
         assertNotNull(missing);
         assertThat(missing.getDocCount(), equalTo(missingValues));
-        assertNotNull(missing.getMetaData());
+
+        Map<String, Object> returnedMetaData = missing.getMetaData();
+        assertNotNull(returnedMetaData);
+        assertEquals(2, returnedMetaData.size());
+        assertEquals("value", returnedMetaData.get("key"));
+        assertEquals(1.2, returnedMetaData.get("numeric"));
+
     }
 
 

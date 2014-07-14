@@ -270,9 +270,7 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
     public void setMetaData(byte[] metaData) {
         this.metaData = metaData;
     }
-    public byte[] metaData() {
-        return this.metaData;
-    }
+
     /**
      * @return  The name of the aggregation.
      */

@@ -136,8 +136,7 @@ public class InternalPercentiles extends InternalNumericMetricsAggregation.Multi
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        this.startAggregationObject(builder);
+    protected void doXContentBody(XContentBuilder builder, Params params) throws IOException {
         if (keyed) {
             builder.startObject(CommonFields.VALUES);
             for(int i = 0; i < percents.length; ++i) {
@@ -163,8 +162,6 @@ public class InternalPercentiles extends InternalNumericMetricsAggregation.Multi
             }
             builder.endArray();
         }
-        builder.endObject();
-        return builder;
     }
 
     public static class Iter extends UnmodifiableIterator<Percentiles.Percentile> {

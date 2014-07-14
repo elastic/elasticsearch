@@ -40,7 +40,7 @@ public abstract class AggregationBuilder<B extends AggregationBuilder<B>> extend
     private List<AbstractAggregationBuilder> aggregations;
     private BytesReference aggregationsBinary;
 
-    private Object metaData;
+    private Map<String, Object> metaData;
 
     protected AggregationBuilder(String name, String type) {
         super(name, type);
@@ -104,7 +104,7 @@ public abstract class AggregationBuilder<B extends AggregationBuilder<B>> extend
     /**
      *
      */
-    public B setMetaData(Object metaData) {
+    public B setMetaData(Map<String, Object> metaData) {
         this.metaData = metaData;
         return (B)this;
     }

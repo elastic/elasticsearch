@@ -108,15 +108,12 @@ public class InternalMin extends InternalNumericMetricsAggregation.SingleValue i
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        this.startAggregationObject(builder);
+    protected void doXContentBody(XContentBuilder builder, Params params) throws IOException {
         boolean hasValue = !Double.isInfinite(min);
         builder.field(CommonFields.VALUE, hasValue ? min : null);
         if (hasValue && valueFormatter != null) {
             builder.field(CommonFields.VALUE_AS_STRING, valueFormatter.format(min));
         }
-        builder.endObject();
-        return builder;
     }
 
 }

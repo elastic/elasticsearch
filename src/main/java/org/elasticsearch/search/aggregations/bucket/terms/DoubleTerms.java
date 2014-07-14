@@ -191,8 +191,7 @@ public class DoubleTerms extends InternalTerms {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        this.startAggregationObject(builder);
+    protected void doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.startArray(CommonFields.BUCKETS);
         for (InternalTerms.Bucket bucket : buckets) {
             builder.startObject();
@@ -205,8 +204,6 @@ public class DoubleTerms extends InternalTerms {
             builder.endObject();
         }
         builder.endArray();
-        builder.endObject();
-        return builder;
     }
 
 }

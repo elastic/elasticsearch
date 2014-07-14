@@ -20,6 +20,7 @@ package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -28,6 +29,7 @@ import org.elasticsearch.common.xcontent.*;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 /**
  * An internal implementation of {@link Aggregation}. Serves as a base class for all aggregation implementations.
@@ -126,8 +128,12 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
         this.metaData = metaData;
     }
 
-    public byte[] getMetaData() {
-        return this.metaData;
+    public Map<String, Object> getMetaData() {
+        if (this.metaData == null) {
+            return null;
+        }
+        Tuple<XContentType,Map<String,Object>> mapTuple = XContentHelper.convertToMap(this.metaData, false);
+        return mapTuple.v2();
     }
     /**
      * @return The {@link Type} of this aggregation
@@ -160,17 +166,19 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
         out.writeVInt(size);
     }
 
-    /**
-     * Writes the opening of the aggregation result optionally with metaData property
-     */
-    protected void startAggregationObject(XContentBuilder builder) throws IOException {
+    public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
         if (this.metaData != null) {
             XContentParser parser = XContentHelper.createParser(new BytesArray(this.metaData));
             builder.field(CommonFields.META);
             builder.copyCurrentStructure(parser);
         }
+
+        doXContentBody(builder, params);
+
+        return builder.endObject();
     }
+    protected abstract void doXContentBody(XContentBuilder builder, Params params) throws IOException;
 
     /**
      * Common xcontent fields that are shared among addAggregation

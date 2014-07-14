@@ -135,8 +135,7 @@ public class SignificantStringTerms extends InternalSignificantTerms {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        this.startAggregationObject(builder);
+    protected void doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field("doc_count", subsetSize);
         builder.startArray(CommonFields.BUCKETS);
         for (InternalSignificantTerms.Bucket bucket : buckets) {
@@ -153,8 +152,6 @@ public class SignificantStringTerms extends InternalSignificantTerms {
             }
         }
         builder.endArray();
-        builder.endObject();
-        return builder;
     }
 
 }

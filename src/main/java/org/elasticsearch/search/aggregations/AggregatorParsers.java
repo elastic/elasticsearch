@@ -141,8 +141,10 @@ public class AggregatorParsers {
             if (factory == null) {
                 throw new SearchParseException(context, "Missing definition for aggregation [" + aggregationName + "]");
             }
-            if (metaData != null)
+
+            if (metaData != null) {
                 factory.setMetaData(metaData);
+            }
 
             if (subFactories != null) {
                 factory.subFactories(subFactories);

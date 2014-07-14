@@ -274,8 +274,7 @@ public class InternalGeoHashGrid extends InternalAggregation implements GeoHashG
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        this.startAggregationObject(builder);
+    protected void doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.startArray(CommonFields.BUCKETS);
         for (Bucket bucket : buckets) {
             builder.startObject();
@@ -285,8 +284,6 @@ public class InternalGeoHashGrid extends InternalAggregation implements GeoHashG
             builder.endObject();
         }
         builder.endArray();
-        builder.endObject();
-        return builder;
     }
 
     static class BucketPriorityQueue extends PriorityQueue<Bucket> {

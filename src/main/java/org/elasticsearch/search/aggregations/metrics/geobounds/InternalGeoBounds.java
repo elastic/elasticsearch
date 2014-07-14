@@ -105,8 +105,7 @@ public class InternalGeoBounds extends InternalMetricsAggregation implements Geo
     }
     
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        this.startAggregationObject(builder);
+    protected void doXContentBody(XContentBuilder builder, Params params) throws IOException {
         GeoPoint topLeft = topLeft();
         GeoPoint bottomRight = bottomRight();
         if (topLeft != null) {
@@ -121,7 +120,6 @@ public class InternalGeoBounds extends InternalMetricsAggregation implements Geo
             builder.endObject();
             builder.endObject();
         }
-        return builder.endObject();
     }
 
     @Override

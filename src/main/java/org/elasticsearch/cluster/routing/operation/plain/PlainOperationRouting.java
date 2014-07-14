@@ -203,25 +203,21 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
                 }
             }
             preferenceType = Preference.parse(preference);
-            if (preferenceType == Preference.PREFER_NODE) {
-                return indexShard.preferNodeActiveInitializingShardsIt(preference.substring(Preference.PREFER_NODE.type().length() + 1));
-            }
-            if (preferenceType == Preference.LOCAL) {
-                return indexShard.preferNodeActiveInitializingShardsIt(localNodeId);
-            }
-            if (preferenceType == Preference.PRIMARY) {
-                return indexShard.primaryActiveInitializingShardIt();
-            }
-            if (preferenceType == Preference.PRIMARY_FIRST) {
-                return indexShard.primaryFirstActiveInitializingShardsIt();
-            }
-            if (preferenceType == Preference.ONLY_LOCAL) {
-                return indexShard.onlyNodeActiveInitializingShardsIt(localNodeId);
-            }
-            if (preferenceType == Preference.ONLY_NODE) {
-                String nodeId = preference.substring(Preference.ONLY_NODE.type().length() + 1);
-                ensureNodeIdExists(nodes, nodeId);
-                return indexShard.onlyNodeActiveInitializingShardsIt(nodeId);
+            switch (preferenceType) {
+                case PREFER_NODE:
+                    return indexShard.preferNodeActiveInitializingShardsIt(preference.substring(Preference.PREFER_NODE.type().length() + 1));
+                case LOCAL:
+                    return indexShard.preferNodeActiveInitializingShardsIt(localNodeId);
+                case PRIMARY:
+                    return indexShard.primaryActiveInitializingShardIt();
+                case PRIMARY_FIRST:
+                    return indexShard.primaryFirstActiveInitializingShardsIt();
+                case ONLY_LOCAL:
+                    return indexShard.onlyNodeActiveInitializingShardsIt(localNodeId);
+                case ONLY_NODE:
+                    String nodeId = preference.substring(Preference.ONLY_NODE.type().length() + 1);
+                    ensureNodeIdExists(nodes, nodeId);
+                    return indexShard.onlyNodeActiveInitializingShardsIt(nodeId);
             }
         }
         // if not, then use it as the index

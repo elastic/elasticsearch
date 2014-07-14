@@ -206,7 +206,7 @@ public class GetIndexedScriptRequest extends SingleShardOperationRequest<GetInde
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        scriptLang = in.readSharedString();
+        scriptLang = in.readString();
         id = in.readString();
         preference = in.readOptionalString();
         refresh = in.readBoolean();
@@ -226,7 +226,7 @@ public class GetIndexedScriptRequest extends SingleShardOperationRequest<GetInde
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeSharedString(scriptLang);
+        out.writeString(scriptLang);
         out.writeString(id);
         out.writeOptionalString(preference);
         out.writeBoolean(refresh);

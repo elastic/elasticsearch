@@ -20,27 +20,17 @@ package org.elasticsearch.rest.action.script;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptRequest;
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.TemplateQueryParser;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
-import org.elasticsearch.script.CompiledScript;
-import org.elasticsearch.script.ScriptService;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
@@ -50,8 +40,6 @@ import static org.elasticsearch.rest.RestStatus.*;
  *
  */
 public class RestPutIndexedScriptAction extends BaseRestHandler {
-
-    private ScriptService scriptService = null;
 
     @Inject
     public RestPutIndexedScriptAction(Settings settings, Client client, RestController controller) {
@@ -63,11 +51,6 @@ public class RestPutIndexedScriptAction extends BaseRestHandler {
 
         controller.registerHandler(PUT, "/_search/script/{lang}/{id}/_create", new CreateHandler(settings, client));
         controller.registerHandler(POST, "/_search/script/{lang}/{id}/_create", new CreateHandler(settings, client));
-    }
-
-    @Inject
-    public void setScriptService(ScriptService scriptService){
-        this.scriptService = scriptService;
     }
 
     final class CreateHandler extends BaseRestHandler {

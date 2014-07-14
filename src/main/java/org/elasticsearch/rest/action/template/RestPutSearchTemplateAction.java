@@ -20,29 +20,20 @@ package org.elasticsearch.rest.action.template;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptRequest;
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.TemplateQueryParser;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
-import org.elasticsearch.script.CompiledScript;
-import org.elasticsearch.script.ScriptService;
 
 import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
-import static org.elasticsearch.rest.RestStatus.CONFLICT;
 import static org.elasticsearch.rest.RestStatus.CREATED;
 import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
@@ -51,12 +42,6 @@ import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
  *
  */
 public class RestPutSearchTemplateAction extends BaseRestHandler {
-    private ScriptService scriptService = null;
-
-    @Inject
-    public void setScriptService(ScriptService scriptService){
-        this.scriptService = scriptService;
-    }
 
     @Inject
     public RestPutSearchTemplateAction(Settings settings, Client client, RestController controller) {

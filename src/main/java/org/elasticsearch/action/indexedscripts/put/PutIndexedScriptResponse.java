@@ -90,7 +90,7 @@ public class PutIndexedScriptResponse extends ActionResponse {
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         index = ScriptService.SCRIPT_INDEX;
-        scriptLang = in.readSharedString();
+        scriptLang = in.readString();
         id = in.readString();
         version = in.readLong();
         created = in.readBoolean();
@@ -99,7 +99,7 @@ public class PutIndexedScriptResponse extends ActionResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeSharedString(scriptLang);
+        out.writeString(scriptLang);
         out.writeString(id);
         out.writeLong(version);
         out.writeBoolean(created);

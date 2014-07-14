@@ -35,7 +35,8 @@ import org.elasticsearch.transport.TransportService;
 public abstract class HandledTransportAction<Request extends ActionRequest, Response extends ActionResponse> extends TransportAction<Request,Response>{
 
     /**
-     * Sub classes implement this
+     * Sub classes implement this call to get new instance of a Request object
+     * @return Request
      */
     public abstract Request newRequestInstance();
 
@@ -52,8 +53,12 @@ public abstract class HandledTransportAction<Request extends ActionRequest, Resp
 
 
     private abstract class TransportHandler extends BaseTransportRequestHandler<Request>{
-        String actionName;
+        private final String actionName;
 
+        /**
+         * Call to get an instance of type Request
+         * @return Request
+         */
         public abstract Request newInstance();
 
         private TransportHandler(){
@@ -61,7 +66,7 @@ public abstract class HandledTransportAction<Request extends ActionRequest, Resp
         }
 
 
-        TransportHandler(String actionName){
+        private TransportHandler(String actionName){
             this.actionName = actionName;
         }
 

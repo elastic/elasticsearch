@@ -109,6 +109,40 @@ curl -XPOST 'localhost:9200/test/type1/1/_update' -d '{
 If both `doc` and `script` is specified, then `doc` is ignored. Best is
 to put your field pairs of the partial document in the script itself.
 
+By default if `doc` is specified then the document is always updated even
+if the merging process doesn't cause any changes.  Specifying `detect_noop`
+as `true` will cause Elasticsearch to check if there are changes and, if
+there aren't, turn the update request into a noop. For example:
+[source,js]
+--------------------------------------------------
+curl -XPOST 'localhost:9200/test/type1/1/_update' -d '{
+    "doc" : {
+        "name" : "new_name"
+    },
+    "detect_noop": true
+}'
+--------------------------------------------------
+
+`detect_noop` can also be set to an object, in that case it contains
+tolerances:
+[source,js]
+--------------------------------------------------
+curl -XPOST 'localhost:9200/test/type1/1/_update' -d '{
+    "doc" : {
+        "foo" : 10,
+        "bar" : {
+            "baz": 1
+        }
+    },
+    "detect_noop": {
+        "foo": "10%",
+        "bar.baz": 2.6
+    }
+}'
+--------------------------------------------------
+This will only update the index if either `foo` is not within 10% of
+current value or `bar.baz` is not within 2.6 if its old value.
+
 There is also support for `upsert`. If the document does
 not already exists, the content of the `upsert` element will be used to
 index the fresh doc:

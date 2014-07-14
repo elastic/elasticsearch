@@ -141,7 +141,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         Store.MetadataSnapshot metadata = store.getMetadata();
         assertThat(metadata.asMap().isEmpty(), is(true));   // nothing committed
 
-        writer.commit();
+        writer.close();
         Store.LegacyChecksums checksums = new Store.LegacyChecksums();
         Map<String, StoreFileMetaData> legacyMeta = new HashMap<>();
         for (String file : store.directory().listAll()) {
@@ -166,7 +166,6 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
             assertTrue(stringStoreFileMetaDataMap.containsKey(meta.name()));
             assertTrue(stringStoreFileMetaDataMap.get(meta.name()).isSame(meta));
         }
-        writer.close();
         assertDeleteContent(store, directoryService);
         IOUtils.close(store);
 

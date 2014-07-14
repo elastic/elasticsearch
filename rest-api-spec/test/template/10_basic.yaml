@@ -10,7 +10,7 @@
   - do:
      indexed_template.get:
        id: 1
-  - match: { template: "{\"query\":{\"match_all\":{}},\"size\":\"{{my_size}}\"}"}
+  - match: { template: /.*query\S\S\S\Smatch_all.*/ }
 
 
   - do:

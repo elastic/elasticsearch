@@ -234,7 +234,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             if (indexingBufferSize == Engine.INACTIVE_SHARD_INDEXING_BUFFER && preValue != Engine.INACTIVE_SHARD_INDEXING_BUFFER) {
                 logger.debug("updating index_buffer_size from [{}] to (inactive) [{}]", preValue, indexingBufferSize);
                 try {
-                    flush(new Flush().type(Flush.Type.NEW_WRITER));
+                    flush(new Flush().type(Flush.Type.COMMIT));
                 } catch (EngineClosedException e) {
                     // ignore
                 } catch (FlushNotAllowedEngineException e) {

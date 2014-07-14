@@ -22,12 +22,14 @@ package org.elasticsearch.index.fielddata;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsBuilder;
@@ -43,6 +45,9 @@ import org.elasticsearch.indices.fielddata.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCacheListener;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 
@@ -133,6 +138,7 @@ public class IndexFieldDataService extends AbstractIndexComponent {
 
     private final IndicesFieldDataCache indicesFieldDataCache;
     private final ConcurrentMap<String, IndexFieldData<?>> loadedFieldData = ConcurrentCollections.newConcurrentMap();
+    private final KeyedLock.GlobalLockable<String> fieldLoadingLock = new KeyedLock.GlobalLockable<>();
     private final Map<String, IndexFieldDataCache> fieldDataCaches = Maps.newHashMap(); // no need for concurrency support, always used under lock
 
     IndexService indexService;
@@ -162,36 +168,67 @@ public class IndexFieldDataService extends AbstractIndexComponent {
     }
 
     public void clear() {
-        synchronized (loadedFieldData) {
-            for (IndexFieldData<?> fieldData : loadedFieldData.values()) {
-                fieldData.clear();
+        fieldLoadingLock.globalLock().lock();
+        try {
+            List<Throwable> exceptions = new ArrayList<>(0);
+            final Collection<IndexFieldData<?>> fieldDataValues = loadedFieldData.values();
+            for (IndexFieldData<?> fieldData : fieldDataValues) {
+                try {
+                    fieldData.clear();
+                } catch (Throwable t) {
+                    exceptions.add(t);
+                }
             }
-            loadedFieldData.clear();
-            for (IndexFieldDataCache cache : fieldDataCaches.values()) {
-                cache.clear();
+            fieldDataValues.clear();
+            final Collection<IndexFieldDataCache> fieldDataCacheValues = fieldDataCaches.values();
+            for (IndexFieldDataCache cache : fieldDataCacheValues) {
+                try {
+                    cache.clear();
+                } catch (Throwable t) {
+                    exceptions.add(t);
+                }
             }
-            fieldDataCaches.clear();
+            fieldDataCacheValues.clear();
+            ExceptionsHelper.maybeThrowRuntimeAndSuppress(exceptions);
+        } finally {
+            fieldLoadingLock.globalLock().unlock();
         }
     }
 
-    public void clearField(String fieldName) {
-        synchronized (loadedFieldData) {
-            IndexFieldData<?> fieldData = loadedFieldData.remove(fieldName);
+    public void clearField(final String fieldName) {
+        fieldLoadingLock.acquire(fieldName);
+        try {
+            List<Throwable> exceptions = new ArrayList<>(0);
+            final IndexFieldData<?> fieldData = loadedFieldData.remove(fieldName);
             if (fieldData != null) {
-                fieldData.clear();
+                try {
+                    fieldData.clear();
+                } catch (Throwable t) {
+                    exceptions.add(t);
+                }
             }
-            IndexFieldDataCache cache = fieldDataCaches.remove(fieldName);
+            final IndexFieldDataCache cache = fieldDataCaches.remove(fieldName);
             if (cache != null) {
-                cache.clear();
+                try {
+                    cache.clear();
+                } catch (Throwable t) {
+                    exceptions.add(t);
+                }
             }
+            ExceptionsHelper.maybeThrowRuntimeAndSuppress(exceptions);
+        } finally {
+            fieldLoadingLock.release(fieldName);
         }
     }
 
     public void onMappingUpdate() {
         // synchronize to make sure to not miss field data instances that are being loaded
-        synchronized (loadedFieldData) {
+        fieldLoadingLock.globalLock().lock();
+        try {
             // important: do not clear fieldDataCaches: the cache may be reused
             loadedFieldData.clear();
+        } finally {
+            fieldLoadingLock.globalLock().unlock();
         }
     }
 
@@ -203,10 +240,12 @@ public class IndexFieldDataService extends AbstractIndexComponent {
             throw new ElasticsearchIllegalArgumentException("found no fielddata type for field [" + fieldNames.fullName() + "]");
         }
         final boolean docValues = mapper.hasDocValues();
-        IndexFieldData<?> fieldData = loadedFieldData.get(fieldNames.indexName());
+        final String key = fieldNames.indexName();
+        IndexFieldData<?> fieldData = loadedFieldData.get(key);
         if (fieldData == null) {
-            synchronized (loadedFieldData) {
-                fieldData = loadedFieldData.get(fieldNames.indexName());
+            fieldLoadingLock.acquire(key);
+            try {
+                fieldData = loadedFieldData.get(key);
                 if (fieldData == null) {
                     IndexFieldData.Builder builder = null;
                     String format = type.getFormat(indexSettings);
@@ -251,8 +290,10 @@ public class IndexFieldDataService extends AbstractIndexComponent {
 
                     GlobalOrdinalsBuilder globalOrdinalBuilder = new InternalGlobalOrdinalsBuilder(index(), indexSettings);
                     fieldData = builder.build(index, indexSettings, mapper, cache, circuitBreakerService, indexService.mapperService(), globalOrdinalBuilder);
-                    loadedFieldData.put(fieldNames.indexName(), fieldData);
+                    loadedFieldData.put(key, fieldData);
                 }
+            } finally {
+                fieldLoadingLock.release(key);
             }
         }
         return (IFD) fieldData;

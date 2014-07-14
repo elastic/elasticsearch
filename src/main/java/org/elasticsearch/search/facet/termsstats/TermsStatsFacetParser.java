@@ -27,6 +27,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.FacetParser;
@@ -71,6 +72,7 @@ public class TermsStatsFacetParser extends AbstractComponent implements FacetPar
         TermsStatsFacet.ComparatorType comparatorType = TermsStatsFacet.ComparatorType.COUNT;
         String scriptLang = null;
         String script = null;
+        ScriptService.ScriptType scriptType = null;
         Map<String, Object> params = null;
 
         String currentFieldName = null;
@@ -85,12 +87,19 @@ public class TermsStatsFacetParser extends AbstractComponent implements FacetPar
             } else if (token.isValue()) {
                 if ("key_field".equals(currentFieldName) || "keyField".equals(currentFieldName)) {
                     keyField = parser.text();
+                } else if (ScriptService.VALUE_SCRIPT_INLINE.match(currentFieldName) || ScriptService.SCRIPT_INLINE.match(currentFieldName)) {
+                    script = parser.text();
+                    scriptType = ScriptService.ScriptType.INLINE;
+                } else if (ScriptService.VALUE_SCRIPT_ID.match(currentFieldName)) {
+                    script = parser.text();
+                    scriptType = ScriptService.ScriptType.INDEXED;
+                } else if (ScriptService.VALUE_SCRIPT_FILE.match(currentFieldName)) {
+                    script = parser.text();
+                    scriptType = ScriptService.ScriptType.FILE;
+                } else if (ScriptService.SCRIPT_LANG.match(currentFieldName)) {
+                    scriptLang = parser.text();
                 } else if ("value_field".equals(currentFieldName) || "valueField".equals(currentFieldName)) {
                     valueField = parser.text();
-                } else if ("script_field".equals(currentFieldName) || "scriptField".equals(currentFieldName)) {
-                    script = parser.text();
-                } else if ("value_script".equals(currentFieldName) || "valueScript".equals(currentFieldName)) {
-                    script = parser.text();
                 } else if ("size".equals(currentFieldName)) {
                     size = parser.intValue();
                 } else if ("shard_size".equals(currentFieldName) || "shardSize".equals(currentFieldName)) {
@@ -101,8 +110,6 @@ public class TermsStatsFacetParser extends AbstractComponent implements FacetPar
                     }
                 } else if ("order".equals(currentFieldName) || "comparator".equals(currentFieldName)) {
                     comparatorType = TermsStatsFacet.ComparatorType.fromString(parser.text());
-                } else if ("lang".equals(currentFieldName)) {
-                    scriptLang = parser.text();
                 }
             }
         }
@@ -135,7 +142,7 @@ public class TermsStatsFacetParser extends AbstractComponent implements FacetPar
             }
             valueIndexFieldData = context.fieldData().getForField(fieldMapper);
         } else {
-            valueScript = context.scriptService().search(context.lookup(), scriptLang, script, params);
+            valueScript = context.scriptService().search(context.lookup(), scriptLang, script, scriptType, params);
         }
 
         if (keyIndexFieldData instanceof IndexNumericFieldData) {

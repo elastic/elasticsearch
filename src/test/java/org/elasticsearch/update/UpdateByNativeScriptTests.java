@@ -58,7 +58,7 @@ public class UpdateByNativeScriptTests extends ElasticsearchIntegrationTest {
 
         Map<String, Object> params = Maps.newHashMap();
         params.put("foo", "SETVALUE");
-        client().prepareUpdate("test", "type", "1").setScript("custom").setScriptLang("native").setScriptParams(params).get();
+        client().prepareUpdate("test", "type", "1").setInlineScript("custom").setScriptLang("native").setScriptParams(params).get();
 
         Map<String, Object> data = client().prepareGet("test", "type", "1").get().getSource();
         assertThat(data, hasKey("foo"));

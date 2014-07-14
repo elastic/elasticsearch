@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest.action.index;
 
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
@@ -85,14 +86,12 @@ public class RestIndexAction extends BaseRestHandler {
         indexRequest.versionType(VersionType.fromString(request.param("version_type"), indexRequest.versionType()));
         String sOpType = request.param("op_type");
         if (sOpType != null) {
-            if ("index".equals(sOpType)) {
-                indexRequest.opType(IndexRequest.OpType.INDEX);
-            } else if ("create".equals(sOpType)) {
-                indexRequest.opType(IndexRequest.OpType.CREATE);
-            } else {
+            try {
+                indexRequest.opType(IndexRequest.OpType.fromString(sOpType));
+            } catch (ElasticsearchIllegalArgumentException eia){
                 try {
                     XContentBuilder builder = channel.newBuilder();
-                    channel.sendResponse(new BytesRestResponse(BAD_REQUEST, builder.startObject().field("error", "opType [" + sOpType + "] not allowed, either [index] or [create] are allowed").endObject()));
+                    channel.sendResponse(new BytesRestResponse(BAD_REQUEST, builder.startObject().field("error", eia.getMessage()).endObject()));
                 } catch (IOException e1) {
                     logger.warn("Failed to send response", e1);
                     return;

@@ -75,10 +75,9 @@ public class SignificantLongTermsAggregator extends LongTermsAggregator {
             spare.subsetSize = subsetSize;
             spare.supersetDf = termsAggFactory.getBackgroundFrequency(spare.term);
             spare.supersetSize = supersetSize;
-            assert spare.subsetDf <= spare.supersetDf;
             // During shard-local down-selection we use subset/superset stats that are for this shard only
             // Back at the central reducer these properties will be updated with global stats
-            spare.updateScore();
+            spare.updateScore(termsAggFactory.getSignificanceHeuristic());
 
             spare.bucketOrd = i;
             if (spare.subsetDf >= bucketCountThresholds.getShardMinDocCount()) {
@@ -92,7 +91,7 @@ public class SignificantLongTermsAggregator extends LongTermsAggregator {
             bucket.aggregations = bucketAggregations(bucket.bucketOrd);
             list[i] = bucket;
         }
-        return new SignificantLongTerms(subsetSize, supersetSize, name, formatter, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), Arrays.asList(list));
+        return new SignificantLongTerms(subsetSize, supersetSize, name, formatter, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), termsAggFactory.getSignificanceHeuristic(), Arrays.asList(list));
     }
 
     @Override
@@ -101,7 +100,7 @@ public class SignificantLongTermsAggregator extends LongTermsAggregator {
         ContextIndexSearcher searcher = context.searchContext().searcher();
         IndexReader topReader = searcher.getIndexReader();
         int supersetSize = topReader.numDocs();
-        return new SignificantLongTerms(0, supersetSize, name, formatter, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), Collections.<InternalSignificantTerms.Bucket>emptyList());
+        return new SignificantLongTerms(0, supersetSize, name, formatter, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), termsAggFactory.getSignificanceHeuristic(), Collections.<InternalSignificantTerms.Bucket>emptyList());
     }
 
     @Override

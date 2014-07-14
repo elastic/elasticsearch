@@ -59,7 +59,7 @@ public class MockTransportService extends TransportService {
      * Clears the rule associated with the provided node.
      */
     public void clearRule(DiscoveryNode node) {
-        transport().transports.remove(node);
+        transport().transports.remove(node.getAddress());
     }
 
     /**
@@ -97,7 +97,7 @@ public class MockTransportService extends TransportService {
      */
     public void addFailToSendNoConnectRule(DiscoveryNode node, final Set<String> blockedActions) {
 
-        ((LookupTestTransport) transport).transports.put(node, new DelegateTransport(original) {
+        ((LookupTestTransport) transport).transports.put(node.getAddress(), new DelegateTransport(original) {
             @Override
             public void connectToNode(DiscoveryNode node) throws ConnectTransportException {
                 original.connectToNode(node);
@@ -148,7 +148,7 @@ public class MockTransportService extends TransportService {
      * @return <tt>true</tt> iff no other delegate was registered for this node before, otherwise <tt>false</tt>
      */
     public boolean addDelegate(DiscoveryNode node, DelegateTransport transport) {
-        return transport().transports.put(node, transport) == null;
+        return transport().transports.put(node.getAddress(), transport) == null;
     }
 
     private LookupTestTransport transport() {
@@ -161,18 +161,17 @@ public class MockTransportService extends TransportService {
      */
     private static class LookupTestTransport extends DelegateTransport {
 
-        final ConcurrentMap<DiscoveryNode, Transport> transports = ConcurrentCollections.newConcurrentMap();
+        final ConcurrentMap<TransportAddress, Transport> transports = ConcurrentCollections.newConcurrentMap();
 
         LookupTestTransport(Transport transport) {
             super(transport);
         }
 
         private Transport getTransport(DiscoveryNode node) {
-            Transport transport = transports.get(node);
+            Transport transport = transports.get(node.getAddress());
             if (transport != null) {
                 return transport;
             }
-            // TODO, if we miss on node by UID, we should have an option to lookup based on address?
             return this.transport;
         }
 

@@ -28,6 +28,7 @@ import org.elasticsearch.common.io.ThrowableObjectInputStream;
 import org.elasticsearch.common.io.stream.CachedStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
@@ -36,6 +37,7 @@ import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.channel.*;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
 
 /**
  * A handler (must be the last one!) that does size based frame decoding and forwards the actual message
@@ -122,7 +124,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
                 if (TransportStatus.isError(status)) {
                     handlerResponseError(wrappedStream, handler);
                 } else {
-                    handleResponse(wrappedStream, handler);
+                    handleResponse(ctx.getChannel(), wrappedStream, handler);
                 }
             } else {
                 // if its null, skip those bytes
@@ -140,8 +142,10 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
         wrappedStream.close();
     }
 
-    private void handleResponse(StreamInput buffer, final TransportResponseHandler handler) {
+    private void handleResponse(Channel channel, StreamInput buffer, final TransportResponseHandler handler) {
         final TransportResponse response = handler.newInstance();
+        response.remoteAddress(new InetSocketTransportAddress((InetSocketAddress) channel.getRemoteAddress()));
+        response.remoteAddress();
         try {
             response.readFrom(buffer);
         } catch (Throwable e) {
@@ -206,6 +210,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
                 throw new ActionNotFoundTransportException(action);
             }
             final TransportRequest request = handler.newInstance();
+            request.remoteAddress(new InetSocketTransportAddress((InetSocketAddress) channel.getRemoteAddress()));
             request.readFrom(buffer);
             if (handler.executor() == ThreadPool.Names.SAME) {
                 //noinspection unchecked

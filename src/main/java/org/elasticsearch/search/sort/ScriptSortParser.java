@@ -32,6 +32,7 @@ import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.query.ParsedFilter;
 import org.elasticsearch.index.search.nested.NestedFieldComparatorSource;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.internal.SearchContext;
@@ -61,6 +62,7 @@ public class ScriptSortParser implements SortParser {
 
         XContentParser.Token token;
         String currentName = parser.currentName();
+        ScriptService.ScriptType scriptType = ScriptService.ScriptType.INLINE;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentName = parser.currentName();
@@ -76,12 +78,19 @@ public class ScriptSortParser implements SortParser {
                     reverse = parser.booleanValue();
                 } else if ("order".equals(currentName)) {
                     reverse = "desc".equals(parser.text());
-                } else if ("script".equals(currentName)) {
+                } else if (ScriptService.SCRIPT_INLINE.match(currentName)) {
                     script = parser.text();
+                    scriptType = ScriptService.ScriptType.INLINE;
+                } else if (ScriptService.SCRIPT_ID.match(currentName)) {
+                    script = parser.text();
+                    scriptType = ScriptService.ScriptType.INDEXED;
+                } else if (ScriptService.SCRIPT_FILE.match(currentName)) {
+                    script = parser.text();
+                    scriptType = ScriptService.ScriptType.FILE;
+                } else if (ScriptService.SCRIPT_LANG.match(currentName)) {
+                    scriptLang = parser.text();
                 } else if ("type".equals(currentName)) {
                     type = parser.text();
-                } else if ("lang".equals(currentName)) {
-                    scriptLang = parser.text();
                 } else if ("mode".equals(currentName)) {
                     sortMode = MultiValueMode.fromString(parser.text());
                 } else if ("nested_path".equals(currentName) || "nestedPath".equals(currentName)) {
@@ -96,7 +105,7 @@ public class ScriptSortParser implements SortParser {
         if (type == null) {
             throw new SearchParseException(context, "_script sorting requires setting the type of the script");
         }
-        SearchScript searchScript = context.scriptService().search(context.lookup(), scriptLang, script, params);
+        SearchScript searchScript = context.scriptService().search(context.lookup(), scriptLang, script, scriptType, params);
         IndexFieldData.XFieldComparatorSource fieldComparatorSource;
         if ("string".equals(type)) {
             fieldComparatorSource = StringScriptDataComparator.comparatorSource(searchScript);

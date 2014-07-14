@@ -509,6 +509,11 @@ public class IndexMetaData {
             return this;
         }
 
+        public Builder removeAllAliases() {
+            aliases.clear();
+            return this;
+        }
+
         public Builder putCustom(String type, Custom customIndexMetaData) {
             this.customs.put(type, customIndexMetaData);
             return this;

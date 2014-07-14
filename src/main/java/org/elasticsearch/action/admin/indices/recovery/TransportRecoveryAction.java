@@ -157,7 +157,7 @@ public class TransportRecoveryAction extends
         RecoveryStatus recoveryStatus = indexShard.recoveryStatus();
 
         if (recoveryStatus == null) {
-            recoveryStatus = recoveryTarget.recoveryStatus(indexShard.shardId());
+            recoveryStatus = recoveryTarget.recoveryStatus(indexShard);
         }
 
         if (recoveryStatus != null) {

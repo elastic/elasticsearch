@@ -24,7 +24,6 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.*;
-import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
@@ -396,6 +395,10 @@ public class Lucene {
         return DirectoryReader.indexExists(directory);
     }
 
+    /**
+     * Returns <tt>true</tt> iff the given exception or
+     * one of it's causes is an instance of {@link CorruptIndexException} otherwise <tt>false</tt>.
+     */
     public static boolean isCorruptionException(Throwable t) {
         return ExceptionsHelper.unwrap(t, CorruptIndexException.class) != null;
     }

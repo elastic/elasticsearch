@@ -23,6 +23,7 @@ import com.google.common.base.Charsets;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.LockFactory;
+import org.apache.lucene.store.StoreRateLimiting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -109,5 +110,20 @@ public class MockFSDirectoryService extends FsDirectoryService {
         } catch (Exception e) {
             logger.warn("failed to check index", e);
         }
+    }
+
+    @Override
+    public void onPause(long nanos) {
+        delegateService.onPause(nanos);
+    }
+
+    @Override
+    public StoreRateLimiting rateLimiting() {
+        return delegateService.rateLimiting();
+    }
+
+    @Override
+    public long throttleTimeInNanos() {
+        return delegateService.throttleTimeInNanos();
     }
 }

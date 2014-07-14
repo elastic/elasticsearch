@@ -26,6 +26,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.action.support.single.instance.InstanceShardOperationRequest;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -36,6 +37,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.script.ScriptService;
 
 import java.io.IOException;
 import java.util.Map;
@@ -53,6 +55,8 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
 
     @Nullable
     String script;
+    @Nullable
+    ScriptService.ScriptType scriptType;
     @Nullable
     String scriptLang;
     @Nullable
@@ -191,6 +195,8 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         return this.script;
     }
 
+    public ScriptService.ScriptType scriptType() { return this.scriptType; }
+
     public Map<String, Object> scriptParams() {
         return this.scriptParams;
     }
@@ -199,10 +205,22 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
      * The script to execute. Note, make sure not to send different script each times and instead
      * use script params if possible with the same (automatically compiled) script.
      */
-    public UpdateRequest script(String script) {
+    public UpdateRequest script(String script, ScriptService.ScriptType scriptType) {
         this.script = script;
+        this.scriptType = scriptType;
         return this;
     }
+
+    /**
+     * The script to execute. Note, make sure not to send different script each times and instead
+     * use script params if possible with the same (automatically compiled) script.
+     */
+    public UpdateRequest script(String script) {
+        this.script = script;
+        this.scriptType = ScriptService.ScriptType.INLINE;
+        return this;
+    }
+
 
     /**
      * The language of the script to execute.
@@ -243,8 +261,9 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
      * The script to execute. Note, make sure not to send different script each times and instead
      * use script params if possible with the same (automatically compiled) script.
      */
-    public UpdateRequest script(String script, @Nullable Map<String, Object> scriptParams) {
+    public UpdateRequest script(String script, ScriptService.ScriptType scriptType, @Nullable Map<String, Object> scriptParams) {
         this.script = script;
+        this.scriptType = scriptType;
         if (this.scriptParams != null) {
             this.scriptParams.putAll(scriptParams);
         } else {
@@ -259,11 +278,13 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
      *
      * @param script       The script to execute
      * @param scriptLang   The script language
+     * @param scriptType   The script type
      * @param scriptParams The script parameters
      */
-    public UpdateRequest script(String script, @Nullable String scriptLang, @Nullable Map<String, Object> scriptParams) {
+    public UpdateRequest script(String script, @Nullable String scriptLang, ScriptService.ScriptType scriptType, @Nullable Map<String, Object> scriptParams) {
         this.script = script;
         this.scriptLang = scriptLang;
+        this.scriptType = scriptType;
         if (this.scriptParams != null) {
             this.scriptParams.putAll(scriptParams);
         } else {
@@ -589,6 +610,9 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         id = in.readString();
         routing = in.readOptionalString();
         script = in.readOptionalString();
+        if( Strings.hasLength(script)) {
+            scriptType = ScriptService.ScriptType.readFrom(in);
+        }
         scriptLang = in.readOptionalString();
         scriptParams = in.readMap();
         retryOnConflict = in.readVInt();
@@ -622,6 +646,9 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         out.writeString(id);
         out.writeOptionalString(routing);
         out.writeOptionalString(script);
+        if (script != null) {
+            ScriptService.ScriptType.writeTo(scriptType, out);
+        }
         out.writeOptionalString(scriptLang);
         out.writeMap(scriptParams);
         out.writeVInt(retryOnConflict);

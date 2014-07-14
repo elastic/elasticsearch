@@ -24,6 +24,7 @@ import com.carrotsearch.hppc.ObjectContainer;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
@@ -541,6 +542,18 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                     // cancel recovery just in case we are in recovery (its fine if we are not in recovery, it will be a noop).
                     recoveryTarget.cancelRecovery(indexShard);
                     indexService.removeShard(shardRouting.id(), "removing shard (different instance of it allocated on this node)");
+                } else if (isPeerRecovery(shardRouting)) {
+                    // check if there is an existing recovery going, and if so, and the source node is not the same, cancel the recovery to restart it
+                    RecoveryStatus recoveryStatus = recoveryTarget.recoveryStatus(indexShard);
+                    if (recoveryStatus != null && recoveryStatus.stage() != RecoveryState.Stage.DONE) {
+                        // we have an ongoing recovery, find the source based on current routing and compare them
+                        DiscoveryNode sourceNode = findSourceNodeForPeerRecovery(routingTable, nodes, shardRouting);
+                        if (!recoveryStatus.sourceNode().equals(sourceNode)) {
+                            logger.debug("[{}][{}] removing shard (recovery source changed), current [{}], global [{}])", shardRouting.index(), shardRouting.id(), currentRoutingEntry, shardRouting);
+                            recoveryTarget.cancelRecovery(indexShard);
+                            indexService.removeShard(shardRouting.id(), "removing shard (recovery source node changed)");
+                        }
+                    }
                 }
             }
 
@@ -630,33 +643,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
 
         // figure out where to recover from (node or disk, in which case sourceNode is null)
         DiscoveryNode sourceNode = null;
-        if (!shardRouting.primary()) {
-            IndexShardRoutingTable shardRoutingTable = routingTable.index(shardRouting.index()).shard(shardRouting.id());
-            for (ShardRouting entry : shardRoutingTable) {
-                if (entry.primary() && entry.started()) {
-                    // only recover from started primary, if we can't find one, we will do it next round
-                    sourceNode = nodes.get(entry.currentNodeId());
-                    if (sourceNode == null) {
-                        logger.trace("can't recover replica because primary shard {} is assigned to an unknown node. ignoring.", entry);
-                        return;
-                    }
-                    break;
-                }
-            }
-
-            if (sourceNode == null) {
-                logger.trace("can't recover replica for {} because a primary shard can not be found. ignoring.", shardRouting.shardId());
-                return;
-            }
-
-        } else if (shardRouting.relocatingNodeId() != null) {
-            sourceNode = nodes.get(shardRouting.relocatingNodeId());
-            if (sourceNode == null) {
-                logger.trace("can't recover from remote primary shard {} because it is assigned to an unknown node [{}]. ignoring.", shardRouting.shardId(), shardRouting.relocatingNodeId());
-                return;
-            }
+        if (isPeerRecovery(shardRouting)) {
+            sourceNode = findSourceNodeForPeerRecovery(routingTable, nodes, shardRouting);
         }
-
 
         // if there is no shard, create it
         if (!indexService.hasShard(shardId)) {
@@ -748,6 +737,45 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 }
             });
         }
+    }
+
+    /**
+     * Finds the routing source node for peer recovery, return null if its not found. Note, this method expects the shard
+     * routing to *require* peer recovery, use {@link #isPeerRecovery(org.elasticsearch.cluster.routing.ShardRouting)} to
+     * check if its needed or not.
+     */
+    private DiscoveryNode findSourceNodeForPeerRecovery(RoutingTable routingTable, DiscoveryNodes nodes, ShardRouting shardRouting) {
+        DiscoveryNode sourceNode = null;
+        if (!shardRouting.primary()) {
+            IndexShardRoutingTable shardRoutingTable = routingTable.index(shardRouting.index()).shard(shardRouting.id());
+            for (ShardRouting entry : shardRoutingTable) {
+                if (entry.primary() && entry.started()) {
+                    // only recover from started primary, if we can't find one, we will do it next round
+                    sourceNode = nodes.get(entry.currentNodeId());
+                    if (sourceNode == null) {
+                        logger.trace("can't find replica source node because primary shard {} is assigned to an unknown node. ignoring.", entry);
+                        return null;
+                    }
+                    break;
+                }
+            }
+
+            if (sourceNode == null) {
+                logger.trace("can't find replica source node for {} because a primary shard can not be found. ignoring.", shardRouting.shardId());
+            }
+        } else if (shardRouting.relocatingNodeId() != null) {
+            sourceNode = nodes.get(shardRouting.relocatingNodeId());
+            if (sourceNode == null) {
+                logger.trace("can't find relocation source node for shard {} because it is assigned to an unknown node [{}]. ignoring.", shardRouting.shardId(), shardRouting.relocatingNodeId());
+            }
+        } else {
+            throw new ElasticsearchIllegalStateException("trying to find source node for peer recovery when routing state means no peer recovery: " + shardRouting);
+        }
+        return sourceNode;
+    }
+
+    private boolean isPeerRecovery(ShardRouting shardRouting) {
+        return !shardRouting.primary() || shardRouting.relocatingNodeId() != null;
     }
 
     private class PeerRecoveryListener implements RecoveryTarget.RecoveryListener {

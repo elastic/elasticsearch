@@ -98,7 +98,7 @@ public class NoMasterNodeTests extends ElasticsearchIntegrationTest {
 
         long now = System.currentTimeMillis();
         try {
-            client().prepareUpdate("test", "type1", "1").setScript("test script").setTimeout(timeout).execute().actionGet();
+            client().prepareUpdate("test", "type1", "1").setInlineScript("test script").setTimeout(timeout).execute().actionGet();
             fail("Expected ClusterBlockException");
         } catch (ClusterBlockException e) {
             assertThat(System.currentTimeMillis() - now, greaterThan(timeout.millis() - 50));

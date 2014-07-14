@@ -238,19 +238,19 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(stats == null ? null : stats.getIndices().getCompletion().getSize());
 
             table.addCell(stats == null ? null : stats.getIndices().getFieldData().getMemorySize());
-            table.addCell(stats == null ? null : stats.getIndices().getFieldData().getEvictions());
+            table.addCell(stats == null ? null : stats.getIndices().getFieldData().getEvictionStats().getEvictions());
             table.addCell(stats == null ? null : "["
-                    + Strings.format1Decimals(stats.getIndices().getFieldData().getEvictionsOneMinuteRate(),"")
-                    + " " + Strings.format1Decimals(stats.getIndices().getFieldData().getEvictionsFiveMinuteRate(),"")
-                    + " " + Strings.format1Decimals(stats.getIndices().getFieldData().getEvictionsFifteenMinuteRate(), "")
+                    + Strings.format1Decimals(stats.getIndices().getFieldData().getEvictionStats().getEvictionsOneMinuteRate(),"")
+                    + " " + Strings.format1Decimals(stats.getIndices().getFieldData().getEvictionStats().getEvictionsFiveMinuteRate(),"")
+                    + " " + Strings.format1Decimals(stats.getIndices().getFieldData().getEvictionStats().getEvictionsFifteenMinuteRate(), "")
                     + "]");
 
             table.addCell(stats == null ? null : stats.getIndices().getFilterCache().getMemorySize());
-            table.addCell(stats == null ? null : stats.getIndices().getFilterCache().getEvictions());
+            table.addCell(stats == null ? null : stats.getIndices().getFilterCache().getEvictionStats().getEvictions());
             table.addCell(stats == null ? null : "["
-                    + Strings.format1Decimals(stats.getIndices().getFilterCache().getEvictionsOneMinuteRate(), "")
-                    + " " + Strings.format1Decimals(stats.getIndices().getFilterCache().getEvictionsFiveMinuteRate(), "")
-                    + " " + Strings.format1Decimals(stats.getIndices().getFilterCache().getEvictionsFifteenMinuteRate(), "")
+                    + Strings.format1Decimals(stats.getIndices().getFilterCache().getEvictionStats().getEvictionsOneMinuteRate(),"")
+                    + " " + Strings.format1Decimals(stats.getIndices().getFilterCache().getEvictionStats().getEvictionsFiveMinuteRate(),"")
+                    + " " + Strings.format1Decimals(stats.getIndices().getFilterCache().getEvictionStats().getEvictionsFifteenMinuteRate(), "")
                     + "]");
 
             table.addCell(stats == null ? null : stats.getIndices().getQueryCache() == null ? null : stats.getIndices().getQueryCache().getMemorySize());

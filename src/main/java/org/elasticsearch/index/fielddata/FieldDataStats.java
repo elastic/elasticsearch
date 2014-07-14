@@ -26,6 +26,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.metrics.EvictionStats;
 import org.elasticsearch.common.metrics.MeterMetric;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -39,33 +40,24 @@ import java.io.IOException;
 public class FieldDataStats implements Streamable, ToXContent {
 
     long memorySize;
+    private EvictionStats evictionStats;
 
-    private long evictions;
-    private double evictionsOneMinuteRate;
-    private double evictionsFiveMinuteRate;
-    private double evictionsFifteenMinuteRate;
     @Nullable
     ObjectLongOpenHashMap<String> fields;
 
     public FieldDataStats() {
-
+        evictionStats = new EvictionStats();
     }
 
     public FieldDataStats(long memorySize, MeterMetric evictionMeter, @Nullable ObjectLongOpenHashMap<String> fields) {
         this.memorySize = memorySize;
         this.fields = fields;
-        this.evictions = evictionMeter.count();
-        this.evictionsOneMinuteRate = evictionMeter.oneMinuteRate();
-        this.evictionsFiveMinuteRate = evictionMeter.fiveMinuteRate();
-        this.evictionsFifteenMinuteRate = evictionMeter.fifteenMinuteRate();
+        this.evictionStats = new EvictionStats(evictionMeter);
     }
 
     public void add(FieldDataStats stats) {
         this.memorySize += stats.memorySize;
-        this.evictions += stats.evictions;
-        this.evictionsOneMinuteRate += stats.evictionsOneMinuteRate;
-        this.evictionsFiveMinuteRate += stats.evictionsFiveMinuteRate;
-        this.evictionsFifteenMinuteRate += stats.evictionsFifteenMinuteRate;
+        this.evictionStats.add(stats.getEvictionStats());
         if (stats.fields != null) {
             if (fields == null) fields = new ObjectLongOpenHashMap<>();
             final boolean[] states = stats.fields.allocated;
@@ -87,20 +79,8 @@ public class FieldDataStats implements Streamable, ToXContent {
         return new ByteSizeValue(memorySize);
     }
 
-    public long getEvictions() {
-        return this.evictions;
-    }
-
-    public double getEvictionsOneMinuteRate() {
-        return this.evictionsOneMinuteRate;
-    }
-
-    public double getEvictionsFiveMinuteRate() {
-        return this.evictionsFiveMinuteRate;
-    }
-
-    public double getEvictionsFifteenMinuteRate() {
-        return this.evictionsFifteenMinuteRate;
+    public EvictionStats getEvictionStats() {
+        return this.evictionStats;
     }
 
     @Nullable
@@ -117,16 +97,14 @@ public class FieldDataStats implements Streamable, ToXContent {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         memorySize = in.readVLong();
-        evictions = in.readVLong();
+
         if (in.getVersion().onOrAfter(Version.V_1_3_0)) {
-            evictionsOneMinuteRate = in.readDouble();
-            evictionsFiveMinuteRate = in.readDouble();
-            evictionsFifteenMinuteRate = in.readDouble();
+            evictionStats = new EvictionStats();
+            evictionStats.readFrom(in);
         } else {
-            evictionsOneMinuteRate = -1;
-            evictionsFiveMinuteRate = -1;
-            evictionsFifteenMinuteRate = -1;
+            evictionStats = new EvictionStats(in.readVLong(), -1, -1, -1);
         }
+
         if (in.readBoolean()) {
             int size = in.readVInt();
             fields = new ObjectLongOpenHashMap<>(size);
@@ -139,12 +117,13 @@ public class FieldDataStats implements Streamable, ToXContent {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(memorySize);
-        out.writeVLong(evictions);
+
         if (out.getVersion().onOrAfter(Version.V_1_3_0)) {
-            out.writeDouble(evictionsOneMinuteRate);
-            out.writeDouble(evictionsFiveMinuteRate);
-            out.writeDouble(evictionsFifteenMinuteRate);
+            evictionStats.writeTo(out);
+        } else {
+            out.writeVLong(evictionStats.getEvictions());
         }
+
         if (fields == null) {
             out.writeBoolean(false);
         } else {
@@ -166,13 +145,7 @@ public class FieldDataStats implements Streamable, ToXContent {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.FIELDDATA);
         builder.byteSizeField(Fields.MEMORY_SIZE_IN_BYTES, Fields.MEMORY_SIZE, memorySize);
-        builder.field(Fields.EVICTIONS, getEvictions());
-
-        builder.startObject(Fields.RATES);
-        builder.field(Fields.ONE_MIN, Double.valueOf(Strings.format1Decimals(getEvictionsOneMinuteRate(),"")));
-        builder.field(Fields.FIVE_MIN, Double.valueOf(Strings.format1Decimals(getEvictionsFiveMinuteRate(),"")));
-        builder.field(Fields.FIFTEEN_MIN, Double.valueOf(Strings.format1Decimals(getEvictionsFifteenMinuteRate(),"")));
-        builder.endObject();
+        evictionStats.toXContent(builder, params);
 
         if (fields != null) {
             builder.startObject(Fields.FIELDS);
@@ -196,11 +169,6 @@ public class FieldDataStats implements Streamable, ToXContent {
         static final XContentBuilderString FIELDDATA = new XContentBuilderString("fielddata");
         static final XContentBuilderString MEMORY_SIZE = new XContentBuilderString("memory_size");
         static final XContentBuilderString MEMORY_SIZE_IN_BYTES = new XContentBuilderString("memory_size_in_bytes");
-        static final XContentBuilderString EVICTIONS = new XContentBuilderString("evictions");
         static final XContentBuilderString FIELDS = new XContentBuilderString("fields");
-        static final XContentBuilderString RATES = new XContentBuilderString("evictions_per_sec");
-        static final XContentBuilderString ONE_MIN = new XContentBuilderString("1m");
-        static final XContentBuilderString FIVE_MIN = new XContentBuilderString("5m");
-        static final XContentBuilderString FIFTEEN_MIN = new XContentBuilderString("15m");
     }
 }

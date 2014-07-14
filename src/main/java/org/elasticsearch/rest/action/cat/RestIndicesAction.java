@@ -317,14 +317,14 @@ public class RestIndicesAction extends AbstractCatAction {
             table.addCell(indexStats == null ? null : indexStats.getTotal().getFieldData().getMemorySize());
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getFieldData().getMemorySize());
 
-            table.addCell(indexStats == null ? null : indexStats.getTotal().getFieldData().getEvictions());
-            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getFieldData().getEvictions());
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getFieldData().getEvictionStats().getEvictions());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getFieldData().getEvictionStats().getEvictions());
 
             table.addCell(indexStats == null ? null : indexStats.getTotal().getFilterCache().getMemorySize());
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getFilterCache().getMemorySize());
 
-            table.addCell(indexStats == null ? null : indexStats.getTotal().getFilterCache().getEvictions());
-            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getFilterCache().getEvictions());
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getFilterCache().getEvictionStats().getEvictions());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getFilterCache().getEvictionStats().getEvictions());
 
             table.addCell(indexStats == null ? null : indexStats.getTotal().getQueryCache().getMemorySize());
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getQueryCache().getMemorySize());

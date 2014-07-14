@@ -191,10 +191,10 @@ public class RestShardsAction extends AbstractCatAction {
             table.addCell(shardStats == null ? null : shardStats.getCompletion().getSize());
 
             table.addCell(shardStats == null ? null : shardStats.getFieldData().getMemorySize());
-            table.addCell(shardStats == null ? null : shardStats.getFieldData().getEvictions());
+            table.addCell(shardStats == null ? null : shardStats.getFieldData().getEvictionStats().getEvictions());
 
             table.addCell(shardStats == null ? null : shardStats.getFilterCache().getMemorySize());
-            table.addCell(shardStats == null ? null : shardStats.getFilterCache().getEvictions());
+            table.addCell(shardStats == null ? null : shardStats.getFilterCache().getEvictionStats().getEvictions());
 
             table.addCell(shardStats == null ? null : shardStats.getFlush().getTotal());
             table.addCell(shardStats == null ? null : shardStats.getFlush().getTotalTime());

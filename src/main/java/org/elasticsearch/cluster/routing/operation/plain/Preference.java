@@ -99,8 +99,9 @@ public enum  Preference {
             case "_only_local":
             case "_onlyLocal":
                 return ONLY_LOCAL;
+            default:
+                throw new ElasticsearchIllegalArgumentException("no Preference for [" + preferenceType + "]");
         }
-        throw new ElasticsearchIllegalArgumentException("no Preference for [" + preferenceType + "]");
     }
 }
 

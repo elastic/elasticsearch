@@ -19,6 +19,7 @@
 package org.elasticsearch.cluster.routing.operation.plain;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.common.collect.Tuple;
 
 /**
  * Routing Preference Type
@@ -62,29 +63,18 @@ public enum  Preference {
 
     private final String type;
 
-    private String value = null;
-
     Preference(String type) {
         this.type = type;
-    }
-
-    public String value() {
-        return value;
     }
 
     public String type() {
         return type;
     }
 
-    private Preference setValue(String value) {
-        this.value = value;
-        return this;
-    }
-
-    public static Preference fromString(String preference) {
+    private static Tuple<String, String> parseTypeAndValue(String preference) {
         String preferenceType;
         String value = null;
-        int colonIndex = preference.indexOf(":");
+        int colonIndex = preference.indexOf(':');
         if (colonIndex == -1) {
             preferenceType = preference;
         } else {
@@ -92,11 +82,22 @@ public enum  Preference {
             preferenceType = preference.substring(0, colonIndex);
         }
 
+        return new Tuple<>(preferenceType, value);
+    }
+
+    /**
+     * Parses the Preference Type given a string
+     */
+    public static Preference parseType(String preference) {
+        String preferenceType = parseTypeAndValue(preference).v1();
+
         switch (preferenceType) {
             case "_shards":
-                return SHARDS.setValue(value);
+                return SHARDS;
             case "_prefer_node":
-                return PREFER_NODE.setValue(value);
+                return PREFER_NODE;
+            case "_only_node":
+                return ONLY_NODE;
             case "_local":
                 return LOCAL;
             case "_primary":
@@ -107,8 +108,38 @@ public enum  Preference {
             case "_only_local":
             case "_onlyLocal":
                 return ONLY_LOCAL;
+        }
+        throw new ElasticsearchIllegalArgumentException("no Preference for [" + preferenceType + "]");
+    }
+
+    /**
+     * Parses out the routing preference value if applicable
+     * throws exception if parsed preference type does not
+     * support values
+     */
+    public static String parseValue(String preference) {
+        Tuple<String, String> typeAndValue = parseTypeAndValue(preference);
+        String preferenceType = typeAndValue.v1();
+
+        switch (preferenceType) {
+            case "_shards":
+                String v = typeAndValue.v2();
+                int sep = v.indexOf(';');
+                if (sep == -1) {
+                    return v;
+                } else {
+                    return v.substring(0, sep);
+                }
+            case "_prefer_node":
             case "_only_node":
-                return ONLY_NODE.setValue(value);
+                return typeAndValue.v2();
+            case "_local":
+            case "_primary":
+            case "_primary_first":
+            case "_primaryFirst":
+            case "_only_local":
+            case "_onlyLocal":
+                throw new ElasticsearchIllegalArgumentException("[" + preferenceType + "] does not accept values");
         }
         throw new ElasticsearchIllegalArgumentException("no Preference for [" + preferenceType + "]");
     }

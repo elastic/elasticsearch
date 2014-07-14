@@ -31,6 +31,7 @@ import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.equalTo;
 
 //Use Suite scope so that paths get set correctly
 @ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE)
@@ -60,8 +61,8 @@ public class OnDiskScriptTests extends ElasticsearchIntegrationTest {
         assertHitCount(searchResponse,5);
         assertTrue(searchResponse.getHits().hits().length == 1);
         SearchHit sh = searchResponse.getHits().getAt(0);
-        assertTrue(sh.field("test1").getValue() == 2);
-        assertTrue(sh.field("test2").getValue() == 6);
+        assertThat((Integer)sh.field("test1").getValue(), equalTo(2));
+        assertThat((Integer)sh.field("test2").getValue(), equalTo(6));
 
 
     }
@@ -83,9 +84,8 @@ public class OnDiskScriptTests extends ElasticsearchIntegrationTest {
         assertHitCount(searchResponse,5);
         assertTrue(searchResponse.getHits().hits().length == 1);
         SearchHit sh = searchResponse.getHits().getAt(0);
-        assertTrue(sh.field("test1").getValue() == 2);
-        assertTrue(sh.field("test2").getValue() == 6);
-
+        assertThat((Integer)sh.field("test1").getValue(), equalTo(2));
+        assertThat((Integer)sh.field("test2").getValue(), equalTo(6));
 
     }
 

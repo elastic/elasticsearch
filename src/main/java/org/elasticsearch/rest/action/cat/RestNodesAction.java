@@ -169,8 +169,8 @@ public class RestNodesAction extends AbstractCatAction {
 
         table.addCell("segments.count", "alias:sc,segmentsCount;default:false;text-align:right;desc:number of segments");
         table.addCell("segments.memory", "alias:sm,segmentsMemory;default:false;text-align:right;desc:memory used by segments");
-        table.addCell("segments.index_writer_memory", "alias:sm,segmentsIndexWriterMemory;default:false;text-align:right;desc:memory used by index writer");
-        table.addCell("segments.version_map_memory", "alias:sm,segmentsVersionMapMemory;default:false;text-align:right;desc:memory used by version map");
+        table.addCell("segments.index_writer_memory", "alias:siwm,segmentsIndexWriterMemory;default:false;text-align:right;desc:memory used by index writer");
+        table.addCell("segments.version_map_memory", "alias:svmm,segmentsVersionMapMemory;default:false;text-align:right;desc:memory used by version map");
 
         table.addCell("suggest.current", "alias:suc,suggestCurrent;default:false;text-align:right;desc:number of current suggest ops");
         table.addCell("suggest.time", "alias:suti,suggestTime;default:false;text-align:right;desc:time spend in suggest");

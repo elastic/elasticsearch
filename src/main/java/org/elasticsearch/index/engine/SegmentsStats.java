@@ -53,7 +53,7 @@ public class SegmentsStats implements Streamable, ToXContent {
         this.indexWriterMemoryInBytes += indexWriterMemoryInBytes;
     }
 
-    public void addVersionMayMemoryInBytes(long versionMapMemoryInBytes) {
+    public void addVersionMapMemoryInBytes(long versionMapMemoryInBytes) {
         this.versionMapMemoryInBytes += versionMapMemoryInBytes;
     }
 
@@ -63,7 +63,7 @@ public class SegmentsStats implements Streamable, ToXContent {
         }
         add(mergeStats.count, mergeStats.memoryInBytes);
         addIndexWriterMemoryInBytes(mergeStats.indexWriterMemoryInBytes);
-        addVersionMayMemoryInBytes(mergeStats.versionMapMemoryInBytes);
+        addVersionMapMemoryInBytes(mergeStats.versionMapMemoryInBytes);
     }
 
     /**

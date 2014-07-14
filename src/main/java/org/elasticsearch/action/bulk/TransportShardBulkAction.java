@@ -81,8 +81,8 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
 
     @Inject
     public TransportShardBulkAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                    IndicesService indicesService, ThreadPool threadPool, ShardStateAction shardStateAction,
-                                    MappingUpdatedAction mappingUpdatedAction, UpdateHelper updateHelper) {
+            IndicesService indicesService, ThreadPool threadPool, ShardStateAction shardStateAction,
+            MappingUpdatedAction mappingUpdatedAction, UpdateHelper updateHelper) {
         super(settings, transportService, clusterService, indicesService, threadPool, shardStateAction);
         this.mappingUpdatedAction = mappingUpdatedAction;
         this.updateHelper = updateHelper;
@@ -552,6 +552,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                 }
             case NONE:
                 UpdateResponse updateResponse = translate.action();
+                indexShard.indexingService().noopUpdate(updateRequest.type());
                 return new UpdateResult(translate, updateResponse);
             default:
                 throw new ElasticsearchIllegalStateException("Illegal update operation " + translate.operation());

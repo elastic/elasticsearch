@@ -42,6 +42,8 @@ public class UpdateNoopTests extends ElasticsearchIntegrationTest {
         update(2, fields("bar", "bir"));
         update(2, fields("bar", "bir"));
         update(3, fields("bar", "foo"));
+
+        assertEquals(2, totalNoopUpdates());
     }
 
     @Test
@@ -54,6 +56,8 @@ public class UpdateNoopTests extends ElasticsearchIntegrationTest {
         update(2, fields(key1, "foo", key2, "bir"));
         update(2, fields(key1, "foo", key2, "bir"));
         update(3, fields(key1, "foo", key2, "foo"));
+
+        assertEquals(2, totalNoopUpdates());
     }
 
     @Test
@@ -70,6 +74,8 @@ public class UpdateNoopTests extends ElasticsearchIntegrationTest {
         update(6, fields("bar", new String[] {"bir", "for"}));
         update(6, fields("bar", new String[] {"bir", "for"}));
         update(7, fields("bar", new String[] {"bir", "for", "far"}));
+
+        assertEquals(5, totalNoopUpdates());
     }
 
     @Test
@@ -102,6 +108,8 @@ public class UpdateNoopTests extends ElasticsearchIntegrationTest {
                     .field(key1, "foo")
                     .field(key2, "foo")
                 .endObject().endObject());
+
+        assertEquals(2, totalNoopUpdates());
     }
 
     private XContentBuilder fields(Object... fields) throws ElasticsearchException, IOException {
@@ -127,7 +135,11 @@ public class UpdateNoopTests extends ElasticsearchIntegrationTest {
         assertEquals(updateResponse.getGetResult().sourceRef().toUtf8(), xContent);
         assertEquals(expectedVersion, updateResponse.getVersion());
     }
-    
+
+    private long totalNoopUpdates() {
+        return client().admin().indices().prepareStats("test").setIndexing(true).get().getIndex("test").getTotal().getIndexing().getTotal()
+                .getNoopUpdateCount();
+    }
     @Before
     public void setup() {
         createIndex();

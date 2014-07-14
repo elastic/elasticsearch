@@ -518,7 +518,7 @@ public class AnalysisModule extends AbstractModule {
             tokenFiltersBindings.processTokenFilter("apostrophe", ApostropheFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("classic", ClassicFilterFactory.class);
 
-
+            tokenFiltersBindings.processTokenFilter("controlled_repeat", ControlledRepeatRepeaterFilterFactory.class);
         }
 
         @Override

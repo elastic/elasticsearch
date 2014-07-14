@@ -208,6 +208,9 @@ public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTes
 
         assertHitCount(client().prepareCount().setQuery(matchAllQuery()).execute().actionGet(), 2);
 
+        ensureYellow("test"); // wait for primary allocations here otherwise if we have a lot of shards we might have a
+        // shard that is still in post recovery when we restart and the ensureYellow() below will timeout
+
         internalCluster().fullRestart();
 
         logger.info("Running Cluster Health (wait for the shards to startup)");

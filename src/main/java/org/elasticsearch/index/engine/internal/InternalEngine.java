@@ -1275,34 +1275,35 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
     public void failEngine(String reason, Throwable failure) {
         assert failure != null;
         if (failEngineLock.tryLock()) {
-
-            assert !readLock.assertLockIsHeld() : "readLock is held by a thread that tries to fail the engine";
-            if (failedEngine != null) {
-                logger.debug("tried to fail engine but engine is already failed. ignoring. [{}]", reason, failure);
-                return;
-            }
             try {
-                logger.warn("failed engine [{}]", reason, failure);
-                // we must set a failure exception, generate one if not supplied
-                failedEngine = failure;
-                for (FailedEngineListener listener : failedEngineListeners) {
-                    listener.onFailedEngine(shardId, reason, failure);
+                // we first mark the store as corrupted before we notify any listeners
+                // this must happen first otherwise we might try to reallocate so quickly
+                // on the same node that we don't see the corrupted marker file when
+                // the shard is initializing
+                if (Lucene.isCorruptionException(failure)) {
+                    try {
+                        store.markStoreCorrupted(ExceptionsHelper.unwrap(failure, CorruptIndexException.class));
+                    } catch (IOException e) {
+                        logger.warn("Couldn't marks store corrupted", e);
+                    }
                 }
             } finally {
+                assert !readLock.assertLockIsHeld() : "readLock is held by a thread that tries to fail the engine";
+                if (failedEngine != null) {
+                    logger.debug("tried to fail engine but engine is already failed. ignoring. [{}]", reason, failure);
+                    return;
+                }
                 try {
-                    if (Lucene.isCorruptionException(failure)) {
-                        try {
-                            store.markStoreCorrupted(ExceptionsHelper.unwrap(failure, CorruptIndexException.class));
-                        } catch (IOException e) {
-                            logger.warn("Couldn't marks store corrupted", e);
-                        }
+                    logger.warn("failed engine [{}]", reason, failure);
+                    // we must set a failure exception, generate one if not supplied
+                    failedEngine = failure;
+                    for (FailedEngineListener listener : failedEngineListeners) {
+                        listener.onFailedEngine(shardId, reason, failure);
                     }
                 } finally {
-                    // close the engine whatever happens...
                     close();
                 }
             }
-
         } else {
             logger.debug("tried to fail engine but could not acquire lock - engine should be failed by now [{}]", reason, failure);
         }

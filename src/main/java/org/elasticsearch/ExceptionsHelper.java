@@ -130,16 +130,36 @@ public final class ExceptionsHelper {
     public static <T extends Throwable> void rethrowAndSuppress(List<T> exceptions) throws T {
         T main = null;
         for (T ex : exceptions) {
-            if (main == null) {
-                main = ex;
-            } else {
-                main.addSuppressed(ex);
-            }
+            main = useOrSupress(main, ex);
         }
         if (main != null) {
             throw main;
         }
     }
+
+    /**
+     * Throws a runtime exception with all given exceptions added as suppressed.
+     * If the given list is empty no exception is thrown
+     */
+    public static <T extends Throwable> void maybeThrowRuntimeAndSuppress(List<T> exceptions) {
+        T main = null;
+        for (T ex : exceptions) {
+            main = useOrSupress(main, ex);
+        }
+        if (main != null) {
+            throw new ElasticsearchException(main.getMessage(), main);
+        }
+    }
+
+    public static <T extends Throwable> T useOrSupress(T first, T second) {
+        if (first == null) {
+            return second;
+        } else {
+            first.addSuppressed(second);
+        }
+        return first;
+    }
+
 
     public static <T extends Throwable> T unwrap(Throwable t, Class<T> clazz) {
         if (t != null) {

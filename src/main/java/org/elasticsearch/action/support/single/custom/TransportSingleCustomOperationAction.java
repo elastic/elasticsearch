@@ -47,20 +47,18 @@ public abstract class TransportSingleCustomOperationAction<Request extends Singl
 
     protected final TransportService transportService;
 
-    final String transportAction;
     final String transportShardAction;
     final String executor;
 
-    protected TransportSingleCustomOperationAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService) {
-        super(settings, threadPool);
+    protected TransportSingleCustomOperationAction(Settings settings, String actionName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService) {
+        super(settings, actionName, threadPool);
         this.clusterService = clusterService;
         this.transportService = transportService;
 
-        this.transportAction = transportAction();
-        this.transportShardAction = transportAction() + "/s";
+        this.transportShardAction = actionName + "/s";
         this.executor = executor();
 
-        transportService.registerHandler(transportAction, new TransportHandler());
+        transportService.registerHandler(actionName, new TransportHandler());
         transportService.registerHandler(transportShardAction, new ShardTransportHandler());
     }
 
@@ -68,8 +66,6 @@ public abstract class TransportSingleCustomOperationAction<Request extends Singl
     protected void doExecute(Request request, ActionListener<Response> listener) {
         new AsyncSingleAction(request, listener).start();
     }
-
-    protected abstract String transportAction();
 
     protected abstract String executor();
 

@@ -46,13 +46,8 @@ public class TransportGetSettingsAction extends TransportMasterNodeReadOperation
     @Inject
     public TransportGetSettingsAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                       ThreadPool threadPool, SettingsFilter settingsFilter) {
-        super(settings, transportService, clusterService, threadPool);
+        super(settings, GetSettingsAction.NAME, transportService, clusterService, threadPool);
         this.settingsFilter = settingsFilter;
-    }
-
-    @Override
-    protected String transportAction() {
-        return GetSettingsAction.NAME;
     }
 
     @Override

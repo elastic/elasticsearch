@@ -58,7 +58,7 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastOperatio
     public TransportClearIndicesCacheAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                             TransportService transportService, IndicesService indicesService, IndicesTermsFilterCache termsFilterCache,
                                             CacheRecycler cacheRecycler) {
-        super(settings, threadPool, clusterService, transportService);
+        super(settings, ClearIndicesCacheAction.NAME, threadPool, clusterService, transportService);
         this.indicesService = indicesService;
         this.termsFilterCache = termsFilterCache;
         this.cacheRecycler = cacheRecycler;
@@ -67,11 +67,6 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastOperatio
     @Override
     protected String executor() {
         return ThreadPool.Names.MANAGEMENT;
-    }
-
-    @Override
-    protected String transportAction() {
-        return ClearIndicesCacheAction.NAME;
     }
 
     @Override

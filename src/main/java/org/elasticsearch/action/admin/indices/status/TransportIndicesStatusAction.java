@@ -70,7 +70,7 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
     @Inject
     public TransportIndicesStatusAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
                                         IndicesService indicesService, RecoveryTarget peerRecoveryTarget) {
-        super(settings, threadPool, clusterService, transportService);
+        super(settings, IndicesStatusAction.NAME, threadPool, clusterService, transportService);
         this.peerRecoveryTarget = peerRecoveryTarget;
         this.indicesService = indicesService;
     }
@@ -78,11 +78,6 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
     @Override
     protected String executor() {
         return ThreadPool.Names.MANAGEMENT;
-    }
-
-    @Override
-    protected String transportAction() {
-        return IndicesStatusAction.NAME;
     }
 
     @Override

@@ -55,7 +55,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeOperation
 
     @Inject
     public TransportSnapshotsStatusAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool, SnapshotsService snapshotsService, TransportNodesSnapshotsStatus transportNodesSnapshotsStatus) {
-        super(settings, transportService, clusterService, threadPool);
+        super(settings, SnapshotsStatusAction.NAME, transportService, clusterService, threadPool);
         this.snapshotsService = snapshotsService;
         this.transportNodesSnapshotsStatus = transportNodesSnapshotsStatus;
     }
@@ -63,11 +63,6 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeOperation
     @Override
     protected String executor() {
         return ThreadPool.Names.GENERIC;
-    }
-
-    @Override
-    protected String transportAction() {
-        return SnapshotsStatusAction.NAME;
     }
 
     @Override

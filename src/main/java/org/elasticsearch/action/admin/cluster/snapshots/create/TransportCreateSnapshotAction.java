@@ -43,18 +43,13 @@ public class TransportCreateSnapshotAction extends TransportMasterNodeOperationA
     @Inject
     public TransportCreateSnapshotAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                          ThreadPool threadPool, SnapshotsService snapshotsService) {
-        super(settings, transportService, clusterService, threadPool);
+        super(settings, CreateSnapshotAction.NAME, transportService, clusterService, threadPool);
         this.snapshotsService = snapshotsService;
     }
 
     @Override
     protected String executor() {
         return ThreadPool.Names.SNAPSHOT;
-    }
-
-    @Override
-    protected String transportAction() {
-        return CreateSnapshotAction.NAME;
     }
 
     @Override

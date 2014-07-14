@@ -73,7 +73,7 @@ public class TransportDeleteMappingAction extends TransportMasterNodeOperationAc
                                         ThreadPool threadPool, MetaDataMappingService metaDataMappingService,
                                         TransportDeleteByQueryAction deleteByQueryAction, TransportRefreshAction refreshAction,
                                         TransportFlushAction flushAction, NodeSettingsService nodeSettingsService) {
-        super(settings, transportService, clusterService, threadPool);
+        super(settings, DeleteMappingAction.NAME, transportService, clusterService, threadPool);
         this.metaDataMappingService = metaDataMappingService;
         this.deleteByQueryAction = deleteByQueryAction;
         this.refreshAction = refreshAction;
@@ -85,11 +85,6 @@ public class TransportDeleteMappingAction extends TransportMasterNodeOperationAc
     protected String executor() {
         // no need for fork on another thread pool, we go async right away
         return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected String transportAction() {
-        return DeleteMappingAction.NAME;
     }
 
     @Override

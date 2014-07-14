@@ -72,7 +72,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
     public TransportIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                 IndicesService indicesService, ThreadPool threadPool, ShardStateAction shardStateAction,
                                 TransportCreateIndexAction createIndexAction, MappingUpdatedAction mappingUpdatedAction) {
-        super(settings, transportService, clusterService, indicesService, threadPool, shardStateAction);
+        super(settings, IndexAction.NAME, transportService, clusterService, indicesService, threadPool, shardStateAction);
         this.createIndexAction = createIndexAction;
         this.mappingUpdatedAction = mappingUpdatedAction;
         this.autoCreateIndex = new AutoCreateIndex(settings);
@@ -144,11 +144,6 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
     @Override
     protected IndexResponse newResponseInstance() {
         return new IndexResponse();
-    }
-
-    @Override
-    protected String transportAction() {
-        return IndexAction.NAME;
     }
 
     @Override

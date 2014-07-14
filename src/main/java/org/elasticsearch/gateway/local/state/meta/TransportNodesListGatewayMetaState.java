@@ -46,11 +46,13 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
  */
 public class TransportNodesListGatewayMetaState extends TransportNodesOperationAction<TransportNodesListGatewayMetaState.Request, TransportNodesListGatewayMetaState.NodesLocalGatewayMetaState, TransportNodesListGatewayMetaState.NodeRequest, TransportNodesListGatewayMetaState.NodeLocalGatewayMetaState> {
 
+    private static final String ACTION_NAME = "/gateway/local/meta-state";
+
     private LocalGatewayMetaState metaState;
 
     @Inject
     public TransportNodesListGatewayMetaState(Settings settings, ClusterName clusterName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService) {
-        super(settings, clusterName, threadPool, clusterService, transportService);
+        super(settings, ACTION_NAME, clusterName, threadPool, clusterService, transportService);
     }
 
     TransportNodesListGatewayMetaState init(LocalGatewayMetaState metaState) {
@@ -65,11 +67,6 @@ public class TransportNodesListGatewayMetaState extends TransportNodesOperationA
     @Override
     protected String executor() {
         return ThreadPool.Names.GENERIC;
-    }
-
-    @Override
-    protected String transportAction() {
-        return "/gateway/local/meta-state";
     }
 
     @Override

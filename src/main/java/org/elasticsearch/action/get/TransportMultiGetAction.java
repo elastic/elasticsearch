@@ -46,7 +46,7 @@ public class TransportMultiGetAction extends TransportAction<MultiGetRequest, Mu
 
     @Inject
     public TransportMultiGetAction(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterService clusterService, TransportShardMultiGetAction shardAction) {
-        super(settings, threadPool);
+        super(settings, MultiGetAction.NAME, threadPool);
         this.clusterService = clusterService;
         this.shardAction = shardAction;
 

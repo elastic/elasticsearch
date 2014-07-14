@@ -39,13 +39,8 @@ public class TransportBenchmarkStatusAction extends TransportMasterNodeOperation
     @Inject
     public TransportBenchmarkStatusAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                           ThreadPool threadPool, BenchmarkService service) {
-        super(settings, transportService, clusterService, threadPool);
+        super(settings, BenchmarkStatusAction.NAME, transportService, clusterService, threadPool);
         this.service = service;
-    }
-
-    @Override
-    protected String transportAction() {
-        return BenchmarkStatusAction.NAME;
     }
 
     @Override

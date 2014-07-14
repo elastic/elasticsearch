@@ -44,17 +44,12 @@ public class TransportGetRepositoriesAction extends TransportMasterNodeReadOpera
     @Inject
     public TransportGetRepositoriesAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                           ThreadPool threadPool) {
-        super(settings, transportService, clusterService, threadPool);
+        super(settings, GetRepositoriesAction.NAME, transportService, clusterService, threadPool);
     }
 
     @Override
     protected String executor() {
         return ThreadPool.Names.MANAGEMENT;
-    }
-
-    @Override
-    protected String transportAction() {
-        return GetRepositoriesAction.NAME;
     }
 
     @Override

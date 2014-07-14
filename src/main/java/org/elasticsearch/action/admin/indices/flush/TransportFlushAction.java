@@ -52,18 +52,13 @@ public class TransportFlushAction extends TransportBroadcastOperationAction<Flus
 
     @Inject
     public TransportFlushAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, IndicesService indicesService) {
-        super(settings, threadPool, clusterService, transportService);
+        super(settings, FlushAction.NAME, threadPool, clusterService, transportService);
         this.indicesService = indicesService;
     }
 
     @Override
     protected String executor() {
         return ThreadPool.Names.FLUSH;
-    }
-
-    @Override
-    protected String transportAction() {
-        return FlushAction.NAME;
     }
 
     @Override

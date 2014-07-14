@@ -38,12 +38,7 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadOperationA
 
     @Inject
     public TransportGetAliasesAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool) {
-        super(settings, transportService, clusterService, threadPool);
-    }
-
-    @Override
-    protected String transportAction() {
-        return GetAliasesAction.NAME;
+        super(settings, GetAliasesAction.NAME, transportService, clusterService, threadPool);
     }
 
     @Override

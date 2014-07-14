@@ -57,18 +57,13 @@ public class TransportIndicesStatsAction extends TransportBroadcastOperationActi
     @Inject
     public TransportIndicesStatsAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
                                        IndicesService indicesService) {
-        super(settings, threadPool, clusterService, transportService);
+        super(settings, IndicesStatsAction.NAME, threadPool, clusterService, transportService);
         this.indicesService = indicesService;
     }
 
     @Override
     protected String executor() {
         return ThreadPool.Names.MANAGEMENT;
-    }
-
-    @Override
-    protected String transportAction() {
-        return IndicesStatsAction.NAME;
     }
 
     @Override

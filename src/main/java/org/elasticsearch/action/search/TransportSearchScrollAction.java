@@ -52,7 +52,7 @@ public class TransportSearchScrollAction extends TransportAction<SearchScrollReq
                                        TransportSearchScrollQueryThenFetchAction queryThenFetchAction,
                                        TransportSearchScrollQueryAndFetchAction queryAndFetchAction,
                                        TransportSearchScrollScanAction scanAction) {
-        super(settings, threadPool);
+        super(settings, SearchScrollAction.NAME, threadPool);
         this.queryThenFetchAction = queryThenFetchAction;
         this.queryAndFetchAction = queryAndFetchAction;
         this.scanAction = scanAction;

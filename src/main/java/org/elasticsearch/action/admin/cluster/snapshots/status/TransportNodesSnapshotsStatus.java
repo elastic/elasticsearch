@@ -50,11 +50,13 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
  */
 public class TransportNodesSnapshotsStatus extends TransportNodesOperationAction<TransportNodesSnapshotsStatus.Request, TransportNodesSnapshotsStatus.NodesSnapshotStatus, TransportNodesSnapshotsStatus.NodeRequest, TransportNodesSnapshotsStatus.NodeSnapshotStatus> {
 
+    private static final String ACTION_NAME = "cluster/snapshot/status/nodes";
+
     private final SnapshotsService snapshotsService;
 
     @Inject
     public TransportNodesSnapshotsStatus(Settings settings, ClusterName clusterName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, SnapshotsService snapshotsService) {
-        super(settings, clusterName, threadPool, clusterService, transportService);
+        super(settings, ACTION_NAME, clusterName, threadPool, clusterService, transportService);
         this.snapshotsService = snapshotsService;
     }
 
@@ -65,11 +67,6 @@ public class TransportNodesSnapshotsStatus extends TransportNodesOperationAction
     @Override
     protected String executor() {
         return ThreadPool.Names.GENERIC;
-    }
-
-    @Override
-    protected String transportAction() {
-        return "cluster/snapshot/status/nodes";
     }
 
     @Override

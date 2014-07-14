@@ -44,18 +44,13 @@ public class TransportRestoreSnapshotAction extends TransportMasterNodeOperation
     @Inject
     public TransportRestoreSnapshotAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                           ThreadPool threadPool, RestoreService restoreService) {
-        super(settings, transportService, clusterService, threadPool);
+        super(settings, RestoreSnapshotAction.NAME, transportService, clusterService, threadPool);
         this.restoreService = restoreService;
     }
 
     @Override
     protected String executor() {
         return ThreadPool.Names.SNAPSHOT;
-    }
-
-    @Override
-    protected String transportAction() {
-        return RestoreSnapshotAction.NAME;
     }
 
     @Override

@@ -45,17 +45,12 @@ public class TransportNodesHotThreadsAction extends TransportNodesOperationActio
     @Inject
     public TransportNodesHotThreadsAction(Settings settings, ClusterName clusterName, ThreadPool threadPool,
                                           ClusterService clusterService, TransportService transportService) {
-        super(settings, clusterName, threadPool, clusterService, transportService);
+        super(settings, NodesHotThreadsAction.NAME, clusterName, threadPool, clusterService, transportService);
     }
 
     @Override
     protected String executor() {
         return ThreadPool.Names.GENERIC;
-    }
-
-    @Override
-    protected String transportAction() {
-        return NodesHotThreadsAction.NAME;
     }
 
     @Override

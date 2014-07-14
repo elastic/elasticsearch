@@ -50,21 +50,18 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
     protected final ClusterService clusterService;
     protected final TransportService transportService;
 
-    final String transportAction;
     final String transportShardAction;
     final String executor;
 
-    protected TransportBroadcastOperationAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService) {
-        super(settings, threadPool);
+    protected TransportBroadcastOperationAction(Settings settings, String actionName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService) {
+        super(settings, actionName, threadPool);
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.threadPool = threadPool;
-
-        this.transportAction = transportAction();
-        this.transportShardAction = transportAction() + "/s";
+        this.transportShardAction = actionName + "/s";
         this.executor = executor();
 
-        transportService.registerHandler(transportAction, new TransportHandler());
+        transportService.registerHandler(actionName, new TransportHandler());
         transportService.registerHandler(transportShardAction, new ShardTransportHandler());
     }
 
@@ -72,8 +69,6 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
     protected void doExecute(Request request, ActionListener<Response> listener) {
         new AsyncBroadcastAction(request, listener).start();
     }
-
-    protected abstract String transportAction();
 
     protected abstract String executor();
 

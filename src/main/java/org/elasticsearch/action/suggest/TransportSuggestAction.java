@@ -67,7 +67,7 @@ public class TransportSuggestAction extends TransportBroadcastOperationAction<Su
     @Inject
     public TransportSuggestAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
                                   IndicesService indicesService, SuggestPhase suggestPhase) {
-        super(settings, threadPool, clusterService, transportService);
+        super(settings, SuggestAction.NAME, threadPool, clusterService, transportService);
         this.indicesService = indicesService;
         this.suggestPhase = suggestPhase;
     }
@@ -75,11 +75,6 @@ public class TransportSuggestAction extends TransportBroadcastOperationAction<Su
     @Override
     protected String executor() {
         return ThreadPool.Names.SUGGEST;
-    }
-
-    @Override
-    protected String transportAction() {
-        return SuggestAction.NAME;
     }
 
     @Override

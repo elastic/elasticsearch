@@ -54,6 +54,8 @@ public class TransportShardDeleteByQueryAction extends TransportShardReplication
 
     public final static String DELETE_BY_QUERY_API = "delete_by_query";
 
+    private static final String ACTION_NAME = DeleteByQueryAction.NAME + "/shard";
+
     private final ScriptService scriptService;
     private final CacheRecycler cacheRecycler;
     private final PageCacheRecycler pageCacheRecycler;
@@ -64,7 +66,7 @@ public class TransportShardDeleteByQueryAction extends TransportShardReplication
                                              ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool,
                                              ShardStateAction shardStateAction, ScriptService scriptService, CacheRecycler cacheRecycler,
                                              PageCacheRecycler pageCacheRecycler, BigArrays bigArrays) {
-        super(settings, transportService, clusterService, indicesService, threadPool, shardStateAction);
+        super(settings, ACTION_NAME, transportService, clusterService, indicesService, threadPool, shardStateAction);
         this.scriptService = scriptService;
         this.cacheRecycler = cacheRecycler;
         this.pageCacheRecycler = pageCacheRecycler;
@@ -94,11 +96,6 @@ public class TransportShardDeleteByQueryAction extends TransportShardReplication
     @Override
     protected ShardDeleteByQueryResponse newResponseInstance() {
         return new ShardDeleteByQueryResponse();
-    }
-
-    @Override
-    protected String transportAction() {
-        return DeleteByQueryAction.NAME + "/shard";
     }
 
     @Override

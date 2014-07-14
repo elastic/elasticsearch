@@ -44,12 +44,7 @@ public class TransportClusterSearchShardsAction extends TransportMasterNodeReadO
 
     @Inject
     public TransportClusterSearchShardsAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool) {
-        super(settings, transportService, clusterService, threadPool);
-    }
-
-    @Override
-    protected String transportAction() {
-        return ClusterSearchShardsAction.NAME;
+        super(settings, ClusterSearchShardsAction.NAME, transportService, clusterService, threadPool);
     }
 
     @Override

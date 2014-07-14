@@ -35,12 +35,7 @@ public class TransportAliasesExistAction extends TransportMasterNodeReadOperatio
 
     @Inject
     public TransportAliasesExistAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool) {
-        super(settings, transportService, clusterService, threadPool);
-    }
-
-    @Override
-    protected String transportAction() {
-        return AliasesExistAction.NAME;
+        super(settings, AliasesExistAction.NAME, transportService, clusterService, threadPool);
     }
 
     @Override

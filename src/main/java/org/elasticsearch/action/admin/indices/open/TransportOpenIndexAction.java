@@ -46,7 +46,7 @@ public class TransportOpenIndexAction extends TransportMasterNodeOperationAction
     @Inject
     public TransportOpenIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                     ThreadPool threadPool, MetaDataIndexStateService indexStateService, NodeSettingsService nodeSettingsService) {
-        super(settings, transportService, clusterService, threadPool);
+        super(settings, OpenIndexAction.NAME, transportService, clusterService, threadPool);
         this.indexStateService = indexStateService;
         this.destructiveOperations = new DestructiveOperations(logger, settings, nodeSettingsService);
     }
@@ -55,11 +55,6 @@ public class TransportOpenIndexAction extends TransportMasterNodeOperationAction
     protected String executor() {
         // we go async right away...
         return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected String transportAction() {
-        return OpenIndexAction.NAME;
     }
 
     @Override

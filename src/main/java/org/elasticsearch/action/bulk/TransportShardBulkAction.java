@@ -550,6 +550,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                 }
             case NONE:
                 UpdateResponse updateResponse = translate.action();
+                indexShard.indexingService().noopUpdate(updateRequest.type());
                 return new UpdateResult(translate, updateResponse);
             default:
                 throw new ElasticsearchIllegalStateException("Illegal update operation " + translate.operation());

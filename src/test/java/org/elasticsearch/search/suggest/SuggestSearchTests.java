@@ -1168,6 +1168,8 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
         searchSuggest = searchSuggest("Elections of Representatives Parliament", filteredQuerySuggest);
         assertSuggestionSize(searchSuggest, 0, 0, "title");
 
+        NumShards numShards = getNumShards("test");
+
         // filtered suggest with bad query
         String incorrectFilterString = XContentFactory.jsonBuilder()
                 .startObject()
@@ -1178,7 +1180,7 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
                 .string();
         PhraseSuggestionBuilder incorrectFilteredSuggest = suggest.collateQuery(incorrectFilterString);
         try {
-            searchSuggest("united states house of representatives elections in washington 2006", incorrectFilteredSuggest);
+            searchSuggest("united states house of representatives elections in washington 2006", numShards.numPrimaries, incorrectFilteredSuggest);
             fail("Post query error has been swallowed");
         } catch(ElasticsearchException e) {
             // expected
@@ -1210,7 +1212,7 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
 
         PhraseSuggestionBuilder in = suggest.collateQuery(null).collateFilter(filterStr);
         try {
-            searchSuggest("united states house of representatives elections in washington 2006", in);
+            searchSuggest("united states house of representatives elections in washington 2006", numShards.numPrimaries, in);
             fail("Post filter error has been swallowed");
         } catch(ElasticsearchException e) {
             //expected
@@ -1228,7 +1230,7 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
 
         PhraseSuggestionBuilder phraseSuggestWithNoParams = suggest.collateFilter(null).collateQuery(collateWithParams);
         try {
-            searchSuggest("united states house of representatives elections in washington 2006", phraseSuggestWithNoParams);
+            searchSuggest("united states house of representatives elections in washington 2006", numShards.numPrimaries, phraseSuggestWithNoParams);
             fail("Malformed query (lack of additional params) should fail");
         } catch (ElasticsearchException e) {
             // expected
@@ -1246,7 +1248,7 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
         //collate request defining both query/filter should fail
         PhraseSuggestionBuilder phraseSuggestWithFilterAndQuery = suggest.collateFilter(filterStringAsFilter).collateQuery(filterString);
         try {
-            searchSuggest("united states house of representatives elections in washington 2006", phraseSuggestWithFilterAndQuery);
+            searchSuggest("united states house of representatives elections in washington 2006", numShards.numPrimaries, phraseSuggestWithFilterAndQuery);
             fail("expected parse failure, as both filter and query are set in collate");
         } catch (ElasticsearchException e) {
             // expected

@@ -184,22 +184,36 @@ public class XContentHelper {
     /**
      * Updates the provided changes into the source. If the key exists in the changes, it overrides the one in source
      * unless both are Maps, in which case it recuersively updated it.
+     * @return true if the source map was modified
      */
-    public static void update(Map<String, Object> source, Map<String, Object> changes) {
+    public static boolean update(Map<String, Object> source, Map<String, Object> changes, boolean checkUpdatesAreUnequal) {
+        boolean modified = false;
         for (Map.Entry<String, Object> changesEntry : changes.entrySet()) {
             if (!source.containsKey(changesEntry.getKey())) {
                 // safe to copy, change does not exist in source
                 source.put(changesEntry.getKey(), changesEntry.getValue());
-            } else {
-                if (source.get(changesEntry.getKey()) instanceof Map && changesEntry.getValue() instanceof Map) {
-                    // recursive merge maps
-                    update((Map<String, Object>) source.get(changesEntry.getKey()), (Map<String, Object>) changesEntry.getValue());
-                } else {
-                    // update the field
-                    source.put(changesEntry.getKey(), changesEntry.getValue());
-                }
+                modified = true;
+                continue;
             }
+            Object old = source.get(changesEntry.getKey());
+            if (old instanceof Map && changesEntry.getValue() instanceof Map) {
+                // recursive merge maps
+                modified = update((Map<String, Object>) source.get(changesEntry.getKey()),
+                        (Map<String, Object>) changesEntry.getValue(), checkUpdatesAreUnequal);
+                continue;
+            }
+            // update the field
+            source.put(changesEntry.getKey(), changesEntry.getValue());
+            if (modified) {
+                continue;
+            }
+            if (!checkUpdatesAreUnequal || old == null) {
+                modified = true;
+                continue;
+            }
+            modified = !old.equals(changesEntry.getValue());
         }
+        return modified;
     }
 
     /**

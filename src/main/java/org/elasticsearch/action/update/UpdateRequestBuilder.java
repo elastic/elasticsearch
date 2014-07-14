@@ -392,6 +392,14 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
         return this;
     }
 
+    /**
+     * Sets whether to perform extra effort to detect noop updates via docAsUpsert.
+     */
+    public UpdateRequestBuilder setDetectNoop(boolean detectNoop) {
+        request.detectNoop(detectNoop);
+        return this;
+    }
+
     @Override
     protected void doExecute(ActionListener<UpdateResponse> listener) {
         client.update(request, listener);

@@ -20,6 +20,7 @@
 package org.elasticsearch.action.update;
 
 import com.google.common.collect.Maps;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.index.IndexRequest;
@@ -76,6 +77,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
     private IndexRequest upsertRequest;
 
     private boolean docAsUpsert = false;
+    private boolean detectNoop = false;
 
     @Nullable
     private IndexRequest doc;
@@ -560,6 +562,19 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         return source(new BytesArray(source, offset, length));
     }
 
+    /**
+     * Should this update attempt to detect if it is a noop?
+     * @return this for chaining
+     */
+    public UpdateRequest detectNoop(boolean detectNoop) {
+        this.detectNoop = detectNoop;
+        return this;
+    }
+
+    public boolean detectNoop() {
+        return detectNoop;
+    }
+
     public UpdateRequest source(BytesReference source) throws Exception {
         XContentType xContentType = XContentFactory.xContentType(source);
         try (XContentParser parser = XContentFactory.xContent(xContentType).createParser(source)) {
@@ -587,6 +602,8 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
                     safeDoc().source(docBuilder);
                 } else if ("doc_as_upsert".equals(currentFieldName)) {
                     docAsUpsert(parser.booleanValue());
+                } else if ("detect_noop".equals(currentFieldName)) {
+                    detectNoop(parser.booleanValue());
                 }
             }
         }
@@ -635,6 +652,9 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         docAsUpsert = in.readBoolean();
         version = Versions.readVersion(in);
         versionType = VersionType.fromValue(in.readByte());
+        if (in.getVersion().onOrAfter(Version.V_1_3_0)) {
+            detectNoop = in.readBoolean();
+        }
     }
 
     @Override
@@ -684,6 +704,9 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         out.writeBoolean(docAsUpsert);
         Versions.writeVersion(version, out);
         out.writeByte(versionType.getValue());
+        if (out.getVersion().onOrAfter(Version.V_1_3_0)) {
+            out.writeBoolean(detectNoop);
+        }
     }
 
 }

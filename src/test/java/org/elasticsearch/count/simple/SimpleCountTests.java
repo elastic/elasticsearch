@@ -47,8 +47,14 @@ public class SimpleCountTests extends ElasticsearchIntegrationTest {
 
         int iters = scaledRandomIntBetween(10, 100);
         for (int i = 0; i < iters; i++) {
+
+            String randomPreference = randomUnicodeOfLengthBetween(0, 4);
+            // randomPreference should not start with '_' (reserved for known preference types (e.g. _shards, _primary)
+            while (randomPreference.startsWith("_")) {
+                randomPreference = randomUnicodeOfLengthBetween(0, 4);
+            }
             // id is not indexed, but lets see that we automatically convert to
-            CountResponse countResponse = client().prepareCount().setQuery(QueryBuilders.matchAllQuery()).setPreference(randomUnicodeOfLengthBetween(0, 4)).get();
+            CountResponse countResponse = client().prepareCount().setQuery(QueryBuilders.matchAllQuery()).setPreference(randomPreference).get();
             assertHitCount(countResponse, 6l);
         }
     }

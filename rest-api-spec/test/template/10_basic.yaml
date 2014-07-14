@@ -1,0 +1,28 @@
+---
+"Indexed template":
+
+  - do:
+      indexed_template.create:
+        id: "1"
+        body: { "template": { "query": { "match_all": {}}, "size": "{{my_size}}" } }
+  - match: { _id: "1" }
+
+  - do:
+     indexed_template.get:
+       id: 1
+  - match: { template: "{\"query\":{\"match_all\":{}},\"size\":\"{{my_size}}\"}"}
+
+
+  - do:
+     indexed_template.delete:
+       id: "1"
+  - match: { found: true }
+  - match: { _index: ".scripts" }
+  - match: { _id: "1" }
+
+  - do:
+      catch: request
+      indexed_template.create:
+        id: "1"
+        body: { "template": { "query": { "match{{}}_all": {}}, "size": "{{my_size}}" } }
+  - match: { "error": /ElasticsearchIllegalArgumentException\SUnable\sto\sparse.*/ }

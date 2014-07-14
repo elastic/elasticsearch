@@ -60,6 +60,7 @@ import org.elasticsearch.index.similarity.SimilarityLookupService;
 import org.elasticsearch.indices.InvalidTypeNameException;
 import org.elasticsearch.indices.TypeMissingException;
 import org.elasticsearch.percolator.PercolatorService;
+import org.elasticsearch.script.ScriptService;
 
 import java.io.File;
 import java.io.IOException;
@@ -104,6 +105,7 @@ public class MapperService extends AbstractIndexComponent  {
     private volatile String defaultMappingSource;
     private volatile String defaultPercolatorMappingSource;
 
+
     private volatile Map<String, DocumentMapper> mappers = ImmutableMap.of();
 
     private final Object typeMutex = new Object();
@@ -136,36 +138,30 @@ public class MapperService extends AbstractIndexComponent  {
 
         this.dynamic = componentSettings.getAsBoolean("dynamic", true);
         String defaultMappingLocation = componentSettings.get("default_mapping_location");
-        URL defaultMappingUrl;
-        if (defaultMappingLocation == null) {
-            try {
-                defaultMappingUrl = environment.resolveConfig("default-mapping.json");
-            } catch (FailedToResolveConfigException e) {
-                // not there, default to the built in one
-                defaultMappingUrl = indexSettings.getClassLoader().getResource("org/elasticsearch/index/mapper/default-mapping.json");
-                if (defaultMappingUrl == null) {
-                    defaultMappingUrl = MapperService.class.getClassLoader().getResource("org/elasticsearch/index/mapper/default-mapping.json");
-                }
-            }
+        final URL defaultMappingUrl;
+        if (index.getName().equals(ScriptService.SCRIPT_INDEX)){
+            defaultMappingUrl = getMappingUrl(indexSettings, environment, defaultMappingLocation,"script-index-defaults.json","org/elasticsearch/index/mapper/script-index-defaults.json");
         } else {
-            try {
-                defaultMappingUrl = environment.resolveConfig(defaultMappingLocation);
-            } catch (FailedToResolveConfigException e) {
-                // not there, default to the built in one
-                try {
-                    defaultMappingUrl = new File(defaultMappingLocation).toURI().toURL();
-                } catch (MalformedURLException e1) {
-                    throw new FailedToResolveConfigException("Failed to resolve dynamic mapping location [" + defaultMappingLocation + "]");
-                }
-            }
+            defaultMappingUrl = getMappingUrl(indexSettings, environment, defaultMappingLocation,"default-mapping.json","org/elasticsearch/index/mapper/default-mapping.json");
         }
 
         if (defaultMappingUrl == null) {
             logger.info("failed to find default-mapping.json in the classpath, using the default template");
-            defaultMappingSource = "{\n" +
-                    "    \"_default_\":{\n" +
-                    "    }\n" +
-                    "}";
+            if (index.getName().equals(ScriptService.SCRIPT_INDEX)){
+                defaultMappingSource =  "{" +
+                        "\"_default_\": {" +
+                        "\"properties\": {" +
+                        "\"script\": { \"enabled\": false }," +
+                        "\"template\": { \"enabled\": false }" +
+                        "}" +
+                        "}" +
+                        "}";
+            } else {
+                defaultMappingSource = "{\n" +
+                        "    \"_default_\":{\n" +
+                        "    }\n" +
+                        "}";
+            }
         } else {
             try {
                 defaultMappingSource = Streams.copyToString(new InputStreamReader(defaultMappingUrl.openStream(), Charsets.UTF_8));
@@ -214,6 +210,33 @@ public class MapperService extends AbstractIndexComponent  {
         } else if (logger.isDebugEnabled()) {
             logger.debug("using dynamic[{}], default mapping: default_mapping_location[{}], loaded_from[{}], default percolator mapping: location[{}], loaded_from[{}]", dynamic, defaultMappingLocation, defaultMappingUrl, percolatorMappingLocation, percolatorMappingUrl);
         }
+    }
+
+    private URL getMappingUrl(Settings indexSettings, Environment environment, String mappingLocation, String configString, String resourceLocation) {
+        URL mappingUrl;
+        if (mappingLocation == null) {
+            try {
+                mappingUrl = environment.resolveConfig(configString);
+            } catch (FailedToResolveConfigException e) {
+                // not there, default to the built in one
+                mappingUrl = indexSettings.getClassLoader().getResource(resourceLocation);
+                if (mappingUrl == null) {
+                    mappingUrl = MapperService.class.getClassLoader().getResource(resourceLocation);
+                }
+            }
+        } else {
+            try {
+                mappingUrl = environment.resolveConfig(mappingLocation);
+            } catch (FailedToResolveConfigException e) {
+                // not there, default to the built in one
+                try {
+                    mappingUrl = new File(mappingLocation).toURI().toURL();
+                } catch (MalformedURLException e1) {
+                    throw new FailedToResolveConfigException("Failed to resolve dynamic mapping location [" + mappingLocation + "]");
+                }
+            }
+        }
+        return mappingUrl;
     }
 
     public void close() {
@@ -417,7 +440,7 @@ public class MapperService extends AbstractIndexComponent  {
         String defaultMappingSource;
         if (PercolatorService.TYPE_NAME.equals(mappingType)) {
             defaultMappingSource = this.defaultPercolatorMappingSource;
-        } else {
+        }  else {
             defaultMappingSource = this.defaultMappingSource;
         }
         return documentParser.parseCompressed(mappingType, mappingSource, applyDefault ? defaultMappingSource : null);

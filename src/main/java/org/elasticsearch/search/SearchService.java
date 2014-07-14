@@ -79,6 +79,7 @@ import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.nio.charset.Charset;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -583,33 +584,44 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
     }
 
     private void parseTemplate(ShardSearchRequest request) {
+
+        final ExecutableScript executable;
         if (hasLength(request.templateName())) {
-            ExecutableScript executable = this.scriptService.executable("mustache", request.templateName(), request.templateParams());
-            BytesReference processedQuery = (BytesReference) executable.run();
-            request.source(processedQuery);
+            executable = this.scriptService.executable("mustache", request.templateName(), request.templateType(), request.templateParams());
         } else {
-            if (request.templateSource() == null || request.templateSource().length() == 0) {
+            if (!hasLength(request.templateSource())) {
                 return;
             }
-
             XContentParser parser = null;
+            TemplateQueryParser.TemplateContext templateContext = null;
+
             try {
                 parser = XContentFactory.xContent(request.templateSource()).createParser(request.templateSource());
+                templateContext = TemplateQueryParser.parse(parser, "params", "template");
 
-                TemplateQueryParser.TemplateContext templateContext = TemplateQueryParser.parse(parser, "template", "params");
-                if (!hasLength(templateContext.template())) {
-                    throw new ElasticsearchParseException("Template must have [template] field configured");
+                if (templateContext.scriptType().equals(ScriptService.ScriptType.INLINE)) {
+                    //Try to double parse for nested template id/file
+                    parser = XContentFactory.xContent(templateContext.template().getBytes(Charset.defaultCharset())).createParser(templateContext.template().getBytes(Charset.defaultCharset()));
+                    TemplateQueryParser.TemplateContext innerContext = TemplateQueryParser.parse(parser, "params");
+                    if (hasLength(innerContext.template()) && !innerContext.scriptType().equals(ScriptService.ScriptType.INLINE)) {
+                        //An inner template referring to a filename or id
+                        templateContext = new TemplateQueryParser.TemplateContext(innerContext.scriptType(), innerContext.template(), templateContext.params());
+                    }
                 }
-
-                ExecutableScript executable = this.scriptService.executable("mustache", templateContext.template(), templateContext.params());
-                BytesReference processedQuery = (BytesReference) executable.run();
-                request.source(processedQuery);
             } catch (IOException e) {
-                logger.error("Error trying to parse template: ", e);
+                throw new ElasticsearchParseException("Failed to parse template", e);
             } finally {
                 IOUtils.closeWhileHandlingException(parser);
             }
+
+            if (templateContext == null || !hasLength(templateContext.template())) {
+                throw new ElasticsearchParseException("Template must have [template] field configured");
+            }
+            executable = this.scriptService.executable("mustache", templateContext.template(), templateContext.scriptType(), templateContext.params());
         }
+
+        BytesReference processedQuery = (BytesReference) executable.run();
+        request.source(processedQuery);
     }
 
     private void parseSource(SearchContext context, BytesReference source) throws SearchParseException {

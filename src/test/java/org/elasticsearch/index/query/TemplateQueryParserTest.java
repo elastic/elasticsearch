@@ -114,7 +114,7 @@ public class TemplateQueryParserTest extends ElasticsearchTestCase {
 
     @Test
     public void testParserCanExtractTemplateNames() throws Exception {
-        String templateString = "{ \"template\": { \"query\": \"storedTemplate\" ,\"params\":{\"template\":\"all\" } } } ";
+        String templateString = "{ \"template\": { \"file\": \"storedTemplate\" ,\"params\":{\"template\":\"all\" } } } ";
 
         XContentParser templateSourceParser = XContentFactory.xContent(templateString).createParser(templateString);
         context.reset(templateSourceParser);

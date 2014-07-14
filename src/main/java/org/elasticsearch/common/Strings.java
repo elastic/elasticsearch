@@ -25,6 +25,7 @@ import com.google.common.collect.Iterables;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.util.CollectionUtils;
 
@@ -205,6 +206,18 @@ public class Strings {
      */
     public static boolean hasLength(CharSequence str) {
         return (str != null && str.length() > 0);
+    }
+
+    /**
+     * Check that the given BytesReference is neither <code>null</code> nor of length 0
+     * Note: Will return <code>true</code> for a BytesReference that purely consists of whitespace.
+     *
+     * @param bytesReference the BytesReference to check (may be <code>null</code>)
+     * @return <code>true</code> if the BytesReference is not null and has length
+     * @see #hasLength(CharSequence)
+     */
+    public static boolean hasLength(BytesReference bytesReference) {
+        return (bytesReference != null && bytesReference.length() > 0);
     }
 
     /**

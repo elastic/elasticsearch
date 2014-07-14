@@ -1,0 +1,23 @@
+{
+  "indexed_script.get": {
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/indexed-scripts.html",
+    "methods": ["GET"],
+    "url": {
+      "path": "/_search/script/{lang}/{id}",
+      "paths": [ "/_search/script/{lang}/{id}" ],
+      "parts": {
+        "id": {
+          "type" : "string",
+          "description" : "Script ID",
+          "required" : true
+        },
+        "lang" : {
+          "type" : "string",
+          "description" : "Script language",
+          "required" : true
+        }
+      }
+    },
+    "body": null
+  }
+}

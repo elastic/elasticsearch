@@ -1,0 +1,16 @@
+{
+    "settings" : {
+        "number_of_shards" : 1,
+        "number_of_replicas" : "0-all"
+    }
+
+    "mappings": {
+     "_default_": {
+       "properties": {
+         "script": { "enabled": false },
+         "template": { "enabled": false }
+       }
+     }
+    }
+
+}

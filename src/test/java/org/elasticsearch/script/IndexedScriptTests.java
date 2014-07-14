@@ -24,7 +24,6 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -32,6 +31,7 @@ import java.util.List;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.equalTo;
 
 public class IndexedScriptTests extends ElasticsearchIntegrationTest {
 
@@ -63,7 +63,7 @@ public class IndexedScriptTests extends ElasticsearchIntegrationTest {
         assertHitCount(searchResponse,5);
         assertTrue(searchResponse.getHits().hits().length == 1);
         SearchHit sh = searchResponse.getHits().getAt(0);
-        assertTrue(sh.field("test1").getValue() == 2);
-        assertTrue(sh.field("test2").getValue() == 6);
+        assertThat((Integer)sh.field("test1").getValue(), equalTo(2));
+        assertThat((Integer)sh.field("test2").getValue(), equalTo(6));
     }
 }

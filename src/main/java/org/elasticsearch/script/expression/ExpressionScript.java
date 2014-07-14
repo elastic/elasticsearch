@@ -78,13 +78,13 @@ class ExpressionScript implements SearchScript {
         }
     }
 
-    Expression expression;
-    XSimpleBindings bindings;
-    CannedScorer scorer;
-    ValueSource source;
+    final Expression expression;
+    final XSimpleBindings bindings;
+    final CannedScorer scorer;
+    final ValueSource source;
+    final Map<String, CannedScorer> context;
+    final ReplaceableConstValueSource specialValue; // _value
     FunctionValues values;
-    Map<String, CannedScorer> context;
-    ReplaceableConstValueSource specialValue; // _value
 
     ExpressionScript(Expression e, XSimpleBindings b, ReplaceableConstValueSource v) {
         expression = e;

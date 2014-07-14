@@ -20,13 +20,29 @@
 package org.elasticsearch.script.expression;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.get.GetRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
+import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.metrics.stats.Stats;
+import org.elasticsearch.search.sort.SortBuilder;
+import org.elasticsearch.search.sort.SortBuilders;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
+
+import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -35,25 +51,18 @@ public class ExpressionScriptTests extends ElasticsearchIntegrationTest {
 
     private SearchResponse runScript(String script, Object... params) {
         ensureGreen("test");
-        StringBuilder buf = new StringBuilder();
-        buf.append("{query: {match_all:{}}, sort: [{\"_uid\": {\"order\":\"asc\"}}], script_fields: {foo: {lang: \"expression\", script: \"" + script + "\"");
-        if (params.length > 0) {
-            assert(params.length % 2 == 0);
-            buf.append(",params:{");
-            for (int i = 0; i < params.length; i += 2) {
-                if (i != 0) buf.append(",");
-                buf.append("\"" + params[i] + "\":");
-                Object v = params[i + 1];
-                if (v instanceof String) {
-                    buf.append("\"" + v + "\"");
-                } else {
-                    buf.append(v);
-                }
-            }
-            buf.append("}");
+
+        Map<String, Object> paramsMap = new HashMap<>();
+        assert(params.length % 2 == 0);
+        for (int i = 0; i < params.length; i += 2) {
+            paramsMap.put(params[i].toString(), params[i + 1]);
         }
-        buf.append("}}}");
-        return client().prepareSearch("test").setSource(buf.toString()).get();
+
+        SearchRequestBuilder req = new SearchRequestBuilder(client()).setIndices("test");
+        req.setQuery(QueryBuilders.matchAllQuery())
+           .addSort(SortBuilders.fieldSort("_uid")
+                                .order(SortOrder.ASC)).addScriptField("foo", "expression", script, paramsMap);
+        return req.get();
     }
 
     public void testBasic() throws Exception {
@@ -69,16 +78,13 @@ public class ExpressionScriptTests extends ElasticsearchIntegrationTest {
         createIndex("test");
         ensureGreen("test");
         indexRandom(true,
-                client().prepareIndex("test", "doc", "1").setSource("text", "hello goodbye"),
-                client().prepareIndex("test", "doc", "2").setSource("text", "hello hello hello goodbye"),
-                client().prepareIndex("test", "doc", "3").setSource("text", "hello hello goodebye"));
-        String req = "{query: {function_score: {query:{term:{text:\"hello\"}}," +
-                "boost_mode: \"replace\"," +
-                "script_score: {" +
-                    "script: \"1 / _score\"," + // invert the order given by score
-                    "lang: \"expression\"" +
-                "}}}}";
-        SearchResponse rsp = client().prepareSearch("test").setSource(req).get();
+            client().prepareIndex("test", "doc", "1").setSource("text", "hello goodbye"),
+            client().prepareIndex("test", "doc", "2").setSource("text", "hello hello hello goodbye"),
+            client().prepareIndex("test", "doc", "3").setSource("text", "hello hello goodebye"));
+        ScoreFunctionBuilder score = ScoreFunctionBuilders.scriptFunction("1 / _score", "expression", Collections.EMPTY_MAP);
+        SearchRequestBuilder req = new SearchRequestBuilder(client()).setIndices("test");
+        req.setQuery(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("text", "hello"), score).boostMode("replace"));
+        SearchResponse rsp = req.get();
         SearchHits hits = rsp.getHits();
         assertEquals(3, hits.getTotalHits());
         assertEquals("1", hits.getAt(0).getId());
@@ -214,20 +220,16 @@ public class ExpressionScriptTests extends ElasticsearchIntegrationTest {
         createIndex("test");
         ensureGreen("test");
         indexRandom(true,
-                client().prepareIndex("test", "doc", "1").setSource("x", 5, "y", 1.2),
-                client().prepareIndex("test", "doc", "2").setSource("x", 10, "y", 1.4),
-                client().prepareIndex("test", "doc", "3").setSource("x", 13, "y", 1.8));
-        String req = "{query: {match_all:{}}, aggs: {" +
-                          "int_agg: {stats: {" +
-                              "field: \"x\"," +
-                              "script: \"_value * 3\"," +
-                              "lang: \"expression\"" +
-                           "}},double_agg: {stats: {" +
-                              "field: \"y\"," +
-                              "script: \"_value - 1.1\"," +
-                              "lang: \"expression\"" +
-                     "}}}}";
-        SearchResponse rsp = client().prepareSearch("test").setSource(req).get();
+            client().prepareIndex("test", "doc", "1").setSource("x", 5, "y", 1.2),
+            client().prepareIndex("test", "doc", "2").setSource("x", 10, "y", 1.4),
+            client().prepareIndex("test", "doc", "3").setSource("x", 13, "y", 1.8));
+
+        SearchRequestBuilder req = new SearchRequestBuilder(client()).setIndices("test");
+        req.setQuery(QueryBuilders.matchAllQuery())
+           .addAggregation(AggregationBuilders.stats("int_agg").field("x").script("_value * 3").lang("expression"))
+           .addAggregation(AggregationBuilders.stats("double_agg").field("y").script("_value - 1.1").lang("expression"));
+
+        SearchResponse rsp = req.get();
         assertEquals(3, rsp.getHits().getTotalHits());
 
         Stats stats = rsp.getAggregations().get("int_agg");
@@ -247,17 +249,16 @@ public class ExpressionScriptTests extends ElasticsearchIntegrationTest {
                 client().prepareIndex("test", "doc", "1").setSource("text", "hello"),
                 client().prepareIndex("test", "doc", "2").setSource("text", "goodbye"),
                 client().prepareIndex("test", "doc", "3").setSource("text", "hello"));
-        String req = "{query: {match_all:{}}, aggs: {term_agg: {terms: {" +
-                        "field: \"text\"," +
-                        "script: \"_value\"," +
-                        "lang: \"expression\"" +
-                     "}}}}";
+
+        SearchRequestBuilder req = new SearchRequestBuilder(client()).setIndices("test");
+        req.setQuery(QueryBuilders.matchAllQuery())
+           .addAggregation(AggregationBuilders.terms("term_agg").field("text").script("_value").lang("expression"));
 
         String message;
         try {
             // shards that don't have docs with the "text" field will not fail,
             // so we may or may not get a total failure
-            SearchResponse rsp = client().prepareSearch("test").setSource(req).get();
+            SearchResponse rsp = req.get();
             assertThat(rsp.getShardFailures().length, greaterThan(0)); // at least the shards containing the docs should have failed
             message = rsp.getShardFailures()[0].reason();
         } catch (SearchPhaseExecutionException e) {

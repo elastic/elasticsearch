@@ -455,10 +455,12 @@ public class SimpleVersioningTests extends ElasticsearchIntegrationTest {
         public String id;
         public long version;
         public boolean delete;
+        public int threadID = -1;
+        public long indexTime;
 
         @Override
         public String toString() {
-            return "id=" + id + " version=" + version + " delete?=" + delete;
+            return "id=" + id + " version=" + version + " delete?=" + delete + " threadID=" + threadID + " indexTime=" + indexTime;
         }
     }
 
@@ -556,7 +558,9 @@ public class SimpleVersioningTests extends ElasticsearchIntegrationTest {
         final AtomicInteger upto = new AtomicInteger();
         final CountDownLatch startingGun = new CountDownLatch(1);
         Thread[] threads = new Thread[TestUtil.nextInt(random, 1, isNightly() ? 20 : 5)];
+        final long startTime = System.nanoTime();
         for(int i=0;i<threads.length;i++) {
+            final int threadID = i;
             threads[i] = new Thread() {
                     @Override
                     public void run() {
@@ -566,7 +570,7 @@ public class SimpleVersioningTests extends ElasticsearchIntegrationTest {
                             startingGun.await();
                             while (true) {
 
-                                // TODO: sometimes us bulk:
+                                // TODO: sometimes use bulk:
 
                                 int index = upto.getAndIncrement();
                                 if (index >= idVersions.length) {
@@ -575,10 +579,13 @@ public class SimpleVersioningTests extends ElasticsearchIntegrationTest {
                                 if (VERBOSE && index % 100 == 0) {
                                     System.out.println(Thread.currentThread().getName() + ": index=" + index);
                                 }
+                                IDAndVersion idVersion = idVersions[index];
 
-                                String id = idVersions[index].id;
-                                long version = idVersions[index].version;
-                                if (idVersions[index].delete) {
+                                String id = idVersion.id;
+                                idVersion.threadID = threadID;
+                                idVersion.indexTime = System.nanoTime()-startTime;
+                                long version = idVersion.version;
+                                if (idVersion.delete) {
                                     try {
                                         client().prepareDelete("test", "type", id)
                                             .setVersion(version)
@@ -621,14 +628,18 @@ public class SimpleVersioningTests extends ElasticsearchIntegrationTest {
                                 }
 
                                 if (threadRandom.nextInt(100) == 7) {
+                                    System.out.println(threadID + ": TEST: now refresh at " + (System.nanoTime()-startTime));
                                     refresh();
+                                    System.out.println(threadID + ": TEST: refresh done at " + (System.nanoTime()-startTime));
                                 }
                                 if (threadRandom.nextInt(100) == 7) {
+                                    System.out.println(threadID + ": TEST: now flush at " + (System.nanoTime()-startTime));
                                     try {
                                         flush();
                                     } catch (FlushNotAllowedEngineException fnaee) {
                                         // OK
                                     }
+                                    System.out.println(threadID + ": TEST: flush done at " + (System.nanoTime()-startTime));
                                 }
                             }
                         } catch (Exception e) {
@@ -653,7 +664,15 @@ public class SimpleVersioningTests extends ElasticsearchIntegrationTest {
             } else {
                 expected = -1;
             }
-            assertThat("id=" + id + " idVersion=" + idVersion, client().prepareGet("test", "type", id).execute().actionGet().getVersion(), equalTo(expected));
+            try {
+                assertThat("id=" + id + " idVersion=" + idVersion, client().prepareGet("test", "type", id).execute().actionGet().getVersion(), equalTo(expected));
+            } catch (AssertionError ae) {
+                System.out.println("FAILED:");
+                for(int i=0;i<idVersions.length;i++) {
+                    System.out.println("i=" + i + " " + idVersions[i]);
+                }
+                throw ae;
+            }
         }
     }
 

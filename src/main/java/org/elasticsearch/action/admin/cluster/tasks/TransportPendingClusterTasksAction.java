@@ -37,13 +37,8 @@ public class TransportPendingClusterTasksAction extends TransportMasterNodeReadO
 
     @Inject
     public TransportPendingClusterTasksAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool) {
-        super(settings, transportService, clusterService, threadPool);
+        super(settings, PendingClusterTasksAction.NAME, transportService, clusterService, threadPool);
         this.clusterService = clusterService;
-    }
-
-    @Override
-    protected String transportAction() {
-        return PendingClusterTasksAction.NAME;
     }
 
     @Override

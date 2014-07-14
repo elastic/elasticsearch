@@ -65,6 +65,8 @@ public class MappingUpdatedAction extends TransportMasterNodeOperationAction<Map
 
     public static final String INDICES_MAPPING_ADDITIONAL_MAPPING_CHANGE_TIME = "indices.mapping.additional_mapping_change_time";
 
+    private static final String ACTION_NAME = "cluster/mappingUpdated";
+
     private final AtomicLong mappingUpdateOrderGen = new AtomicLong();
     private final MetaDataMappingService metaDataMappingService;
 
@@ -87,7 +89,7 @@ public class MappingUpdatedAction extends TransportMasterNodeOperationAction<Map
     @Inject
     public MappingUpdatedAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                 MetaDataMappingService metaDataMappingService, NodeSettingsService nodeSettingsService) {
-        super(settings, transportService, clusterService, threadPool);
+        super(settings, ACTION_NAME, transportService, clusterService, threadPool);
         this.metaDataMappingService = metaDataMappingService;
         // this setting should probably always be 0, just add the option to wait for more changes within a time window
         this.additionalMappingChangeTime = settings.getAsTime(INDICES_MAPPING_ADDITIONAL_MAPPING_CHANGE_TIME, TimeValue.timeValueMillis(0));
@@ -111,11 +113,6 @@ public class MappingUpdatedAction extends TransportMasterNodeOperationAction<Map
     public void updateMappingOnMaster(String index, DocumentMapper documentMapper, String indexUUID, MappingUpdateListener listener) {
         assert !documentMapper.type().equals(MapperService.DEFAULT_MAPPING) : "_default_ mapping should not be updated";
         masterMappingUpdater.add(new MappingChange(documentMapper, index, indexUUID, listener));
-    }
-
-    @Override
-    protected String transportAction() {
-        return "cluster/mappingUpdated";
     }
 
     @Override

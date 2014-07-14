@@ -44,7 +44,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadOperatio
     @Inject
     public TransportClusterStateAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                        ClusterName clusterName) {
-        super(settings, transportService, clusterService, threadPool);
+        super(settings, ClusterStateAction.NAME, transportService, clusterService, threadPool);
         this.clusterName = clusterName;
     }
 
@@ -52,11 +52,6 @@ public class TransportClusterStateAction extends TransportMasterNodeReadOperatio
     protected String executor() {
         // very lightweight operation in memory, no need to fork to a thread
         return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected String transportAction() {
-        return ClusterStateAction.NAME;
     }
 
     @Override

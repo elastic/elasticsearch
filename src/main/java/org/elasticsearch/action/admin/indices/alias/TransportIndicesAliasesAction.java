@@ -52,7 +52,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeOperationA
     @Inject
     public TransportIndicesAliasesAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                          ThreadPool threadPool, MetaDataIndexAliasesService indexAliasesService) {
-        super(settings, transportService, clusterService, threadPool);
+        super(settings, IndicesAliasesAction.NAME, transportService, clusterService, threadPool);
         this.indexAliasesService = indexAliasesService;
     }
 
@@ -60,11 +60,6 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeOperationA
     protected String executor() {
         // we go async right away...
         return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected String transportAction() {
-        return IndicesAliasesAction.NAME;
     }
 
     @Override

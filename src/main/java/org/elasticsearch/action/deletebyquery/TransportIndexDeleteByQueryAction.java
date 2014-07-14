@@ -38,10 +38,12 @@ import java.util.List;
  */
 public class TransportIndexDeleteByQueryAction extends TransportIndexReplicationOperationAction<IndexDeleteByQueryRequest, IndexDeleteByQueryResponse, ShardDeleteByQueryRequest, ShardDeleteByQueryRequest, ShardDeleteByQueryResponse> {
 
+    private static final String ACTION_NAME = DeleteByQueryAction.NAME + "/index";
+
     @Inject
     public TransportIndexDeleteByQueryAction(Settings settings, ClusterService clusterService, TransportService transportService,
                                              ThreadPool threadPool, TransportShardDeleteByQueryAction shardDeleteByQueryAction) {
-        super(settings, transportService, clusterService, threadPool, shardDeleteByQueryAction);
+        super(settings, ACTION_NAME, transportService, clusterService, threadPool, shardDeleteByQueryAction);
     }
 
     @Override
@@ -57,11 +59,6 @@ public class TransportIndexDeleteByQueryAction extends TransportIndexReplication
     @Override
     protected boolean accumulateExceptions() {
         return true;
-    }
-
-    @Override
-    protected String transportAction() {
-        return DeleteByQueryAction.NAME + "/index";
     }
 
     @Override

@@ -40,18 +40,13 @@ public class TransportTypesExistsAction extends TransportMasterNodeReadOperation
     @Inject
     public TransportTypesExistsAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                       ThreadPool threadPool) {
-        super(settings, transportService, clusterService, threadPool);
+        super(settings, TypesExistsAction.NAME, transportService, clusterService, threadPool);
     }
 
     @Override
     protected String executor() {
         // lightweight check
         return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected String transportAction() {
-        return TypesExistsAction.NAME;
     }
 
     @Override

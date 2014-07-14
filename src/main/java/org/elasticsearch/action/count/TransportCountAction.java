@@ -77,7 +77,7 @@ public class TransportCountAction extends TransportBroadcastOperationAction<Coun
     public TransportCountAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
                                 IndicesService indicesService, ScriptService scriptService, CacheRecycler cacheRecycler,
                                 PageCacheRecycler pageCacheRecycler, BigArrays bigArrays) {
-        super(settings, threadPool, clusterService, transportService);
+        super(settings, CountAction.NAME, threadPool, clusterService, transportService);
         this.indicesService = indicesService;
         this.scriptService = scriptService;
         this.cacheRecycler = cacheRecycler;
@@ -94,11 +94,6 @@ public class TransportCountAction extends TransportBroadcastOperationAction<Coun
     @Override
     protected String executor() {
         return ThreadPool.Names.SEARCH;
-    }
-
-    @Override
-    protected String transportAction() {
-        return CountAction.NAME;
     }
 
     @Override

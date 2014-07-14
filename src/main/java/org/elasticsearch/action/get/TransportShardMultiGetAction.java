@@ -42,6 +42,8 @@ import org.elasticsearch.transport.TransportService;
 
 public class TransportShardMultiGetAction extends TransportShardSingleOperationAction<MultiGetShardRequest, MultiGetShardResponse> {
 
+    private static final String ACTION_NAME = MultiGetAction.NAME + "/shard";
+
     private final IndicesService indicesService;
 
     private final boolean realtime;
@@ -49,7 +51,7 @@ public class TransportShardMultiGetAction extends TransportShardSingleOperationA
     @Inject
     public TransportShardMultiGetAction(Settings settings, ClusterService clusterService, TransportService transportService,
                                         IndicesService indicesService, ThreadPool threadPool) {
-        super(settings, threadPool, clusterService, transportService);
+        super(settings, ACTION_NAME, threadPool, clusterService, transportService);
         this.indicesService = indicesService;
 
         this.realtime = settings.getAsBoolean("action.get.realtime", true);
@@ -58,11 +60,6 @@ public class TransportShardMultiGetAction extends TransportShardSingleOperationA
     @Override
     protected String executor() {
         return ThreadPool.Names.GET;
-    }
-
-    @Override
-    protected String transportAction() {
-        return MultiGetAction.NAME + "/shard";
     }
 
     @Override

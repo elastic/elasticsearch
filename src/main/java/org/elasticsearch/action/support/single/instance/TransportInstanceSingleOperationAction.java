@@ -51,18 +51,16 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
 
     protected final TransportService transportService;
 
-    final String transportAction;
     final String executor;
 
-    protected TransportInstanceSingleOperationAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService) {
-        super(settings, threadPool);
+    protected TransportInstanceSingleOperationAction(Settings settings, String actionName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService) {
+        super(settings, actionName, threadPool);
         this.clusterService = clusterService;
         this.transportService = transportService;
 
-        this.transportAction = transportAction();
         this.executor = executor();
 
-        transportService.registerHandler(transportAction, new TransportHandler());
+        transportService.registerHandler(actionName, new TransportHandler());
     }
 
     @Override
@@ -71,8 +69,6 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
     }
 
     protected abstract String executor();
-
-    protected abstract String transportAction();
 
     protected abstract void shardOperation(Request request, ActionListener<Response> listener) throws ElasticsearchException;
 
@@ -212,7 +208,7 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
                 }
             } else {
                 DiscoveryNode node = nodes.get(shard.currentNodeId());
-                transportService.sendRequest(node, transportAction, request, transportOptions(), new BaseTransportResponseHandler<Response>() {
+                transportService.sendRequest(node, actionName, request, transportOptions(), new BaseTransportResponseHandler<Response>() {
 
                     @Override
                     public Response newInstance() {

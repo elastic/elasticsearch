@@ -47,7 +47,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadOperati
     @Inject
     public TransportClusterHealthAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                         ClusterName clusterName) {
-        super(settings, transportService, clusterService, threadPool);
+        super(settings, ClusterHealthAction.NAME, transportService, clusterService, threadPool);
         this.clusterName = clusterName;
     }
 
@@ -55,11 +55,6 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadOperati
     protected String executor() {
         // we block here...
         return ThreadPool.Names.GENERIC;
-    }
-
-    @Override
-    protected String transportAction() {
-        return ClusterHealthAction.NAME;
     }
 
     @Override

@@ -40,21 +40,18 @@ public class TransportSingleShardMultiTermsVectorAction extends TransportShardSi
 
     private final IndicesService indicesService;
 
+    private static final String ACTION_NAME = MultiTermVectorsAction.NAME + "/shard";
+
     @Inject
     public TransportSingleShardMultiTermsVectorAction(Settings settings, ClusterService clusterService, TransportService transportService,
                                                       IndicesService indicesService, ThreadPool threadPool) {
-        super(settings, threadPool, clusterService, transportService);
+        super(settings, ACTION_NAME, threadPool, clusterService, transportService);
         this.indicesService = indicesService;
     }
 
     @Override
     protected String executor() {
         return ThreadPool.Names.GET;
-    }
-
-    @Override
-    protected String transportAction() {
-        return MultiTermVectorsAction.NAME + "/shard";
     }
 
     @Override

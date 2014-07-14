@@ -18,11 +18,9 @@
  */
 package org.elasticsearch.action.support;
 
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BaseTransportRequestHandler;
@@ -40,10 +38,9 @@ public abstract class HandledTransportAction<Request extends ActionRequest, Resp
      */
     public abstract Request newRequestInstance();
 
-    @Inject
-    public HandledTransportAction(Settings settings, ThreadPool threadPool, TransportService transportService, String actionName){
-        super(settings,threadPool);
-        transportService.registerHandler(actionName, new TransportHandler(actionName) {
+    protected HandledTransportAction(Settings settings, String actionName, ThreadPool threadPool, TransportService transportService){
+        super(settings, actionName, threadPool);
+        transportService.registerHandler(actionName, new TransportHandler() {
             @Override
             public Request newInstance(){
                 return newRequestInstance();
@@ -51,25 +48,13 @@ public abstract class HandledTransportAction<Request extends ActionRequest, Resp
         });
     }
 
-
     private abstract class TransportHandler extends BaseTransportRequestHandler<Request>{
-        private final String actionName;
 
         /**
          * Call to get an instance of type Request
          * @return Request
          */
         public abstract Request newInstance();
-
-        private TransportHandler(){
-            throw new ElasticsearchIllegalStateException("Default constructor of " + TransportHandler.class.toString() + " cannot be called");
-        }
-
-
-        private TransportHandler(String actionName){
-            this.actionName = actionName;
-        }
-
 
         @Override
         public final void messageReceived(final Request request, final TransportChannel channel) throws Exception {

@@ -60,7 +60,7 @@ public class TransportSearchAction extends TransportAction<SearchRequest, Search
                                  TransportSearchQueryAndFetchAction queryAndFetchAction,
                                  TransportSearchScanAction scanAction,
                                  TransportSearchCountAction countAction) {
-        super(settings, threadPool);
+        super(settings, SearchAction.NAME, threadPool);
         this.clusterService = clusterService;
         this.dfsQueryThenFetchAction = dfsQueryThenFetchAction;
         this.queryThenFetchAction = queryThenFetchAction;

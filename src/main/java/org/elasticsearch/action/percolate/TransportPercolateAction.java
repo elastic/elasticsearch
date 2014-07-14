@@ -61,7 +61,7 @@ public class TransportPercolateAction extends TransportBroadcastOperationAction<
     public TransportPercolateAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                     TransportService transportService, PercolatorService percolatorService,
                                     TransportGetAction getAction) {
-        super(settings, threadPool, clusterService, transportService);
+        super(settings, PercolateAction.NAME, threadPool, clusterService, transportService);
         this.percolatorService = percolatorService;
         this.getAction = getAction;
     }
@@ -100,11 +100,6 @@ public class TransportPercolateAction extends TransportBroadcastOperationAction<
     @Override
     protected PercolateRequest newRequest() {
         return new PercolateRequest();
-    }
-
-    @Override
-    protected String transportAction() {
-        return PercolateAction.NAME;
     }
 
     @Override

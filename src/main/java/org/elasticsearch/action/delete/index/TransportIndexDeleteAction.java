@@ -38,10 +38,12 @@ import java.util.List;
  */
 public class TransportIndexDeleteAction extends TransportIndexReplicationOperationAction<IndexDeleteRequest, IndexDeleteResponse, ShardDeleteRequest, ShardDeleteRequest, ShardDeleteResponse> {
 
+    private static final String ACTION_NAME = "indices/index/delete";
+
     @Inject
     public TransportIndexDeleteAction(Settings settings, ClusterService clusterService, TransportService transportService,
                                       ThreadPool threadPool, TransportShardDeleteAction deleteAction) {
-        super(settings, transportService, clusterService, threadPool, deleteAction);
+        super(settings, ACTION_NAME, transportService, clusterService, threadPool, deleteAction);
     }
 
     @Override
@@ -57,11 +59,6 @@ public class TransportIndexDeleteAction extends TransportIndexReplicationOperati
     @Override
     protected boolean accumulateExceptions() {
         return false;
-    }
-
-    @Override
-    protected String transportAction() {
-        return "indices/index/delete";
     }
 
     @Override

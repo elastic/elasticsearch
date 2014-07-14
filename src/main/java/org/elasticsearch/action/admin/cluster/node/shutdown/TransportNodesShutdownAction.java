@@ -54,7 +54,7 @@ public class TransportNodesShutdownAction extends TransportMasterNodeOperationAc
     @Inject
     public TransportNodesShutdownAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                         Node node, ClusterName clusterName) {
-        super(settings, transportService, clusterService, threadPool);
+        super(settings, NodesShutdownAction.NAME, transportService, clusterService, threadPool);
         this.node = node;
         this.clusterName = clusterName;
         this.disabled = settings.getAsBoolean("action.disable_shutdown", componentSettings.getAsBoolean("disabled", false));
@@ -66,11 +66,6 @@ public class TransportNodesShutdownAction extends TransportMasterNodeOperationAc
     @Override
     protected String executor() {
         return ThreadPool.Names.GENERIC;
-    }
-
-    @Override
-    protected String transportAction() {
-        return NodesShutdownAction.NAME;
     }
 
     @Override

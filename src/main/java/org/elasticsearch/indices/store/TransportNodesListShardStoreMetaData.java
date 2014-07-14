@@ -60,6 +60,8 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
  */
 public class TransportNodesListShardStoreMetaData extends TransportNodesOperationAction<TransportNodesListShardStoreMetaData.Request, TransportNodesListShardStoreMetaData.NodesStoreFilesMetaData, TransportNodesListShardStoreMetaData.NodeRequest, TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData> {
 
+    private static final String ACTION_NAME = "/cluster/nodes/indices/shard/store";
+
     private final IndicesService indicesService;
 
     private final NodeEnvironment nodeEnv;
@@ -67,7 +69,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
     @Inject
     public TransportNodesListShardStoreMetaData(Settings settings, ClusterName clusterName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
                                                 IndicesService indicesService, NodeEnvironment nodeEnv) {
-        super(settings, clusterName, threadPool, clusterService, transportService);
+        super(settings, ACTION_NAME, clusterName, threadPool, clusterService, transportService);
         this.indicesService = indicesService;
         this.nodeEnv = nodeEnv;
     }
@@ -79,11 +81,6 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
     @Override
     protected String executor() {
         return ThreadPool.Names.GENERIC;
-    }
-
-    @Override
-    protected String transportAction() {
-        return "/cluster/nodes/indices/shard/store";
     }
 
     @Override

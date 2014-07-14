@@ -32,8 +32,8 @@ import org.elasticsearch.transport.TransportService;
  */
 public abstract class TransportClusterInfoAction<Request extends ClusterInfoRequest, Response extends ActionResponse> extends TransportMasterNodeReadOperationAction<Request, Response> {
 
-    public TransportClusterInfoAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool) {
-        super(settings, transportService, clusterService, threadPool);
+    public TransportClusterInfoAction(Settings settings, String actionName, TransportService transportService, ClusterService clusterService, ThreadPool threadPool) {
+        super(settings, actionName, transportService, clusterService, threadPool);
     }
 
     @Override

@@ -146,7 +146,7 @@ public class UpdateHelper extends AbstractComponent {
             ctx.put("_source", sourceAndContent.v2());
 
             try {
-                ExecutableScript script = scriptService.executable(request.scriptLang, request.script, request.scriptParams);
+                ExecutableScript script = scriptService.executable(request.scriptLang, request.script, request.scriptType, request.scriptParams);
                 script.setNextVar("ctx", ctx);
                 script.run();
                 // we need to unwrap the ctx...

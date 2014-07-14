@@ -25,6 +25,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.FacetParser;
 import org.elasticsearch.search.facet.FacetPhaseExecutionException;
@@ -66,7 +67,9 @@ public class RangeFacetParser extends AbstractComponent implements FacetParser {
         String valueField = null;
         String scriptLang = null;
         String keyScript = null;
+        ScriptService.ScriptType keyScriptType = null;
         String valueScript = null;
+        ScriptService.ScriptType valueScriptType = null;
         Map<String, Object> params = null;
         XContentParser.Token token;
         String fieldName = null;
@@ -112,11 +115,25 @@ public class RangeFacetParser extends AbstractComponent implements FacetParser {
                     keyField = parser.text();
                 } else if ("value_field".equals(fieldName) || "valueField".equals(fieldName)) {
                     valueField = parser.text();
-                } else if ("key_script".equals(fieldName) || "keyScript".equals(fieldName)) {
+                } else if (ScriptService.KEY_SCRIPT_INLINE.match(fieldName)) {
                     keyScript = parser.text();
-                } else if ("value_script".equals(fieldName) || "valueScript".equals(fieldName)) {
+                    keyScriptType = ScriptService.ScriptType.INLINE;
+                } else if (ScriptService.KEY_SCRIPT_ID.match(fieldName)) {
+                    keyScript = parser.text();
+                    keyScriptType = ScriptService.ScriptType.INDEXED;
+                } else if (ScriptService.KEY_SCRIPT_FILE.match(fieldName)) {
+                    keyScript = parser.text();
+                    keyScriptType = ScriptService.ScriptType.FILE;
+                } else if (ScriptService.VALUE_SCRIPT_INLINE.match(fieldName)) {
                     valueScript = parser.text();
-                } else if ("lang".equals(fieldName)) {
+                    valueScriptType = ScriptService.ScriptType.INLINE;
+                } else if (ScriptService.VALUE_SCRIPT_ID.match(fieldName)) {
+                    valueScript = parser.text();
+                    valueScriptType = ScriptService.ScriptType.INDEXED;
+                } else if (ScriptService.VALUE_SCRIPT_FILE.match(fieldName)) {
+                    valueScript = parser.text();
+                    valueScriptType = ScriptService.ScriptType.FILE;
+                } else if (ScriptService.SCRIPT_LANG.match(fieldName)) {
                     scriptLang = parser.text();
                 }
             }
@@ -129,7 +146,7 @@ public class RangeFacetParser extends AbstractComponent implements FacetParser {
         RangeFacet.Entry[] rangeEntries = entries.toArray(new RangeFacet.Entry[entries.size()]);
 
         if (keyScript != null && valueScript != null) {
-            return new ScriptRangeFacetExecutor(scriptLang, keyScript, valueScript, params, rangeEntries, context);
+            return new ScriptRangeFacetExecutor(scriptLang, keyScript, keyScriptType, valueScript, valueScriptType, params, rangeEntries, context);
         }
 
         if (keyField == null) {

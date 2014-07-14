@@ -35,6 +35,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
@@ -71,6 +72,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
     private BytesReference templateSource;
     private boolean templateSourceUnsafe;
     private String templateName;
+    private ScriptService.ScriptType templateType;
     private Map<String, String> templateParams = Collections.emptyMap();
 
     private BytesReference source;
@@ -400,8 +402,12 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
     /**
      * The name of the stored template
      */
-    public void templateName(String name) {
-        this.templateName = name;
+    public void templateName(String templateName) {
+        this.templateName = templateName;
+    }
+
+    public void templateType(ScriptService.ScriptType templateType){
+        this.templateType = templateType;
     }
 
     /**
@@ -416,6 +422,13 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
      */
     public String templateName() {
         return templateName;
+    }
+
+    /**
+     * The name of the stored template
+     */
+    public ScriptService.ScriptType templateType() {
+        return templateType;
     }
 
     /**
@@ -508,6 +521,9 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
             templateSourceUnsafe = false;
             templateSource = in.readBytesReference();
             templateName =  in.readOptionalString();
+            if (in.getVersion().onOrAfter(Version.V_1_3_0)) {
+                templateType = ScriptService.ScriptType.readFrom(in);
+            }
             if (in.readBoolean()) {
                 templateParams = (Map<String, String>) in.readGenericValue();
             }
@@ -544,7 +560,9 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
         if (out.getVersion().onOrAfter(Version.V_1_1_0)) {
             out.writeBytesReference(templateSource);
             out.writeOptionalString(templateName);
-
+            if (out.getVersion().onOrAfter(Version.V_1_3_0)){
+                ScriptService.ScriptType.writeTo(templateType,out);
+            }
             boolean existTemplateParams = templateParams != null;
             out.writeBoolean(existTemplateParams);
             if (existTemplateParams) {

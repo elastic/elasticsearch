@@ -28,6 +28,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ip.IpFieldMapper;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -61,6 +62,7 @@ public class ValuesSourceParser<VS extends ValuesSource> {
     private static class Input {
         String field = null;
         String script = null;
+        ScriptService.ScriptType scriptType = null;
         String lang = null;
         Map<String, Object> params = null;
         ValueType valueType = null;
@@ -98,6 +100,13 @@ public class ValuesSourceParser<VS extends ValuesSource> {
             } else if (scriptable) {
                 if ("script".equals(currentFieldName)) {
                     input.script = parser.text();
+                    input.scriptType = ScriptService.ScriptType.INLINE;
+                } else if ("script_id".equals(currentFieldName)) {
+                    input.script = parser.text();
+                    input.scriptType = ScriptService.ScriptType.INDEXED;
+                } else if ("script_file".equals(currentFieldName)) {
+                    input.script = parser.text();
+                    input.scriptType = ScriptService.ScriptType.FILE;
                 } else if ("lang".equals(currentFieldName)) {
                     input.lang = parser.text();
                 } else if ("value_type".equals(currentFieldName) || "valueType".equals(currentFieldName)) {
@@ -199,7 +208,7 @@ public class ValuesSourceParser<VS extends ValuesSource> {
     }
 
     private SearchScript createScript() {
-        return input.script == null ? null : context.scriptService().search(context.lookup(), input.lang, input.script, input.params);
+        return input.script == null ? null : context.scriptService().search(context.lookup(), input.lang, input.script, input.scriptType, input.params);
     }
 
     private static ValueFormat resolveFormat(@Nullable String format, @Nullable ValueType valueType) {

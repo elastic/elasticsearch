@@ -48,11 +48,13 @@ public interface SearchScript extends ExecutableScript, ReaderContextAware, Scor
     public static class Builder {
 
         private String script;
+        private ScriptService.ScriptType scriptType;
         private String lang;
         private Map<String, Object> params;
 
-        public Builder script(String script) {
+        public Builder script(String script, ScriptService.ScriptType scriptType) {
             this.script = script;
+            this.scriptType = scriptType;
             return this;
         }
 
@@ -71,7 +73,7 @@ public interface SearchScript extends ExecutableScript, ReaderContextAware, Scor
         }
 
         public SearchScript build(ScriptService service, SearchLookup lookup) {
-            return service.search(lookup, lang, script, params);
+            return service.search(lookup, lang, script, scriptType, params);
         }
     }
 }

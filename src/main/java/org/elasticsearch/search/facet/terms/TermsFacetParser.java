@@ -30,6 +30,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.FacetParser;
@@ -90,6 +91,7 @@ public class TermsFacetParser extends AbstractComponent implements FacetParser {
         TermsFacet.ComparatorType comparatorType = TermsFacet.ComparatorType.COUNT;
         String scriptLang = null;
         String script = null;
+        ScriptService.ScriptType scriptType = null;
         Map<String, Object> params = null;
         boolean allTerms = false;
         String executionHint = null;
@@ -124,8 +126,17 @@ public class TermsFacetParser extends AbstractComponent implements FacetParser {
             } else if (token.isValue()) {
                 if ("field".equals(currentFieldName)) {
                     field = parser.text();
-                } else if ("script_field".equals(currentFieldName) || "scriptField".equals(currentFieldName)) {
+                } else if (ScriptService.SCRIPT_INLINE.match(currentFieldName)) {
                     script = parser.text();
+                    scriptType = ScriptService.ScriptType.INLINE;
+                } else if (ScriptService.SCRIPT_ID.match(currentFieldName)) {
+                    script = parser.text();
+                    scriptType = ScriptService.ScriptType.INDEXED;
+                } else if (ScriptService.SCRIPT_FILE.match(currentFieldName)) {
+                    script = parser.text();
+                    scriptType = ScriptService.ScriptType.FILE;
+                } else if (ScriptService.SCRIPT_LANG.match(currentFieldName)) {
+                    scriptLang = parser.text();
                 } else if ("size".equals(currentFieldName)) {
                     size = parser.intValue();
                 } else if ("shard_size".equals(currentFieldName) || "shardSize".equals(currentFieldName)) {
@@ -138,10 +149,6 @@ public class TermsFacetParser extends AbstractComponent implements FacetParser {
                     regexFlags = parser.text();
                 } else if ("order".equals(currentFieldName) || "comparator".equals(currentFieldName)) {
                     comparatorType = TermsFacet.ComparatorType.fromString(parser.text());
-                } else if ("script".equals(currentFieldName)) {
-                    script = parser.text();
-                } else if ("lang".equals(currentFieldName)) {
-                    scriptLang = parser.text();
                 } else if ("execution_hint".equals(currentFieldName) || "executionHint".equals(currentFieldName)) {
                     executionHint = parser.textOrNull();
                 } else {
@@ -162,7 +169,7 @@ public class TermsFacetParser extends AbstractComponent implements FacetParser {
 
         SearchScript searchScript = null;
         if (script != null) {
-            searchScript = context.scriptService().search(context.lookup(), scriptLang, script, params);
+            searchScript = context.scriptService().search(context.lookup(), scriptLang, script, scriptType, params);
         }
 
         // shard_size cannot be smaller than size as we need to at least fetch <size> entries from every shards in order to return <size>
@@ -187,7 +194,7 @@ public class TermsFacetParser extends AbstractComponent implements FacetParser {
             return new FieldsTermsStringFacetExecutor(mappers.toArray(new FieldMapper[mappers.size()]), size, shardSize, comparatorType, allTerms, context, excluded, pattern, searchScript);
         }
         if (field == null && script != null) {
-            return new ScriptTermsStringFieldFacetExecutor(size, shardSize, comparatorType, context, excluded, pattern, scriptLang, script, params, context.cacheRecycler());
+            return new ScriptTermsStringFieldFacetExecutor(size, shardSize, comparatorType, context, excluded, pattern, scriptLang, script, scriptType, params, context.cacheRecycler());
         }
 
         if (field == null) {

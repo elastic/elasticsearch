@@ -110,6 +110,19 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
                 throw new ElasticsearchIllegalArgumentException("No type match for [" + id + "]");
             }
         }
+
+        public static OpType fromString(String sOpType) throws ElasticsearchIllegalArgumentException {
+            String lowersOpType = sOpType.toLowerCase(Locale.ROOT);
+            switch(lowersOpType){
+                case "create":
+                    return OpType.CREATE;
+                case "index":
+                    return OpType.INDEX;
+                default:
+                    throw new ElasticsearchIllegalArgumentException("opType [" + sOpType + "] not allowed, either [index] or [create] are allowed");
+            }
+        }
+
     }
 
     private String type;
@@ -467,20 +480,6 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
     public IndexRequest opType(OpType opType) {
         this.opType = opType;
         return this;
-    }
-
-    /**
-     * Sets a string representation of the {@link #opType(org.elasticsearch.action.index.IndexRequest.OpType)}. Can
-     * be either "index" or "create".
-     */
-    public IndexRequest opType(String opType) throws ElasticsearchIllegalArgumentException {
-        if ("create".equals(opType)) {
-            return opType(OpType.CREATE);
-        } else if ("index".equals(opType)) {
-            return opType(OpType.INDEX);
-        } else {
-            throw new ElasticsearchIllegalArgumentException("No index opType matching [" + opType + "]");
-        }
     }
 
     /**

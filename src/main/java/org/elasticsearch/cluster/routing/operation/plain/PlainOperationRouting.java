@@ -167,12 +167,17 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
             }
         }
         if (preference.charAt(0) == '_') {
-            Preference preferenceType = Preference.parseType(preference);
+            Preference preferenceType = Preference.parse(preference);
             if (preferenceType == Preference.SHARDS) {
                 // starts with _shards, so execute on specific ones
                 int index = preference.indexOf(';');
 
-                String shards = Preference.parseValue(preference);
+                String shards;
+                if (index == -1) {
+                    shards = preference.substring(Preference.SHARDS.type().length() + 1);
+                } else {
+                    shards = preference.substring(Preference.SHARDS.type().length() + 1, index);
+                }
                 String[] ids = Strings.splitStringByCommaToArray(shards);
                 boolean found = false;
                 for (String id : ids) {
@@ -197,9 +202,9 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
                     preference = preference.substring(index + 1);
                 }
             }
-            preferenceType = Preference.parseType(preference);
+            preferenceType = Preference.parse(preference);
             if (preferenceType == Preference.PREFER_NODE) {
-                return indexShard.preferNodeActiveInitializingShardsIt(Preference.parseValue(preference));
+                return indexShard.preferNodeActiveInitializingShardsIt(preference.substring(Preference.PREFER_NODE.type().length() + 1));
             }
             if (preferenceType == Preference.LOCAL) {
                 return indexShard.preferNodeActiveInitializingShardsIt(localNodeId);
@@ -214,7 +219,7 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
                 return indexShard.onlyNodeActiveInitializingShardsIt(localNodeId);
             }
             if (preferenceType == Preference.ONLY_NODE) {
-                String nodeId = Preference.parseValue(preference);
+                String nodeId = preference.substring(Preference.ONLY_NODE.type().length() + 1);
                 ensureNodeIdExists(nodes, nodeId);
                 return indexShard.onlyNodeActiveInitializingShardsIt(nodeId);
             }

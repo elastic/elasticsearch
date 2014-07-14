@@ -70,26 +70,17 @@ public enum  Preference {
     public String type() {
         return type;
     }
-
-    private static Tuple<String, String> parseTypeAndValue(String preference) {
+    /**
+     * Parses the Preference Type given a string
+     */
+    public static Preference parse(String preference) {
         String preferenceType;
-        String value = null;
         int colonIndex = preference.indexOf(':');
         if (colonIndex == -1) {
             preferenceType = preference;
         } else {
-            value = preference.substring(colonIndex+1);
             preferenceType = preference.substring(0, colonIndex);
         }
-
-        return new Tuple<>(preferenceType, value);
-    }
-
-    /**
-     * Parses the Preference Type given a string
-     */
-    public static Preference parseType(String preference) {
-        String preferenceType = parseTypeAndValue(preference).v1();
 
         switch (preferenceType) {
             case "_shards":
@@ -111,38 +102,7 @@ public enum  Preference {
         }
         throw new ElasticsearchIllegalArgumentException("no Preference for [" + preferenceType + "]");
     }
-
-    /**
-     * Parses out the routing preference value if applicable
-     * throws exception if parsed preference type does not
-     * support values
-     */
-    public static String parseValue(String preference) {
-        Tuple<String, String> typeAndValue = parseTypeAndValue(preference);
-        String preferenceType = typeAndValue.v1();
-
-        switch (preferenceType) {
-            case "_shards":
-                String v = typeAndValue.v2();
-                int sep = v.indexOf(';');
-                if (sep == -1) {
-                    return v;
-                } else {
-                    return v.substring(0, sep);
-                }
-            case "_prefer_node":
-            case "_only_node":
-                return typeAndValue.v2();
-            case "_local":
-            case "_primary":
-            case "_primary_first":
-            case "_primaryFirst":
-            case "_only_local":
-            case "_onlyLocal":
-                throw new ElasticsearchIllegalArgumentException("[" + preferenceType + "] does not accept values");
-        }
-        throw new ElasticsearchIllegalArgumentException("no Preference for [" + preferenceType + "]");
-    }
 }
+
 
 

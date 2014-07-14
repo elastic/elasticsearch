@@ -29,6 +29,8 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.index.merge.policy.TieredMergePolicyProvider;
+import org.elasticsearch.index.store.support.AbstractIndexStore;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
@@ -125,12 +127,11 @@ public class UpdateSettingsTests extends ElasticsearchIntegrationTest {
         // No throttling at first, only 1 non-replicated shard, force lots of merging:
         assertAcked(prepareCreate("test")
                     .setSettings(ImmutableSettings.builder()
-                                 .put("index.store.throttle.type", "none")
-                                 .put("index.number_of_shards", "1")
-                                 .put("index.number_of_replicas", "0")
-                                 .put("index.merge.policy.floor_segment", "1k")
-                                 .put("index.merge.policy.max_merge_at_once", "2")
-                                 .put("index.merge.policy.segments_per_tier", "2")
+                                 .put(AbstractIndexStore.INDEX_STORE_THROTTLE_TYPE, "none")
+                                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "1")
+                                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
+                                 .put(TieredMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE, "2")
+                                 .put(TieredMergePolicyProvider.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER, "2")
                                  ));
         ensureGreen();
         long termUpto = 0;
@@ -159,13 +160,13 @@ public class UpdateSettingsTests extends ElasticsearchIntegrationTest {
             .indices()
             .prepareUpdateSettings("test")
             .setSettings(ImmutableSettings.builder()
-                         .put("index.store.throttle.type", "merge")
-                         .put("index.store.throttle.max_bytes_per_sec", "1mb"))
+                         .put(AbstractIndexStore.INDEX_STORE_THROTTLE_TYPE, "merge")
+                         .put(AbstractIndexStore.INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC, "1mb"))
             .get();
 
         // Make sure setting says it is in fact changed:
         GetSettingsResponse getSettingsResponse = client().admin().indices().prepareGetSettings("test").get();
-        assertThat(getSettingsResponse.getSetting("test", "index.store.throttle.type"), equalTo("merge"));
+        assertThat(getSettingsResponse.getSetting("test", AbstractIndexStore.INDEX_STORE_THROTTLE_TYPE), equalTo("merge"));
 
         // Also make sure we see throttling kicking in:
         boolean done = false;
@@ -200,7 +201,7 @@ public class UpdateSettingsTests extends ElasticsearchIntegrationTest {
             .indices()
             .prepareUpdateSettings("test")
             .setSettings(ImmutableSettings.builder()
-                         .put("index.store.throttle.type", "none"))
+                         .put(AbstractIndexStore.INDEX_STORE_THROTTLE_TYPE, "none"))
             .get();
 
         // Record current throttling so far

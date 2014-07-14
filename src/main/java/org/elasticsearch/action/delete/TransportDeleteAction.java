@@ -64,7 +64,7 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
     public TransportDeleteAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                  IndicesService indicesService, ThreadPool threadPool, ShardStateAction shardStateAction,
                                  TransportCreateIndexAction createIndexAction, TransportIndexDeleteAction indexDeleteAction) {
-        super(settings, transportService, clusterService, indicesService, threadPool, shardStateAction);
+        super(settings, DeleteAction.NAME, transportService, clusterService, indicesService, threadPool, shardStateAction);
         this.createIndexAction = createIndexAction;
         this.indexDeleteAction = indexDeleteAction;
         this.autoCreateIndex = new AutoCreateIndex(settings);
@@ -164,11 +164,6 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
     @Override
     protected DeleteResponse newResponseInstance() {
         return new DeleteResponse();
-    }
-
-    @Override
-    protected String transportAction() {
-        return DeleteAction.NAME;
     }
 
     @Override

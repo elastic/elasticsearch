@@ -35,9 +35,11 @@ import static org.elasticsearch.action.support.PlainActionFuture.newFuture;
 public abstract class TransportAction<Request extends ActionRequest, Response extends ActionResponse> extends AbstractComponent {
 
     protected final ThreadPool threadPool;
+    protected final String actionName;
 
-    protected TransportAction(Settings settings, ThreadPool threadPool) {
+    protected TransportAction(Settings settings, String actionName, ThreadPool threadPool) {
         super(settings);
+        this.actionName = actionName;
         this.threadPool = threadPool;
     }
 

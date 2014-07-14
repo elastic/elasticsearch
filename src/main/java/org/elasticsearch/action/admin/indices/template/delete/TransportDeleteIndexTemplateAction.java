@@ -41,7 +41,7 @@ public class TransportDeleteIndexTemplateAction extends TransportMasterNodeOpera
     @Inject
     public TransportDeleteIndexTemplateAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                               ThreadPool threadPool, MetaDataIndexTemplateService indexTemplateService) {
-        super(settings, transportService, clusterService, threadPool);
+        super(settings, DeleteIndexTemplateAction.NAME, transportService, clusterService, threadPool);
         this.indexTemplateService = indexTemplateService;
     }
 
@@ -49,11 +49,6 @@ public class TransportDeleteIndexTemplateAction extends TransportMasterNodeOpera
     protected String executor() {
         // we go async right away
         return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected String transportAction() {
-        return DeleteIndexTemplateAction.NAME;
     }
 
     @Override

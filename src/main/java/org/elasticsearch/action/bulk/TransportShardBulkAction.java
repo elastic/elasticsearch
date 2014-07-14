@@ -75,6 +75,8 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
     private final static String OP_TYPE_UPDATE = "update";
     private final static String OP_TYPE_DELETE = "delete";
 
+    private static final String ACTION_NAME = BulkAction.NAME + "/shard";
+
     private final MappingUpdatedAction mappingUpdatedAction;
     private final UpdateHelper updateHelper;
     private final boolean allowIdGeneration;
@@ -83,7 +85,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
     public TransportShardBulkAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                     IndicesService indicesService, ThreadPool threadPool, ShardStateAction shardStateAction,
                                     MappingUpdatedAction mappingUpdatedAction, UpdateHelper updateHelper) {
-        super(settings, transportService, clusterService, indicesService, threadPool, shardStateAction);
+        super(settings, ACTION_NAME, transportService, clusterService, indicesService, threadPool, shardStateAction);
         this.mappingUpdatedAction = mappingUpdatedAction;
         this.updateHelper = updateHelper;
         this.allowIdGeneration = settings.getAsBoolean("action.allow_id_generation", true);
@@ -117,11 +119,6 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
     @Override
     protected BulkShardResponse newResponseInstance() {
         return new BulkShardResponse();
-    }
-
-    @Override
-    protected String transportAction() {
-        return BulkAction.NAME + "/shard";
     }
 
     @Override

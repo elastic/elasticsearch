@@ -42,11 +42,13 @@ import org.elasticsearch.transport.TransportService;
  */
 public class TransportShardDeleteAction extends TransportShardReplicationOperationAction<ShardDeleteRequest, ShardDeleteRequest, ShardDeleteResponse> {
 
+    private static final String ACTION_NAME = "indices/index/b_shard/delete";
+
     @Inject
     public TransportShardDeleteAction(Settings settings, TransportService transportService,
                                       ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool,
                                       ShardStateAction shardStateAction) {
-        super(settings, transportService, clusterService, indicesService, threadPool, shardStateAction);
+        super(settings, ACTION_NAME, transportService, clusterService, indicesService, threadPool, shardStateAction);
     }
 
     @Override
@@ -67,11 +69,6 @@ public class TransportShardDeleteAction extends TransportShardReplicationOperati
     @Override
     protected ShardDeleteResponse newResponseInstance() {
         return new ShardDeleteResponse();
-    }
-
-    @Override
-    protected String transportAction() {
-        return "indices/index/b_shard/delete";
     }
 
     @Override

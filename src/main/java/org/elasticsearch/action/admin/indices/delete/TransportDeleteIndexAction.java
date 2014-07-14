@@ -47,7 +47,7 @@ public class TransportDeleteIndexAction extends TransportMasterNodeOperationActi
     public TransportDeleteIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                       ThreadPool threadPool, MetaDataDeleteIndexService deleteIndexService,
                                       NodeSettingsService nodeSettingsService) {
-        super(settings, transportService, clusterService, threadPool);
+        super(settings, DeleteIndexAction.NAME, transportService, clusterService, threadPool);
         this.deleteIndexService = deleteIndexService;
         this.destructiveOperations = new DestructiveOperations(logger, settings, nodeSettingsService);
     }
@@ -55,11 +55,6 @@ public class TransportDeleteIndexAction extends TransportMasterNodeOperationActi
     @Override
     protected String executor() {
         return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected String transportAction() {
-        return DeleteIndexAction.NAME;
     }
 
     @Override

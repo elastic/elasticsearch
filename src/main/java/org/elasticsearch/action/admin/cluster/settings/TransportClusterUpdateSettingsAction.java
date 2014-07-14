@@ -56,7 +56,7 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeOpe
     @Inject
     public TransportClusterUpdateSettingsAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                                 AllocationService allocationService, @ClusterDynamicSettings DynamicSettings dynamicSettings) {
-        super(settings, transportService, clusterService, threadPool);
+        super(settings, ClusterUpdateSettingsAction.NAME, transportService, clusterService, threadPool);
         this.allocationService = allocationService;
         this.dynamicSettings = dynamicSettings;
     }
@@ -64,11 +64,6 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeOpe
     @Override
     protected String executor() {
         return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected String transportAction() {
-        return ClusterUpdateSettingsAction.NAME;
     }
 
     @Override

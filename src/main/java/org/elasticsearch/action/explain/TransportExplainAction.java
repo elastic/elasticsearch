@@ -74,7 +74,7 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
                                   TransportService transportService, IndicesService indicesService,
                                   ScriptService scriptService, CacheRecycler cacheRecycler,
                                   PageCacheRecycler pageCacheRecycler, BigArrays bigArrays) {
-        super(settings, threadPool, clusterService, transportService);
+        super(settings, ExplainAction.NAME, threadPool, clusterService, transportService);
         this.indicesService = indicesService;
         this.scriptService = scriptService;
         this.cacheRecycler = cacheRecycler;
@@ -86,10 +86,6 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
     protected void doExecute(ExplainRequest request, ActionListener<ExplainResponse> listener) {
         request.nowInMillis = System.currentTimeMillis();
         super.doExecute(request, listener);
-    }
-
-    protected String transportAction() {
-        return ExplainAction.NAME;
     }
 
     protected String executor() {

@@ -41,7 +41,7 @@ public class TransportUpdateSettingsAction extends TransportMasterNodeOperationA
     @Inject
     public TransportUpdateSettingsAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                          MetaDataUpdateSettingsService updateSettingsService) {
-        super(settings, transportService, clusterService, threadPool);
+        super(settings, UpdateSettingsAction.NAME, transportService, clusterService, threadPool);
         this.updateSettingsService = updateSettingsService;
     }
 
@@ -49,11 +49,6 @@ public class TransportUpdateSettingsAction extends TransportMasterNodeOperationA
     protected String executor() {
         // we go async right away....
         return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected String transportAction() {
-        return UpdateSettingsAction.NAME;
     }
 
     @Override

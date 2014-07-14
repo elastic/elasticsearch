@@ -45,7 +45,7 @@ public class TransportSingleShardTermVectorAction extends TransportShardSingleOp
     @Inject
     public TransportSingleShardTermVectorAction(Settings settings, ClusterService clusterService, TransportService transportService,
                                                 IndicesService indicesService, ThreadPool threadPool) {
-        super(settings, threadPool, clusterService, transportService);
+        super(settings, TermVectorAction.NAME, threadPool, clusterService, transportService);
         this.indicesService = indicesService;
     }
 
@@ -53,11 +53,6 @@ public class TransportSingleShardTermVectorAction extends TransportShardSingleOp
     protected String executor() {
         // TODO: Is this the right pool to execute this on?
         return ThreadPool.Names.GET;
-    }
-
-    @Override
-    protected String transportAction() {
-        return TermVectorAction.NAME;
     }
 
     @Override

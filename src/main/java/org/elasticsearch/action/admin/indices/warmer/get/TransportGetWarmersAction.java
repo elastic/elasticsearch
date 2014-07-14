@@ -38,12 +38,7 @@ public class TransportGetWarmersAction extends TransportClusterInfoAction<GetWar
 
     @Inject
     public TransportGetWarmersAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool) {
-        super(settings, transportService, clusterService, threadPool);
-    }
-
-    @Override
-    protected String transportAction() {
-        return GetWarmersAction.NAME;
+        super(settings, GetWarmersAction.NAME, transportService, clusterService, threadPool);
     }
 
     @Override

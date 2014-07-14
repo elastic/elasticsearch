@@ -46,7 +46,7 @@ public class TransportCloseIndexAction extends TransportMasterNodeOperationActio
     @Inject
     public TransportCloseIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                      ThreadPool threadPool, MetaDataIndexStateService indexStateService, NodeSettingsService nodeSettingsService) {
-        super(settings, transportService, clusterService, threadPool);
+        super(settings, CloseIndexAction.NAME, transportService, clusterService, threadPool);
         this.indexStateService = indexStateService;
         this.destructiveOperations = new DestructiveOperations(logger, settings, nodeSettingsService);
     }
@@ -55,11 +55,6 @@ public class TransportCloseIndexAction extends TransportMasterNodeOperationActio
     protected String executor() {
         // no need to use a thread pool, we go async right away
         return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected String transportAction() {
-        return CloseIndexAction.NAME;
     }
 
     @Override

@@ -58,7 +58,7 @@ public class TransportNodesRestartAction extends TransportNodesOperationAction<N
     public TransportNodesRestartAction(Settings settings, ClusterName clusterName, ThreadPool threadPool,
                                        ClusterService clusterService, TransportService transportService,
                                        Node node) {
-        super(settings, clusterName, threadPool, clusterService, transportService);
+        super(settings, NodesRestartAction.NAME, clusterName, threadPool, clusterService, transportService);
         this.node = node;
         disabled = componentSettings.getAsBoolean("disabled", false);
     }
@@ -71,11 +71,6 @@ public class TransportNodesRestartAction extends TransportNodesOperationAction<N
     @Override
     protected String executor() {
         return ThreadPool.Names.GENERIC;
-    }
-
-    @Override
-    protected String transportAction() {
-        return NodesRestartAction.NAME;
     }
 
     @Override

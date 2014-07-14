@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BaseTransportRequestHandler;
@@ -52,14 +51,13 @@ public abstract class TransportIndexReplicationOperationAction<Request extends I
 
     protected final TransportShardReplicationOperationAction<ShardRequest, ShardReplicaRequest, ShardResponse> shardAction;
 
-    @Inject
-    public TransportIndexReplicationOperationAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                                    TransportShardReplicationOperationAction<ShardRequest, ShardReplicaRequest, ShardResponse> shardAction) {
-        super(settings, threadPool);
+    protected TransportIndexReplicationOperationAction(Settings settings, String actionName,  TransportService transportService, ClusterService clusterService,
+                                                    ThreadPool threadPool, TransportShardReplicationOperationAction<ShardRequest, ShardReplicaRequest, ShardResponse> shardAction) {
+        super(settings, actionName, threadPool);
         this.clusterService = clusterService;
         this.shardAction = shardAction;
 
-        transportService.registerHandler(transportAction(), new TransportHandler());
+        transportService.registerHandler(actionName, new TransportHandler());
     }
 
     @Override
@@ -145,8 +143,6 @@ public abstract class TransportIndexReplicationOperationAction<Request extends I
 
     protected abstract Response newResponseInstance(Request request, List<ShardResponse> shardResponses, int failuresCount, List<ShardOperationFailedException> shardFailures);
 
-    protected abstract String transportAction();
-
     protected abstract GroupShardsIterator shards(Request request) throws ElasticsearchException;
 
     protected abstract ShardRequest newShardRequestInstance(Request request, int shardId);
@@ -210,7 +206,7 @@ public abstract class TransportIndexReplicationOperationAction<Request extends I
                     try {
                         channel.sendResponse(e);
                     } catch (Exception e1) {
-                        logger.warn("Failed to send error response for action [" + transportAction() + "] and request [" + request + "]", e1);
+                        logger.warn("Failed to send error response for action [" + actionName + "] and request [" + request + "]", e1);
                     }
                 }
             });

@@ -57,18 +57,13 @@ public class TransportIndicesSegmentsAction extends TransportBroadcastOperationA
     @Inject
     public TransportIndicesSegmentsAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
                                           IndicesService indicesService) {
-        super(settings, threadPool, clusterService, transportService);
+        super(settings, IndicesSegmentsAction.NAME, threadPool, clusterService, transportService);
         this.indicesService = indicesService;
     }
 
     @Override
     protected String executor() {
         return ThreadPool.Names.MANAGEMENT;
-    }
-
-    @Override
-    protected String transportAction() {
-        return IndicesSegmentsAction.NAME;
     }
 
     @Override

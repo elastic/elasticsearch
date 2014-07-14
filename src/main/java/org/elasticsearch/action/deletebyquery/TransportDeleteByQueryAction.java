@@ -47,7 +47,7 @@ public class TransportDeleteByQueryAction extends TransportIndicesReplicationOpe
     public TransportDeleteByQueryAction(Settings settings, ClusterService clusterService, TransportService transportService,
                                         ThreadPool threadPool, TransportIndexDeleteByQueryAction indexDeleteByQueryAction,
                                         NodeSettingsService nodeSettingsService) {
-        super(settings, transportService, clusterService, threadPool, indexDeleteByQueryAction);
+        super(settings, DeleteByQueryAction.NAME, transportService, clusterService, threadPool, indexDeleteByQueryAction);
         this.destructiveOperations = new DestructiveOperations(logger, settings, nodeSettingsService);
     }
 
@@ -82,11 +82,6 @@ public class TransportDeleteByQueryAction extends TransportIndicesReplicationOpe
     @Override
     protected boolean accumulateExceptions() {
         return false;
-    }
-
-    @Override
-    protected String transportAction() {
-        return DeleteByQueryAction.NAME;
     }
 
     @Override

@@ -208,7 +208,8 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
             // usually happen either because we failed to connect to the node
             // or because we failed serializing the message
             final RequestHolder holderToNotify = clientHandlers.remove(requestId);
-            if (timeoutHandler != null) {
+            // if the scheduler raise a EsRejectedExecutionException (due to shutdown), we may have a timeout handler, but no future
+            if (timeoutHandler != null && timeoutHandler.future != null) {
                 timeoutHandler.future.cancel(false);
             }
 

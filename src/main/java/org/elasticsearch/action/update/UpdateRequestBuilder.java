@@ -26,6 +26,7 @@ import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.action.support.single.instance.InstanceShardOperationRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.ModificationDetector;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
@@ -396,6 +397,15 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
      * Sets whether to perform extra effort to detect noop updates via docAsUpsert.
      */
     public UpdateRequestBuilder setDetectNoop(boolean detectNoop) {
+        request.detectNoop(detectNoop ? new ModificationDetector() : null);
+        return this;
+    }
+
+    /**
+     * Sets whether to perform extra effort to detect noop updates via
+     * docAsUpsert and the tolerances for changes.
+     */
+    public UpdateRequestBuilder setDetectNoop(ModificationDetector detectNoop) {
         request.detectNoop(detectNoop);
         return this;
     }

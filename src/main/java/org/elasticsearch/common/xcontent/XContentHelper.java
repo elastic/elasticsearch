@@ -22,6 +22,7 @@ package org.elasticsearch.common.xcontent;
 import com.google.common.base.Charsets;
 import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -182,11 +183,25 @@ public class XContentHelper {
     }
 
     /**
-     * Updates the provided changes into the source. If the key exists in the changes, it overrides the one in source
-     * unless both are Maps, in which case it recuersively updated it.
+     * Updates the provided changes into the source. If the key exists in the
+     * changes, it overrides the one in source unless both are Maps, in which
+     * case it recursively updated it.
+     * 
+     * @param source
+     *            original source to be modified
+     * @param changes
+     *            changes to copy into the source
+     * @param modificationDetector
+     *            detects modification to fields. If null then the source is
+     *            considered modified if there are any fields at all in changes.
      * @return true if the source map was modified
      */
-    public static boolean update(Map<String, Object> source, Map<String, Object> changes, boolean checkUpdatesAreUnequal) {
+    public static boolean update(Map<String, Object> source, Map<String, Object> changes, @Nullable ModificationDetector modificationDetector) {
+        return update(source, changes, "", modificationDetector);
+    }
+
+    private static boolean update(Map<String, Object> source, Map<String, Object> changes, String parentFieldPath,
+            @Nullable ModificationDetector modificationDetector) {
         boolean modified = false;
         for (Map.Entry<String, Object> changesEntry : changes.entrySet()) {
             if (!source.containsKey(changesEntry.getKey())) {
@@ -196,10 +211,15 @@ public class XContentHelper {
                 continue;
             }
             Object old = source.get(changesEntry.getKey());
+            String currentFieldPath = parentFieldPath;
             if (old instanceof Map && changesEntry.getValue() instanceof Map) {
+                if (!modified && modificationDetector != null && modificationDetector.hasFields()) {
+                    // Only maintain the fieldPath if the modificationDetector needs it.
+                    currentFieldPath = parentFieldPath + changesEntry.getKey() + ".";
+                }
                 // recursive merge maps
                 modified = update((Map<String, Object>) source.get(changesEntry.getKey()),
-                        (Map<String, Object>) changesEntry.getValue(), checkUpdatesAreUnequal);
+                        (Map<String, Object>) changesEntry.getValue(), currentFieldPath, modificationDetector);
                 continue;
             }
             // update the field
@@ -207,11 +227,15 @@ public class XContentHelper {
             if (modified) {
                 continue;
             }
-            if (!checkUpdatesAreUnequal || old == null) {
+            if (modificationDetector == null || old == null) {
                 modified = true;
                 continue;
             }
-            modified = !old.equals(changesEntry.getValue());
+            if (modificationDetector.hasFields()) {
+                // Only maintain the fieldPath if the modificationDetector needs it.
+                currentFieldPath = parentFieldPath + changesEntry.getKey();
+            }
+            modified = modificationDetector.modified(currentFieldPath, old, changesEntry.getValue());
         }
         return modified;
     }

@@ -33,10 +33,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.script.ScriptService;
 
@@ -77,7 +74,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
     private IndexRequest upsertRequest;
 
     private boolean docAsUpsert = false;
-    private boolean detectNoop = false;
+    private ModificationDetector detectNoop;
 
     @Nullable
     private IndexRequest doc;
@@ -566,12 +563,12 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
      * Should this update attempt to detect if it is a noop?
      * @return this for chaining
      */
-    public UpdateRequest detectNoop(boolean detectNoop) {
+    public UpdateRequest detectNoop(ModificationDetector detectNoop) {
         this.detectNoop = detectNoop;
         return this;
     }
 
-    public boolean detectNoop() {
+    public ModificationDetector detectNoop() {
         return detectNoop;
     }
 
@@ -603,7 +600,13 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
                 } else if ("doc_as_upsert".equals(currentFieldName)) {
                     docAsUpsert(parser.booleanValue());
                 } else if ("detect_noop".equals(currentFieldName)) {
-                    detectNoop(parser.booleanValue());
+                    if (parser.isBooleanValue() && parser.booleanValue()) {
+                        detectNoop(new ModificationDetector());
+                    }
+                    detectNoop(new ModificationDetector());
+                    for (Map.Entry<String, Object> entry : parser.map().entrySet()) {
+                        detectNoop.fieldRule(entry.getKey(), entry.getValue().toString());
+                    }
                 }
             }
         }
@@ -653,7 +656,10 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         version = Versions.readVersion(in);
         versionType = VersionType.fromValue(in.readByte());
         if (in.getVersion().onOrAfter(Version.V_1_3_0)) {
-            detectNoop = in.readBoolean();
+            if (in.readBoolean()) {
+                detectNoop = new ModificationDetector();
+                detectNoop.readFrom(in);
+            }
         }
     }
 
@@ -705,7 +711,12 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         Versions.writeVersion(version, out);
         out.writeByte(versionType.getValue());
         if (out.getVersion().onOrAfter(Version.V_1_3_0)) {
-            out.writeBoolean(detectNoop);
+            if (detectNoop == null) {
+                out.writeBoolean(false);
+            } else {
+                out.writeBoolean(true);
+            }
+            detectNoop.writeTo(out);
         }
     }
 

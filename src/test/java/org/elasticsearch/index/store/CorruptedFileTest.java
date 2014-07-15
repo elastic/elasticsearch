@@ -136,7 +136,9 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
         Settings build = ImmutableSettings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "2").build();
         client().admin().indices().prepareUpdateSettings("test").setSettings(build).get();
         ClusterHealthResponse health = client().admin().cluster()
-                .health(Requests.clusterHealthRequest("test").waitForGreenStatus().waitForRelocatingShards(0)).actionGet();
+                .health(Requests.clusterHealthRequest("test").waitForGreenStatus()
+                        .timeout("5m") // sometimes due to cluster rebalacing and random settings default timeout is just not enough.
+                        .waitForRelocatingShards(0)).actionGet();
         if (health.isTimedOut()) {
             logger.info("cluster state:\n{}\n{}", client().admin().cluster().prepareState().get().getState().prettyPrint(), client().admin().cluster().preparePendingClusterTasks().get().prettyPrint());
             assertThat("timed out waiting for green state", health.isTimedOut(), equalTo(false));

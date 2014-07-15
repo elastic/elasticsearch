@@ -26,7 +26,6 @@ import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
@@ -39,6 +38,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -611,7 +611,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             } catch (IOException e) {
                 throw new ElasticsearchParseException("Failed to parse template", e);
             } finally {
-                IOUtils.closeWhileHandlingException(parser);
+                Releasables.closeWhileHandlingException(parser);
             }
 
             if (templateContext == null || !hasLength(templateContext.template())) {

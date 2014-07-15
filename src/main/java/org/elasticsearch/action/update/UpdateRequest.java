@@ -20,6 +20,7 @@
 package org.elasticsearch.action.update;
 
 import com.google.common.collect.Maps;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.index.IndexRequest;
@@ -610,8 +611,12 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         id = in.readString();
         routing = in.readOptionalString();
         script = in.readOptionalString();
-        if( Strings.hasLength(script)) {
-            scriptType = ScriptService.ScriptType.readFrom(in);
+        if(Strings.hasLength(script)) {
+            if (in.getVersion().onOrAfter(Version.V_1_3_0)) {
+                scriptType = ScriptService.ScriptType.readFrom(in);
+            } else {
+                scriptType = null;
+            }
         }
         scriptLang = in.readOptionalString();
         scriptParams = in.readMap();

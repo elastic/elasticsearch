@@ -210,7 +210,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
     public void testInstallPlugin() throws IOException {
         PluginManager pluginManager = pluginManager(getPluginUrlForResource("plugin_with_classfile.zip"));
 
-        pluginManager.downloadAndExtract("plugin");
+        pluginManager.downloadAndExtract("plugin-classfile");
         File[] plugins = pluginManager.getListInstalledPlugins();
         assertThat(plugins, notNullValue());
         assertThat(plugins.length, is(1));

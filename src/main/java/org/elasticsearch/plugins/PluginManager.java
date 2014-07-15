@@ -20,6 +20,7 @@
 package org.elasticsearch.plugins;
 
 import com.google.common.base.Strings;
+import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ElasticsearchTimeoutException;
@@ -46,6 +47,7 @@ import java.util.*;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
+import static org.elasticsearch.common.Strings.hasLength;
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 
 /**
@@ -65,6 +67,14 @@ public class PluginManager {
 
     // By default timeout is 0 which means no timeout
     public static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueMillis(0);
+
+    private static final ImmutableSet<Object> BLACKLIST = ImmutableSet.builder()
+            .add("elasticsearch",
+                    "elasticsearch.bat",
+                    "elasticsearch.in.sh",
+                    "plugin",
+                    "plugin.bat",
+                    "service.bat").build();
 
     private final Environment environment;
 
@@ -279,26 +289,8 @@ public class PluginManager {
     }
 
     private static void checkForForbiddenName(String name) {
-        boolean forbidden = Strings.isNullOrEmpty(name);
-
-        String[] forbiddenNames = {
-                "elasticsearch",
-                "elasticsearch.bat",
-                "elasticsearch.in.sh",
-                "plugin",
-                "plugin.bat",
-                "service.bat"
-        };
-
-        for (String forbiddenName : forbiddenNames) {
-            if (forbiddenName.equalsIgnoreCase(name)) {
-                forbidden = true;
-                break;
-            }
-        }
-
-        if (forbidden) {
-            throw new ElasticsearchIllegalArgumentException("This plugin name is not allowed");
+        if (!hasLength(name) || BLACKLIST.contains(name.toLowerCase(Locale.ROOT))) {
+            throw new ElasticsearchIllegalArgumentException("Illegal plugin name: " + name);
         }
     }
 

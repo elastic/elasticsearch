@@ -49,8 +49,8 @@ public class BenchmarkTestUtil {
 
     public static final int DEFAULT_LOW_INTERVAL_BOUND  = 1;
     public static final int DEFAULT_HIGH_INTERVAL_BOUND = 3;
-    public static final int MEDIUM_LOW_INTERVAL_BOUND   = 5;
-    public static final int MEDIUM_HIGH_INTERVAL_BOUND  = 8;
+    public static final int MEDIUM_LOW_INTERVAL_BOUND   = 3;
+    public static final int MEDIUM_HIGH_INTERVAL_BOUND  = 7;
 
     public static final SearchType[] searchTypes = { SearchType.DFS_QUERY_THEN_FETCH,
                                                      SearchType.QUERY_THEN_FETCH,

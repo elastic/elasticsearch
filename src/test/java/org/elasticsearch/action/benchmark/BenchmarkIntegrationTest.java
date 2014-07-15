@@ -194,6 +194,7 @@ public class BenchmarkIntegrationTest extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    @Ignore
     public void testAbortBenchmark() throws Exception {
 
         // Submit benchmark and wait for completion
@@ -215,12 +216,7 @@ public class BenchmarkIntegrationTest extends ElasticsearchIntegrationTest {
         // Wait for all executors to initialize
         tuple.v1().await();
 
-
-
-
         // XXX - Finish
-
-
 
 
         // Release flow control and let the benchmark complete

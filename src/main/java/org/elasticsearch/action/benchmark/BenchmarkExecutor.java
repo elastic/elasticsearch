@@ -208,14 +208,8 @@ public class BenchmarkExecutor {
                     }
                     */
                     // Run the iteration
-
-                    logger.debug("XXX COMPETITOR {} ITERATION: {}", competitor.name(), i);
-
                     CompetitionIteration ci =
                             iterate(competitor, searchRequests, timeBuckets, docBuckets, state.competitorSemaphore(competitor.name()));
-
-                    logger.debug("XXX COMPETITOR {} ITERATION: {} -- COMPLETE", competitor.name(), i);
-
                     ci.percentiles(request.percentiles());
                     competitionIterations.add(ci);
                     competitionNodeResult.incrementCompletedIterations();

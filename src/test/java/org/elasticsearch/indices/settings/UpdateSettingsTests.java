@@ -30,6 +30,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.merge.policy.TieredMergePolicyProvider;
+import org.elasticsearch.index.merge.scheduler.ConcurrentMergeSchedulerProvider;
 import org.elasticsearch.index.store.support.AbstractIndexStore;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
@@ -132,10 +133,12 @@ public class UpdateSettingsTests extends ElasticsearchIntegrationTest {
                                  .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
                                  .put(TieredMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE, "2")
                                  .put(TieredMergePolicyProvider.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER, "2")
+                                 .put(ConcurrentMergeSchedulerProvider.MAX_THREAD_COUNT, "1")
+                                 .put(ConcurrentMergeSchedulerProvider.MAX_MERGE_COUNT, "2")
                                  ));
         ensureGreen();
         long termUpto = 0;
-        for(int i=0;i<1000;i++) {
+        for(int i=0;i<100;i++) {
             // Provoke slowish merging by making many unique terms:
             StringBuilder sb = new StringBuilder();
             for(int j=0;j<100;j++) {
@@ -192,9 +195,6 @@ public class UpdateSettingsTests extends ElasticsearchIntegrationTest {
             }
         }
 
-        // Optimize does a waitForMerges, which we must do to make sure all in-flight (throttled) merges finish:
-        client().admin().indices().prepareOptimize("test").get();
-
         // Now updates settings to disable merge throttling
         client()
             .admin()
@@ -204,6 +204,9 @@ public class UpdateSettingsTests extends ElasticsearchIntegrationTest {
                          .put(AbstractIndexStore.INDEX_STORE_THROTTLE_TYPE, "none"))
             .get();
 
+        // Optimize does a waitForMerges, which we must do to make sure all in-flight (throttled) merges finish:
+        client().admin().indices().prepareOptimize("test").get();
+
         // Record current throttling so far
         long sumThrottleTime = 0;
         nodesStats = client().admin().cluster().prepareNodesStats().setIndices(true).get();
@@ -212,7 +215,7 @@ public class UpdateSettingsTests extends ElasticsearchIntegrationTest {
         }
 
         // Make sure no further throttling happens:
-        for(int i=0;i<1000;i++) {
+        for(int i=0;i<100;i++) {
             // Provoke slowish merging by making many unique terms:
             StringBuilder sb = new StringBuilder();
             for(int j=0;j<100;j++) {

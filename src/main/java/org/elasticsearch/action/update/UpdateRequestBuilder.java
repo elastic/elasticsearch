@@ -91,52 +91,6 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
     }
 
     /**
-     * The indexed script to execute. Note, make sure not to send different script each times and instead
-     * use script params if possible with the same (automatically compiled) script.
-     * <p>
-     * The script works with the variable <code>ctx</code>, which is bound to the entry,
-     * e.g. <code>ctx._source.mycounter += 1</code>.
-     *
-     * @see #setScriptLang(String)
-     * @see #setScriptParams(Map)
-     */
-    public UpdateRequestBuilder setIndexedScript(String script) {
-        request.script(script, ScriptService.ScriptType.INDEXED);
-        return this;
-    }
-
-    /**
-     * The on disk script to execute. Note, make sure not to send different script each times and instead
-     * use script params if possible with the same (automatically compiled) script.
-     * <p>
-     * The script works with the variable <code>ctx</code>, which is bound to the entry,
-     * e.g. <code>ctx._source.mycounter += 1</code>.
-     *
-     * @see #setScriptLang(String)
-     * @see #setScriptParams(Map)
-     */
-    public UpdateRequestBuilder setOnDiskScript(String script) {
-        request.script(script, ScriptService.ScriptType.FILE);
-        return this;
-    }
-
-    /**
-     * The inline script to execute. Note, make sure not to send different script each times and instead
-     * use script params if possible with the same (automatically compiled) script.
-     * <p>
-     * The script works with the variable <code>ctx</code>, which is bound to the entry,
-     * e.g. <code>ctx._source.mycounter += 1</code>.
-     *
-     * @see #setScriptLang(String)
-     * @see #setScriptParams(Map)
-     */
-    public UpdateRequestBuilder setInlineScript(String script) {
-        request.script(script, ScriptService.ScriptType.INLINE);
-        return this;
-    }
-
-
-    /**
      * The language of the script to execute.
      * Valid options are: mvel, js, groovy, python, and native (Java)<br>
      * Default: groovy

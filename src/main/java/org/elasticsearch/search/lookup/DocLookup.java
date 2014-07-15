@@ -63,6 +63,10 @@ public class DocLookup implements Map {
         return this.mapperService;
     }
 
+    public IndexFieldDataService fieldDataService() {
+        return this.fieldDataService;
+    }
+
     public void setNextReader(AtomicReaderContext context) {
         if (this.reader == context) { // if we are called with the same reader, don't invalidate source
             return;

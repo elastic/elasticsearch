@@ -48,7 +48,9 @@ import org.elasticsearch.transport.*;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.EnumSet;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -156,8 +158,19 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
                 if (shardCanBeDeleted(event.state(), indexShardRoutingTable)) {
                     ShardId shardId = indexShardRoutingTable.shardId();
                     IndexService indexService = indicesService.indexService(shardId.getIndex());
-                    if (indexService == null || !indexService.hasShard(shardId.getId())) {
-                        deleteShardIfExistElseWhere(event.state(), indexShardRoutingTable);
+                    if (indexService == null) {
+                        if (nodeEnv.hasNodeFile()) {
+                            File[] shardLocations = nodeEnv.shardLocations(shardId);
+                            if (FileSystemUtils.exists(shardLocations)) {
+                                deleteShardIfExistElseWhere(event.state(), indexShardRoutingTable);
+                            }
+                        }
+                    } else {
+                        if (!indexService.hasShard(shardId.id())) {
+                            if (indexService.store().canDeleteUnallocated(shardId)) {
+                                deleteShardIfExistElseWhere(event.state(), indexShardRoutingTable);
+                            }
+                        }
                     }
                 }
             }
@@ -231,7 +244,7 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
 
         ShardActiveResponseHandler responseHandler = new ShardActiveResponseHandler(indexShardRoutingTable.shardId(), state, requests.size());
         for (Tuple<DiscoveryNode, ShardActiveRequest> request : requests) {
-            transportService.submitRequest(request.v1(), ACTION_SHARD_EXISTS, request.v2(), responseHandler);
+            transportService.sendRequest(request.v1(), ACTION_SHARD_EXISTS, request.v2(), responseHandler);
         }
     }
 

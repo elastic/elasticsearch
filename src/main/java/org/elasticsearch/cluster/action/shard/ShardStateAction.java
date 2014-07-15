@@ -85,8 +85,17 @@ public class ShardStateAction extends AbstractComponent {
     }
 
     public void shardFailed(final ShardRouting shardRouting, final String indexUUID, final String reason, final DiscoveryNode masterNode) throws ElasticsearchException {
+        logger.warn("{} sending failed shard for {}, indexUUID [{}], reason [{}]", shardRouting.shardId(), shardRouting, indexUUID, reason);
+        innerShardFailed(shardRouting, indexUUID, reason, masterNode);
+    }
+
+    public void resendShardFailed(final ShardRouting shardRouting, final String indexUUID, final String reason, final DiscoveryNode masterNode) throws ElasticsearchException {
+        logger.trace("{} re-sending failed shard for {}, indexUUID [{}], reason [{}]", shardRouting.shardId(), shardRouting, indexUUID, reason);
+        innerShardFailed(shardRouting, indexUUID, reason, masterNode);
+    }
+
+    private void innerShardFailed(final ShardRouting shardRouting, final String indexUUID, final String reason, final DiscoveryNode masterNode) {
         ShardRoutingEntry shardRoutingEntry = new ShardRoutingEntry(shardRouting, indexUUID, reason);
-        logger.warn("{} sending failed shard for {}", shardRouting.shardId(), shardRoutingEntry);
         if (clusterService.localNode().equals(masterNode)) {
             innerShardFailed(shardRoutingEntry);
         } else {

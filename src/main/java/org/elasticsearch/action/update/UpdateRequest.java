@@ -651,7 +651,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         out.writeString(id);
         out.writeOptionalString(routing);
         out.writeOptionalString(script);
-        if (script != null && out.getVersion().onOrAfter(Version.V_1_3_0)) {
+        if (Strings.hasLength(script) && out.getVersion().onOrAfter(Version.V_1_3_0)) {
             ScriptService.ScriptType.writeTo(scriptType, out);
         }
         out.writeOptionalString(scriptLang);

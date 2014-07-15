@@ -21,6 +21,8 @@ package org.elasticsearch.action.benchmark;
 import org.apache.lucene.util.English;
 
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.benchmark.abort.BenchmarkAbortRequest;
+import org.elasticsearch.action.benchmark.abort.BenchmarkAbortResponse;
 import org.elasticsearch.action.benchmark.competition.*;
 import org.elasticsearch.action.benchmark.exception.*;
 import org.elasticsearch.action.benchmark.pause.*;
@@ -123,7 +125,7 @@ public class BenchmarkIntegrationTest extends ElasticsearchIntegrationTest {
 
         // Submit benchmark and wait for completion
         final BenchmarkStartRequest request = BenchmarkTestUtil.randomRequest(client(), indices, numExecutorNodes,
-                competitionSettingsMap, MEDIUM_LOW_INTERVAL_BOUND, MEDIUM_HIGH_INTERVAL_BOUND);
+                competitionSettingsMap);
         logger.info("--> Submitting benchmark - competitors [{}] iterations [{}] executors [{}]",
                 request.competitors().size(), request.settings().iterations(), numExecutorNodes);
 
@@ -150,6 +152,7 @@ public class BenchmarkIntegrationTest extends ElasticsearchIntegrationTest {
 
         // Pause benchmark
         final BenchmarkPauseResponse pauseResponse = client().preparePauseBenchmark(BENCHMARK_NAME).execute().actionGet();
+        assertThat(pauseResponse.getBenchmarkId(), equalTo(BENCHMARK_NAME));
         final Map<String, BenchmarkMetaData.Entry.NodeState> nodeResponses = pauseResponse.getNodeResponses();
         assertThat(nodeResponses.size(), equalTo(numExecutorNodes));
         for (Map.Entry<String, BenchmarkMetaData.Entry.NodeState> entry : nodeResponses.entrySet()) {
@@ -177,14 +180,14 @@ public class BenchmarkIntegrationTest extends ElasticsearchIntegrationTest {
         }
 
         // Validate results
-        final BenchmarkStartResponse benchmarkStartResponse = future.get();
-        assertNotNull(benchmarkStartResponse);
-        assertThat(benchmarkStartResponse.benchmarkId(), equalTo(BENCHMARK_NAME));
-        assertThat(benchmarkStartResponse.state(), equalTo(BenchmarkStartResponse.State.COMPLETED));
-        assertFalse(benchmarkStartResponse.hasErrors());
-        assertThat(benchmarkStartResponse.competitionResults().size(), equalTo(request.competitors().size()));
+        final BenchmarkStartResponse startResponse = future.get();
+        assertNotNull(startResponse);
+        assertThat(startResponse.benchmarkId(), equalTo(BENCHMARK_NAME));
+        assertThat(startResponse.state(), equalTo(BenchmarkStartResponse.State.COMPLETED));
+        assertFalse(startResponse.hasErrors());
+        assertThat(startResponse.competitionResults().size(), equalTo(request.competitors().size()));
 
-        for (CompetitionResult result : benchmarkStartResponse.competitionResults().values()) {
+        for (CompetitionResult result : startResponse.competitionResults().values()) {
             assertThat(result.nodeResults().size(), equalTo(numExecutorNodes));
             validateCompetitionResult(result, competitionSettingsMap.get(result.competitionName()), true);
         }
@@ -194,11 +197,11 @@ public class BenchmarkIntegrationTest extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testAbortBenchmark() throws Exception {
+    public void testResumeBenchmark() throws Exception {
 
         // Submit benchmark and wait for completion
-        final BenchmarkStartRequest request =
-                BenchmarkTestUtil.randomRequest(client(), indices, numExecutorNodes, competitionSettingsMap);
+        final BenchmarkStartRequest request = BenchmarkTestUtil.randomRequest(client(), indices, numExecutorNodes,
+                competitionSettingsMap);
         logger.info("--> Submitting benchmark - competitors [{}] iterations [{}] executors [{}]",
                 request.competitors().size(), request.settings().iterations(), numExecutorNodes);
 
@@ -215,18 +218,112 @@ public class BenchmarkIntegrationTest extends ElasticsearchIntegrationTest {
         // Wait for all executors to initialize
         tuple.v1().await();
 
+        // Check status
+        final BenchmarkStatusResponses statusResponses1 = client().prepareBenchmarkStatus(BENCHMARK_NAME).execute().actionGet();
+        assertThat(statusResponses1.responses().size(), equalTo(1));
+        final BenchmarkStartResponse statusResponse1 = statusResponses1.responses().get(0);
+        assertThat(statusResponse1.benchmarkId(), equalTo(BENCHMARK_NAME));
+        assertThat(statusResponse1.state(), equalTo(BenchmarkStartResponse.State.RUNNING));
+        assertFalse(statusResponse1.hasErrors());
 
+        // Pause benchmark
+        final BenchmarkPauseResponse pauseResponse = client().preparePauseBenchmark(BENCHMARK_NAME).execute().actionGet();
+        assertThat(pauseResponse.getBenchmarkId(), equalTo(BENCHMARK_NAME));
+        Map<String, BenchmarkMetaData.Entry.NodeState> nodeResponses = pauseResponse.getNodeResponses();
+        assertThat(nodeResponses.size(), equalTo(numExecutorNodes));
+        for (Map.Entry<String, BenchmarkMetaData.Entry.NodeState> entry : nodeResponses.entrySet()) {
+            assertThat(entry.getValue(), equalTo(BenchmarkMetaData.Entry.NodeState.PAUSED));
+        }
 
+        // Check status
+        final BenchmarkStatusResponses statusResponses2 = client().prepareBenchmarkStatus(BENCHMARK_NAME).execute().actionGet();
+        assertThat(statusResponses2.responses().size(), equalTo(1));
+        final BenchmarkStartResponse statusResponse2 = statusResponses2.responses().get(0);
+        assertThat(statusResponse2.benchmarkId(), equalTo(BENCHMARK_NAME));
+        assertThat(statusResponse2.state(), equalTo(BenchmarkStartResponse.State.PAUSED));
+        assertFalse(statusResponse2.hasErrors());
 
-        // XXX - Finish
+        // Resume benchmark
+        final BenchmarkResumeResponse resumeResponse = client().prepareResumeBenchmark(BENCHMARK_NAME).execute().actionGet();
+        assertThat(resumeResponse.getBenchmarkId(), equalTo(BENCHMARK_NAME));
+        nodeResponses = resumeResponse.getNodeResponses();
+        assertThat(nodeResponses.size(), equalTo(numExecutorNodes));
+        for (Map.Entry<String, BenchmarkMetaData.Entry.NodeState> entry : nodeResponses.entrySet()) {
+            assertThat(entry.getValue(), equalTo(BenchmarkMetaData.Entry.NodeState.RUNNING));
+        }
 
-
-
+        // Check status
+        final BenchmarkStatusResponses statusResponses3 = client().prepareBenchmarkStatus(BENCHMARK_NAME).execute().actionGet();
+        assertThat(statusResponses3.responses().size(), equalTo(1));
+        final BenchmarkStartResponse statusResponse3 = statusResponses3.responses().get(0);
+        assertThat(statusResponse3.benchmarkId(), equalTo(BENCHMARK_NAME));
+        assertThat(statusResponse3.state(), equalTo(BenchmarkStartResponse.State.RUNNING));
+        assertFalse(statusResponse3.hasErrors());
 
         // Release flow control and let the benchmark complete
         for (MockBenchmarkExecutor.FlowControl control : tuple.v2()) {
             control.release();
         }
+
+        // Validate results
+        final BenchmarkStartResponse startResponse = future.get();
+        assertNotNull(startResponse);
+        assertThat(startResponse.benchmarkId(), equalTo(BENCHMARK_NAME));
+        assertThat(startResponse.state(), equalTo(BenchmarkStartResponse.State.COMPLETED));
+        assertFalse(startResponse.hasErrors());
+        assertThat(startResponse.competitionResults().size(), equalTo(request.competitors().size()));
+
+        for (CompetitionResult result : startResponse.competitionResults().values()) {
+            assertThat(result.nodeResults().size(), equalTo(numExecutorNodes));
+            validateCompetitionResult(result, competitionSettingsMap.get(result.competitionName()), true);
+        }
+
+        // Confirm that cluster metadata went through proper state transitions
+        mockCoordinatorService().validateResumedLifecycle(BENCHMARK_NAME, numExecutorNodes);
+    }
+
+    @Test
+    public void testAbortBenchmark() throws Exception {
+
+        // Submit benchmark and wait for completion
+        final BenchmarkStartRequest request =
+                BenchmarkTestUtil.randomRequest(client(), indices, numExecutorNodes, competitionSettingsMap);
+        logger.info("--> Submitting benchmark - competitors [{}] iterations [{}] executors [{}]",
+                request.competitors().size(), request.settings().iterations(), numExecutorNodes);
+
+        // Figure out where to suspend execution
+        final int competitorToPause      = randomIntBetween(0, request.competitors().size() - 1);
+        final int iterationToPauseBefore = randomIntBetween(0, request.competitors().get(competitorToPause).settings().iterations() - 1);
+
+        final Tuple<CyclicBarrier, List<MockBenchmarkExecutor.FlowControl>> tuple =
+                                setUpFlowControl(request, competitorToPause, iterationToPauseBefore);
+
+        // Start benchmark
+        final ActionFuture<BenchmarkStartResponse> future = client().startBenchmark(request);
+
+        // Wait for all executors to initialize
+        tuple.v1().await();
+
+        // Abort benchmark
+        final BenchmarkAbortResponse abortResponse = client().prepareAbortBench(BENCHMARK_NAME).execute().actionGet();
+        assertThat(abortResponse.getBenchmarkId(), equalTo(BENCHMARK_NAME));
+        final Map<String, BenchmarkMetaData.Entry.NodeState> nodeResponses = abortResponse.getNodeResponses();
+        assertThat(nodeResponses.size(), equalTo(numExecutorNodes));
+        for (Map.Entry<String, BenchmarkMetaData.Entry.NodeState> entry : nodeResponses.entrySet()) {
+            assertThat(entry.getValue(), equalTo(BenchmarkMetaData.Entry.NodeState.ABORTED));
+        }
+
+        // Release flow control and let the benchmark complete
+        for (MockBenchmarkExecutor.FlowControl control : tuple.v2()) {
+            control.release();
+        }
+
+        // Validate results
+        final BenchmarkStartResponse startResponse = future.actionGet();
+        assertNotNull(startResponse);
+        assertThat(startResponse.benchmarkId(), equalTo(BENCHMARK_NAME));
+        assertThat(startResponse.state(), equalTo(BenchmarkStartResponse.State.ABORTED));
+        assertFalse(startResponse.hasErrors());
 
         // Confirm that cluster metadata went through proper state transitions
         mockCoordinatorService().validateAbortedLifecycle(BENCHMARK_NAME, numExecutorNodes);
@@ -285,12 +382,6 @@ public class BenchmarkIntegrationTest extends ElasticsearchIntegrationTest {
             }
         }
         assertThat(response.benchmarkId(), equalTo(BENCHMARK_NAME));
-    }
-
-    @Test(expected = BenchmarkMissingException.class)
-    @Ignore
-    public void testAbortNoSuchBenchmark() throws Exception {
-        client().prepareAbortBench(BENCHMARK_NAME).execute().actionGet();
     }
 
     private void validateCompetitionResult(CompetitionResult result, BenchmarkSettings requestedSettings, boolean strict) {
@@ -408,13 +499,11 @@ public class BenchmarkIntegrationTest extends ElasticsearchIntegrationTest {
             final MockBenchmarkExecutor.FlowControl control =
                     new MockBenchmarkExecutor.FlowControl(request.competitors().get(competitorToPause).name(),
                                                           iterationToPauseBefore,
-                                                          semaphore);
+                                                          semaphore, barrier);
 
             controls.add(control);
             semaphore.acquire();
-
-            executor.flow                  = control;
-            executor.initializationBarrier = barrier;
+            executor.flow = control;
         }
 
         return new Tuple<>(barrier, controls);

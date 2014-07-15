@@ -138,6 +138,7 @@ public class MockBenchmarkCoordinatorService extends BenchmarkCoordinatorService
         assertFalse(lifecycle.didObserveUnknownState);
 
         validateInitialState(benchmarkId, numExecutors, lifecycle.initialMetaDataEntry);
+        validateClearedMetaData(benchmarkId);
     }
 
     public void validatePausedLifecycle(final String benchmarkId, final int numExecutors) {
@@ -155,9 +156,10 @@ public class MockBenchmarkCoordinatorService extends BenchmarkCoordinatorService
         assertFalse(lifecycle.didObserveUnknownState);
 
         validateInitialState(benchmarkId, numExecutors, lifecycle.initialMetaDataEntry);
+        validateClearedMetaData(benchmarkId);
     }
 
-    public void validateAbortedLifecycle(final String benchmarkId, final int numExecutors) {
+    public void validateResumedLifecycle(final String benchmarkId, final int numExecutors) {
 
         final Lifecycle lifecycle = lifecycles.get(benchmarkId);
 
@@ -168,10 +170,29 @@ public class MockBenchmarkCoordinatorService extends BenchmarkCoordinatorService
         assertTrue(lifecycle.didPause);
         assertTrue(lifecycle.didResume);
         assertFalse(lifecycle.didFail);
+        assertFalse(lifecycle.didAbort);
+        assertFalse(lifecycle.didObserveUnknownState);
+
+        validateInitialState(benchmarkId, numExecutors, lifecycle.initialMetaDataEntry);
+        validateClearedMetaData(benchmarkId);
+    }
+
+    public void validateAbortedLifecycle(final String benchmarkId, final int numExecutors) {
+
+        final Lifecycle lifecycle = lifecycles.get(benchmarkId);
+
+        assertNotNull(lifecycle);
+        assertTrue(lifecycle.didInitialize);
+        assertTrue(lifecycle.didStartRunning);
+        assertTrue(lifecycle.didComplete);
+        assertFalse(lifecycle.didPause);
+        assertFalse(lifecycle.didResume);
+        assertFalse(lifecycle.didFail);
         assertTrue(lifecycle.didAbort);
         assertFalse(lifecycle.didObserveUnknownState);
 
         validateInitialState(benchmarkId, numExecutors, lifecycle.initialMetaDataEntry);
+        validateClearedMetaData(benchmarkId);
     }
 
     private void validateInitialState(final String benchmarkId, final int numExecutors, final BenchmarkMetaData.Entry entry) {
@@ -181,6 +202,16 @@ public class MockBenchmarkCoordinatorService extends BenchmarkCoordinatorService
         assertThat(entry.nodeStateMap().size(), equalTo(numExecutors));
         for (final BenchmarkMetaData.Entry.NodeState ns : entry.nodeStateMap().values()) {
             assertThat(ns, equalTo(BenchmarkMetaData.Entry.NodeState.READY));
+        }
+    }
+
+    private void validateClearedMetaData(String benchmarkId) {
+
+        final BenchmarkMetaData meta = clusterService.state().metaData().custom(BenchmarkMetaData.TYPE);
+        assertNotNull(meta);
+
+        for (BenchmarkMetaData.Entry entry : meta.entries()) {
+            assertFalse(benchmarkId.equals(entry.benchmarkId()));
         }
     }
 }

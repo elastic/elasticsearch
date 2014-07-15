@@ -49,6 +49,10 @@ public class BenchmarkResumeResponse extends ActionResponse implements ToXConten
         this.nodeResponses = new ConcurrentHashMap<>();
     }
 
+    public String getBenchmarkId() {
+        return benchmarkId;
+    }
+
     public void addNodeResponse(final String nodeId, final BenchmarkMetaData.Entry.NodeState nodeResponse) {
         nodeResponses.put(nodeId, nodeResponse);
     }

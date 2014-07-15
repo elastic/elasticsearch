@@ -147,6 +147,7 @@ public class BenchmarkExecutor {
 
             final BenchmarkStartResponse bsr = new BenchmarkStartResponse(request.benchmarkId(), new HashMap<String, CompetitionResult>());
             bsr.state(BenchmarkStartResponse.State.RUNNING);
+            bsr.verbose(request.verbose());
 
             active = ImmutableOpenMap.builder(active).fPut(request.benchmarkId(), new BenchmarkState(request, bsr)).build();
 
@@ -208,14 +209,8 @@ public class BenchmarkExecutor {
                     }
                     */
                     // Run the iteration
-
-                    logger.debug("XXX COMPETITOR {} ITERATION: {}", competitor.name(), i);
-
                     CompetitionIteration ci =
                             iterate(competitor, searchRequests, timeBuckets, docBuckets, state.competitorSemaphore(competitor.name()));
-
-                    logger.debug("XXX COMPETITOR {} ITERATION: {} -- COMPLETE", competitor.name(), i);
-
                     ci.percentiles(request.percentiles());
                     competitionIterations.add(ci);
                     competitionNodeResult.incrementCompletedIterations();

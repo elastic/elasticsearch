@@ -57,26 +57,27 @@ public class MockBenchmarkExecutorService extends BenchmarkExecutorService {
      */
     static final class MockBenchmarkExecutor extends BenchmarkExecutor {
 
-        FlowControl   flow;
-        int           currentIteration = 0;
-        CyclicBarrier initializationBarrier;
+        FlowControl flow;
+        int         currentIteration = 0;
 
-        public MockBenchmarkExecutor(Client client, ClusterService clusterService) {
+        public MockBenchmarkExecutor(final Client client, final ClusterService clusterService) {
             super(client, clusterService);
         }
 
         static final class FlowControl {
-            String    competitor;
-            int       iteration;
-            Semaphore control;
+            String        competitor;
+            int           iteration;
+            Semaphore     control;
+            CyclicBarrier initialization;
 
-            FlowControl(String competitor, int iteration, Semaphore control) {
-                this.competitor = competitor;
-                this.iteration  = iteration;
-                this.control    = control;
+            FlowControl(final String competitor, final int iteration, final Semaphore control, final CyclicBarrier initialization) {
+                this.competitor     = competitor;
+                this.iteration      = iteration;
+                this.control        = control;
+                this.initialization = initialization;
             }
 
-            void acquire(int current) throws InterruptedException {
+            void acquire(final int current) throws InterruptedException {
                 if (current == iteration) {
                     control.acquire();
                 }
@@ -85,31 +86,39 @@ public class MockBenchmarkExecutorService extends BenchmarkExecutorService {
             void release() {
                 control.release();
             }
+
+            void clear() {
+                if (initialization != null) {
+                    initialization.reset();
+                    initialization = null;
+                }
+                if (control != null) {
+                    control.release();
+                    control = null;
+                }
+            }
         }
 
         public void clearMockState() {
             if (flow != null) {
-                flow.control.release();
-                flow.control = null;
-                flow = null;
+                flow.clear();
             }
             currentIteration = 0;
-            initializationBarrier = null;
         }
 
         protected CompetitionIteration iterate(BenchmarkCompetitor competitor, List<SearchRequest> searchRequests,
                                                final long[] timeBuckets, final long[] docBuckets,
                                                StoppableSemaphore semaphore) throws InterruptedException {
 
-            if (currentIteration == 0 && initializationBarrier != null) {
-                try {
-                    initializationBarrier.await();
-                } catch (BrokenBarrierException e) {
-                    throw new RuntimeException("Failed to wait for shared initialization", e);
-                }
-            }
-
             if (flow != null) {
+                if (currentIteration == 0 && flow.initialization != null) {
+                    try {
+                        flow.initialization.await();
+                    } catch (BrokenBarrierException e) {
+                        throw new RuntimeException("Failed to wait for shared initialization", e);
+                    }
+                }
+
                 if (flow.competitor.equals(competitor.name())) {
                     flow.acquire(currentIteration);
                 }

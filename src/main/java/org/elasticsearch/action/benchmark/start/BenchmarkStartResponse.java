@@ -227,6 +227,7 @@ public class BenchmarkStartResponse extends ActionResponse implements Streamable
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         benchmarkId = in.readOptionalString();
+        verbose = in.readBoolean();
         state = State.fromId(in.readByte());
         int size = in.readVInt();
         errors = new ArrayList<>();
@@ -246,6 +247,7 @@ public class BenchmarkStartResponse extends ActionResponse implements Streamable
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeOptionalString(benchmarkId);
+        out.writeBoolean(verbose);
         out.writeByte(state.id());
         out.writeVInt(errors.size());
         for (String s : errors) {

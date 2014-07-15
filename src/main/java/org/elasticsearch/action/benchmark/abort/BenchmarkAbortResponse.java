@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.benchmark.abort;
 
+import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.BenchmarkMetaData;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -51,8 +52,16 @@ public class BenchmarkAbortResponse extends ActionResponse implements ToXContent
         this.nodeResponses = new ConcurrentHashMap<>();
     }
 
+    public String getBenchmarkId() {
+        return benchmarkId;
+    }
+
     public void addNodeResponse(final String nodeId, final BenchmarkMetaData.Entry.NodeState nodeResponse) {
         nodeResponses.put(nodeId, nodeResponse);
+    }
+
+    public Map<String, BenchmarkMetaData.Entry.NodeState> getNodeResponses() {
+        return ImmutableMap.copyOf(nodeResponses);
     }
 
     @Override

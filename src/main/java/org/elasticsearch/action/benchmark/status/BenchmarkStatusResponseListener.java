@@ -132,6 +132,7 @@ public class BenchmarkStatusResponseListener implements ActionListener<Benchmark
             }
 
             response.mergeState(r.state());
+            response.verbose(r.verbose());
             assert errors.isEmpty() || response.state() != BenchmarkStartResponse.State.COMPLETED : "Response can't be complete since it has errors";
         }
 

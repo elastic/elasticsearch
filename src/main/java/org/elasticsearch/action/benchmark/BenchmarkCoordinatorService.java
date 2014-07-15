@@ -614,10 +614,11 @@ public class BenchmarkCoordinatorService extends AbstractBenchmarkService<Benchm
 
     private void log(BenchmarkMetaData.Entry entry) {
         StringBuilder sb = new StringBuilder();
-        sb.append("\nbenchmark: [").append(entry.benchmarkId()).append("] (").append(entry.state()).append(") \n\tnodes: ");
+        sb.append("benchmark state change: [").append(entry.benchmarkId()).append("] (").append(entry.state()).append(") [");
         for (Map.Entry<String, BenchmarkMetaData.Entry.NodeState> e : entry.nodeStateMap().entrySet()) {
-            sb.append("[").append(e.getKey()).append("] (").append(e.getValue()).append(")");
+            sb.append(" ").append(e.getKey()).append(":").append(e.getValue());
         }
+        sb.append(" ]");
         logger.debug(sb.toString());
     }
 

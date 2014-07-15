@@ -21,7 +21,9 @@ package org.elasticsearch.test;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -32,6 +34,7 @@ import org.elasticsearch.node.NodeBuilder;
 import org.elasticsearch.node.internal.InternalNode;
 import org.junit.After;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
@@ -45,6 +48,11 @@ public class ElasticsearchSingleNodeTest extends ElasticsearchTestCase {
     @After
     public void after() {
         node.client().admin().indices().prepareDelete("*").get();
+        MetaData metaData = node.client().admin().cluster().prepareState().get().getState().getMetaData();
+        assertThat("test leaves persistent cluster metadata behind: " + metaData.persistentSettings().getAsMap(),
+                metaData.persistentSettings().getAsMap().size(), equalTo(0));
+        assertThat("test leaves transient cluster metadata behind: " + metaData.transientSettings().getAsMap(),
+                metaData.transientSettings().getAsMap().size(), equalTo(0));
     }
 
     /**
@@ -56,7 +64,8 @@ public class ElasticsearchSingleNodeTest extends ElasticsearchTestCase {
 
     public static Node node(Settings settings) {
         return NodeBuilder.nodeBuilder().local(true).data(true).settings(ImmutableSettings.builder()
-                .put("cluster.name", "__single_node_")
+                .put(ClusterName.SETTING, ElasticsearchSingleNodeTest.class.getName())
+                .put("node.name", ElasticsearchSingleNodeTest.class.getName())
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(settings)

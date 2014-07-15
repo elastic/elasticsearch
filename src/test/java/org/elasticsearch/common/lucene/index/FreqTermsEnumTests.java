@@ -22,7 +22,7 @@ package org.elasticsearch.common.lucene.index;
 import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.collect.Lists;
 import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-import org.apache.lucene.analysis.MockAnalyzer;
+import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
@@ -40,13 +40,11 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.*;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 /**
  */
@@ -75,11 +73,12 @@ public class FreqTermsEnumTests extends ElasticsearchLuceneTestCase {
         referenceFilter = Maps.newHashMap();
 
         Directory dir = newDirectory();
-        IndexWriterConfig conf = newIndexWriterConfig(TEST_VERSION_CURRENT, new MockAnalyzer(random()));
+        IndexWriterConfig conf = newIndexWriterConfig(TEST_VERSION_CURRENT, new KeywordAnalyzer()); // use keyword analyzer we rely on the stored field holding the exact term.
         if (frequently()) {
             // we don't want to do any merges, so we won't expunge deletes
             conf.setMergePolicy(NoMergePolicy.INSTANCE);
         }
+
         iw = new IndexWriter(dir, conf);
         terms = new String[scaledRandomIntBetween(10, 300)];
         for (int i = 0; i < terms.length; i++) {
@@ -117,7 +116,7 @@ public class FreqTermsEnumTests extends ElasticsearchLuceneTestCase {
         for (int i = 0; i < docs.length; i++) {
             Document doc = docs[i];
             if (randomInt(5) == 2) {
-                Term idTerm = new Term("id", Integer.toString(i));
+                Term idTerm = new Term("id", doc.getField("id").stringValue());
                 deletedIds.add(idTerm.text());
                 iw.deleteDocuments(idTerm);
             }
@@ -195,9 +194,11 @@ public class FreqTermsEnumTests extends ElasticsearchLuceneTestCase {
         int cycles = randomIntBetween(1, 5);
         for (int i = 0; i < cycles; i++) {
             List<String> terms = Lists.newArrayList(Arrays.asList(this.terms));
-            //Collections.shuffle(terms, getRandom());
+
+           Collections.shuffle(terms, getRandom());
             for (String term : terms) {
                 if (!termsEnum.seekExact(new BytesRef(term))) {
+                    assertThat("term : " + term, reference.get(term).docFreq, is(0));
                     continue;
                 }
                 if (docFreq) {

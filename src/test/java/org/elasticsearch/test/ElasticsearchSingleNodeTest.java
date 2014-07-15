@@ -24,6 +24,7 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -34,15 +35,17 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
 import org.elasticsearch.node.internal.InternalNode;
 import org.junit.After;
+import org.junit.Ignore;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.*;
 
 /**
  * A test that keep a single node started for all tests that can be used to get
  * references to Guice injectors in unit tests.
  */
-public class ElasticsearchSingleNodeTest extends ElasticsearchTestCase {
+@Ignore
+public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase {
 
     private static final Node node = node();
 
@@ -59,12 +62,12 @@ public class ElasticsearchSingleNodeTest extends ElasticsearchTestCase {
     /**
      * Same as {@link #node(Settings) node(ImmutableSettings.EMPTY)}.
      */
-    public static Node node() {
+    private static Node node() {
         return node(ImmutableSettings.EMPTY);
     }
 
-    public static Node node(Settings settings) {
-        return NodeBuilder.nodeBuilder().local(true).data(true).settings(ImmutableSettings.builder()
+    private static Node node(Settings settings) {
+        Node build = NodeBuilder.nodeBuilder().local(true).data(true).settings(ImmutableSettings.builder()
                 .put(ClusterName.SETTING, ElasticsearchSingleNodeTest.class.getName())
                 .put("node.name", ElasticsearchSingleNodeTest.class.getName())
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
@@ -73,7 +76,11 @@ public class ElasticsearchSingleNodeTest extends ElasticsearchTestCase {
                 .put(EsExecutors.PROCESSORS, 1) // limit the number of threads created
                 .put("http.enabled", false)
                 .put("index.store.type", "ram")
-                .put("gateway.type", "none")).build().start();
+                .put("config.ignore_system_properties", true) // make sure we get what we set :)
+                .put("gateway.type", "none")).build();
+        build.start();
+        assertThat(DiscoveryNode.localNode(build.settings()), is(true));
+        return build;
     }
 
     public static <T> T getInstanceFromNode(Class<T> clazz, Node node) {
@@ -85,13 +92,16 @@ public class ElasticsearchSingleNodeTest extends ElasticsearchTestCase {
     }
 
     public static IndexService createIndex(String index, Settings settings) {
-        node.client().admin().indices().prepareCreate(index).setSettings(settings).get();
+        assertAcked(node.client().admin().indices().prepareCreate(index).setSettings(settings).get());
         // Wait for the index to be allocated so that cluster state updates don't override
         // changes that would have been done locally
         ClusterHealthResponse health = node.client().admin().cluster()
                 .health(Requests.clusterHealthRequest(index).waitForYellowStatus().waitForEvents(Priority.LANGUID).waitForRelocatingShards(0)).actionGet();
         assertThat(health.getStatus(), lessThanOrEqualTo(ClusterHealthStatus.YELLOW));
+        assertThat("Cluster must be a single node cluster", health.getNumberOfDataNodes(), equalTo(1));
         IndicesService instanceFromNode = getInstanceFromNode(IndicesService.class, node);
-        return instanceFromNode.indexService(index);
+        return instanceFromNode.indexServiceSafe(index);
     }
+
+
 }

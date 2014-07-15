@@ -141,22 +141,15 @@ public class ScriptService extends AbstractComponent {
     public static final ParseField SCRIPT_ID = new ParseField("script_id", "id");
     public static final ParseField SCRIPT_INLINE = new ParseField("script","scriptField");
 
-
-    private static final int INLINE_VAL = 0;
-    private static final int INDEXED_VAL = 1;
-    private static final int FILE_VAL = 2;
-
     public static enum ScriptType {
 
-        INLINE(INLINE_VAL),
-        INDEXED(INDEXED_VAL),
-        FILE(FILE_VAL);
+        INLINE,
+        INDEXED,
+        FILE;
 
-        private int value;
-
-        private ScriptType(int i) {
-            this.value = i;
-        }
+        private static final int INLINE_VAL = 0;
+        private static final int INDEXED_VAL = 1;
+        private static final int FILE_VAL = 2;
 
         public static ScriptType readFrom(StreamInput in) throws IOException {
             int scriptTypeVal = in.readVInt();
@@ -167,10 +160,12 @@ public class ScriptService extends AbstractComponent {
                     return INLINE;
                 case FILE_VAL:
                     return FILE;
+                default:
+                    throw new ElasticsearchIllegalArgumentException("Unexpected value read for ScriptType got [" + scriptTypeVal +
+                            "] expected one of ["+INLINE_VAL +"," + INDEXED_VAL + "," + FILE_VAL+"]");
             }
-            throw new ElasticsearchIllegalArgumentException("Unexpected value read for ScriptType got [" + scriptTypeVal +
-                    "] expected one of ["+INLINE_VAL +"," + INDEXED_VAL + "," + FILE_VAL+"]");
-        }
+
+    }
 
         public static void writeTo(ScriptType scriptType, StreamOutput out) throws IOException{
             if (scriptType != null) {
@@ -184,6 +179,8 @@ public class ScriptService extends AbstractComponent {
                     case FILE:
                         out.writeVInt(FILE_VAL);
                         return;
+                    default:
+                        throw new ElasticsearchIllegalStateException("Unknown ScriptType " + scriptType);
                 }
             } else {
                 out.writeVInt(INLINE_VAL); //Default to inline
@@ -432,12 +429,6 @@ public class ScriptService extends AbstractComponent {
     }
 
     public void putScriptToIndex(Client client, BytesReference scriptBytes, @Nullable String scriptLang, String id,
-                                 @Nullable TimeValue timeout, @Nullable String sOpType, ActionListener<IndexResponse> listener)
-            throws ElasticsearchIllegalArgumentException, IOException {
-        putScriptToIndex(client,scriptBytes,scriptLang,id,timeout,sOpType, Versions.MATCH_ANY, VersionType.INTERNAL, listener);
-    }
-
-    public void putScriptToIndex(Client client, BytesReference scriptBytes, @Nullable String scriptLang, String id,
                                  @Nullable TimeValue timeout, @Nullable String sOpType, long version,
                                  VersionType versionType, ActionListener<IndexResponse> listener) {
         try {
@@ -612,13 +603,9 @@ public class ScriptService extends AbstractComponent {
 
     }
 
-    public static class CacheKey {
+    public final static class CacheKey {
         public final String lang;
         public final String script;
-
-        private CacheKey(){
-            throw new ElasticsearchIllegalStateException("CacheKey default constructor should never be called.");
-        }
 
         public CacheKey(String lang, String script) {
             this.lang = lang;

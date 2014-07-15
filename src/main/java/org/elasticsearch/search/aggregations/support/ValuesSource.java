@@ -465,6 +465,7 @@ public abstract class ValuesSource {
 
                 @Override
                 public int setDocument(int docId) {
+                    script.setNextDocId(docId);
                     return source.longValues().setDocument(docId);
                 }
 
@@ -488,6 +489,7 @@ public abstract class ValuesSource {
 
                 @Override
                 public int setDocument(int docId) {
+                    script.setNextDocId(docId);
                     return source.doubleValues().setDocument(docId);
                 }
 

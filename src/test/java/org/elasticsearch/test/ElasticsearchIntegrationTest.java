@@ -88,6 +88,8 @@ import org.elasticsearch.index.merge.scheduler.SerialMergeSchedulerProvider;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.store.StoreModule;
 import org.elasticsearch.index.translog.TranslogService;
+import org.elasticsearch.index.translog.fs.FsTranslog;
+import org.elasticsearch.index.translog.fs.FsTranslogFile;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.store.IndicesStore;
@@ -435,6 +437,9 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             } else {
                 builder.put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC, new ByteSizeValue(RandomInts.randomIntBetween(random, 10, 200), ByteSizeUnit.MB));
             }
+        }
+        if (random.nextBoolean()) {
+             builder.put(FsTranslog.INDEX_TRANSLOG_FS_TYPE, RandomPicks.randomFrom(random, FsTranslogFile.Type.values()).name());
         }
         return builder;
     }

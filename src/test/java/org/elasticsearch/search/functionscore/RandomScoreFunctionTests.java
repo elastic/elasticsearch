@@ -53,7 +53,11 @@ public class RandomScoreFunctionTests extends ElasticsearchIntegrationTest {
         int outerIters = scaledRandomIntBetween(10, 20);
         for (int o = 0; o < outerIters; o++) {
             final long seed = randomLong();
-            final String preference = randomRealisticUnicodeOfLengthBetween(1, 10); // at least one char!!
+            String preference = randomRealisticUnicodeOfLengthBetween(1, 10); // at least one char!!
+            // randomPreference should not start with '_' (reserved for known preference types (e.g. _shards, _primary)
+            while (preference.startsWith("_")) {
+                preference = randomRealisticUnicodeOfLengthBetween(1, 10);
+            }
             int innerIters = scaledRandomIntBetween(2, 5);
             SearchHits hits = null;
             for (int i = 0; i < innerIters; i++) {

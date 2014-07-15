@@ -641,10 +641,14 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             }
         }
 
-        // figure out where to recover from (node or disk, in which case sourceNode is null)
+        // if we're in peer recovery, try to find out the source node now so in case it fails, we will not create the index shard
         DiscoveryNode sourceNode = null;
         if (isPeerRecovery(shardRouting)) {
             sourceNode = findSourceNodeForPeerRecovery(routingTable, nodes, shardRouting);
+            if (sourceNode == null) {
+                logger.trace("ignoring initializing shard {} - no source node can be found.", shardRouting.shardId());
+                return;
+            }
         }
 
         // if there is no shard, create it
@@ -692,13 +696,15 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             return;
         }
 
-        if (sourceNode != null) {
+        if (isPeerRecovery(shardRouting)) {
             try {
+
+                assert sourceNode != null : "peer recovery started but sourceNode is null";
+
                 // we don't mark this one as relocated at the end.
                 // For primaries: requests in any case are routed to both when its relocating and that way we handle
                 //    the edge case where its mark as relocated, and we might need to roll it back...
                 // For replicas: we are recovering a backup from a primary
-
                 RecoveryState.Type type = shardRouting.primary() ? RecoveryState.Type.RELOCATION : RecoveryState.Type.REPLICA;
                 final Store store = indexShard.store();
                 final StartRecoveryRequest request;
@@ -706,7 +712,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 try {
                     store.failIfCorrupted();
                     request = new StartRecoveryRequest(indexShard.shardId(), sourceNode, nodes.localNode(),
-                        false, store.getMetadata().asMap(), type, recoveryIdGenerator.incrementAndGet());
+                            false, store.getMetadata().asMap(), type, recoveryIdGenerator.incrementAndGet());
                 } finally {
                     store.decRef();
                 }
@@ -753,7 +759,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                     // only recover from started primary, if we can't find one, we will do it next round
                     sourceNode = nodes.get(entry.currentNodeId());
                     if (sourceNode == null) {
-                        logger.trace("can't find replica source node because primary shard {} is assigned to an unknown node. ignoring.", entry);
+                        logger.trace("can't find replica source node because primary shard {} is assigned to an unknown node.", entry);
                         return null;
                     }
                     break;
@@ -761,12 +767,12 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             }
 
             if (sourceNode == null) {
-                logger.trace("can't find replica source node for {} because a primary shard can not be found. ignoring.", shardRouting.shardId());
+                logger.trace("can't find replica source node for {} because a primary shard can not be found.", shardRouting.shardId());
             }
         } else if (shardRouting.relocatingNodeId() != null) {
             sourceNode = nodes.get(shardRouting.relocatingNodeId());
             if (sourceNode == null) {
-                logger.trace("can't find relocation source node for shard {} because it is assigned to an unknown node [{}]. ignoring.", shardRouting.shardId(), shardRouting.relocatingNodeId());
+                logger.trace("can't find relocation source node for shard {} because it is assigned to an unknown node [{}].", shardRouting.shardId(), shardRouting.relocatingNodeId());
             }
         } else {
             throw new ElasticsearchIllegalStateException("trying to find source node for peer recovery when routing state means no peer recovery: " + shardRouting);

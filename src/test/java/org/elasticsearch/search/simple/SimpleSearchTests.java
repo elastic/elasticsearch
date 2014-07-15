@@ -66,8 +66,13 @@ public class SimpleSearchTests extends ElasticsearchIntegrationTest {
 
         int iters = scaledRandomIntBetween(10, 20);
         for (int i = 0; i < iters; i++) {
+            String randomPreference = randomUnicodeOfLengthBetween(0, 4);
+            // randomPreference should not start with '_' (reserved for known preference types (e.g. _shards, _primary)
+            while (randomPreference.startsWith("_")) {
+                randomPreference = randomUnicodeOfLengthBetween(0, 4);
+            }
             // id is not indexed, but lets see that we automatically convert to
-            SearchResponse searchResponse = client().prepareSearch().setQuery(QueryBuilders.matchAllQuery()).setPreference(randomUnicodeOfLengthBetween(0, 4)).get();
+            SearchResponse searchResponse = client().prepareSearch().setQuery(QueryBuilders.matchAllQuery()).setPreference(randomPreference).get();
             assertHitCount(searchResponse, 6l);
 
         }

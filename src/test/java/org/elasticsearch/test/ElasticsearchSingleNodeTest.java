@@ -41,13 +41,13 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.*;
 
 /**
- * A test that keep a single node started for all tests that can be used to get
+ * A test that keep a singleton node started for all tests that can be used to get
  * references to Guice injectors in unit tests.
  */
 @Ignore
 public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase {
 
-    private static final Node node = node();
+    private static final Node node = newNode();
 
     @After
     public void after() {
@@ -59,20 +59,12 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
                 metaData.transientSettings().getAsMap().size(), equalTo(0));
     }
 
-    /**
-     * Same as {@link #node(Settings) node(ImmutableSettings.EMPTY)}.
-     */
-    private static Node node() {
-        return node(ImmutableSettings.EMPTY);
-    }
-
-    private static Node node(Settings settings) {
+    private static Node newNode() {
         Node build = NodeBuilder.nodeBuilder().local(true).data(true).settings(ImmutableSettings.builder()
                 .put(ClusterName.SETTING, ElasticsearchSingleNodeTest.class.getName())
                 .put("node.name", ElasticsearchSingleNodeTest.class.getName())
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(settings)
                 .put(EsExecutors.PROCESSORS, 1) // limit the number of threads created
                 .put("http.enabled", false)
                 .put("index.store.type", "ram")
@@ -83,14 +75,30 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
         return build;
     }
 
-    public static <T> T getInstanceFromNode(Class<T> clazz, Node node) {
+    /**
+     * Return a reference to the singleton node.
+     */
+    public static Node node() {
+        return node;
+    }
+
+    /**
+     * Get an instance for a particular class using the injector of the singleton node.
+     */
+    public static <T> T getInstanceFromNode(Class<T> clazz) {
         return ((InternalNode) node).injector().getInstance(clazz);
     }
 
+    /**
+     * Create a new index on the singleton node with empty index settings.
+     */
     public static IndexService createIndex(String index) {
         return createIndex(index, ImmutableSettings.EMPTY);
     }
 
+    /**
+     * Create a new index on the singleton node with the provided index settings.
+     */
     public static IndexService createIndex(String index, Settings settings) {
         assertAcked(node.client().admin().indices().prepareCreate(index).setSettings(settings).get());
         // Wait for the index to be allocated so that cluster state updates don't override
@@ -99,7 +107,7 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
                 .health(Requests.clusterHealthRequest(index).waitForYellowStatus().waitForEvents(Priority.LANGUID).waitForRelocatingShards(0)).actionGet();
         assertThat(health.getStatus(), lessThanOrEqualTo(ClusterHealthStatus.YELLOW));
         assertThat("Cluster must be a single node cluster", health.getNumberOfDataNodes(), equalTo(1));
-        IndicesService instanceFromNode = getInstanceFromNode(IndicesService.class, node);
+        IndicesService instanceFromNode = getInstanceFromNode(IndicesService.class);
         return instanceFromNode.indexServiceSafe(index);
     }
 

@@ -20,7 +20,6 @@ package org.elasticsearch.script;
 
 import org.elasticsearch.common.lucene.ReaderContextAware;
 import org.elasticsearch.common.lucene.ScorerAware;
-import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -29,7 +28,7 @@ import java.util.Map;
 /**
  * A search script.
  *
- * @see ExplainableSearchScript for script which can explain a score
+ * @see {@link ExplainableSearchScript} for script which can explain a score
  */
 public interface SearchScript extends ExecutableScript, ReaderContextAware, ScorerAware {
 

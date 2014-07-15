@@ -27,6 +27,7 @@ import org.elasticsearch.common.inject.multibindings.MapBinder;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.script.expression.ExpressionScriptEngineService;
 import org.elasticsearch.script.groovy.GroovyScriptEngineService;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.script.mvel.MvelScriptEngineService;
@@ -35,7 +36,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- *
+ * An {@link org.elasticsearch.common.inject.Module} which manages {@link ScriptEngineService}s, as well
+ * as named script
  */
 public class ScriptModule extends AbstractModule {
 
@@ -98,6 +100,13 @@ public class ScriptModule extends AbstractModule {
             multibinder.addBinding().to(MustacheScriptEngineService.class);
         } catch (Throwable t) {
             Loggers.getLogger(ScriptService.class, settings).debug("failed to load mustache", t);
+        }
+
+        try {
+            settings.getClassLoader().loadClass("org.apache.lucene.expressions.Expression");
+            multibinder.addBinding().to(ExpressionScriptEngineService.class);
+        } catch (Throwable t) {
+            Loggers.getLogger(ScriptService.class, settings).debug("failed to load lucene expressions", t);
         }
 
         for (Class<? extends ScriptEngineService> scriptEngine : scriptEngines) {

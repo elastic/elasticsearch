@@ -20,6 +20,7 @@
 package org.elasticsearch.plugins;
 
 import com.google.common.base.Strings;
+import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ElasticsearchTimeoutException;
@@ -46,6 +47,7 @@ import java.util.*;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
+import static org.elasticsearch.common.Strings.hasLength;
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 
 /**
@@ -65,6 +67,14 @@ public class PluginManager {
 
     // By default timeout is 0 which means no timeout
     public static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueMillis(0);
+
+    private static final ImmutableSet<Object> BLACKLIST = ImmutableSet.builder()
+            .add("elasticsearch",
+                    "elasticsearch.bat",
+                    "elasticsearch.in.sh",
+                    "plugin",
+                    "plugin.bat",
+                    "service.bat").build();
 
     private final Environment environment;
 
@@ -123,6 +133,8 @@ public class PluginManager {
         }
 
         PluginHandle pluginHandle = PluginHandle.parse(name);
+        checkForForbiddenName(pluginHandle.name);
+
         File pluginFile = pluginHandle.distroFile(environment);
         // extract the plugin
         File extractLocation = pluginHandle.extractedDir(environment);
@@ -254,10 +266,7 @@ public class PluginManager {
         PluginHandle pluginHandle = PluginHandle.parse(name);
         boolean removed = false;
 
-        if (Strings.isNullOrEmpty(pluginHandle.name)) {
-            throw new ElasticsearchIllegalArgumentException("plugin name is incorrect");
-        }
-
+        checkForForbiddenName(pluginHandle.name);
         File pluginToDelete = pluginHandle.extractedDir(environment);
         if (pluginToDelete.exists()) {
             debug("Removing: " + pluginToDelete.getPath());
@@ -298,6 +307,12 @@ public class PluginManager {
             log("Removed " + name);
         } else {
             log("Plugin " + name + " not found. Run plugin --list to get list of installed plugins.");
+        }
+    }
+
+    private static void checkForForbiddenName(String name) {
+        if (!hasLength(name) || BLACKLIST.contains(name.toLowerCase(Locale.ROOT))) {
+            throw new ElasticsearchIllegalArgumentException("Illegal plugin name: " + name);
         }
     }
 

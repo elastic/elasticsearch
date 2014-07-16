@@ -28,6 +28,7 @@ import org.elasticsearch.transport.local.LocalTransport;
 
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class ClusterDiscoveryConfiguration extends NodeSettingsSource {
 
@@ -55,6 +56,8 @@ public class ClusterDiscoveryConfiguration extends NodeSettingsSource {
     }
 
     public static class UnicastZen extends ClusterDiscoveryConfiguration {
+
+        private final AtomicInteger portRangeCounter = new AtomicInteger();
 
         private final int[] unicastHostOrdinals;
         private final int basePort;
@@ -91,7 +94,7 @@ public class ClusterDiscoveryConfiguration extends NodeSettingsSource {
         public UnicastZen(int numOfNodes, Settings extraSettings, int[] unicastHostOrdinals) {
             super(numOfNodes, extraSettings);
             this.unicastHostOrdinals = unicastHostOrdinals;
-            this.basePort = 25000 + RandomizedTest.randomInt(1000);
+            this.basePort = 10000 + portRangeCounter.incrementAndGet() * 1000 + RandomizedTest.randomInt(999);
         }
 
 

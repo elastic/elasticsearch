@@ -36,6 +36,7 @@ import org.mvel2.ParserContext;
 import org.mvel2.compiler.ExecutableStatement;
 import org.mvel2.integration.impl.MapVariableResolverFactory;
 
+import java.io.IOException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.HashMap;
@@ -142,6 +143,43 @@ public class MvelScriptEngineService extends AbstractComponent implements Script
 
     public static class MvelSearchScript implements SearchScript {
 
+        /**
+         * Float encapsulation that allows updating the value with public
+         * member access. This is used to encapsulate the _score of a document
+         * so that updating the _score for the next document incurs only the
+         * overhead of setting a member variable
+         */
+        private final class ScoreAccessor extends Number {
+
+            float score() {
+                try {
+                    return lookup.doc().score();
+                } catch (IOException e) {
+                    throw new RuntimeException("Could not get score", e);
+                }
+            }
+
+            @Override
+            public int intValue() {
+                return (int)score();
+            }
+
+            @Override
+            public long longValue() {
+                return (long)score();
+            }
+
+            @Override
+            public float floatValue() {
+                return score();
+            }
+
+            @Override
+            public double doubleValue() {
+                return score();
+            }
+        }
+
         private final ExecutableStatement script;
 
         private final SearchLookup lookup;
@@ -159,6 +197,7 @@ public class MvelScriptEngineService extends AbstractComponent implements Script
             for (Map.Entry<String, Object> entry : lookup.asMap().entrySet()) {
                 resolver.createVariable(entry.getKey(), entry.getValue());
             }
+            resolver.createVariable("_score", new ScoreAccessor());
         }
 
         @Override
@@ -174,11 +213,6 @@ public class MvelScriptEngineService extends AbstractComponent implements Script
         @Override
         public void setNextDocId(int doc) {
             lookup.setNextDocId(doc);
-        }
-
-        @Override
-        public void setNextScore(float score) {
-            resolver.createVariable("_score", score);
         }
 
         @Override

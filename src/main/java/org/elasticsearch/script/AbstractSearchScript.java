@@ -29,6 +29,7 @@ import org.elasticsearch.search.lookup.FieldsLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 
+import java.io.IOException;
 import java.util.Map;
 
 /**
@@ -43,16 +44,6 @@ import java.util.Map;
 public abstract class AbstractSearchScript extends AbstractExecutableScript implements SearchScript {
 
     private SearchLookup lookup;
-
-    private float score = Float.NaN;
-
-    /**
-     * Returns the current score and only applicable when used as a scoring script in a custom score query!.
-     * For other cases, use {@link #doc()} and get the score from it.
-     */
-    protected final float score() {
-        return score;
-    }
 
     /**
      * Returns the doc lookup allowing to access field data (cached) values as well as the current document score
@@ -126,11 +117,6 @@ public abstract class AbstractSearchScript extends AbstractExecutableScript impl
     @Override
     public void setNextSource(Map<String, Object> source) {
         lookup.source().setNextSource(source);
-    }
-
-    @Override
-    public void setNextScore(float score) {
-        this.score = score;
     }
 
     @Override

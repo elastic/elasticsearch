@@ -91,10 +91,6 @@ public class FieldDataSourceTests extends ElasticsearchTestCase {
             }
 
             @Override
-            public void setNextScore(float score) {
-            }
-
-            @Override
             public float runAsFloat() {
                 throw new UnsupportedOperationException();
             }

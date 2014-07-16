@@ -24,6 +24,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import com.google.common.util.concurrent.MoreExecutors;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -32,6 +33,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
+import org.elasticsearch.common.unit.SizeUnit;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsAbortPolicy;
@@ -52,6 +55,7 @@ import java.util.concurrent.*;
 
 import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.unit.SizeValue.parseSizeValue;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
 
 /**
@@ -316,11 +320,11 @@ public class ThreadPool extends AbstractComponent {
             return new ExecutorHolder(executor, new Info(name, type, -1, -1, keepAlive, null));
         } else if ("fixed".equals(type)) {
             int defaultSize = defaultSettings.getAsInt("size", EsExecutors.boundedNumberOfProcessors(settings));
-            SizeValue defaultQueueSize = defaultSettings.getAsSize("queue", defaultSettings.getAsSize("queue_size", null));
+            SizeValue defaultQueueSize = getAsSizeOrUnbounded(defaultSettings, "queue", getAsSizeOrUnbounded(defaultSettings, "queue_size", null));
 
             if (previousExecutorHolder != null) {
                 if ("fixed".equals(previousInfo.getType())) {
-                    SizeValue updatedQueueSize = settings.getAsSize("capacity", settings.getAsSize("queue", settings.getAsSize("queue_size", previousInfo.getQueueSize())));
+                    SizeValue updatedQueueSize = getAsSizeOrUnbounded(settings, "capacity", getAsSizeOrUnbounded(settings, "queue", getAsSizeOrUnbounded(settings, "queue_size", previousInfo.getQueueSize())));
                     if (Objects.equal(previousInfo.getQueueSize(), updatedQueueSize)) {
                         int updatedSize = settings.getAsInt("size", previousInfo.getMax());
                         if (previousInfo.getMax() != updatedSize) {
@@ -339,7 +343,7 @@ public class ThreadPool extends AbstractComponent {
             }
 
             int size = settings.getAsInt("size", defaultSize);
-            SizeValue queueSize = settings.getAsSize("capacity", settings.getAsSize("queue", settings.getAsSize("queue_size", defaultQueueSize)));
+            SizeValue queueSize = getAsSizeOrUnbounded(settings, "capacity", getAsSizeOrUnbounded(settings, "queue", getAsSizeOrUnbounded(settings, "queue_size", defaultQueueSize)));
             logger.debug("creating thread_pool [{}], type [{}], size [{}], queue_size [{}]", name, type, size, queueSize);
             Executor executor = EsExecutors.newFixed(size, queueSize == null ? -1 : (int) queueSize.singles(), threadFactory);
             return new ExecutorHolder(executor, new Info(name, type, size, size, null, queueSize));
@@ -413,6 +417,16 @@ public class ThreadPool extends AbstractComponent {
                 }
             }
         }
+    }
+
+    /**
+     * A thread pool size can also be unbounded and is represented by -1, which is not supported by SizeValue (which only supports positive numbers)
+     */
+    private SizeValue getAsSizeOrUnbounded(Settings settings, String setting, SizeValue defaultValue) throws SettingsException {
+        if ("-1".equals(settings.get(setting))) {
+            return null;
+        }
+        return parseSizeValue(settings.get(setting), defaultValue);
     }
 
     class ExecutorShutdownListener implements EsThreadPoolExecutor.ShutdownListener {
@@ -603,7 +617,12 @@ public class ThreadPool extends AbstractComponent {
                 keepAlive = TimeValue.readTimeValue(in);
             }
             if (in.readBoolean()) {
-                queueSize = SizeValue.readSizeValue(in);
+                if (in.getVersion().after(Version.V_1_2_2)) {
+                    boolean isQueueSizeBounded = in.readBoolean();
+                    queueSize = isQueueSizeBounded ? SizeValue.readSizeValue(in) : null;
+                } else {
+                    queueSize = SizeValue.readSizeValue(in);
+                }
             }
             in.readBoolean(); // here to conform with removed waitTime
             in.readBoolean(); // here to conform with removed rejected setting
@@ -626,7 +645,15 @@ public class ThreadPool extends AbstractComponent {
                 out.writeBoolean(false);
             } else {
                 out.writeBoolean(true);
-                queueSize.writeTo(out);
+                if (out.getVersion().onOrAfter(Version.V_1_2_3)) {
+                    boolean isQueueSizeBounded = queueSize.singles() >= 0;
+                    out.writeBoolean(isQueueSizeBounded);
+                    if (isQueueSizeBounded) {
+                        queueSize.writeTo(out);
+                    }
+                } else {
+                    queueSize.writeTo(out);
+                }
             }
             out.writeBoolean(false); // here to conform with removed waitTime
             out.writeBoolean(false); // here to conform with removed rejected setting
@@ -646,7 +673,9 @@ public class ThreadPool extends AbstractComponent {
             if (keepAlive != null) {
                 builder.field(Fields.KEEP_ALIVE, keepAlive.toString());
             }
-            if (queueSize != null) {
+            if (queueSize == null) {
+                builder.field(Fields.QUEUE_SIZE, -1);
+            } else {
                 builder.field(Fields.QUEUE_SIZE, queueSize.toString());
             }
             builder.endObject();

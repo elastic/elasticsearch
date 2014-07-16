@@ -17,7 +17,7 @@
       indices.refresh: {}
 
   - do:
-      indexed_template.create:
+      put_template:
         id: "1"
         body: { "template": { "query": { "match" : { "text": "{{my_value}}" } }, "size": "{{my_size}}" } }
   - match: { _id: "1" }

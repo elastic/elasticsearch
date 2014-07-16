@@ -288,8 +288,8 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
      * A terms filter based on the field data cache for numeric fields.
      */
     @Override
-    public Filter termsFilter(QueryParseContext fieldDataService, List values, @Nullable QueryParseContext context) {
-        IndexNumericFieldData fieldData = fieldDataService.getForField(this);
+    public Filter fieldDataTermsFilter(List values, @Nullable QueryParseContext context) {
+        IndexNumericFieldData fieldData = context.getForField(this);
         if (fieldData.getNumericType().isFloatingPoint()) {
             // create with initial size large enough to avoid rehashing
             DoubleOpenHashSet terms =

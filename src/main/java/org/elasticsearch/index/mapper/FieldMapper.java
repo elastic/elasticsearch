@@ -248,7 +248,7 @@ public interface FieldMapper<T> extends Mapper {
 
     Filter termsFilter(List values, @Nullable QueryParseContext context);
 
-    Filter termsFilter(QueryParseContext parseContext, List values, @Nullable QueryParseContext context);
+    Filter fieldDataTermsFilter(List values, @Nullable QueryParseContext context);
 
     Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context);
 

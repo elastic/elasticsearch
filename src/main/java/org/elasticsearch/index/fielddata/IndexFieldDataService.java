@@ -139,6 +139,8 @@ public class IndexFieldDataService extends AbstractIndexComponent {
     private final ConcurrentMap<String, IndexFieldData<?>> loadedFieldData = ConcurrentCollections.newConcurrentMap();
     private final KeyedLock.GlobalLockable<String> fieldLoadingLock = new KeyedLock.GlobalLockable<>();
     private final ConcurrentMap<String, IndexFieldData<?>> loadedDirectFieldData = ConcurrentCollections.newConcurrentMap();
+    private final KeyedLock.GlobalLockable<String> fieldDirectLock = new KeyedLock.GlobalLockable<>();
+
     private final Map<String, IndexFieldDataCache> fieldDataCaches = Maps.newHashMap(); // no need for concurrency support, always used under lock
 
     IndexService indexService;
@@ -193,8 +195,11 @@ public class IndexFieldDataService extends AbstractIndexComponent {
         } finally {
             fieldLoadingLock.globalLock().unlock();
         }
-        synchronized (loadedDirectFieldData) {
+        fieldDirectLock.globalLock().lock();
+        try {
             loadedDirectFieldData.clear();
+        } finally {
+            fieldDirectLock.globalLock().unlock();
         }
     }
 
@@ -222,8 +227,11 @@ public class IndexFieldDataService extends AbstractIndexComponent {
         } finally {
             fieldLoadingLock.release(fieldName);
         }
-        synchronized (loadedDirectFieldData) {
+        fieldDirectLock.acquire(fieldName);
+        try {
             loadedDirectFieldData.remove(fieldName);
+        } finally {
+            fieldDirectLock.release(fieldName);
         }
     }
 
@@ -236,8 +244,11 @@ public class IndexFieldDataService extends AbstractIndexComponent {
         } finally {
             fieldLoadingLock.globalLock().unlock();
         }
-        synchronized (loadedDirectFieldData) {
+        fieldDirectLock.globalLock().lock();
+        try {
             loadedDirectFieldData.clear();
+        } finally {
+            fieldDirectLock.globalLock().unlock();
         }
     }
 
@@ -312,9 +323,11 @@ public class IndexFieldDataService extends AbstractIndexComponent {
         final FieldMapper.Names fieldNames = mapper.names();
         IndexFieldData<?> fieldData = loadedDirectFieldData.get(fieldNames.indexName());
         if (fieldData == null) {
+            final String key = mapper.names().indexName();
+            fieldDirectLock.acquire(key);
             // By caching IFD instances we prevent that we end up with equal to number of percolator instances
             // `loadedFieldData` can't be used b/c we forcefully always use a different IndexFieldDataCache impl
-            synchronized (loadedDirectFieldData) {
+            try {
                 fieldData = loadedDirectFieldData.get(fieldNames.indexName());
                 if (fieldData == null) {
                     final FieldDataType type = mapper.fieldDataType();
@@ -347,6 +360,8 @@ public class IndexFieldDataService extends AbstractIndexComponent {
                     fieldData = builder.build(index, indexSettings, mapper, new IndexFieldDataCache.None(), circuitBreakerService, indexService.mapperService(), globalOrdinalBuilder);
                     loadedDirectFieldData.put(fieldNames.indexName(), fieldData);
                 }
+            } finally {
+                fieldDirectLock.release(key);
             }
         }
         return (IFD) fieldData;

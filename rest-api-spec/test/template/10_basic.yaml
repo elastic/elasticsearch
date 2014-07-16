@@ -25,4 +25,9 @@
       put_template:
         id: "1"
         body: { "template": { "query": { "match{{}}_all": {}}, "size": "{{my_size}}" } }
-  - match: { "error": /ElasticsearchIllegalArgumentException\SUnable\sto\sparse.*/ }
+
+  - do:
+      catch: /ElasticsearchIllegalArgumentException\SUnable\sto\sparse.*/
+      put_template:
+        id: "1"
+        body: { "template": { "query": { "match{{}}_all": {}}, "size": "{{my_size}}" } }

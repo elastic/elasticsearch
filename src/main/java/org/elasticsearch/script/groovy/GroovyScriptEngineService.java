@@ -45,6 +45,7 @@ import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.SearchScript;
+import org.elasticsearch.search.lookup.DocLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -188,7 +189,6 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
         private final Script script;
         private final SearchLookup lookup;
         private final Map<String, Object> variables;
-        private final UpdateableFloat score;
         private final ESLogger logger;
 
         public GroovyScript(Script script, ESLogger logger) {
@@ -200,10 +200,8 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
             this.lookup = lookup;
             this.logger = logger;
             this.variables = script.getBinding().getVariables();
-            this.score = new UpdateableFloat(0);
-            // Add the _score variable, which will be updated per-document by
-            // setting .value on the UpdateableFloat instance
-            this.variables.put("_score", this.score);
+            // Add the _score variable, which will access score from lookup.doc()
+            this.variables.put("_score", new ScoreAccessor());
         }
 
         @Override
@@ -225,12 +223,6 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
             if (lookup != null) {
                 lookup.setNextDocId(doc);
             }
-        }
-
-        @SuppressWarnings({"unchecked"})
-        @Override
-        public void setNextScore(float score) {
-            this.score.value = score;
         }
 
         @SuppressWarnings({"unchecked"})
@@ -284,32 +276,34 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
          * so that updating the _score for the next document incurs only the
          * overhead of setting a member variable
          */
-        private final class UpdateableFloat extends Number {
+        private final class ScoreAccessor extends Number {
 
-            public float value;
-
-            public UpdateableFloat(float value) {
-                this.value = value;
+            float score() {
+                try {
+                    return lookup.doc().score();
+                } catch (IOException e) {
+                    throw new GroovyScriptExecutionException("Could not get score", e);
+                }
             }
 
             @Override
             public int intValue() {
-                return (int)value;
+                return (int)score();
             }
 
             @Override
             public long longValue() {
-                return (long)value;
+                return (long)score();
             }
 
             @Override
             public float floatValue() {
-                return value;
+                return score();
             }
 
             @Override
             public double doubleValue() {
-                return value;
+                return score();
             }
         }
     }

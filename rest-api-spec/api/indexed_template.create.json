@@ -1,6 +1,6 @@
 {
-  "indexed_template.create": {
-    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/indexed-scripts.html",
+  "put_template": {
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/search-template.html",
     "methods": ["PUT", "POST"],
     "url": {
       "path": "/_search/template/{id}",

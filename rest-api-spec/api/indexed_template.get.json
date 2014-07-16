@@ -1,6 +1,6 @@
 {
-  "indexed_template.get": {
-    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/indexed-scripts.html",
+  "get_template": {
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/search-template.html",
     "methods": ["GET"],
     "url": {
       "path": "/_search/template/{id}",

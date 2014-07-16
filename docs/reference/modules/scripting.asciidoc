@@ -77,6 +77,84 @@ a script placed under `config/scripts/group1/group2/test.py` will be
 named `group1_group2_test`.
 
 [float]
+=== Indexed Scripts
+If dynamic scripting is enabled, Elasticsearch allows you to store scripts
+in an internal index known as `.scripts` and reference them by id. There are
+REST endpoints to manage indexed scripts as follows:
+
+Requests to the scripts endpoint look like :
+[source,js]
+-----------------------------------
+/_scripts/{lang}/{id}
+-----------------------------------
+Where the `lang` part is the language the script is in and the `id` part is the id
+of the script. In the `.scripts` index the type of the document will be set to the `lang`.
+
+
+[source,js]
+-----------------------------------
+curl -XPOST localhost:9200/_scripts/mvel/indexedCalculateScore -d '{
+     "script": "log(_score * 2) + my_modifier"
+}'
+-----------------------------------
+
+This will create a document with id: `indexedCalculateScore` and type: `mvel` in the
+`.scripts` index. The type of the document is the language used by the script.
+
+This script can be accessed at query time by appending `_id` to
+the script parameter and passing the script id. So `script` becomes `script_id`.:
+
+[source,js]
+--------------------------------------------------
+curl -XPOST localhost:9200/_search -d '{
+  "query": {
+    "function_score": {
+      "query": {
+        "match": {
+          "body": "foo"
+        }
+      },
+      "functions": [
+        {
+          "script_score": {
+            "script_id": "indexedCalculateScore",
+            "params": {
+              "my_modifier": 8
+            }
+          }
+        }
+      ]
+    }
+  }
+}'
+--------------------------------------------------
+Note that you must have dynamic scripting enabled to use indexed scripts
+at query time.
+
+The script can be viewed by:
+[source,js]
+-----------------------------------
+curl -XGET localhost:9200/_scripts/mvel/calculate-score
+-----------------------------------
+
+This is rendered as:
+
+[source,js]
+-----------------------------------
+'{
+     "script": "log(_score * 2) + my_modifier"
+}'
+-----------------------------------
+
+Indexed scripts can be deleted by:
+[source,js]
+-----------------------------------
+curl -XDELETE localhost:9200/_scripts/mvel/calculate-score
+-----------------------------------
+
+
+
+[float]
 === Enabling dynamic scripting
 
 We recommend running Elasticsearch behind an application or proxy, which

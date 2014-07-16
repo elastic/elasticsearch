@@ -280,12 +280,11 @@ To use an indexed template at search time use:
 GET /_search/template
 {
     "template": {
-        "id": "templateName" <2>,
+        "id": "templateName" <1>,
     },
     "params": {
         "query_string": "search for these words"
     }
 }
 ------------------------------------------
-
-<2> Name of the the query template stored in the .scripts index.
+<1> Name of the the query template stored in the .scripts index.

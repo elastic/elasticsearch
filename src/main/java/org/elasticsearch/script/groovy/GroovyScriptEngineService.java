@@ -41,11 +41,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.ScriptEngineService;
-import org.elasticsearch.script.ScriptException;
-import org.elasticsearch.script.SearchScript;
-import org.elasticsearch.search.lookup.DocLookup;
+import org.elasticsearch.script.*;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -201,7 +197,7 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
             this.logger = logger;
             this.variables = script.getBinding().getVariables();
             // Add the _score variable, which will access score from lookup.doc()
-            this.variables.put("_score", new ScoreAccessor());
+            this.variables.put("_score", new ScoreAccessor(lookup.doc()));
         }
 
         @Override
@@ -270,42 +266,6 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
             return value;
         }
 
-        /**
-         * Float encapsulation that allows updating the value with public
-         * member access. This is used to encapsulate the _score of a document
-         * so that updating the _score for the next document incurs only the
-         * overhead of setting a member variable
-         */
-        private final class ScoreAccessor extends Number {
-
-            float score() {
-                try {
-                    return lookup.doc().score();
-                } catch (IOException e) {
-                    throw new GroovyScriptExecutionException("Could not get score", e);
-                }
-            }
-
-            @Override
-            public int intValue() {
-                return (int)score();
-            }
-
-            @Override
-            public long longValue() {
-                return (long)score();
-            }
-
-            @Override
-            public float floatValue() {
-                return score();
-            }
-
-            @Override
-            public double doubleValue() {
-                return score();
-            }
-        }
     }
 
     /**
@@ -353,4 +313,5 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
             return super.transform(newExpr);
         }
     }
+
 }

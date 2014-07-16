@@ -77,8 +77,13 @@ public class SignificantTermsParser implements Aggregator.Parser {
         if (significanceHeuristic == null) {
             significanceHeuristic = JLHScore.INSTANCE;
         }
+        if (aggParser.getSamplingSettings() != null) {
+            // TODO - may need to throw exception if user has supplied any sort of script - not supported with the sampling approach
+            return new SignificantTermsSamplingAggregatorFactory(context, aggregationName, vsParser.getInputFieldName(), //FIXME need to discover field name
+                    bucketCountThresholds, aggParser.getIncludeExclude(), aggParser.getExecutionHint(), aggParser.getFilter(), significanceHeuristic, aggParser.getSamplingSettings());
+        }
+        
         return new SignificantTermsAggregatorFactory(aggregationName, vsParser.config(), bucketCountThresholds,
-                aggParser.getIncludeExclude(), aggParser.getExecutionHint(), aggParser.getFilter(), significanceHeuristic,
-                aggParser.getSamplingSettings());
+                aggParser.getIncludeExclude(), aggParser.getExecutionHint(), aggParser.getFilter(), significanceHeuristic);
     }
 }

@@ -125,6 +125,10 @@ public class ValuesSourceParser<VS extends ValuesSource> {
 
         return false;
     }
+    
+    public String getInputFieldName(){
+        return input.field;
+    }
 
     public ValuesSourceConfig<VS> config() {
         

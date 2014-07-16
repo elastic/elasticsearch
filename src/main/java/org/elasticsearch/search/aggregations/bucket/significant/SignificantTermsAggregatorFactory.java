@@ -18,17 +18,13 @@
  */
 package org.elasticsearch.search.aggregations.bucket.significant;
 
-import org.apache.lucene.index.DocsEnum;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lucene.index.FilterableTermsEnum;
-import org.elasticsearch.common.lucene.index.FreqTermsEnum;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.aggregations.*;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
@@ -40,8 +36,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
-
-import java.io.IOException;
 
 /**
  *
@@ -59,8 +53,8 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
             @Override
             Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource, long estimatedBucketCount,
                               TermsAggregator.BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude,
-                              AggregationContext aggregationContext, Aggregator parent, SignificantTermsAggregatorFactory termsAggregatorFactory) {
-                return new SignificantStringTermsAggregator(name, factories, valuesSource, estimatedBucketCount, bucketCountThresholds, includeExclude, aggregationContext, parent, termsAggregatorFactory);
+                              AggregationContext aggregationContext, Aggregator parent, TermFrequencyProvider termsAggregatorFactory, SignificanceHeuristic significanceHeuristic) {
+                return new SignificantStringTermsAggregator(name, factories, valuesSource, estimatedBucketCount, bucketCountThresholds, includeExclude, aggregationContext, parent, termsAggregatorFactory, significanceHeuristic);
             }
 
             @Override
@@ -74,11 +68,13 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
             @Override
             Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource, long estimatedBucketCount,
                               TermsAggregator.BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude,
-                              AggregationContext aggregationContext, Aggregator parent, SignificantTermsAggregatorFactory termsAggregatorFactory) {
+                              AggregationContext aggregationContext, Aggregator parent, TermFrequencyProvider termsAggregatorFactory, SignificanceHeuristic significanceHeuristic) {
                 ValuesSource.Bytes.WithOrdinals valueSourceWithOrdinals = (ValuesSource.Bytes.WithOrdinals) valuesSource;
                 IndexSearcher indexSearcher = aggregationContext.searchContext().searcher();
                 long maxOrd = valueSourceWithOrdinals.globalMaxOrd(indexSearcher);
-                return new GlobalOrdinalsSignificantTermsAggregator(name, factories, (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, estimatedBucketCount, maxOrd, bucketCountThresholds, includeExclude, aggregationContext, parent, termsAggregatorFactory);
+                return new GlobalOrdinalsSignificantTermsAggregator(name, factories,
+                        (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, estimatedBucketCount, maxOrd, bucketCountThresholds,
+                        includeExclude, aggregationContext, parent, termsAggregatorFactory, significanceHeuristic);
             }
 
             @Override
@@ -92,8 +88,10 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
             @Override
             Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource, long estimatedBucketCount,
                               TermsAggregator.BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude,
-                              AggregationContext aggregationContext, Aggregator parent, SignificantTermsAggregatorFactory termsAggregatorFactory) {
-                return new GlobalOrdinalsSignificantTermsAggregator.WithHash(name, factories, (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, estimatedBucketCount, bucketCountThresholds, includeExclude, aggregationContext, parent, termsAggregatorFactory);
+                              AggregationContext aggregationContext, Aggregator parent, TermFrequencyProvider termFrequencyProvider, SignificanceHeuristic significanceHeuristic) {
+                return new GlobalOrdinalsSignificantTermsAggregator.WithHash(name, factories,
+                        (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, estimatedBucketCount, bucketCountThresholds,
+                        includeExclude, aggregationContext, parent, termFrequencyProvider, significanceHeuristic);
             }
 
             @Override
@@ -119,7 +117,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
 
         abstract Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource, long estimatedBucketCount,
                                    TermsAggregator.BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude,
-                                   AggregationContext aggregationContext, Aggregator parent, SignificantTermsAggregatorFactory termsAggregatorFactory);
+                                   AggregationContext aggregationContext, Aggregator parent, TermFrequencyProvider termFrequencyProvider, SignificanceHeuristic significanceHeuristic);
 
         abstract boolean needsGlobalOrdinals();
 
@@ -131,20 +129,18 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
     private final IncludeExclude includeExclude;
     private final String executionHint;
     private String indexedFieldName;
-    private FieldMapper mapper;
-    private FilterableTermsEnum termsEnum;
     private int numberOfAggregatorsCreated = 0;
-    private Filter filter;
     private final TermsAggregator.BucketCountThresholds bucketCountThresholds;
     private final SignificanceHeuristic significanceHeuristic;
-    private final SampleSettings samplerSettings;
 
     protected TermsAggregator.BucketCountThresholds getBucketCountThresholds() {
         return new TermsAggregator.BucketCountThresholds(bucketCountThresholds);
     }
+    TermFrequencyProvider termFrequencyProvider;
+    private FieldMapper mapper;
 
     public SignificantTermsAggregatorFactory(String name, ValuesSourceConfig valueSourceConfig, TermsAggregator.BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude,
-                                             String executionHint, Filter filter, SignificanceHeuristic significanceHeuristic, SampleSettings samplerSettings) {
+                                             String executionHint, Filter filter, SignificanceHeuristic significanceHeuristic) {
         super(name, SignificantStringTerms.TYPE.name(), valueSourceConfig);
         this.bucketCountThresholds = bucketCountThresholds;        
         this.includeExclude = includeExclude;
@@ -154,8 +150,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
             this.indexedFieldName = config.fieldContext().field();
             mapper = SearchContext.current().smartNameFieldMapper(indexedFieldName);
         }
-        this.filter = filter;
-        this.samplerSettings = samplerSettings;
+        this.termFrequencyProvider=new TermFrequencyProvider(indexedFieldName, filter, mapper);
     }
 
     @Override
@@ -172,15 +167,11 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
     @Override
     protected Aggregator create(ValuesSource valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent) {
         numberOfAggregatorsCreated++;
-
-        long estimatedBucketCount = TermsAggregatorFactory.estimatedBucketCount(valuesSource, parent);
-
-        if (samplerSettings != null) {
-            // User has requested a fundamentally different approach to gathering stats using
-            // samples of top-scoring docs rather than field data
-            return new SignificantStringTermsSamplingAggregator(name, factories, config.fieldContext() ,estimatedBucketCount, bucketCountThresholds, includeExclude, aggregationContext, parent, this, significanceHeuristic, samplerSettings);
+        if (numberOfAggregatorsCreated > 1) {
+            termFrequencyProvider.setUseCaching(true);
         }
         
+        long estimatedBucketCount = TermsAggregatorFactory.estimatedBucketCount(valuesSource, parent);
         if (valuesSource instanceof ValuesSource.Bytes) {
             ExecutionMode execution = null;
             if (executionHint != null) {
@@ -198,7 +189,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
             }
             assert execution != null;
             valuesSource.setNeedsGlobalOrdinals(execution.needsGlobalOrdinals());
-            return execution.create(name, factories, valuesSource, estimatedBucketCount, bucketCountThresholds, includeExclude, aggregationContext, parent, this);
+            return execution.create(name, factories, valuesSource, estimatedBucketCount, bucketCountThresholds, includeExclude, aggregationContext, parent, termFrequencyProvider, significanceHeuristic);
         }
 
         
@@ -216,67 +207,17 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
             if (includeExclude != null) {
                 longFilter = includeExclude.convertToLongFilter();
             }
-            return new SignificantLongTermsAggregator(name, factories, (ValuesSource.Numeric) valuesSource, config.format(), estimatedBucketCount, bucketCountThresholds, aggregationContext, parent, this, longFilter);
+            return new SignificantLongTermsAggregator(name, factories, (ValuesSource.Numeric) valuesSource, config.format(),
+                    estimatedBucketCount, bucketCountThresholds, aggregationContext, parent, termFrequencyProvider, longFilter,
+                    significanceHeuristic);
         }
 
         throw new AggregationExecutionException("sigfnificant_terms aggregation cannot be applied to field [" + config.fieldContext().field() +
                 "]. It can only be applied to numeric or string fields.");
     }
 
-    /**
-     * Creates the TermsEnum (if not already created) and must be called before any calls to getBackgroundFrequency
-     * @param context The aggregation context 
-     * @return The number of documents in the index (after an optional filter might have been applied)
-     */
-    public long prepareBackground(AggregationContext context) {
-        if (termsEnum != null) {
-            // already prepared - return 
-            return termsEnum.getNumDocs();
-        }
-        SearchContext searchContext = context.searchContext();
-        IndexReader reader = searchContext.searcher().getIndexReader();
-        try {
-            if (numberOfAggregatorsCreated == 1) {
-                // Setup a termsEnum for sole use by one aggregator
-                termsEnum = new FilterableTermsEnum(reader, indexedFieldName, DocsEnum.FLAG_NONE, filter);
-            } else {
-                // When we have > 1 agg we have possibility of duplicate term frequency lookups 
-                // and so use a TermsEnum that caches results of all term lookups
-                termsEnum = new FreqTermsEnum(reader, indexedFieldName, true, false, filter, searchContext.bigArrays());
-            }
-        } catch (IOException e) {
-            throw new ElasticsearchException("failed to build terms enumeration", e);
-        }
-        return termsEnum.getNumDocs();
-    }
-
-    public long getBackgroundFrequency(BytesRef termBytes) {
-        assert termsEnum != null; // having failed to find a field in the index we don't expect any calls for frequencies
-        long result = 0;
-        try {
-            if (termsEnum.seekExact(termBytes)) {
-                result = termsEnum.docFreq();
-            }
-        } catch (IOException e) {
-            throw new ElasticsearchException("IOException loading background document frequency info", e);
-        }
-        return result;
-    }
-
-
-    public long getBackgroundFrequency(long term) {
-        BytesRef indexedVal = mapper.indexedValueForSearch(term);
-        return getBackgroundFrequency(indexedVal);
-    }
-
     @Override
     public void close() throws ElasticsearchException {
-        try {
-            if (termsEnum instanceof Releasable) {
-                ((Releasable) termsEnum).close();
-            }
-        } finally {
-            termsEnum = null;
-        }
+        Releasables.close(termFrequencyProvider);
     }
 }

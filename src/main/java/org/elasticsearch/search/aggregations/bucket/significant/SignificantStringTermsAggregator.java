@@ -23,6 +23,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTermsAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -39,15 +40,17 @@ import java.util.Collections;
 public class SignificantStringTermsAggregator extends StringTermsAggregator {
 
     protected long numCollectedDocs;
-    protected final SignificantTermsAggregatorFactory termsAggFactory;
+    protected final TermFrequencyProvider termFrequencyProvider;
+    private final SignificanceHeuristic significanceHeuristic;
 
     public SignificantStringTermsAggregator(String name, AggregatorFactories factories, ValuesSource valuesSource,
             long estimatedBucketCount, BucketCountThresholds bucketCountThresholds,
             IncludeExclude includeExclude, AggregationContext aggregationContext, Aggregator parent,
-            SignificantTermsAggregatorFactory termsAggFactory) {
+            TermFrequencyProvider termFrequencyProvider, SignificanceHeuristic significanceHeuristic) {
 
         super(name, factories, valuesSource, estimatedBucketCount, null, bucketCountThresholds, includeExclude, aggregationContext, parent, SubAggCollectionMode.DEPTH_FIRST, false);
-        this.termsAggFactory = termsAggFactory;
+        this.termFrequencyProvider = termFrequencyProvider;
+        this.significanceHeuristic = significanceHeuristic;
     }
 
     @Override
@@ -61,7 +64,7 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
         assert owningBucketOrdinal == 0;
 
         final int size = (int) Math.min(bucketOrds.size(), bucketCountThresholds.getShardSize());
-        long supersetSize = termsAggFactory.prepareBackground(context);
+        long supersetSize = termFrequencyProvider.prepareBackground(context);
         long subsetSize = numCollectedDocs;
 
         BucketSignificancePriorityQueue ordered = new BucketSignificancePriorityQueue(size);
@@ -74,13 +77,13 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
             bucketOrds.get(i, spare.termBytes);
             spare.subsetDf = bucketDocCount(i);
             spare.subsetSize = subsetSize;
-            spare.supersetDf = termsAggFactory.getBackgroundFrequency(spare.termBytes);
+            spare.supersetDf = termFrequencyProvider.getBackgroundFrequency(spare.termBytes);
             spare.supersetSize = supersetSize;
             // During shard-local down-selection we use subset/superset stats
             // that are for this shard only
             // Back at the central reducer these properties will be updated with
             // global stats
-            spare.updateScore(termsAggFactory.getSignificanceHeuristic());
+            spare.updateScore(significanceHeuristic);
 
             spare.bucketOrd = i;
             if (spare.subsetDf >= bucketCountThresholds.getShardMinDocCount()) {
@@ -97,7 +100,7 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
             list[i] = bucket;
         }
 
-        return new SignificantStringTerms(subsetSize, supersetSize, name, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), termsAggFactory.getSignificanceHeuristic(), Arrays.asList(list));
+        return new SignificantStringTerms(subsetSize, supersetSize, name, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), significanceHeuristic, Arrays.asList(list));
     }
 
     @Override
@@ -106,12 +109,12 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
         ContextIndexSearcher searcher = context.searchContext().searcher();
         IndexReader topReader = searcher.getIndexReader();
         int supersetSize = topReader.numDocs();
-        return new SignificantStringTerms(0, supersetSize, name, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), termsAggFactory.getSignificanceHeuristic(), Collections.<InternalSignificantTerms.Bucket>emptyList());
+        return new SignificantStringTerms(0, supersetSize, name, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), significanceHeuristic, Collections.<InternalSignificantTerms.Bucket>emptyList());
     }
 
     @Override
     public void doClose() {
-        Releasables.close(bucketOrds, termsAggFactory);
+        Releasables.close(bucketOrds, termFrequencyProvider);
     }
 
 }

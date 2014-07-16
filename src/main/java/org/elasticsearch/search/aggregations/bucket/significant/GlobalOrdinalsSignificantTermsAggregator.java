@@ -24,6 +24,7 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.bucket.terms.GlobalOrdinalsStringTermsAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -40,15 +41,17 @@ import java.util.Collections;
 public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStringTermsAggregator {
 
     protected long numCollectedDocs;
-    protected final SignificantTermsAggregatorFactory termsAggFactory;
+    protected final TermFrequencyProvider termFrequencyProvider;
+    private SignificanceHeuristic significanceHeuristic;
 
     public GlobalOrdinalsSignificantTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals.FieldData valuesSource,
                                                     long estimatedBucketCount, long maxOrd, BucketCountThresholds bucketCountThresholds,
                                                     IncludeExclude includeExclude, AggregationContext aggregationContext, Aggregator parent,
-                                                    SignificantTermsAggregatorFactory termsAggFactory) {
+                                                    TermFrequencyProvider termFrequencyProvider, SignificanceHeuristic significanceHeuristic) {
 
-        super(name, factories, valuesSource, estimatedBucketCount, maxOrd, null, bucketCountThresholds, includeExclude, aggregationContext, parent, SubAggCollectionMode.DEPTH_FIRST, false);
-        this.termsAggFactory = termsAggFactory;
+      super(name, factories, valuesSource, estimatedBucketCount, maxOrd, null, bucketCountThresholds, includeExclude, aggregationContext, parent, SubAggCollectionMode.DEPTH_FIRST, false);
+      this.termFrequencyProvider = termFrequencyProvider;
+      this.significanceHeuristic = significanceHeuristic;
     }
 
     @Override
@@ -71,7 +74,7 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
         } else {
             size = (int) Math.min(maxBucketOrd(), bucketCountThresholds.getShardSize());
         }
-        long supersetSize = termsAggFactory.prepareBackground(context);
+        long supersetSize = termFrequencyProvider.prepareBackground(context);
         long subsetSize = numCollectedDocs;
 
         BucketSignificancePriorityQueue ordered = new BucketSignificancePriorityQueue(size);
@@ -92,13 +95,13 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
             copy(globalOrds.lookupOrd(globalTermOrd), spare.termBytes);
             spare.subsetDf = bucketDocCount;
             spare.subsetSize = subsetSize;
-            spare.supersetDf = termsAggFactory.getBackgroundFrequency(spare.termBytes);
+            spare.supersetDf = termFrequencyProvider.getBackgroundFrequency(spare.termBytes);
             spare.supersetSize = supersetSize;
             // During shard-local down-selection we use subset/superset stats
             // that are for this shard only
             // Back at the central reducer these properties will be updated with
             // global stats
-            spare.updateScore(termsAggFactory.getSignificanceHeuristic());
+            spare.updateScore(significanceHeuristic);
             if (spare.subsetDf >= bucketCountThresholds.getShardMinDocCount()) {
                 spare = (SignificantStringTerms.Bucket) ordered.insertWithOverflow(spare);
             }
@@ -113,7 +116,7 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
             list[i] = bucket;
         }
 
-        return new SignificantStringTerms(subsetSize, supersetSize, name, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), termsAggFactory.getSignificanceHeuristic(), Arrays.asList(list));
+        return new SignificantStringTerms(subsetSize, supersetSize, name, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), significanceHeuristic, Arrays.asList(list));
     }
 
     @Override
@@ -122,20 +125,23 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
         ContextIndexSearcher searcher = context.searchContext().searcher();
         IndexReader topReader = searcher.getIndexReader();
         int supersetSize = topReader.numDocs();
-        return new SignificantStringTerms(0, supersetSize, name, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), termsAggFactory.getSignificanceHeuristic(), Collections.<InternalSignificantTerms.Bucket>emptyList());
+        return new SignificantStringTerms(0, supersetSize, name, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), significanceHeuristic, Collections.<InternalSignificantTerms.Bucket>emptyList());
     }
 
     @Override
     protected void doClose() {
-        Releasables.close(termsAggFactory);
+        Releasables.close(termFrequencyProvider);
     }
 
     public static class WithHash extends GlobalOrdinalsSignificantTermsAggregator {
 
         private final LongHash bucketOrds;
 
-        public WithHash(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals.FieldData valuesSource, long estimatedBucketCount, BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude, AggregationContext aggregationContext, Aggregator parent, SignificantTermsAggregatorFactory termsAggFactory) {
-            super(name, factories, valuesSource, estimatedBucketCount, estimatedBucketCount, bucketCountThresholds, includeExclude, aggregationContext, parent, termsAggFactory);
+        public WithHash(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals.FieldData valuesSource,
+                long estimatedBucketCount, BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude,
+                AggregationContext aggregationContext, Aggregator parent, TermFrequencyProvider termFrequencyProvider,
+                SignificanceHeuristic significanceHeuristic) {
+            super(name, factories, valuesSource, estimatedBucketCount, estimatedBucketCount, bucketCountThresholds, includeExclude, aggregationContext, parent, termFrequencyProvider, significanceHeuristic);
             bucketOrds = new LongHash(estimatedBucketCount, aggregationContext.bigArrays());
         }
 
@@ -163,7 +169,7 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
 
         @Override
         protected void doClose() {
-            Releasables.close(termsAggFactory, bucketOrds);
+            Releasables.close(termFrequencyProvider, bucketOrds);
         }
     }
 

@@ -26,6 +26,7 @@ import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -47,7 +48,6 @@ import org.elasticsearch.search.aggregations.bucket.significant.heuristics.Signi
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.aggregations.support.FieldContext;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.query.QueryPhaseExecutionException;
@@ -66,7 +66,7 @@ import java.util.*;
  */
 public class SignificantStringTermsSamplingAggregator extends TermsAggregator implements ScorerAware {
 
-    protected final SignificantTermsAggregatorFactory termsAggFactory;
+    protected final TermFrequencyProvider termFrequencyProvider;
     private TopDocsCollector topDocsCollector;
     private Scorer currentScorer;
     private AtomicReaderContext currentContext;
@@ -75,17 +75,17 @@ public class SignificantStringTermsSamplingAggregator extends TermsAggregator im
     private SampleSettings samplerSettings;
     private SignificanceHeuristic significantHeuristic;
 
-    public SignificantStringTermsSamplingAggregator(String name, AggregatorFactories factories, FieldContext fieldContext,
+    public SignificantStringTermsSamplingAggregator(String name, AggregatorFactories factories, String fieldName,
             long estimatedBucketCount, BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude,
-            AggregationContext aggregationContext, Aggregator parent, SignificantTermsAggregatorFactory termsAggFactory,
+            AggregationContext aggregationContext, Aggregator parent, TermFrequencyProvider termFrequencyProvider,
             SignificanceHeuristic significanceHeuristic, SampleSettings samplerSettings) {
         super(name, BucketAggregationMode.PER_BUCKET, factories, estimatedBucketCount, aggregationContext, parent, bucketCountThresholds,
                 null, SubAggCollectionMode.DEPTH_FIRST);
-        this.termsAggFactory = termsAggFactory;
+        this.termFrequencyProvider = termFrequencyProvider;
         this.includeExclude = includeExclude;
         this.samplerSettings = samplerSettings;
         this.significantHeuristic = significanceHeuristic;
-        this.fieldName = fieldContext.field();
+        this.fieldName = fieldName;
         context.registerScorerAware(this);
     }
 
@@ -124,7 +124,7 @@ public class SignificantStringTermsSamplingAggregator extends TermsAggregator im
         List<Bucket> sampleTokenStats = getTermStatsFromForegroundSample(sd);
         
         //Complete each term's stats using background frequency and calc score
-        long supersetSize = termsAggFactory.prepareBackground(context);
+        long supersetSize = termFrequencyProvider.prepareBackground(context);
         long subsetSize = sd.length;
         BucketSignificancePriorityQueue ordered = new BucketSignificancePriorityQueue(maxNumTermsToReturn);
         int bucketNum = 0;
@@ -135,7 +135,7 @@ public class SignificantStringTermsSamplingAggregator extends TermsAggregator im
                     continue;
                 }
                 bucket.subsetSize = subsetSize;
-                bucket.supersetDf = termsAggFactory.getBackgroundFrequency(bucket.termBytes);
+                bucket.supersetDf = termFrequencyProvider.getBackgroundFrequency(bucket.termBytes);
                 bucket.supersetSize = supersetSize;
                 bucket.updateScore(significantHeuristic);
                 bucketNum++;
@@ -227,7 +227,7 @@ public class SignificantStringTermsSamplingAggregator extends TermsAggregator im
         }
         // Sort the buckets for faster lookup of background term frequencies
         ArrayList<Bucket> sortedResults = new ArrayList<>(result.values());
-        Collections.sort(sortedResults, new Comparator<Bucket>() {
+        CollectionUtil.introSort(sortedResults, new Comparator<Bucket>() {
             @Override
             public int compare(Bucket o1, Bucket o2) {
                 return o1.compareTerm(o2);
@@ -356,7 +356,7 @@ public class SignificantStringTermsSamplingAggregator extends TermsAggregator im
 
     @Override
     public void doClose() {
-        Releasables.close(termsAggFactory);
+        Releasables.close(termFrequencyProvider);
     }
 
     @Override

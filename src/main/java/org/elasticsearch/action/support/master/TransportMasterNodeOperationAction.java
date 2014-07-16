@@ -45,21 +45,17 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
 
     protected final ClusterService clusterService;
 
-    final String transportAction;
     final String executor;
 
-    protected TransportMasterNodeOperationAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool) {
-        super(settings, threadPool);
+    protected TransportMasterNodeOperationAction(Settings settings, String actionName, TransportService transportService, ClusterService clusterService, ThreadPool threadPool) {
+        super(settings, actionName, threadPool);
         this.transportService = transportService;
         this.clusterService = clusterService;
 
-        this.transportAction = transportAction();
         this.executor = executor();
 
-        transportService.registerHandler(transportAction, new TransportHandler());
+        transportService.registerHandler(actionName, new TransportHandler());
     }
-
-    protected abstract String transportAction();
 
     protected abstract String executor();
 
@@ -186,7 +182,7 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
                 return;
             }
             processBeforeDelegationToMaster(request, clusterState);
-            transportService.sendRequest(nodes.masterNode(), transportAction, request, new BaseTransportResponseHandler<Response>() {
+            transportService.sendRequest(nodes.masterNode(), actionName, request, new BaseTransportResponseHandler<Response>() {
                 @Override
                 public Response newInstance() {
                     return newResponse();

@@ -41,7 +41,7 @@ public class TransportUpdateSettingsAction extends TransportMasterNodeOperationA
     @Inject
     public TransportUpdateSettingsAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                          MetaDataUpdateSettingsService updateSettingsService) {
-        super(settings, transportService, clusterService, threadPool);
+        super(settings, UpdateSettingsAction.NAME, transportService, clusterService, threadPool);
         this.updateSettingsService = updateSettingsService;
     }
 
@@ -49,11 +49,6 @@ public class TransportUpdateSettingsAction extends TransportMasterNodeOperationA
     protected String executor() {
         // we go async right away....
         return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected String transportAction() {
-        return UpdateSettingsAction.NAME;
     }
 
     @Override
@@ -67,15 +62,10 @@ public class TransportUpdateSettingsAction extends TransportMasterNodeOperationA
     }
 
     @Override
-    protected void doExecute(UpdateSettingsRequest request, ActionListener<UpdateSettingsResponse> listener) {
-        request.indices(clusterService.state().metaData().concreteIndices(request.indicesOptions(), request.indices()));
-        super.doExecute(request, listener);
-    }
-
-    @Override
     protected void masterOperation(final UpdateSettingsRequest request, final ClusterState state, final ActionListener<UpdateSettingsResponse> listener) throws ElasticsearchException {
+        final String[] concreteIndices = clusterService.state().metaData().concreteIndices(request.indicesOptions(), request.indices());
         UpdateSettingsClusterStateUpdateRequest clusterStateUpdateRequest = new UpdateSettingsClusterStateUpdateRequest()
-                .indices(request.indices())
+                .indices(concreteIndices)
                 .settings(request.settings())
                 .ackTimeout(request.timeout())
                 .masterNodeTimeout(request.masterNodeTimeout());
@@ -88,7 +78,7 @@ public class TransportUpdateSettingsAction extends TransportMasterNodeOperationA
 
             @Override
             public void onFailure(Throwable t) {
-                logger.debug("failed to update settings on indices [{}]", t, request.indices());
+                logger.debug("failed to update settings on indices [{}]", t, concreteIndices);
                 listener.onFailure(t);
             }
         });

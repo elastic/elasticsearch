@@ -44,18 +44,13 @@ public class TransportRestoreSnapshotAction extends TransportMasterNodeOperation
     @Inject
     public TransportRestoreSnapshotAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                           ThreadPool threadPool, RestoreService restoreService) {
-        super(settings, transportService, clusterService, threadPool);
+        super(settings, RestoreSnapshotAction.NAME, transportService, clusterService, threadPool);
         this.restoreService = restoreService;
     }
 
     @Override
     protected String executor() {
         return ThreadPool.Names.SNAPSHOT;
-    }
-
-    @Override
-    protected String transportAction() {
-        return RestoreSnapshotAction.NAME;
     }
 
     @Override
@@ -75,15 +70,11 @@ public class TransportRestoreSnapshotAction extends TransportMasterNodeOperation
 
     @Override
     protected void masterOperation(final RestoreSnapshotRequest request, ClusterState state, final ActionListener<RestoreSnapshotResponse> listener) throws ElasticsearchException {
-        RestoreService.RestoreRequest restoreRequest =
-                new RestoreService.RestoreRequest("restore_snapshot[" + request.snapshot() + "]", request.repository(), request.snapshot())
-                        .indices(request.indices())
-                        .indicesOptions(request.indicesOptions())
-                        .renamePattern(request.renamePattern())
-                        .renameReplacement(request.renameReplacement())
-                        .includeGlobalState(request.includeGlobalState())
-                        .settings(request.settings())
-                        .masterNodeTimeout(request.masterNodeTimeout());
+        RestoreService.RestoreRequest restoreRequest = new RestoreService.RestoreRequest(
+                "restore_snapshot[" + request.snapshot() + "]", request.repository(), request.snapshot(),
+                request.indices(), request.indicesOptions(), request.renamePattern(), request.renameReplacement(),
+                request.settings(), request.masterNodeTimeout(), request.includeGlobalState(), request.partial(), request.includeAliases());
+
         restoreService.restoreSnapshot(restoreRequest, new RestoreSnapshotListener() {
             @Override
             public void onResponse(RestoreInfo restoreInfo) {

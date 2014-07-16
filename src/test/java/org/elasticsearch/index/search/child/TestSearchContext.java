@@ -60,8 +60,11 @@ import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
 import org.elasticsearch.search.scan.ScanContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.List;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class TestSearchContext extends SearchContext {
 
@@ -71,17 +74,20 @@ public class TestSearchContext extends SearchContext {
     final IndexService indexService;
     final FilterCache filterCache;
     final IndexFieldDataService indexFieldDataService;
+    final ThreadPool threadPool;
+    private final AtomicBoolean closed = new AtomicBoolean(false);
 
     ContextIndexSearcher searcher;
     int size;
 
-    public TestSearchContext(CacheRecycler cacheRecycler, PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, IndexService indexService, FilterCache filterCache, IndexFieldDataService indexFieldDataService) {
+    public TestSearchContext(ThreadPool threadPool, CacheRecycler cacheRecycler, PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, IndexService indexService, FilterCache filterCache, IndexFieldDataService indexFieldDataService) {
         this.cacheRecycler = cacheRecycler;
         this.pageCacheRecycler = pageCacheRecycler;
         this.bigArrays = bigArrays;
         this.indexService = indexService;
         this.filterCache = filterCache;
         this.indexFieldDataService = indexFieldDataService;
+        this.threadPool = threadPool;
     }
 
     public TestSearchContext() {
@@ -91,6 +97,7 @@ public class TestSearchContext extends SearchContext {
         this.indexService = null;
         this.filterCache = null;
         this.indexFieldDataService = null;
+        this.threadPool = null;
     }
 
     @Override
@@ -577,7 +584,14 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public void doClose() throws ElasticsearchException {
-        // no-op
+        if (closed.compareAndSet(false, true)) {
+            threadPool.shutdownNow();
+            try {
+                threadPool.awaitTermination(10, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.interrupted();
+            }
+        }
     }
 
     @Override

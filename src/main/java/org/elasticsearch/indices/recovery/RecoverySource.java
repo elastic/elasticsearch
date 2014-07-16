@@ -21,15 +21,21 @@ package org.elasticsearch.indices.recovery;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.inject.Inject;
@@ -38,6 +44,8 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -51,8 +59,10 @@ import org.elasticsearch.transport.*;
 
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -68,6 +78,7 @@ public class RecoverySource extends AbstractComponent {
     private final TransportService transportService;
     private final IndicesService indicesService;
     private final RecoverySettings recoverySettings;
+    private final MappingUpdatedAction mappingUpdatedAction;
 
     private final ClusterService clusterService;
 
@@ -77,10 +88,11 @@ public class RecoverySource extends AbstractComponent {
 
     @Inject
     public RecoverySource(Settings settings, TransportService transportService, IndicesService indicesService,
-                          RecoverySettings recoverySettings, ClusterService clusterService) {
+                          RecoverySettings recoverySettings, MappingUpdatedAction mappingUpdatedAction, ClusterService clusterService) {
         super(settings);
         this.transportService = transportService;
         this.indicesService = indicesService;
+        this.mappingUpdatedAction = mappingUpdatedAction;
         this.clusterService = clusterService;
 
         this.recoverySettings = recoverySettings;
@@ -91,9 +103,10 @@ public class RecoverySource extends AbstractComponent {
     }
 
     private RecoveryResponse recover(final StartRecoveryRequest request) {
-        final InternalIndexShard shard = (InternalIndexShard) indicesService.indexServiceSafe(request.shardId().index().name()).shardSafe(request.shardId().id());
+        final IndexService indexService = indicesService.indexServiceSafe(request.shardId().index().name());
+        final InternalIndexShard shard = (InternalIndexShard) indexService.shardSafe(request.shardId().id());
 
-        // verify that our (the source) shard state is marking the shard to be in recovery mode as well, otherwise
+        // starting recovery from that our (the source) shard state is marking the shard to be in recovery mode as well, otherwise
         // the index operations will not be routed to it properly
         RoutingNode node = clusterService.state().readOnlyRoutingNodes().node(request.targetNode().id());
         if (node == null) {
@@ -128,13 +141,17 @@ public class RecoverySource extends AbstractComponent {
                 store.incRef();
                 try {
                     StopWatch stopWatch = new StopWatch().start();
-
+                    final Store.MetadataSnapshot metadata;
+                    metadata = store.getMetadata();
                     for (String name : snapshot.getFiles()) {
-                        StoreFileMetaData md = store.metaData(name);
+                        final StoreFileMetaData md = metadata.get(name);
+                        if (md == null) {
+                            logger.info("Snapshot differs from actual index for file: {} meta: {}", name, metadata.asMap());
+                            throw new CorruptIndexException("Snapshot differs from actual index - maybe index was removed metadata has " + metadata.asMap().size() + " files");
+                        }
                         boolean useExisting = false;
                         if (request.existingFiles().containsKey(name)) {
-                            // we don't compute checksum for segments, so always recover them
-                            if (!name.startsWith("segments") && md.isSame(request.existingFiles().get(name))) {
+                            if (md.isSame(request.existingFiles().get(name))) {
                                 response.phase1ExistingFileNames.add(name);
                                 response.phase1ExistingFileSizes.add(md.length());
                                 existingTotalSize += md.length();
@@ -165,7 +182,8 @@ public class RecoverySource extends AbstractComponent {
                     transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.FILES_INFO, recoveryInfoFilesRequest, TransportRequestOptions.options().withTimeout(internalActionTimeout), EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
 
                     final CountDownLatch latch = new CountDownLatch(response.phase1FileNames.size());
-                    final AtomicReference<Throwable> lastException = new AtomicReference<>();
+                    final CopyOnWriteArrayList<Throwable> exceptions = new CopyOnWriteArrayList<>();
+                    final AtomicReference<CorruptIndexException> corruptedEngine = new AtomicReference<>();
                     int fileIndex = 0;
                     for (final String name : response.phase1FileNames) {
                         ThreadPoolExecutor pool;
@@ -181,12 +199,11 @@ public class RecoverySource extends AbstractComponent {
                             public void run() {
                                 IndexInput indexInput = null;
                                 store.incRef();
+                                final StoreFileMetaData md = metadata.get(name);
                                 try {
                                     final int BUFFER_SIZE = (int) recoverySettings.fileChunkSize().bytes();
                                     byte[] buf = new byte[BUFFER_SIZE];
-                                    StoreFileMetaData md = store.metaData(name);
-                                    // TODO: maybe use IOContext.READONCE?
-                                    indexInput = store.openInputRaw(name, IOContext.READ);
+                                    indexInput = store.directory().openInput(name, IOContext.READONCE);
                                     boolean shouldCompressRequest = recoverySettings.compress();
                                     if (CompressorFactory.isCompressed(indexInput)) {
                                         shouldCompressRequest = false;
@@ -207,12 +224,31 @@ public class RecoverySource extends AbstractComponent {
 
                                         indexInput.readBytes(buf, 0, toRead, false);
                                         BytesArray content = new BytesArray(buf, 0, toRead);
-                                        transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.FILE_CHUNK, new RecoveryFileChunkRequest(request.recoveryId(), request.shardId(), name, position, len, md.checksum(), content),
+                                        transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.FILE_CHUNK, new RecoveryFileChunkRequest(request.recoveryId(), request.shardId(), md, position, content),
                                                 TransportRequestOptions.options().withCompress(shouldCompressRequest).withType(TransportRequestOptions.Type.RECOVERY).withTimeout(internalActionTimeout), EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
                                         readCount += toRead;
                                     }
                                 } catch (Throwable e) {
-                                    lastException.set(e);
+                                    final CorruptIndexException corruptIndexException;
+                                    if ((corruptIndexException = ExceptionsHelper.unwrap(e, CorruptIndexException.class)) != null) {
+                                       if (store.checkIntegrity(md) == false) { // we are corrupted on the primary -- fail!
+                                           logger.warn("{} Corrupted file detected {} checksum mismatch", shard.shardId(), md);
+                                           CorruptIndexException current = corruptedEngine.get();
+                                           if (current != null || corruptedEngine.compareAndSet(null, corruptIndexException)) {
+                                               current = corruptedEngine.get();
+                                               assert current != null;
+                                               current.addSuppressed(e);
+                                           }
+
+                                       } else { // corruption has happened on the way to replica
+                                           RemoteTransportException exception = new RemoteTransportException("File corruption occured on recovery but checksums are ok", null);
+                                           exception.addSuppressed(e);
+                                           exceptions.add(0, exception); // last exception first
+                                           logger.warn("{} File corruption on recovery {} local checksum OK", corruptIndexException, shard.shardId(), md);
+                                       }
+                                    } else {
+                                        exceptions.add(0, e); // last exceptions first
+                                    }
                                 } finally {
                                     IOUtils.closeWhileHandlingException(indexInput);
                                     try {
@@ -227,9 +263,10 @@ public class RecoverySource extends AbstractComponent {
                     }
 
                     latch.await();
-
-                    if (lastException.get() != null) {
-                        throw lastException.get();
+                    if (corruptedEngine.get() != null) {
+                        throw corruptedEngine.get();
+                    } else {
+                        ExceptionsHelper.rethrowAndSuppress(exceptions);
                     }
 
                     // now, set the clean files request
@@ -251,24 +288,76 @@ public class RecoverySource extends AbstractComponent {
                 if (shard.state() == IndexShardState.CLOSED) {
                     throw new IndexShardClosedException(request.shardId());
                 }
-                logger.trace("[{}][{}] recovery [phase2] to {}: start", request.shardId().index().name(), request.shardId().id(), request.targetNode());
+                logger.trace("{} recovery [phase2] to {}: start", request.shardId(), request.targetNode());
                 StopWatch stopWatch = new StopWatch().start();
                 transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.PREPARE_TRANSLOG, new RecoveryPrepareForTranslogOperationsRequest(request.recoveryId(), request.shardId()), TransportRequestOptions.options().withTimeout(internalActionTimeout), EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
                 stopWatch.stop();
                 response.startTime = stopWatch.totalTime().millis();
-                logger.trace("[{}][{}] recovery [phase2] to {}: start took [{}]", request.shardId().index().name(), request.shardId().id(), request.targetNode(), stopWatch.totalTime());
+                logger.trace("{} recovery [phase2] to {}: start took [{}]", request.shardId(), request.targetNode(), request.targetNode(), stopWatch.totalTime());
 
-                logger.trace("[{}][{}] recovery [phase2] to {}: sending transaction log operations", request.shardId().index().name(), request.shardId().id(), request.targetNode());
+
+                logger.trace("{} recovery [phase2] to {}: updating current mapping to master", request.shardId(), request.targetNode());
+                updateMappingOnMaster();
+
+                logger.trace("{} recovery [phase2] to {}: sending transaction log operations", request.shardId(), request.targetNode());
                 stopWatch = new StopWatch().start();
                 int totalOperations = sendSnapshot(snapshot);
                 stopWatch.stop();
-                logger.trace("[{}][{}] recovery [phase2] to {}: took [{}]", request.shardId().index().name(), request.shardId().id(), request.targetNode(), stopWatch.totalTime());
+                logger.trace("{} recovery [phase2] to {}: took [{}]", request.shardId(), request.targetNode(), stopWatch.totalTime());
                 response.phase2Time = stopWatch.totalTime().millis();
                 response.phase2Operations = totalOperations;
             }
 
+            private void updateMappingOnMaster() {
+                IndexMetaData indexMetaData = clusterService.state().metaData().getIndices().get(indexService.index().getName());
+                ImmutableOpenMap<String, MappingMetaData> metaDataMappings = null;
+                if (indexMetaData != null) {
+                    metaDataMappings = indexMetaData.getMappings();
+                }
+                List<DocumentMapper> documentMappersToUpdate = Lists.newArrayList();
+                // default mapping should not be sent back, it can only be updated by put mapping API, and its
+                // a full in place replace, we don't want to override a potential update coming it
+                for (DocumentMapper documentMapper : indexService.mapperService().docMappers(false)) {
+
+                    MappingMetaData mappingMetaData = metaDataMappings == null ? null : metaDataMappings.get(documentMapper.type());
+                    if (mappingMetaData == null || !documentMapper.refreshSource().equals(mappingMetaData.source())) {
+                        // not on master yet in the right form
+                        documentMappersToUpdate.add(documentMapper);
+                    }
+                }
+                if (documentMappersToUpdate.isEmpty()) {
+                    return;
+                }
+                final CountDownLatch countDownLatch = new CountDownLatch(documentMappersToUpdate.size());
+                MappingUpdatedAction.MappingUpdateListener listener = new MappingUpdatedAction.MappingUpdateListener() {
+                    @Override
+                    public void onMappingUpdate() {
+                        countDownLatch.countDown();
+                    }
+
+                    @Override
+                    public void onFailure(Throwable t) {
+                        logger.debug("{} recovery to {}: failed to update mapping on master", request.shardId(), request.targetNode(), t);
+                        countDownLatch.countDown();
+                    }
+                };
+                for (DocumentMapper documentMapper : documentMappersToUpdate) {
+                    mappingUpdatedAction.updateMappingOnMaster(indexService.index().getName(), documentMapper, indexService.indexUUID(), listener);
+                }
+                try {
+                    if (!countDownLatch.await(internalActionTimeout.millis(), TimeUnit.MILLISECONDS)) {
+                        logger.debug("{} recovery [phase2] to {}: waiting on pending mapping update timed out. waited [{}]", request.shardId(), request.targetNode(), internalActionTimeout);
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    logger.debug("interrupted while waiting for mapping to update on master");
+                }
+
+            }
+
             @Override
             public void phase3(Translog.Snapshot snapshot) throws ElasticsearchException {
+
                 if (shard.state() == IndexShardState.CLOSED) {
                     throw new IndexShardClosedException(request.shardId());
                 }

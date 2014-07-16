@@ -60,6 +60,8 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
  */
 public class TransportNodesListShardStoreMetaData extends TransportNodesOperationAction<TransportNodesListShardStoreMetaData.Request, TransportNodesListShardStoreMetaData.NodesStoreFilesMetaData, TransportNodesListShardStoreMetaData.NodeRequest, TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData> {
 
+    private static final String ACTION_NAME = "/cluster/nodes/indices/shard/store";
+
     private final IndicesService indicesService;
 
     private final NodeEnvironment nodeEnv;
@@ -67,7 +69,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
     @Inject
     public TransportNodesListShardStoreMetaData(Settings settings, ClusterName clusterName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
                                                 IndicesService indicesService, NodeEnvironment nodeEnv) {
-        super(settings, clusterName, threadPool, clusterService, transportService);
+        super(settings, ACTION_NAME, clusterName, threadPool, clusterService, transportService);
         this.indicesService = indicesService;
         this.nodeEnv = nodeEnv;
     }
@@ -79,11 +81,6 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
     @Override
     protected String executor() {
         return ThreadPool.Names.GENERIC;
-    }
-
-    @Override
-    protected String transportAction() {
-        return "/cluster/nodes/indices/shard/store";
     }
 
     @Override
@@ -151,7 +148,15 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
         if (indexService != null) {
             InternalIndexShard indexShard = (InternalIndexShard) indexService.shard(shardId.id());
             if (indexShard != null) {
-                return new StoreFilesMetaData(true, shardId, indexShard.store().list());
+                Store store = indexShard.store();
+                store.incRef();
+                try {
+                    if (indexShard != null) {
+                        return new StoreFilesMetaData(true, shardId, indexShard.store().getMetadata().asMap());
+                    }
+                } finally {
+                    store.decRef();
+                }
             }
         }
         // try and see if we an list unallocated
@@ -178,31 +183,8 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
         if (!exists) {
             return new StoreFilesMetaData(false, shardId, ImmutableMap.<String, StoreFileMetaData>of());
         }
-
-        Map<String, String> checksums = Store.readChecksums(shardIndexLocations);
-        if (checksums == null) {
-            checksums = ImmutableMap.of();
-        }
-
-        Map<String, StoreFileMetaData> files = Maps.newHashMap();
-        for (File shardIndexLocation : shardIndexLocations) {
-            File[] listedFiles = shardIndexLocation.listFiles();
-            if (listedFiles == null) {
-                continue;
-            }
-            for (File file : listedFiles) {
-                // BACKWARD CKS SUPPORT
-                if (file.getName().endsWith(".cks")) {
-                    continue;
-                }
-                if (Store.isChecksum(file.getName())) {
-                    continue;
-                }
-                files.put(file.getName(), new StoreFileMetaData(file.getName(), file.length(), checksums.get(file.getName())));
-            }
-        }
-
-        return new StoreFilesMetaData(false, shardId, files);
+        final Store.MetadataSnapshot storeFileMetaDatas = Store.readMetadataSnapshot(shardIndexLocations, logger);
+        return new StoreFilesMetaData(false, shardId, storeFileMetaDatas.asMap());
     }
 
     @Override

@@ -47,10 +47,7 @@ import org.joda.time.format.ISODateTimeFormat;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.HashSet;
-import java.util.Locale;
-import java.util.Random;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
@@ -453,6 +450,8 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testOmitTermFreqsAndPositions() throws Exception {
+        cluster().wipeTemplates(); // no randomized template for this test -- we are testing bwc compat and set version explicitly this might cause failures if an unsupported feature
+                                   // is added randomly via an index template.
         Version version = Version.CURRENT;
         int iters = scaledRandomIntBetween(10, 20);
         for (int i = 0; i < iters; i++) {
@@ -2452,6 +2451,32 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
             for (String id : oneIds) {
                 assertThat(otherIds.contains(id), is(true));
             }
+        }
+    }
+
+    @Test
+    public void testQueryStringParserCache() throws Exception {
+        createIndex("test");
+        indexRandom(true, false, client().prepareIndex("test", "type", "1").setSource("nameTokens", "xyz"));
+
+        SearchResponse response = client().prepareSearch("test")
+                .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
+                .setQuery(QueryBuilders.queryString("xyz").boost(100))
+                .get();
+        assertThat(response.getHits().totalHits(), equalTo(1l));
+        assertThat(response.getHits().getAt(0).id(), equalTo("1"));
+
+        float first = response.getHits().getAt(0).getScore();
+        for (int i = 0; i < 100; i++) {
+            response = client().prepareSearch("test")
+                    .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
+                    .setQuery(QueryBuilders.queryString("xyz").boost(100))
+                    .get();
+
+            assertThat(response.getHits().totalHits(), equalTo(1l));
+            assertThat(response.getHits().getAt(0).id(), equalTo("1"));
+            float actual = response.getHits().getAt(0).getScore();
+            assertThat(i + " expected: " + first + " actual: " + actual, Float.compare(first, actual), equalTo(0));
         }
     }
 

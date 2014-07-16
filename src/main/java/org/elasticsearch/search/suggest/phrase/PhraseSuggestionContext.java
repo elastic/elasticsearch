@@ -19,11 +19,15 @@
 package org.elasticsearch.search.suggest.phrase;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.cluster.routing.operation.plain.Preference;
+import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.search.suggest.DirectSpellcheckerSettings;
 import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
@@ -40,6 +44,10 @@ class PhraseSuggestionContext extends SuggestionContext {
     private int tokenLimit = NoisyChannelSpellChecker.DEFAULT_TOKEN_LIMIT;
     private BytesRef preTag;
     private BytesRef postTag;
+    private CompiledScript collateQueryScript;
+    private CompiledScript collateFilterScript;
+    private String preference = Preference.ONLY_LOCAL.type();
+    private Map<String, Object> collateScriptParams = new HashMap<>(1);
 
     private WordScorer.WordScorerFactory scorer;
 
@@ -180,4 +188,37 @@ class PhraseSuggestionContext extends SuggestionContext {
     public BytesRef getPostTag() {
         return postTag;
     }
+
+    CompiledScript getCollateQueryScript() {
+        return collateQueryScript;
+    }
+
+    void setCollateQueryScript(CompiledScript collateQueryScript) {
+        this.collateQueryScript = collateQueryScript;
+    }
+
+    CompiledScript getCollateFilterScript() {
+        return collateFilterScript;
+    }
+
+    void setCollateFilterScript(CompiledScript collateFilterScript) {
+        this.collateFilterScript = collateFilterScript;
+    }
+
+    String getPreference() {
+        return preference;
+    }
+
+    void setPreference(String preference) {
+        this.preference = preference;
+    }
+
+    Map<String, Object> getCollateScriptParams() {
+        return collateScriptParams;
+    }
+
+    void setCollateScriptParams(Map<String, Object> collateScriptParams) {
+        this.collateScriptParams = collateScriptParams;
+    }
+
 }

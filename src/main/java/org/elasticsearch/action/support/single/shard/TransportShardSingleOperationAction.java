@@ -52,20 +52,18 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
 
     protected final TransportService transportService;
 
-    final String transportAction;
     final String transportShardAction;
     final String executor;
 
-    protected TransportShardSingleOperationAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService) {
-        super(settings, threadPool);
+    protected TransportShardSingleOperationAction(Settings settings, String actionName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService) {
+        super(settings, actionName, threadPool);
         this.clusterService = clusterService;
         this.transportService = transportService;
 
-        this.transportAction = transportAction();
-        this.transportShardAction = transportAction() + "/s";
+        this.transportShardAction = actionName + "/s";
         this.executor = executor();
 
-        transportService.registerHandler(transportAction, new TransportHandler());
+        transportService.registerHandler(actionName, new TransportHandler());
         transportService.registerHandler(transportShardAction, new ShardTransportHandler());
     }
 
@@ -73,8 +71,6 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
     protected void doExecute(Request request, ActionListener<Response> listener) {
         new AsyncSingleAction(request, listener).start();
     }
-
-    protected abstract String transportAction();
 
     protected abstract String executor();
 
@@ -107,6 +103,9 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
             this.listener = listener;
 
             ClusterState clusterState = clusterService.state();
+            if (logger.isTraceEnabled()) {
+                logger.trace("executing [{}] based on cluster state version [{}]", request, clusterState.version());
+            }
             nodes = clusterState.nodes();
             ClusterBlockException blockException = checkGlobalBlock(clusterState, request);
             if (blockException != null) {
@@ -151,8 +150,10 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
                 listener.onFailure(failure);
                 return;
             }
-
             if (shardRouting.currentNodeId().equals(nodes.localNodeId())) {
+                if (logger.isTraceEnabled()) {
+                    logger.trace("executing [{}] on shard [{}]", request, shardRouting.shardId());
+                }
                 try {
                     if (request.operationThreaded()) {
                         request.beforeLocalFork();
@@ -260,6 +261,9 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
 
         @Override
         public void messageReceived(final ShardSingleOperationRequest request, final TransportChannel channel) throws Exception {
+            if (logger.isTraceEnabled()) {
+                logger.trace("executing [{}] on shard [{}]", request.request(), request.shardId());
+            }
             Response response = shardOperation(request.request(), request.shardId());
             channel.sendResponse(response);
         }

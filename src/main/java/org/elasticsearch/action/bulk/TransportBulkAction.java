@@ -77,7 +77,7 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
     @Inject
     public TransportBulkAction(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterService clusterService,
                                TransportShardBulkAction shardBulkAction, TransportCreateIndexAction createIndexAction) {
-        super(settings, threadPool);
+        super(settings, BulkAction.NAME, threadPool);
         this.clusterService = clusterService;
         this.shardBulkAction = shardBulkAction;
         this.createIndexAction = createIndexAction;

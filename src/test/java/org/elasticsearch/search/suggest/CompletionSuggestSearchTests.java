@@ -831,21 +831,21 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
     }
 
     private void createIndexAndMappingAndSettings(Settings settings, CompletionMappingBuilder completionMappingBuilder) throws IOException {
-        client().admin().indices().prepareCreate(INDEX)
+        assertAcked(client().admin().indices().prepareCreate(INDEX)
                 .setSettings(ImmutableSettings.settingsBuilder().put(indexSettings()).put(settings))
-                .get();
-        assertAcked(client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(jsonBuilder().startObject()
-                .startObject(TYPE).startObject("properties")
-                .startObject(FIELD)
-                .field("type", "completion")
-                .field("index_analyzer", completionMappingBuilder.indexAnalyzer)
-                .field("search_analyzer", completionMappingBuilder.searchAnalyzer)
-                .field("payloads", completionMappingBuilder.payloads)
-                .field("preserve_separators", completionMappingBuilder.preserveSeparators)
-                .field("preserve_position_increments", completionMappingBuilder.preservePositionIncrements)
-                .endObject()
-                .endObject().endObject()
-                .endObject()));
+                .addMapping(TYPE, jsonBuilder().startObject()
+                        .startObject(TYPE).startObject("properties")
+                        .startObject(FIELD)
+                        .field("type", "completion")
+                        .field("index_analyzer", completionMappingBuilder.indexAnalyzer)
+                        .field("search_analyzer", completionMappingBuilder.searchAnalyzer)
+                        .field("payloads", completionMappingBuilder.payloads)
+                        .field("preserve_separators", completionMappingBuilder.preserveSeparators)
+                        .field("preserve_position_increments", completionMappingBuilder.preservePositionIncrements)
+                        .endObject()
+                        .endObject().endObject()
+                        .endObject())
+                .get());
         ensureYellow();
     }
 
@@ -934,11 +934,12 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
     @Test
     public void testMaxFieldLength() throws IOException {
         client().admin().indices().prepareCreate(INDEX).get();
+        ensureGreen();
         int iters = scaledRandomIntBetween(10, 20);
         for (int i = 0; i < iters; i++) {
             int maxInputLen = between(3, 50);
             String str = replaceReservedChars(randomRealisticUnicodeOfCodepointLengthBetween(maxInputLen + 1, maxInputLen + scaledRandomIntBetween(2, 50)), (char) 0x01);
-            ElasticsearchAssertions.assertAcked(client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(jsonBuilder().startObject()
+            assertAcked(client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(jsonBuilder().startObject()
                     .startObject(TYPE).startObject("properties")
                     .startObject(FIELD)
                     .field("type", "completion")
@@ -948,7 +949,6 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
                     .endObject()
                     .endObject().endObject()
                     .endObject()));
-            ensureYellow();
             client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
                     .startObject().startObject(FIELD)
                     .startArray("input").value(str).endArray()
@@ -972,14 +972,13 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
     @Test
     // see #3596
     public void testVeryLongInput() throws IOException {
-        client().admin().indices().prepareCreate(INDEX).get();
-        ElasticsearchAssertions.assertAcked(client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(jsonBuilder().startObject()
+        assertAcked(client().admin().indices().prepareCreate(INDEX).addMapping(TYPE, jsonBuilder().startObject()
                 .startObject(TYPE).startObject("properties")
                 .startObject(FIELD)
                 .field("type", "completion")
                 .endObject()
                 .endObject().endObject()
-                .endObject()));
+                .endObject()).get());
         ensureYellow();
         // can cause stack overflow without the default max_input_length
         String longString = replaceReservedChars(randomRealisticUnicodeOfLength(randomIntBetween(5000, 10000)), (char) 0x01);
@@ -995,14 +994,13 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
     // see #3648
     @Test(expected = MapperParsingException.class)
     public void testReservedChars() throws IOException {
-        client().admin().indices().prepareCreate(INDEX).get();
-        ElasticsearchAssertions.assertAcked(client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(jsonBuilder().startObject()
+        assertAcked(client().admin().indices().prepareCreate(INDEX).addMapping(TYPE, jsonBuilder().startObject()
                 .startObject(TYPE).startObject("properties")
                 .startObject(FIELD)
                 .field("type", "completion")
                 .endObject()
                 .endObject().endObject()
-                .endObject()));
+                .endObject()).get());
         ensureYellow();
         // can cause stack overflow without the default max_input_length
         String string = "foo" + (char) 0x00 + "bar";
@@ -1016,14 +1014,13 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
 
     @Test // see #5930
     public void testIssue5930() throws IOException {
-        client().admin().indices().prepareCreate(INDEX).get();
-        ElasticsearchAssertions.assertAcked(client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(jsonBuilder().startObject()
+        assertAcked(client().admin().indices().prepareCreate(INDEX).addMapping(TYPE, jsonBuilder().startObject()
                 .startObject(TYPE).startObject("properties")
                 .startObject(FIELD)
                 .field("type", "completion")
                 .endObject()
                 .endObject().endObject()
-                .endObject()));
+                .endObject()).get());
         ensureYellow();
         String string = "foo bar";
         client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()

@@ -48,18 +48,13 @@ public class TransportNodesStatsAction extends TransportNodesOperationAction<Nod
     public TransportNodesStatsAction(Settings settings, ClusterName clusterName, ThreadPool threadPool,
                                      ClusterService clusterService, TransportService transportService,
                                      NodeService nodeService) {
-        super(settings, clusterName, threadPool, clusterService, transportService);
+        super(settings, NodesStatsAction.NAME, clusterName, threadPool, clusterService, transportService);
         this.nodeService = nodeService;
     }
 
     @Override
     protected String executor() {
         return ThreadPool.Names.MANAGEMENT;
-    }
-
-    @Override
-    protected String transportAction() {
-        return NodesStatsAction.NAME;
     }
 
     @Override

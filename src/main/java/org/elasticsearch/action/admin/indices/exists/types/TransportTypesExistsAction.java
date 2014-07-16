@@ -40,18 +40,13 @@ public class TransportTypesExistsAction extends TransportMasterNodeReadOperation
     @Inject
     public TransportTypesExistsAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                       ThreadPool threadPool) {
-        super(settings, transportService, clusterService, threadPool);
+        super(settings, TypesExistsAction.NAME, transportService, clusterService, threadPool);
     }
 
     @Override
     protected String executor() {
         // lightweight check
         return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected String transportAction() {
-        return TypesExistsAction.NAME;
     }
 
     @Override
@@ -66,7 +61,7 @@ public class TransportTypesExistsAction extends TransportMasterNodeReadOperation
 
     @Override
     protected ClusterBlockException checkBlock(TypesExistsRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, request.indices());
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, state.metaData().concreteIndices(request.indicesOptions(), request.indices()));
     }
 
     @Override

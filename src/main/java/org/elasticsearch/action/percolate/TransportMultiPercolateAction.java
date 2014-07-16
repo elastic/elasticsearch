@@ -61,7 +61,7 @@ public class TransportMultiPercolateAction extends TransportAction<MultiPercolat
     public TransportMultiPercolateAction(Settings settings, ThreadPool threadPool, TransportShardMultiPercolateAction shardMultiPercolateAction,
                                          ClusterService clusterService, TransportService transportService, PercolatorService percolatorService,
                                          TransportMultiGetAction multiGetAction) {
-        super(settings, threadPool);
+        super(settings, MultiPercolateAction.NAME, threadPool);
         this.shardMultiPercolateAction = shardMultiPercolateAction;
         this.clusterService = clusterService;
         this.percolatorService = percolatorService;

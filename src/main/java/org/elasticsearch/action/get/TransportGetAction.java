@@ -50,7 +50,7 @@ public class TransportGetAction extends TransportShardSingleOperationAction<GetR
     @Inject
     public TransportGetAction(Settings settings, ClusterService clusterService, TransportService transportService,
                               IndicesService indicesService, ThreadPool threadPool) {
-        super(settings, threadPool, clusterService, transportService);
+        super(settings, GetAction.NAME, threadPool, clusterService, transportService);
         this.indicesService = indicesService;
 
         this.realtime = settings.getAsBoolean("action.get.realtime", true);
@@ -59,11 +59,6 @@ public class TransportGetAction extends TransportShardSingleOperationAction<GetR
     @Override
     protected String executor() {
         return ThreadPool.Names.GET;
-    }
-
-    @Override
-    protected String transportAction() {
-        return GetAction.NAME;
     }
 
     @Override

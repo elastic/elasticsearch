@@ -21,15 +21,16 @@ package org.elasticsearch.common.lucene;
 
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.index.*;
 import org.apache.lucene.search.*;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -95,6 +96,28 @@ public class Lucene {
         final SegmentInfos sis = new SegmentInfos();
         sis.read(directory);
         return sis;
+    }
+
+    public static void checkSegmentInfoIntegrity(final Directory directory) throws IOException {
+        new SegmentInfos.FindSegmentsFile(directory) {
+
+            @Override
+            protected Object doBody(String segmentFileName) throws IOException {
+                try (IndexInput input = directory.openInput(segmentFileName, IOContext.READ)) {
+                    final int format = input.readInt();
+                    final int actualFormat;
+                    if (format == CodecUtil.CODEC_MAGIC) {
+                        // 4.0+
+                        actualFormat = CodecUtil.checkHeaderNoMagic(input, "segments", SegmentInfos.VERSION_40, Integer.MAX_VALUE);
+                        if (actualFormat >= SegmentInfos.VERSION_48) {
+                            CodecUtil.checksumEntireFile(input);
+                        }
+                    }
+                    // legacy....
+                }
+                return null;
+            }
+        }.run();
     }
 
     public static long count(IndexSearcher searcher, Query query) throws IOException {
@@ -371,5 +394,13 @@ public class Lucene {
 
     public static final boolean indexExists(final Directory directory) throws IOException {
         return DirectoryReader.indexExists(directory);
+    }
+
+    /**
+     * Returns <tt>true</tt> iff the given exception or
+     * one of it's causes is an instance of {@link CorruptIndexException} otherwise <tt>false</tt>.
+     */
+    public static boolean isCorruptionException(Throwable t) {
+        return ExceptionsHelper.unwrap(t, CorruptIndexException.class) != null;
     }
 }

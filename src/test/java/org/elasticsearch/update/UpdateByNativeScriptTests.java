@@ -25,6 +25,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.AbstractExecutableScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.NativeScriptFactory;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.junit.Test;
@@ -58,7 +59,9 @@ public class UpdateByNativeScriptTests extends ElasticsearchIntegrationTest {
 
         Map<String, Object> params = Maps.newHashMap();
         params.put("foo", "SETVALUE");
-        client().prepareUpdate("test", "type", "1").setScript("custom").setScriptLang("native").setScriptParams(params).get();
+        client().prepareUpdate("test", "type", "1")
+                .setScript("custom", ScriptService.ScriptType.INLINE)
+                .setScriptLang("native").setScriptParams(params).get();
 
         Map<String, Object> data = client().prepareGet("test", "type", "1").get().getSource();
         assertThat(data, hasKey("foo"));

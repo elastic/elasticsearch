@@ -62,6 +62,29 @@ Run any test methods that contain 'esi' (like: ...r*esi*ze...).
 mvn test "-Dtests.method=*esi*"
 -------------------------------
 
+You can also filter tests by certain annotations ie:
+
+  * `@Slow` - tests that are know to take a long time to execute
+  * `@Nightly` - tests that only run in nightly builds (disabled by default)
+  * `@Integration` - integration tests
+  * `@Backwards` - backwards compatibility tests (disabled by default)
+  * `@AwaitsFix` - tests that are waiting for a bugfix (disabled by default)
+  * `@BadApple` - tests that are known to fail randomly (disabled by default)
+
+Those annotation names can be combined into a filter expression like:
+
+------------------------------------------------
+mvn test -Dtests.filter="@nightly and not @slow" 
+------------------------------------------------
+
+to run all nightly test but not the ones that are slow. `tests.filter` supports
+the boolean operators `and, or, not` and grouping ie:
+
+
+---------------------------------------------------------------
+mvn test -Dtests.filter="@nightly and not(@slow or @backwards)" 
+---------------------------------------------------------------
+
 === Seed and repetitions.
 
 Run with a given seed (seed is a hex-encoded long).
@@ -184,14 +207,14 @@ To run backwards compatibiilty tests untar or unzip a release and run the tests
 with the following command:
 
 ---------------------------------------------------------------------------
-mvn test -Dtests.bwc=true -Dtests.bwc.version=x.y.z -Dtests.bwc.path=/path/to/elasticsearch -Des.node.mode=network
+mvn test -Dtests.filter="@backwards" -Dtests.bwc.version=x.y.z -Dtests.bwc.path=/path/to/elasticsearch
 ---------------------------------------------------------------------------
 
 If the elasticsearch release is placed under `./backwards/elasticsearch-x.y.z` the path
 can be omitted:
  
 ---------------------------------------------------------------------------
-mvn test -Dtests.bwc=true -Dtests.bwc.version=x.y.z -Des.node.mode=network
+mvn test -Dtests.filter="@backwards" -Dtests.bwc.version=x.y.z
 ---------------------------------------------------------------------------
 
 To setup the bwc test environment execute the following steps (provided you are

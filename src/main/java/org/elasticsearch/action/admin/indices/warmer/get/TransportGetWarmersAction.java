@@ -38,12 +38,7 @@ public class TransportGetWarmersAction extends TransportClusterInfoAction<GetWar
 
     @Inject
     public TransportGetWarmersAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool) {
-        super(settings, transportService, clusterService, threadPool);
-    }
-
-    @Override
-    protected String transportAction() {
-        return GetWarmersAction.NAME;
+        super(settings, GetWarmersAction.NAME, transportService, clusterService, threadPool);
     }
 
     @Override
@@ -57,9 +52,9 @@ public class TransportGetWarmersAction extends TransportClusterInfoAction<GetWar
     }
 
     @Override
-    protected void doMasterOperation(final GetWarmersRequest request, final ClusterState state, final ActionListener<GetWarmersResponse> listener) throws ElasticsearchException {
+    protected void doMasterOperation(final GetWarmersRequest request, String[] concreteIndices, final ClusterState state, final ActionListener<GetWarmersResponse> listener) throws ElasticsearchException {
         ImmutableOpenMap<String, ImmutableList<IndexWarmersMetaData.Entry>> result = state.metaData().findWarmers(
-                request.indices(), request.types(), request.warmers()
+                concreteIndices, request.types(), request.warmers()
         );
         listener.onResponse(new GetWarmersResponse(result));
     }

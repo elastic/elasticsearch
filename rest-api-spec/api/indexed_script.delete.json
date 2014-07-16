@@ -1,0 +1,23 @@
+{
+  "delete_script": {
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/modules-scripting.html",
+    "methods": ["DELETE"],
+    "url": {
+      "path": "/_scripts/{lang}/{id}",
+      "paths": [ "/_scripts/{lang}/{id}" ],
+      "parts": {
+        "id": {
+          "type" : "string",
+          "description" : "Script ID",
+          "required" : true
+        },
+        "lang" : {
+          "type" : "string",
+          "description" : "Script language",
+          "required" : true
+        }
+      }
+    },
+    "body": null
+  }
+}

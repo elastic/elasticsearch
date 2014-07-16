@@ -20,6 +20,7 @@ package org.elasticsearch.search.child;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
@@ -123,6 +124,24 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("gc1"));
+    }
+
+    @Test
+    // see #6722
+    public void test6722() throws ElasticsearchException, IOException {
+        assertAcked(prepareCreate("test")
+                .addMapping("foo")
+                .addMapping("test", "_parent", "type=foo"));
+        ensureGreen();
+
+        // index simple data
+        client().prepareIndex("test", "foo", "1").setSource("foo", 1).get();
+        client().prepareIndex("test", "test").setSource("foo", 1).setParent("1").get();
+        refresh();
+
+        SearchResponse searchResponse = client().prepareSearch("test").setSource("{\"query\":{\"filtered\":{\"filter\":{\"has_parent\":{\"type\":\"test\",\"query\":{\"bool\":{\"must\":[],\"must_not\":[],\"should\":[]}}},\"query\":[]}}}}").get();
+        assertNoFailures(searchResponse);
+        assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
     }
 
     @Test
@@ -315,7 +334,9 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         assertThat(indicesStatsResponse.getTotal().getIdCache().getMemorySizeInBytes(), greaterThan(0l));
         assertThat(indicesStatsResponse.getTotal().getFieldData().getMemorySizeInBytes(), equalTo(0l));
 
-        client().admin().indices().prepareClearCache("test").setIdCache(true).get();
+        ClearIndicesCacheResponse clearCacheResponse = client().admin().indices().prepareClearCache("test").setIdCache(true).get();
+        assertNoFailures(clearCacheResponse);
+        assertAllSuccessful(clearCacheResponse);
         indicesStatsResponse = client().admin().indices()
                 .prepareStats("test").setFieldData(true).get();
         assertThat(indicesStatsResponse.getTotal().getIdCache().getMemorySizeInBytes(), equalTo(0l));

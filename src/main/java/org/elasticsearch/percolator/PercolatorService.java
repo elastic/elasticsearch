@@ -40,6 +40,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -276,12 +277,10 @@ public class PercolatorService extends AbstractComponent {
                         }
 
                         MapperService mapperService = documentIndexService.mapperService();
-                        DocumentMapper docMapper = mapperService.documentMapperWithAutoCreate(request.documentType());
-                        doc = docMapper.parse(source(parser).type(request.documentType()).flyweight(true));
+                        Tuple<DocumentMapper, Boolean> docMapper = mapperService.documentMapperWithAutoCreate(request.documentType());
+                        doc = docMapper.v1().parse(source(parser).type(request.documentType()).flyweight(true)).setMappingsModified(docMapper);
                         if (doc.mappingsModified()) {
-                            mappingUpdatedAction.updateMappingOnMaster(
-                                    docMapper, request.index(), request.documentType(), documentIndexService.indexUUID(), true
-                            );
+                            mappingUpdatedAction.updateMappingOnMaster(request.index(), docMapper.v1(), documentIndexService.indexUUID());
                         }
                         // the document parsing exists the "doc" object, so we need to set the new current field.
                         currentFieldName = parser.currentName();
@@ -388,8 +387,8 @@ public class PercolatorService extends AbstractComponent {
         try {
             parser = XContentFactory.xContent(fetchedDoc).createParser(fetchedDoc);
             MapperService mapperService = documentIndexService.mapperService();
-            DocumentMapper docMapper = mapperService.documentMapperWithAutoCreate(type);
-            doc = docMapper.parse(source(parser).type(type).flyweight(true));
+            Tuple<DocumentMapper, Boolean> docMapper = mapperService.documentMapperWithAutoCreate(type);
+            doc = docMapper.v1().parse(source(parser).type(type).flyweight(true));
 
             if (context.highlight() != null) {
                 doc.setSource(fetchedDoc);

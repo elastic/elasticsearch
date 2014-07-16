@@ -32,7 +32,6 @@ import java.util.List;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfNeeded;
-import static org.elasticsearch.common.lucene.search.Queries.optimizeQuery;
 
 /**
  *
@@ -141,7 +140,7 @@ public class BoolQueryParser implements QueryParser {
         }
         booleanQuery.setBoost(boost);
         Queries.applyMinimumShouldMatch(booleanQuery, minimumShouldMatch);
-        Query query = optimizeQuery(adjustPureNegative ? fixNegativeQueryIfNeeded(booleanQuery) : booleanQuery);
+        Query query = adjustPureNegative ? fixNegativeQueryIfNeeded(booleanQuery) : booleanQuery;
         if (queryName != null) {
             parseContext.addNamedQuery(queryName, query);
         }

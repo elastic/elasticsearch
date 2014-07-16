@@ -19,6 +19,7 @@
 package org.elasticsearch.plugin;
 
 import com.google.common.base.Predicate;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
@@ -45,6 +46,7 @@ import org.junit.Test;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
+import java.nio.file.Files;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
@@ -71,12 +73,16 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
         deletePluginsFolder();
     }
 
+    @Test(expected = ElasticsearchIllegalArgumentException.class)
+    public void testDownloadAndExtract_NullName_ThrowsException() throws IOException {
+        pluginManager(getPluginUrlForResource("plugin_single_folder.zip")).downloadAndExtract(null);
+    }
+
     @Test
     public void testLocalPluginInstallSingleFolder() throws Exception {
         //When we have only a folder in top-level (no files either) we remove that folder while extracting
         String pluginName = "plugin-test";
-        URI uri = URI.create(PluginManagerTests.class.getResource("plugin_single_folder.zip").toString());
-        downloadAndExtract(pluginName, "file://" + uri.getPath());
+        downloadAndExtract(pluginName, getPluginUrlForResource("plugin_single_folder.zip"));
 
         internalCluster().startNode(SETTINGS);
 
@@ -85,14 +91,49 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    @LuceneTestCase.AwaitsFix(bugUrl = "@uboness works on this")
+    public void testLocalPluginInstallWithBinAndConfig() throws Exception {
+        String pluginName = "plugin-test";
+        Tuple<Settings, Environment> initialSettings = InternalSettingsPreparer.prepareSettings(
+                ImmutableSettings.settingsBuilder().build(), false);
+        Environment env = initialSettings.v2();
+        File binDir = new File(env.homeFile(), "bin");
+        if (!binDir.exists() && !FileSystemUtils.mkdirs(binDir)) {
+            throw new IOException("Could not create bin directory [" + binDir.getAbsolutePath() + "]");
+        }
+        File pluginBinDir = new File(binDir, pluginName);
+        File configDir = env.configFile();
+        if (!configDir.exists() && !FileSystemUtils.mkdirs(configDir)) {
+            throw new IOException("Could not create config directory [" + configDir.getAbsolutePath() + "]");
+        }
+        File pluginConfigDir = new File(configDir, pluginName);
+        try {
+
+            PluginManager pluginManager = pluginManager(getPluginUrlForResource("plugin_with_bin_and_config.zip"), initialSettings);
+
+            pluginManager.downloadAndExtract(pluginName);
+
+            File[] plugins = pluginManager.getListInstalledPlugins();
+
+            assertThat(plugins.length, is(1));
+            assertTrue(pluginBinDir.exists());
+            assertTrue(pluginConfigDir.exists());
+
+        } finally {
+            // we need to clean up the copied dirs
+            FileSystemUtils.deleteRecursively(pluginBinDir);
+            FileSystemUtils.deleteRecursively(pluginConfigDir);
+        }
+    }
+
+    @Test
     public void testLocalPluginInstallSiteFolder() throws Exception {
         //When we have only a folder in top-level (no files either) but it's called _site, we make it work
         //we can either remove the folder while extracting and then re-add it manually or just leave it as it is
         String pluginName = "plugin-test";
-        URI uri = URI.create(PluginManagerTests.class.getResource("plugin_folder_site.zip").toString());
-        downloadAndExtract(pluginName, "file://" + uri.getPath());
+        downloadAndExtract(pluginName, getPluginUrlForResource("plugin_folder_site.zip"));
 
-        String nodeName = internalCluster().startNode(SETTINGS);
+        internalCluster().startNode(SETTINGS);
 
         assertPluginLoaded(pluginName);
         assertPluginAvailable(pluginName);
@@ -102,8 +143,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
     public void testLocalPluginWithoutFolders() throws Exception {
         //When we don't have folders at all in the top-level, but only files, we don't modify anything
         String pluginName = "plugin-test";
-        URI uri = URI.create(PluginManagerTests.class.getResource("plugin_without_folders.zip").toString());
-        downloadAndExtract(pluginName, "file://" + uri.getPath());
+        downloadAndExtract(pluginName, getPluginUrlForResource("plugin_without_folders.zip"));
 
         internalCluster().startNode(SETTINGS);
 
@@ -115,8 +155,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
     public void testLocalPluginFolderAndFile() throws Exception {
         //When we have a single top-level folder but also files in the top-level, we don't modify anything
         String pluginName = "plugin-test";
-        URI uri = URI.create(PluginManagerTests.class.getResource("plugin_folder_file.zip").toString());
-        downloadAndExtract(pluginName, "file://" + uri.getPath());
+        downloadAndExtract(pluginName, getPluginUrlForResource("plugin_folder_file.zip"));
 
         internalCluster().startNode(SETTINGS);
 
@@ -127,17 +166,20 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
     @Test(expected = IllegalArgumentException.class)
     public void testSitePluginWithSourceThrows() throws Exception {
         String pluginName = "plugin-with-source";
-        URI uri = URI.create(PluginManagerTests.class.getResource("plugin_with_sourcefiles.zip").toString());
-        downloadAndExtract(pluginName, "file://" + uri.getPath());
+        downloadAndExtract(pluginName, getPluginUrlForResource("plugin_with_sourcefiles.zip"));
+    }
+
+    private static PluginManager pluginManager(String pluginUrl) {
+        Tuple<Settings, Environment> initialSettings = InternalSettingsPreparer.prepareSettings(
+                ImmutableSettings.settingsBuilder().build(), false);
+        return pluginManager(pluginUrl, initialSettings);
     }
 
     /**
      * We build a plugin manager instance which wait only for 30 seconds before
      * raising an ElasticsearchTimeoutException
      */
-    private static PluginManager pluginManager(String pluginUrl) {
-        Tuple<Settings, Environment> initialSettings = InternalSettingsPreparer.prepareSettings(
-                ImmutableSettings.settingsBuilder().build(), false);
+    private static PluginManager pluginManager(String pluginUrl, Tuple<Settings, Environment> initialSettings) {
         if (!initialSettings.v2().pluginsFile().exists()) {
             FileSystemUtils.mkdirs(initialSettings.v2().pluginsFile());
         }
@@ -202,14 +244,13 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
 
     @Test(expected = IOException.class)
     public void testInstallPluginNull() throws IOException {
-        pluginManager(null).downloadAndExtract("");
+        pluginManager(null).downloadAndExtract("plugin-test");
     }
 
 
     @Test
     public void testInstallPlugin() throws IOException {
-        PluginManager pluginManager = pluginManager("file://".concat(
-                URI.create(PluginManagerTests.class.getResource("plugin_with_classfile.zip").toString()).getPath()));
+        PluginManager pluginManager = pluginManager(getPluginUrlForResource("plugin_with_classfile.zip"));
 
         pluginManager.downloadAndExtract("plugin");
         File[] plugins = pluginManager.getListInstalledPlugins();
@@ -219,8 +260,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testInstallSitePlugin() throws IOException {
-        PluginManager pluginManager = pluginManager("file://".concat(
-                URI.create(PluginManagerTests.class.getResource("plugin_without_folders.zip").toString()).getPath()));
+        PluginManager pluginManager = pluginManager(getPluginUrlForResource("plugin_without_folders.zip"));
 
         pluginManager.downloadAndExtract("plugin-site");
         File[] plugins = pluginManager.getListInstalledPlugins();
@@ -314,21 +354,35 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
     @Test
     public void testRemovePlugin() throws Exception {
         // We want to remove plugin with plugin short name
-        singlePluginInstallAndRemove("plugintest", "file://".concat(
-                URI.create(PluginManagerTests.class.getResource("plugin_without_folders.zip").toString()).getPath()));
+        singlePluginInstallAndRemove("plugintest", getPluginUrlForResource("plugin_without_folders.zip"));
 
         // We want to remove plugin with groupid/artifactid/version form
-        singlePluginInstallAndRemove("groupid/plugintest/1.0.0", "file://".concat(
-                URI.create(PluginManagerTests.class.getResource("plugin_without_folders.zip").toString()).getPath()));
+        singlePluginInstallAndRemove("groupid/plugintest/1.0.0", getPluginUrlForResource("plugin_without_folders.zip"));
 
         // We want to remove plugin with groupid/artifactid form
-        singlePluginInstallAndRemove("groupid/plugintest", "file://".concat(
-                URI.create(PluginManagerTests.class.getResource("plugin_without_folders.zip").toString()).getPath()));
+        singlePluginInstallAndRemove("groupid/plugintest", getPluginUrlForResource("plugin_without_folders.zip"));
+    }
+
+    @Test(expected = ElasticsearchIllegalArgumentException.class)
+    public void testRemovePlugin_NullName_ThrowsException() throws IOException {
+        pluginManager(getPluginUrlForResource("plugin_single_folder.zip")).removePlugin(null);
     }
 
     @Test(expected = ElasticsearchIllegalArgumentException.class)
     public void testRemovePluginWithURLForm() throws Exception {
         PluginManager pluginManager = pluginManager(null);
         pluginManager.removePlugin("file://whatever");
+    }
+
+    /**
+     * Retrieve a URL string that represents the resource with the given {@code resourceName}.
+     * @param resourceName The resource name relative to {@link PluginManagerTests}.
+     * @return Never {@code null}.
+     * @throws NullPointerException if {@code resourceName} does not point to a valid resource.
+     */
+    private String getPluginUrlForResource(String resourceName) {
+        URI uri = URI.create(PluginManagerTests.class.getResource(resourceName).toString());
+
+        return "file://" + uri.getPath();
     }
 }

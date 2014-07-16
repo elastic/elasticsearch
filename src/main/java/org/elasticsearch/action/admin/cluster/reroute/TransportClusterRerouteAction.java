@@ -43,7 +43,7 @@ public class TransportClusterRerouteAction extends TransportMasterNodeOperationA
     @Inject
     public TransportClusterRerouteAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                          AllocationService allocationService) {
-        super(settings, transportService, clusterService, threadPool);
+        super(settings, ClusterRerouteAction.NAME, transportService, clusterService, threadPool);
         this.allocationService = allocationService;
     }
 
@@ -51,11 +51,6 @@ public class TransportClusterRerouteAction extends TransportMasterNodeOperationA
     protected String executor() {
         // we go async right away
         return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected String transportAction() {
-        return ClusterRerouteAction.NAME;
     }
 
     @Override

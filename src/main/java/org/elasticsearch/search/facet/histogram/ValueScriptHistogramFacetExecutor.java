@@ -25,6 +25,7 @@ import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.facet.DoubleFacetAggregatorBase;
 import org.elasticsearch.search.facet.FacetExecutor;
@@ -46,14 +47,13 @@ public class ValueScriptHistogramFacetExecutor extends FacetExecutor {
     private final HistogramFacet.ComparatorType comparatorType;
     final SearchScript valueScript;
     final long interval;
-
     final Recycler.V<LongObjectOpenHashMap<InternalFullHistogramFacet.FullEntry>> entries;
 
-    public ValueScriptHistogramFacetExecutor(IndexNumericFieldData indexFieldData, String scriptLang, String valueScript, Map<String, Object> params, long interval, HistogramFacet.ComparatorType comparatorType, SearchContext context) {
+    public ValueScriptHistogramFacetExecutor(IndexNumericFieldData indexFieldData, String scriptLang, String valueScript, ScriptService.ScriptType scriptType, Map<String, Object> params, long interval, HistogramFacet.ComparatorType comparatorType, SearchContext context) {
         this.comparatorType = comparatorType;
         this.indexFieldData = indexFieldData;
         this.interval = interval;
-        this.valueScript = context.scriptService().search(context.lookup(), scriptLang, valueScript, params);
+        this.valueScript = context.scriptService().search(context.lookup(), scriptLang, valueScript, scriptType, params);
 
         this.entries = context.cacheRecycler().longObjectMap(-1);
     }

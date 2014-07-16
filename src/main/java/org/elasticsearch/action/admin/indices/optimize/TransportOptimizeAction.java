@@ -53,18 +53,13 @@ public class TransportOptimizeAction extends TransportBroadcastOperationAction<O
     @Inject
     public TransportOptimizeAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                    TransportService transportService, IndicesService indicesService) {
-        super(settings, threadPool, clusterService, transportService);
+        super(settings, OptimizeAction.NAME, threadPool, clusterService, transportService);
         this.indicesService = indicesService;
     }
 
     @Override
     protected String executor() {
         return ThreadPool.Names.OPTIMIZE;
-    }
-
-    @Override
-    protected String transportAction() {
-        return OptimizeAction.NAME;
     }
 
     @Override

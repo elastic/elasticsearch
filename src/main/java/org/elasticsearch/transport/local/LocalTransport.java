@@ -58,6 +58,8 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
     private static final AtomicLong transportAddressIdGenerator = new AtomicLong();
     private final ConcurrentMap<DiscoveryNode, LocalTransport> connectedNodes = newConcurrentMap();
 
+    public static final String TRANSPORT_LOCAL_ADDRESS = "transport.local_address";
+
     @Inject
     public LocalTransport(Settings settings, ThreadPool threadPool, Version version) {
         super(settings);
@@ -77,8 +79,15 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
 
     @Override
     protected void doStart() throws ElasticsearchException {
-        localAddress = new LocalTransportAddress(Long.toString(transportAddressIdGenerator.incrementAndGet()));
-        transports.put(localAddress, this);
+        String address = settings.get(TRANSPORT_LOCAL_ADDRESS);
+        if (address == null) {
+            address = Long.toString(transportAddressIdGenerator.incrementAndGet());
+        }
+        localAddress = new LocalTransportAddress(address);
+        LocalTransport previous = transports.put(localAddress, this);
+        if (previous != null) {
+            throw new ElasticsearchException("local address [" + address + "] is already bound");
+        }
         boundAddress = new BoundTransportAddress(localAddress, localAddress);
     }
 
@@ -208,7 +217,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
                     if (TransportStatus.isError(status)) {
                         handlerResponseError(stream, handler);
                     } else {
-                        handleResponse(stream, handler);
+                        handleResponse(stream, sourceTransport, handler);
                     }
                 }
             }
@@ -233,6 +242,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
                 throw new ActionNotFoundTransportException("Action [" + action + "] not found");
             }
             final TransportRequest request = handler.newInstance();
+            request.remoteAddress(sourceTransport.boundAddress.publishAddress());
             request.readFrom(stream);
             if (handler.executor() == ThreadPool.Names.SAME) {
                 //noinspection unchecked
@@ -273,9 +283,9 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
         }
     }
 
-
-    protected void handleResponse(StreamInput buffer, final TransportResponseHandler handler) {
+    protected void handleResponse(StreamInput buffer, LocalTransport sourceTransport, final TransportResponseHandler handler) {
         final TransportResponse response = handler.newInstance();
+        response.remoteAddress(sourceTransport.boundAddress.publishAddress());
         try {
             response.readFrom(buffer);
         } catch (Throwable e) {

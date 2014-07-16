@@ -23,13 +23,14 @@ import com.carrotsearch.randomizedtesting.annotations.Nightly;
 import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableList;
 import com.google.common.io.Resources;
-import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.*;
+import org.elasticsearch.action.suggest.SuggestRequestBuilder;
+import org.elasticsearch.action.suggest.SuggestResponse;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.suggest.SuggestBuilder.SuggestionBuilder;
@@ -1093,7 +1094,167 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
         assertSuggestion(searchSuggest, 0, 0, "title", "united states house of representatives elections in washington 2006");
         // assertThat(total, lessThan(1000L)); // Takes many seconds without fix - just for debugging
     }
-    
+
+    @Test
+    public void suggestPhrasesInIndex() throws InterruptedException, ExecutionException, IOException {
+        CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
+                .put(indexSettings())
+                .put(SETTING_NUMBER_OF_SHARDS, 1) // A single shard will help to keep the tests repeatable.
+                .put("index.analysis.analyzer.text.tokenizer", "standard")
+                .putArray("index.analysis.analyzer.text.filter", "lowercase", "my_shingle")
+                .put("index.analysis.filter.my_shingle.type", "shingle")
+                .put("index.analysis.filter.my_shingle.output_unigrams", true)
+                .put("index.analysis.filter.my_shingle.min_shingle_size", 2)
+                .put("index.analysis.filter.my_shingle.max_shingle_size", 3));
+
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("type1")
+                .startObject("properties")
+                .startObject("title")
+                .field("type", "string")
+                .field("analyzer", "text")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject();
+        assertAcked(builder.addMapping("type1", mapping));
+        ensureGreen();
+
+        ImmutableList.Builder<String> titles = ImmutableList.<String>builder();
+
+        titles.add("United States House of Representatives Elections in Washington 2006");
+        titles.add("United States House of Representatives Elections in Washington 2005");
+        titles.add("State");
+        titles.add("Houses of Parliament");
+        titles.add("Representative Government");
+        titles.add("Election");
+
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+        for (String title: titles.build()) {
+            builders.add(client().prepareIndex("test", "type1").setSource("title", title));
+        }
+        indexRandom(true, builders);
+
+        // suggest without filtering
+        PhraseSuggestionBuilder suggest = phraseSuggestion("title")
+                .field("title")
+                .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("title")
+                        .suggestMode("always")
+                        .maxTermFreq(.99f)
+                        .size(10)
+                        .maxInspections(200)
+                )
+                .confidence(0f)
+                .maxErrors(2f)
+                .shardSize(30000)
+                .size(10);
+        Suggest searchSuggest = searchSuggest("united states house of representatives elections in washington 2006", suggest);
+        assertSuggestionSize(searchSuggest, 0, 10, "title");
+
+        // suggest with filtering
+        String filterString = XContentFactory.jsonBuilder()
+                    .startObject()
+                        .startObject("match_phrase")
+                            .field("title", "{{suggestion}}")
+                        .endObject()
+                    .endObject()
+                .string();
+        PhraseSuggestionBuilder filteredQuerySuggest = suggest.collateQuery(filterString);
+        searchSuggest = searchSuggest("united states house of representatives elections in washington 2006", filteredQuerySuggest);
+        assertSuggestionSize(searchSuggest, 0, 2, "title");
+
+        // filtered suggest with no result (boundary case)
+        searchSuggest = searchSuggest("Elections of Representatives Parliament", filteredQuerySuggest);
+        assertSuggestionSize(searchSuggest, 0, 0, "title");
+
+        NumShards numShards = getNumShards("test");
+
+        // filtered suggest with bad query
+        String incorrectFilterString = XContentFactory.jsonBuilder()
+                .startObject()
+                    .startObject("test")
+                        .field("title", "{{suggestion}}")
+                    .endObject()
+                .endObject()
+                .string();
+        PhraseSuggestionBuilder incorrectFilteredSuggest = suggest.collateQuery(incorrectFilterString);
+        try {
+            searchSuggest("united states house of representatives elections in washington 2006", numShards.numPrimaries, incorrectFilteredSuggest);
+            fail("Post query error has been swallowed");
+        } catch(ElasticsearchException e) {
+            // expected
+        }
+
+        // suggest with filter collation
+        String filterStringAsFilter = XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("query")
+                .startObject("match_phrase")
+                .field("title", "{{suggestion}}")
+                .endObject()
+                .endObject()
+                .endObject()
+                .string();
+
+        PhraseSuggestionBuilder filteredFilterSuggest = suggest.collateQuery(null).collateFilter(filterStringAsFilter);
+        searchSuggest = searchSuggest("united states house of representatives elections in washington 2006", filteredFilterSuggest);
+        assertSuggestionSize(searchSuggest, 0, 2, "title");
+
+        // filtered suggest with bad filter
+        String filterStr = XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("pprefix")
+                        .field("title", "{{suggestion}}")
+                .endObject()
+                .endObject()
+                .string();
+
+        PhraseSuggestionBuilder in = suggest.collateQuery(null).collateFilter(filterStr);
+        try {
+            searchSuggest("united states house of representatives elections in washington 2006", numShards.numPrimaries, in);
+            fail("Post filter error has been swallowed");
+        } catch(ElasticsearchException e) {
+            //expected
+        }
+
+        // collate script failure due to no additional params
+        String collateWithParams = XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("{{query_type}}")
+                    .field("{{query_field}}", "{{suggestion}}")
+                .endObject()
+                .endObject()
+                .string();
+
+
+        PhraseSuggestionBuilder phraseSuggestWithNoParams = suggest.collateFilter(null).collateQuery(collateWithParams);
+        try {
+            searchSuggest("united states house of representatives elections in washington 2006", numShards.numPrimaries, phraseSuggestWithNoParams);
+            fail("Malformed query (lack of additional params) should fail");
+        } catch (ElasticsearchException e) {
+            // expected
+        }
+
+        // collate script with additional params
+        Map<String, Object> params = new HashMap<>();
+        params.put("query_type", "match_phrase");
+        params.put("query_field", "title");
+
+        PhraseSuggestionBuilder phraseSuggestWithParams = suggest.collateFilter(null).collateQuery(collateWithParams).collateParams(params);
+        searchSuggest = searchSuggest("united states house of representatives elections in washington 2006", phraseSuggestWithParams);
+        assertSuggestionSize(searchSuggest, 0, 2, "title");
+
+        //collate request defining both query/filter should fail
+        PhraseSuggestionBuilder phraseSuggestWithFilterAndQuery = suggest.collateFilter(filterStringAsFilter).collateQuery(filterString);
+        try {
+            searchSuggest("united states house of representatives elections in washington 2006", numShards.numPrimaries, phraseSuggestWithFilterAndQuery);
+            fail("expected parse failure, as both filter and query are set in collate");
+        } catch (ElasticsearchException e) {
+            // expected
+        }
+    }
+
     protected Suggest searchSuggest(SuggestionBuilder<?>... suggestion) {
         return searchSuggest(null, suggestion);
     }
@@ -1103,15 +1264,32 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
     }
 
     protected Suggest searchSuggest(String suggestText, int expectShardsFailed, SuggestionBuilder<?>... suggestions) {
-        SearchRequestBuilder builder = client().prepareSearch().setSearchType(SearchType.COUNT);
-        if (suggestText != null) {
-            builder.setSuggestText(suggestText);
+        if (randomBoolean()) {
+            SearchRequestBuilder builder = client().prepareSearch().setSearchType(SearchType.COUNT);
+            if (suggestText != null) {
+                builder.setSuggestText(suggestText);
+            }
+            for (SuggestionBuilder<?> suggestion : suggestions) {
+                builder.addSuggestion(suggestion);
+            }
+            SearchResponse actionGet = builder.execute().actionGet();
+            assertThat(Arrays.toString(actionGet.getShardFailures()), actionGet.getFailedShards(), equalTo(expectShardsFailed));
+            return actionGet.getSuggest();
+        } else {
+            SuggestRequestBuilder builder = client().prepareSuggest();
+            if (suggestText != null) {
+                builder.setSuggestText(suggestText);
+            }
+            for (SuggestionBuilder<?> suggestion : suggestions) {
+                builder.addSuggestion(suggestion);
+            }
+
+            SuggestResponse actionGet = builder.execute().actionGet();
+            assertThat(Arrays.toString(actionGet.getShardFailures()), actionGet.getFailedShards(), equalTo(expectShardsFailed));
+            if (expectShardsFailed > 0) {
+                throw new SearchPhaseExecutionException("suggest", "Suggest execution failed", new ShardSearchFailure[0]);
+            }
+            return actionGet.getSuggest();
         }
-        for (SuggestionBuilder<?> suggestion : suggestions) {
-            builder.addSuggestion(suggestion);
-        }
-        SearchResponse actionGet = builder.execute().actionGet();
-        assertThat(Arrays.toString(actionGet.getShardFailures()), actionGet.getFailedShards(), equalTo(expectShardsFailed));
-        return actionGet.getSuggest();
     }
 }

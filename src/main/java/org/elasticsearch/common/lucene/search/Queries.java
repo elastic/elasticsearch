@@ -49,30 +49,6 @@ public class Queries {
         return new MatchNoDocsQuery();
     }
 
-    /**
-     * Optimizes the given query and returns the optimized version of it.
-     */
-    public static Query optimizeQuery(Query q) {
-        if (q instanceof BooleanQuery) {
-            BooleanQuery booleanQuery = (BooleanQuery) q;
-            BooleanClause[] clauses = booleanQuery.getClauses();
-            if (clauses.length == 1) {
-                BooleanClause clause = clauses[0];
-                if (clause.getOccur() == BooleanClause.Occur.MUST) {
-                    Query query = clause.getQuery();
-                    query.setBoost(booleanQuery.getBoost() * query.getBoost());
-                    return optimizeQuery(query);
-                }
-                if (clause.getOccur() == BooleanClause.Occur.SHOULD && booleanQuery.getMinimumNumberShouldMatch() > 0) {
-                    Query query = clause.getQuery();
-                    query.setBoost(booleanQuery.getBoost() * query.getBoost());
-                    return optimizeQuery(query);
-                }
-            }
-        }
-        return q;
-    }
-
     public static boolean isNegativeQuery(Query q) {
         if (!(q instanceof BooleanQuery)) {
             return false;

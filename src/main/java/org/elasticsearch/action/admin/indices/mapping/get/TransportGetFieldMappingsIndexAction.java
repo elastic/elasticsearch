@@ -21,7 +21,6 @@ package org.elasticsearch.action.admin.indices.mapping.get;
 
 import com.google.common.base.Predicate;
 import com.google.common.collect.Collections2;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetaData;
@@ -50,10 +49,13 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.List;
 
 /**
  */
 public class TransportGetFieldMappingsIndexAction extends TransportSingleCustomOperationAction<GetFieldMappingsIndexRequest, GetFieldMappingsResponse> {
+
+    private static final String ACTION_NAME = GetFieldMappingsAction.NAME + "/index";
 
     protected final ClusterService clusterService;
     private final IndicesService indicesService;
@@ -63,14 +65,9 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleCustomO
                                                 TransportService transportService,
                                                 IndicesService indicesService,
                                                 ThreadPool threadPool) {
-        super(settings, threadPool, clusterService, transportService);
+        super(settings, ACTION_NAME, threadPool, clusterService, transportService);
         this.clusterService = clusterService;
         this.indicesService = indicesService;
-    }
-
-    @Override
-    protected String transportAction() {
-        return GetFieldMappingsAction.NAME + "/index";
     }
 
     @Override
@@ -181,7 +178,7 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleCustomO
 
     private ImmutableMap<String, FieldMappingMetaData> findFieldMappingsByType(DocumentMapper documentMapper, GetFieldMappingsIndexRequest request) throws ElasticsearchException {
         MapBuilder<String, FieldMappingMetaData> fieldMappings = new MapBuilder<>();
-        ImmutableList<FieldMapper> allFieldMappers = documentMapper.mappers().mappers();
+        final List<FieldMapper> allFieldMappers = documentMapper.mappers().mappers();
         for (String field : request.fields()) {
             if (Regex.isMatchAllPattern(field)) {
                 for (FieldMapper fieldMapper : allFieldMappers) {

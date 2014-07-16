@@ -41,7 +41,7 @@ public class TransportPutIndexTemplateAction extends TransportMasterNodeOperatio
     @Inject
     public TransportPutIndexTemplateAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                            ThreadPool threadPool, MetaDataIndexTemplateService indexTemplateService) {
-        super(settings, transportService, clusterService, threadPool);
+        super(settings, PutIndexTemplateAction.NAME, transportService, clusterService, threadPool);
         this.indexTemplateService = indexTemplateService;
     }
 
@@ -49,11 +49,6 @@ public class TransportPutIndexTemplateAction extends TransportMasterNodeOperatio
     protected String executor() {
         // we go async right away...
         return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected String transportAction() {
-        return PutIndexTemplateAction.NAME;
     }
 
     @Override

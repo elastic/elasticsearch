@@ -43,18 +43,13 @@ public class TransportPutRepositoryAction extends TransportMasterNodeOperationAc
     @Inject
     public TransportPutRepositoryAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                         RepositoriesService repositoriesService, ThreadPool threadPool) {
-        super(settings, transportService, clusterService, threadPool);
+        super(settings, PutRepositoryAction.NAME, transportService, clusterService, threadPool);
         this.repositoriesService = repositoriesService;
     }
 
     @Override
     protected String executor() {
         return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected String transportAction() {
-        return PutRepositoryAction.NAME;
     }
 
     @Override

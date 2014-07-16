@@ -69,6 +69,33 @@ public interface IndexFieldDataCache {
         void onUnload(FieldMapper.Names fieldNames, FieldDataType fieldDataType, boolean wasEvicted, long sizeInBytes);
     }
 
+    class None implements IndexFieldDataCache {
+
+        @Override
+        public <FD extends AtomicFieldData, IFD extends IndexFieldData<FD>> FD load(AtomicReaderContext context, IFD indexFieldData) throws Exception {
+            return indexFieldData.loadDirect(context);
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public <IFD extends IndexFieldData.WithOrdinals<?>> IFD load(IndexReader indexReader, IFD indexFieldData) throws Exception {
+            return (IFD) indexFieldData.localGlobalDirect(indexReader);
+        }
+
+        @Override
+        public void clear() {
+        }
+
+        @Override
+        public void clear(String fieldName) {
+        }
+
+        @Override
+        public void clear(Object coreCacheKey) {
+
+        }
+    }
+
     /**
      * The resident field data cache is a *per field* cache that keeps all the values in memory.
      */

@@ -26,7 +26,6 @@ import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
@@ -39,6 +38,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -69,13 +69,17 @@ import org.elasticsearch.search.dfs.CachedDfSource;
 import org.elasticsearch.search.dfs.DfsPhase;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.*;
-import org.elasticsearch.search.internal.*;
+import org.elasticsearch.search.internal.DefaultSearchContext;
+import org.elasticsearch.search.internal.InternalScrollSearchRequest;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.*;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.nio.charset.Charset;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -580,33 +584,44 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
     }
 
     private void parseTemplate(ShardSearchRequest request) {
+
+        final ExecutableScript executable;
         if (hasLength(request.templateName())) {
-            ExecutableScript executable = this.scriptService.executable("mustache", request.templateName(), request.templateParams());
-            BytesReference processedQuery = (BytesReference) executable.run();
-            request.source(processedQuery);
+            executable = this.scriptService.executable("mustache", request.templateName(), request.templateType(), request.templateParams());
         } else {
-            if (request.templateSource() == null || request.templateSource().length() == 0) {
+            if (!hasLength(request.templateSource())) {
                 return;
             }
-
             XContentParser parser = null;
+            TemplateQueryParser.TemplateContext templateContext = null;
+
             try {
                 parser = XContentFactory.xContent(request.templateSource()).createParser(request.templateSource());
+                templateContext = TemplateQueryParser.parse(parser, "params", "template");
 
-                TemplateQueryParser.TemplateContext templateContext = TemplateQueryParser.parse(parser, "template", "params");
-                if (!hasLength(templateContext.template())) {
-                    throw new ElasticsearchParseException("Template must have [template] field configured");
+                if (templateContext.scriptType().equals(ScriptService.ScriptType.INLINE)) {
+                    //Try to double parse for nested template id/file
+                    parser = XContentFactory.xContent(templateContext.template().getBytes(Charset.defaultCharset())).createParser(templateContext.template().getBytes(Charset.defaultCharset()));
+                    TemplateQueryParser.TemplateContext innerContext = TemplateQueryParser.parse(parser, "params");
+                    if (hasLength(innerContext.template()) && !innerContext.scriptType().equals(ScriptService.ScriptType.INLINE)) {
+                        //An inner template referring to a filename or id
+                        templateContext = new TemplateQueryParser.TemplateContext(innerContext.scriptType(), innerContext.template(), templateContext.params());
+                    }
                 }
-
-                ExecutableScript executable = this.scriptService.executable("mustache", templateContext.template(), templateContext.params());
-                BytesReference processedQuery = (BytesReference) executable.run();
-                request.source(processedQuery);
             } catch (IOException e) {
-                logger.error("Error trying to parse template: ", e);
+                throw new ElasticsearchParseException("Failed to parse template", e);
             } finally {
-                IOUtils.closeWhileHandlingException(parser);
+                Releasables.closeWhileHandlingException(parser);
             }
+
+            if (templateContext == null || !hasLength(templateContext.template())) {
+                throw new ElasticsearchParseException("Template must have [template] field configured");
+            }
+            executable = this.scriptService.executable("mustache", templateContext.template(), templateContext.scriptType(), templateContext.params());
         }
+
+        BytesReference processedQuery = (BytesReference) executable.run();
+        request.source(processedQuery);
     }
 
     private void parseSource(SearchContext context, BytesReference source) throws SearchParseException {
@@ -721,7 +736,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             final Loading defaultLoading = Loading.parse(indexMetaData.settings().get(NORMS_LOADING_KEY), Loading.LAZY);
             final MapperService mapperService = indexShard.mapperService();
             final ObjectSet<String> warmUp = new ObjectOpenHashSet<>();
-            for (DocumentMapper docMapper : mapperService) {
+            for (DocumentMapper docMapper : mapperService.docMappers(false)) {
                 for (FieldMapper<?> fieldMapper : docMapper.mappers().mappers()) {
                     final String indexName = fieldMapper.names().indexName();
                     if (fieldMapper.fieldType().indexed() && !fieldMapper.fieldType().omitNorms() && fieldMapper.normsLoading(defaultLoading) == Loading.EAGER) {
@@ -772,7 +787,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         public TerminationHandle warm(final IndexShard indexShard, IndexMetaData indexMetaData, final WarmerContext context, ThreadPool threadPool) {
             final MapperService mapperService = indexShard.mapperService();
             final Map<String, FieldMapper<?>> warmUp = new HashMap<>();
-            for (DocumentMapper docMapper : mapperService) {
+            for (DocumentMapper docMapper : mapperService.docMappers(false)) {
                 for (FieldMapper<?> fieldMapper : docMapper.mappers().mappers()) {
                     final FieldDataType fieldDataType = fieldMapper.fieldDataType();
                     if (fieldDataType == null) {
@@ -826,7 +841,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         public TerminationHandle warmTop(final IndexShard indexShard, IndexMetaData indexMetaData, final WarmerContext context, ThreadPool threadPool) {
             final MapperService mapperService = indexShard.mapperService();
             final Map<String, FieldMapper<?>> warmUpGlobalOrdinals = new HashMap<>();
-            for (DocumentMapper docMapper : mapperService) {
+            for (DocumentMapper docMapper : mapperService.docMappers(false)) {
                 for (FieldMapper<?> fieldMapper : docMapper.mappers().mappers()) {
                     final FieldDataType fieldDataType = fieldMapper.fieldDataType();
                     if (fieldDataType == null) {

@@ -73,7 +73,7 @@ public class TransportValidateQueryAction extends TransportBroadcastOperationAct
 
     @Inject
     public TransportValidateQueryAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, IndicesService indicesService, ScriptService scriptService, CacheRecycler cacheRecycler, PageCacheRecycler pageCacheRecycler, BigArrays bigArrays) {
-        super(settings, threadPool, clusterService, transportService);
+        super(settings, ValidateQueryAction.NAME, threadPool, clusterService, transportService);
         this.indicesService = indicesService;
         this.scriptService = scriptService;
         this.cacheRecycler = cacheRecycler;
@@ -90,11 +90,6 @@ public class TransportValidateQueryAction extends TransportBroadcastOperationAct
     @Override
     protected String executor() {
         return ThreadPool.Names.SEARCH;
-    }
-
-    @Override
-    protected String transportAction() {
-        return ValidateQueryAction.NAME;
     }
 
     @Override

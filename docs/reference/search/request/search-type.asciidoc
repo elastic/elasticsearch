@@ -94,63 +94,6 @@ API as it provides more options.
 
 Parameter value: *scan*.
 
-The `scan` search type allows to efficiently scroll a large result set.
-It's used first by executing a search request with scrolling and a
-query:
+The `scan` search type disables sorting in order to allow very efficient
+scrolling through large result sets.  See <<scroll-scan>> for more.
 
-[source,js]
---------------------------------------------------
-curl -XGET 'localhost:9200/_search?search_type=scan&scroll=10m&size=50' -d '
-{
-    "query" : {
-        "match_all" : {}
-    }
-}
-'
---------------------------------------------------
-
-The `scroll` parameter controls the keep alive time of the scrolling
-request and initiates the scrolling process. The timeout applies per
-round trip (i.e. between the previous scan scroll request, to the next).
-
-The response will include no hits, with two important results, the
-`total_hits` will include the total hits that match the query, and the
-`scroll_id` that allows to start the scroll process. From this stage,
-the `_search/scroll` endpoint should be used to scroll the hits, feeding
-the next scroll request with the previous search result `scroll_id`. For
-example:
-
-[source,js]
---------------------------------------------------
-curl -XGET 'localhost:9200/_search/scroll?scroll=10m' -d 'c2NhbjsxOjBLMzdpWEtqU2IyZHlmVURPeFJOZnc7MzowSzM3aVhLalNiMmR5ZlVET3hSTmZ3OzU6MEszN2lYS2pTYjJkeWZVRE94Uk5mdzsyOjBLMzdpWEtqU2IyZHlmVURPeFJOZnc7NDowSzM3aVhLalNiMmR5ZlVET3hSTmZ3Ow=='
---------------------------------------------------
-
-Scroll requests will include a number of hits equal to the size
-multiplied by the number of primary shards.
-
-The "breaking" condition out of a scroll is when no hits has been
-returned. The total_hits will be maintained between scroll requests.
-
-Note, scan search type does not support sorting (either on score or a
-field) or faceting.
-
-[[clear-scroll]]
-===== Clear scroll api
-
-Besides consuming the scroll search until no hits has been returned a scroll
-search can also be aborted by deleting the `scroll_id`. This can be done via
-the clear scroll api. When the `scroll_id` has been deleted all the
-resources to keep the view open will be released. Example usage:
-
-[source,js]
---------------------------------------------------
-curl -XDELETE 'localhost:9200/_search/scroll/c2NhbjsxOjBLMzdpWEtqU2IyZHlmVURPeFJOZnc7MzowSzM3aVhLalNiMmR5ZlVET3hSTmZ3OzU6MEszN2lYS2pTYjJkeWZVRE94Uk5mdzsyOjBLMzdpWEtqU2IyZHlmVURPeFJOZnc7NDowSzM3aVhLalNiMmR5ZlVET3hSTmZ3Ow=='
---------------------------------------------------
-
-Multiple scroll ids can be specified in a comma separated manner.
-If all scroll ids need to be cleared the reserved `_all` value can used instead of an actual `scroll_id`:
-
-[source,js]
---------------------------------------------------
-curl -XDELETE 'localhost:9200/_search/scroll/_all'
---------------------------------------------------

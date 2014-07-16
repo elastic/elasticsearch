@@ -145,6 +145,8 @@ public class RestShardsAction extends AbstractCatAction {
 
         table.addCell("segments.count", "alias:sc,segmentsCount;default:false;text-align:right;desc:number of segments");
         table.addCell("segments.memory", "alias:sm,segmentsMemory;default:false;text-align:right;desc:memory used by segments");
+        table.addCell("segments.index_writer_memory", "alias:siwm,segmentsIndexWriterMemory;default:false;text-align:right;desc:memory used by index writer");
+        table.addCell("segments.version_map_memory", "alias:svmm,segmentsVersionMapMemory;default:false;text-align:right;desc:memory used by version map");
 
         table.addCell("warmer.current", "alias:wc,warmerCurrent;default:false;text-align:right;desc:current warmer ops");
         table.addCell("warmer.total", "alias:wto,warmerTotal;default:false;text-align:right;desc:total warmer ops");
@@ -242,6 +244,8 @@ public class RestShardsAction extends AbstractCatAction {
 
             table.addCell(shardStats == null ? null : shardStats.getSegments().getCount());
             table.addCell(shardStats == null ? null : shardStats.getSegments().getMemory());
+            table.addCell(shardStats == null ? null : shardStats.getSegments().getIndexWriterMemory());
+            table.addCell(shardStats == null ? null : shardStats.getSegments().getVersionMapMemory());
 
             table.addCell(shardStats == null ? null : shardStats.getWarmer().current());
             table.addCell(shardStats == null ? null : shardStats.getWarmer().total());

@@ -24,6 +24,7 @@ import org.apache.lucene.analysis.bg.BulgarianAnalyzer;
 import org.apache.lucene.analysis.br.BrazilianAnalyzer;
 import org.apache.lucene.analysis.ca.CatalanAnalyzer;
 import org.apache.lucene.analysis.cjk.CJKAnalyzer;
+import org.apache.lucene.analysis.ckb.SoraniAnalyzer;
 import org.apache.lucene.analysis.cn.ChineseAnalyzer;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.core.SimpleAnalyzer;
@@ -346,6 +347,13 @@ public enum PreBuiltAnalyzers {
         @Override
         protected Analyzer create(Version version) {
             return new RussianAnalyzer(version.luceneVersion);
+        }
+    },
+    
+    SORANI {
+        @Override
+        protected Analyzer create(Version version) {
+            return new SoraniAnalyzer(version.luceneVersion);
         }
     },
 

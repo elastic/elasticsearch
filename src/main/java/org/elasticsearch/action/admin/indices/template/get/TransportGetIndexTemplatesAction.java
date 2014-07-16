@@ -41,12 +41,7 @@ public class TransportGetIndexTemplatesAction extends TransportMasterNodeReadOpe
 
     @Inject
     public TransportGetIndexTemplatesAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool) {
-        super(settings, transportService, clusterService, threadPool);
-    }
-
-    @Override
-    protected String transportAction() {
-        return GetIndexTemplatesAction.NAME;
+        super(settings, GetIndexTemplatesAction.NAME, transportService, clusterService, threadPool);
     }
 
     @Override

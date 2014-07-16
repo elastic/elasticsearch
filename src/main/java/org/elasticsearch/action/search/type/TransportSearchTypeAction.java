@@ -70,7 +70,7 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
 
     public TransportSearchTypeAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                      SearchServiceTransportAction searchService, SearchPhaseController searchPhaseController) {
-        super(settings, threadPool);
+        super(settings, SearchAction.NAME, threadPool);
         this.clusterService = clusterService;
         this.searchService = searchService;
         this.searchPhaseController = searchPhaseController;

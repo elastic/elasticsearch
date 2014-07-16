@@ -54,18 +54,13 @@ public class TransportPutWarmerAction extends TransportMasterNodeOperationAction
     @Inject
     public TransportPutWarmerAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                     TransportSearchAction searchAction) {
-        super(settings, transportService, clusterService, threadPool);
+        super(settings, PutWarmerAction.NAME, transportService, clusterService, threadPool);
         this.searchAction = searchAction;
     }
 
     @Override
     protected String executor() {
         return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected String transportAction() {
-        return PutWarmerAction.NAME;
     }
 
     @Override

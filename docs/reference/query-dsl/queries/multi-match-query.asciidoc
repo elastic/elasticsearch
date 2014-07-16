@@ -25,7 +25,7 @@ Fields can be specified with wildcards, eg:
 --------------------------------------------------
 {
   "multi_match" : {
-    "query":    "Will Smith"
+    "query":    "Will Smith",
     "fields": [ "title", "*_name" ] <1>
   }
 }

@@ -35,6 +35,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.DocumentAlreadyExistsException;
 import org.elasticsearch.index.engine.FlushNotAllowedEngineException;
@@ -454,6 +455,13 @@ public class SimpleVersioningTests extends ElasticsearchIntegrationTest {
         public String id;
         public long version;
         public boolean delete;
+        public int threadID = -1;
+        public long indexTime;
+
+        @Override
+        public String toString() {
+            return "id=" + id + " version=" + version + " delete?=" + delete + " threadID=" + threadID + " indexTime=" + indexTime;
+        }
     }
 
 
@@ -550,7 +558,9 @@ public class SimpleVersioningTests extends ElasticsearchIntegrationTest {
         final AtomicInteger upto = new AtomicInteger();
         final CountDownLatch startingGun = new CountDownLatch(1);
         Thread[] threads = new Thread[TestUtil.nextInt(random, 1, isNightly() ? 20 : 5)];
+        final long startTime = System.nanoTime();
         for(int i=0;i<threads.length;i++) {
+            final int threadID = i;
             threads[i] = new Thread() {
                     @Override
                     public void run() {
@@ -560,7 +570,7 @@ public class SimpleVersioningTests extends ElasticsearchIntegrationTest {
                             startingGun.await();
                             while (true) {
 
-                                // TODO: sometimes us bulk:
+                                // TODO: sometimes use bulk:
 
                                 int index = upto.getAndIncrement();
                                 if (index >= idVersions.length) {
@@ -569,10 +579,13 @@ public class SimpleVersioningTests extends ElasticsearchIntegrationTest {
                                 if (VERBOSE && index % 100 == 0) {
                                     System.out.println(Thread.currentThread().getName() + ": index=" + index);
                                 }
+                                IDAndVersion idVersion = idVersions[index];
 
-                                String id = idVersions[index].id;
-                                long version = idVersions[index].version;
-                                if (idVersions[index].delete) {
+                                String id = idVersion.id;
+                                idVersion.threadID = threadID;
+                                idVersion.indexTime = System.nanoTime()-startTime;
+                                long version = idVersion.version;
+                                if (idVersion.delete) {
                                     try {
                                         client().prepareDelete("test", "type", id)
                                             .setVersion(version)
@@ -615,14 +628,18 @@ public class SimpleVersioningTests extends ElasticsearchIntegrationTest {
                                 }
 
                                 if (threadRandom.nextInt(100) == 7) {
+                                    System.out.println(threadID + ": TEST: now refresh at " + (System.nanoTime()-startTime));
                                     refresh();
+                                    System.out.println(threadID + ": TEST: refresh done at " + (System.nanoTime()-startTime));
                                 }
                                 if (threadRandom.nextInt(100) == 7) {
+                                    System.out.println(threadID + ": TEST: now flush at " + (System.nanoTime()-startTime));
                                     try {
                                         flush();
                                     } catch (FlushNotAllowedEngineException fnaee) {
                                         // OK
                                     }
+                                    System.out.println(threadID + ": TEST: flush done at " + (System.nanoTime()-startTime));
                                 }
                             }
                         } catch (Exception e) {
@@ -647,8 +664,146 @@ public class SimpleVersioningTests extends ElasticsearchIntegrationTest {
             } else {
                 expected = -1;
             }
-            assertThat("id=" + id + " idVersion=" + idVersion, client().prepareGet("test", "type", id).execute().actionGet().getVersion(), equalTo(expected));
+            try {
+                assertThat("id=" + id + " idVersion=" + idVersion, client().prepareGet("test", "type", id).execute().actionGet().getVersion(), equalTo(expected));
+            } catch (AssertionError ae) {
+                System.out.println("FAILED:");
+                for(int i=0;i<idVersions.length;i++) {
+                    System.out.println("i=" + i + " " + idVersions[i]);
+                }
+                throw ae;
+            }
         }
     }
 
+    @Test
+    @Slow
+    public void testDeleteNotLost() throws Exception {
+
+        // We require only one shard for this test, so that the 2nd delete provokes pruning the deletes map:
+        client()
+            .admin()
+            .indices()
+            .prepareCreate("test")
+            .setSettings(ImmutableSettings.settingsBuilder()
+                         .put("index.number_of_shards", 1))
+            .execute().
+            actionGet();
+
+        ensureGreen();
+
+        HashMap<String,Object> newSettings = new HashMap<>();
+        newSettings.put("index.gc_deletes", "10ms");
+        newSettings.put("index.refresh_interval", "-1");
+        client()
+            .admin()
+            .indices()
+            .prepareUpdateSettings("test")
+            .setSettings(newSettings)
+            .execute()
+            .actionGet();
+
+        // Index a doc:
+        client()
+            .prepareIndex("test", "type", "id")
+            .setSource("foo", "bar")
+            .setOpType(IndexRequest.OpType.INDEX)
+            .setVersion(10)
+            .setVersionType(VersionType.EXTERNAL)
+            .execute()
+            .actionGet();
+
+        if (randomBoolean()) {
+            // Force refresh so the add is sometimes visible in the searcher:
+            refresh();
+        }
+
+        // Delete it
+        client()
+            .prepareDelete("test", "type", "id")
+            .setVersion(11)
+            .setVersionType(VersionType.EXTERNAL)
+            .execute()
+            .actionGet();
+
+        // Real-time get should reflect delete:
+        assertThat("doc should have been deleted",
+                   client()
+                   .prepareGet("test", "type", "id")
+                   .execute()
+                   .actionGet()
+                   .getVersion(),
+                   equalTo(-1L));
+
+        // ThreadPool.estimatedTimeInMillis has default granularity of 200 msec, so we must sleep at least that long; sleep much longer in
+        // case system is busy:
+        Thread.sleep(1000);
+
+        // Delete an unrelated doc (provokes pruning deletes from versionMap)
+        client()
+            .prepareDelete("test", "type", "id2")
+            .setVersion(11)
+            .setVersionType(VersionType.EXTERNAL)
+            .execute()
+            .actionGet();
+
+        // Real-time get should still reflect delete:
+        assertThat("doc should have been deleted",
+                   client()
+                   .prepareGet("test", "type", "id")
+                   .execute()
+                   .actionGet()
+                   .getVersion(),
+                   equalTo(-1L));
+    }
+
+    @Test
+    public void testGCDeletesZero() throws Exception {
+
+        createIndex("test");
+        ensureGreen();
+
+        // We test deletes, but can't rely on wall-clock delete GC:
+        HashMap<String,Object> newSettings = new HashMap<>();
+        newSettings.put("index.gc_deletes", "0ms");
+        client()
+            .admin()
+            .indices()
+            .prepareUpdateSettings("test")
+            .setSettings(newSettings)
+            .execute()
+            .actionGet();
+
+        // Index a doc:
+        client()
+            .prepareIndex("test", "type", "id")
+            .setSource("foo", "bar")
+            .setOpType(IndexRequest.OpType.INDEX)
+            .setVersion(10)
+            .setVersionType(VersionType.EXTERNAL)
+            .execute()
+            .actionGet();
+
+        if (randomBoolean()) {
+            // Force refresh so the add is sometimes visible in the searcher:
+            refresh();
+        }
+
+        // Delete it
+        client()
+            .prepareDelete("test", "type", "id")
+            .setVersion(11)
+            .setVersionType(VersionType.EXTERNAL)
+            .execute()
+            .actionGet();
+
+        // Real-time get should reflect delete even though index.gc_deletes is 0:
+        assertThat("doc should have been deleted",
+                   client()
+                   .prepareGet("test", "type", "id")
+                   .execute()
+                   .actionGet()
+                   .getVersion(),
+                   equalTo(-1L));
+    }
 }

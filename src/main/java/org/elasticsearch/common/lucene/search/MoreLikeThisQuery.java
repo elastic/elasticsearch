@@ -21,7 +21,6 @@ package org.elasticsearch.common.lucene.search;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.queries.mlt.MoreLikeThis;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
@@ -50,14 +49,14 @@ public class MoreLikeThisQuery extends Query {
     private String[] moreLikeFields;
     private Analyzer analyzer;
     private float percentTermsToMatch = DEFAULT_PERCENT_TERMS_TO_MATCH;
-    private int minTermFrequency = MoreLikeThis.DEFAULT_MIN_TERM_FREQ;
-    private int maxQueryTerms = MoreLikeThis.DEFAULT_MAX_QUERY_TERMS;
-    private Set<?> stopWords = MoreLikeThis.DEFAULT_STOP_WORDS;
-    private int minDocFreq = MoreLikeThis.DEFAULT_MIN_DOC_FREQ;
-    private int maxDocFreq = MoreLikeThis.DEFAULT_MAX_DOC_FREQ;
-    private int minWordLen = MoreLikeThis.DEFAULT_MIN_WORD_LENGTH;
-    private int maxWordLen = MoreLikeThis.DEFAULT_MAX_WORD_LENGTH;
-    private boolean boostTerms = MoreLikeThis.DEFAULT_BOOST;
+    private int minTermFrequency = XMoreLikeThis.DEFAULT_MIN_TERM_FREQ;
+    private int maxQueryTerms = XMoreLikeThis.DEFAULT_MAX_QUERY_TERMS;
+    private Set<?> stopWords = XMoreLikeThis.DEFAULT_STOP_WORDS;
+    private int minDocFreq = XMoreLikeThis.DEFAULT_MIN_DOC_FREQ;
+    private int maxDocFreq = XMoreLikeThis.DEFAULT_MAX_DOC_FREQ;
+    private int minWordLen = XMoreLikeThis.DEFAULT_MIN_WORD_LENGTH;
+    private int maxWordLen = XMoreLikeThis.DEFAULT_MAX_WORD_LENGTH;
+    private boolean boostTerms = XMoreLikeThis.DEFAULT_BOOST;
     private float boostTermsFactor = 1;
 
 
@@ -135,7 +134,7 @@ public class MoreLikeThisQuery extends Query {
 
     @Override
     public Query rewrite(IndexReader reader) throws IOException {
-        MoreLikeThis mlt = new MoreLikeThis(reader, similarity == null ? new DefaultSimilarity() : similarity);
+        XMoreLikeThis mlt = new XMoreLikeThis(reader, similarity == null ? new DefaultSimilarity() : similarity);
 
         mlt.setFieldNames(moreLikeFields);
         mlt.setAnalyzer(analyzer);

@@ -50,15 +50,12 @@ public class TransportShardMultiPercolateAction extends TransportShardSingleOper
 
     private final PercolatorService percolatorService;
 
+    private static final String ACTION_NAME = "mpercolate/shard";
+
     @Inject
     public TransportShardMultiPercolateAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, PercolatorService percolatorService) {
-        super(settings, threadPool, clusterService, transportService);
+        super(settings, ACTION_NAME, threadPool, clusterService, transportService);
         this.percolatorService = percolatorService;
-    }
-
-    @Override
-    protected String transportAction() {
-        return "mpercolate/shard";
     }
 
     @Override

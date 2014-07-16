@@ -41,15 +41,13 @@ public class TransportGetFieldMappingsAction extends TransportAction<GetFieldMap
 
     private final ClusterService clusterService;
     private final TransportGetFieldMappingsIndexAction shardAction;
-    private final String transportAction;
 
     @Inject
     public TransportGetFieldMappingsAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool, TransportGetFieldMappingsIndexAction shardAction) {
-        super(settings, threadPool);
+        super(settings, GetFieldMappingsAction.NAME, threadPool);
         this.clusterService = clusterService;
         this.shardAction = shardAction;
-        this.transportAction = GetFieldMappingsAction.NAME;
-        transportService.registerHandler(transportAction, new TransportHandler());
+        transportService.registerHandler(actionName, new TransportHandler());
     }
 
     @Override
@@ -60,7 +58,7 @@ public class TransportGetFieldMappingsAction extends TransportAction<GetFieldMap
         final AtomicInteger completionCounter = new AtomicInteger(concreteIndices.length);
         final AtomicReferenceArray<Object> indexResponses = new AtomicReferenceArray<>(concreteIndices.length);
 
-        if (concreteIndices == null || concreteIndices.length == 0) {
+        if (concreteIndices.length == 0) {
             listener.onResponse(new GetFieldMappingsResponse());
         } else {
             boolean probablySingleFieldRequest = concreteIndices.length == 1 && request.types().length == 1 && request.fields().length == 1;
@@ -133,7 +131,7 @@ public class TransportGetFieldMappingsAction extends TransportAction<GetFieldMap
                     try {
                         channel.sendResponse(e);
                     } catch (Exception e1) {
-                        logger.warn("Failed to send error response for action [" + transportAction + "] and request [" + request + "]", e1);
+                        logger.warn("Failed to send error response for action [" + actionName + "] and request [" + request + "]", e1);
                     }
                 }
             });

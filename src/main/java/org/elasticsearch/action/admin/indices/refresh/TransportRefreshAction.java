@@ -53,18 +53,13 @@ public class TransportRefreshAction extends TransportBroadcastOperationAction<Re
     @Inject
     public TransportRefreshAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                   TransportService transportService, IndicesService indicesService) {
-        super(settings, threadPool, clusterService, transportService);
+        super(settings, RefreshAction.NAME, threadPool, clusterService, transportService);
         this.indicesService = indicesService;
     }
 
     @Override
     protected String executor() {
         return ThreadPool.Names.REFRESH;
-    }
-
-    @Override
-    protected String transportAction() {
-        return RefreshAction.NAME;
     }
 
     @Override

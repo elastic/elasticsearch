@@ -21,6 +21,7 @@ package org.apache.lucene.search.postingshighlight;
 import org.apache.lucene.search.highlight.DefaultEncoder;
 import org.apache.lucene.search.highlight.SimpleHTMLEncoder;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -28,7 +29,7 @@ import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.MatcherAssert.assertThat;
 
 
-public class CustomPassageFormatterTests {
+public class CustomPassageFormatterTests extends ElasticsearchTestCase {
 
     @Test
     public void testSimpleFormat() {

@@ -28,6 +28,7 @@ import org.apache.lucene.analysis.ar.ArabicAnalyzer;
 import org.apache.lucene.analysis.bg.BulgarianAnalyzer;
 import org.apache.lucene.analysis.br.BrazilianAnalyzer;
 import org.apache.lucene.analysis.ca.CatalanAnalyzer;
+import org.apache.lucene.analysis.ckb.SoraniAnalyzer;
 import org.apache.lucene.analysis.cz.CzechAnalyzer;
 import org.apache.lucene.analysis.da.DanishAnalyzer;
 import org.apache.lucene.analysis.de.GermanAnalyzer;
@@ -38,6 +39,7 @@ import org.apache.lucene.analysis.eu.BasqueAnalyzer;
 import org.apache.lucene.analysis.fa.PersianAnalyzer;
 import org.apache.lucene.analysis.fi.FinnishAnalyzer;
 import org.apache.lucene.analysis.fr.FrenchAnalyzer;
+import org.apache.lucene.analysis.ga.IrishAnalyzer;
 import org.apache.lucene.analysis.gl.GalicianAnalyzer;
 import org.apache.lucene.analysis.hi.HindiAnalyzer;
 import org.apache.lucene.analysis.hu.HungarianAnalyzer;
@@ -50,6 +52,7 @@ import org.apache.lucene.analysis.pt.PortugueseAnalyzer;
 import org.apache.lucene.analysis.ro.RomanianAnalyzer;
 import org.apache.lucene.analysis.ru.RussianAnalyzer;
 import org.apache.lucene.analysis.sv.SwedishAnalyzer;
+import org.apache.lucene.analysis.th.ThaiAnalyzer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tr.TurkishAnalyzer;
 import org.apache.lucene.analysis.util.CharArraySet;
@@ -134,14 +137,17 @@ public class Analysis {
             .put("_hindi_", HindiAnalyzer.getDefaultStopSet())
             .put("_hungarian_", HungarianAnalyzer.getDefaultStopSet())
             .put("_indonesian_", IndonesianAnalyzer.getDefaultStopSet())
+            .put("_irish_", IrishAnalyzer.getDefaultStopSet())
             .put("_italian_", ItalianAnalyzer.getDefaultStopSet())
             .put("_norwegian_", NorwegianAnalyzer.getDefaultStopSet())
             .put("_persian_", PersianAnalyzer.getDefaultStopSet())
             .put("_portuguese_", PortugueseAnalyzer.getDefaultStopSet())
             .put("_romanian_", RomanianAnalyzer.getDefaultStopSet())
             .put("_russian_", RussianAnalyzer.getDefaultStopSet())
+            .put("_sorani_", SoraniAnalyzer.getDefaultStopSet())
             .put("_spanish_", SpanishAnalyzer.getDefaultStopSet())
             .put("_swedish_", SwedishAnalyzer.getDefaultStopSet())
+            .put("_thai_", ThaiAnalyzer.getDefaultStopSet())
             .put("_turkish_", TurkishAnalyzer.getDefaultStopSet())
             .immutableMap();
 

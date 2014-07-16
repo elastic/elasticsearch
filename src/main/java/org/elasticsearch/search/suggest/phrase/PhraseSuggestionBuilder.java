@@ -42,6 +42,10 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
     private Integer tokenLimit;
     private String preTag;
     private String postTag;
+    private String collateQuery;
+    private String collateFilter;
+    private String collatePreference;
+    private Map<String, Object> collateParams;
 
     public PhraseSuggestionBuilder(String name) {
         super(name, "phrase");
@@ -166,6 +170,38 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
         return this;
     }
 
+    /**
+     * Sets a query used for filtering out suggested phrases (collation).
+     */
+    public PhraseSuggestionBuilder collateQuery(String collateQuery) {
+        this.collateQuery = collateQuery;
+        return this;
+    }
+
+    /**
+     * Sets a filter used for filtering out suggested phrases (collation).
+     */
+    public PhraseSuggestionBuilder collateFilter(String collateFilter) {
+        this.collateFilter = collateFilter;
+        return this;
+    }
+
+    /**
+     * Sets routing preferences for executing filter query (collation).
+     */
+    public PhraseSuggestionBuilder collatePreference(String collatePreference) {
+        this.collatePreference = collatePreference;
+        return this;
+    }
+
+    /**
+     * Sets additional params for collate script
+     */
+    public PhraseSuggestionBuilder collateParams(Map<String, Object> collateParams) {
+        this.collateParams = collateParams;
+        return this;
+    }
+
     @Override
     public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
         if (realWordErrorLikelihood != null) {
@@ -208,6 +244,22 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
             builder.startObject("highlight");
             builder.field("pre_tag", preTag);
             builder.field("post_tag", postTag);
+            builder.endObject();
+        }
+        if (collateQuery != null || collateFilter != null) {
+            builder.startObject("collate");
+            if (collateQuery != null) {
+                builder.field("query", collateQuery);
+            }
+            if (collateFilter != null) {
+                builder.field("filter", collateFilter);
+            }
+            if (collatePreference != null) {
+                builder.field("preference", collatePreference);
+            }
+            if (collateParams != null) {
+                builder.field("params", collateParams);
+            }
             builder.endObject();
         }
         return builder;

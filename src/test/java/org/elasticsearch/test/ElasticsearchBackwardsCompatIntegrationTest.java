@@ -18,6 +18,13 @@
  */
 package org.elasticsearch.test;
 
+import org.apache.lucene.util.AbstractRandomizedTest;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoveryModule;
@@ -25,10 +32,14 @@ import org.elasticsearch.discovery.zen.ZenDiscoveryModule;
 import org.elasticsearch.transport.TransportModule;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty.NettyTransportModule;
+import org.hamcrest.CoreMatchers;
+import org.junit.Before;
 import org.junit.Ignore;
 
 import java.io.File;
 import java.io.IOException;
+
+import static org.hamcrest.Matchers.is;
 
 /**
  * Abstract base class for backwards compatibility tests. Subclasses of this class
@@ -43,12 +54,12 @@ import java.io.IOException;
  * <p>
  *   Note: this base class is still experimental and might have bugs or leave external processes running behind.
  * </p>
- * Backwards compatibility tests are disabled by default via {@link BackwardsCompatibilityTest} annotation.
+ * Backwards compatibility tests are disabled by default via {@link org.apache.lucene.util.AbstractRandomizedTest.Backwards} annotation.
  * The following system variables control the test execution:
  * <ul>
  *     <li>
  *          <tt>{@value #TESTS_BACKWARDS_COMPATIBILITY}</tt> enables / disables
- *          tests annotated with {@link BackwardsCompatibilityTest} (defaults to
+ *          tests annotated with {@link org.apache.lucene.util.AbstractRandomizedTest.Backwards} (defaults to
  *          <tt>false</tt>)
  *     </li>
  *     <li>
@@ -66,7 +77,7 @@ import java.io.IOException;
  *
  */
 // the transportClientRatio is tricky here since we don't fully control the cluster nodes
-@ElasticsearchBackwardsCompatIntegrationTest.BackwardsCompatibilityTest
+@AbstractRandomizedTest.Backwards
 @ElasticsearchIntegrationTest.ClusterScope(minNumDataNodes = 0, maxNumDataNodes = 2, scope = ElasticsearchIntegrationTest.Scope.SUITE, numClientNodes = 0, transportClientRatio = 0.0)
 @Ignore
 public abstract class ElasticsearchBackwardsCompatIntegrationTest extends ElasticsearchIntegrationTest {
@@ -90,7 +101,13 @@ public abstract class ElasticsearchBackwardsCompatIntegrationTest extends Elasti
 
     protected TestCluster buildTestCluster(Scope scope) throws IOException {
         TestCluster cluster = super.buildTestCluster(scope);
-        return new CompositeTestCluster((InternalTestCluster) cluster, between(minExternalNodes(), maxExternalNodes()), new ExternalNode(backwardsCompatibilityPath(), randomLong()));
+        ExternalNode externalNode = new ExternalNode(backwardsCompatibilityPath(), randomLong(), new NodeSettingsSource() {
+            @Override
+            public Settings settings(int nodeOrdinal) {
+                return externalNodeSettings(nodeOrdinal);
+            }
+        });
+        return new CompositeTestCluster((InternalTestCluster) cluster, between(minExternalNodes(), maxExternalNodes()), externalNode);
     }
 
     protected int minExternalNodes() {
@@ -106,13 +123,38 @@ public abstract class ElasticsearchBackwardsCompatIntegrationTest extends Elasti
         return 1;
     }
 
+    @Before
+    public final void beforeTest() {
+        // 1.0.3 is too flaky - lets get stable first.
+        assumeTrue("BWC tests are disabled currently for version [< 1.1.0]", compatibilityVersion().onOrAfter(Version.V_1_1_0));
+    }
+
     protected Settings nodeSettings(int nodeOrdinal) {
         return ImmutableSettings.builder()
                 .put(TransportModule.TRANSPORT_TYPE_KEY, NettyTransportModule.class) // run same transport  / disco as external
                 .put(DiscoveryModule.DISCOVERY_TYPE_KEY, ZenDiscoveryModule.class)
+                .put("node.mode", "network") // we need network mode for this
                 .put("gateway.type", "local") // we require local gateway to mimic upgrades of nodes
                 .put("discovery.type", "zen") // zen is needed since we start external nodes
                 .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, TransportService.class.getName())
                 .build();
+    }
+
+    public void assertAllShardsOnNodes(String index, String pattern) {
+        ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
+        for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
+            for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
+                for (ShardRouting shardRouting : indexShardRoutingTable) {
+                    if (shardRouting.currentNodeId() != null && index.equals(shardRouting.getIndex())) {
+                        String name = clusterState.nodes().get(shardRouting.currentNodeId()).name();
+                        assertThat("Allocated on new node: " + name, Regex.simpleMatch(pattern, name), is(true));
+                    }
+                }
+            }
+        }
+    }
+
+    protected Settings externalNodeSettings(int nodeOrdinal) {
+        return ImmutableSettings.EMPTY;
     }
 }

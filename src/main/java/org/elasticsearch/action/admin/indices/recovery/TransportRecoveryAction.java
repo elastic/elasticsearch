@@ -66,14 +66,9 @@ public class TransportRecoveryAction extends
     public TransportRecoveryAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                    TransportService transportService, IndicesService indicesService, RecoveryTarget recoveryTarget) {
 
-        super(settings, threadPool, clusterService, transportService);
+        super(settings, RecoveryAction.NAME, threadPool, clusterService, transportService);
         this.indicesService = indicesService;
         this.recoveryTarget = recoveryTarget;
-    }
-
-    @Override
-    protected String transportAction() {
-        return RecoveryAction.NAME;
     }
 
     @Override
@@ -157,7 +152,7 @@ public class TransportRecoveryAction extends
         RecoveryStatus recoveryStatus = indexShard.recoveryStatus();
 
         if (recoveryStatus == null) {
-            recoveryStatus = recoveryTarget.recoveryStatus(indexShard.shardId());
+            recoveryStatus = recoveryTarget.recoveryStatus(indexShard);
         }
 
         if (recoveryStatus != null) {

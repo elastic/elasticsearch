@@ -19,9 +19,7 @@
 
 package org.elasticsearch.indices.mapping;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
@@ -29,7 +27,6 @@ import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -85,30 +82,10 @@ public class UpdateMappingTests extends ElasticsearchIntegrationTest {
 
         logger.info("checking all the fields are in the mappings");
 
-        reRunTest:
-        while (true) {
-            Map<String, String> typeToSource = Maps.newHashMap();
-            ClusterState state = client().admin().cluster().prepareState().get().getState();
-            for (ObjectObjectCursor<String, MappingMetaData> cursor : state.getMetaData().getIndices().get("test").getMappings()) {
-                typeToSource.put(cursor.key, cursor.value.source().string());
-            }
-            for (int rec = 0; rec < recCount; rec++) {
-                String type = "type" + (rec % numberOfTypes);
-                String fieldName = "field_" + type + "_" + rec;
-                fieldName = "\"" + fieldName + "\""; // quote it, so we make sure we catch the exact one
-                if (!typeToSource.containsKey(type) || !typeToSource.get(type).contains(fieldName)) {
-                    waitNoPendingTasksOnMaster();
-                    // its going to break, before we do, make sure that the cluster state hasn't changed on us...
-                    ClusterState state2 = client().admin().cluster().prepareState().get().getState();
-                    if (state.version() != state2.version()) {
-                        logger.info("not the same version, used for test {}, new one {}, re-running test, first wait for mapping to wait", state.version(), state2.version());
-                        continue reRunTest;
-                    }
-                    logger.info("failing, type {}, field {}, mapping {}", type, fieldName, typeToSource.get(type));
-                    assertThat(typeToSource.get(type), containsString(fieldName));
-                }
-            }
-            break;
+        for (int rec = 0; rec < recCount; rec++) {
+            String type = "type" + (rec % numberOfTypes);
+            String fieldName = "field_" + type + "_" + rec;
+            waitForConcreteMappingsOnAll("test", type, fieldName);
         }
     }
 
@@ -245,8 +222,8 @@ public class UpdateMappingTests extends ElasticsearchIntegrationTest {
 
         logger.info("Index doc");
         index("test", "type", "1", JsonXContent.contentBuilder().startObject()
-                .field("normal", 1).field("exclude", 1).field("include", 1)
-                .endObject()
+                        .field("normal", 1).field("exclude", 1).field("include", 1)
+                        .endObject()
         );
         refresh(); // commit it for later testing.
 
@@ -270,8 +247,8 @@ public class UpdateMappingTests extends ElasticsearchIntegrationTest {
 
         logger.info("Index doc again");
         index("test", "type", "1", JsonXContent.contentBuilder().startObject()
-                .field("normal", 2).field("exclude", 1).field("include", 2)
-                .endObject()
+                        .field("normal", 2).field("exclude", 1).field("include", 2)
+                        .endObject()
         );
 
         // but do affect newly indexed docs
@@ -302,8 +279,8 @@ public class UpdateMappingTests extends ElasticsearchIntegrationTest {
 
         logger.info("Indexing doc yet again");
         index("test", "type", "1", JsonXContent.contentBuilder().startObject()
-                .field("normal", 3).field("exclude", 3).field("include", 3)
-                .endObject()
+                        .field("normal", 3).field("exclude", 3).field("include", 3)
+                        .endObject()
         );
 
         getResponse = get("test", "type", "1");

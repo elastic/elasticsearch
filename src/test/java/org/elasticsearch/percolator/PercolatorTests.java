@@ -22,7 +22,6 @@ import com.google.common.base.Predicate;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
-import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
@@ -33,7 +32,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ImmutableSettings.Builder;
 import org.elasticsearch.common.unit.TimeValue;
@@ -1648,7 +1646,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
                         .startObject("doc").field("message", "A new bonsai tree ").endObject()
                         .endObject())
                 .execute().actionGet();
-        assertThat(percolate.getFailedShards(), equalTo(0));
+        assertNoFailures(percolate);
         assertMatchCount(percolate, 0l);
     }
 
@@ -1707,6 +1705,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
                 .endObject()
                 .endArray()
                 .endObject().endObject()));
+        ensureGreen("idx");
 
         client().prepareIndex("idx", PercolatorService.TYPE_NAME, "1")
                 .setSource(jsonBuilder().startObject().field("query", QueryBuilders.queryString("color:red")).endObject())
@@ -1722,16 +1721,8 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
         assertMatchCount(percolateResponse, 0l);
         assertThat(percolateResponse.getMatches(), arrayWithSize(0));
 
-        // wait until the mapping change has propagated from the percolate request
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).execute().actionGet();
-        awaitBusy(new Predicate<Object>() {
-            @Override
-            public boolean apply(Object input) {
-                PendingClusterTasksResponse pendingTasks = client().admin().cluster().preparePendingClusterTasks().get();
-                return pendingTasks.pendingTasks().isEmpty();
-            }
-        });
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).execute().actionGet();
+        ensureYellow("idx");
+        waitForConcreteMappingsOnAll("idx", "type", "custom.color");
 
         // The previous percolate request introduced the custom.color field, so now we register the query again
         // and the field name `color` will be resolved to `custom.color` field in mapping via smart field mapping resolving.
@@ -1766,8 +1757,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
         assertMatchCount(response, 0l);
         assertThat(response.getMatches(), arrayWithSize(0));
 
-        // wait until the mapping change has propagated
-        waitNoPendingTasksOnAll();
+        waitForMappingOnMaster("test", "type1");
 
         GetMappingsResponse mappingsResponse = client().admin().indices().prepareGetMappings("test").get();
         assertThat(mappingsResponse.getMappings().get("test"), notNullValue());

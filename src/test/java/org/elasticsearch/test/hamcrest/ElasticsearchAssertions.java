@@ -38,6 +38,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.node.info.PluginInfo;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsInfo;
+import org.elasticsearch.action.admin.indices.alias.exists.AliasesExistResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
@@ -94,7 +95,7 @@ public class ElasticsearchAssertions {
     }
 
     public static void assertNoTimeout(ClusterHealthResponse response) {
-        assertThat("ClusterHealthResponse has timed out - returned status: [" + response.getStatus() + "]", response.isTimedOut(), is(false));
+        assertThat("ClusterHealthResponse has timed out - returned: [" + response + "]", response.isTimedOut(), is(false));
     }
 
     public static void assertAcked(AcknowledgedResponse response) {
@@ -364,6 +365,20 @@ public class ElasticsearchAssertions {
         assertThat(templateNames, hasItem(name));
     }
 
+    /**
+     * Assert that aliases are missing
+     */
+    public static void assertAliasesMissing(AliasesExistResponse aliasesExistResponse) {
+        assertFalse("Aliases shouldn't exist", aliasesExistResponse.exists());
+    }
+
+    /**
+     * Assert that aliases exist
+     */
+    public static void assertAliasesExist(AliasesExistResponse aliasesExistResponse) {
+        assertTrue("Aliases should exist", aliasesExistResponse.exists());
+    }
+
     /*
      * matchers
      */
@@ -554,12 +569,7 @@ public class ElasticsearchAssertions {
         try {
             for (final MockDirectoryHelper.ElasticsearchMockDirectoryWrapper w : MockDirectoryHelper.wrappers) {
                 try {
-                    awaitBusy(new Predicate<Object>() {
-                        @Override
-                        public boolean apply(Object input) {
-                            return !w.isOpen();
-                        }
-                    });
+                    w.awaitClosed(5000);
                 } catch (InterruptedException e) {
                     Thread.interrupted();
                 }

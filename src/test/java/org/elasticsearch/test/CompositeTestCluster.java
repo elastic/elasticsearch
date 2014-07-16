@@ -23,7 +23,10 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Collections2;
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.client.*;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.client.ClusterAdminClient;
+import org.elasticsearch.client.FilterClient;
+import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 
@@ -67,13 +70,16 @@ public class CompositeTestCluster extends TestCluster {
         for (int i = 0; i < externalNodes.length; i++) {
             if (!externalNodes[i].running()) {
                 try {
-                    externalNodes[i] = externalNodes[i].start(client, defaultSettings, NODE_PREFIX + i, cluster.getClusterName());
+                    externalNodes[i] = externalNodes[i].start(client, defaultSettings, NODE_PREFIX + i, cluster.getClusterName(), i);
                 } catch (InterruptedException e) {
                     Thread.interrupted();
                     return;
                 }
             }
             externalNodes[i].reset(random.nextLong());
+        }
+        if (size() > 0) {
+            client().admin().cluster().prepareHealth().setWaitForNodes(">=" + Integer.toString(this.size())).get();
         }
     }
 
@@ -97,6 +103,30 @@ public class CompositeTestCluster extends TestCluster {
     }
 
     /**
+     * Upgrades all external running nodes to a node from the version running the tests.
+     * All nodes are shut down before the first upgrade happens.
+     * @return <code>true</code> iff at least one node as upgraded.
+     */
+    public synchronized boolean upgradeAllNodes() throws InterruptedException, IOException {
+        return upgradeAllNodes(ImmutableSettings.EMPTY);
+    }
+
+
+    /**
+     * Upgrades all external running nodes to a node from the version running the tests.
+     * All nodes are shut down before the first upgrade happens.
+     * @return <code>true</code> iff at least one node as upgraded.
+     * @param nodeSettings settings for the upgrade nodes
+     */
+    public synchronized boolean upgradeAllNodes(Settings nodeSettings) throws InterruptedException, IOException {
+        boolean upgradedOneNode = false;
+        while(upgradeOneNode(nodeSettings)) {
+            upgradedOneNode = true;
+        }
+        return upgradedOneNode;
+    }
+
+    /**
      * Upgrades one external running node to a node from the version running the tests. Commonly this is used
      * to move from a node with version N-1 to a node running version N. This works seamless since they will
      * share the same data directory. This method will return <tt>true</tt> iff a node got upgraded otherwise if no
@@ -105,14 +135,16 @@ public class CompositeTestCluster extends TestCluster {
     public synchronized boolean upgradeOneNode(Settings nodeSettings) throws InterruptedException, IOException {
         Collection<ExternalNode> runningNodes = runningNodes();
         if (!runningNodes.isEmpty()) {
+            final Client existingClient = cluster.client();
             ExternalNode externalNode = RandomPicks.randomFrom(random, runningNodes);
             externalNode.stop();
             String s = cluster.startNode(nodeSettings);
-            ExternalNode.waitForNode(cluster.client(), s);
+            ExternalNode.waitForNode(existingClient, s);
             return true;
         }
         return false;
     }
+
 
     /**
      * Returns the a simple pattern that matches all "new" nodes in the cluster.
@@ -196,6 +228,13 @@ public class CompositeTestCluster extends TestCluster {
     @Override
     public synchronized Iterator<Client> iterator() {
         return Iterators.singletonIterator(client());
+    }
+
+    /**
+     * Delegates to {@link org.elasticsearch.test.InternalTestCluster#fullRestart()}
+     */
+    public void fullRestartInternalCluster() throws Exception {
+        cluster.fullRestart();
     }
 
     /**

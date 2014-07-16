@@ -43,18 +43,13 @@ public class TransportDeleteRepositoryAction extends TransportMasterNodeOperatio
     @Inject
     public TransportDeleteRepositoryAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                            RepositoriesService repositoriesService, ThreadPool threadPool) {
-        super(settings, transportService, clusterService, threadPool);
+        super(settings, DeleteRepositoryAction.NAME, transportService, clusterService, threadPool);
         this.repositoriesService = repositoriesService;
     }
 
     @Override
     protected String executor() {
         return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected String transportAction() {
-        return DeleteRepositoryAction.NAME;
     }
 
     @Override

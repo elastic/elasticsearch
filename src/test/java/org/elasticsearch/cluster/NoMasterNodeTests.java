@@ -27,6 +27,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -63,13 +64,13 @@ public class NoMasterNodeTests extends ElasticsearchIntegrationTest {
         createIndex("test");
         client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
         internalCluster().stopRandomDataNode();
-        assertThat(awaitBusy(new Predicate<Object>() {
-            public boolean apply(Object o) {
+        assertBusy(new Runnable() {
+            @Override
+            public void run() {
                 ClusterState state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-                return state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK);
+                assertTrue(state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK));
             }
-        }), equalTo(true));
-
+        });
 
         try {
             client().prepareGet("test", "type1", "1").execute().actionGet();
@@ -98,7 +99,7 @@ public class NoMasterNodeTests extends ElasticsearchIntegrationTest {
 
         long now = System.currentTimeMillis();
         try {
-            client().prepareUpdate("test", "type1", "1").setScript("test script").setTimeout(timeout).execute().actionGet();
+            client().prepareUpdate("test", "type1", "1").setScript("test script", ScriptService.ScriptType.INLINE).setTimeout(timeout).execute().actionGet();
             fail("Expected ClusterBlockException");
         } catch (ClusterBlockException e) {
             assertThat(System.currentTimeMillis() - now, greaterThan(timeout.millis() - 50));

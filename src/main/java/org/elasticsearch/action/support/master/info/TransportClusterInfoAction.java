@@ -32,8 +32,8 @@ import org.elasticsearch.transport.TransportService;
  */
 public abstract class TransportClusterInfoAction<Request extends ClusterInfoRequest, Response extends ActionResponse> extends TransportMasterNodeReadOperationAction<Request, Response> {
 
-    public TransportClusterInfoAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool) {
-        super(settings, transportService, clusterService, threadPool);
+    public TransportClusterInfoAction(Settings settings, String actionName, TransportService transportService, ClusterService clusterService, ThreadPool threadPool) {
+        super(settings, actionName, transportService, clusterService, threadPool);
     }
 
     @Override
@@ -45,9 +45,8 @@ public abstract class TransportClusterInfoAction<Request extends ClusterInfoRequ
     @Override
     protected final void masterOperation(final Request request, final ClusterState state, final ActionListener<Response> listener) throws ElasticsearchException {
         String[] concreteIndices = state.metaData().concreteIndices(request.indicesOptions(), request.indices());
-        request.indices(concreteIndices);
-        doMasterOperation(request, state, listener);
+        doMasterOperation(request, concreteIndices, state, listener);
     }
 
-    protected abstract void doMasterOperation(Request request, ClusterState state, final ActionListener<Response> listener) throws ElasticsearchException;
+    protected abstract void doMasterOperation(Request request, String[] concreteIndices, ClusterState state, final ActionListener<Response> listener) throws ElasticsearchException;
 }

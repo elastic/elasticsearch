@@ -42,14 +42,21 @@ import org.elasticsearch.test.store.MockDirectoryHelper;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 
 import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.net.URI;
 import java.util.*;
+import java.util.concurrent.Callable;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllFilesClosed;
@@ -74,6 +81,13 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
 
     public static final String JAVA_SECURTY_POLICY = System.getProperty("java.security.policy");
 
+    /**
+     * Property that allows to adapt the tests behaviour to older features/bugs based on the input version
+     */
+    private static final String TESTS_COMPATIBILITY = "tests.compatibility";
+
+    private static final Version GLOABL_COMPATIBILITY_VERSION = Version.fromString(compatibilityVersionProperty());
+
     public static final boolean ASSERTIONS_ENABLED;
     static {
         boolean enabled = false;
@@ -84,6 +98,56 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
         }
 
     }
+
+    /**
+     * Runs the code block for 10 seconds waiting for no assertion to trip.
+     */
+    public static void assertBusy(Runnable codeBlock) throws Exception {
+        assertBusy(Executors.callable(codeBlock), 10, TimeUnit.SECONDS);
+    }
+
+    public static void assertBusy(Runnable codeBlock, long maxWaitTime, TimeUnit unit) throws Exception {
+        assertBusy(Executors.callable(codeBlock), maxWaitTime, unit);
+    }
+
+    /**
+     * Runs the code block for 10 seconds waiting for no assertion to trip.
+     */
+    public static <V> V assertBusy(Callable<V> codeBlock) throws Exception {
+        return assertBusy(codeBlock, 10, TimeUnit.SECONDS);
+    }
+
+    /**
+     * Runs the code block for the provided interval, waiting for no assertions to trip.
+     */
+    public static <V> V assertBusy(Callable<V> codeBlock, long maxWaitTime, TimeUnit unit) throws Exception {
+        long maxTimeInMillis = TimeUnit.MILLISECONDS.convert(maxWaitTime, unit);
+        long iterations = Math.max(Math.round(Math.log10(maxTimeInMillis) / Math.log10(2)), 1);
+        long timeInMillis = 1;
+        long sum = 0;
+        List<AssertionError> failures = new ArrayList<>();
+        for (int i = 0; i < iterations; i++) {
+            try {
+                return codeBlock.call();
+            } catch (AssertionError e) {
+                failures.add(e);
+            }
+            sum += timeInMillis;
+            Thread.sleep(timeInMillis);
+            timeInMillis *= 2;
+        }
+        timeInMillis = maxTimeInMillis - sum;
+        Thread.sleep(Math.max(timeInMillis, 0));
+        try {
+            return codeBlock.call();
+        } catch (AssertionError e) {
+            for (AssertionError failure : failures) {
+                e.addSuppressed(failure);
+            }
+            throw e;
+        }
+    }
+
 
     public static boolean awaitBusy(Predicate<?> breakPredicate) throws InterruptedException {
         return awaitBusy(breakPredicate, 10, TimeUnit.SECONDS);
@@ -165,7 +229,16 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
     }
 
     private static XContentType randomXContentType() {
-        return randomFrom(XContentType.values());
+        if (globalCompatibilityVersion().onOrAfter(Version.V_1_2_0)) {
+            return randomFrom(XContentType.values());
+        } else {
+            // CBOR was added in 1.2.0 earlier version can't derive the format
+            XContentType type = randomFrom(XContentType.values());
+            while(type == XContentType.CBOR) {
+                type = randomFrom(XContentType.values());
+            }
+            return type;
+        }
     }
 
     @AfterClass
@@ -309,4 +382,54 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
     public static String[] generateRandomStringArray(int maxArraySize, int maxStringSize) {
         return generateRandomStringArray(maxArraySize, maxStringSize, false);
     }
+
+
+    /**
+     * If a test is annotated with {@link org.elasticsearch.test.ElasticsearchTestCase.CompatibilityVersion}
+     * all randomized settings will only contain settings or mappings which are compatible with the specified version ID.
+     */
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target({ElementType.TYPE})
+    @Ignore
+    public @interface CompatibilityVersion {
+        int version();
+    }
+
+    /**
+     * Returns a global compatibility version that is set via the
+     * {@value #TESTS_COMPATIBILITY} or {@value #TESTS_BACKWARDS_COMPATIBILITY_VERSION} system property.
+     * If both are unset the current version is used as the global compatibility version. This
+     * compatibility version is used for static randomization. For per-suite compatibility version see
+     * {@link #compatibilityVersion()}
+     */
+    public static Version globalCompatibilityVersion() {
+        return GLOABL_COMPATIBILITY_VERSION;
+    }
+
+    /**
+     * Retruns the tests compatibility version.
+     */
+    public Version compatibilityVersion() {
+        return compatibiltyVersion(getClass());
+    }
+
+    private Version compatibiltyVersion(Class<?> clazz) {
+        if (clazz == Object.class || clazz == ElasticsearchIntegrationTest.class) {
+            return globalCompatibilityVersion();
+        }
+        CompatibilityVersion annotation = clazz.getAnnotation(CompatibilityVersion.class);
+        if (annotation != null) {
+            return  Version.smallest(Version.fromId(annotation.version()), compatibiltyVersion(clazz.getSuperclass()));
+        }
+        return compatibiltyVersion(clazz.getSuperclass());
+    }
+
+    private static String compatibilityVersionProperty() {
+        final String version = System.getProperty(TESTS_COMPATIBILITY);
+        if (Strings.hasLength(version)) {
+            return version;
+        }
+        return System.getProperty(TESTS_BACKWARDS_COMPATIBILITY_VERSION);
+    }
+
 }

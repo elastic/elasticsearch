@@ -42,18 +42,13 @@ public class TransportDeleteSnapshotAction extends TransportMasterNodeOperationA
     @Inject
     public TransportDeleteSnapshotAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                          ThreadPool threadPool, SnapshotsService snapshotsService) {
-        super(settings, transportService, clusterService, threadPool);
+        super(settings, DeleteSnapshotAction.NAME, transportService, clusterService, threadPool);
         this.snapshotsService = snapshotsService;
     }
 
     @Override
     protected String executor() {
         return ThreadPool.Names.GENERIC;
-    }
-
-    @Override
-    protected String transportAction() {
-        return DeleteSnapshotAction.NAME;
     }
 
     @Override

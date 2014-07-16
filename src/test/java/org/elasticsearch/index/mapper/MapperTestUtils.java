@@ -37,7 +37,7 @@ import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.similarity.SimilarityLookupService;
 import org.elasticsearch.indices.analysis.IndicesAnalysisModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
-import org.elasticsearch.indices.fielddata.breaker.DummyCircuitBreakerService;
+import org.elasticsearch.indices.fielddata.breaker.NoneCircuitBreakerService;
 
 /**
  *
@@ -46,12 +46,12 @@ public class MapperTestUtils {
 
     public static DocumentMapperParser newParser() {
         return new DocumentMapperParser(new Index("test"), ImmutableSettings.Builder.EMPTY_SETTINGS, newAnalysisService(), new PostingsFormatService(new Index("test")),
-                new DocValuesFormatService(new Index("test")), newSimilarityLookupService());
+                new DocValuesFormatService(new Index("test")), newSimilarityLookupService(), null);
     }
 
     public static DocumentMapperParser newParser(Settings indexSettings) {
         return new DocumentMapperParser(new Index("test"), indexSettings, newAnalysisService(indexSettings), new PostingsFormatService(new Index("test")),
-                new DocValuesFormatService(new Index("test")), newSimilarityLookupService());
+                new DocValuesFormatService(new Index("test")), newSimilarityLookupService(), null);
     }
 
     public static MapperService newMapperService() {
@@ -59,8 +59,8 @@ public class MapperTestUtils {
     }
 
     public static MapperService newMapperService(Index index, Settings indexSettings) {
-        return new MapperService(index, indexSettings, new Environment(), newAnalysisService(), new IndexFieldDataService(index, new DummyCircuitBreakerService()),
-                new PostingsFormatService(index), new DocValuesFormatService(index), newSimilarityLookupService());
+        return new MapperService(index, indexSettings, new Environment(), newAnalysisService(), new IndexFieldDataService(index, new NoneCircuitBreakerService()),
+                new PostingsFormatService(index), new DocValuesFormatService(index), newSimilarityLookupService(), null);
     }
 
     public static AnalysisService newAnalysisService() {

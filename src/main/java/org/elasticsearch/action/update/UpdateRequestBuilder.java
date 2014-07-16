@@ -29,6 +29,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.script.ScriptService;
 
 import java.util.Map;
 
@@ -78,14 +79,14 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
      * The script to execute. Note, make sure not to send different script each times and instead
      * use script params if possible with the same (automatically compiled) script.
      * <p>
-     * The script works with the variable <code>ctx</code>, which is bound to the entry, 
+     * The script works with the variable <code>ctx</code>, which is bound to the entry,
      * e.g. <code>ctx._source.mycounter += 1</code>.
-     * 
+     *
      * @see #setScriptLang(String)
      * @see #setScriptParams(Map)
      */
-    public UpdateRequestBuilder setScript(String script) {
-        request.script(script);
+    public UpdateRequestBuilder setScript(String script, ScriptService.ScriptType scriptType) {
+        request.script(script, scriptType);
         return this;
     }
 

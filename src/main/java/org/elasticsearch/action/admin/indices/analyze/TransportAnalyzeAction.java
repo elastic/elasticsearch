@@ -60,7 +60,7 @@ public class TransportAnalyzeAction extends TransportSingleCustomOperationAction
     @Inject
     public TransportAnalyzeAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
                                   IndicesService indicesService, IndicesAnalysisService indicesAnalysisService) {
-        super(settings, threadPool, clusterService, transportService);
+        super(settings, AnalyzeAction.NAME, threadPool, clusterService, transportService);
         this.indicesService = indicesService;
         this.indicesAnalysisService = indicesAnalysisService;
     }
@@ -78,11 +78,6 @@ public class TransportAnalyzeAction extends TransportSingleCustomOperationAction
     @Override
     protected AnalyzeResponse newResponse() {
         return new AnalyzeResponse();
-    }
-
-    @Override
-    protected String transportAction() {
-        return AnalyzeAction.NAME;
     }
 
     @Override

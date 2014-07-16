@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.significant;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -26,6 +27,7 @@ import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.*;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
@@ -92,12 +94,13 @@ public class SignificantLongTerms extends InternalSignificantTerms {
 
     private ValueFormatter formatter;
 
-    SignificantLongTerms() {} // for serialization
+    SignificantLongTerms() {
+    } // for serialization
 
     public SignificantLongTerms(long subsetSize, long supersetSize, String name, @Nullable ValueFormatter formatter,
-                                int requiredSize, long minDocCount, Collection<InternalSignificantTerms.Bucket> buckets) {
+                                int requiredSize, long minDocCount, SignificanceHeuristic significanceHeuristic, Collection<InternalSignificantTerms.Bucket> buckets) {
 
-        super(subsetSize, supersetSize, name, requiredSize, minDocCount, buckets);
+        super(subsetSize, supersetSize, name, requiredSize, minDocCount, significanceHeuristic, buckets);
         this.formatter = formatter;
     }
 
@@ -109,7 +112,7 @@ public class SignificantLongTerms extends InternalSignificantTerms {
     @Override
     InternalSignificantTerms newAggregation(long subsetSize, long supersetSize,
             List<InternalSignificantTerms.Bucket> buckets) {
-        return new SignificantLongTerms(subsetSize, supersetSize, getName(), formatter, requiredSize, minDocCount, buckets);
+        return new SignificantLongTerms(subsetSize, supersetSize, getName(), formatter, requiredSize, minDocCount, significanceHeuristic, buckets);
     }
 
     @Override
@@ -120,6 +123,7 @@ public class SignificantLongTerms extends InternalSignificantTerms {
         this.minDocCount = in.readVLong();
         this.subsetSize = in.readVLong();
         this.supersetSize = in.readVLong();
+        significanceHeuristic = SignificanceHeuristicStreams.read(in);
 
         int size = in.readVInt();
         List<InternalSignificantTerms.Bucket> buckets = new ArrayList<>(size);
@@ -127,7 +131,9 @@ public class SignificantLongTerms extends InternalSignificantTerms {
             long subsetDf = in.readVLong();
             long supersetDf = in.readVLong();
             long term = in.readLong();
-            buckets.add(new Bucket(subsetDf, subsetSize, supersetDf,supersetSize, term, InternalAggregations.readAggregations(in)));
+            Bucket readBucket = new Bucket(subsetDf, subsetSize, supersetDf,supersetSize, term, InternalAggregations.readAggregations(in));
+            readBucket.updateScore(significanceHeuristic);
+            buckets.add(readBucket);
         }
         this.buckets = buckets;
         this.bucketMap = null;
@@ -141,6 +147,9 @@ public class SignificantLongTerms extends InternalSignificantTerms {
         out.writeVLong(minDocCount);
         out.writeVLong(subsetSize);
         out.writeVLong(supersetSize);
+        if (out.getVersion().onOrAfter(Version.V_1_3_0)) {
+            significanceHeuristic.writeTo(out);
+        }
         out.writeVInt(buckets.size());
         for (InternalSignificantTerms.Bucket bucket : buckets) {
             out.writeVLong(((Bucket) bucket).subsetDf);

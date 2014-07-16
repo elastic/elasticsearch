@@ -37,7 +37,7 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
-import org.elasticsearch.indices.fielddata.breaker.DummyCircuitBreakerService;
+import org.elasticsearch.indices.fielddata.breaker.NoneCircuitBreakerService;
 
 import java.util.Random;
 
@@ -145,7 +145,7 @@ public class LongFieldDataBenchmark {
             indexWriter.close();
 
             final DirectoryReader dr = DirectoryReader.open(dir);
-            final IndexFieldDataService fds = new IndexFieldDataService(new Index("dummy"), new DummyCircuitBreakerService());
+            final IndexFieldDataService fds = new IndexFieldDataService(new Index("dummy"), new NoneCircuitBreakerService());
             final LongFieldMapper mapper = new LongFieldMapper.Builder(fieldName).build(new BuilderContext(null, new ContentPath(1)));
             final IndexNumericFieldData<AtomicNumericFieldData> fd = fds.getForField(mapper);
             final long start = System.nanoTime();

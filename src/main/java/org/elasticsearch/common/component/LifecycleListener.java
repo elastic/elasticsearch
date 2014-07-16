@@ -22,17 +22,29 @@ package org.elasticsearch.common.component;
 /**
  *
  */
-public interface LifecycleListener {
+public abstract class LifecycleListener {
 
-    void beforeStart();
+    public void beforeStart() {
 
-    void afterStart();
+    }
 
-    void beforeStop();
+    public void afterStart() {
 
-    void afterStop();
+    }
 
-    void beforeClose();
+    public void beforeStop() {
 
-    void afterClose();
+    }
+
+    public void afterStop() {
+
+    }
+
+    public void beforeClose() {
+
+    }
+
+    public void afterClose() {
+
+    }
 }

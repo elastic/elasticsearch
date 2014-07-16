@@ -156,7 +156,7 @@ public class HasChildFilterParser implements FilterParser {
         }
 
         Filter parentFilter = parseContext.cacheFilter(parentDocMapper.typeFilter(), null);
-        ParentChildIndexFieldData parentChildIndexFieldData = parseContext.fieldData().getForField(parentFieldMapper);
+        ParentChildIndexFieldData parentChildIndexFieldData = parseContext.getForField(parentFieldMapper);
 
         Query childrenQuery;
         if (minChildren > 1 || maxChildren > 0) {

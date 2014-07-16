@@ -120,7 +120,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         }
 
         void toXContent(XContentBuilder builder, Params params, boolean keyed, @Nullable ValueFormatter formatter) throws IOException {
-            if (formatter != null) {
+            if (formatter != null && formatter != ValueFormatter.RAW) {
                 Text keyTxt = new StringText(formatter.format(key));
                 if (keyed) {
                     builder.startObject(keyTxt.string());

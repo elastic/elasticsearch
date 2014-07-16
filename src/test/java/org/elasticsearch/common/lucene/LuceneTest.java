@@ -20,6 +20,7 @@ package org.elasticsearch.common.lucene;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -28,7 +29,7 @@ import static org.hamcrest.core.IsEqual.equalTo;
 /**
  * 
  */
-public class LuceneTest {
+public class LuceneTest extends ElasticsearchTestCase   {
 
 
     /*

@@ -39,18 +39,20 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.InternalTestCluster.RestartCallback;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.junit.Test;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
  *
  */
-@ClusterScope(scope= Scope.TEST, numDataNodes =0)
+@ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 @Slow
 public class LocalGatewayIndexStateTests extends ElasticsearchIntegrationTest {
 
@@ -68,12 +70,7 @@ public class LocalGatewayIndexStateTests extends ElasticsearchIntegrationTest {
                 .execute().actionGet();
 
         logger.info("--> waiting for yellow status");
-        ClusterHealthResponse health = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForActiveShards(5).setWaitForYellowStatus().execute().actionGet();
-        if (health.isTimedOut()) {
-            ClusterStateResponse response = client().admin().cluster().prepareState().execute().actionGet();
-            System.out.println("" + response);
-        }
-        assertThat(health.isTimedOut(), equalTo(false));
+        ensureYellow();
 
         logger.info("--> verify meta _routing required exists");
         MappingMetaData mappingMd = client().admin().cluster().prepareState().execute().actionGet().getState().metaData().index("test").mapping("type1");
@@ -83,12 +80,7 @@ public class LocalGatewayIndexStateTests extends ElasticsearchIntegrationTest {
         internalCluster().fullRestart();
 
         logger.info("--> waiting for yellow status");
-        health = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForActiveShards(5).setWaitForYellowStatus().execute().actionGet();
-        if (health.isTimedOut()) {
-            ClusterStateResponse response = client().admin().cluster().prepareState().execute().actionGet();
-            System.out.println("" + response);
-        }
-        assertThat(health.isTimedOut(), equalTo(false));
+        ensureYellow();
 
         logger.info("--> verify meta _routing required exists");
         mappingMd = client().admin().cluster().prepareState().execute().actionGet().getState().metaData().index("test").mapping("type1");
@@ -107,8 +99,7 @@ public class LocalGatewayIndexStateTests extends ElasticsearchIntegrationTest {
         NumShards test = getNumShards("test");
 
         logger.info("--> waiting for green status");
-        ClusterHealthResponse health = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
-        assertThat(health.isTimedOut(), equalTo(false));
+        ensureGreen();
 
         ClusterStateResponse stateResponse = client().admin().cluster().prepareState().execute().actionGet();
         assertThat(stateResponse.getState().metaData().index("test").state(), equalTo(IndexMetaData.State.OPEN));
@@ -126,9 +117,7 @@ public class LocalGatewayIndexStateTests extends ElasticsearchIntegrationTest {
         assertThat(stateResponse.getState().routingTable().index("test"), nullValue());
 
         logger.info("--> verifying that the state is green");
-        health = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("2").execute().actionGet();
-        assertThat(health.isTimedOut(), equalTo(false));
-        assertThat(health.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+        ensureGreen();
 
         logger.info("--> trying to index into a closed index ...");
         try {
@@ -141,17 +130,13 @@ public class LocalGatewayIndexStateTests extends ElasticsearchIntegrationTest {
         logger.info("--> creating another index (test2) by indexing into it");
         client().prepareIndex("test2", "type1", "1").setSource("field1", "value1").execute().actionGet();
         logger.info("--> verifying that the state is green");
-        health = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
-        assertThat(health.isTimedOut(), equalTo(false));
-        assertThat(health.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+        ensureGreen();
 
         logger.info("--> opening the first index again...");
         client().admin().indices().prepareOpen("test").execute().actionGet();
 
         logger.info("--> verifying that the state is green");
-        health = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
-        assertThat(health.isTimedOut(), equalTo(false));
-        assertThat(health.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+        ensureGreen();
 
         stateResponse = client().admin().cluster().prepareState().execute().actionGet();
         assertThat(stateResponse.getState().metaData().index("test").state(), equalTo(IndexMetaData.State.OPEN));
@@ -171,8 +156,7 @@ public class LocalGatewayIndexStateTests extends ElasticsearchIntegrationTest {
         logger.info("--> restarting nodes...");
         internalCluster().fullRestart();
         logger.info("--> waiting for two nodes and green status");
-        health = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
-        assertThat(health.isTimedOut(), equalTo(false));
+        ensureGreen();
 
         stateResponse = client().admin().cluster().prepareState().execute().actionGet();
         assertThat(stateResponse.getState().metaData().index("test").state(), equalTo(IndexMetaData.State.CLOSE));
@@ -190,8 +174,7 @@ public class LocalGatewayIndexStateTests extends ElasticsearchIntegrationTest {
         client().admin().indices().prepareOpen("test").execute().actionGet();
 
         logger.info("--> waiting for green status");
-        health = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
-        assertThat(health.isTimedOut(), equalTo(false));
+        ensureGreen();
 
         stateResponse = client().admin().cluster().prepareState().execute().actionGet();
         assertThat(stateResponse.getState().metaData().index("test").state(), equalTo(IndexMetaData.State.OPEN));
@@ -243,8 +226,7 @@ public class LocalGatewayIndexStateTests extends ElasticsearchIntegrationTest {
         client().admin().indices().prepareCreate("test").execute().actionGet();
 
         logger.info("--> waiting for test index to be created");
-        ClusterHealthResponse health = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setIndices("test").setWaitForYellowStatus().execute().actionGet();
-        assertThat(health.isTimedOut(), equalTo(false));
+        ensureYellow();
 
         client().prepareIndex("test", "type1").setSource("field1", "value1").setTimeout("100ms").execute().actionGet();
     }
@@ -271,7 +253,6 @@ public class LocalGatewayIndexStateTests extends ElasticsearchIntegrationTest {
 
         logger.info("--> closing test index...");
         client().admin().indices().prepareClose("test").execute().actionGet();
-
 
         ClusterStateResponse stateResponse = client().admin().cluster().prepareState().execute().actionGet();
         assertThat(stateResponse.getState().metaData().index("test").state(), equalTo(IndexMetaData.State.CLOSE));
@@ -304,15 +285,14 @@ public class LocalGatewayIndexStateTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1").setRefresh(true).execute().actionGet();
 
         logger.info("--> waiting for green status");
-        ClusterHealthResponse health = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
-        assertThat(health.isTimedOut(), equalTo(false));
+        ensureGreen();
 
         logger.info("--> verify 1 doc in the index");
         for (int i = 0; i < 10; i++) {
             assertThat(client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(1l));
         }
         assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(true));
-        
+
         logger.info("--> restarting the nodes");
         final Gateway gateway1 = internalCluster().getInstance(Gateway.class, node_1);
         internalCluster().fullRestart(new RestartCallback() {
@@ -327,8 +307,7 @@ public class LocalGatewayIndexStateTests extends ElasticsearchIntegrationTest {
         });
 
         logger.info("--> waiting for green status");
-        health = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
-        assertThat(health.isTimedOut(), equalTo(false));
+        ensureGreen();
 
         // spin a bit waiting for the index to exists
         long time = System.currentTimeMillis();
@@ -341,8 +320,7 @@ public class LocalGatewayIndexStateTests extends ElasticsearchIntegrationTest {
         logger.info("--> verify that the dangling index exists");
         assertThat(client().admin().indices().prepareExists("test").execute().actionGet().isExists(), equalTo(true));
         logger.info("--> waiting for green status");
-        health = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
-        assertThat(health.isTimedOut(), equalTo(false));
+        ensureGreen();
 
         logger.info("--> verify the doc is there");
         assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(true));
@@ -353,7 +331,7 @@ public class LocalGatewayIndexStateTests extends ElasticsearchIntegrationTest {
         Settings settings = settingsBuilder()
                 .put("gateway.type", "local").put("gateway.local.auto_import_dangled", "closed")
                 .build();
-  
+
 
         logger.info("--> starting two nodes");
         final String node_1 = internalCluster().startNode(settings);
@@ -363,15 +341,14 @@ public class LocalGatewayIndexStateTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1").setRefresh(true).execute().actionGet();
 
         logger.info("--> waiting for green status");
-        ClusterHealthResponse health = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
-        assertThat(health.isTimedOut(), equalTo(false));
+        ensureGreen();
 
         logger.info("--> verify 1 doc in the index");
         for (int i = 0; i < 10; i++) {
             assertThat(client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(1l));
         }
         assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(true));
-        
+
         logger.info("--> restarting the nodes");
         final Gateway gateway1 = internalCluster().getInstance(Gateway.class, node_1);
         internalCluster().fullRestart(new RestartCallback() {
@@ -386,8 +363,7 @@ public class LocalGatewayIndexStateTests extends ElasticsearchIntegrationTest {
         });
 
         logger.info("--> waiting for green status");
-        health = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
-        assertThat(health.isTimedOut(), equalTo(false));
+        ensureGreen();
 
         // spin a bit waiting for the index to exists
         long time = System.currentTimeMillis();
@@ -400,16 +376,14 @@ public class LocalGatewayIndexStateTests extends ElasticsearchIntegrationTest {
         logger.info("--> verify that the dangling index exists");
         assertThat(client().admin().indices().prepareExists("test").execute().actionGet().isExists(), equalTo(true));
         logger.info("--> waiting for green status");
-        health = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
-        assertThat(health.isTimedOut(), equalTo(false));
+        ensureGreen();
 
         logger.info("--> verify the index state is closed");
         assertThat(client().admin().cluster().prepareState().execute().actionGet().getState().metaData().index("test").state(), equalTo(IndexMetaData.State.CLOSE));
         logger.info("--> open the index");
-        client().admin().indices().prepareOpen("test").execute().actionGet();
+        assertAcked(client().admin().indices().prepareOpen("test").get());
         logger.info("--> waiting for green status");
-        health = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
-        assertThat(health.isTimedOut(), equalTo(false));
+        ensureGreen();
 
         logger.info("--> verify the doc is there");
         assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(true));
@@ -421,15 +395,14 @@ public class LocalGatewayIndexStateTests extends ElasticsearchIntegrationTest {
                 .put("gateway.type", "local").put("gateway.local.auto_import_dangled", "no")
                 .build();
         logger.info("--> starting two nodes");
-        final String node_1 = internalCluster().startNode(settings);
+        final String node_1 = internalCluster().startNodesAsync(2, settings).get().get(0);
         internalCluster().startNode(settings);
 
         logger.info("--> indexing a simple document");
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1").setRefresh(true).execute().actionGet();
 
         logger.info("--> waiting for green status");
-        ClusterHealthResponse health = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
-        assertThat(health.isTimedOut(), equalTo(false));
+        ensureGreen();
 
         logger.info("--> verify 1 doc in the index");
         for (int i = 0; i < 10; i++) {
@@ -440,7 +413,7 @@ public class LocalGatewayIndexStateTests extends ElasticsearchIntegrationTest {
         logger.info("--> restarting the nodes");
         final Gateway gateway1 = internalCluster().getInstance(Gateway.class, node_1);
         internalCluster().fullRestart(new RestartCallback() {
-            
+
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
                 if (node_1.equals(nodeName)) {
@@ -452,8 +425,7 @@ public class LocalGatewayIndexStateTests extends ElasticsearchIntegrationTest {
         });
 
         logger.info("--> waiting for green status");
-        health = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
-        assertThat(health.isTimedOut(), equalTo(false));
+        ensureGreen();
 
         // we need to wait for the allocate dangled to kick in (even though in this case its disabled)
         // just to make sure
@@ -471,8 +443,7 @@ public class LocalGatewayIndexStateTests extends ElasticsearchIntegrationTest {
         });
 
         logger.info("--> waiting for green status");
-        health = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
-        assertThat(health.isTimedOut(), equalTo(false));
+        ensureGreen();
 
         logger.info("--> verify that the dangling index does exists now!");
         assertThat(client().admin().indices().prepareExists("test").execute().actionGet().isExists(), equalTo(true));
@@ -494,8 +465,7 @@ public class LocalGatewayIndexStateTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1").setRefresh(true).execute().actionGet();
 
         logger.info("--> waiting for green status");
-        ClusterHealthResponse health = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
-        assertThat(health.isTimedOut(), equalTo(false));
+        ensureGreen();
 
         logger.info("--> verify 1 doc in the index");
         for (int i = 0; i < 10; i++) {
@@ -505,7 +475,7 @@ public class LocalGatewayIndexStateTests extends ElasticsearchIntegrationTest {
         logger.info("--> restarting the nodes");
         final Gateway gateway1 = internalCluster().getInstance(Gateway.class, node_1);
         internalCluster().fullRestart(new RestartCallback() {
-            
+
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
                 if (node_1.equals(nodeName)) {
@@ -517,8 +487,7 @@ public class LocalGatewayIndexStateTests extends ElasticsearchIntegrationTest {
         });
 
         logger.info("--> waiting for green status");
-        health = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
-        assertThat(health.isTimedOut(), equalTo(false));
+        ensureGreen();
 
         logger.info("--> verify that the dangling index does not exists");
         assertThat(client().admin().indices().prepareExists("test").execute().actionGet().isExists(), equalTo(false));

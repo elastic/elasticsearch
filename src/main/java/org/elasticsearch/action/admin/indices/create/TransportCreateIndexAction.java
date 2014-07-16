@@ -44,7 +44,7 @@ public class TransportCreateIndexAction extends TransportMasterNodeOperationActi
     @Inject
     public TransportCreateIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                       ThreadPool threadPool, MetaDataCreateIndexService createIndexService) {
-        super(settings, transportService, clusterService, threadPool);
+        super(settings, CreateIndexAction.NAME, transportService, clusterService, threadPool);
         this.createIndexService = createIndexService;
     }
 
@@ -52,11 +52,6 @@ public class TransportCreateIndexAction extends TransportMasterNodeOperationActi
     protected String executor() {
         // we go async right away
         return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected String transportAction() {
-        return CreateIndexAction.NAME;
     }
 
     @Override

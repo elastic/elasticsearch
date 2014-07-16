@@ -45,7 +45,7 @@ public class TransportMultiSearchAction extends TransportAction<MultiSearchReque
 
     @Inject
     public TransportMultiSearchAction(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterService clusterService, TransportSearchAction searchAction) {
-        super(settings, threadPool);
+        super(settings, MultiSearchAction.NAME, threadPool);
         this.clusterService = clusterService;
         this.searchAction = searchAction;
 

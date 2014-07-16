@@ -34,6 +34,7 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.compress.CompressedString;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.search.NotFilter;
 import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
@@ -54,7 +55,7 @@ import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.indices.cache.filter.IndicesFilterCache;
-import org.elasticsearch.indices.fielddata.breaker.DummyCircuitBreakerService;
+import org.elasticsearch.indices.fielddata.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
@@ -84,7 +85,9 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
 
     @AfterClass
     public static void after() throws IOException {
+        SearchContext current = SearchContext.current();
         SearchContext.removeCurrent();
+        Releasables.close(current);
     }
 
     @Test
@@ -354,7 +357,7 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
         final BigArrays bigArrays = new BigArrays(ImmutableSettings.EMPTY, pageCacheRecycler);
         Settings settings = ImmutableSettings.EMPTY;
         MapperService mapperService = MapperTestUtils.newMapperService(index, settings);
-        IndexFieldDataService indexFieldDataService = new IndexFieldDataService(index, new DummyCircuitBreakerService());
+        IndexFieldDataService indexFieldDataService = new IndexFieldDataService(index, new NoneCircuitBreakerService());
         final IndexService indexService = new StubIndexService(mapperService);
         indexFieldDataService.setIndexService(indexService);
         // Id_cache is now registered as document type listener, so we can add mappings.
@@ -365,7 +368,7 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
         NodeSettingsService nodeSettingsService = new NodeSettingsService(settings);
         IndicesFilterCache indicesFilterCache = new IndicesFilterCache(settings, threadPool, cacheRecycler, nodeSettingsService);
         WeightedFilterCache filterCache = new WeightedFilterCache(index, settings, indicesFilterCache);
-        return new TestSearchContext(cacheRecycler, pageCacheRecycler, bigArrays, indexService, filterCache, indexFieldDataService);
+        return new TestSearchContext(threadPool, cacheRecycler, pageCacheRecycler, bigArrays, indexService, filterCache, indexFieldDataService);
     }
 
 }

@@ -28,7 +28,6 @@ import org.elasticsearch.action.percolate.PercolateShardRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
-import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.util.BigArrays;
@@ -210,13 +209,7 @@ public class PercolateContext extends SearchContext {
 
     @Override
     protected void doClose() {
-        try (Releasable releasable = Releasables.wrap(engineSearcher, docSearcher)) {
-            if (docSearcher != null) {
-                IndexReader indexReader = docSearcher.reader();
-                fieldDataService.clear(indexReader);
-                indexService.cache().clear(indexReader);
-            }
-        }
+        Releasables.close(engineSearcher, docSearcher);
     }
 
     @Override

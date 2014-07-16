@@ -22,6 +22,7 @@ package org.elasticsearch.index.search;
 import com.carrotsearch.hppc.DoubleOpenHashSet;
 import com.carrotsearch.hppc.LongOpenHashSet;
 import com.carrotsearch.hppc.ObjectOpenHashSet;
+import com.google.common.collect.ImmutableSet;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.*;
 import org.apache.lucene.index.*;
@@ -39,7 +40,15 @@ import org.elasticsearch.index.mapper.core.DoubleFieldMapper;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
-import org.elasticsearch.indices.fielddata.breaker.DummyCircuitBreakerService;
+import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
+import org.elasticsearch.index.query.FilterParser;
+import org.elasticsearch.index.query.IndexQueryParserService;
+import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryParser;
+import org.elasticsearch.indices.fielddata.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
+import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCacheListener;
+import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.index.service.StubIndexService;
@@ -57,6 +66,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
  */
 public class FieldDataTermsFilterTests extends ElasticsearchTestCase {
 
+    protected QueryParseContext parseContext;
     protected IndexFieldDataService ifdService;
     protected IndexWriter writer;
     protected AtomicReader reader;
@@ -79,9 +89,20 @@ public class FieldDataTermsFilterTests extends ElasticsearchTestCase {
                 .build(new Mapper.BuilderContext(null, new ContentPath(1)));
 
         // create index and fielddata service
-        ifdService = new IndexFieldDataService(new Index("test"), new DummyCircuitBreakerService());
+        Index index = new Index("test");
+        CircuitBreakerService circuitBreakerService = new NoneCircuitBreakerService();
+        IndicesFieldDataCache indicesFieldDataCache = new IndicesFieldDataCache(
+                ImmutableSettings.Builder.EMPTY_SETTINGS,
+                new IndicesFieldDataCacheListener(circuitBreakerService)
+        );
+        ifdService = new IndexFieldDataService(index, ImmutableSettings.builder().put("index.fielddata.cache", "none").build(), indicesFieldDataCache, circuitBreakerService, new IndicesFieldDataCacheListener(circuitBreakerService));
         MapperService mapperService = MapperTestUtils.newMapperService(ifdService.index(), ImmutableSettings.Builder.EMPTY_SETTINGS);
         ifdService.setIndexService(new StubIndexService(mapperService));
+        IndexQueryParserService parserService = new IndexQueryParserService(
+                index, ImmutableSettings.EMPTY, new IndicesQueriesRegistry(ImmutableSettings.EMPTY, ImmutableSet.<QueryParser>of(), ImmutableSet.<FilterParser>of()),
+                null, null, null, mapperService, null, ifdService, null, null, null, null
+        );
+        parseContext = new QueryParseContext(index, parserService);
         writer = new IndexWriter(new RAMDirectory(),
                 new IndexWriterConfig(Lucene.VERSION, new StandardAnalyzer(Lucene.VERSION)));
 
@@ -142,7 +163,7 @@ public class FieldDataTermsFilterTests extends ElasticsearchTestCase {
         // filter from mapper
         result.clear(0, size);
         assertThat(result.cardinality(), equalTo(0));
-        result.or(strMapper.termsFilter(ifdService, cTerms, null)
+        result.or(strMapper.termsFilter(parseContext, cTerms, null)
                 .getDocIdSet(reader.getContext(), reader.getLiveDocs()).iterator());
         assertThat(result.cardinality(), equalTo(docs.size()));
         for (int i = 0; i < reader.maxDoc(); i++) {
@@ -193,7 +214,7 @@ public class FieldDataTermsFilterTests extends ElasticsearchTestCase {
         // filter from mapper
         result.clear(0, size);
         assertThat(result.cardinality(), equalTo(0));
-        result.or(lngMapper.termsFilter(ifdService, cTerms, null)
+        result.or(lngMapper.termsFilter(parseContext, cTerms, null)
                 .getDocIdSet(reader.getContext(), reader.getLiveDocs()).iterator());
         assertThat(result.cardinality(), equalTo(docs.size()));
         for (int i = 0; i < reader.maxDoc(); i++) {
@@ -232,7 +253,7 @@ public class FieldDataTermsFilterTests extends ElasticsearchTestCase {
         // filter from mapper
         result.clear(0, size);
         assertThat(result.cardinality(), equalTo(0));
-        result.or(dblMapper.termsFilter(ifdService, cTerms, null)
+        result.or(dblMapper.termsFilter(parseContext, cTerms, null)
                 .getDocIdSet(reader.getContext(), reader.getLiveDocs()).iterator());
         assertThat(result.cardinality(), equalTo(docs.size()));
         for (int i = 0; i < reader.maxDoc(); i++) {

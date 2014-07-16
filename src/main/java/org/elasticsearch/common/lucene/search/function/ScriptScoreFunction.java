@@ -21,16 +21,59 @@ package org.elasticsearch.common.lucene.search.function;
 
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Explanation;
+import org.apache.lucene.search.Scorer;
 import org.elasticsearch.script.ExplainableSearchScript;
 import org.elasticsearch.script.SearchScript;
 
+import java.io.IOException;
 import java.util.Map;
 
 public class ScriptScoreFunction extends ScoreFunction {
 
+    static final class CannedScorer extends Scorer {
+        protected int docid;
+        protected float score;
+
+        public CannedScorer() {
+            super(null);
+        }
+
+        @Override
+        public int docID() {
+            return docid;
+        }
+
+        @Override
+        public float score() throws IOException {
+            return score;
+        }
+
+        @Override
+        public int freq() throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public int nextDoc() throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public int advance(int target) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public long cost() {
+            return 1;
+        }
+    }
+
     private final String sScript;
 
     private final Map<String, Object> params;
+
+    private final CannedScorer scorer;
 
     private final SearchScript script;
     
@@ -40,6 +83,8 @@ public class ScriptScoreFunction extends ScoreFunction {
         this.sScript = sScript;
         this.params = params;
         this.script = script;
+        this.scorer = new CannedScorer();
+        script.setScorer(scorer);
     }
 
     @Override
@@ -50,7 +95,8 @@ public class ScriptScoreFunction extends ScoreFunction {
     @Override
     public double score(int docId, float subQueryScore) {
         script.setNextDocId(docId);
-        script.setNextScore(subQueryScore);
+        scorer.docid = docId;
+        scorer.score = subQueryScore;
         return script.runAsDouble();
     }
 
@@ -59,7 +105,8 @@ public class ScriptScoreFunction extends ScoreFunction {
         Explanation exp;
         if (script instanceof ExplainableSearchScript) {
             script.setNextDocId(docId);
-            script.setNextScore(subQueryExpl.getValue());
+            scorer.docid = docId;
+            scorer.score = subQueryExpl.getValue();
             exp = ((ExplainableSearchScript) script).explain(subQueryExpl);
         } else {
             double score = score(docId, subQueryExpl.getValue());

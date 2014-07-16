@@ -36,8 +36,6 @@ public interface SearchScript extends ExecutableScript, ReaderContextAware, Scor
 
     void setNextSource(Map<String, Object> source);
 
-    void setNextScore(float score);
-
     float runAsFloat();
 
     long runAsLong();

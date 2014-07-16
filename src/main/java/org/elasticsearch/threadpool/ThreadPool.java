@@ -617,12 +617,7 @@ public class ThreadPool extends AbstractComponent {
                 keepAlive = TimeValue.readTimeValue(in);
             }
             if (in.readBoolean()) {
-                if (in.getVersion().after(Version.V_1_2_2)) {
-                    boolean isQueueSizeBounded = in.readBoolean();
-                    queueSize = isQueueSizeBounded ? SizeValue.readSizeValue(in) : null;
-                } else {
-                    queueSize = SizeValue.readSizeValue(in);
-                }
+                queueSize = SizeValue.readSizeValue(in);
             }
             in.readBoolean(); // here to conform with removed waitTime
             in.readBoolean(); // here to conform with removed rejected setting
@@ -645,15 +640,7 @@ public class ThreadPool extends AbstractComponent {
                 out.writeBoolean(false);
             } else {
                 out.writeBoolean(true);
-                if (out.getVersion().onOrAfter(Version.V_1_2_3)) {
-                    boolean isQueueSizeBounded = queueSize.singles() >= 0;
-                    out.writeBoolean(isQueueSizeBounded);
-                    if (isQueueSizeBounded) {
-                        queueSize.writeTo(out);
-                    }
-                } else {
-                    queueSize.writeTo(out);
-                }
+                queueSize.writeTo(out);
             }
             out.writeBoolean(false); // here to conform with removed waitTime
             out.writeBoolean(false); // here to conform with removed rejected setting

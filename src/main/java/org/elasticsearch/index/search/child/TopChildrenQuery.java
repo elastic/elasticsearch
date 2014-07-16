@@ -176,7 +176,7 @@ public class TopChildrenQuery extends Query {
     int resolveParentDocuments(TopDocs topDocs, SearchContext context, Recycler.V<ObjectObjectOpenHashMap<Object, ParentDoc[]>> parentDocs) throws Exception {
         int parentHitsResolved = 0;
         Recycler.V<ObjectObjectOpenHashMap<Object, Recycler.V<IntObjectOpenHashMap<ParentDoc>>>> parentDocsPerReader = cacheRecycler.hashMap(context.searcher().getIndexReader().leaves().size());
-        for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
+        child_hits: for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
             int readerIndex = ReaderUtil.subIndex(scoreDoc.doc, context.searcher().getIndexReader().leaves());
             AtomicReaderContext subContext = context.searcher().getIndexReader().leaves().get(readerIndex);
             BytesValues.WithOrdinals parentValues = parentChildIndexFieldData.load(subContext).getBytesValues(parentType);
@@ -212,13 +212,11 @@ public class TopChildrenQuery extends Query {
                 }
                 if (parentDocId != DocsEnum.NO_MORE_DOCS) {
                     // we found a match, add it and break
-
                     Recycler.V<IntObjectOpenHashMap<ParentDoc>> readerParentDocs = parentDocsPerReader.v().get(indexReader.getCoreCacheKey());
                     if (readerParentDocs == null) {
                         readerParentDocs = cacheRecycler.intObjectMap(indexReader.maxDoc());
                         parentDocsPerReader.v().put(indexReader.getCoreCacheKey(), readerParentDocs);
                     }
-
                     ParentDoc parentDoc = readerParentDocs.v().get(parentDocId);
                     if (parentDoc == null) {
                         parentHitsResolved++; // we have a hit on a parent
@@ -235,6 +233,7 @@ public class TopChildrenQuery extends Query {
                             parentDoc.maxScore = scoreDoc.score;
                         }
                     }
+                    continue child_hits;
                 }
             }
         }

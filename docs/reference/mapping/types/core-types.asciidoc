@@ -756,20 +756,23 @@ previous added multi fields don't need to be specified.
 [float]
 ==== Accessing Fields
 
-deprecated[1.0.0,Use <<copy-to,`copy_to`>> instead]
-
 The multi fields defined in the `fields` are prefixed with the
 name of the main field and can be accessed by their full path using the
 navigation notation: `name.raw`, or using the typed navigation notation
-`tweet.name.raw`. The `path` option allows to control how fields are accessed.
+`tweet.name.raw`. 
+
+deprecated[1.0.0,The `path` option below is deprecated.  Use <<copy-to,`copy_to`>> instead for setting up custom _all fields]
+
+In older releases, the `path` option allows to control how fields are accessed.
 If the `path` option is set to `full`, then the full path of the main field
 is prefixed, but if the `path` option is set to `just_name` the actual
 multi field name without any prefix is used. The default value for
 the `path` option is `full`.
 
 The `just_name` setting, among other things, allows indexing content of multiple
-fields under the same name. In the example below the content of both fields
-`first_name` and `last_name` can be accessed by using `any_name` or `tweet.any_name`.
+fields under the same name (commonly used to set up custom _all fields in the past). 
+In the example below the content of both fields `first_name` and `last_name` 
+can be accessed by using `any_name` or `tweet.any_name`.
 
 [source,js]
 --------------------------------------------------

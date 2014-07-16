@@ -40,11 +40,11 @@ import org.elasticsearch.index.mapper.core.DoubleFieldMapper;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
-import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
 import org.elasticsearch.index.query.FilterParser;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryParser;
+import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.fielddata.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCacheListener;
@@ -163,7 +163,7 @@ public class FieldDataTermsFilterTests extends ElasticsearchTestCase {
         // filter from mapper
         result.clear(0, size);
         assertThat(result.cardinality(), equalTo(0));
-        result.or(strMapper.termsFilter(parseContext, cTerms, null)
+        result.or(strMapper.fieldDataTermsFilter(cTerms, parseContext)
                 .getDocIdSet(reader.getContext(), reader.getLiveDocs()).iterator());
         assertThat(result.cardinality(), equalTo(docs.size()));
         for (int i = 0; i < reader.maxDoc(); i++) {
@@ -214,7 +214,7 @@ public class FieldDataTermsFilterTests extends ElasticsearchTestCase {
         // filter from mapper
         result.clear(0, size);
         assertThat(result.cardinality(), equalTo(0));
-        result.or(lngMapper.termsFilter(parseContext, cTerms, null)
+        result.or(lngMapper.fieldDataTermsFilter(cTerms, parseContext)
                 .getDocIdSet(reader.getContext(), reader.getLiveDocs()).iterator());
         assertThat(result.cardinality(), equalTo(docs.size()));
         for (int i = 0; i < reader.maxDoc(); i++) {
@@ -253,7 +253,7 @@ public class FieldDataTermsFilterTests extends ElasticsearchTestCase {
         // filter from mapper
         result.clear(0, size);
         assertThat(result.cardinality(), equalTo(0));
-        result.or(dblMapper.termsFilter(parseContext, cTerms, null)
+        result.or(dblMapper.fieldDataTermsFilter(cTerms, parseContext)
                 .getDocIdSet(reader.getContext(), reader.getLiveDocs()).iterator());
         assertThat(result.cardinality(), equalTo(docs.size()));
         for (int i = 0; i < reader.maxDoc(); i++) {

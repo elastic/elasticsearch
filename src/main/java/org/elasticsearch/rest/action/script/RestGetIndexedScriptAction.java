@@ -50,7 +50,7 @@ public class RestGetIndexedScriptAction extends BaseRestHandler {
     public RestGetIndexedScriptAction(Settings settings, Client client,
                                       ScriptService scriptService, RestController controller) {
         super(settings, client);
-        controller.registerHandler(GET, "/_search/script/{lang}/{id}", this);
+        controller.registerHandler(GET, "/_scripts/{lang}/{id}", this);
     }
 
     @Override

@@ -45,12 +45,11 @@ public class RestPutIndexedScriptAction extends BaseRestHandler {
     public RestPutIndexedScriptAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
 
-        //controller.registerHandler(GET, "/template", this);
-        controller.registerHandler(POST, "/_search/script/{lang}/{id}", this);
-        controller.registerHandler(PUT, "/_search/script/{lang}/{id}", this);
+        controller.registerHandler(POST, "/_scripts/{lang}/{id}", this);
+        controller.registerHandler(PUT, "/_scripts/{lang}/{id}", this);
 
-        controller.registerHandler(PUT, "/_search/script/{lang}/{id}/_create", new CreateHandler(settings, client));
-        controller.registerHandler(POST, "/_search/script/{lang}/{id}/_create", new CreateHandler(settings, client));
+        controller.registerHandler(PUT, "/_scripts/{lang}/{id}/_create", new CreateHandler(settings, client));
+        controller.registerHandler(POST, "/_scripts/{lang}/{id}/_create", new CreateHandler(settings, client));
     }
 
     final class CreateHandler extends BaseRestHandler {

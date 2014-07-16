@@ -1,6 +1,6 @@
 {
-  "indexed_template.delete": {
-    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/indexed-scripts.html",
+  "delete_template": {
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/search-template.html",
     "methods": ["DELETE"],
     "url": {
       "path": "/_search/template/{id}",

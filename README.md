@@ -6,6 +6,7 @@ The Smart Chinese Analysis plugin integrates Lucene Smart Chinese analysis modul
 In order to install the plugin, simply run: `bin/plugin -install elasticsearch/elasticsearch-analysis-smartcn/2.1.0`.
 
 * For master elasticsearch versions, look at [master branch](https://github.com/elasticsearch/elasticsearch-analysis-smartcn/tree/master).
+* For 1.4.x elasticsearch versions, look at [es-1.4 branch](https://github.com/elasticsearch/elasticsearch-analysis-smartcn/tree/es-1.4).
 * For 1.3.x elasticsearch versions, look at [es-1.3 branch](https://github.com/elasticsearch/elasticsearch-analysis-smartcn/tree/es-1.3).
 * For 1.2.x elasticsearch versions, look at [es-1.2 branch](https://github.com/elasticsearch/elasticsearch-analysis-smartcn/tree/es-1.2).
 * For 1.1.x elasticsearch versions, look at [es-1.1 branch](https://github.com/elasticsearch/elasticsearch-analysis-smartcn/tree/es-1.1).

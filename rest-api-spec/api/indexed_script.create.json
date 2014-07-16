@@ -1,10 +1,10 @@
 {
-  "indexed_script.create": {
-    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/indexed-scripts.html",
+  "put_script": {
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/modules-scripting.html",
     "methods": ["PUT", "POST"],
     "url": {
-      "path": "/_search/script/{lang}/{id}",
-      "paths": [ "/_search/script/{lang}/{id}" ],
+      "path": "/_scripts/{lang}/{id}",
+      "paths": [ "/_scripts/{lang}/{id}" ],
       "parts": {
         "id": {
           "type" : "string",

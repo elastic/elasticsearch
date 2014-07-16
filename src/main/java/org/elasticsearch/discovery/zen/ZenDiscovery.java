@@ -86,7 +86,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     private final ClusterService clusterService;
     private AllocationService allocationService;
     private final ClusterName clusterName;
-    private final DiscoveryService discoveryService;
     private final DiscoveryNodeService discoveryNodeService;
     private final DiscoverySettings discoverySettings;
     private final ZenPingService pingService;
@@ -130,14 +129,13 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     @Inject
     public ZenDiscovery(Settings settings, ClusterName clusterName, ThreadPool threadPool,
                         TransportService transportService, ClusterService clusterService, NodeSettingsService nodeSettingsService,
-                        DiscoveryNodeService discoveryNodeService, ZenPingService pingService, Version version, DiscoverySettings discoverySettings,
-                        DiscoveryService discoveryService) {
+                        DiscoveryNodeService discoveryNodeService, ZenPingService pingService, Version version,
+                        DiscoverySettings discoverySettings) {
         super(settings);
         this.clusterName = clusterName;
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.transportService = transportService;
-        this.discoveryService = discoveryService;
         this.discoveryNodeService = discoveryNodeService;
         this.discoverySettings = discoverySettings;
         this.pingService = pingService;
@@ -649,7 +647,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
 
                 assert newClusterState.nodes().masterNode() != null : "received a cluster state without a master";
-                assert !newClusterState.blocks().hasGlobalBlock(discoveryService.getNoMasterBlock()) : "received a cluster state with a master block";
+                assert !newClusterState.blocks().hasGlobalBlock(discoverySettings.getNoMasterBlock()) : "received a cluster state with a master block";
 
                 clusterService.submitStateUpdateTask("zen-disco-receive(from master [" + newClusterState.nodes().masterNode() + "])", Priority.URGENT, new ProcessedClusterStateNonMasterUpdateTask() {
                     @Override
@@ -716,7 +714,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                             masterFD.restart(latestDiscoNodes.masterNode(), "new cluster state received and we are monitoring the wrong master [" + masterFD.masterNode() + "]");
                         }
 
-                        if (currentState.blocks().hasGlobalBlock(discoveryService.getNoMasterBlock())) {
+                        if (currentState.blocks().hasGlobalBlock(discoverySettings.getNoMasterBlock())) {
                             // its a fresh update from the master as we transition from a start of not having a master to having one
                             logger.debug("got first state from fresh master [{}]", updatedState.nodes().masterNodeId());
                             return updatedState;

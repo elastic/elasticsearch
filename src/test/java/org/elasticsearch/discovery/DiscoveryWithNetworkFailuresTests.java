@@ -19,7 +19,6 @@
 
 package org.elasticsearch.discovery;
 
-import com.google.common.base.Predicate;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -27,9 +26,9 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.operation.hash.djb.DjbHashFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
@@ -94,17 +93,20 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
     }
 
     private List<String> startCluster(int numberOfNodes) throws ExecutionException, InterruptedException {
+
+        // TODO: Rarely use default settings form some of these
         Settings settings = ImmutableSettings.builder()
                 .put("discovery.zen.fd.ping_timeout", "1s") // <-- for hitting simulated network failures quickly
                 .put("discovery.zen.fd.ping_retries", "1") // <-- for hitting simulated network failures quickly
                 .put(DiscoverySettings.PUBLISH_TIMEOUT, "1s") // <-- for hitting simulated network failures quickly
                 .put("http.enabled", false) // just to make test quicker
+                .put("gateway.local.list_timeout", "10s") // still long to induce failures but to long so test won't time out
                 .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, MockTransportService.class.getName())
                 .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, numberOfNodes / 2 + 1).build();
 
         if (discoveryConfig == null) {
             // unicast causes test failures. Disabled for now
-            if (false && randomBoolean()) {
+            if (randomBoolean()) {
                 discoveryConfig = new ClusterDiscoveryConfiguration.UnicastZen(numberOfNodes, numberOfNodes, settings);
             } else {
                 discoveryConfig = new ClusterDiscoveryConfiguration(numberOfNodes, settings);
@@ -157,16 +159,7 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
         // The unlucky node must report *no* master node, since it can't connect to master and in fact it should
         // continuously ping until network failures have been resolved. However
         // It may a take a bit before the node detects it has been cut off from the elected master
-        boolean success = awaitBusy(new Predicate<Object>() {
-            @Override
-            public boolean apply(Object input) {
-                ClusterState localClusterState = getNodeClusterState(unluckyNode);
-                DiscoveryNodes localDiscoveryNodes = localClusterState.nodes();
-                logger.info("localDiscoveryNodes=" + localDiscoveryNodes.prettyPrint());
-                return localDiscoveryNodes.masterNode() == null;
-            }
-        }, 10, TimeUnit.SECONDS);
-        assertThat(success, is(true));
+        assertNoMaster(unluckyNode);
 
         networkDisconnect.stopDisrupting();
 
@@ -214,27 +207,7 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
         // continuously ping until network failures have been resolved. However
         // It may a take a bit before the node detects it has been cut off from the elected master
         logger.info("waiting for isolated node [{}] to have no master", isolatedNode);
-        final ClusterState[] lastState = new ClusterState[1];
-        boolean success = awaitBusy(new Predicate<Object>() {
-            @Override
-            public boolean apply(Object input) {
-                lastState[0] = getNodeClusterState(isolatedNode);
-                DiscoveryNodes localDiscoveryNodes = lastState[0].nodes();
-                logger.info("localDiscoveryNodes=" + localDiscoveryNodes.prettyPrint());
-                if (localDiscoveryNodes.masterNode() == null) {
-                    return false;
-                }
-                for (ClusterBlockLevel level : DiscoverySettings.NO_MASTER_BLOCK_WRITES.levels()) {
-                    if (lastState[0].getBlocks().hasGlobalBlock(level)) {
-                        return false;
-                    }
-                }
-                return true;
-            }
-        }, 10, TimeUnit.SECONDS);
-        if (!success) {
-            fail("isolated node still has a master or the wrong blocks. Cluster state:\n" + lastState[0].prettyPrint());
-        }
+        assertNoMaster(isolatedNode, DiscoverySettings.NO_MASTER_BLOCK_WRITES, TimeValue.timeValueSeconds(10));
 
 
         logger.info("wait until elected master has been removed and a new 2 node cluster was from (via [{}])", isolatedNode);
@@ -242,7 +215,7 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
 
         for (String node : networkPartition.getMajoritySide()) {
             ClusterState nodeState = getNodeClusterState(node);
-            success = true;
+            boolean success = true;
             if (nodeState.nodes().getMasterNode() == null) {
                 success = false;
             }
@@ -273,26 +246,7 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
         // continuously ping until network failures have been resolved. However
         // It may a take a bit before the node detects it has been cut off from the elected master
         logger.info("waiting for isolated node [{}] to have no master", isolatedNode);
-        success = awaitBusy(new Predicate<Object>() {
-            @Override
-            public boolean apply(Object input) {
-                lastState[0] = getNodeClusterState(isolatedNode);
-                DiscoveryNodes localDiscoveryNodes = lastState[0].nodes();
-                logger.info("localDiscoveryNodes=" + localDiscoveryNodes.prettyPrint());
-                if (localDiscoveryNodes.masterNode() == null) {
-                    return false;
-                }
-                for (ClusterBlockLevel level : DiscoverySettings.NO_MASTER_BLOCK_ALL.levels()) {
-                    if (lastState[0].getBlocks().hasGlobalBlock(level)) {
-                        return false;
-                    }
-                }
-                return true;
-            }
-        }, 10, TimeUnit.SECONDS);
-        if (!success) {
-            fail("isolated node still has a master or the wrong blocks (expected 'all' block). Cluster state:\n" + lastState[0].prettyPrint());
-        }
+        assertNoMaster(isolatedNode, DiscoverySettings.NO_MASTER_BLOCK_ALL, TimeValue.timeValueSeconds(10));
 
         // make sure we have stable cluster & cross partition recoveries are canceled by the removal of the missing node
         // the unresponsive partition causes recoveries to only time out after 15m (default) and these will cause
@@ -325,6 +279,9 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
 
         // make sure cluster reforms
         ensureStableCluster(2, nonIsolatedNode);
+
+        // make sure isolated need picks up on things.
+        assertNoMaster(isolatedNode, TimeValue.timeValueSeconds(40));
 
         // restore isolation
         networkPartition.stopDisrupting();
@@ -626,4 +583,26 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
         return client(node).admin().cluster().prepareState().setLocal(true).get().getState();
     }
 
+    private void assertNoMaster(final String node) throws Exception {
+        assertNoMaster(node, null, TimeValue.timeValueSeconds(10));
+    }
+
+    private void assertNoMaster(final String node, TimeValue maxWaitTime) throws Exception {
+        assertNoMaster(node, null, maxWaitTime);
+    }
+
+    private void assertNoMaster(final String node, @Nullable final ClusterBlock expectedBlocks, TimeValue maxWaitTime) throws Exception {
+        assertBusy(new Runnable() {
+            @Override
+            public void run() {
+                ClusterState state = getNodeClusterState(node);
+                assertNull("node [" + node + "] still has [" + state.nodes().masterNode() + "] as master", state.nodes().masterNode());
+                if (expectedBlocks != null) {
+                    for (ClusterBlockLevel level : expectedBlocks.levels()) {
+                        assertTrue("node [" + node + "] does have level [" + level + "] in it's blocks", state.getBlocks().hasGlobalBlock(level));
+                    }
+                }
+            }
+        }, maxWaitTime.getMillis(), TimeUnit.MILLISECONDS);
+    }
 }

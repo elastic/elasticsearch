@@ -202,7 +202,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
 
     @Test(expected = IOException.class)
     public void testInstallPluginNull() throws IOException {
-        pluginManager(null).downloadAndExtract("");
+        pluginManager(null).downloadAndExtract("plugin-test");
     }
 
 
@@ -211,7 +211,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
         PluginManager pluginManager = pluginManager("file://".concat(
                 URI.create(PluginManagerTests.class.getResource("plugin_with_classfile.zip").toString()).getPath()));
 
-        pluginManager.downloadAndExtract("plugin");
+        pluginManager.downloadAndExtract("plugin-classfile");
         File[] plugins = pluginManager.getListInstalledPlugins();
         assertThat(plugins, notNullValue());
         assertThat(plugins.length, is(1));
@@ -330,5 +330,29 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
     public void testRemovePluginWithURLForm() throws Exception {
         PluginManager pluginManager = pluginManager(null);
         pluginManager.removePlugin("file://whatever");
+    }
+
+    @Test
+    public void testForbiddenPluginName_ThrowsException() throws IOException {
+        runTestWithForbiddenName(null);
+        runTestWithForbiddenName("");
+        runTestWithForbiddenName("elasticsearch");
+        runTestWithForbiddenName("elasticsearch.bat");
+        runTestWithForbiddenName("elasticsearch.in.sh");
+        runTestWithForbiddenName("plugin");
+        runTestWithForbiddenName("plugin.bat");
+        runTestWithForbiddenName("service.bat");
+        runTestWithForbiddenName("ELASTICSEARCH");
+        runTestWithForbiddenName("ELASTICSEARCH.IN.SH");
+    }
+
+    private void runTestWithForbiddenName(String name) throws IOException {
+        try {
+            pluginManager(null).removePlugin(name);
+            fail("this plugin name [" + name +
+                    "] should not be allowed");
+        } catch (ElasticsearchIllegalArgumentException e) {
+            // We expect that error
+        }
     }
 }

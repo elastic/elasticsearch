@@ -241,6 +241,7 @@ POST /_search/template/<templatename>
         }
     }
 }
+------------------------------------------
 
 This template can be retrieved by
 

@@ -20,6 +20,7 @@ package org.elasticsearch.search.child;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
@@ -333,7 +334,9 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         assertThat(indicesStatsResponse.getTotal().getIdCache().getMemorySizeInBytes(), greaterThan(0l));
         assertThat(indicesStatsResponse.getTotal().getFieldData().getMemorySizeInBytes(), equalTo(0l));
 
-        client().admin().indices().prepareClearCache("test").setIdCache(true).get();
+        ClearIndicesCacheResponse clearCacheResponse = client().admin().indices().prepareClearCache("test").setIdCache(true).get();
+        assertNoFailures(clearCacheResponse);
+        assertAllSuccessful(clearCacheResponse);
         indicesStatsResponse = client().admin().indices()
                 .prepareStats("test").setFieldData(true).get();
         assertThat(indicesStatsResponse.getTotal().getIdCache().getMemorySizeInBytes(), equalTo(0l));

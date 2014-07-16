@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.fielddata;
 
-import com.google.common.base.Predicate;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -31,19 +30,21 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import org.hamcrest.Matchers;
 
 import java.util.Set;
 import java.util.concurrent.Callable;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 @ClusterScope(randomDynamicTemplates = false)
 public class DisabledFieldDataFormatTests extends ElasticsearchIntegrationTest {
+
+    @Override
+    protected int numberOfReplicas() {
+        return 0;
+    }
 
     public void test() throws Exception {
         prepareCreate("test").addMapping("type", "s", "type=string").execute().actionGet();
@@ -54,7 +55,7 @@ public class DisabledFieldDataFormatTests extends ElasticsearchIntegrationTest {
         }
         logger.info("indexing data end");
 
-        final int searchCycles = 20;
+        final int searchCycles = 1;
 
         refresh();
 

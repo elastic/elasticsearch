@@ -20,6 +20,7 @@
 package org.elasticsearch.common.unit;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -46,6 +47,7 @@ public class SizeValue implements Serializable, Streamable {
     }
 
     public SizeValue(long size, SizeUnit sizeUnit) {
+        Preconditions.checkArgument(size >= 0, "size in SizeValue may not be negative");
         this.size = size;
         this.sizeUnit = sizeUnit;
     }

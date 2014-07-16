@@ -119,7 +119,6 @@ import org.elasticsearch.action.admin.indices.warmer.get.GetWarmersAction;
 import org.elasticsearch.action.admin.indices.warmer.get.TransportGetWarmersAction;
 import org.elasticsearch.action.admin.indices.warmer.put.PutWarmerAction;
 import org.elasticsearch.action.admin.indices.warmer.put.TransportPutWarmerAction;
-import org.elasticsearch.action.bench.*;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
@@ -291,9 +290,6 @@ public class ActionModule extends AbstractModule {
         registerAction(ExplainAction.INSTANCE, TransportExplainAction.class);
         registerAction(ClearScrollAction.INSTANCE, TransportClearScrollAction.class);
         registerAction(RecoveryAction.INSTANCE, TransportRecoveryAction.class);
-        registerAction(BenchmarkAction.INSTANCE, TransportBenchmarkAction.class);
-        registerAction(AbortBenchmarkAction.INSTANCE, TransportAbortBenchmarkAction.class);
-        registerAction(BenchmarkStatusAction.INSTANCE, TransportBenchmarkStatusAction.class);
 
         //Indexed scripts
         registerAction(PutIndexedScriptAction.INSTANCE, TransportPutIndexedScriptAction.class);

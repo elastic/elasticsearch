@@ -79,7 +79,6 @@ import org.elasticsearch.rest.action.admin.indices.warmer.delete.RestDeleteWarme
 import org.elasticsearch.rest.action.admin.indices.warmer.get.RestGetWarmerAction;
 import org.elasticsearch.rest.action.admin.indices.warmer.put.RestPutWarmerAction;
 import org.elasticsearch.rest.action.admin.indices.recovery.RestRecoveryAction;
-import org.elasticsearch.rest.action.bench.RestBenchAction;
 import org.elasticsearch.rest.action.bulk.RestBulkAction;
 import org.elasticsearch.rest.action.cat.*;
 import org.elasticsearch.rest.action.delete.RestDeleteAction;
@@ -218,8 +217,6 @@ public class RestActionModule extends AbstractModule {
         bind(RestExplainAction.class).asEagerSingleton();
 
         bind(RestRecoveryAction.class).asEagerSingleton();
-        // Benchmark API
-        bind(RestBenchAction.class).asEagerSingleton();
 
         // Templates API
         bind(RestGetSearchTemplateAction.class).asEagerSingleton();

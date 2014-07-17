@@ -30,9 +30,7 @@
 
     <properties>
         <lucene.version>4.9.0</lucene.version>
-        <elasticsearch.version>1.2.1</elasticsearch.version>
-        <!-- TODO enable me, once the snapshot includes test jars -->
-        <elasticsearch.version>1.3.0-SNAPSHOT</elasticsearch.version>
+        <elasticsearch.version>1.4.0-SNAPSHOT</elasticsearch.version>
         <tests.jvms>auto</tests.jvms>
         <tests.shuffle>true</tests.shuffle>
         <tests.output>onerror</tests.output>

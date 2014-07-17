@@ -22,6 +22,7 @@ import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.google.common.primitives.Ints;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.NodeSettingsSource;
 import org.elasticsearch.transport.local.LocalTransport;
@@ -57,7 +58,7 @@ public class ClusterDiscoveryConfiguration extends NodeSettingsSource {
 
     public static class UnicastZen extends ClusterDiscoveryConfiguration {
 
-        private final AtomicInteger portRangeCounter = new AtomicInteger();
+        private final static AtomicInteger portRangeCounter = new AtomicInteger();
 
         private final int[] unicastHostOrdinals;
         private final int basePort;
@@ -84,7 +85,7 @@ public class ClusterDiscoveryConfiguration extends NodeSettingsSource {
                 }
                 unicastHostOrdinals = Ints.toArray(ordinals);
             }
-            this.basePort = 25000 + RandomizedTest.randomInt(1000);
+            this.basePort = calcBasePort();
         }
 
         public UnicastZen(int numOfNodes, int[] unicastHostOrdinals) {
@@ -94,7 +95,13 @@ public class ClusterDiscoveryConfiguration extends NodeSettingsSource {
         public UnicastZen(int numOfNodes, Settings extraSettings, int[] unicastHostOrdinals) {
             super(numOfNodes, extraSettings);
             this.unicastHostOrdinals = unicastHostOrdinals;
-            this.basePort = 10000 + portRangeCounter.incrementAndGet() * 1000 + RandomizedTest.randomInt(999);
+            this.basePort = calcBasePort();
+        }
+
+        private final static int calcBasePort() {
+            return 10000 +
+                    1000 * (ElasticsearchIntegrationTest.CHILD_VM_ID.hashCode() % 60) + // up to 60 jvms
+                    100 * portRangeCounter.incrementAndGet(); // up to 100 nodes
         }
 
 

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.bulk;
 
+import com.carrotsearch.ant.tasks.junit4.dependencies.com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.elasticsearch.action.get.MultiGetItemResponse;
 import org.elasticsearch.action.get.MultiGetRequestBuilder;
 import org.elasticsearch.action.get.MultiGetResponse;
@@ -188,6 +189,37 @@ public class BulkProcessorTests extends ElasticsearchIntegrationTest {
         assertThat(listener.bulkFailures.size(), equalTo(totalExpectedBulkActions));
         assertThat(listener.bulkItems.size(), equalTo(0));
         transportClient.close();
+    }
+
+    @Test
+    public void testBulkProcessorWaitOnClose() throws Exception {
+        BulkProcessorTestListener listener = new BulkProcessorTestListener();
+
+        int numDocs = randomIntBetween(10, 100);
+        BulkProcessor processor = BulkProcessor.builder(client(), listener).setName("foo")
+                //let's make sure that the bulk action limit trips, one single execution will index all the documents
+                .setConcurrentRequests(randomIntBetween(0, 1)).setBulkActions(numDocs)
+                .setFlushInterval(TimeValue.timeValueHours(24)).setBulkSize(new ByteSizeValue(randomIntBetween(1, 10),
+                        (ByteSizeUnit)RandomPicks.randomFrom(getRandom(), ByteSizeUnit.values())))
+                .build();
+
+        MultiGetRequestBuilder multiGetRequestBuilder = indexDocs(client(), processor, numDocs);
+        assertThat(processor.isOpen(), is(true));
+        assertThat(processor.awaitClose(1, TimeUnit.MINUTES), is(true));
+        if (randomBoolean()) { // check if we can call it multiple times
+            if (randomBoolean()) {
+                assertThat(processor.awaitClose(1, TimeUnit.MINUTES), is(true));
+            } else {
+                processor.close();
+            }
+        }
+        assertThat(processor.isOpen(), is(false));
+
+        assertThat(listener.beforeCounts.get(), greaterThanOrEqualTo(1));
+        assertThat(listener.afterCounts.get(), greaterThanOrEqualTo(1));
+        assertThat(listener.bulkFailures.size(), equalTo(0));
+        assertResponseItems(listener.bulkItems, numDocs);
+        assertMultiGetResponse(multiGetRequestBuilder.get(), numDocs);
     }
 
     @Test

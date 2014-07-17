@@ -155,7 +155,7 @@ public class BulkProcessor implements Closeable {
 
     private final int concurrentRequests;
     private final int bulkActions;
-    private final int bulkSize;
+    private final long bulkSize;
     private final TimeValue flushInterval;
 
     private final Semaphore semaphore;
@@ -174,7 +174,7 @@ public class BulkProcessor implements Closeable {
         this.name = name;
         this.concurrentRequests = concurrentRequests;
         this.bulkActions = bulkActions;
-        this.bulkSize = bulkSize.bytesAsInt();
+        this.bulkSize = bulkSize.bytes();
 
         this.semaphore = new Semaphore(concurrentRequests);
         this.bulkRequest = new BulkRequest();
@@ -230,7 +230,11 @@ public class BulkProcessor implements Closeable {
         if (this.concurrentRequests < 1) {
             return true;
         }
-        return semaphore.tryAcquire(this.concurrentRequests, timeout, unit);
+        if (semaphore.tryAcquire(this.concurrentRequests, timeout, unit)) {
+            semaphore.release(this.concurrentRequests);
+            return true;
+        }
+        return false;
     }
 
     /**
@@ -260,7 +264,11 @@ public class BulkProcessor implements Closeable {
         return this;
     }
 
-    public void ensureOpen() {
+    boolean isOpen() {
+        return closed == false;
+    }
+
+    protected void ensureOpen() {
         if (closed) {
             throw new ElasticsearchIllegalStateException("bulk process already closed");
         }

@@ -867,7 +867,9 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         }
 
         Set<DiscoveryNode> possibleMasterNodes = Sets.newHashSet();
-        possibleMasterNodes.add(localNode);
+        if (localNode.masterNode()) {
+            possibleMasterNodes.add(localNode);
+        }
         for (ZenPing.PingResponse pingResponse : pingResponses) {
             possibleMasterNodes.add(pingResponse.target());
         }

@@ -93,22 +93,56 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
     }
 
     private List<String> startCluster(int numberOfNodes) throws ExecutionException, InterruptedException {
+        if (randomBoolean()) {
+            return startMulticastCluster(numberOfNodes, -1);
+        } else {
+            return startUnicastCluster(numberOfNodes, null, -1);
+        }
+    }
 
+    final static Settings DEFAULT_SETTINGS = ImmutableSettings.builder()
+            .put("discovery.zen.fd.ping_timeout", "1s") // <-- for hitting simulated network failures quickly
+            .put("discovery.zen.fd.ping_retries", "1") // <-- for hitting simulated network failures quickly
+            .put(DiscoverySettings.PUBLISH_TIMEOUT, "1s") // <-- for hitting simulated network failures quickly
+            .put("http.enabled", false) // just to make test quicker
+            .put("gateway.local.list_timeout", "10s") // still long to induce failures but to long so test won't time out
+            .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, MockTransportService.class.getName())
+            .build();
+
+    private List<String> startMulticastCluster(int numberOfNodes, int minimumMasterNode) throws ExecutionException, InterruptedException {
+        if (minimumMasterNode < 0) {
+            minimumMasterNode = numberOfNodes / 2 + 1;
+        }
         // TODO: Rarely use default settings form some of these
         Settings settings = ImmutableSettings.builder()
-                .put("discovery.zen.fd.ping_timeout", "1s") // <-- for hitting simulated network failures quickly
-                .put("discovery.zen.fd.ping_retries", "1") // <-- for hitting simulated network failures quickly
-                .put(DiscoverySettings.PUBLISH_TIMEOUT, "1s") // <-- for hitting simulated network failures quickly
-                .put("http.enabled", false) // just to make test quicker
-                .put("gateway.local.list_timeout", "10s") // still long to induce failures but to long so test won't time out
-                .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, MockTransportService.class.getName())
-                .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, numberOfNodes / 2 + 1).build();
+                .put(DEFAULT_SETTINGS)
+                .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, minimumMasterNode)
+                .build();
 
         if (discoveryConfig == null) {
-            if (randomBoolean()) {
-                discoveryConfig = new ClusterDiscoveryConfiguration.UnicastZen(numberOfNodes, numberOfNodes, settings);
+            discoveryConfig = new ClusterDiscoveryConfiguration(numberOfNodes, settings);
+        }
+        List<String> nodes = internalCluster().startNodesAsync(numberOfNodes).get();
+        ensureStableCluster(numberOfNodes);
+
+        return nodes;
+    }
+
+    private List<String> startUnicastCluster(int numberOfNodes,@Nullable int[] unicastHostsOrdinals, int minimumMasterNode) throws ExecutionException, InterruptedException {
+        if (minimumMasterNode < 0) {
+            minimumMasterNode = numberOfNodes / 2 + 1;
+        }
+        // TODO: Rarely use default settings form some of these
+        Settings settings = ImmutableSettings.builder()
+                .put(DEFAULT_SETTINGS)
+                .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, minimumMasterNode)
+                .build();
+
+        if (discoveryConfig == null) {
+            if (unicastHostsOrdinals == null) {
+                discoveryConfig = new ClusterDiscoveryConfiguration.UnicastZen(numberOfNodes, settings);
             } else {
-                discoveryConfig = new ClusterDiscoveryConfiguration(numberOfNodes, settings);
+                discoveryConfig = new ClusterDiscoveryConfiguration.UnicastZen(numberOfNodes, settings, unicastHostsOrdinals);
             }
         }
         List<String> nodes = internalCluster().startNodesAsync(numberOfNodes).get();
@@ -125,6 +159,7 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
 
         return nodes;
     }
+
 
     /**
      * Test that no split brain occurs under partial network partition. See https://github.com/elasticsearch/elasticsearch/issues/2488
@@ -165,13 +200,9 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
         // Wait until the master node sees all 3 nodes again.
         ensureStableCluster(3);
 
-        for (String node : nodes) {
-            ClusterState state = getNodeClusterState(node);
-            assertThat(state.nodes().size(), equalTo(3));
-            // The elected master shouldn't have changed, since the unlucky node never could have elected himself as
-            // master since m_m_n of 2 could never be satisfied.
-            assertThat(state.nodes().masterNode().name(), equalTo(masterNode));
-        }
+        // The elected master shouldn't have changed, since the unlucky node never could have elected himself as
+        // master since m_m_n of 2 could never be satisfied.
+        assertMaster(masterNode, nodes);
     }
 
     /**
@@ -512,6 +543,48 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
         }
     }
 
+    /**
+     * A 4 node cluster with m_m_n set to 3 and each node has one unicast enpoint. One node partitions from the master node.
+     * The temporal unicast responses is empty. When partition is solved the one ping response contains a master node.
+     * The rejoining node should take this master node and connect.
+     */
+    @Test
+    @TestLogging("discovery.zen:TRACE,action:TRACE")
+    public void unicastSinglePingResponseContainsMaster() throws Exception {
+        List<String> nodes = startUnicastCluster(4, new int[] {0}, -1);
+        // Figure out what is the elected master node
+        final String masterNode = internalCluster().getMasterName();
+        logger.info("---> legit elected master node=" + masterNode);
+        List<String> otherNodes = new ArrayList<>(nodes);
+        otherNodes.remove(masterNode);
+        otherNodes.remove(nodes.get(0)); // <-- Don't isolate the node that is in the unicast endpoint for all the other nodes.
+        final String isolatedNode = otherNodes.get(0);
+
+        // Forcefully clean temporal response lists on all nodes. Otherwise the node in the unicast host list
+        // includes all the other nodes that have pinged it and the issue doesn't manifest
+        for (ZenPingService pingService : internalCluster().getInstances(ZenPingService.class)) {
+            for (ZenPing zenPing : pingService.zenPings()) {
+                ((UnicastZenPing) zenPing).clearTemporalReponses();
+            }
+        }
+
+        // Simulate a network issue between the unlucky node and elected master node in both directions.
+        NetworkDisconnectPartition networkDisconnect = new NetworkDisconnectPartition(masterNode, isolatedNode, getRandom());
+        setDisruptionScheme(networkDisconnect);
+        networkDisconnect.startDisrupting();
+        // Wait until elected master has removed that the unlucky node...
+        ensureStableCluster(3, masterNode);
+
+        // The isolate master node must report no master, so it starts with pinging
+        assertNoMaster(isolatedNode);
+        networkDisconnect.stopDisrupting();
+        // Wait until the master node sees all 4 nodes again.
+        ensureStableCluster(4);
+        // The elected master shouldn't have changed, since the isolated node never could have elected himself as
+        // master since m_m_n of 3 could never be satisfied.
+        assertMaster(masterNode, nodes);
+    }
+
     protected NetworkPartition addRandomPartition() {
         NetworkPartition partition;
         if (randomBoolean()) {
@@ -603,5 +676,13 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
                 }
             }
         }, maxWaitTime.getMillis(), TimeUnit.MILLISECONDS);
+    }
+
+    private void assertMaster(String masterNode, List<String> nodes) {
+        for (String node : nodes) {
+            ClusterState state = getNodeClusterState(node);
+            assertThat(state.nodes().size(), equalTo(nodes.size()));
+            assertThat(state.nodes().masterNode().name(), equalTo(masterNode));
+        }
     }
 }

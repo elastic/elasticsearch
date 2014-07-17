@@ -27,7 +27,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.math.UnboxedMathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.ScoreAccessor;
 import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -35,6 +34,7 @@ import org.mvel2.MVEL;
 import org.mvel2.ParserConfiguration;
 import org.mvel2.ParserContext;
 import org.mvel2.compiler.ExecutableStatement;
+import org.mvel2.integration.VariableResolver;
 import org.mvel2.integration.impl.MapVariableResolverFactory;
 
 import java.io.IOException;
@@ -142,34 +142,33 @@ public class MvelScriptEngineService extends AbstractComponent implements Script
         }
     }
 
-    public static class MvelSearchScript implements SearchScript {
+    public final static class MvelSearchScript implements SearchScript {
 
         private final ExecutableStatement script;
 
         private final SearchLookup lookup;
 
-        private final MapVariableResolverFactory resolver;
-
-        private boolean pluginScore;
+        private final ScoreAwareMapVariableResolverFactory resolver;
+        private final ScoreVariableResolver scoreVar;
 
         public MvelSearchScript(Object script, SearchLookup lookup, Map<String, Object> vars) {
             this.script = (ExecutableStatement) script;
             this.lookup = lookup;
+            this.scoreVar = new ScoreVariableResolver(lookup);
             if (vars != null) {
-                this.resolver = new MapVariableResolverFactory(vars);
+                this.resolver = new ScoreAwareMapVariableResolverFactory(vars, scoreVar);
             } else {
-                this.resolver = new MapVariableResolverFactory(new HashMap());
+                this.resolver = new ScoreAwareMapVariableResolverFactory(new HashMap(), scoreVar);
             }
             for (Map.Entry<String, Object> entry : lookup.asMap().entrySet()) {
                 resolver.createVariable(entry.getKey(), entry.getValue());
             }
-            pluginScore = false;
         }
 
         @Override
         public void setScorer(Scorer scorer) {
-            pluginScore = true;
             lookup.setScorer(scorer);
+            scoreVar.setScorer(scorer);
         }
 
         @Override
@@ -180,13 +179,7 @@ public class MvelScriptEngineService extends AbstractComponent implements Script
         @Override
         public void setNextDocId(int doc) {
             lookup.setNextDocId(doc);
-            if (pluginScore) {
-                try {
-                    resolver.createVariable("_score", lookup.doc().score());
-                } catch (IOException e) {
-                    throw new RuntimeException("Failed to get score", e);
-                }
-            }
+            scoreVar.setNextDocId(doc);
         }
 
         @Override
@@ -222,6 +215,82 @@ public class MvelScriptEngineService extends AbstractComponent implements Script
         @Override
         public Object unwrap(Object value) {
             return value;
+        }
+    }
+
+    /**
+     * we add a specialized VariableResolverFactory in order to add our ScoreVariableResolver
+     * that get's the score float value from the SearchLookup
+     */
+    private static final class ScoreAwareMapVariableResolverFactory extends MapVariableResolverFactory {
+        public ScoreAwareMapVariableResolverFactory(Map variables, ScoreVariableResolver resolver) {
+            super(variables);
+            addResolver("_score", resolver);
+
+        }
+    }
+
+    /**
+     * A VariableResolver for the _score variable. This resolver fetches the score
+     * directly from the SearchLookup and doesn't need to be reset at all.
+     */
+    private static final class ScoreVariableResolver implements VariableResolver {
+        private final SearchLookup searchLookup;
+        private Float score = 0.0f;
+        private int docId = -1;
+        private int scoreDocId = -1;
+        private Scorer scorer;
+
+        public ScoreVariableResolver(SearchLookup searchLookup) {
+            this.searchLookup = searchLookup;
+        }
+        @Override
+        public String getName() {
+            return "_score";
+        }
+
+        @Override
+        public Class getType() {
+            return Float.class;
+        }
+
+        @Override
+        public void setStaticType(Class type) {
+        }
+
+        @Override
+        public int getFlags() {
+            return 0;
+        }
+
+        @Override
+        public Float getValue() {
+            assert docId != Scorer.NO_MORE_DOCS && scorer.docID() != Scorer.NO_MORE_DOCS && docId == scorer.docID();
+            try {
+                if (docId != scoreDocId) {
+                    scoreDocId = docId;
+                    return score = searchLookup.doc().score();
+                } else {
+                    return score;
+                }
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to get score", e);
+            }
+        }
+
+        @Override
+        public void setValue(Object value) {
+            throw new UnsupportedOperationException("_score is not assignable");
+        }
+
+        void setScorer(Scorer scorer) {
+            this.scorer = scorer;
+            this.scoreDocId = -1;
+        }
+
+        void setNextDocId(int docId) {
+            assert docId >= 0 && docId < Scorer.NO_MORE_DOCS : "Illegal docID: " + docId;
+            this.docId = docId;
         }
     }
 }

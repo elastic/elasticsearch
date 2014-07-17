@@ -281,7 +281,11 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
 
     @Override
     public HttpInfo info() {
-        return new HttpInfo(boundAddress(), maxContentLength.bytes());
+        BoundTransportAddress boundTransportAddress = boundAddress();
+        if (boundTransportAddress == null) {
+            return null;
+        }
+        return new HttpInfo(boundTransportAddress, maxContentLength.bytes());
     }
 
     @Override

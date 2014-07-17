@@ -84,7 +84,7 @@ public class UpdateHelper extends AbstractComponent {
         long getDate = System.currentTimeMillis();
         final GetResult getResult = indexShard.getService().get(request.type(), request.id(),
                 new String[]{RoutingFieldMapper.NAME, ParentFieldMapper.NAME, TTLFieldMapper.NAME},
-                true, request.version(), request.versionType(), FetchSourceContext.FETCH_SOURCE);
+                true, false, request.version(), request.versionType(), FetchSourceContext.FETCH_SOURCE);
 
         if (!getResult.isExists()) {
             if (request.upsertRequest() == null && !request.docAsUpsert()) {

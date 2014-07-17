@@ -135,7 +135,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
                             PostingsFormatProvider postingsProvider, DocValuesFormatProvider docValuesProvider,
                             @Nullable Settings fieldDataSettings, Settings indexSettings) {
         super(new Names(name, indexName, indexName, name), boost, fieldType, docValues, Lucene.KEYWORD_ANALYZER,
-                Lucene.KEYWORD_ANALYZER, postingsProvider, docValuesProvider, null, null, fieldDataSettings, indexSettings);
+                Lucene.KEYWORD_ANALYZER, postingsProvider, docValuesProvider, null, null, fieldDataSettings, indexSettings, false);
         this.path = path;
     }
 

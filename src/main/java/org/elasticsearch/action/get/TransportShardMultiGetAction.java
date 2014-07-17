@@ -121,7 +121,7 @@ public class TransportShardMultiGetAction extends TransportShardSingleOperationA
 
             FetchSourceContext fetchSourceContext = request.fetchSourceContexts.get(i);
             try {
-                GetResult getResult = indexShard.getService().get(type, id, fields, request.realtime(), version, versionType, fetchSourceContext);
+                GetResult getResult = indexShard.getService().get(type, id, fields, request.realtime(), request.ignoreErrorsOnGeneratedFields(), version, versionType, fetchSourceContext);
                 response.add(request.locations.get(i), new GetResponse(getResult));
             } catch (Throwable t) {
                 if (TransportActions.isShardNotAvailableException(t)) {

@@ -96,12 +96,12 @@ public class ShardGetService extends AbstractIndexShardComponent {
         return this;
     }
 
-    public GetResult get(String type, String id, String[] gFields, boolean realtime, long version, VersionType versionType, FetchSourceContext fetchSourceContext)
+    public GetResult get(String type, String id, String[] gFields, boolean realtime, boolean ignoreErrorsOnGeneratedFields, long version, VersionType versionType, FetchSourceContext fetchSourceContext)
             throws ElasticsearchException {
         currentMetric.inc();
         try {
             long now = System.nanoTime();
-            GetResult getResult = innerGet(type, id, gFields, realtime, version, versionType, fetchSourceContext);
+            GetResult getResult = innerGet(type, id, gFields, realtime, ignoreErrorsOnGeneratedFields, version, versionType, fetchSourceContext);
 
             if (getResult.isExists()) {
                 existsMetric.inc(System.nanoTime() - now);
@@ -121,7 +121,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
      * <p/>
      * Note: Call <b>must</b> release engine searcher associated with engineGetResult!
      */
-    public GetResult get(Engine.GetResult engineGetResult, String id, String type, String[] fields, FetchSourceContext fetchSourceContext) {
+    public GetResult get(Engine.GetResult engineGetResult, String id, String type, String[] fields, FetchSourceContext fetchSourceContext, boolean ignoreErrorsOnGeneratedFields) {
         if (!engineGetResult.exists()) {
             return new GetResult(shardId.index().name(), type, id, -1, false, null, null);
         }
@@ -135,7 +135,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
                 return new GetResult(shardId.index().name(), type, id, -1, false, null, null);
             }
             fetchSourceContext = normalizeFetchSourceContent(fetchSourceContext, fields);
-            GetResult getResult = innerGetLoadFromStoredFields(type, id, fields, fetchSourceContext, engineGetResult, docMapper);
+            GetResult getResult = innerGetLoadFromStoredFields(type, id, fields, fetchSourceContext, engineGetResult, docMapper, ignoreErrorsOnGeneratedFields);
             if (getResult.isExists()) {
                 existsMetric.inc(System.nanoTime() - now);
             } else {
@@ -165,7 +165,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
         return FetchSourceContext.DO_NOT_FETCH_SOURCE;
     }
 
-    public GetResult innerGet(String type, String id, String[] gFields, boolean realtime, long version, VersionType versionType, FetchSourceContext fetchSourceContext) throws ElasticsearchException {
+    public GetResult innerGet(String type, String id, String[] gFields, boolean realtime, boolean ignoreErrorsOnGeneratedFields, long version, VersionType versionType, FetchSourceContext fetchSourceContext) throws ElasticsearchException {
         fetchSourceContext = normalizeFetchSourceContent(fetchSourceContext, gFields);
 
         boolean loadSource = (gFields != null && gFields.length > 0) || fetchSourceContext.fetchSource();
@@ -207,7 +207,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
         try {
             // break between having loaded it from translog (so we only have _source), and having a document to load
             if (get.docIdAndVersion() != null) {
-                return innerGetLoadFromStoredFields(type, id, gFields, fetchSourceContext, get, docMapper);
+                return innerGetLoadFromStoredFields(type, id, gFields, fetchSourceContext, get, docMapper, ignoreErrorsOnGeneratedFields);
             } else {
                 Translog.Source source = get.source();
 
@@ -247,7 +247,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
                                     // Only fail if we know it is a object field, missing paths / fields shouldn't fail.
                                     throw new ElasticsearchIllegalArgumentException("field [" + field + "] isn't a leaf field");
                                 }
-                            } else if (docMapper.sourceMapper().enabled() || x.fieldType().stored()) {
+                            } else if (shouldGetFromSource(ignoreErrorsOnGeneratedFields, docMapper, x)) {
                                 List<Object> values = searchLookup.source().extractRawValues(field);
                                 if (!values.isEmpty()) {
                                     for (int i = 0; i < values.size(); i++) {
@@ -255,6 +255,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
                                     }
                                     value = values;
                                 }
+
                             }
                         }
                         if (value != null) {
@@ -312,7 +313,27 @@ public class ShardGetService extends AbstractIndexShardComponent {
         }
     }
 
-    private GetResult innerGetLoadFromStoredFields(String type, String id, String[] gFields, FetchSourceContext fetchSourceContext, Engine.GetResult get, DocumentMapper docMapper) {
+    protected boolean shouldGetFromSource(boolean ignoreErrorsOnGeneratedFields, DocumentMapper docMapper, FieldMapper<?> x) {
+        if (!x.isGenerated()) {
+            //if the field is always there we check if either source mapper is enabled, in which case we get the field
+            // from source, or, if the field is stored, in which case we have to get if from source here also (we are in the translog phase, doc not indexed yet, we annot access the stored fields)
+            return docMapper.sourceMapper().enabled() || x.fieldType().stored();
+        } else {
+            if (!x.fieldType().stored()) {
+                //if it is not stored, user will not get the generated field back
+                return false;
+            } else {
+                if (ignoreErrorsOnGeneratedFields) {
+                    return false;
+                } else {
+                    throw new ElasticsearchException("Cannot access field " + x.name() + " from transaction log. You can only get this field after refresh() has been called.");
+                }
+            }
+
+        }
+    }
+
+    private GetResult innerGetLoadFromStoredFields(String type, String id, String[] gFields, FetchSourceContext fetchSourceContext, Engine.GetResult get, DocumentMapper docMapper, boolean ignoreErrorsOnGeneratedFields) {
         Map<String, GetField> fields = null;
         BytesReference source = null;
         Versions.DocIdAndVersion docIdAndVersion = get.docIdAndVersion();
@@ -335,6 +356,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
         }
 
         // now, go and do the script thingy if needed
+
         if (gFields != null && gFields.length > 0) {
             SearchLookup searchLookup = null;
             for (String field : gFields) {
@@ -345,7 +367,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
                         // Only fail if we know it is a object field, missing paths / fields shouldn't fail.
                         throw new ElasticsearchIllegalArgumentException("field [" + field + "] isn't a leaf field");
                     }
-                } else if (!x.mapper().fieldType().stored()) {
+                } else if (!x.mapper().fieldType().stored() && !x.mapper().isGenerated()) {
                     if (searchLookup == null) {
                         searchLookup = new SearchLookup(mapperService, fieldDataService, new String[]{type});
                         searchLookup.setNextReader(docIdAndVersion.context);

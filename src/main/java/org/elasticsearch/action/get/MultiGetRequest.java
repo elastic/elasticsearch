@@ -241,6 +241,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
     String preference;
     Boolean realtime;
     boolean refresh;
+    public boolean ignoreErrorsOnGeneratedFields = false;
 
     List<Item> items = new ArrayList<>();
 
@@ -306,6 +307,12 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
 
     public MultiGetRequest refresh(boolean refresh) {
         this.refresh = refresh;
+        return this;
+    }
+
+
+    public MultiGetRequest ignoreErrorsOnGeneratedFields(boolean ignoreErrorsOnGeneratedFields) {
+        this.ignoreErrorsOnGeneratedFields = ignoreErrorsOnGeneratedFields;
         return this;
     }
 
@@ -481,6 +488,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
         } else if (realtime == 1) {
             this.realtime = true;
         }
+        ignoreErrorsOnGeneratedFields = in.readBoolean();
 
         int size = in.readVInt();
         items = new ArrayList<>(size);
@@ -501,6 +509,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
         } else {
             out.writeByte((byte) 1);
         }
+        out.writeBoolean(ignoreErrorsOnGeneratedFields);
 
         out.writeVInt(items.size());
         for (Item item : items) {

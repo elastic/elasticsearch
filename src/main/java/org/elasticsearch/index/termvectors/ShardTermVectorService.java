@@ -118,7 +118,7 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
             }
             // TODO: support for fetchSourceContext?
             GetResult getResult = indexShard.getService().get(
-                    get, request.id(), request.type(), validFields.toArray(Strings.EMPTY_ARRAY), null);
+                    get, request.id(), request.type(), validFields.toArray(Strings.EMPTY_ARRAY), null, false);
             generatedTermVectors = generateTermVectors(getResult.getFields().values(), request.offsets());
         } finally {
             get.release();

@@ -59,6 +59,7 @@ public class GetRequest extends SingleShardOperationRequest<GetRequest> {
 
     private VersionType versionType = VersionType.INTERNAL;
     private long version = Versions.MATCH_ANY;
+    private boolean ignoreErrorsOnGeneratedFields;
 
     GetRequest() {
         type = "_all";
@@ -240,8 +241,17 @@ public class GetRequest extends SingleShardOperationRequest<GetRequest> {
         return this;
     }
 
+    public GetRequest ignoreErrorsOnGeneratedFields(boolean ignoreErrorsOnGeneratedFields) {
+        this.ignoreErrorsOnGeneratedFields = ignoreErrorsOnGeneratedFields;
+        return this;
+    }
+
     public VersionType versionType() {
         return this.versionType;
+    }
+
+    public boolean ignoreErrorsOnGeneratedFields() {
+        return ignoreErrorsOnGeneratedFields;
     }
 
     @Override
@@ -265,6 +275,7 @@ public class GetRequest extends SingleShardOperationRequest<GetRequest> {
         } else if (realtime == 1) {
             this.realtime = true;
         }
+        this.ignoreErrorsOnGeneratedFields = in.readBoolean();
 
         this.versionType = VersionType.fromValue(in.readByte());
         this.version = Versions.readVersionWithVLongForBW(in);
@@ -297,6 +308,7 @@ public class GetRequest extends SingleShardOperationRequest<GetRequest> {
             out.writeByte((byte) 1);
         }
 
+        out.writeBoolean(ignoreErrorsOnGeneratedFields);
         out.writeByte(versionType.getValue());
         Versions.writeVersionWithVLongForBW(version, out);
 
@@ -307,4 +319,5 @@ public class GetRequest extends SingleShardOperationRequest<GetRequest> {
     public String toString() {
         return "get [" + index + "][" + type + "][" + id + "]: routing [" + routing + "]";
     }
+
 }

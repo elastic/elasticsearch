@@ -188,10 +188,10 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
                                 NamedAnalyzer searchAnalyzer, PostingsFormatProvider postingsProvider,
                                 DocValuesFormatProvider docValuesProvider, SimilarityProvider similarity,
                                 Loading normsLoading, @Nullable Settings fieldDataSettings, Settings indexSettings,
-                                MultiFields multiFields, CopyTo copyTo) {
+                                MultiFields multiFields, CopyTo copyTo, boolean isGenerated) {
         // LUCENE 4 UPGRADE: Since we can't do anything before the super call, we have to push the boost check down to subclasses
         super(names, boost, fieldType, docValues, indexAnalyzer, searchAnalyzer, postingsProvider, docValuesProvider, 
-                similarity, normsLoading, fieldDataSettings, indexSettings, multiFields, copyTo);
+                similarity, normsLoading, fieldDataSettings, indexSettings, multiFields, copyTo, isGenerated);
         if (precisionStep <= 0 || precisionStep >= maxPrecisionStep()) {
             this.precisionStep = Integer.MAX_VALUE;
         } else {

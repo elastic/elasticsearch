@@ -290,4 +290,6 @@ public interface FieldMapper<T> extends Mapper {
 
     Loading normsLoading(Loading defaultLoading);
 
+    public boolean isGenerated();
+
 }

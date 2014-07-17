@@ -253,18 +253,17 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
         assertAllSuccessful(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo((long) numDocs));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("0"));
-        assertThat(searchResponse.getHits().getAt(0).matchedQueries().length, equalTo(2));
-        assertThat(searchResponse.getHits().getAt(0).matchedQueries()[0], equalTo("test1"));
-        assertThat(searchResponse.getHits().getAt(0).matchedQueries()[1], equalTo("test3"));
+        assertThat(searchResponse.getHits().getAt(0).matchedQueries(), arrayWithSize(2));
+        assertThat(searchResponse.getHits().getAt(0).matchedQueries(), arrayContainingInAnyOrder("test1", "test3"));
 
         assertThat(searchResponse.getHits().getAt(1).id(), equalTo("1"));
-        assertThat(searchResponse.getHits().getAt(1).matchedQueries().length, equalTo(1));
-        assertThat(searchResponse.getHits().getAt(1).matchedQueries()[0], equalTo("test2"));
+        assertThat(searchResponse.getHits().getAt(1).matchedQueries(), arrayWithSize(1));
+        assertThat(searchResponse.getHits().getAt(1).matchedQueries(), arrayContaining("test2"));
 
         for (int i = 2; i < numDocs; i++) {
             assertThat(searchResponse.getHits().getAt(i).id(), equalTo(String.valueOf(i)));
-            assertThat(searchResponse.getHits().getAt(i).matchedQueries().length, equalTo(1));
-            assertThat(searchResponse.getHits().getAt(i).matchedQueries()[0], equalTo("test3"));
+            assertThat(searchResponse.getHits().getAt(i).matchedQueries(), arrayWithSize(1));
+            assertThat(searchResponse.getHits().getAt(i).matchedQueries(), arrayContaining("test3"));
         }
     }
 

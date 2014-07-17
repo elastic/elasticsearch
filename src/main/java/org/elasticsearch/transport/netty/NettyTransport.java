@@ -72,10 +72,7 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.nio.channels.CancelledKeyException;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
@@ -272,27 +269,9 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
                     new NioWorkerPool(Executors.newCachedThreadPool(daemonThreadFactory(settings, "transport_client_worker")), workerCount),
                     new HashedWheelTimer(daemonThreadFactory(settings, "transport_client_timer"))));
         }
-        ChannelPipelineFactory clientPipelineFactory = new ChannelPipelineFactory() {
-            @Override
-            public ChannelPipeline getPipeline() throws Exception {
-                ChannelPipeline pipeline = Channels.pipeline();
-                SizeHeaderFrameDecoder sizeHeader = new SizeHeaderFrameDecoder();
-                if (maxCumulationBufferCapacity != null) {
-                    if (maxCumulationBufferCapacity.bytes() > Integer.MAX_VALUE) {
-                        sizeHeader.setMaxCumulationBufferCapacity(Integer.MAX_VALUE);
-                    } else {
-                        sizeHeader.setMaxCumulationBufferCapacity((int) maxCumulationBufferCapacity.bytes());
-                    }
-                }
-                if (maxCompositeBufferComponents != -1) {
-                    sizeHeader.setMaxCumulationBufferComponents(maxCompositeBufferComponents);
-                }
-                pipeline.addLast("size", sizeHeader);
-                pipeline.addLast("dispatcher", new MessageChannelHandler(NettyTransport.this, logger));
-                return pipeline;
-            }
-        };
-        clientBootstrap.setPipelineFactory(clientPipelineFactory);
+        ChannelPipeline clientChannelPipeline = Channels.pipeline();
+        configureClientChannelPipeline(clientChannelPipeline);
+        clientBootstrap.setPipeline(clientChannelPipeline);
         clientBootstrap.setOption("connectTimeoutMillis", connectTimeout.millis());
         if (tcpNoDelay != null) {
             clientBootstrap.setOption("tcpNoDelay", tcpNoDelay);
@@ -315,8 +294,6 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             return;
         }
 
-        final OpenChannelsHandler openChannels = new OpenChannelsHandler(logger);
-        this.serverOpenChannels = openChannels;
         if (blockingServer) {
             serverBootstrap = new ServerBootstrap(new OioServerSocketChannelFactory(
                     Executors.newCachedThreadPool(daemonThreadFactory(settings, "transport_server_boss")),
@@ -328,28 +305,10 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
                     Executors.newCachedThreadPool(daemonThreadFactory(settings, "transport_server_worker")),
                     workerCount));
         }
-        ChannelPipelineFactory serverPipelineFactory = new ChannelPipelineFactory() {
-            @Override
-            public ChannelPipeline getPipeline() throws Exception {
-                ChannelPipeline pipeline = Channels.pipeline();
-                pipeline.addLast("openChannels", openChannels);
-                SizeHeaderFrameDecoder sizeHeader = new SizeHeaderFrameDecoder();
-                if (maxCumulationBufferCapacity != null) {
-                    if (maxCumulationBufferCapacity.bytes() > Integer.MAX_VALUE) {
-                        sizeHeader.setMaxCumulationBufferCapacity(Integer.MAX_VALUE);
-                    } else {
-                        sizeHeader.setMaxCumulationBufferCapacity((int) maxCumulationBufferCapacity.bytes());
-                    }
-                }
-                if (maxCompositeBufferComponents != -1) {
-                    sizeHeader.setMaxCumulationBufferComponents(maxCompositeBufferComponents);
-                }
-                pipeline.addLast("size", sizeHeader);
-                pipeline.addLast("dispatcher", new MessageChannelHandler(NettyTransport.this, logger));
-                return pipeline;
-            }
-        };
-        serverBootstrap.setPipelineFactory(serverPipelineFactory);
+
+        ChannelPipeline serverChannelPipeline = Channels.pipeline();
+        configureServerChannelPipeline(serverChannelPipeline);
+        serverBootstrap.setPipeline(serverChannelPipeline);
         if (tcpNoDelay != null) {
             serverBootstrap.setOption("child.tcpNoDelay", tcpNoDelay);
         }
@@ -410,6 +369,41 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             throw new BindTransportException("Failed to resolve publish address", e);
         }
         this.boundAddress = new BoundTransportAddress(new InetSocketTransportAddress(boundAddress), new InetSocketTransportAddress(publishAddress));
+    }
+
+    public void configureClientChannelPipeline(ChannelPipeline channelPipeline) {
+        SizeHeaderFrameDecoder sizeHeader = new SizeHeaderFrameDecoder();
+        if (maxCumulationBufferCapacity != null) {
+            if (maxCumulationBufferCapacity.bytes() > Integer.MAX_VALUE) {
+                sizeHeader.setMaxCumulationBufferCapacity(Integer.MAX_VALUE);
+            } else {
+                sizeHeader.setMaxCumulationBufferCapacity((int) maxCumulationBufferCapacity.bytes());
+            }
+        }
+        if (maxCompositeBufferComponents != -1) {
+            sizeHeader.setMaxCumulationBufferComponents(maxCompositeBufferComponents);
+        }
+        channelPipeline.addLast("size", sizeHeader);
+        channelPipeline.addLast("dispatcher", new MessageChannelHandler(this, logger));
+    }
+
+    public void configureServerChannelPipeline(ChannelPipeline channelPipeline) {
+        final OpenChannelsHandler openChannels = new OpenChannelsHandler(logger);
+        this.serverOpenChannels = openChannels;
+        channelPipeline.addLast("openChannels", openChannels);
+        SizeHeaderFrameDecoder sizeHeader = new SizeHeaderFrameDecoder();
+        if (maxCumulationBufferCapacity != null) {
+            if (maxCumulationBufferCapacity.bytes() > Integer.MAX_VALUE) {
+                sizeHeader.setMaxCumulationBufferCapacity(Integer.MAX_VALUE);
+            } else {
+                sizeHeader.setMaxCumulationBufferCapacity((int) maxCumulationBufferCapacity.bytes());
+            }
+        }
+        if (maxCompositeBufferComponents != -1) {
+            sizeHeader.setMaxCumulationBufferComponents(maxCompositeBufferComponents);
+        }
+        channelPipeline.addLast("size", sizeHeader);
+        channelPipeline.addLast("dispatcher", new MessageChannelHandler(this, logger));
     }
 
     @Override

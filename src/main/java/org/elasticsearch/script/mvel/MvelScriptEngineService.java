@@ -27,6 +27,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.math.UnboxedMathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.ScoreAccessor;
 import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -143,48 +144,13 @@ public class MvelScriptEngineService extends AbstractComponent implements Script
 
     public static class MvelSearchScript implements SearchScript {
 
-        /**
-         * Float encapsulation that allows updating the value with public
-         * member access. This is used to encapsulate the _score of a document
-         * so that updating the _score for the next document incurs only the
-         * overhead of setting a member variable
-         */
-        private final class ScoreAccessor extends Number {
-
-            float score() {
-                try {
-                    return lookup.doc().score();
-                } catch (IOException e) {
-                    throw new RuntimeException("Could not get score", e);
-                }
-            }
-
-            @Override
-            public int intValue() {
-                return (int)score();
-            }
-
-            @Override
-            public long longValue() {
-                return (long)score();
-            }
-
-            @Override
-            public float floatValue() {
-                return score();
-            }
-
-            @Override
-            public double doubleValue() {
-                return score();
-            }
-        }
-
         private final ExecutableStatement script;
 
         private final SearchLookup lookup;
 
         private final MapVariableResolverFactory resolver;
+
+        private boolean pluginScore;
 
         public MvelSearchScript(Object script, SearchLookup lookup, Map<String, Object> vars) {
             this.script = (ExecutableStatement) script;
@@ -197,11 +163,12 @@ public class MvelScriptEngineService extends AbstractComponent implements Script
             for (Map.Entry<String, Object> entry : lookup.asMap().entrySet()) {
                 resolver.createVariable(entry.getKey(), entry.getValue());
             }
-            resolver.createVariable("_score", new ScoreAccessor());
+            pluginScore = false;
         }
 
         @Override
         public void setScorer(Scorer scorer) {
+            pluginScore = true;
             lookup.setScorer(scorer);
         }
 
@@ -213,6 +180,13 @@ public class MvelScriptEngineService extends AbstractComponent implements Script
         @Override
         public void setNextDocId(int doc) {
             lookup.setNextDocId(doc);
+            if (pluginScore) {
+                try {
+                    resolver.createVariable("_score", lookup.doc().score());
+                } catch (IOException e) {
+                    throw new RuntimeException("Failed to get score", e);
+                }
+            }
         }
 
         @Override

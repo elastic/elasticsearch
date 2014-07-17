@@ -132,9 +132,9 @@ Snapshotting process is executed in non-blocking fashion. All indexing and searc
 executed against the index that is being snapshotted. However, a snapshot represents the point-in-time view of the index
 at the moment when snapshot was created, so no records that were added to the index after snapshot process had started
 will be present in the snapshot. The snapshot process starts immediately for the primary shards that has been started
-and are not relocating at the moment. Before version 1.2.0 the snapshot operation fails if cluster has any relocating or
+and are not relocating at the moment. Before version 1.2.0, the snapshot operation fails if the cluster has any relocating or
 initializing primaries of indices participating in the snapshot. Starting with version 1.2.0, Elasticsearch waits for
-are relocating or initializing shards to start before snapshotting them.
+relocation or initialization of shards to complete before snapshotting them.
 
 Besides creating a copy of each index the snapshot process can also store global cluster metadata, which includes persistent
 cluster settings and templates. The transient settings and registered snapshot repositories are not stored as part of

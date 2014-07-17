@@ -4,5 +4,37 @@ This plugins adds security features to elasticsearch
 
 == Access control
 
-== Encrypted communication
+== Encrypted communication using TLS/SSL
+
+=== Configuration parameters
+
+==== Transport protocol
+
+* `transport.tcp.ssl`: true|false (defaults to true)
+* `transport.tcp.ssl.keystore`: /path/to/the/keystore (absolute path to the keystore, which contains private keys)
+* `transport.tcp.ssl.keystore_password`: password of the keystore
+* `transport.tcp.ssl.keystore_algorithm`: keystore format (defaults to SunX509)
+* `transport.tcp.ssl.truststore`: /path/to/the/truststore (absolute path to the truststore, which contains trusted keys)
+* `transport.tcp.ssl.truststore_password`: password of the truststore
+* `transport.tcp.ssl.truststore_algorithm`: truststore format (defaults to SunX509)
+* `transport.tcp.ssl.client.auth`: true|false (defaults to true)
+* `transport.tcp.ssl.ciphers`: Supported ciphers, defaults to `TLS_RSA_WITH_AES_128_CBC_SHA256` and `TLS_RSA_WITH_AES_128_CBC_SHA`
+
+==== HTTP
+
+* `http.ssl`: true|false (defaults to true)
+* `http.ssl.keystore`: /path/to/the/keystore (absolute path to the keystore, which contains private keys)
+* `http.ssl.keystore_password`: password of the keystore
+* `http.ssl.keystore_algorithm`: keystore format (defaults to SunX509)
+* `http.ssl.truststore`: /path/to/the/truststore (absolute path to the truststore, which contains trusted keys)
+* `http.ssl.truststore_password`: password of the truststore
+* `http.ssl.truststore_algorithm`: truststore format (defaults to SunX509)
+* `http.ssl.client.auth`: true|false (defaults to true)
+* `http.ssl.ciphers`: Supported ciphers, defaults to `TLS_RSA_WITH_AES_128_CBC_SHA256` and `TLS_RSA_WITH_AES_128_CBC_SHA`
+
+== Generating certificates
+
+=== Using self signed certificates per node
+
+=== Using an own CA
 

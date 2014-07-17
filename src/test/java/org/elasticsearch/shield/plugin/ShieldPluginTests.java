@@ -21,7 +21,7 @@ import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 /**
  *
  */
-@ClusterScope(scope = Scope.SUITE)
+@ClusterScope(scope = Scope.SUITE, numDataNodes = 2)
 public class ShieldPluginTests extends ElasticsearchIntegrationTest {
 
     @Override
@@ -36,7 +36,9 @@ public class ShieldPluginTests extends ElasticsearchIntegrationTest {
     @Test
     @TestLogging("_root:INFO,plugins.PluginsService:TRACE")
     public void testThatPluginIsLoaded() {
-        NodesInfoResponse nodeInfos = internalCluster().clientNodeClient().admin().cluster().prepareNodesInfo().get();
+        logger.info("--> Getting nodes info");
+        NodesInfoResponse nodeInfos = internalCluster().transportClient().admin().cluster().prepareNodesInfo().get();
+        logger.info("--> Checking nodes info");
         for (NodeInfo nodeInfo : nodeInfos.getNodes()) {
             assertThat(nodeInfo.getPlugins().getInfos(), hasSize(1));
             assertThat(nodeInfo.getPlugins().getInfos().get(0).getName(), is("shield"));

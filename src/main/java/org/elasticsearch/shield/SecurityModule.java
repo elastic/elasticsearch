@@ -29,6 +29,11 @@ public class SecurityModule extends AbstractModule implements SpawnModules {
 
     @Override
     public Iterable<? extends Module> spawnModules() {
+        // dont spawn module in client mode
+        if (settings.getAsBoolean("node.client", false)) {
+            return ImmutableList.of();
+        }
+
         return ImmutableList.of(
                 Modules.createModule(AuthenticationModule.class, settings),
                 Modules.createModule(AuthorizationModule.class, settings),

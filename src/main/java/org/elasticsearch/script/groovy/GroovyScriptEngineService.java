@@ -191,13 +191,15 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
             this(script, null, logger);
         }
 
-        public GroovyScript(Script script, SearchLookup lookup, ESLogger logger) {
+        public GroovyScript(Script script, @Nullable SearchLookup lookup, ESLogger logger) {
             this.script = script;
             this.lookup = lookup;
             this.logger = logger;
             this.variables = script.getBinding().getVariables();
-            // Add the _score variable, which will access score from lookup.doc()
-            this.variables.put("_score", new ScoreAccessor(lookup.doc()));
+            if (lookup != null) {
+                // Add the _score variable, which will access score from lookup.doc()
+                this.variables.put("_score", new ScoreAccessor(lookup.doc()));
+            }
         }
 
         @Override

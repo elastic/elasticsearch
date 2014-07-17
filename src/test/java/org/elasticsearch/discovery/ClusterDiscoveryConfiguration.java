@@ -67,6 +67,10 @@ public class ClusterDiscoveryConfiguration extends NodeSettingsSource {
             this(numOfNodes, numOfNodes);
         }
 
+        public UnicastZen(int numOfNodes, Settings extraSettings) {
+            this(numOfNodes, numOfNodes, extraSettings);
+        }
+
         public UnicastZen(int numOfNodes, int numOfUnicastHosts) {
             this(numOfNodes, numOfUnicastHosts, ImmutableSettings.EMPTY);
         }

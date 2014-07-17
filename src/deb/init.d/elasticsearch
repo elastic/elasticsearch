@@ -162,7 +162,21 @@ case "$1" in
 
 	# Start Daemon
 	start-stop-daemon --start -b --user "$ES_USER" -c "$ES_USER" --pidfile "$PID_FILE" --exec $DAEMON -- $DAEMON_OPTS
-	log_end_msg $?
+	return=$?
+	if [ $return -eq 0 ]
+	then
+		i=0
+		timeout=10
+		# Wait for the process to be properly started before exiting
+		until { cat "$PID_FILE" | xargs kill -0; } >/dev/null 2>&1
+		do
+			sleep 1
+			i=$(($i + 1))
+			[ $i -gt $timeout ] && log_end_msg 1
+		done
+	else
+		log_end_msg $return
+	fi
 	;;		
   stop)
 	log_daemon_msg "Stopping $DESC"

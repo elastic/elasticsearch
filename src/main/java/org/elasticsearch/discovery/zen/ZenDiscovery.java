@@ -875,8 +875,16 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         // if we don't have enough master nodes, we bail, even if we get a response that indicates
         // there is a master by other node, we don't see enough...
         if (!electMaster.hasEnoughMasterNodes(possibleMasterNodes)) {
-            logger.trace("not enough master nodes [{}]", possibleMasterNodes);
-            return null;
+            if (pingMasters.isEmpty()) {
+                logger.trace("not enough possible master nodes [{}] and no masters to ping", possibleMasterNodes);
+                return null;
+            } else {
+                logger.trace("not enough possible master nodes [{}], but there are masters to ping [{}]", possibleMasterNodes, pingMasters);
+                DiscoveryNode electedMaster = electMaster.electMaster(pingMasters);
+                if (electedMaster != null) {
+                    return electedMaster;
+                }
+            }
         }
 
         if (pingMasters.isEmpty()) {

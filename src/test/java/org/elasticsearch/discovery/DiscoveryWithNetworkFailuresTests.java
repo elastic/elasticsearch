@@ -19,6 +19,7 @@
 
 package org.elasticsearch.discovery;
 
+import com.google.common.base.Predicate;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -29,6 +30,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.operation.hash.djb.DjbHashFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
@@ -93,20 +95,30 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
     }
 
     private List<String> startCluster(int numberOfNodes) throws ExecutionException, InterruptedException {
+        return startCluster(numberOfNodes, numberOfNodes, -1, randomBoolean());
+    }
+
+    private List<String> startCluster(int numberOfNodes, int numUnicastHosts, int minimumMasterNodes, boolean unicastDiscovery) throws ExecutionException, InterruptedException {
 
         // TODO: Rarely use default settings form some of these
-        Settings settings = ImmutableSettings.builder()
+        ImmutableSettings.Builder settingsBuilder = ImmutableSettings.builder()
                 .put("discovery.zen.fd.ping_timeout", "1s") // <-- for hitting simulated network failures quickly
                 .put("discovery.zen.fd.ping_retries", "1") // <-- for hitting simulated network failures quickly
                 .put(DiscoverySettings.PUBLISH_TIMEOUT, "1s") // <-- for hitting simulated network failures quickly
                 .put("http.enabled", false) // just to make test quicker
                 .put("gateway.local.list_timeout", "10s") // still long to induce failures but to long so test won't time out
                 .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, MockTransportService.class.getName())
-                .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, numberOfNodes / 2 + 1).build();
+                .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, numberOfNodes / 2 + 1);
+
+        if (minimumMasterNodes != -1) {
+            settingsBuilder.put("discovery.zen.minimum_master_nodes", minimumMasterNodes);
+        }
+
+        Settings settings = settingsBuilder.build();
 
         if (discoveryConfig == null) {
-            if (randomBoolean()) {
-                discoveryConfig = new ClusterDiscoveryConfiguration.UnicastZen(numberOfNodes, numberOfNodes, settings);
+            if (unicastDiscovery) {
+                discoveryConfig = new ClusterDiscoveryConfiguration.UnicastZen(numberOfNodes, numUnicastHosts, settings);
             } else {
                 discoveryConfig = new ClusterDiscoveryConfiguration(numberOfNodes, settings);
             }
@@ -509,6 +521,61 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
             assertThat(getResponse.isExists(), is(true));
             assertThat(getResponse.getVersion(), equalTo(1l));
             assertThat(getResponse.getId(), equalTo(indexResponse.getId()));
+        }
+    }
+
+    @Test
+    @TestLogging("discovery.zen:TRACE,action:TRACE")
+    public void unicastPingResponseContainsMasterButIsIgnoredByTheRejoiningNode() throws Exception {
+        List<String> nodes = startCluster(3, 1, 3, true);
+        // Figure out what is the elected master node
+        final String masterNode = internalCluster().getMasterName();
+        logger.info("---> legit elected master node=" + masterNode);
+
+        Settings nodeSettings = discoveryConfig.settings(4);
+        Future<String> f4 = internalCluster().startNodeAsync(nodeSettings);
+        nodes = new ArrayList<>(nodes);
+        final String unluckyNode;
+        nodes.add(unluckyNode = f4.get());
+
+        // Wait until 3 nodes are part of the cluster
+        ensureStableCluster(4);
+        for (ZenPingService pingService : internalCluster().getInstances(ZenPingService.class)) {
+            for (ZenPing zenPing : pingService.zenPings()) {
+                ((UnicastZenPing)zenPing).clearTemporalReponses();
+            }
+        }
+
+        // Simulate a network issue between the unlucky node and elected master node in both directions.
+        NetworkDisconnectPartition networkDisconnect = new NetworkDisconnectPartition(masterNode, unluckyNode, getRandom());
+        setDisruptionScheme(networkDisconnect);
+        networkDisconnect.startDisrupting();
+        // Wait until elected master has removed that the unlucky node...
+        ensureStableCluster(3, masterNode);
+
+        // The unlucky node must report *no* master node, since it can't connect to master and in fact it should
+        // continuously ping until network failures have been resolved. However
+        // It may a take a bit before the node detects it has been cut off from the elected master
+        boolean success = awaitBusy(new Predicate<Object>() {
+            @Override
+            public boolean apply(Object input) {
+                ClusterState localClusterState = getNodeClusterState(unluckyNode);
+                DiscoveryNodes localDiscoveryNodes = localClusterState.nodes();
+                logger.info("localDiscoveryNodes=" + localDiscoveryNodes.prettyPrint());
+                return localDiscoveryNodes.masterNode() == null;
+            }
+        }, 10, TimeUnit.SECONDS);
+        assertThat(success, is(true));
+        networkDisconnect.stopDisrupting();
+        // Wait until the master node sees all 3 nodes again.
+        ensureStableCluster(4);
+
+        for (String node : nodes) {
+            ClusterState state = getNodeClusterState(node);
+            assertThat(state.nodes().size(), equalTo(4));
+            // The elected master shouldn't have changed, since the unlucky node never could have elected himself as
+            // master since m_m_n of 2 could never be satisfied.
+            assertThat(state.nodes().masterNode().name(), equalTo(masterNode));
         }
     }
 

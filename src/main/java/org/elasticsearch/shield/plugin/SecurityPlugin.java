@@ -8,6 +8,7 @@ package org.elasticsearch.shield.plugin;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.shield.SecurityModule;
 
 import java.util.Collection;
 

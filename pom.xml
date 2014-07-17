@@ -24,6 +24,7 @@
             </releases>
             <snapshots>
                 <enabled>true</enabled>
+                <updatePolicy>always</updatePolicy>
             </snapshots>
         </repository>
     </repositories>
@@ -31,6 +32,8 @@
     <properties>
         <lucene.version>4.9.0</lucene.version>
         <elasticsearch.version>1.4.0-SNAPSHOT</elasticsearch.version>
+        <netty.version>3.9.1.Final</netty.version>
+
         <tests.jvms>auto</tests.jvms>
         <tests.shuffle>true</tests.shuffle>
         <tests.output>onerror</tests.output>
@@ -77,11 +80,31 @@
         </dependency>
 
        <!-- real dependencies -->
+
         <dependency>
             <groupId>org.elasticsearch</groupId>
             <artifactId>elasticsearch</artifactId>
             <version>${elasticsearch.version}</version>
         </dependency>
+
+        <dependency>
+            <groupId>commons-codec</groupId>
+            <artifactId>commons-codec</artifactId>
+            <version>1.9</version>
+        </dependency>
+
+        <dependency>
+            <groupId>commons-cli</groupId>
+            <artifactId>commons-cli</artifactId>
+            <version>1.2</version>
+        </dependency>
+
+        <dependency>
+            <groupId>io.netty</groupId>
+            <artifactId>netty</artifactId>
+            <version>${netty.version}</version>
+        </dependency>
+
 
         <!-- needed for forbidden APIs, embarassing, need to fix -->
         <dependency>
@@ -278,6 +301,7 @@
                             <excludes>
                                 <exclude>jsr166e/**</exclude>
                                 <!-- start excludes for valid system-out -->
+                                <exclude>org/elasticsearch/shield/support/CmdLineTool*</exclude>
                                 <exclude>org/elasticsearch/common/logging/log4j/ConsoleAppender*</exclude>
                                 <exclude>org/elasticsearch/plugins/PluginManager.class</exclude>
                                 <exclude>org/elasticsearch/bootstrap/Bootstrap.class</exclude>

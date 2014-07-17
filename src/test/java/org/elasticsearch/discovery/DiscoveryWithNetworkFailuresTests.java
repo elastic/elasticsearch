@@ -93,27 +93,56 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
     }
 
     private List<String> startCluster(int numberOfNodes) throws ExecutionException, InterruptedException {
-        return startCluster(numberOfNodes, numberOfNodes, -1, randomBoolean());
+        if (randomBoolean()) {
+            return startMulticastCluster(numberOfNodes, -1);
+        } else {
+            return startUnicastCluster(numberOfNodes, null, -1);
+        }
     }
 
-    private List<String> startCluster(int numberOfNodes, int numUnicastHosts, int specificMinimumMasterNodes, boolean unicastDiscovery) throws ExecutionException, InterruptedException {
+    final static Settings DEFAULT_SETTINGS = ImmutableSettings.builder()
+            .put("discovery.zen.fd.ping_timeout", "1s") // <-- for hitting simulated network failures quickly
+            .put("discovery.zen.fd.ping_retries", "1") // <-- for hitting simulated network failures quickly
+            .put(DiscoverySettings.PUBLISH_TIMEOUT, "1s") // <-- for hitting simulated network failures quickly
+            .put("http.enabled", false) // just to make test quicker
+            .put("gateway.local.list_timeout", "10s") // still long to induce failures but to long so test won't time out
+            .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, MockTransportService.class.getName())
+            .build();
 
+    private List<String> startMulticastCluster(int numberOfNodes, int minimumMasterNode) throws ExecutionException, InterruptedException {
+        if (minimumMasterNode < 0) {
+            minimumMasterNode = numberOfNodes / 2 + 1;
+        }
         // TODO: Rarely use default settings form some of these
         Settings settings = ImmutableSettings.builder()
-                .put("discovery.zen.fd.ping_timeout", "1s") // <-- for hitting simulated network failures quickly
-                .put("discovery.zen.fd.ping_retries", "1") // <-- for hitting simulated network failures quickly
-                .put(DiscoverySettings.PUBLISH_TIMEOUT, "1s") // <-- for hitting simulated network failures quickly
-                .put("http.enabled", false) // just to make test quicker
-                .put("gateway.local.list_timeout", "10s") // still long to induce failures but to long so test won't time out
-                .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, MockTransportService.class.getName())
-                .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, specificMinimumMasterNodes != -1 ? specificMinimumMasterNodes : numberOfNodes / 2 + 1)
+                .put(DEFAULT_SETTINGS)
+                .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, minimumMasterNode)
                 .build();
 
         if (discoveryConfig == null) {
-            if (unicastDiscovery) {
-                discoveryConfig = new ClusterDiscoveryConfiguration.UnicastZen(numberOfNodes, numUnicastHosts, settings);
+            discoveryConfig = new ClusterDiscoveryConfiguration(numberOfNodes, settings);
+        }
+        List<String> nodes = internalCluster().startNodesAsync(numberOfNodes).get();
+        ensureStableCluster(numberOfNodes);
+
+        return nodes;
+    }
+
+    private List<String> startUnicastCluster(int numberOfNodes,@Nullable int[] unicastHostsOrdinals, int minimumMasterNode) throws ExecutionException, InterruptedException {
+        if (minimumMasterNode < 0) {
+            minimumMasterNode = numberOfNodes / 2 + 1;
+        }
+        // TODO: Rarely use default settings form some of these
+        Settings settings = ImmutableSettings.builder()
+                .put(DEFAULT_SETTINGS)
+                .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, minimumMasterNode)
+                .build();
+
+        if (discoveryConfig == null) {
+            if (unicastHostsOrdinals == null) {
+                discoveryConfig = new ClusterDiscoveryConfiguration.UnicastZen(numberOfNodes, settings);
             } else {
-                discoveryConfig = new ClusterDiscoveryConfiguration(numberOfNodes, settings);
+                discoveryConfig = new ClusterDiscoveryConfiguration.UnicastZen(numberOfNodes, settings, unicastHostsOrdinals);
             }
         }
         List<String> nodes = internalCluster().startNodesAsync(numberOfNodes).get();
@@ -130,6 +159,7 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
 
         return nodes;
     }
+
 
     /**
      * Test that no split brain occurs under partial network partition. See https://github.com/elasticsearch/elasticsearch/issues/2488
@@ -521,7 +551,7 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
     @Test
     @TestLogging("discovery.zen:TRACE,action:TRACE")
     public void unicastSinglePingResponseContainsMaster() throws Exception {
-        List<String> nodes = startCluster(4, 1, 3, true);
+        List<String> nodes = startUnicastCluster(4, new int[] {0}, -1);
         // Figure out what is the elected master node
         final String masterNode = internalCluster().getMasterName();
         logger.info("---> legit elected master node=" + masterNode);
@@ -534,7 +564,7 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
         // includes all the other nodes that have pinged it and the issue doesn't manifest
         for (ZenPingService pingService : internalCluster().getInstances(ZenPingService.class)) {
             for (ZenPing zenPing : pingService.zenPings()) {
-                ((UnicastZenPing)zenPing).clearTemporalReponses();
+                ((UnicastZenPing) zenPing).clearTemporalReponses();
             }
         }
 

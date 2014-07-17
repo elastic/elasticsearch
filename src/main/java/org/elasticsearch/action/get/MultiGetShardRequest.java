@@ -21,6 +21,7 @@ package org.elasticsearch.action.get;
 
 import com.carrotsearch.hppc.IntArrayList;
 import com.carrotsearch.hppc.LongArrayList;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.single.shard.SingleShardOperationRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -39,6 +40,7 @@ public class MultiGetShardRequest extends SingleShardOperationRequest<MultiGetSh
     private String preference;
     Boolean realtime;
     boolean refresh;
+    boolean ignoreErrorsOnGeneratedFields = false;
 
     IntArrayList locations;
     List<String> types;
@@ -88,6 +90,11 @@ public class MultiGetShardRequest extends SingleShardOperationRequest<MultiGetSh
 
     public MultiGetShardRequest realtime(Boolean realtime) {
         this.realtime = realtime;
+        return this;
+    }
+
+    public MultiGetShardRequest ignoreErrorsOnGeneratedFields(Boolean ignoreErrorsOnGeneratedFields) {
+        this.ignoreErrorsOnGeneratedFields = ignoreErrorsOnGeneratedFields;
         return this;
     }
 
@@ -153,6 +160,9 @@ public class MultiGetShardRequest extends SingleShardOperationRequest<MultiGetSh
         } else if (realtime == 1) {
             this.realtime = true;
         }
+        if(in.getVersion().onOrAfter(Version.V_1_4_0)) {
+            ignoreErrorsOnGeneratedFields = in.readBoolean();
+        }
     }
 
     @Override
@@ -191,7 +201,13 @@ public class MultiGetShardRequest extends SingleShardOperationRequest<MultiGetSh
         } else {
             out.writeByte((byte) 1);
         }
+        if(out.getVersion().onOrAfter(Version.V_1_4_0)) {
+            out.writeBoolean(ignoreErrorsOnGeneratedFields);
+        }
 
+    }
 
+    public boolean ignoreErrorsOnGeneratedFields() {
+        return ignoreErrorsOnGeneratedFields;
     }
 }

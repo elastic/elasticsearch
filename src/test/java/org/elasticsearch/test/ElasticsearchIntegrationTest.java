@@ -1045,6 +1045,19 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     }
 
     /**
+     * Syntactic sugar for:
+     *
+     * <pre>
+     *   return client().prepareIndex(index, type, id).setSource(source).execute().actionGet();
+     * </pre>
+     *
+     * where source is a String.
+     */
+    protected final IndexResponse index(String index, String type, String id, String source) {
+        return client().prepareIndex(index, type, id).setSource(source).execute().actionGet();
+    }
+
+    /**
      * Waits for relocations and refreshes all indices in the cluster.
      *
      * @see #waitForRelocation()

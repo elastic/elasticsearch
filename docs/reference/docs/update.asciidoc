@@ -123,25 +123,8 @@ curl -XPOST 'localhost:9200/test/type1/1/_update' -d '{
 }'
 --------------------------------------------------
 
-`detect_noop` can also be set to an object, in that case it contains
-tolerances:
-[source,js]
---------------------------------------------------
-curl -XPOST 'localhost:9200/test/type1/1/_update' -d '{
-    "doc" : {
-        "foo" : 10,
-        "bar" : {
-            "baz": 1
-        }
-    },
-    "detect_noop": {
-        "foo": "10%",
-        "bar.baz": 2.6
-    }
-}'
---------------------------------------------------
-This will only update the index if either `foo` is not within 10% of
-current value or `bar.baz` is not within 2.6 if its old value.
+If `name` was `new_name` before the request was sent then the entire update
+request is ignored.
 
 There is also support for `upsert`. If the document does
 not already exists, the content of the `upsert` element will be used to

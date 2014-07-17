@@ -67,6 +67,7 @@ Some RPM based distributions are using `chkconfig` to enable and disable service
 [source,sh]
 --------------------------------------------------
 sudo /sbin/chkconfig --add elasticsearch
+sudo /sbin/chkconfig on
 sudo service elasticsearch start
 --------------------------------------------------
 

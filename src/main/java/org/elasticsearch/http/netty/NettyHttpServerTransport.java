@@ -195,8 +195,9 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
                     workerCount));
         }
 
-        serverBootstrap.setPipelineFactory(new MyChannelPipelineFactory(this));
-
+        ChannelPipeline serverChannelPipeline = Channels.pipeline();
+        configureServerChannelPipeline(serverChannelPipeline);
+        serverBootstrap.setPipeline(serverChannelPipeline);
         if (tcpNoDelay != null) {
             serverBootstrap.setOption("child.tcpNoDelay", tcpNoDelay);
         }
@@ -315,51 +316,36 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
         }
     }
 
-    static class MyChannelPipelineFactory implements ChannelPipelineFactory {
-
-        private final NettyHttpServerTransport transport;
-
-        private final HttpRequestHandler requestHandler;
-
-        MyChannelPipelineFactory(NettyHttpServerTransport transport) {
-            this.transport = transport;
-            this.requestHandler = new HttpRequestHandler(transport);
+    public void configureServerChannelPipeline(ChannelPipeline channelPipeline) {
+        channelPipeline.addLast("openChannels", this.serverOpenChannels);
+        HttpRequestDecoder requestDecoder = new HttpRequestDecoder(
+                (int) this.maxInitialLineLength.bytes(),
+                (int) this.maxHeaderSize.bytes(),
+                (int) this.maxChunkSize.bytes()
+        );
+        if (this.maxCumulationBufferCapacity != null) {
+            if (this.maxCumulationBufferCapacity.bytes() > Integer.MAX_VALUE) {
+                requestDecoder.setMaxCumulationBufferCapacity(Integer.MAX_VALUE);
+            } else {
+                requestDecoder.setMaxCumulationBufferCapacity((int) this.maxCumulationBufferCapacity.bytes());
+            }
         }
-
-        @Override
-        public ChannelPipeline getPipeline() throws Exception {
-            ChannelPipeline pipeline = Channels.pipeline();
-            pipeline.addLast("openChannels", transport.serverOpenChannels);
-            HttpRequestDecoder requestDecoder = new HttpRequestDecoder(
-                    (int) transport.maxInitialLineLength.bytes(),
-                    (int) transport.maxHeaderSize.bytes(),
-                    (int) transport.maxChunkSize.bytes()
-            );
-            if (transport.maxCumulationBufferCapacity != null) {
-                if (transport.maxCumulationBufferCapacity.bytes() > Integer.MAX_VALUE) {
-                    requestDecoder.setMaxCumulationBufferCapacity(Integer.MAX_VALUE);
-                } else {
-                    requestDecoder.setMaxCumulationBufferCapacity((int) transport.maxCumulationBufferCapacity.bytes());
-                }
-            }
-            if (transport.maxCompositeBufferComponents != -1) {
-                requestDecoder.setMaxCumulationBufferComponents(transport.maxCompositeBufferComponents);
-            }
-            pipeline.addLast("decoder", requestDecoder);
-            if (transport.compression) {
-                pipeline.addLast("decoder_compress", new HttpContentDecompressor());
-            }
-            HttpChunkAggregator httpChunkAggregator = new HttpChunkAggregator((int) transport.maxContentLength.bytes());
-            if (transport.maxCompositeBufferComponents != -1) {
-                httpChunkAggregator.setMaxCumulationBufferComponents(transport.maxCompositeBufferComponents);
-            }
-            pipeline.addLast("aggregator", httpChunkAggregator);
-            pipeline.addLast("encoder", new HttpResponseEncoder());
-            if (transport.compression) {
-                pipeline.addLast("encoder_compress", new HttpContentCompressor(transport.compressionLevel));
-            }
-            pipeline.addLast("handler", requestHandler);
-            return pipeline;
+        if (this.maxCompositeBufferComponents != -1) {
+            requestDecoder.setMaxCumulationBufferComponents(this.maxCompositeBufferComponents);
         }
+        channelPipeline.addLast("decoder", requestDecoder);
+        if (this.compression) {
+            channelPipeline.addLast("decoder_compress", new HttpContentDecompressor());
+        }
+        HttpChunkAggregator httpChunkAggregator = new HttpChunkAggregator((int) this.maxContentLength.bytes());
+        if (this.maxCompositeBufferComponents != -1) {
+            httpChunkAggregator.setMaxCumulationBufferComponents(this.maxCompositeBufferComponents);
+        }
+        channelPipeline.addLast("aggregator", httpChunkAggregator);
+        channelPipeline.addLast("encoder", new HttpResponseEncoder());
+        if (this.compression) {
+            channelPipeline.addLast("encoder_compress", new HttpContentCompressor(this.compressionLevel));
+        }
+        channelPipeline.addLast("handler", new HttpRequestHandler(this));
     }
 }

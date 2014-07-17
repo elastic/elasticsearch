@@ -1,3 +1,17 @@
+setup:
+  - do:
+      indices.create:
+          index: test_1
+          body:
+            mappings:
+              test:
+                "properties":
+                  "number":
+                     "type" : "integer"
+  - do:
+      cluster.health:
+        wait_for_status: green
+
 ---
 "Basic test":
   - do:

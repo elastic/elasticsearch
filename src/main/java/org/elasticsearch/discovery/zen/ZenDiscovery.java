@@ -862,7 +862,11 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         List<DiscoveryNode> pingMasters = newArrayList();
         for (ZenPing.PingResponse pingResponse : pingResponses) {
             if (pingResponse.master() != null) {
-                pingMasters.add(pingResponse.master());
+                // We can't include the local node in pingMasters list, otherwise we may up electing ourselves without
+                // any check / verifications from other nodes in ZenDiscover#innerJoinCluster()
+                if (!localNode.equals(pingResponse.master())) {
+                    pingMasters.add(pingResponse.master());
+                }
             }
         }
 

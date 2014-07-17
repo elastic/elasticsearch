@@ -107,4 +107,9 @@ public class Murmur3FieldMapper extends LongFieldMapper {
 
     }
 
+    @Override
+    public boolean isGenerated() {
+        return true;
+    }
+
 }

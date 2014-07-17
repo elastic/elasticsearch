@@ -57,6 +57,7 @@ public class RestGetAction extends BaseRestHandler {
         getRequest.parent(request.param("parent"));
         getRequest.preference(request.param("preference"));
         getRequest.realtime(request.paramAsBoolean("realtime", null));
+        getRequest.ignoreErrorsOnGeneratedFields(request.paramAsBoolean("ignore_errors_on_generated_fields", false));
 
         String sField = request.param("fields");
         if (sField != null) {

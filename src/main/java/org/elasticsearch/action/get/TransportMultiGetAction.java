@@ -88,6 +88,7 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
                 shardRequest.preference(request.preference);
                 shardRequest.realtime(request.realtime);
                 shardRequest.refresh(request.refresh);
+                shardRequest.ignoreErrorsOnGeneratedFields(request.ignoreErrorsOnGeneratedFields);
 
                 shardRequests.put(shardId, shardRequest);
             }

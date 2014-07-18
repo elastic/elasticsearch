@@ -141,7 +141,10 @@ public class UpdateHelper extends AbstractComponent {
                 parent = indexRequest.parent();
             }
             boolean noop = !XContentHelper.update(updatedSourceAsMap, indexRequest.sourceAsMap(), request.detectNoop());
-            if (noop) {
+            // noop could still be true even if detectNoop isn't because update detects empty maps as noops.  BUT we can only
+            // actually turn the update into a noop if detectNoop is true to preserve backwards compatibility and to handle
+            // cases where users repopulating multi-fields or adding synonyms, etc.
+            if (request.detectNoop() && noop) {
                 operation = "none";
             }
         } else {

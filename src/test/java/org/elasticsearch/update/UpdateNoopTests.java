@@ -37,11 +37,11 @@ import static org.hamcrest.Matchers.notNullValue;
 public class UpdateNoopTests extends ElasticsearchIntegrationTest {
     @Test
     public void singleField() throws Exception {
-        update(1, fields("bar", "baz"));
-        update(1, fields("bar", "baz"));
-        update(2, fields("bar", "bir"));
-        update(2, fields("bar", "bir"));
-        update(3, fields("bar", "foo"));
+        updateAndCheckSource(1, fields("bar", "baz"));
+        updateAndCheckSource(1, fields("bar", "baz"));
+        updateAndCheckSource(2, fields("bar", "bir"));
+        updateAndCheckSource(2, fields("bar", "bir"));
+        updateAndCheckSource(3, fields("bar", "foo"));
 
         assertEquals(2, totalNoopUpdates());
     }
@@ -49,67 +49,152 @@ public class UpdateNoopTests extends ElasticsearchIntegrationTest {
     @Test
     public void twoFields() throws Exception {
         // Use random keys so we get random iteration order.
-        String key1 = randomRealisticUnicodeOfLength(3);
-        String key2 = randomRealisticUnicodeOfLength(3);
-        update(1, fields(key1, "foo", key2, "baz"));
-        update(1, fields(key1, "foo", key2, "baz"));
-        update(2, fields(key1, "foo", key2, "bir"));
-        update(2, fields(key1, "foo", key2, "bir"));
-        update(3, fields(key1, "foo", key2, "foo"));
+        String key1 = 1 + randomAsciiOfLength(3);
+        String key2 = 2 + randomAsciiOfLength(3);
+        updateAndCheckSource(1, fields(key1, "foo", key2, "baz"));
+        updateAndCheckSource(1, fields(key1, "foo", key2, "baz"));
+        updateAndCheckSource(2, fields(key1, "foo", key2, "bir"));
+        updateAndCheckSource(2, fields(key1, "foo", key2, "bir"));
+        updateAndCheckSource(3, fields(key1, "foo", key2, "foo"));
 
         assertEquals(2, totalNoopUpdates());
     }
 
     @Test
     public void arrayField() throws Exception {
-        update(1, fields("bar", "baz"));
-        update(2, fields("bar", new String[] {"baz", "bort"}));
-        update(2, fields("bar", new String[] {"baz", "bort"}));
-        update(3, fields("bar", "bir"));
-        update(3, fields("bar", "bir"));
-        update(4, fields("bar", new String[] {"baz", "bort"}));
-        update(4, fields("bar", new String[] {"baz", "bort"}));
-        update(5, fields("bar", new String[] {"bir", "bort"}));
-        update(5, fields("bar", new String[] {"bir", "bort"}));
-        update(6, fields("bar", new String[] {"bir", "for"}));
-        update(6, fields("bar", new String[] {"bir", "for"}));
-        update(7, fields("bar", new String[] {"bir", "for", "far"}));
+        updateAndCheckSource(1, fields("bar", "baz"));
+        updateAndCheckSource(2, fields("bar", new String[] {"baz", "bort"}));
+        updateAndCheckSource(2, fields("bar", new String[] {"baz", "bort"}));
+        updateAndCheckSource(3, fields("bar", "bir"));
+        updateAndCheckSource(3, fields("bar", "bir"));
+        updateAndCheckSource(4, fields("bar", new String[] {"baz", "bort"}));
+        updateAndCheckSource(4, fields("bar", new String[] {"baz", "bort"}));
+        updateAndCheckSource(5, fields("bar", new String[] {"bir", "bort"}));
+        updateAndCheckSource(5, fields("bar", new String[] {"bir", "bort"}));
+        updateAndCheckSource(6, fields("bar", new String[] {"bir", "for"}));
+        updateAndCheckSource(6, fields("bar", new String[] {"bir", "for"}));
+        updateAndCheckSource(7, fields("bar", new String[] {"bir", "for", "far"}));
 
         assertEquals(5, totalNoopUpdates());
     }
 
     @Test
     public void map() throws Exception {
-        // Use random keys so we get random iteration order.
-        String key1 = randomRealisticUnicodeOfLength(3);
-        String key2 = randomRealisticUnicodeOfLength(3);
-        update(1, XContentFactory.jsonBuilder().startObject()
+        // Use random keys so we get variable iteration order.
+        String key1 = 1 + randomAsciiOfLength(3);
+        String key2 = 2 + randomAsciiOfLength(3);
+        updateAndCheckSource(1, XContentFactory.jsonBuilder().startObject()
                 .startObject("test")
                     .field(key1, "foo")
                     .field(key2, "baz")
                 .endObject().endObject());
-        update(1, XContentFactory.jsonBuilder().startObject()
+        updateAndCheckSource(1, XContentFactory.jsonBuilder().startObject()
                 .startObject("test")
                     .field(key1, "foo")
                     .field(key2, "baz")
                 .endObject().endObject());
-        update(2, XContentFactory.jsonBuilder().startObject()
+        updateAndCheckSource(2, XContentFactory.jsonBuilder().startObject()
                 .startObject("test")
                     .field(key1, "foo")
                     .field(key2, "bir")
                 .endObject().endObject());
-        update(2, XContentFactory.jsonBuilder().startObject()
+        updateAndCheckSource(2, XContentFactory.jsonBuilder().startObject()
                 .startObject("test")
                     .field(key1, "foo")
                     .field(key2, "bir")
                 .endObject().endObject());
-        update(3, XContentFactory.jsonBuilder().startObject()
+        updateAndCheckSource(3, XContentFactory.jsonBuilder().startObject()
                 .startObject("test")
                     .field(key1, "foo")
                     .field(key2, "foo")
                 .endObject().endObject());
 
         assertEquals(2, totalNoopUpdates());
+    }
+
+    @Test
+    public void mapAndField() throws Exception {
+        updateAndCheckSource(1, XContentFactory.jsonBuilder().startObject()
+                .field("f", "foo")
+                .startObject("m")
+                    .field("mf1", "foo")
+                    .field("mf2", "baz")
+                .endObject()
+                .endObject());
+        updateAndCheckSource(1, XContentFactory.jsonBuilder().startObject()
+                .field("f", "foo")
+                .startObject("m")
+                    .field("mf1", "foo")
+                    .field("mf2", "baz")
+                .endObject()
+                .endObject());
+        updateAndCheckSource(2, XContentFactory.jsonBuilder().startObject()
+                .field("f", "foo")
+                .startObject("m")
+                    .field("mf1", "foo")
+                    .field("mf2", "bir")
+                .endObject()
+                .endObject());
+        updateAndCheckSource(2, XContentFactory.jsonBuilder().startObject()
+                .field("f", "foo")
+                .startObject("m")
+                    .field("mf1", "foo")
+                    .field("mf2", "bir")
+                .endObject()
+                .endObject());
+        updateAndCheckSource(3, XContentFactory.jsonBuilder().startObject()
+                .field("f", "foo")
+                .startObject("m")
+                    .field("mf1", "foo")
+                    .field("mf2", "foo")
+                .endObject()
+                .endObject());
+        updateAndCheckSource(4, XContentFactory.jsonBuilder().startObject()
+                .field("f", "bar")
+                .startObject("m")
+                    .field("mf1", "foo")
+                    .field("mf2", "foo")
+                .endObject()
+                .endObject());
+        updateAndCheckSource(4, XContentFactory.jsonBuilder().startObject()
+                .field("f", "bar")
+                .startObject("m")
+                    .field("mf1", "foo")
+                    .field("mf2", "foo")
+                .endObject()
+                .endObject());
+        updateAndCheckSource(5, XContentFactory.jsonBuilder().startObject()
+                .field("f", "baz")
+                .startObject("m")
+                    .field("mf1", "foo")
+                    .field("mf2", "foo")
+                .endObject()
+                .endObject());
+        updateAndCheckSource(6, XContentFactory.jsonBuilder().startObject()
+                .field("f", "bop")
+                .startObject("m")
+                    .field("mf1", "foo")
+                    .field("mf2", "foo")
+                .endObject()
+                .endObject());
+
+        assertEquals(3, totalNoopUpdates());
+    }
+
+    /**
+     * Totally empty requests are noop if and only if detect noops is true.
+     */
+    @Test
+    public void totallyEmpty() throws Exception {
+        updateAndCheckSource(1, XContentFactory.jsonBuilder().startObject()
+                .field("f", "foo")
+                .startObject("m")
+                    .field("mf1", "foo")
+                    .field("mf2", "baz")
+                .endObject()
+                .endObject());
+        update(true, 1, XContentFactory.jsonBuilder().startObject().endObject());
+        update(false, 2, XContentFactory.jsonBuilder().startObject().endObject());
     }
 
     private XContentBuilder fields(Object... fields) throws ElasticsearchException, IOException {
@@ -122,18 +207,22 @@ public class UpdateNoopTests extends ElasticsearchIntegrationTest {
         builder.endObject();
         return builder;
     }
-     
-    private void update(long expectedVersion, XContentBuilder xContentBuilder) {
-        String xContent = xContentBuilder.bytes().toUtf8();
+
+    private void updateAndCheckSource(long expectedVersion, XContentBuilder xContentBuilder) {
+        UpdateResponse updateResponse = update(true, expectedVersion, xContentBuilder);
+        assertEquals(updateResponse.getGetResult().sourceRef().toUtf8(), xContentBuilder.bytes().toUtf8());
+    }
+
+    private UpdateResponse update(boolean detectNoop, long expectedVersion, XContentBuilder xContentBuilder) {
         UpdateResponse updateResponse = client().prepareUpdate("test", "type1", "1")
-                .setDoc(xContent)
+                .setDoc(xContentBuilder.bytes().toUtf8())
                 .setDocAsUpsert(true)
-                .setDetectNoop(true)
+                .setDetectNoop(detectNoop)
                 .setFields("_source")
                 .execute().actionGet();
         assertThat(updateResponse.getGetResult(), notNullValue());
-        assertEquals(updateResponse.getGetResult().sourceRef().toUtf8(), xContent);
         assertEquals(expectedVersion, updateResponse.getVersion());
+        return updateResponse;
     }
 
     private long totalNoopUpdates() {

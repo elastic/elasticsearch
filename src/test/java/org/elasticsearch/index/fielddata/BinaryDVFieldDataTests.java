@@ -27,7 +27,6 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.MapperTestUtils;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.junit.Test;
 
@@ -49,7 +48,7 @@ public class BinaryDVFieldDataTests extends AbstractFieldDataTests {
                 .endObject()
                 .endObject().endObject().string();
 
-        final DocumentMapper mapper = MapperTestUtils.newParser().parse(mapping);
+        final DocumentMapper mapper = mapperService.documentMapperParser().parse(mapping);
 
 
         ObjectArrayList<byte[]> bytesList1 = new ObjectArrayList<>(2);

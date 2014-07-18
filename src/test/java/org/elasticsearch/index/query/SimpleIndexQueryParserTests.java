@@ -33,7 +33,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedString;
-import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.lucene.search.*;
 import org.elasticsearch.common.lucene.search.function.BoostScoreFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
@@ -42,7 +41,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
-import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.search.NumericRangeFieldDataFilter;
@@ -51,8 +49,8 @@ import org.elasticsearch.index.search.geo.GeoPolygonFilter;
 import org.elasticsearch.index.search.geo.InMemoryGeoBoundingBoxFilter;
 import org.elasticsearch.index.search.morelikethis.MoreLikeThisFetchService;
 import org.elasticsearch.index.search.morelikethis.MoreLikeThisFetchService.LikeText;
+import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
-import org.elasticsearch.test.index.service.StubIndexService;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.junit.Test;
@@ -77,7 +75,6 @@ import static org.hamcrest.Matchers.*;
  */
 public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
 
-    private Injector injector;
     private IndexQueryParserService queryParser;
 
     @Before
@@ -86,14 +83,14 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
                 .put("index.cache.filter.type", "none")
                 .put("name", "SimpleIndexQueryParserTests")
                 .build();
-        injector = createIndex("test", settings).injector();
+        IndexService indexService = createIndex("test", settings);
+        MapperService mapperService = indexService.mapperService();
 
-        injector.getInstance(IndexFieldDataService.class).setIndexService((new StubIndexService(injector.getInstance(MapperService.class))));
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/query/mapping.json");
-        injector.getInstance(MapperService.class).merge("person", new CompressedString(mapping), true);
-        injector.getInstance(MapperService.class).documentMapper("person").parse(new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/query/data.json")));
+        mapperService.merge("person", new CompressedString(mapping), true);
+        mapperService.documentMapper("person").parse(new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/query/data.json")));
 
-        queryParser = injector.getInstance(IndexQueryParserService.class);
+        queryParser = indexService.queryParserService();
     }
 
     private IndexQueryParserService queryParser() throws IOException {

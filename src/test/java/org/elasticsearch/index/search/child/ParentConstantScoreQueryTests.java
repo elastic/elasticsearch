@@ -42,7 +42,7 @@ import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.test.ElasticsearchLuceneTestCase;
+import org.elasticsearch.test.TestSearchContext;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -52,12 +52,9 @@ import java.util.NavigableSet;
 import java.util.Random;
 import java.util.TreeSet;
 
-import static org.elasticsearch.index.search.child.ChildrenConstantScoreQueryTests.assertBitSet;
-import static org.elasticsearch.index.search.child.ChildrenConstantScoreQueryTests.createSearchContext;
-
 /**
  */
-public class ParentConstantScoreQueryTests extends ElasticsearchLuceneTestCase {
+public class ParentConstantScoreQueryTests extends AbstractChildTests {
 
     @BeforeClass
     public static void before() throws IOException {

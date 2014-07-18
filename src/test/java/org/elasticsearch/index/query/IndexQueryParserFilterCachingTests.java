@@ -31,12 +31,11 @@ import org.elasticsearch.common.lucene.search.NoCacheFilter;
 import org.elasticsearch.common.lucene.search.XBooleanFilter;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.search.child.TestSearchContext;
+import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
-import org.elasticsearch.test.index.service.StubIndexService;
+import org.elasticsearch.test.TestSearchContext;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -61,14 +60,15 @@ public class IndexQueryParserFilterCachingTests extends ElasticsearchSingleNodeT
                 .put("index.cache.filter.type", "weighted")
                 .put("name", "IndexQueryParserFilterCachingTests")
                 .build();
-        injector = createIndex("test", settings).injector();
+        IndexService indexService = createIndex("test", settings);
+        injector = indexService.injector();
 
-        injector.getInstance(IndexFieldDataService.class).setIndexService((new StubIndexService(injector.getInstance(MapperService.class))));
+        MapperService mapperService = indexService.mapperService();
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/query/mapping.json");
-        injector.getInstance(MapperService.class).merge("person", new CompressedString(mapping), true);
+        mapperService.merge("person", new CompressedString(mapping), true);
         String childMapping = copyToStringFromClasspath("/org/elasticsearch/index/query/child-mapping.json");
-        injector.getInstance(MapperService.class).merge("child", new CompressedString(childMapping), true);
-        injector.getInstance(MapperService.class).documentMapper("person").parse(new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/query/data.json")));
+        mapperService.merge("child", new CompressedString(childMapping), true);
+        mapperService.documentMapper("person").parse(new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/query/data.json")));
         queryParser = injector.getInstance(IndexQueryParserService.class);
     }
 

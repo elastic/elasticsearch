@@ -286,6 +286,8 @@ public interface FieldMapper<T> extends Mapper {
 
     boolean isSortable();
 
+    boolean supportsNullValue();
+
     boolean hasDocValues();
 
     Loading normsLoading(Loading defaultLoading);

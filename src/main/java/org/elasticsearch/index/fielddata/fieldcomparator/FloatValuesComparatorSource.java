@@ -18,27 +18,35 @@
  */
 package org.elasticsearch.index.fielddata.fieldcomparator;
 
+import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.search.FieldCache.Floats;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.NumericDoubleValues;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
 
 /**
+ * Comparator source for float values.
  */
 public class FloatValuesComparatorSource extends IndexFieldData.XFieldComparatorSource {
 
     private final IndexNumericFieldData indexFieldData;
     private final Object missingValue;
     private final MultiValueMode sortMode;
+    private final NestedLayout nested;
 
-    public FloatValuesComparatorSource(IndexNumericFieldData indexFieldData, @Nullable Object missingValue, MultiValueMode sortMode) {
+    public FloatValuesComparatorSource(IndexNumericFieldData indexFieldData, @Nullable Object missingValue, MultiValueMode sortMode, NestedLayout nested) {
         this.indexFieldData = indexFieldData;
         this.missingValue = missingValue;
         this.sortMode = sortMode;
+        this.nested = nested;
     }
 
     @Override
@@ -48,9 +56,30 @@ public class FloatValuesComparatorSource extends IndexFieldData.XFieldComparator
 
     @Override
     public FieldComparator<?> newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
-        assert fieldname.equals(indexFieldData.getFieldNames().indexName());
+        assert indexFieldData == null || fieldname.equals(indexFieldData.getFieldNames().indexName());
 
         final float dMissingValue = (Float) missingObject(missingValue, reversed);
-        return new FloatValuesComparator(indexFieldData, dMissingValue, numHits, sortMode);
+        // NOTE: it's important to pass null as a missing value in the constructor so that
+        // the comparator doesn't check docsWithField
+        return new FieldComparator.FloatComparator(numHits, null, null, null) {
+            @Override
+            protected Floats getFloatValues(AtomicReaderContext context, String field) throws IOException {
+                final SortedNumericDoubleValues values = indexFieldData.load(context).getDoubleValues();
+                final NumericDoubleValues selectedValues;
+                if (nested == null) {
+                    selectedValues = sortMode.select(values, dMissingValue);
+                } else {
+                    final FixedBitSet rootDocs = nested.rootDocs(context);
+                    final FixedBitSet innerDocs = nested.innerDocs(context);
+                    selectedValues = sortMode.select(values, dMissingValue, rootDocs, innerDocs, context.reader().maxDoc());
+                }
+                return new Floats() {
+                    @Override
+                    public float get(int docID) {
+                        return (float) selectedValues.get(docID);
+                    }
+                };
+            }
+        };
     }
 }

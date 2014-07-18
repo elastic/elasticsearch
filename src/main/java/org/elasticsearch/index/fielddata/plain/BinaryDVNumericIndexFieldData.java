@@ -31,10 +31,8 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
-import org.elasticsearch.index.fielddata.FieldDataType;
-import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.fielddata.*;
+import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.NestedLayout;
 import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.FloatValuesComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
@@ -53,15 +51,15 @@ public class BinaryDVNumericIndexFieldData extends DocValuesIndexFieldData imple
         this.numericType = numericType;
     }
 
-    public org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource comparatorSource(final Object missingValue, final MultiValueMode sortMode) {
+    public org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource comparatorSource(final Object missingValue, final MultiValueMode sortMode, NestedLayout nested) {
         switch (numericType) {
         case FLOAT:
-            return new FloatValuesComparatorSource(this, missingValue, sortMode);
+            return new FloatValuesComparatorSource(this, missingValue, sortMode, nested);
         case DOUBLE:
-            return new DoubleValuesComparatorSource(this, missingValue, sortMode);
+            return new DoubleValuesComparatorSource(this, missingValue, sortMode, nested);
         default:
             assert !numericType.isFloatingPoint();
-            return new LongValuesComparatorSource(this, missingValue, sortMode);
+            return new LongValuesComparatorSource(this, missingValue, sortMode, nested);
         }
     }
 

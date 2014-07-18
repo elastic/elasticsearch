@@ -35,9 +35,9 @@ import org.elasticsearch.common.lucene.search.NotFilter;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource;
+import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.NestedLayout;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsIndexFieldData;
-import org.elasticsearch.index.search.nested.NestedFieldComparatorSource;
 import org.elasticsearch.search.MultiValueMode;
 import org.junit.Test;
 
@@ -237,7 +237,7 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
         final IndexFieldData indexFieldData = getForField("value");
         final String missingValue = values[1];
         IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer, true));
-        XFieldComparatorSource comparator = indexFieldData.comparatorSource(missingValue, MultiValueMode.MIN);
+        XFieldComparatorSource comparator = indexFieldData.comparatorSource(missingValue, MultiValueMode.MIN, null);
         TopFieldDocs topDocs = searcher.search(new MatchAllDocsQuery(), randomBoolean() ? numDocs : randomIntBetween(10, numDocs), new Sort(new SortField("value", comparator, reverse)));
         assertEquals(numDocs, topDocs.totalHits);
         BytesRef previousValue = reverse ? UnicodeUtil.BIG_TERM : new BytesRef();
@@ -293,7 +293,7 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
         }
         final IndexFieldData indexFieldData = getForField("value");
         IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer, true));
-        XFieldComparatorSource comparator = indexFieldData.comparatorSource(first ? "_first" : "_last", MultiValueMode.MIN);
+        XFieldComparatorSource comparator = indexFieldData.comparatorSource(first ? "_first" : "_last", MultiValueMode.MIN, null);
         TopFieldDocs topDocs = searcher.search(new MatchAllDocsQuery(), randomBoolean() ? numDocs : randomIntBetween(10, numDocs), new Sort(new SortField("value", comparator, reverse)));
         assertEquals(numDocs, topDocs.totalHits);
         BytesRef previousValue = first ? null : reverse ? UnicodeUtil.BIG_TERM : new BytesRef();
@@ -360,13 +360,13 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
         }
         IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer, true));
         IndexFieldData<?> fieldData = getForField("text");
-        final BytesRef missingValue;
+        final Object missingValue;
         switch (randomInt(4)) {
         case 0:
-            missingValue = new BytesRef();
+            missingValue = "_first";
             break;
         case 1:
-            missingValue = BytesRefFieldComparatorSource.MAX_TERM;
+            missingValue = "_last";
             break;
         case 2:
             missingValue = new BytesRef(RandomPicks.randomFrom(getRandom(), values));
@@ -375,10 +375,10 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
             missingValue = new BytesRef(TestUtil.randomSimpleString(getRandom()));
             break;
         }
-        BytesRefFieldComparatorSource innerSource = new BytesRefFieldComparatorSource(fieldData, missingValue, sortMode);
         Filter parentFilter = new TermFilter(new Term("type", "parent"));
         Filter childFilter = new NotFilter(parentFilter);
-        NestedFieldComparatorSource nestedComparatorSource = new NestedFieldComparatorSource(sortMode, innerSource, parentFilter, childFilter);
+        NestedLayout nested = new NestedLayout(parentFilter, childFilter);
+        BytesRefFieldComparatorSource nestedComparatorSource = new BytesRefFieldComparatorSource(fieldData, missingValue, sortMode, nested);
         ToParentBlockJoinQuery query = new ToParentBlockJoinQuery(new XFilteredQuery(new MatchAllDocsQuery(), childFilter), new FixedBitSetCachingWrapperFilter(parentFilter), ScoreMode.None);
         Sort sort = new Sort(new SortField("text", nestedComparatorSource));
         TopFieldDocs topDocs = searcher.search(query, randomIntBetween(1, numParents), sort);
@@ -389,26 +389,36 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
             assertTrue("expected " + docID + " to be a parent", parents.get(docID));
             BytesRef cmpValue = null;
             for (int child = parents.prevSetBit(docID - 1) + 1; child < docID; ++child) {
-                String[] vals = searcher.doc(child).getValues("text");
-                if (vals.length == 0) {
-                    vals = new String[] {missingValue.utf8ToString()};
+                String[] sVals = searcher.doc(child).getValues("text");
+                final BytesRef[] vals;
+                if (sVals.length == 0) {
+                    vals = new BytesRef[0];
+                } else {
+                    vals = new BytesRef[sVals.length];
+                    for (int j = 0; j < vals.length; ++j) {
+                        vals[j] = new BytesRef(sVals[j]);
+                    }
                 }
-                for (String value : vals) {
-                    final BytesRef bytesValue = new BytesRef(value);
+                for (BytesRef value : vals) {
                     if (cmpValue == null) {
-                        cmpValue = bytesValue;
-                    } else if (sortMode == MultiValueMode.MIN && bytesValue.compareTo(cmpValue) < 0) {
-                        cmpValue = bytesValue;
-                    } else if (sortMode == MultiValueMode.MAX && bytesValue.compareTo(cmpValue) > 0) {
-                        cmpValue = bytesValue;
+                        cmpValue = value;
+                    } else if (sortMode == MultiValueMode.MIN && value.compareTo(cmpValue) < 0) {
+                        cmpValue = value;
+                    } else if (sortMode == MultiValueMode.MAX && value.compareTo(cmpValue) > 0) {
+                        cmpValue = value;
                     }
                 }
             }
             if (cmpValue == null) {
-                cmpValue = missingValue;
+                if ("_first".equals(missingValue)) {
+                    cmpValue = new BytesRef();
+                } else if ("_last".equals(missingValue)) {
+                    cmpValue = XFieldComparatorSource.MAX_TERM;
+                } else {
+                    cmpValue = (BytesRef) missingValue;
+                }
             }
             if (previous != null) {
-                assertNotNull(cmpValue);
                 assertTrue(previous.utf8ToString() + "   /   " + cmpValue.utf8ToString(), previous.compareTo(cmpValue) <= 0);
             }
             previous = cmpValue;

@@ -21,19 +21,25 @@ package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.FieldComparatorSource;
+import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexComponent;
+import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.NestedLayout;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
 import org.elasticsearch.search.MultiValueMode;
+
+import java.io.IOException;
 
 /**
  * Thread-safe utility class that allows to get per-segment values via the
@@ -93,7 +99,7 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
     /**
      * Comparator used for sorting.
      */
-    XFieldComparatorSource comparatorSource(@Nullable Object missingValue, MultiValueMode sortMode);
+    XFieldComparatorSource comparatorSource(@Nullable Object missingValue, MultiValueMode sortMode, NestedLayout nested);
 
     /**
      * Clears any resources associated with this field data.
@@ -114,6 +120,49 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
             MAX_TERM = new BytesRef();
             final char[] chars = Character.toChars(Character.MAX_CODE_POINT);
             UnicodeUtil.UTF16toUTF8(chars, 0, chars.length, MAX_TERM);
+        }
+
+        /**
+         * Simple wrapper class around a filter that matches parent documents
+         * and a filter that matches child documents. For every root document R,
+         * R will be in the parent filter and its children documents will be the
+         * documents that are contained in the inner set between the previous
+         * parent + 1, or 0 if there is no previous parent, and R (excluded).
+         */
+        // TODO: better name
+        public static class NestedLayout {
+            private final Filter rootFilter, innerFilter;
+
+            public NestedLayout(Filter rootFilter, Filter innerFilter) {
+                this.rootFilter = rootFilter;
+                this.innerFilter = innerFilter;
+            }
+
+            // TODO: nested docs should not be random filters but specialized
+            // ones that guarantee that you always get a FixedBitSet
+            private static FixedBitSet toFixedBitSet(DocIdSet set, int maxDoc) throws IOException {
+                if (set == null || set instanceof FixedBitSet) {
+                    return (FixedBitSet) set;
+                } else {
+                    final FixedBitSet fixedBitSet = new FixedBitSet(maxDoc);
+                    fixedBitSet.or(set.iterator());
+                    return fixedBitSet;
+                }
+            }
+
+            /**
+             * Get a {@link FixedBitSet} that matches the root documents.
+             */
+            public FixedBitSet rootDocs(AtomicReaderContext ctx) throws IOException {
+                return toFixedBitSet(rootFilter.getDocIdSet(ctx, null), ctx.reader().maxDoc());
+            }
+
+            /**
+             * Get a {@link FixedBitSet} that matches the inner documents.
+             */
+            public FixedBitSet innerDocs(AtomicReaderContext ctx) throws IOException {
+                return toFixedBitSet(innerFilter.getDocIdSet(ctx, null), ctx.reader().maxDoc());
+            }
         }
 
         /** Whether missing values should be sorted first. */

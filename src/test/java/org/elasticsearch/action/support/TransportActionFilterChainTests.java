@@ -197,7 +197,7 @@ public class TransportActionFilterChainTests extends ElasticsearchTestCase {
         TestFilter(int order, Operation operation) {
             this.order = order;
             this.operation = operation;
-            this.callback = operation.callback;
+            this.callback = operation;
         }
 
         TestFilter(int order, Callback callback) {
@@ -221,32 +221,25 @@ public class TransportActionFilterChainTests extends ElasticsearchTestCase {
         }
     }
 
-    private static enum Operation {
-
-        CONTINUE_PROCESSING(new Callback() {
+    private static enum Operation implements Callback {
+        CONTINUE_PROCESSING {
             @Override
             public void execute(String action, ActionRequest actionRequest, ActionListener actionListener, ActionFilterChain actionFilterChain) {
                 actionFilterChain.continueProcessing(action, actionRequest, actionListener);
             }
-        }),
-        LISTENER_RESPONSE(new Callback() {
+        },
+        LISTENER_RESPONSE {
             @Override
             @SuppressWarnings("unchecked")
             public void execute(String action, ActionRequest actionRequest, ActionListener actionListener, ActionFilterChain actionFilterChain) {
                 actionListener.onResponse(new TestResponse());
             }
-        }),
-        LISTENER_FAILURE(new Callback() {
+        },
+        LISTENER_FAILURE {
             @Override
             public void execute(String action, ActionRequest actionRequest, ActionListener actionListener, ActionFilterChain actionFilterChain) {
                 actionListener.onFailure(new ElasticsearchTimeoutException(""));
             }
-        });
-
-        private final Callback callback;
-
-        Operation(Callback callback) {
-            this.callback = callback;
         }
     }
 

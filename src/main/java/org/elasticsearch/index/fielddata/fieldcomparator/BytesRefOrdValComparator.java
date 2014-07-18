@@ -268,7 +268,7 @@ public final class BytesRefOrdValComparator extends NestedWrappableComparator<By
         if (value == null) {
             ord = -1 << 2;
         } else {
-            final long docOrd = binarySearch(termsIndex, value);
+            final long docOrd = termsIndex.lookupTerm(value);
             if (docOrd >= 0) {
                 // value exists in the current segment
                 ord = docOrd << 2;
@@ -334,34 +334,6 @@ public final class BytesRefOrdValComparator extends NestedWrappableComparator<By
     @Override
     public BytesRef value(int slot) {
         return values[slot];
-    }
-
-    final protected static long binarySearch(SortedDocValues a, BytesRef key) {
-        return binarySearch(a, key, 0, a.getValueCount() - 1);
-    }
-
-    final protected static long binarySearch(SortedDocValues a, BytesRef key, int low, int high) {
-        assert low >= 0;
-        assert high == -1 || (a.lookupOrd(high) == null | a.lookupOrd(high) != null); // make sure we actually can get these values
-        assert low == high + 1 || a.lookupOrd(low) == null | a.lookupOrd(low) != null;
-        while (low <= high) {
-            int mid = (low + high) >>> 1;
-            BytesRef midVal = a.lookupOrd(mid);
-            int cmp;
-            if (midVal != null) {
-                cmp = midVal.compareTo(key);
-            } else {
-                cmp = -1;
-            }
-
-            if (cmp < 0)
-                low = mid + 1;
-            else if (cmp > 0)
-                high = mid - 1;
-            else
-                return mid;
-        }
-        return -(low + 1);
     }
 
 }

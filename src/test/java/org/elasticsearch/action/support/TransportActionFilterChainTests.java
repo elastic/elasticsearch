@@ -76,10 +76,10 @@ public class TransportActionFilterChainTests extends ElasticsearchTestCase {
         for (ActionFilter filter : actionFiltersByOrder) {
             TestFilter testFilter = (TestFilter) filter;
             expectedActionFilters.add(testFilter);
-            if (testFilter.operation == Operation.LISTENER_FAILURE) {
+            if (testFilter.callback == Operation.LISTENER_FAILURE) {
                 errorExpected = true;
             }
-            if (!(testFilter.operation == Operation.CONTINUE_PROCESSING) ) {
+            if (!(testFilter.callback == Operation.CONTINUE_PROCESSING) ) {
                 break;
             }
         }
@@ -108,7 +108,7 @@ public class TransportActionFilterChainTests extends ElasticsearchTestCase {
         for (ActionFilter filter : testFiltersByLastExecution) {
             TestFilter testFilter = (TestFilter) filter;
             finalTestFilters.add(testFilter);
-            if (!(testFilter.operation == Operation.CONTINUE_PROCESSING) ) {
+            if (!(testFilter.callback == Operation.CONTINUE_PROCESSING) ) {
                 break;
             }
         }
@@ -187,22 +187,14 @@ public class TransportActionFilterChainTests extends ElasticsearchTestCase {
 
     private static class TestFilter implements ActionFilter {
         private final int order;
-        private final Operation operation;
         private final Callback callback;
 
         AtomicInteger runs = new AtomicInteger();
         volatile String lastActionName;
         volatile long lastExecution = Long.MAX_VALUE; //the filters that don't run will go last in the sorted list
 
-        TestFilter(int order, Operation operation) {
-            this.order = order;
-            this.operation = operation;
-            this.callback = operation;
-        }
-
         TestFilter(int order, Callback callback) {
             this.order = order;
-            this.operation = null; //custom operation
             this.callback = callback;
         }
 

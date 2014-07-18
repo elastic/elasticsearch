@@ -38,8 +38,8 @@ public abstract class HandledTransportAction<Request extends ActionRequest, Resp
      */
     public abstract Request newRequestInstance();
 
-    protected HandledTransportAction(Settings settings, String actionName, ThreadPool threadPool, TransportService transportService){
-        super(settings, actionName, threadPool);
+    protected HandledTransportAction(Settings settings, String actionName, ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters){
+        super(settings, actionName, threadPool, actionFilters);
         transportService.registerHandler(actionName, new TransportHandler() {
             @Override
             public Request newInstance(){

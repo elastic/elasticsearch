@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.alias.exists;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -34,8 +35,8 @@ import org.elasticsearch.transport.TransportService;
 public class TransportAliasesExistAction extends TransportMasterNodeReadOperationAction<GetAliasesRequest, AliasesExistResponse> {
 
     @Inject
-    public TransportAliasesExistAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool) {
-        super(settings, AliasesExistAction.NAME, transportService, clusterService, threadPool);
+    public TransportAliasesExistAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters) {
+        super(settings, AliasesExistAction.NAME, transportService, clusterService, threadPool, actionFilters);
     }
 
     @Override

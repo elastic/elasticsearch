@@ -20,6 +20,7 @@
 package org.elasticsearch.action.delete.index;
 
 import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.TransportIndexReplicationOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -42,8 +43,8 @@ public class TransportIndexDeleteAction extends TransportIndexReplicationOperati
 
     @Inject
     public TransportIndexDeleteAction(Settings settings, ClusterService clusterService, TransportService transportService,
-                                      ThreadPool threadPool, TransportShardDeleteAction deleteAction) {
-        super(settings, ACTION_NAME, transportService, clusterService, threadPool, deleteAction);
+                                      ThreadPool threadPool, TransportShardDeleteAction deleteAction, ActionFilters actionFilters) {
+        super(settings, ACTION_NAME, transportService, clusterService, threadPool, deleteAction, actionFilters);
     }
 
     @Override

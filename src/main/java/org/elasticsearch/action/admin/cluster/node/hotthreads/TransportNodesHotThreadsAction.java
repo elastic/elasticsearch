@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.cluster.node.hotthreads;
 
 import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.NodeOperationRequest;
 import org.elasticsearch.action.support.nodes.TransportNodesOperationAction;
 import org.elasticsearch.cluster.ClusterName;
@@ -44,8 +45,8 @@ public class TransportNodesHotThreadsAction extends TransportNodesOperationActio
 
     @Inject
     public TransportNodesHotThreadsAction(Settings settings, ClusterName clusterName, ThreadPool threadPool,
-                                          ClusterService clusterService, TransportService transportService) {
-        super(settings, NodesHotThreadsAction.NAME, clusterName, threadPool, clusterService, transportService);
+                                          ClusterService clusterService, TransportService transportService, ActionFilters actionFilters) {
+        super(settings, NodesHotThreadsAction.NAME, clusterName, threadPool, clusterService, transportService, actionFilters);
     }
 
     @Override

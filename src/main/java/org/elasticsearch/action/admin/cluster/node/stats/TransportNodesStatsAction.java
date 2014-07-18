@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.cluster.node.stats;
 
 import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.NodeOperationRequest;
 import org.elasticsearch.action.support.nodes.TransportNodesOperationAction;
 import org.elasticsearch.cluster.ClusterName;
@@ -47,8 +48,8 @@ public class TransportNodesStatsAction extends TransportNodesOperationAction<Nod
     @Inject
     public TransportNodesStatsAction(Settings settings, ClusterName clusterName, ThreadPool threadPool,
                                      ClusterService clusterService, TransportService transportService,
-                                     NodeService nodeService) {
-        super(settings, NodesStatsAction.NAME, clusterName, threadPool, clusterService, transportService);
+                                     NodeService nodeService, ActionFilters actionFilters) {
+        super(settings, NodesStatsAction.NAME, clusterName, threadPool, clusterService, transportService, actionFilters);
         this.nodeService = nodeService;
     }
 

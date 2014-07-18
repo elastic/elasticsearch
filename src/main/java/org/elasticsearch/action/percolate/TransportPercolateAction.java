@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.TransportGetAction;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.TransportBroadcastOperationAction;
@@ -60,8 +61,8 @@ public class TransportPercolateAction extends TransportBroadcastOperationAction<
     @Inject
     public TransportPercolateAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                     TransportService transportService, PercolatorService percolatorService,
-                                    TransportGetAction getAction) {
-        super(settings, PercolateAction.NAME, threadPool, clusterService, transportService);
+                                    TransportGetAction getAction, ActionFilters actionFilters) {
+        super(settings, PercolateAction.NAME, threadPool, clusterService, transportService, actionFilters);
         this.percolatorService = percolatorService;
         this.getAction = getAction;
     }

@@ -20,8 +20,9 @@
 package org.elasticsearch.action.indexedscripts.delete;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.delete.DeleteResponse;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DelegatingActionListener;
+import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
@@ -40,8 +41,8 @@ public class TransportDeleteIndexedScriptAction extends HandledTransportAction<D
 
     @Inject
     public TransportDeleteIndexedScriptAction(Settings settings, ThreadPool threadPool, ScriptService scriptService,
-                                              Client client, TransportService transportService) {
-        super(settings, DeleteIndexedScriptAction.NAME, threadPool, transportService);
+                                              Client client, TransportService transportService, ActionFilters actionFilters) {
+        super(settings, DeleteIndexedScriptAction.NAME, threadPool, transportService, actionFilters);
         this.scriptService = scriptService;
         this.client = client;
     }

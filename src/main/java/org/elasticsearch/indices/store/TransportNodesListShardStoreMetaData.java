@@ -25,6 +25,7 @@ import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.*;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
@@ -68,8 +69,8 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
 
     @Inject
     public TransportNodesListShardStoreMetaData(Settings settings, ClusterName clusterName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
-                                                IndicesService indicesService, NodeEnvironment nodeEnv) {
-        super(settings, ACTION_NAME, clusterName, threadPool, clusterService, transportService);
+                                                IndicesService indicesService, NodeEnvironment nodeEnv, ActionFilters actionFilters) {
+        super(settings, ACTION_NAME, clusterName, threadPool, clusterService, transportService, actionFilters);
         this.indicesService = indicesService;
         this.nodeEnv = nodeEnv;
     }

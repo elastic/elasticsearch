@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.settings.get;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -45,8 +46,8 @@ public class TransportGetSettingsAction extends TransportMasterNodeReadOperation
 
     @Inject
     public TransportGetSettingsAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                      ThreadPool threadPool, SettingsFilter settingsFilter) {
-        super(settings, GetSettingsAction.NAME, transportService, clusterService, threadPool);
+                                      ThreadPool threadPool, SettingsFilter settingsFilter, ActionFilters actionFilters) {
+        super(settings, GetSettingsAction.NAME, transportService, clusterService, threadPool, actionFilters);
         this.settingsFilter = settingsFilter;
     }
 

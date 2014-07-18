@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.cluster.shards;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -43,8 +44,8 @@ import static com.google.common.collect.Sets.newHashSet;
 public class TransportClusterSearchShardsAction extends TransportMasterNodeReadOperationAction<ClusterSearchShardsRequest, ClusterSearchShardsResponse> {
 
     @Inject
-    public TransportClusterSearchShardsAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool) {
-        super(settings, ClusterSearchShardsAction.NAME, transportService, clusterService, threadPool);
+    public TransportClusterSearchShardsAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters) {
+        super(settings, ClusterSearchShardsAction.NAME, transportService, clusterService, threadPool, actionFilters);
     }
 
     @Override

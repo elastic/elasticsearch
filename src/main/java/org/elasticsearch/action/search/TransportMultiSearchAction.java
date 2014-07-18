@@ -21,6 +21,7 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -44,8 +45,8 @@ public class TransportMultiSearchAction extends TransportAction<MultiSearchReque
     private final TransportSearchAction searchAction;
 
     @Inject
-    public TransportMultiSearchAction(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterService clusterService, TransportSearchAction searchAction) {
-        super(settings, MultiSearchAction.NAME, threadPool);
+    public TransportMultiSearchAction(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterService clusterService, TransportSearchAction searchAction, ActionFilters actionFilters) {
+        super(settings, MultiSearchAction.NAME, threadPool, actionFilters);
         this.clusterService = clusterService;
         this.searchAction = searchAction;
 

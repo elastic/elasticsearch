@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.segments;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationRequest;
@@ -56,8 +57,8 @@ public class TransportIndicesSegmentsAction extends TransportBroadcastOperationA
 
     @Inject
     public TransportIndicesSegmentsAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
-                                          IndicesService indicesService) {
-        super(settings, IndicesSegmentsAction.NAME, threadPool, clusterService, transportService);
+                                          IndicesService indicesService, ActionFilters actionFilters) {
+        super(settings, IndicesSegmentsAction.NAME, threadPool, clusterService, transportService, actionFilters);
         this.indicesService = indicesService;
     }
 

@@ -24,6 +24,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterService;
@@ -51,9 +52,9 @@ public abstract class TransportIndexReplicationOperationAction<Request extends I
 
     protected final TransportShardReplicationOperationAction<ShardRequest, ShardReplicaRequest, ShardResponse> shardAction;
 
-    protected TransportIndexReplicationOperationAction(Settings settings, String actionName,  TransportService transportService, ClusterService clusterService,
-                                                    ThreadPool threadPool, TransportShardReplicationOperationAction<ShardRequest, ShardReplicaRequest, ShardResponse> shardAction) {
-        super(settings, actionName, threadPool);
+    protected TransportIndexReplicationOperationAction(Settings settings, String actionName, TransportService transportService, ClusterService clusterService,
+                                                       ThreadPool threadPool, TransportShardReplicationOperationAction<ShardRequest, ShardReplicaRequest, ShardResponse> shardAction, ActionFilters actionFilters) {
+        super(settings, actionName, threadPool, actionFilters);
         this.clusterService = clusterService;
         this.shardAction = shardAction;
 

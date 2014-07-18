@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.mapping.get;
 
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -43,8 +44,8 @@ public class TransportGetFieldMappingsAction extends TransportAction<GetFieldMap
     private final TransportGetFieldMappingsIndexAction shardAction;
 
     @Inject
-    public TransportGetFieldMappingsAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool, TransportGetFieldMappingsIndexAction shardAction) {
-        super(settings, GetFieldMappingsAction.NAME, threadPool);
+    public TransportGetFieldMappingsAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool, TransportGetFieldMappingsIndexAction shardAction, ActionFilters actionFilters) {
+        super(settings, GetFieldMappingsAction.NAME, threadPool, actionFilters);
         this.clusterService = clusterService;
         this.shardAction = shardAction;
         transportService.registerHandler(actionName, new TransportHandler());

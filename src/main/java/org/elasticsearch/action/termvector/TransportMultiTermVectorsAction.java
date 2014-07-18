@@ -21,6 +21,7 @@ package org.elasticsearch.action.termvector;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -46,8 +47,8 @@ public class TransportMultiTermVectorsAction extends TransportAction<MultiTermVe
 
     @Inject
     public TransportMultiTermVectorsAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                           ClusterService clusterService, TransportSingleShardMultiTermsVectorAction shardAction) {
-        super(settings, MultiTermVectorsAction.NAME, threadPool);
+                                           ClusterService clusterService, TransportSingleShardMultiTermsVectorAction shardAction, ActionFilters actionFilters) {
+        super(settings, MultiTermVectorsAction.NAME, threadPool, actionFilters);
         this.clusterService = clusterService;
         this.shardAction = shardAction;
 

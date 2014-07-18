@@ -21,6 +21,7 @@ package org.elasticsearch.action.bench;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.inject.Inject;
@@ -38,8 +39,8 @@ public class TransportBenchmarkStatusAction extends TransportMasterNodeOperation
 
     @Inject
     public TransportBenchmarkStatusAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                          ThreadPool threadPool, BenchmarkService service) {
-        super(settings, BenchmarkStatusAction.NAME, transportService, clusterService, threadPool);
+                                          ThreadPool threadPool, BenchmarkService service, ActionFilters actionFilters) {
+        super(settings, BenchmarkStatusAction.NAME, transportService, clusterService, threadPool, actionFilters);
         this.service = service;
     }
 

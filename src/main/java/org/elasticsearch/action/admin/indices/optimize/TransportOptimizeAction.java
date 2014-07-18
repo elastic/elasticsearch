@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.optimize;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.TransportBroadcastOperationAction;
@@ -52,8 +53,8 @@ public class TransportOptimizeAction extends TransportBroadcastOperationAction<O
 
     @Inject
     public TransportOptimizeAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                                   TransportService transportService, IndicesService indicesService) {
-        super(settings, OptimizeAction.NAME, threadPool, clusterService, transportService);
+                                   TransportService transportService, IndicesService indicesService, ActionFilters actionFilters) {
+        super(settings, OptimizeAction.NAME, threadPool, clusterService, transportService, actionFilters);
         this.indicesService = indicesService;
     }
 

@@ -31,6 +31,7 @@ import org.elasticsearch.action.get.TransportGetAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -78,8 +79,8 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
 
     @Inject
     public TransportMoreLikeThisAction(Settings settings, ThreadPool threadPool, TransportSearchAction searchAction, TransportGetAction getAction,
-                                       ClusterService clusterService, IndicesService indicesService, TransportService transportService) {
-        super(settings, MoreLikeThisAction.NAME, threadPool);
+                                       ClusterService clusterService, IndicesService indicesService, TransportService transportService, ActionFilters actionFilters) {
+        super(settings, MoreLikeThisAction.NAME, threadPool, actionFilters);
         this.searchAction = searchAction;
         this.getAction = getAction;
         this.indicesService = indicesService;

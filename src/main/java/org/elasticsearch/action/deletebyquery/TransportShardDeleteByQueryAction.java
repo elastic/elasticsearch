@@ -22,6 +22,7 @@ package org.elasticsearch.action.deletebyquery;
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.search.Filter;
 import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.TransportShardReplicationOperationAction;
 import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
@@ -65,8 +66,8 @@ public class TransportShardDeleteByQueryAction extends TransportShardReplication
     public TransportShardDeleteByQueryAction(Settings settings, TransportService transportService,
                                              ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool,
                                              ShardStateAction shardStateAction, ScriptService scriptService, CacheRecycler cacheRecycler,
-                                             PageCacheRecycler pageCacheRecycler, BigArrays bigArrays) {
-        super(settings, ACTION_NAME, transportService, clusterService, indicesService, threadPool, shardStateAction);
+                                             PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, ActionFilters actionFilters) {
+        super(settings, ACTION_NAME, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters);
         this.scriptService = scriptService;
         this.cacheRecycler = cacheRecycler;
         this.pageCacheRecycler = pageCacheRecycler;

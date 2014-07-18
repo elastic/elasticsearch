@@ -532,6 +532,11 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
         // we can only handle null values if we have mappings for them
         Mapper mapper = mappers.get(lastFieldName);
         if (mapper != null) {
+            if (mapper instanceof FieldMapper) {
+                if (!((FieldMapper) mapper).supportsNullValue()) {
+                    throw new MapperParsingException("no object mapping found for null value in [" + lastFieldName + "]");
+                }
+            }
             mapper.parse(context);
         }
     }

@@ -1039,6 +1039,38 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
         }
     }
 
+    // see issue #6399
+    @Test
+    public void testIndexingUnrelatedNullValue() throws Exception {
+        String mapping = jsonBuilder()
+                .startObject()
+                .startObject(TYPE)
+                .startObject("properties")
+                .startObject(FIELD)
+                .field("type", "completion")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .string();
+
+        assertAcked(client().admin().indices().prepareCreate(INDEX).addMapping(TYPE, mapping).get());
+        ensureGreen();
+
+        client().prepareIndex(INDEX, TYPE, "1").setSource(FIELD, "strings make me happy", FIELD + "_1", "nulls make me sad")
+        .setRefresh(true).get();
+
+        try {
+            client().prepareIndex(INDEX, TYPE, "2").setSource(FIELD, null, FIELD + "_1", "nulls make me sad")
+                    .setRefresh(true).get();
+            fail("Expected MapperParsingException for null value");
+        } catch (MapperParsingException e) {
+            // make sure that the exception has the name of the field causing the error
+            assertTrue(e.getDetailedMessage().contains(FIELD));
+        }
+
+    }
+
     private static String replaceReservedChars(String input, char replacement) {
         char[] charArray = input.toCharArray();
         for (int i = 0; i < charArray.length; i++) {

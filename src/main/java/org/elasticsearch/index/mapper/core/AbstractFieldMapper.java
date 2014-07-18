@@ -842,6 +842,11 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         return true;
     }
 
+    @Override
+    public boolean supportsNullValue() {
+        return true;
+    }
+
     public boolean hasDocValues() {
         return docValues;
     }

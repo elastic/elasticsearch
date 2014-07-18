@@ -130,6 +130,15 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
+     * An optional document count, upon collecting which the search
+     * query will early terminate
+     */
+    public SearchRequestBuilder setTerminateAfter(int terminateAfter) {
+        sourceBuilder().terminateAfter(terminateAfter);
+        return this;
+    }
+
+    /**
      * A comma separated list of routing values to control the shards the search will be executed on.
      */
     public SearchRequestBuilder setRouting(String routing) {

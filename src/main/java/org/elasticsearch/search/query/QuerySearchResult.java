@@ -20,6 +20,7 @@
 package org.elasticsearch.search.query;
 
 import org.apache.lucene.search.TopDocs;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchShardTarget;
@@ -49,6 +50,7 @@ public class QuerySearchResult extends TransportResponse implements QuerySearchR
     private InternalAggregations aggregations;
     private Suggest suggest;
     private boolean searchTimedOut;
+    private Boolean terminatedEarly = null;
 
     public QuerySearchResult() {
 
@@ -88,6 +90,14 @@ public class QuerySearchResult extends TransportResponse implements QuerySearchR
 
     public boolean searchTimedOut() {
         return searchTimedOut;
+    }
+
+    public void terminatedEarly(boolean terminatedEarly) {
+        this.terminatedEarly = terminatedEarly;
+    }
+
+    public Boolean terminatedEarly() {
+        return this.terminatedEarly;
     }
 
     public TopDocs topDocs() {
@@ -164,6 +174,9 @@ public class QuerySearchResult extends TransportResponse implements QuerySearchR
             suggest = Suggest.readSuggest(Suggest.Fields.SUGGEST, in);
         }
         searchTimedOut = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
+            terminatedEarly = in.readOptionalBoolean();
+        }
     }
 
     @Override
@@ -193,5 +206,8 @@ public class QuerySearchResult extends TransportResponse implements QuerySearchR
             suggest.writeTo(out);
         }
         out.writeBoolean(searchTimedOut);
+        if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
+            out.writeOptionalBoolean(terminatedEarly);
+        }
     }
 }

@@ -1263,11 +1263,11 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
         assertHitCount(searchResponse, 3);
         assertThat(searchResponse.getHits().getHits().length, equalTo(3));
         assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("3"));
-        assertThat(searchResponse.getHits().getHits()[0].sortValues()[0].toString(), equalTo("0"));
+        assertThat(searchResponse.getHits().getHits()[0].sortValues()[0].toString(), equalTo("1"));
         assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("2"));
-        assertThat(searchResponse.getHits().getHits()[1].sortValues()[0].toString(), equalTo("1"));
+        assertThat(searchResponse.getHits().getHits()[1].sortValues()[0].toString(), equalTo("2"));
         assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("1"));
-        assertThat(searchResponse.getHits().getHits()[2].sortValues()[0].toString(), equalTo("2"));
+        assertThat(searchResponse.getHits().getHits()[2].sortValues()[0].toString(), equalTo("3"));
 
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
@@ -1282,11 +1282,11 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
         assertHitCount(searchResponse, 3);
         assertThat(searchResponse.getHits().getHits().length, equalTo(3));
         assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("1"));
-        assertThat(searchResponse.getHits().getHits()[0].sortValues()[0].toString(), equalTo("2"));
+        assertThat(searchResponse.getHits().getHits()[0].sortValues()[0].toString(), equalTo("3"));
         assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("2"));
-        assertThat(searchResponse.getHits().getHits()[1].sortValues()[0].toString(), equalTo("1"));
+        assertThat(searchResponse.getHits().getHits()[1].sortValues()[0].toString(), equalTo("2"));
         assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("3"));
-        assertThat(searchResponse.getHits().getHits()[2].sortValues()[0].toString(), equalTo("0"));
+        assertThat(searchResponse.getHits().getHits()[2].sortValues()[0].toString(), equalTo("1"));
 
         // Sort mode: avg with filter
         searchResponse = client().prepareSearch()

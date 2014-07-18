@@ -28,17 +28,18 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ElasticsearchTestCase.UsesLuceneFieldCacheOnPurpose;
 import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
  *
  */
+@UsesLuceneFieldCacheOnPurpose
 public class SimpleLuceneTests extends ElasticsearchTestCase {
 
     @Test

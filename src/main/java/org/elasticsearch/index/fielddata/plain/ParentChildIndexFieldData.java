@@ -38,6 +38,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.*;
+import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
@@ -79,8 +80,8 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
     }
 
     @Override
-    public XFieldComparatorSource comparatorSource(@Nullable Object missingValue, MultiValueMode sortMode) {
-        return new BytesRefFieldComparatorSource(this, missingValue, sortMode);
+    public XFieldComparatorSource comparatorSource(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested) {
+        return new BytesRefFieldComparatorSource(this, missingValue, sortMode, nested);
     }
 
     @Override
@@ -408,8 +409,7 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
         }
 
         @Override
-        public org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource comparatorSource(Object missingValue,
-                MultiValueMode sortMode) {
+        public XFieldComparatorSource comparatorSource(Object missingValue, MultiValueMode sortMode, Nested nested) {
             throw new UnsupportedOperationException("No sorting on global ords");
         }
 

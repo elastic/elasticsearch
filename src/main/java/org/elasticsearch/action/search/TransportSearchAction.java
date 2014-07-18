@@ -21,6 +21,7 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.type.*;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -59,8 +60,8 @@ public class TransportSearchAction extends TransportAction<SearchRequest, Search
                                  TransportSearchDfsQueryAndFetchAction dfsQueryAndFetchAction,
                                  TransportSearchQueryAndFetchAction queryAndFetchAction,
                                  TransportSearchScanAction scanAction,
-                                 TransportSearchCountAction countAction) {
-        super(settings, SearchAction.NAME, threadPool);
+                                 TransportSearchCountAction countAction, ActionFilters actionFilters) {
+        super(settings, SearchAction.NAME, threadPool, actionFilters);
         this.clusterService = clusterService;
         this.dfsQueryThenFetchAction = dfsQueryThenFetchAction;
         this.queryThenFetchAction = queryThenFetchAction;

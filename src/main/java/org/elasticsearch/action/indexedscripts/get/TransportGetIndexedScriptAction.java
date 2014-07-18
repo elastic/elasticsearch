@@ -21,6 +21,7 @@ package org.elasticsearch.action.indexedscripts.get;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
@@ -40,8 +41,8 @@ public class TransportGetIndexedScriptAction extends HandledTransportAction<GetI
 
     @Inject
     public TransportGetIndexedScriptAction(Settings settings, ThreadPool threadPool, ScriptService scriptService,
-                                           TransportService transportService, Client client) {
-        super(settings, GetIndexedScriptAction.NAME, threadPool,transportService);
+                                           TransportService transportService, Client client, ActionFilters actionFilters) {
+        super(settings, GetIndexedScriptAction.NAME, threadPool,transportService,  actionFilters);
         this.scriptService = scriptService;
         this.client = client;
     }

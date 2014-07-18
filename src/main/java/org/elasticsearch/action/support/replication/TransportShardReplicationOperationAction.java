@@ -26,6 +26,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.WriteConsistencyLevel;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.ClusterService;
@@ -77,8 +78,8 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
     protected TransportShardReplicationOperationAction(Settings settings, String actionName, TransportService transportService,
                                                        ClusterService clusterService, IndicesService indicesService,
-                                                       ThreadPool threadPool, ShardStateAction shardStateAction) {
-        super(settings, actionName, threadPool);
+                                                       ThreadPool threadPool, ShardStateAction shardStateAction, ActionFilters actionFilters) {
+        super(settings, actionName, threadPool, actionFilters);
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.indicesService = indicesService;

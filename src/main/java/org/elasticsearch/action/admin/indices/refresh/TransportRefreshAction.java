@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.refresh;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.TransportBroadcastOperationAction;
@@ -52,8 +53,8 @@ public class TransportRefreshAction extends TransportBroadcastOperationAction<Re
 
     @Inject
     public TransportRefreshAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                                  TransportService transportService, IndicesService indicesService) {
-        super(settings, RefreshAction.NAME, threadPool, clusterService, transportService);
+                                  TransportService transportService, IndicesService indicesService, ActionFilters actionFilters) {
+        super(settings, RefreshAction.NAME, threadPool, clusterService, transportService, actionFilters);
         this.indicesService = indicesService;
     }
 

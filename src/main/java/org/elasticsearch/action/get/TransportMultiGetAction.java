@@ -21,6 +21,7 @@ package org.elasticsearch.action.get;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -45,8 +46,8 @@ public class TransportMultiGetAction extends TransportAction<MultiGetRequest, Mu
     private final TransportShardMultiGetAction shardAction;
 
     @Inject
-    public TransportMultiGetAction(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterService clusterService, TransportShardMultiGetAction shardAction) {
-        super(settings, MultiGetAction.NAME, threadPool);
+    public TransportMultiGetAction(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterService clusterService, TransportShardMultiGetAction shardAction, ActionFilters actionFilters) {
+        super(settings, MultiGetAction.NAME, threadPool, actionFilters);
         this.clusterService = clusterService;
         this.shardAction = shardAction;
 

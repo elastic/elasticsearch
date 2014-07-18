@@ -23,6 +23,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterService;
@@ -53,8 +54,8 @@ public class TransportPutWarmerAction extends TransportMasterNodeOperationAction
 
     @Inject
     public TransportPutWarmerAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                    TransportSearchAction searchAction) {
-        super(settings, PutWarmerAction.NAME, transportService, clusterService, threadPool);
+                                    TransportSearchAction searchAction, ActionFilters actionFilters) {
+        super(settings, PutWarmerAction.NAME, transportService, clusterService, threadPool, actionFilters);
         this.searchAction = searchAction;
     }
 

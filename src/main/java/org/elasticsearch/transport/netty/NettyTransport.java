@@ -272,27 +272,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
                     new NioWorkerPool(Executors.newCachedThreadPool(daemonThreadFactory(settings, "transport_client_worker")), workerCount),
                     new HashedWheelTimer(daemonThreadFactory(settings, "transport_client_timer"))));
         }
-        ChannelPipelineFactory clientPipelineFactory = new ChannelPipelineFactory() {
-            @Override
-            public ChannelPipeline getPipeline() throws Exception {
-                ChannelPipeline pipeline = Channels.pipeline();
-                SizeHeaderFrameDecoder sizeHeader = new SizeHeaderFrameDecoder();
-                if (maxCumulationBufferCapacity != null) {
-                    if (maxCumulationBufferCapacity.bytes() > Integer.MAX_VALUE) {
-                        sizeHeader.setMaxCumulationBufferCapacity(Integer.MAX_VALUE);
-                    } else {
-                        sizeHeader.setMaxCumulationBufferCapacity((int) maxCumulationBufferCapacity.bytes());
-                    }
-                }
-                if (maxCompositeBufferComponents != -1) {
-                    sizeHeader.setMaxCumulationBufferComponents(maxCompositeBufferComponents);
-                }
-                pipeline.addLast("size", sizeHeader);
-                pipeline.addLast("dispatcher", new MessageChannelHandler(NettyTransport.this, logger));
-                return pipeline;
-            }
-        };
-        clientBootstrap.setPipelineFactory(clientPipelineFactory);
+        clientBootstrap.setPipelineFactory(configureClientChannelPipelineFactory());
         clientBootstrap.setOption("connectTimeoutMillis", connectTimeout.millis());
         if (tcpNoDelay != null) {
             clientBootstrap.setOption("tcpNoDelay", tcpNoDelay);
@@ -328,28 +308,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
                     Executors.newCachedThreadPool(daemonThreadFactory(settings, "transport_server_worker")),
                     workerCount));
         }
-        ChannelPipelineFactory serverPipelineFactory = new ChannelPipelineFactory() {
-            @Override
-            public ChannelPipeline getPipeline() throws Exception {
-                ChannelPipeline pipeline = Channels.pipeline();
-                pipeline.addLast("openChannels", openChannels);
-                SizeHeaderFrameDecoder sizeHeader = new SizeHeaderFrameDecoder();
-                if (maxCumulationBufferCapacity != null) {
-                    if (maxCumulationBufferCapacity.bytes() > Integer.MAX_VALUE) {
-                        sizeHeader.setMaxCumulationBufferCapacity(Integer.MAX_VALUE);
-                    } else {
-                        sizeHeader.setMaxCumulationBufferCapacity((int) maxCumulationBufferCapacity.bytes());
-                    }
-                }
-                if (maxCompositeBufferComponents != -1) {
-                    sizeHeader.setMaxCumulationBufferComponents(maxCompositeBufferComponents);
-                }
-                pipeline.addLast("size", sizeHeader);
-                pipeline.addLast("dispatcher", new MessageChannelHandler(NettyTransport.this, logger));
-                return pipeline;
-            }
-        };
-        serverBootstrap.setPipelineFactory(serverPipelineFactory);
+        serverBootstrap.setPipelineFactory(configureServerChannelPipelineFactory());
         if (tcpNoDelay != null) {
             serverBootstrap.setOption("child.tcpNoDelay", tcpNoDelay);
         }
@@ -874,6 +833,70 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             throw new NodeNotConnectedException(node, "Node not connected");
         }
         return nodeChannels.channel(options.type());
+    }
+
+    public ChannelPipelineFactory configureClientChannelPipelineFactory() {
+        return new ClientChannelPipelineFactory(this);
+    }
+
+    protected static class ClientChannelPipelineFactory implements ChannelPipelineFactory {
+        protected NettyTransport nettyTransport;
+
+        public ClientChannelPipelineFactory(NettyTransport nettyTransport) {
+            this.nettyTransport = nettyTransport;
+        }
+
+        @Override
+        public ChannelPipeline getPipeline() throws Exception {
+            ChannelPipeline channelPipeline = Channels.pipeline();
+            SizeHeaderFrameDecoder sizeHeader = new SizeHeaderFrameDecoder();
+            if (nettyTransport.maxCumulationBufferCapacity != null) {
+                if (nettyTransport.maxCumulationBufferCapacity.bytes() > Integer.MAX_VALUE) {
+                    sizeHeader.setMaxCumulationBufferCapacity(Integer.MAX_VALUE);
+                } else {
+                    sizeHeader.setMaxCumulationBufferCapacity((int) nettyTransport.maxCumulationBufferCapacity.bytes());
+                }
+            }
+            if (nettyTransport.maxCompositeBufferComponents != -1) {
+                sizeHeader.setMaxCumulationBufferComponents(nettyTransport.maxCompositeBufferComponents);
+            }
+            channelPipeline.addLast("size", sizeHeader);
+            channelPipeline.addLast("dispatcher", new MessageChannelHandler(nettyTransport, nettyTransport.logger));
+            return channelPipeline;
+        }
+    }
+
+    public ChannelPipelineFactory configureServerChannelPipelineFactory() {
+        return new ServerChannelPipeFactory(this);
+    }
+
+    protected static class ServerChannelPipeFactory implements ChannelPipelineFactory {
+
+        protected NettyTransport nettyTransport;
+
+        public ServerChannelPipeFactory(NettyTransport nettyTransport) {
+            this.nettyTransport = nettyTransport;
+        }
+
+        @Override
+        public ChannelPipeline getPipeline() throws Exception {
+            ChannelPipeline channelPipeline = Channels.pipeline();
+            channelPipeline.addLast("openChannels", nettyTransport.serverOpenChannels);
+            SizeHeaderFrameDecoder sizeHeader = new SizeHeaderFrameDecoder();
+            if (nettyTransport.maxCumulationBufferCapacity != null) {
+                if (nettyTransport.maxCumulationBufferCapacity.bytes() > Integer.MAX_VALUE) {
+                    sizeHeader.setMaxCumulationBufferCapacity(Integer.MAX_VALUE);
+                } else {
+                    sizeHeader.setMaxCumulationBufferCapacity((int) nettyTransport.maxCumulationBufferCapacity.bytes());
+                }
+            }
+            if (nettyTransport.maxCompositeBufferComponents != -1) {
+                sizeHeader.setMaxCumulationBufferComponents(nettyTransport.maxCompositeBufferComponents);
+            }
+            channelPipeline.addLast("size", sizeHeader);
+            channelPipeline.addLast("dispatcher", new MessageChannelHandler(nettyTransport, nettyTransport.logger));
+            return channelPipeline;
+        }
     }
 
     private class ChannelCloseListener implements ChannelFutureListener {

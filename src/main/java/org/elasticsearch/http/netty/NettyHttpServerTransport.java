@@ -195,7 +195,7 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
                     workerCount));
         }
 
-        serverBootstrap.setPipelineFactory(new MyChannelPipelineFactory(this));
+        serverBootstrap.setPipelineFactory(configureServerChannelPipelineFactory());
 
         if (tcpNoDelay != null) {
             serverBootstrap.setOption("child.tcpNoDelay", tcpNoDelay);
@@ -319,13 +319,16 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
         }
     }
 
-    static class MyChannelPipelineFactory implements ChannelPipelineFactory {
+    public ChannelPipelineFactory configureServerChannelPipelineFactory() {
+        return new HttpChannelPipelineFactory(this);
+    }
 
-        private final NettyHttpServerTransport transport;
+    protected static class HttpChannelPipelineFactory implements ChannelPipelineFactory {
 
-        private final HttpRequestHandler requestHandler;
+        protected final NettyHttpServerTransport transport;
+        protected final HttpRequestHandler requestHandler;
 
-        MyChannelPipelineFactory(NettyHttpServerTransport transport) {
+        public HttpChannelPipelineFactory(NettyHttpServerTransport transport) {
             this.transport = transport;
             this.requestHandler = new HttpRequestHandler(transport);
         }

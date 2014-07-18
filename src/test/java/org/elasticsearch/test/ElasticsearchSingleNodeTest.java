@@ -20,6 +20,8 @@ package org.elasticsearch.test;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cache.recycler.CacheRecycler;
+import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -28,12 +30,15 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
 import org.elasticsearch.node.internal.InternalNode;
+import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Ignore;
 
@@ -49,8 +54,8 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
 
     private static final Node node = newNode();
 
-    public static void cleanup() {
-        node.client().admin().indices().prepareDelete("*").get();
+    static void cleanup() {
+        assertAcked(node.client().admin().indices().prepareDelete("*").get());
         MetaData metaData = node.client().admin().cluster().prepareState().get().getState().getMetaData();
         assertThat("test leaves persistent cluster metadata behind: " + metaData.persistentSettings().getAsMap(),
                 metaData.persistentSettings().getAsMap().size(), equalTo(0));
@@ -82,28 +87,28 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
     /**
      * Return a reference to the singleton node.
      */
-    public static Node node() {
+    protected static Node node() {
         return node;
     }
 
     /**
      * Get an instance for a particular class using the injector of the singleton node.
      */
-    public static <T> T getInstanceFromNode(Class<T> clazz) {
+    protected static <T> T getInstanceFromNode(Class<T> clazz) {
         return ((InternalNode) node).injector().getInstance(clazz);
     }
 
     /**
      * Create a new index on the singleton node with empty index settings.
      */
-    public static IndexService createIndex(String index) {
+    protected static IndexService createIndex(String index) {
         return createIndex(index, ImmutableSettings.EMPTY);
     }
 
     /**
      * Create a new index on the singleton node with the provided index settings.
      */
-    public static IndexService createIndex(String index, Settings settings) {
+    protected static IndexService createIndex(String index, Settings settings) {
         assertAcked(node.client().admin().indices().prepareCreate(index).setSettings(settings).get());
         // Wait for the index to be allocated so that cluster state updates don't override
         // changes that would have been done locally
@@ -115,5 +120,15 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
         return instanceFromNode.indexServiceSafe(index);
     }
 
+    /**
+     * Create a new search context.
+     */
+    protected static SearchContext createSearchContext(IndexService indexService) {
+        BigArrays bigArrays = indexService.injector().getInstance(BigArrays.class);
+        ThreadPool threadPool = indexService.injector().getInstance(ThreadPool.class);
+        CacheRecycler cacheRecycler = indexService.injector().getInstance(CacheRecycler.class);
+        PageCacheRecycler pageCacheRecycler = indexService.injector().getInstance(PageCacheRecycler.class);
+        return new TestSearchContext(threadPool, cacheRecycler, pageCacheRecycler, bigArrays, indexService, indexService.cache().filter(), indexService.fieldData());
+    }
 
 }

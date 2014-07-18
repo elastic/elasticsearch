@@ -23,20 +23,19 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MapperTestUtils;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
 
 /**
  */
-public class SimpleObjectMappingTests extends ElasticsearchTestCase {
+public class SimpleObjectMappingTests extends ElasticsearchSingleNodeTest {
 
     @Test
     public void testDifferentInnerObjectTokenFailure() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
         try {
             defaultMapper.parse("type", "1", new BytesArray(" {\n" +
                     "      \"object\": {\n" +
@@ -62,6 +61,6 @@ public class SimpleObjectMappingTests extends ElasticsearchTestCase {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startArray("properties").endArray()
                 .endObject().endObject().string();
-        MapperTestUtils.newParser().parse(mapping);
+        createIndex("test").mapperService().documentMapperParser().parse(mapping);
     }
 }

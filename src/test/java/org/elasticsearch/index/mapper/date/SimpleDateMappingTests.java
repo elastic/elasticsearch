@@ -36,7 +36,7 @@ import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.Test;
@@ -47,7 +47,7 @@ import java.util.*;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.hamcrest.Matchers.*;
 
-public class SimpleDateMappingTests extends ElasticsearchTestCase {
+public class SimpleDateMappingTests extends ElasticsearchSingleNodeTest {
 
     @Test
     public void testAutomaticDateParser() throws Exception {
@@ -130,16 +130,19 @@ public class SimpleDateMappingTests extends ElasticsearchTestCase {
         assertNumericTokensEqual(doc, defaultMapper, "date_field_en", "date_field_de");
         assertNumericTokensEqual(doc, defaultMapper, "date_field_en", "date_field_default");
     }
-    
+
+    int i = 0;
+
     private DocumentMapper mapper(String mapping) throws IOException {
         // we serialize and deserialize the mapping to make sure serialization works just fine
-        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
+        DocumentMapperParser parser = createIndex("test-" + (i++)).mapperService().documentMapperParser();
+        DocumentMapper defaultMapper = parser.parse(mapping);
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         builder.startObject();
         defaultMapper.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         String rebuildMapping = builder.string();
-        return MapperTestUtils.newParser().parse(rebuildMapping);
+        return parser.parse(rebuildMapping);
     }
     
     private void assertNumericTokensEqual(ParsedDocument doc, DocumentMapper defaultMapper, String fieldA, String fieldB) throws IOException {
@@ -293,7 +296,7 @@ public class SimpleDateMappingTests extends ElasticsearchTestCase {
 
         // Unless the global ignore_malformed option is set to true
         Settings indexSettings = settingsBuilder().put("index.mapping.ignore_malformed", true).build();
-        defaultMapper = MapperTestUtils.newParser(indexSettings).parse(mapping);
+        defaultMapper = createIndex("test2", indexSettings).mapperService().documentMapperParser().parse(mapping);
         doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .field("field3", "a")

@@ -44,9 +44,7 @@ import org.elasticsearch.index.mapper.internal.IdFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.mapper.internal.VersionFieldMapper;
 import org.elasticsearch.index.service.IndexService;
-import org.elasticsearch.test.ElasticsearchLuceneTestCase;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
-import org.junit.After;
+import org.elasticsearch.test.ElasticsearchSingleNodeLuceneTestCase;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -56,18 +54,13 @@ import java.util.Arrays;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class CodecTests extends ElasticsearchLuceneTestCase {
+public class CodecTests extends ElasticsearchSingleNodeLuceneTestCase {
     
     @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();
         forceDefaultCodec(); // we test against default codec so never get a random one here!
-    }
-
-    @After
-    public void cleanup() {
-        ElasticsearchSingleNodeTest.cleanup();
     }
 
     @Test
@@ -405,7 +398,7 @@ public class CodecTests extends ElasticsearchLuceneTestCase {
     }
 
     private static CodecService createCodecService(Settings settings) {
-        IndexService indexService = ElasticsearchSingleNodeTest.createIndex("test", settings);
+        IndexService indexService = createIndex("test", settings);
         return indexService.injector().getInstance(CodecService.class);
     }
 

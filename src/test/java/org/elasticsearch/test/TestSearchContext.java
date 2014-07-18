@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.search.child;
+package org.elasticsearch.test;
 
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
@@ -63,8 +63,6 @@ import org.elasticsearch.search.suggest.SuggestionSearchContext;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.List;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 public class TestSearchContext extends SearchContext {
 
@@ -75,7 +73,6 @@ public class TestSearchContext extends SearchContext {
     final FilterCache filterCache;
     final IndexFieldDataService indexFieldDataService;
     final ThreadPool threadPool;
-    private final AtomicBoolean closed = new AtomicBoolean(false);
 
     ContextIndexSearcher searcher;
     int size;
@@ -281,7 +278,7 @@ public class TestSearchContext extends SearchContext {
         return searcher;
     }
 
-    void setSearcher(ContextIndexSearcher searcher) {
+    public void setSearcher(ContextIndexSearcher searcher) {
         this.searcher = searcher;
     }
 
@@ -573,7 +570,7 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public FieldMapper smartNameFieldMapper(String name) {
+    public FieldMapper<?> smartNameFieldMapper(String name) {
         return null;
     }
 
@@ -584,14 +581,6 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public void doClose() throws ElasticsearchException {
-        if (closed.compareAndSet(false, true)) {
-            threadPool.shutdownNow();
-            try {
-                threadPool.awaitTermination(10, TimeUnit.SECONDS);
-            } catch (InterruptedException e) {
-                Thread.interrupted();
-            }
-        }
     }
 
     @Override

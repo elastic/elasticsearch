@@ -27,14 +27,13 @@ import org.apache.lucene.index.*;
 import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.plain.*;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
+import org.elasticsearch.index.mapper.MapperBuilders;
 import org.elasticsearch.index.mapper.core.*;
-import org.elasticsearch.indices.fielddata.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.test.ElasticsearchTestCase;
-import org.elasticsearch.test.index.service.StubIndexService;
+import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -43,15 +42,12 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.instanceOf;
 
-public class IndexFieldDataServiceTests extends ElasticsearchTestCase {
+public class IndexFieldDataServiceTests extends ElasticsearchSingleNodeTest {
 
     private static Settings DOC_VALUES_SETTINGS = ImmutableSettings.builder().put(FieldDataType.FORMAT_KEY, FieldDataType.DOC_VALUES_FORMAT_VALUE).build();
 
-    @SuppressWarnings("unchecked")
     public void testGetForFieldDefaults() {
-        final IndexFieldDataService ifdService = new IndexFieldDataService(new Index("test"), new NoneCircuitBreakerService());
-        MapperService mapperService = MapperTestUtils.newMapperService(ifdService.index(), ImmutableSettings.Builder.EMPTY_SETTINGS);
-        ifdService.setIndexService(new StubIndexService(mapperService));
+        final IndexFieldDataService ifdService = createIndex("test").fieldData();
         for (boolean docValues : Arrays.asList(true, false)) {
             final BuilderContext ctx = new BuilderContext(null, new ContentPath(1));
             final StringFieldMapper stringMapper = new StringFieldMapper.Builder("string").tokenized(false).fieldDataSettings(docValues ? DOC_VALUES_SETTINGS : ImmutableSettings.EMPTY).build(ctx);
@@ -100,9 +96,7 @@ public class IndexFieldDataServiceTests extends ElasticsearchTestCase {
 
     @SuppressWarnings("unchecked")
     public void testByPassDocValues() {
-        final IndexFieldDataService ifdService = new IndexFieldDataService(new Index("test"), new NoneCircuitBreakerService());
-        MapperService mapperService = MapperTestUtils.newMapperService(ifdService.index(), ImmutableSettings.Builder.EMPTY_SETTINGS);
-        ifdService.setIndexService(new StubIndexService(mapperService));
+        final IndexFieldDataService ifdService = createIndex("test").fieldData();
         final BuilderContext ctx = new BuilderContext(null, new ContentPath(1));
         final StringFieldMapper stringMapper = MapperBuilders.stringField("string").tokenized(false).fieldDataSettings(DOC_VALUES_SETTINGS).fieldDataSettings(ImmutableSettings.builder().put("format", "fst").build()).build(ctx);
         ifdService.clear();
@@ -133,9 +127,7 @@ public class IndexFieldDataServiceTests extends ElasticsearchTestCase {
     }
 
     public void testChangeFieldDataFormat() throws Exception {
-        final IndexFieldDataService ifdService = new IndexFieldDataService(new Index("test"), new NoneCircuitBreakerService());
-        MapperService mapperService = MapperTestUtils.newMapperService(ifdService.index(), ImmutableSettings.Builder.EMPTY_SETTINGS);
-        ifdService.setIndexService(new StubIndexService(mapperService));
+        final IndexFieldDataService ifdService = createIndex("test").fieldData();
         final BuilderContext ctx = new BuilderContext(null, new ContentPath(1));
         final StringFieldMapper mapper1 = MapperBuilders.stringField("s").tokenized(false).fieldDataSettings(ImmutableSettings.builder().put(FieldDataType.FORMAT_KEY, "paged_bytes").build()).build(ctx);
         final IndexWriter writer = new IndexWriter(new RAMDirectory(), new IndexWriterConfig(TEST_VERSION_CURRENT, new KeywordAnalyzer()));

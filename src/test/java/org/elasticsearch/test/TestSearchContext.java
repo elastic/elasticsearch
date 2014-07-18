@@ -76,6 +76,7 @@ public class TestSearchContext extends SearchContext {
 
     ContextIndexSearcher searcher;
     int size;
+    private int terminateAfter = DEFAULT_TERMINATE_AFTER;
 
     public TestSearchContext(ThreadPool threadPool, CacheRecycler cacheRecycler, PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, IndexService indexService, FilterCache filterCache, IndexFieldDataService indexFieldDataService) {
         this.cacheRecycler = cacheRecycler;
@@ -349,6 +350,16 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public void timeoutInMillis(long timeoutInMillis) {
+    }
+
+    @Override
+    public int terminateAfter() {
+        return terminateAfter;
+    }
+
+    @Override
+    public void terminateAfter(int terminateAfter) {
+        this.terminateAfter = terminateAfter;
     }
 
     @Override

@@ -20,13 +20,18 @@
 package org.elasticsearch.count.simple;
 
 import org.elasticsearch.action.count.CountResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ExecutionException;
 
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
@@ -111,6 +116,45 @@ public class SimpleCountTests extends ElasticsearchIntegrationTest {
 
         countResponse = client().prepareCount("test").setQuery(QueryBuilders.queryString("field:[2010-01-03||+2d TO 2010-01-04||+2d]")).execute().actionGet();
         assertHitCount(countResponse, 2l);
+    }
+
+    @Test
+    public void simpleCountEarlyTerminationTests() throws Exception {
+        // set up one shard only to test early termination
+        prepareCreate("test").setSettings(
+                SETTING_NUMBER_OF_SHARDS, 1,
+                SETTING_NUMBER_OF_REPLICAS, 0).get();
+        ensureGreen();
+        int max = randomIntBetween(3, 29);
+        List<IndexRequestBuilder> docbuilders = new ArrayList<>(max);
+
+        for (int i = 1; i <= max; i++) {
+            String id = String.valueOf(i);
+            docbuilders.add(client().prepareIndex("test", "type1", id).setSource("field", "2010-01-"+ id +"T02:00"));
+        }
+
+        indexRandom(true, docbuilders);
+        ensureGreen();
+        refresh();
+
+        String upperBound = "2010-01-" + String.valueOf(max+1) + "||+2d";
+        String lowerBound = "2009-12-01||+2d";
+
+        // sanity check
+        CountResponse countResponse = client().prepareCount("test").setQuery(QueryBuilders.rangeQuery("field").gte(lowerBound).lte(upperBound)).execute().actionGet();
+        assertHitCount(countResponse, max);
+
+        // threshold <= actual count
+        for (int i = 1; i <= max; i++) {
+            countResponse = client().prepareCount("test").setQuery(QueryBuilders.rangeQuery("field").gte(lowerBound).lte(upperBound)).setTerminateAfter(i).execute().actionGet();
+            assertHitCount(countResponse, i);
+            assertTrue(countResponse.terminatedEarly());
+        }
+
+        // threshold > actual count
+        countResponse = client().prepareCount("test").setQuery(QueryBuilders.rangeQuery("field").gte(lowerBound).lte(upperBound)).setTerminateAfter(max + randomIntBetween(1, max)).execute().actionGet();
+        assertHitCount(countResponse, max);
+        assertFalse(countResponse.terminatedEarly());
     }
 
     @Test

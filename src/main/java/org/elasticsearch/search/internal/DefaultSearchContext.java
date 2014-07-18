@@ -117,6 +117,9 @@ public class DefaultSearchContext extends SearchContext {
     // timeout in millis
     private long timeoutInMillis = -1;
 
+    // terminate after count
+    private int terminateAfter = DEFAULT_TERMINATE_AFTER;
+
 
     private List<String> groupStats;
 
@@ -469,6 +472,16 @@ public class DefaultSearchContext extends SearchContext {
 
     public void timeoutInMillis(long timeoutInMillis) {
         this.timeoutInMillis = timeoutInMillis;
+    }
+
+    @Override
+    public int terminateAfter() {
+        return terminateAfter;
+    }
+
+    @Override
+    public void terminateAfter(int terminateAfter) {
+        this.terminateAfter = terminateAfter;
     }
 
     public SearchContext minimumScore(float minimumScore) {

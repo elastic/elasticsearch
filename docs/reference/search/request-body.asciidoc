@@ -62,6 +62,12 @@ that point when expired. Defaults to no timeout.
 `query_and_fetch`. Defaults to `query_then_fetch`. See
 <<search-request-search-type,_Search Type_>> for
 more details on the different types of search that can be performed.
+
+|coming[1.4.0] `terminate_after` |The maximum number of documents to collect for
+each shard, upon reaching which the query execution will terminate early.
+If set, the response will have a boolean field `terminated_early` to
+indicate whether the query execution has actually terminated_early.
+Defaults to no terminate_after.
 |=======================================================================
 
 Out of the above, the `search_type` is the one that can not be passed

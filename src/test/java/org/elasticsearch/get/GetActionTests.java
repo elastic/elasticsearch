@@ -885,4 +885,30 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
         assertThat(getResponse.getField(field).getValues().get(1).toString(), equalTo("value2"));
     }
 
+    @Test
+    public void testGet_allField() throws Exception {
+        client().admin().indices().prepareCreate("my-index")
+                .addMapping("my-type1", jsonBuilder()
+                        .startObject()
+                        .startObject("my-type1")
+                        .startObject("_all")
+                        .field("store", true)
+                        .endObject()
+                        .startObject("properties")
+                        .startObject("some_field")
+                        .field("type", "string")
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject())
+                .get();
+        client().prepareIndex("my-index", "my-type1", "1")
+                .setSource(jsonBuilder().startObject().field("some_field", "some text").endObject())
+                .get();
+        refresh();
+
+        GetResponse getResponse = client().prepareGet("my-index", "my-type1", "1").setFields("_all").get();
+        assertNotNull(getResponse.getField("_all").getValue());
+        assertThat(getResponse.getField("_all").getValue().toString(), equalTo("some text" + " "));
+    }
 }

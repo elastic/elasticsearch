@@ -33,11 +33,10 @@ import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.CoreMatchers.instanceOf;
-import static org.hamcrest.CoreMatchers.notNullValue;
+import static org.hamcrest.CoreMatchers.*;
 
 public class TransportActionFilterChainTests extends ElasticsearchTestCase {
 
@@ -172,7 +171,9 @@ public class TransportActionFilterChainTests extends ElasticsearchTestCase {
             }
         });
 
-        latch.await();
+        if (!latch.await(10, TimeUnit.SECONDS)) {
+            fail("timeout waiting for the filter to notify the listener as many times as expected");
+        }
 
         assertThat(testFilter.runs.get(), equalTo(1));
         assertThat(testFilter.lastActionName, equalTo(actionName));

@@ -46,6 +46,7 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
     private String collateFilter;
     private String collatePreference;
     private Map<String, Object> collateParams;
+    private Boolean collatePrune;
 
     public PhraseSuggestionBuilder(String name) {
         super(name, "phrase");
@@ -202,6 +203,14 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
         return this;
     }
 
+    /**
+     * Sets whether to prune suggestions after collation
+     */
+    public PhraseSuggestionBuilder collatePrune(boolean collatePrune) {
+        this.collatePrune = collatePrune;
+        return this;
+    }
+
     @Override
     public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
         if (realWordErrorLikelihood != null) {
@@ -259,6 +268,9 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
             }
             if (collateParams != null) {
                 builder.field("params", collateParams);
+            }
+            if (collatePrune != null) {
+                builder.field("prune", collatePrune.booleanValue());
             }
             builder.endObject();
         }

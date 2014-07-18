@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.cluster.settings;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterService;
@@ -55,8 +56,8 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeOpe
 
     @Inject
     public TransportClusterUpdateSettingsAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                                AllocationService allocationService, @ClusterDynamicSettings DynamicSettings dynamicSettings) {
-        super(settings, ClusterUpdateSettingsAction.NAME, transportService, clusterService, threadPool);
+                                                AllocationService allocationService, @ClusterDynamicSettings DynamicSettings dynamicSettings, ActionFilters actionFilters) {
+        super(settings, ClusterUpdateSettingsAction.NAME, transportService, clusterService, threadPool, actionFilters);
         this.allocationService = allocationService;
         this.dynamicSettings = dynamicSettings;
     }

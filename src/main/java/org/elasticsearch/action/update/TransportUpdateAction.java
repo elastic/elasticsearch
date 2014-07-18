@@ -35,6 +35,7 @@ import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.index.TransportIndexAction;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.single.instance.TransportInstanceSingleOperationAction;
@@ -73,8 +74,8 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
     @Inject
     public TransportUpdateAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
                                  TransportIndexAction indexAction, TransportDeleteAction deleteAction, TransportCreateIndexAction createIndexAction,
-                                 UpdateHelper updateHelper) {
-        super(settings, UpdateAction.NAME, threadPool, clusterService, transportService);
+                                 UpdateHelper updateHelper, ActionFilters actionFilters) {
+        super(settings, UpdateAction.NAME, threadPool, clusterService, transportService, actionFilters);
         this.indexAction = indexAction;
         this.deleteAction = deleteAction;
         this.createIndexAction = createIndexAction;

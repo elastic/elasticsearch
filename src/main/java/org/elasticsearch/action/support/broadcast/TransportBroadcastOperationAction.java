@@ -22,6 +22,7 @@ package org.elasticsearch.action.support.broadcast;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.ClusterService;
@@ -53,8 +54,8 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
     final String transportShardAction;
     final String executor;
 
-    protected TransportBroadcastOperationAction(Settings settings, String actionName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService) {
-        super(settings, actionName, threadPool);
+    protected TransportBroadcastOperationAction(Settings settings, String actionName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, ActionFilters actionFilters) {
+        super(settings, actionName, threadPool, actionFilters);
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.threadPool = threadPool;

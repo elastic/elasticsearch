@@ -21,6 +21,7 @@ package org.elasticsearch.action.get;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.RoutingMissingException;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportShardSingleOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -49,8 +50,8 @@ public class TransportGetAction extends TransportShardSingleOperationAction<GetR
 
     @Inject
     public TransportGetAction(Settings settings, ClusterService clusterService, TransportService transportService,
-                              IndicesService indicesService, ThreadPool threadPool) {
-        super(settings, GetAction.NAME, threadPool, clusterService, transportService);
+                              IndicesService indicesService, ThreadPool threadPool, ActionFilters actionFilters) {
+        super(settings, GetAction.NAME, threadPool, clusterService, transportService, actionFilters);
         this.indicesService = indicesService;
 
         this.realtime = settings.getAsBoolean("action.get.realtime", true);

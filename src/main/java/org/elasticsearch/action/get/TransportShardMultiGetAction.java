@@ -21,6 +21,7 @@ package org.elasticsearch.action.get;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.single.shard.TransportShardSingleOperationAction;
 import org.elasticsearch.cluster.ClusterService;
@@ -50,8 +51,8 @@ public class TransportShardMultiGetAction extends TransportShardSingleOperationA
 
     @Inject
     public TransportShardMultiGetAction(Settings settings, ClusterService clusterService, TransportService transportService,
-                                        IndicesService indicesService, ThreadPool threadPool) {
-        super(settings, ACTION_NAME, threadPool, clusterService, transportService);
+                                        IndicesService indicesService, ThreadPool threadPool, ActionFilters actionFilters) {
+        super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters);
         this.indicesService = indicesService;
 
         this.realtime = settings.getAsBoolean("action.get.realtime", true);

@@ -24,6 +24,7 @@ import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.RoutingMissingException;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportShardSingleOperationAction;
 import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
@@ -73,8 +74,8 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
     public TransportExplainAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                   TransportService transportService, IndicesService indicesService,
                                   ScriptService scriptService, CacheRecycler cacheRecycler,
-                                  PageCacheRecycler pageCacheRecycler, BigArrays bigArrays) {
-        super(settings, ExplainAction.NAME, threadPool, clusterService, transportService);
+                                  PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, ActionFilters actionFilters) {
+        super(settings, ExplainAction.NAME, threadPool, clusterService, transportService, actionFilters);
         this.indicesService = indicesService;
         this.scriptService = scriptService;
         this.cacheRecycler = cacheRecycler;

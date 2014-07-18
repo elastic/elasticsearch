@@ -24,6 +24,7 @@ import com.google.common.collect.Collections2;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetaData;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.custom.TransportSingleCustomOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -64,8 +65,8 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleCustomO
     public TransportGetFieldMappingsIndexAction(Settings settings, ClusterService clusterService,
                                                 TransportService transportService,
                                                 IndicesService indicesService,
-                                                ThreadPool threadPool) {
-        super(settings, ACTION_NAME, threadPool, clusterService, transportService);
+                                                ThreadPool threadPool, ActionFilters actionFilters) {
+        super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters);
         this.clusterService = clusterService;
         this.indicesService = indicesService;
     }

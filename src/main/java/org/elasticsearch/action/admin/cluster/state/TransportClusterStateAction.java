@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.cluster.state;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadOperationAction;
 import org.elasticsearch.cluster.ClusterName;
@@ -43,8 +44,8 @@ public class TransportClusterStateAction extends TransportMasterNodeReadOperatio
 
     @Inject
     public TransportClusterStateAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                       ClusterName clusterName) {
-        super(settings, ClusterStateAction.NAME, transportService, clusterService, threadPool);
+                                       ClusterName clusterName, ActionFilters actionFilters) {
+        super(settings, ClusterStateAction.NAME, transportService, clusterService, threadPool, actionFilters);
         this.clusterName = clusterName;
     }
 

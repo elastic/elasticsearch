@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action;
 
+import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
@@ -91,10 +92,10 @@ import org.elasticsearch.action.admin.indices.open.OpenIndexAction;
 import org.elasticsearch.action.admin.indices.open.TransportOpenIndexAction;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeAction;
 import org.elasticsearch.action.admin.indices.optimize.TransportOptimizeAction;
-import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
-import org.elasticsearch.action.admin.indices.refresh.TransportRefreshAction;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryAction;
 import org.elasticsearch.action.admin.indices.recovery.TransportRecoveryAction;
+import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
+import org.elasticsearch.action.admin.indices.refresh.TransportRefreshAction;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsAction;
 import org.elasticsearch.action.admin.indices.segments.TransportIndicesSegmentsAction;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
@@ -151,13 +152,17 @@ import org.elasticsearch.action.search.*;
 import org.elasticsearch.action.search.type.*;
 import org.elasticsearch.action.suggest.SuggestAction;
 import org.elasticsearch.action.suggest.TransportSuggestAction;
+import org.elasticsearch.action.support.ActionFilter;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.termvector.*;
 import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.MapBinder;
+import org.elasticsearch.common.inject.multibindings.Multibinder;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -166,6 +171,7 @@ import java.util.Map;
 public class ActionModule extends AbstractModule {
 
     private final Map<String, ActionEntry> actions = Maps.newHashMap();
+    private final List<Class<? extends ActionFilter>> actionFilters = Lists.newArrayList();
 
     static class ActionEntry<Request extends ActionRequest, Response extends ActionResponse> {
         public final GenericAction<Request, Response> action;
@@ -200,8 +206,19 @@ public class ActionModule extends AbstractModule {
         actions.put(action.name(), new ActionEntry<>(action, transportAction, supportTransportActions));
     }
 
+    public ActionModule registerFilter(Class<? extends ActionFilter> actionFilter) {
+        actionFilters.add(actionFilter);
+        return this;
+    }
+
     @Override
     protected void configure() {
+
+        Multibinder<ActionFilter> actionFilterMultibinder = Multibinder.newSetBinder(binder(), ActionFilter.class);
+        for (Class<? extends ActionFilter> actionFilter : actionFilters) {
+            actionFilterMultibinder.addBinding().to(actionFilter);
+        }
+        bind(ActionFilters.class).asEagerSingleton();
 
         registerAction(NodesInfoAction.INSTANCE, TransportNodesInfoAction.class);
         registerAction(NodesStatsAction.INSTANCE, TransportNodesStatsAction.class);

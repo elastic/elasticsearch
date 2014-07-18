@@ -20,6 +20,7 @@
 package org.elasticsearch.action.indexedscripts.put;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DelegatingActionListener;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -41,8 +42,8 @@ public class TransportPutIndexedScriptAction extends HandledTransportAction<PutI
     @Inject
     public TransportPutIndexedScriptAction(Settings settings, ThreadPool threadPool,
                                            ScriptService scriptService, Client client,
-                                           TransportService transportService) {
-        super(settings, PutIndexedScriptAction.NAME, threadPool, transportService);
+                                           TransportService transportService, ActionFilters actionFilters) {
+        super(settings, PutIndexedScriptAction.NAME, threadPool, transportService, actionFilters);
         this.client = client;
         this.scriptService = scriptService;
     }

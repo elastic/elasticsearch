@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.status;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationRequest;
@@ -69,8 +70,8 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
 
     @Inject
     public TransportIndicesStatusAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
-                                        IndicesService indicesService, RecoveryTarget peerRecoveryTarget) {
-        super(settings, IndicesStatusAction.NAME, threadPool, clusterService, transportService);
+                                        IndicesService indicesService, RecoveryTarget peerRecoveryTarget, ActionFilters actionFilters) {
+        super(settings, IndicesStatusAction.NAME, threadPool, clusterService, transportService, actionFilters);
         this.peerRecoveryTarget = peerRecoveryTarget;
         this.indicesService = indicesService;
     }

@@ -21,6 +21,7 @@ package org.elasticsearch.action.termvector;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.RoutingMissingException;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportShardSingleOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -44,8 +45,8 @@ public class TransportSingleShardTermVectorAction extends TransportShardSingleOp
 
     @Inject
     public TransportSingleShardTermVectorAction(Settings settings, ClusterService clusterService, TransportService transportService,
-                                                IndicesService indicesService, ThreadPool threadPool) {
-        super(settings, TermVectorAction.NAME, threadPool, clusterService, transportService);
+                                                IndicesService indicesService, ThreadPool threadPool, ActionFilters actionFilters) {
+        super(settings, TermVectorAction.NAME, threadPool, clusterService, transportService, actionFilters);
         this.indicesService = indicesService;
     }
 

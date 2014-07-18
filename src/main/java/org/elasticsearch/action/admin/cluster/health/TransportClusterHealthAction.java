@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.cluster.health;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadOperationAction;
 import org.elasticsearch.cluster.ClusterName;
@@ -46,8 +47,8 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadOperati
 
     @Inject
     public TransportClusterHealthAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                        ClusterName clusterName) {
-        super(settings, ClusterHealthAction.NAME, transportService, clusterService, threadPool);
+                                        ClusterName clusterName, ActionFilters actionFilters) {
+        super(settings, ClusterHealthAction.NAME, transportService, clusterService, threadPool, actionFilters);
         this.clusterName = clusterName;
     }
 

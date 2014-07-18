@@ -20,6 +20,7 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -50,8 +51,8 @@ public class TransportClearScrollAction extends TransportAction<ClearScrollReque
     private final SearchServiceTransportAction searchServiceTransportAction;
 
     @Inject
-    public TransportClearScrollAction(Settings settings, TransportService transportService, ThreadPool threadPool, ClusterService clusterService, SearchServiceTransportAction searchServiceTransportAction) {
-        super(settings, ClearScrollAction.NAME, threadPool);
+    public TransportClearScrollAction(Settings settings, TransportService transportService, ThreadPool threadPool, ClusterService clusterService, SearchServiceTransportAction searchServiceTransportAction, ActionFilters actionFilters) {
+        super(settings, ClearScrollAction.NAME, threadPool, actionFilters);
         this.clusterService = clusterService;
         this.searchServiceTransportAction = searchServiceTransportAction;
         transportService.registerHandler(ClearScrollAction.NAME, new TransportHandler());

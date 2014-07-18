@@ -22,6 +22,7 @@ package org.elasticsearch.action.support.replication;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -48,8 +49,8 @@ public abstract class TransportIndicesReplicationOperationAction<Request extends
     protected final TransportIndexReplicationOperationAction<IndexRequest, IndexResponse, ShardRequest, ShardReplicaRequest, ShardResponse> indexAction;
 
     protected TransportIndicesReplicationOperationAction(Settings settings, String actionName, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                                      TransportIndexReplicationOperationAction<IndexRequest, IndexResponse, ShardRequest, ShardReplicaRequest, ShardResponse> indexAction) {
-        super(settings, actionName, threadPool);
+                                                         TransportIndexReplicationOperationAction<IndexRequest, IndexResponse, ShardRequest, ShardReplicaRequest, ShardResponse> indexAction, ActionFilters actionFilters) {
+        super(settings, actionName, threadPool, actionFilters);
         this.clusterService = clusterService;
         this.indexAction = indexAction;
 

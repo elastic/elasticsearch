@@ -35,6 +35,7 @@ import java.io.IOException;
  * A numeric filter that can be much faster than {@link org.apache.lucene.search.NumericRangeFilter} at the
  * expense of loading numeric values of the field to memory using {@link org.elasticsearch.index.cache.field.data.FieldDataCache}.
  */
+// TODO: these filters should not iterate over all values but be more selective like Lucene's DocTermOrdsRangeFilter
 public abstract class NumericRangeFieldDataFilter<T> extends Filter {
     final IndexNumericFieldData indexFieldData;
     final T lowerVal;

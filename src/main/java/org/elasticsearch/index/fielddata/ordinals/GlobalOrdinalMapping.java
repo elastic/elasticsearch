@@ -48,9 +48,6 @@ public class GlobalOrdinalMapping extends AbstractRandomAccessOrds {
         return ordinalMap.getValueCount();
     }
 
-    // NOTE: careful if we change the API here: unnecessary branch for < 0 here hurts a lot.
-    // so if we already know the count (from setDocument), its bad to do it redundantly.
-
     public final long getGlobalOrd(long segmentOrd) {
         return mapping.get(segmentOrd);
     }

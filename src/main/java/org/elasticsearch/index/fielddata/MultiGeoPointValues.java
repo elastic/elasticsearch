@@ -21,7 +21,7 @@ package org.elasticsearch.index.fielddata;
 import org.elasticsearch.common.geo.GeoPoint;
 
 /**
- * A state-full lightweight per document set of {@link GeoPoint} values.
+ * A stateful lightweight per document set of {@link GeoPoint} values.
  * To iterate over values in a document use the following pattern:
  * <pre>
  *   GeoPointValues values = ..;

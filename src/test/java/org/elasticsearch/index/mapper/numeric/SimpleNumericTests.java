@@ -33,7 +33,7 @@ import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.string.SimpleStringMappingTests;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -43,7 +43,7 @@ import static org.hamcrest.Matchers.*;
 
 /**
  */
-public class SimpleNumericTests extends ElasticsearchTestCase {
+public class SimpleNumericTests extends ElasticsearchSingleNodeTest {
 
     @Test
     public void testNumericDetectionEnabled() throws Exception {
@@ -51,7 +51,7 @@ public class SimpleNumericTests extends ElasticsearchTestCase {
                 .field("numeric_detection", true)
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
 
         ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -72,7 +72,7 @@ public class SimpleNumericTests extends ElasticsearchTestCase {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
 
         ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -98,7 +98,7 @@ public class SimpleNumericTests extends ElasticsearchTestCase {
                 .endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
 
         ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -132,7 +132,7 @@ public class SimpleNumericTests extends ElasticsearchTestCase {
 
         // Unless the global ignore_malformed option is set to true
         Settings indexSettings = settingsBuilder().put("index.mapping.ignore_malformed", true).build();
-        defaultMapper = MapperTestUtils.newParser(indexSettings).parse(mapping);
+        defaultMapper = createIndex("test2", indexSettings).mapperService().documentMapperParser().parse(mapping);
         doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .field("field3", "a")
@@ -156,6 +156,7 @@ public class SimpleNumericTests extends ElasticsearchTestCase {
     public void testCoerceOption() throws Exception {
         String [] nonFractionNumericFieldTypes={"integer","long","short"};
         //Test co-ercion policies on all non-fraction numerics
+        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
         for (String nonFractionNumericFieldType : nonFractionNumericFieldTypes) {
             String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                     .startObject("properties")
@@ -169,7 +170,7 @@ public class SimpleNumericTests extends ElasticsearchTestCase {
                     .endObject()
                     .endObject().endObject().string();
 
-            DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
+            DocumentMapper defaultMapper = parser.parse(mapping);
 
             //Test numbers passed as strings
             String invalidJsonNumberAsString="1";
@@ -269,7 +270,7 @@ public class SimpleNumericTests extends ElasticsearchTestCase {
                 .endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
 
         ParsedDocument parsedDoc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -305,7 +306,7 @@ public class SimpleNumericTests extends ElasticsearchTestCase {
                 .endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
 
         ParsedDocument parsedDoc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -338,7 +339,7 @@ public class SimpleNumericTests extends ElasticsearchTestCase {
                 .field("date_detection", true)
                 .endObject().endObject().string();
 
-        DocumentMapper mapper = MapperTestUtils.newParser().parse(mapping);
+        DocumentMapper mapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
 
         ParsedDocument doc = mapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -389,7 +390,7 @@ public class SimpleNumericTests extends ElasticsearchTestCase {
                 .endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper mapper = MapperTestUtils.newParser().parse(mapping);
+        DocumentMapper mapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
         
         ParsedDocument doc = mapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -460,7 +461,7 @@ public class SimpleNumericTests extends ElasticsearchTestCase {
                 .endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper mapper = MapperTestUtils.newParser().parse(mapping);
+        DocumentMapper mapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
         
         ParsedDocument doc = mapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()

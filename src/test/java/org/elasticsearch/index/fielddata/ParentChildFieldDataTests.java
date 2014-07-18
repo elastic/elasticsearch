@@ -27,15 +27,10 @@ import org.apache.lucene.search.*;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.compress.CompressedString;
-import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MapperTestUtils;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.search.MultiValueMode;
-import org.elasticsearch.test.index.service.StubIndexService;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -51,15 +46,12 @@ public class ParentChildFieldDataTests extends AbstractFieldDataTests {
 
     @Before
     public void before() throws Exception {
-        MapperService mapperService = MapperTestUtils.newMapperService(ifdService.index(), ImmutableSettings.Builder.EMPTY_SETTINGS);
         mapperService.merge(
                 childType, new CompressedString(PutMappingRequest.buildFromSimplifiedDef(childType, "_parent", "type=" + parentType).string()), true
         );
         mapperService.merge(
                 grandChildType, new CompressedString(PutMappingRequest.buildFromSimplifiedDef(grandChildType, "_parent", "type=" + childType).string()), true
         );
-        IndexService indexService = new StubIndexService(mapperService);
-        ifdService.setIndexService(indexService);
 
         Document d = new Document();
         d.add(new StringField(UidFieldMapper.NAME, Uid.createUid(parentType, "1"), Field.Store.NO));

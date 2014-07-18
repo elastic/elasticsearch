@@ -25,11 +25,10 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MapperTestUtils;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.core.*;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
 
 import static org.elasticsearch.common.io.Streams.copyToBytesFromClasspath;
@@ -41,7 +40,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class MultiFieldTests extends ElasticsearchTestCase {
+public class MultiFieldTests extends ElasticsearchSingleNodeTest {
 
     @Test
     public void testMultiField_multiFieldType() throws Exception {
@@ -56,7 +55,7 @@ public class MultiFieldTests extends ElasticsearchTestCase {
     }
 
     private void testMultiField(String mapping) throws Exception {
-        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/multifield/test-data.json"));
         Document doc = docMapper.parse(json).rootDoc();
 
@@ -128,7 +127,7 @@ public class MultiFieldTests extends ElasticsearchTestCase {
 
     @Test
     public void testBuildThenParse() throws Exception {
-        DocumentMapperParser mapperParser = MapperTestUtils.newParser();
+        DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
 
         DocumentMapper builderDocMapper = doc("test", rootObject("person").add(
                 stringField("name").store(true)
@@ -169,7 +168,7 @@ public class MultiFieldTests extends ElasticsearchTestCase {
     @Test
     public void testConvertMultiFieldNoDefaultField() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/test-multi-field-type-no-default-field.json");
-        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/multifield/test-data.json"));
         Document doc = docMapper.parse(json).rootDoc();
 
@@ -239,7 +238,7 @@ public class MultiFieldTests extends ElasticsearchTestCase {
     @Test
     public void testConvertMultiFieldGeoPoint() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/test-multi-field-type-geo_point.json");
-        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
 
         assertThat(docMapper.mappers().fullName("a").mapper(), notNullValue());
         assertThat(docMapper.mappers().fullName("a").mapper(), instanceOf(StringFieldMapper.class));
@@ -339,7 +338,7 @@ public class MultiFieldTests extends ElasticsearchTestCase {
     @Test
     public void testConvertMultiFieldCompletion() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/test-multi-field-type-completion.json");
-        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
 
         assertThat(docMapper.mappers().fullName("a").mapper(), notNullValue());
         assertThat(docMapper.mappers().fullName("a").mapper(), instanceOf(StringFieldMapper.class));

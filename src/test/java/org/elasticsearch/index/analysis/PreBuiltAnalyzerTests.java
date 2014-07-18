@@ -28,9 +28,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MapperTestUtils;
 import org.elasticsearch.indices.analysis.PreBuiltAnalyzers;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -43,7 +42,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class PreBuiltAnalyzerTests extends ElasticsearchTestCase {
+public class PreBuiltAnalyzerTests extends ElasticsearchSingleNodeTest {
 
     @Test
     public void testThatDefaultAndStandardAnalyzerAreTheSameInstance() {
@@ -161,7 +160,7 @@ public class PreBuiltAnalyzerTests extends ElasticsearchTestCase {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "string").field("analyzer", analyzerName).endObject().endObject()
                 .endObject().endObject().string();
-        DocumentMapper docMapper = MapperTestUtils.newParser(indexSettings).parse(mapping);
+        DocumentMapper docMapper = createIndex("test", indexSettings).mapperService().documentMapperParser().parse(mapping);
 
         FieldMapper fieldMapper = docMapper.mappers().name("field").mapper();
         assertThat(fieldMapper.searchAnalyzer(), instanceOf(NamedAnalyzer.class));

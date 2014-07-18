@@ -12,7 +12,7 @@ To use `QueryBuilders` just import them in your class:
 
 [source,java]
 --------------------------------------------------
-import org.elasticsearch.index.query.QueryBuilders.*;
+import static org.elasticsearch.index.query.QueryBuilders.*;
 --------------------------------------------------
 
 Note that you can easily print (aka debug) JSON generated queries using

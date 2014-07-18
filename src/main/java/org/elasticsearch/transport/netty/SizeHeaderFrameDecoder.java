@@ -43,7 +43,12 @@ public class SizeHeaderFrameDecoder extends FrameDecoder {
 
         int readerIndex = buffer.readerIndex();
         if (buffer.getByte(readerIndex) != 'E' || buffer.getByte(readerIndex + 1) != 'S') {
-            throw new StreamCorruptedException("invalid internal transport message format");
+            // we have 6 readable bytes, show 4 (should be enough)
+            throw new StreamCorruptedException("invalid internal transport message format, got ("
+                    + Integer.toHexString(buffer.getByte(readerIndex) & 0xFF) + ","
+                    + Integer.toHexString(buffer.getByte(readerIndex + 1) & 0xFF) + ","
+                    + Integer.toHexString(buffer.getByte(readerIndex + 2) & 0xFF) + ","
+                    + Integer.toHexString(buffer.getByte(readerIndex + 3) & 0xFF) + ")");
         }
 
         int dataLen = buffer.getInt(buffer.readerIndex() + 2);

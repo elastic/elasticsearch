@@ -295,7 +295,9 @@ public enum FieldData {
     }
 
     /**
-     * Return a {@link String} representation of the provided values.
+     * Return a {@link String} representation of the provided values. That is
+     * typically used for scripts or for the `map` execution mode of terms aggs.
+     * NOTE: this is very slow!
      */
     public static SortedBinaryDocValues toString(final SortedNumericDocValues values) {
         return toString(new ToStringValues() {
@@ -310,7 +312,9 @@ public enum FieldData {
     }
 
     /**
-     * Return a {@link String} representation of the provided values.
+     * Return a {@link String} representation of the provided values. That is
+     * typically used for scripts or for the `map` execution mode of terms aggs.
+     * NOTE: this is very slow!
      */
     public static SortedBinaryDocValues toString(final SortedNumericDoubleValues values) {
         return toString(new ToStringValues() {
@@ -325,7 +329,9 @@ public enum FieldData {
     }
 
     /**
-     * Return a {@link String} representation of the provided values.
+     * Return a {@link String} representation of the provided values. That is
+     * typically used for scripts or for the `map` execution mode of terms aggs.
+     * NOTE: this is very slow!
      */
     public static SortedBinaryDocValues toString(final RandomAccessOrds values) {
         return toString(new ToStringValues() {
@@ -341,7 +347,9 @@ public enum FieldData {
     }
 
     /**
-     * Return a {@link String} representation of the provided values.
+     * Return a {@link String} representation of the provided values. That is
+     * typically used for scripts or for the `map` execution mode of terms aggs.
+     * NOTE: this is very slow!
      */
     public static SortedBinaryDocValues toString(final MultiGeoPointValues values) {
         return toString(new ToStringValues() {

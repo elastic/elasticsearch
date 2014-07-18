@@ -486,6 +486,16 @@ public class PercolateContext extends SearchContext {
     }
 
     @Override
+    public int terminateAfter() {
+        return DEFAULT_TERMINATE_AFTER;
+    }
+
+    @Override
+    public void terminateAfter(int terminateAfter) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public SearchContext minimumScore(float minimumScore) {
         throw new UnsupportedOperationException();
     }

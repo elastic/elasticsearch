@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.count;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -28,12 +29,15 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
+import static org.elasticsearch.search.internal.SearchContext.DEFAULT_TERMINATE_AFTER;
+
 /**
  * Internal count request executed directly against a specific index shard.
  */
 class ShardCountRequest extends BroadcastShardOperationRequest {
 
     private float minScore;
+    private int terminateAfter;
 
     private BytesReference querySource;
 
@@ -55,6 +59,7 @@ class ShardCountRequest extends BroadcastShardOperationRequest {
         this.types = request.types();
         this.filteringAliases = filteringAliases;
         this.nowInMillis = request.nowInMillis;
+        this.terminateAfter = request.terminateAfter();
     }
 
     public float minScore() {
@@ -75,6 +80,10 @@ class ShardCountRequest extends BroadcastShardOperationRequest {
 
     public long nowInMillis() {
         return this.nowInMillis;
+    }
+
+    public int terminateAfter() {
+        return this.terminateAfter;
     }
 
     @Override
@@ -99,6 +108,12 @@ class ShardCountRequest extends BroadcastShardOperationRequest {
             }
         }
         nowInMillis = in.readVLong();
+
+        if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
+            terminateAfter = in.readVInt();
+        } else {
+            terminateAfter = DEFAULT_TERMINATE_AFTER;
+        }
     }
 
     @Override
@@ -121,5 +136,9 @@ class ShardCountRequest extends BroadcastShardOperationRequest {
             out.writeVInt(0);
         }
         out.writeVLong(nowInMillis);
+
+        if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
+            out.writeVInt(terminateAfter);
+        }
     }
 }

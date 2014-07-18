@@ -20,6 +20,8 @@
 package org.elasticsearch.action.count;
 
 import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
@@ -33,6 +35,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
+
+import static org.elasticsearch.search.internal.SearchContext.DEFAULT_TERMINATE_AFTER;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -67,6 +71,7 @@ public class CountRequest extends BroadcastOperationRequest<CountRequest> {
     private String[] types = Strings.EMPTY_ARRAY;
 
     long nowInMillis;
+    private int terminateAfter = DEFAULT_TERMINATE_AFTER;
 
     CountRequest() {
     }
@@ -221,6 +226,21 @@ public class CountRequest extends BroadcastOperationRequest<CountRequest> {
         return this.preference;
     }
 
+    /**
+     * Upon reaching <code>terminateAfter</code> counts, the count request will early terminate
+     */
+    public CountRequest terminateAfter(int terminateAfterCount) {
+        if (terminateAfterCount <= 0) {
+            throw new ElasticsearchIllegalArgumentException("terminateAfter must be > 0");
+        }
+        this.terminateAfter = terminateAfterCount;
+        return this;
+    }
+
+    public int terminateAfter() {
+        return this.terminateAfter;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -230,6 +250,10 @@ public class CountRequest extends BroadcastOperationRequest<CountRequest> {
         sourceUnsafe = false;
         source = in.readBytesReference();
         types = in.readStringArray();
+
+        if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
+            terminateAfter = in.readVInt();
+        }
     }
 
     @Override
@@ -240,6 +264,10 @@ public class CountRequest extends BroadcastOperationRequest<CountRequest> {
         out.writeOptionalString(preference);
         out.writeBytesReference(source);
         out.writeStringArray(types);
+
+        if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
+            out.writeVInt(terminateAfter);
+        }
     }
 
     @Override

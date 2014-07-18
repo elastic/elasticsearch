@@ -72,6 +72,7 @@ import java.util.List;
 public abstract class SearchContext implements Releasable {
 
     private static ThreadLocal<SearchContext> current = new ThreadLocal<>();
+    public final static int DEFAULT_TERMINATE_AFTER = 0;
 
     public static void setCurrent(SearchContext value) {
         current.set(value);
@@ -211,6 +212,10 @@ public abstract class SearchContext implements Releasable {
     public abstract long timeoutInMillis();
 
     public abstract void timeoutInMillis(long timeoutInMillis);
+
+    public abstract int terminateAfter();
+
+    public abstract void terminateAfter(int terminateAfter);
 
     public abstract SearchContext minimumScore(float minimumScore);
 

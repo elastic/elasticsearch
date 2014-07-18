@@ -446,14 +446,13 @@ public class PercolatorService extends AbstractComponent {
         @Override
         public PercolateShardResponse doPercolate(PercolateShardRequest request, PercolateContext context, boolean isNested) {
             long count = 0;
-            Lucene.ExistsCollector collector = new Lucene.ExistsCollector();
+            Lucene.EarlyTerminatingCollector collector = Lucene.createExistsCollector();
             for (Map.Entry<BytesRef, Query> entry : context.percolateQueries().entrySet()) {
-                collector.reset();
                 try {
                     if (isNested) {
-                        context.docSearcher().search(entry.getValue(), NonNestedDocsFilter.INSTANCE, collector);
+                        Lucene.exists(context.docSearcher(), entry.getValue(), NonNestedDocsFilter.INSTANCE, collector);
                     } else {
-                        context.docSearcher().search(entry.getValue(), collector);
+                        Lucene.exists(context.docSearcher(), entry.getValue(), collector);
                     }
                 } catch (Throwable e) {
                     logger.debug("[" + entry.getKey() + "] failed to execute query", e);
@@ -543,19 +542,18 @@ public class PercolatorService extends AbstractComponent {
             long count = 0;
             List<BytesRef> matches = new ArrayList<>();
             List<Map<String, HighlightField>> hls = new ArrayList<>();
-            Lucene.ExistsCollector collector = new Lucene.ExistsCollector();
+            Lucene.EarlyTerminatingCollector collector = Lucene.createExistsCollector();
 
             for (Map.Entry<BytesRef, Query> entry : context.percolateQueries().entrySet()) {
-                collector.reset();
                 if (context.highlight() != null) {
                     context.parsedQuery(new ParsedQuery(entry.getValue(), ImmutableMap.<String, Filter>of()));
                     context.hitContext().cache().clear();
                 }
                 try {
                     if (isNested) {
-                        context.docSearcher().search(entry.getValue(), NonNestedDocsFilter.INSTANCE, collector);
+                        Lucene.exists(context.docSearcher(), entry.getValue(), NonNestedDocsFilter.INSTANCE, collector);
                     } else {
-                        context.docSearcher().search(entry.getValue(), collector);
+                        Lucene.exists(context.docSearcher(), entry.getValue(), collector);
                     }
                 } catch (Throwable e) {
                     logger.debug("[" + entry.getKey() + "] failed to execute query", e);

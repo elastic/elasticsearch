@@ -58,7 +58,7 @@ abstract class QueryCollector extends Collector {
     final ESLogger logger;
     boolean isNestedDoc = false;
 
-    final Lucene.ExistsCollector collector = new Lucene.ExistsCollector();
+    final Lucene.EarlyTerminatingCollector collector = Lucene.createExistsCollector();
     BytesRef current;
 
     SortedBinaryDocValues values;
@@ -200,16 +200,15 @@ abstract class QueryCollector extends Collector {
             }
             // run the query
             try {
-                collector.reset();
                 if (context.highlight() != null) {
                     context.parsedQuery(new ParsedQuery(query, ImmutableMap.<String, Filter>of()));
                     context.hitContext().cache().clear();
                 }
 
                 if (isNestedDoc) {
-                    searcher.search(query, NonNestedDocsFilter.INSTANCE, collector);
+                    Lucene.exists(searcher, query, NonNestedDocsFilter.INSTANCE, collector);
                 } else {
-                    searcher.search(query, collector);
+                    Lucene.exists(searcher, query, collector);
                 }
                 if (collector.exists()) {
                     if (!limit || counter < size) {
@@ -259,11 +258,10 @@ abstract class QueryCollector extends Collector {
             }
             // run the query
             try {
-                collector.reset();
                 if (isNestedDoc) {
-                    searcher.search(query, NonNestedDocsFilter.INSTANCE, collector);
+                    Lucene.exists(searcher, query, NonNestedDocsFilter.INSTANCE, collector);
                 } else {
-                    searcher.search(query, collector);
+                    Lucene.exists(searcher, query, collector);
                 }
                 if (collector.exists()) {
                     topDocsCollector.collect(doc);
@@ -323,15 +321,14 @@ abstract class QueryCollector extends Collector {
             }
             // run the query
             try {
-                collector.reset();
                 if (context.highlight() != null) {
                     context.parsedQuery(new ParsedQuery(query, ImmutableMap.<String, Filter>of()));
                     context.hitContext().cache().clear();
                 }
                 if (isNestedDoc) {
-                    searcher.search(query, NonNestedDocsFilter.INSTANCE, collector);
+                    Lucene.exists(searcher, query, NonNestedDocsFilter.INSTANCE, collector);
                 } else {
-                    searcher.search(query, collector);
+                    Lucene.exists(searcher, query, collector);
                 }
                 if (collector.exists()) {
                     if (!limit || counter < size) {
@@ -389,11 +386,10 @@ abstract class QueryCollector extends Collector {
             }
             // run the query
             try {
-                collector.reset();
                 if (isNestedDoc) {
-                    searcher.search(query, NonNestedDocsFilter.INSTANCE, collector);
+                    Lucene.exists(searcher, query, NonNestedDocsFilter.INSTANCE, collector);
                 } else {
-                    searcher.search(query, collector);
+                    Lucene.exists(searcher, query, collector);
                 }
                 if (collector.exists()) {
                     counter++;

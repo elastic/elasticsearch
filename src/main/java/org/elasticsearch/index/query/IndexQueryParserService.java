@@ -24,6 +24,7 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -66,6 +67,11 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         public static final String FILTER_PREFIX = "index.queryparser.filter";
     }
 
+    public static final String DEFAULT_FIELD = "index.query.default_field";
+    public static final String QUERY_STRING_LENIENT = "index.query_string.lenient";
+    public static final String PARSE_STRICT = "index.query.parse.strict";
+    public static final String ALLOW_UNMAPPED = "index.query.parse.allow_unmapped_fields";
+
     private CloseableThreadLocal<QueryParseContext> cache = new CloseableThreadLocal<QueryParseContext>() {
         @Override
         protected QueryParseContext initialValue() {
@@ -96,6 +102,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
     private String defaultField;
     private boolean queryStringLenient;
     private final boolean strict;
+    private final boolean defaultAllowUnmappedFields;
 
     @Inject
     public IndexQueryParserService(Index index, @IndexSettings Settings indexSettings,
@@ -116,9 +123,10 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         this.indexEngine = indexEngine;
         this.fixedBitSetFilterCache = fixedBitSetFilterCache;
 
-        this.defaultField = indexSettings.get("index.query.default_field", AllFieldMapper.NAME);
-        this.queryStringLenient = indexSettings.getAsBoolean("index.query_string.lenient", false);
-        this.strict = indexSettings.getAsBoolean("index.query.parse.strict", false);
+        this.defaultField = indexSettings.get(DEFAULT_FIELD, AllFieldMapper.NAME);
+        this.queryStringLenient = indexSettings.getAsBoolean(QUERY_STRING_LENIENT, false);
+        this.strict = indexSettings.getAsBoolean(PARSE_STRICT, false);
+        this.defaultAllowUnmappedFields = indexSettings.getAsBoolean(ALLOW_UNMAPPED, true);
 
         List<QueryParser> queryParsers = newArrayList();
         if (namedQueryParsers != null) {
@@ -299,6 +307,33 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         } finally {
             context.reset(null);
         }
+    }
+
+    @Nullable
+    public Query parseInnerQuery(QueryParseContext parseContext) throws IOException {
+        if (strict) {
+            parseContext.parseFlags(EnumSet.of(ParseField.Flag.STRICT));
+        }
+        Query query = parseContext.parseInnerQuery();
+        if (query == null) {
+            query = Queries.newMatchNoDocsQuery();
+        }
+        return query;
+    }
+
+    public QueryParseContext getParseContext() {
+        return cache.get();
+    }
+
+    public boolean defaultAllowUnmappedFields() {
+        return defaultAllowUnmappedFields;
+    }
+
+    /**
+     * @return The lowest node version in the cluster when the index was created or <code>null</code> if that was unknown
+     */
+    public Version getIndexCreatedVersion() {
+        return Version.indexCreated(indexSettings);
     }
 
     /**

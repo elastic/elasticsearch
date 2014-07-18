@@ -337,6 +337,7 @@ public class SimpleIndexTemplateTests extends ElasticsearchIntegrationTest {
 
         client().admin().indices().preparePutTemplate("template_with_aliases")
                 .setTemplate("te*")
+                .addMapping("type1", "{\"type1\" : {\"properties\" : {\"value\" : {\"type\" : \"string\"}}}}")
                 .addAlias(new Alias("simple_alias"))
                 .addAlias(new Alias("templated_alias-{index}"))
                 .addAlias(new Alias("filtered_alias").filter("{\"type\":{\"value\":\"type2\"}}"))

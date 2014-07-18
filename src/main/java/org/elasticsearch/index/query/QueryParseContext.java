@@ -26,6 +26,7 @@ import org.apache.lucene.queryparser.classic.QueryParserSettings;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.similarities.Similarity;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.lucene.search.NoCacheFilter;
@@ -78,7 +79,7 @@ public class QueryParseContext {
 
     private boolean propagateNoCache = false;
 
-    IndexQueryParserService indexQueryParser;
+    final IndexQueryParserService indexQueryParser;
 
     private final Map<String, Filter> namedFilters = Maps.newHashMap();
 
@@ -89,6 +90,8 @@ public class QueryParseContext {
     private EnumSet<ParseField.Flag> parseFlags = ParseField.EMPTY_FLAGS;
 
     private final boolean disableFilterCaching;
+
+    private boolean allowUnmappedFields;
 
     public QueryParseContext(Index index, IndexQueryParserService indexQueryParser) {
         this(index, indexQueryParser, false);
@@ -101,7 +104,7 @@ public class QueryParseContext {
         this.disableFilterCaching = disableFilterCaching;
     }
 
-    public  void parseFlags(EnumSet<ParseField.Flag> parseFlags) {
+    public void parseFlags(EnumSet<ParseField.Flag> parseFlags) {
         this.parseFlags = parseFlags == null ? ParseField.EMPTY_FLAGS : parseFlags;
     }
 
@@ -110,6 +113,7 @@ public class QueryParseContext {
     }
 
     public void reset(XContentParser jp) {
+        allowUnmappedFields = indexQueryParser.defaultAllowUnmappedFields();
         this.parseFlags = ParseField.EMPTY_FLAGS;
         this.lookup = null;
         this.parser = jp;
@@ -316,15 +320,32 @@ public class QueryParseContext {
     }
 
     public MapperService.SmartNameFieldMappers smartFieldMappers(String name) {
-        return indexQueryParser.mapperService.smartName(name, getTypes());
+        return failIfFieldMappingNotFound(name, indexQueryParser.mapperService.smartName(name, getTypes()));
     }
 
     public FieldMapper smartNameFieldMapper(String name) {
-        return indexQueryParser.mapperService.smartNameFieldMapper(name, getTypes());
+        return failIfFieldMappingNotFound(name, indexQueryParser.mapperService.smartNameFieldMapper(name, getTypes()));
     }
 
     public MapperService.SmartNameObjectMapper smartObjectMapper(String name) {
         return indexQueryParser.mapperService.smartNameObjectMapper(name, getTypes());
+    }
+
+    public void setAllowUnmappedFields(boolean allowUnmappedFields) {
+        this.allowUnmappedFields = allowUnmappedFields;
+    }
+
+    private <T> T failIfFieldMappingNotFound(String name, T fieldMapping) {
+        if (allowUnmappedFields) {
+            return fieldMapping;
+        } else {
+            Version indexCreatedVersion = indexQueryParser.getIndexCreatedVersion();
+            if (fieldMapping == null && indexCreatedVersion.onOrAfter(Version.V_1_4_0)) {
+                throw new QueryParsingException(index, "Strict field resolution and no field mapping can be found for the field with name [" + name + "]");
+            } else {
+                return fieldMapping;
+            }
+        }
     }
 
     /**

@@ -209,7 +209,9 @@ public class ExplainActionTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testExplainWithFilteredAlias() throws Exception {
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias1").filter(FilterBuilders.termFilter("field2", "value2"))));
+        assertAcked(prepareCreate("test")
+                .addMapping("test", "field2", "type=string")
+                .addAlias(new Alias("alias1").filter(FilterBuilders.termFilter("field2", "value2"))));
         ensureGreen("test");
 
         client().prepareIndex("test", "test", "1").setSource("field1", "value1", "field2", "value1").get();
@@ -225,6 +227,7 @@ public class ExplainActionTests extends ElasticsearchIntegrationTest {
     @Test
     public void testExplainWithFilteredAliasFetchSource() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
+                .addMapping("test", "field2", "type=string")
                 .addAlias(new Alias("alias1").filter(FilterBuilders.termFilter("field2", "value2"))));
         ensureGreen("test");
 

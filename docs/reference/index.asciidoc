@@ -9,7 +9,7 @@ include::getting-started.asciidoc[]
 
 include::setup.asciidoc[]
 
-include::migration/migrate_1_0.asciidoc[]
+include::migration/index.asciidoc[]
 
 include::api-conventions.asciidoc[]
 

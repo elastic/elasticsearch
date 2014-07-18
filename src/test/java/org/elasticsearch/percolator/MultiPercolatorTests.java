@@ -46,7 +46,7 @@ public class MultiPercolatorTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testBasics() throws Exception {
-        client().admin().indices().prepareCreate("test").execute().actionGet();
+        assertAcked(prepareCreate("test").addMapping("type", "field1", "type=string"));
         ensureGreen();
 
         logger.info("--> register a queries");

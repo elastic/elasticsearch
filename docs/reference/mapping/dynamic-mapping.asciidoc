@@ -63,3 +63,19 @@ root and inner object types:
     }
 }
 --------------------------------------------------
+
+[float]
+=== Unmapped fields in queries
+
+coming[1.4.0]
+
+Queries and filters can refer to fields which don't exist in a mapping, except
+when registering a new <<search-percolate,percolator query>> or when creating
+a <<filtered,filtered alias>>.  In these two cases, any fields referred to in
+the query or filter must already exist in the mapping, otherwise there is a
+chance that the wrong field type will be used.
+
+This requirement can be disabled by setting
+`index.query.parse.allow_unmapped_fields` to `true`, in which case you run the
+risk that your query or filter might not work correctly.
+

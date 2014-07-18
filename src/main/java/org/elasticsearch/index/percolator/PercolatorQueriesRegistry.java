@@ -46,6 +46,7 @@ import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.percolator.stats.ShardPercolateService;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
@@ -53,6 +54,7 @@ import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.percolator.PercolatorService;
 
+import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -65,6 +67,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * this registry with queries in real time.
  */
 public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
+
+    public final static String ALLOW_UNMAPPED_FIELDS = "index.percolator.allow_unmapped_fields";
 
     // This is a shard level service, but these below are index level service:
     private final IndexQueryParserService queryParserService;
@@ -81,6 +85,7 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
     private final RealTimePercolatorOperationListener realTimePercolatorOperationListener = new RealTimePercolatorOperationListener();
     private final PercolateTypeListener percolateTypeListener = new PercolateTypeListener();
     private final AtomicBoolean realTimePercolatorEnabled = new AtomicBoolean(false);
+    private final boolean allowUnmappedFields;
 
     private CloseableThreadLocal<QueryParseContext> cache = new CloseableThreadLocal<QueryParseContext>() {
         @Override
@@ -101,6 +106,7 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
         this.indexCache = indexCache;
         this.indexFieldDataService = indexFieldDataService;
         this.shardPercolateService = shardPercolateService;
+        this.allowUnmappedFields = indexSettings.getAsBoolean(ALLOW_UNMAPPED_FIELDS, false);
 
         indicesLifecycle.addListener(shardLifecycleListener);
         mapperService.addTypeListener(percolateTypeListener);
@@ -151,64 +157,61 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
     Query parsePercolatorDocument(String id, BytesReference source) {
         String type = null;
         BytesReference querySource = null;
-
-        XContentParser parser = null;
-        try {
-            parser = XContentHelper.createParser(source);
+        try (XContentParser sourceParser = XContentHelper.createParser(source)) {
             String currentFieldName = null;
-            XContentParser.Token token = parser.nextToken(); // move the START_OBJECT
+            XContentParser.Token token = sourceParser.nextToken(); // move the START_OBJECT
             if (token != XContentParser.Token.START_OBJECT) {
                 throw new ElasticsearchException("failed to parse query [" + id + "], not starting with OBJECT");
             }
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            while ((token = sourceParser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
-                    currentFieldName = parser.currentName();
+                    currentFieldName = sourceParser.currentName();
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     if ("query".equals(currentFieldName)) {
                         if (type != null) {
-                            return parseQuery(type, null, parser);
+                            return parseQuery(type, sourceParser);
                         } else {
-                            XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType());
-                            builder.copyCurrentStructure(parser);
+                            XContentBuilder builder = XContentFactory.contentBuilder(sourceParser.contentType());
+                            builder.copyCurrentStructure(sourceParser);
                             querySource = builder.bytes();
                             builder.close();
                         }
                     } else {
-                        parser.skipChildren();
+                        sourceParser.skipChildren();
                     }
                 } else if (token == XContentParser.Token.START_ARRAY) {
-                    parser.skipChildren();
+                    sourceParser.skipChildren();
                 } else if (token.isValue()) {
                     if ("type".equals(currentFieldName)) {
-                        type = parser.text();
+                        type = sourceParser.text();
                     }
                 }
             }
-            return parseQuery(type, querySource, null);
+            try (XContentParser queryParser = XContentHelper.createParser(querySource)) {
+                return parseQuery(type, queryParser);
+            }
         } catch (Exception e) {
             throw new PercolatorException(shardId().index(), "failed to parse query [" + id + "]", e);
-        } finally {
-            if (parser != null) {
-                parser.close();
-            }
         }
     }
 
-    private Query parseQuery(String type, BytesReference querySource, XContentParser parser) {
+    private Query parseQuery(String type, XContentParser parser) {
         String[] previousTypes = null;
         if (type != null) {
             QueryParseContext.setTypesWithPrevious(new String[]{type});
         }
+        QueryParseContext context = cache.get();
         try {
-            if (parser != null) {
-                return queryParserService.parse(cache.get(), parser).query();
-            } else {
-                return queryParserService.parse(cache.get(), querySource).query();
-            }
+            context.reset(parser);
+            context.setAllowUnmappedFields(allowUnmappedFields);
+            return queryParserService.parseInnerQuery(context);
+        } catch (IOException e) {
+            throw new QueryParsingException(queryParserService.index(), "Failed to parse", e);
         } finally {
             if (type != null) {
                 QueryParseContext.setTypes(previousTypes);
             }
+            context.reset(null);
         }
     }
 

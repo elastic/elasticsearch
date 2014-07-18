@@ -15,10 +15,43 @@ in a request to the percolate api.
 The percolator and most of its features work in realtime, so once a percolate query is indexed it can immediately be used
 in the percolate api.
 
+[IMPORTANT]
+=====================================
+
+Field referred to in a percolator query must *already* exist in the mapping
+assocated with the index used for percolation.
+coming[1.4.0,Applies to indices created in 1.4.0 or later]
+There are two ways to make sure that a field mapping exist:
+
+* Add or update a mapping via the <<indices-create-index,create index>> or
+  <<indices-put-mapping,put mapping>> apis.
+* Percolate a document before registering a query. Percolating a document can
+  add field mappings dynamically, in the same way as happens when indexing a
+  document.
+
+=====================================
+
 [float]
 === Sample usage
 
-Adding a query to the percolator:
+Create an index with a mapping for the field `message`:
+
+[source,js]
+--------------------------------------------------
+curl -XPUT 'localhost:9200/my-index' -d '{
+  "mappings": {
+    "my-type": {
+      "properties": {
+        "message": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+Register a query in the percolator:
 
 [source,js]
 --------------------------------------------------
@@ -31,7 +64,7 @@ curl -XPUT 'localhost:9200/my-index/.percolator/1' -d '{
 }'
 --------------------------------------------------
 
-Matching documents to the added queries:
+Match a document to the registered percolator queries:
 
 [source,js]
 --------------------------------------------------
@@ -54,16 +87,16 @@ The above request will yield the following response:
         "failed" : 0
     },
     "total" : 1,
-    "matches" : [
+    "matches" : [ <1>
     	{
-    	     "_index" : "my-index",
-    	     "_id" : "1"
+    	  "_index" : "my-index",
+    	  "_id" : "1"
     	}
     ]
 }
 --------------------------------------------------
 
-The percolate api returns matches that refer to percolate queries that have matched with the document defined in the percolate api.
+<1> The percolate query with id `1` matches our document.
 
 [float]
 === Indexing percolator queries

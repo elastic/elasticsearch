@@ -59,10 +59,10 @@ See {ref}/query-dsl-bool-query.html[Boolean Query]
 --------------------------------------------------
 QueryBuilder qb = QueryBuilders
                     .boolQuery()
-                    .must(termQuery("content", "test1"))
-                    .must(termQuery("content", "test4"))
-                    .mustNot(termQuery("content", "test2"))
-                    .should(termQuery("content", "test3"));
+                    .must(QueryBuilders.termQuery("content", "test1"))
+                    .must(QueryBuilders.termQuery("content", "test4"))
+                    .mustNot(QueryBuilders.termQuery("content", "test2"))
+                    .should(QueryBuilders.termQuery("content", "test3"));
 --------------------------------------------------
 
 

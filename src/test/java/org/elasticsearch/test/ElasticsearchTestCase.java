@@ -23,6 +23,7 @@ import com.carrotsearch.randomizedtesting.annotations.*;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
 import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableList;
+import org.apache.lucene.search.FieldCache;
 import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.util.AbstractRandomizedTest;
 import org.apache.lucene.util.LuceneTestCase;
@@ -39,10 +40,7 @@ import org.elasticsearch.test.cache.recycler.MockBigArrays;
 import org.elasticsearch.test.cache.recycler.MockPageCacheRecycler;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.test.store.MockDirectoryHelper;
-import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
-import org.junit.Ignore;
+import org.junit.*;
 
 import java.io.Closeable;
 import java.io.File;
@@ -97,6 +95,21 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
             System.setSecurityManager(new SecurityManager());
         }
 
+    }
+
+    @Before
+    public void cleanFieldCache() {
+        FieldCache.DEFAULT.purgeAllCaches();
+    }
+
+    @After
+    public void ensureNoFieldCacheUse() {
+        // We use the lucene comparators, and by default they work on field cache.
+        // However, given the way that we use them, field cache should NEVER get loaded.
+        if (getClass().getAnnotation(UsesLuceneFieldCacheOnPurpose.class) == null) {
+            FieldCache.CacheEntry[] entries = FieldCache.DEFAULT.getCacheEntries();
+            assertEquals("fieldcache must never be used, got=" + Arrays.toString(entries), 0, entries.length);
+        }
     }
 
     /**
@@ -393,6 +406,15 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
     @Ignore
     public @interface CompatibilityVersion {
         int version();
+    }
+
+    /**
+     * Most tests don't use {@link FieldCache} but some of them might do.
+     */
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target({ElementType.TYPE})
+    @Ignore
+    public @interface UsesLuceneFieldCacheOnPurpose {
     }
 
     /**

@@ -63,7 +63,7 @@ public class ParentChildAtomicFieldData extends AbstractAtomicParentChildFieldDa
     public SortedDocValues getOrdinalsValues(String type) {
         AtomicOrdinalsFieldData atomicFieldData = typeToIds.get(type);
         if (atomicFieldData != null) {
-            return MultiValueMode.MIN.select(atomicFieldData.getOrdinalsValues(), -1);
+            return MultiValueMode.MIN.select(atomicFieldData.getOrdinalsValues());
         } else {
             return DocValues.emptySorted();
         }

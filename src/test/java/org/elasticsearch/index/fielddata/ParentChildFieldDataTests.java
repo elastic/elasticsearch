@@ -27,6 +27,7 @@ import org.apache.lucene.search.*;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.compress.CompressedString;
+import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
@@ -140,7 +141,7 @@ public class ParentChildFieldDataTests extends AbstractFieldDataTests {
     public void testSorting() throws Exception {
         IndexFieldData indexFieldData = getForField(childType);
         IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer, true));
-        IndexFieldData.XFieldComparatorSource comparator = indexFieldData.comparatorSource("_last", MultiValueMode.MIN);
+        IndexFieldData.XFieldComparatorSource comparator = indexFieldData.comparatorSource("_last", MultiValueMode.MIN, null);
 
         TopFieldDocs topDocs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(new SortField(ParentFieldMapper.NAME, comparator, false)));
         assertThat(topDocs.totalHits, equalTo(8));
@@ -160,7 +161,7 @@ public class ParentChildFieldDataTests extends AbstractFieldDataTests {
         assertThat(topDocs.scoreDocs[6].doc, equalTo(6));
         assertThat(((BytesRef) ((FieldDoc) topDocs.scoreDocs[6]).fields[0]).utf8ToString(), equalTo("2"));
         assertThat(topDocs.scoreDocs[7].doc, equalTo(7));
-        assertThat(((BytesRef) ((FieldDoc) topDocs.scoreDocs[7]).fields[0]), equalTo(IndexFieldData.XFieldComparatorSource.MAX_TERM));
+        assertThat(((BytesRef) ((FieldDoc) topDocs.scoreDocs[7]).fields[0]), equalTo(XFieldComparatorSource.MAX_TERM));
 
         topDocs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(new SortField(ParentFieldMapper.NAME, comparator, true)));
         assertThat(topDocs.totalHits, equalTo(8));

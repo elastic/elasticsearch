@@ -68,8 +68,12 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
             return;
         }
 
-        ActionFilterChain actionFilterChain = new TransportActionFilterChain();
-        actionFilterChain.continueProcessing(actionName, request, listener);
+        if (filters.length == 0) {
+            doExecute(request, listener);
+        } else {
+            ActionFilterChain actionFilterChain = new TransportActionFilterChain();
+            actionFilterChain.continueProcessing(actionName, request, listener);
+        }
     }
 
     protected boolean forceThreadedListener() {

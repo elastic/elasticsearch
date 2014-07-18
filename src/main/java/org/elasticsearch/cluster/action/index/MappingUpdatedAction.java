@@ -25,6 +25,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
@@ -88,8 +89,8 @@ public class MappingUpdatedAction extends TransportMasterNodeOperationAction<Map
 
     @Inject
     public MappingUpdatedAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                MetaDataMappingService metaDataMappingService, NodeSettingsService nodeSettingsService) {
-        super(settings, ACTION_NAME, transportService, clusterService, threadPool);
+                                MetaDataMappingService metaDataMappingService, NodeSettingsService nodeSettingsService, ActionFilters actionFilters) {
+        super(settings, ACTION_NAME, transportService, clusterService, threadPool, actionFilters);
         this.metaDataMappingService = metaDataMappingService;
         // this setting should probably always be 0, just add the option to wait for more changes within a time window
         this.additionalMappingChangeTime = settings.getAsTime(INDICES_MAPPING_ADDITIONAL_MAPPING_CHANGE_TIME, TimeValue.timeValueMillis(0));

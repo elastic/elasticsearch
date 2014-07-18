@@ -24,6 +24,7 @@ import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.*;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
@@ -55,8 +56,8 @@ public class TransportNodesSnapshotsStatus extends TransportNodesOperationAction
     private final SnapshotsService snapshotsService;
 
     @Inject
-    public TransportNodesSnapshotsStatus(Settings settings, ClusterName clusterName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, SnapshotsService snapshotsService) {
-        super(settings, ACTION_NAME, clusterName, threadPool, clusterService, transportService);
+    public TransportNodesSnapshotsStatus(Settings settings, ClusterName clusterName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, SnapshotsService snapshotsService, ActionFilters actionFilters) {
+        super(settings, ACTION_NAME, clusterName, threadPool, clusterService, transportService, actionFilters);
         this.snapshotsService = snapshotsService;
     }
 

@@ -23,6 +23,7 @@ import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.*;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
@@ -53,8 +54,8 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesOperat
     private LocalGatewayShardsState shardsState;
 
     @Inject
-    public TransportNodesListGatewayStartedShards(Settings settings, ClusterName clusterName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService) {
-        super(settings, ACTION_NAME, clusterName, threadPool, clusterService, transportService);
+    public TransportNodesListGatewayStartedShards(Settings settings, ClusterName clusterName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, ActionFilters actionFilters) {
+        super(settings, ACTION_NAME, clusterName, threadPool, clusterService, transportService, actionFilters);
     }
 
     TransportNodesListGatewayStartedShards initGateway(LocalGatewayShardsState shardsState) {

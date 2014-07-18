@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.indices.warmer.get;
 import com.google.common.collect.ImmutableList;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.info.TransportClusterInfoAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -37,8 +38,8 @@ import org.elasticsearch.transport.TransportService;
 public class TransportGetWarmersAction extends TransportClusterInfoAction<GetWarmersRequest, GetWarmersResponse> {
 
     @Inject
-    public TransportGetWarmersAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool) {
-        super(settings, GetWarmersAction.NAME, transportService, clusterService, threadPool);
+    public TransportGetWarmersAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters) {
+        super(settings, GetWarmersAction.NAME, transportService, clusterService, threadPool, actionFilters);
     }
 
     @Override

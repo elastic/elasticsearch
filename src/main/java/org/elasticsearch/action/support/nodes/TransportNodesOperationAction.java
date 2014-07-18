@@ -23,6 +23,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.NoSuchNodeException;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
@@ -51,8 +52,8 @@ public abstract class TransportNodesOperationAction<Request extends NodesOperati
     final String executor;
 
     protected TransportNodesOperationAction(Settings settings, String actionName, ClusterName clusterName, ThreadPool threadPool,
-                                         ClusterService clusterService, TransportService transportService) {
-        super(settings, actionName, threadPool);
+                                            ClusterService clusterService, TransportService transportService, ActionFilters actionFilters) {
+        super(settings, actionName, threadPool, actionFilters);
         this.clusterName = clusterName;
         this.clusterService = clusterService;
         this.transportService = transportService;

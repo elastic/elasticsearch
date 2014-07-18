@@ -20,6 +20,7 @@
 package org.elasticsearch.action.delete.index;
 
 import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.TransportShardReplicationOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -47,8 +48,8 @@ public class TransportShardDeleteAction extends TransportShardReplicationOperati
     @Inject
     public TransportShardDeleteAction(Settings settings, TransportService transportService,
                                       ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool,
-                                      ShardStateAction shardStateAction) {
-        super(settings, ACTION_NAME, transportService, clusterService, indicesService, threadPool, shardStateAction);
+                                      ShardStateAction shardStateAction, ActionFilters actionFilters) {
+        super(settings, ACTION_NAME, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters);
     }
 
     @Override

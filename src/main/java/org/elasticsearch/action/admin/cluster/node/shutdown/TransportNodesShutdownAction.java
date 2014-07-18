@@ -24,6 +24,7 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
@@ -53,8 +54,8 @@ public class TransportNodesShutdownAction extends TransportMasterNodeOperationAc
 
     @Inject
     public TransportNodesShutdownAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                        Node node, ClusterName clusterName) {
-        super(settings, NodesShutdownAction.NAME, transportService, clusterService, threadPool);
+                                        Node node, ClusterName clusterName, ActionFilters actionFilters) {
+        super(settings, NodesShutdownAction.NAME, transportService, clusterService, threadPool, actionFilters);
         this.node = node;
         this.clusterName = clusterName;
         this.disabled = settings.getAsBoolean("action.disable_shutdown", componentSettings.getAsBoolean("disabled", false));

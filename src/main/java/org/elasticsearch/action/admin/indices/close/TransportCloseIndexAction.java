@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.close;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
@@ -45,8 +46,8 @@ public class TransportCloseIndexAction extends TransportMasterNodeOperationActio
 
     @Inject
     public TransportCloseIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                     ThreadPool threadPool, MetaDataIndexStateService indexStateService, NodeSettingsService nodeSettingsService) {
-        super(settings, CloseIndexAction.NAME, transportService, clusterService, threadPool);
+                                     ThreadPool threadPool, MetaDataIndexStateService indexStateService, NodeSettingsService nodeSettingsService, ActionFilters actionFilters) {
+        super(settings, CloseIndexAction.NAME, transportService, clusterService, threadPool, actionFilters);
         this.indexStateService = indexStateService;
         this.destructiveOperations = new DestructiveOperations(logger, settings, nodeSettingsService);
     }

@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.cluster.reroute;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterService;
@@ -42,8 +43,8 @@ public class TransportClusterRerouteAction extends TransportMasterNodeOperationA
 
     @Inject
     public TransportClusterRerouteAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                         AllocationService allocationService) {
-        super(settings, ClusterRerouteAction.NAME, transportService, clusterService, threadPool);
+                                         AllocationService allocationService, ActionFilters actionFilters) {
+        super(settings, ClusterRerouteAction.NAME, transportService, clusterService, threadPool, actionFilters);
         this.allocationService = allocationService;
     }
 

@@ -40,11 +40,11 @@ import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.TEST;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-@ClusterScope(scope = TEST, numClientNodes = 0)
+@ClusterScope(scope = Scope.TEST, numClientNodes = 0)
 public class TransportClientRetryTests extends ElasticsearchIntegrationTest {
 
     @Test
@@ -81,13 +81,14 @@ public class TransportClientRetryTests extends ElasticsearchIntegrationTest {
                 ClusterState clusterState;
                 //use both variants of execute method: with and without listener
                 if (randomBoolean()) {
-                  clusterState = transportClient.admin().cluster().state(clusterStateRequest).get().getState();
+                    clusterState = transportClient.admin().cluster().state(clusterStateRequest).get().getState();
                 } else {
                     PlainListenableActionFuture<ClusterStateResponse> future = new PlainListenableActionFuture<>(clusterStateRequest.listenerThreaded(), transportClient.threadPool());
                     transportClient.admin().cluster().state(clusterStateRequest, future);
                     clusterState = future.get().getState();
                 }
-                assertThat(clusterState.nodes().size(), greaterThanOrEqualTo(1));
+                assertThat(clusterState.nodes().size(), greaterThanOrEqualTo(size - j));
+                assertThat(transportClient.connectedNodes().size(), greaterThanOrEqualTo(size - j));
             }
         }
     }

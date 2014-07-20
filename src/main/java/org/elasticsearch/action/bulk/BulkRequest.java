@@ -21,9 +21,7 @@ package org.elasticsearch.action.bulk;
 
 import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.WriteConsistencyLevel;
+import org.elasticsearch.action.*;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.replication.ReplicationType;
@@ -52,7 +50,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  *
  * @see org.elasticsearch.client.Client#bulk(BulkRequest)
  */
-public class BulkRequest extends ActionRequest<BulkRequest> {
+public class BulkRequest extends ActionRequest<BulkRequest> implements CompositeIndicesRequest {
 
     private static final int REQUEST_OVERHEAD = 50;
 
@@ -185,6 +183,17 @@ public class BulkRequest extends ActionRequest<BulkRequest> {
      */
     public List<ActionRequest> requests() {
         return this.requests;
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public List<? extends IndicesRequest> subRequests() {
+        List<IndicesRequest> indicesRequests = Lists.newArrayList();
+        for (ActionRequest request : requests) {
+            assert request instanceof IndicesRequest;
+            indicesRequests.add((IndicesRequest) request);
+        }
+        return indicesRequests;
     }
 
     /**

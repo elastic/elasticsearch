@@ -25,7 +25,9 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
@@ -160,7 +162,7 @@ public class MappingUpdatedAction extends TransportMasterNodeOperationAction<Map
         }
     }
 
-    public static class MappingUpdatedRequest extends MasterNodeOperationRequest<MappingUpdatedRequest> {
+    public static class MappingUpdatedRequest extends MasterNodeOperationRequest<MappingUpdatedRequest> implements IndicesRequest {
 
         private String index;
         private String indexUUID = IndexMetaData.INDEX_UUID_NA_VALUE;
@@ -183,6 +185,16 @@ public class MappingUpdatedAction extends TransportMasterNodeOperationAction<Map
 
         public String index() {
             return index;
+        }
+
+        @Override
+        public IndicesOptions indicesOptions() {
+            return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
+        }
+
+        @Override
+        public String[] indices() {
+            return new String[]{index};
         }
 
         public String indexUUID() {

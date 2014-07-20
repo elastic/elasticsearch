@@ -20,6 +20,8 @@ package org.elasticsearch.action.admin.indices.analyze;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.single.custom.SingleCustomOperationRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -34,7 +36,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * A request to analyze a text associated with a specific index. Allow to provide
  * the actual analyzer name to perform the analysis with.
  */
-public class AnalyzeRequest extends SingleCustomOperationRequest<AnalyzeRequest> {
+public class AnalyzeRequest extends SingleCustomOperationRequest<AnalyzeRequest> implements IndicesRequest {
 
     private String index;
 
@@ -85,6 +87,19 @@ public class AnalyzeRequest extends SingleCustomOperationRequest<AnalyzeRequest>
 
     public String index() {
         return this.index;
+    }
+
+    @Override
+    public String[] indices() {
+        if (index == null) {
+            return Strings.EMPTY_ARRAY;
+        }
+        return new String[]{index};
+    }
+
+    @Override
+    public IndicesOptions indicesOptions() {
+        return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
     }
 
     public AnalyzeRequest analyzer(String analyzer) {

@@ -23,6 +23,7 @@ import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.IndicesRelatedRequest;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -52,7 +53,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  *
  * @see org.elasticsearch.client.Client#bulk(BulkRequest)
  */
-public class BulkRequest extends ActionRequest<BulkRequest> {
+public class BulkRequest extends ActionRequest<BulkRequest> implements IndicesRelatedRequest {
 
     private static final int REQUEST_OVERHEAD = 50;
 
@@ -460,6 +461,21 @@ public class BulkRequest extends ActionRequest<BulkRequest> {
         }
 
         return validationException;
+    }
+
+    @Override
+    public String[] relatedIndices() {
+        String[] indices = new String[requests.size()];
+        int i = 0;
+        for (ActionRequest request : requests) {
+            assert request instanceof IndicesRelatedRequest;
+            String[] relatedIndices = ((IndicesRelatedRequest) request).relatedIndices();
+            if (relatedIndices.length != 1) {
+                throw new IllegalStateException("each request within a bulk should relate to one and only one index");
+            }
+            indices[i++] = relatedIndices[0];
+        }
+        return indices;
     }
 
     @Override

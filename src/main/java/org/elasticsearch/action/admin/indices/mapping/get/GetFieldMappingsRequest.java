@@ -21,6 +21,8 @@ package org.elasticsearch.action.admin.indices.mapping.get;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.IndicesRelatedRequest;
+import org.elasticsearch.action.IndicesRelatedRequestHelper;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.common.Strings;
@@ -31,7 +33,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import java.io.IOException;
 
 /** Request the mappings of specific fields */
-public class GetFieldMappingsRequest extends ActionRequest<GetFieldMappingsRequest> {
+public class GetFieldMappingsRequest extends ActionRequest<GetFieldMappingsRequest> implements IndicesRelatedRequest {
 
     protected boolean local = false;
 
@@ -120,6 +122,11 @@ public class GetFieldMappingsRequest extends ActionRequest<GetFieldMappingsReque
     @Override
     public ActionRequestValidationException validate() {
         return null;
+    }
+
+    @Override
+    public String[] relatedIndices() {
+        return IndicesRelatedRequestHelper.indicesOrAll(indices);
     }
 
     @Override

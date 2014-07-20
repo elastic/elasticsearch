@@ -21,6 +21,7 @@ package org.elasticsearch.action.support.single.shard;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.IndicesRelatedRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -30,7 +31,7 @@ import java.io.IOException;
 /**
  *
  */
-public abstract class SingleShardOperationRequest<T extends SingleShardOperationRequest> extends ActionRequest<T> {
+public abstract class SingleShardOperationRequest<T extends SingleShardOperationRequest> extends ActionRequest<T> implements IndicesRelatedRequest {
 
     protected String index;
 
@@ -63,6 +64,11 @@ public abstract class SingleShardOperationRequest<T extends SingleShardOperation
     public final T index(String index) {
         this.index = index;
         return (T) this;
+    }
+
+    @Override
+    public String[] relatedIndices() {
+        return new String[]{index};
     }
 
     /**

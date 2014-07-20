@@ -22,6 +22,8 @@ package org.elasticsearch.action.admin.cluster.snapshots.create;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.IndicesRelatedRequest;
+import org.elasticsearch.action.IndicesRelatedRequestHelper;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.common.Strings;
@@ -42,9 +44,9 @@ import java.util.Map;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.Strings.EMPTY_ARRAY;
 import static org.elasticsearch.common.Strings.hasLength;
+import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.settings.ImmutableSettings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.ImmutableSettings.writeSettingsToStream;
-import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 
 /**
@@ -61,7 +63,7 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBo
  * <li>must not contain invalid file name characters {@link org.elasticsearch.common.Strings#INVALID_FILENAME_CHARS} </li>
  * </ul>
  */
-public class CreateSnapshotRequest extends MasterNodeOperationRequest<CreateSnapshotRequest> {
+public class CreateSnapshotRequest extends MasterNodeOperationRequest<CreateSnapshotRequest> implements IndicesRelatedRequest {
 
     private String snapshot;
 
@@ -459,6 +461,11 @@ public class CreateSnapshotRequest extends MasterNodeOperationRequest<CreateSnap
         } catch (IOException e) {
             throw new ElasticsearchIllegalArgumentException("failed to parse snapshot source", e);
         }
+    }
+
+    @Override
+    public String[] relatedIndices() {
+        return IndicesRelatedRequestHelper.indicesOrAll(indices);
     }
 
     @Override

@@ -23,6 +23,7 @@ import com.google.common.base.Charsets;
 import org.elasticsearch.*;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.IndicesRelatedRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -53,7 +54,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  *
  * @see PutIndexedScriptResponse
  */
-public class PutIndexedScriptRequest extends ActionRequest<PutIndexedScriptRequest> {
+public class PutIndexedScriptRequest extends ActionRequest<PutIndexedScriptRequest> implements IndicesRelatedRequest {
 
     private String scriptLang;
     private String id;
@@ -109,6 +110,11 @@ public class PutIndexedScriptRequest extends ActionRequest<PutIndexedScriptReque
             validationException = addValidationError("illegal version value [" + version + "] for version type [" + versionType.name() + "]", validationException);
         }
         return validationException;
+    }
+
+    @Override
+    public String[] relatedIndices() {
+        return new String[]{ScriptService.SCRIPT_INDEX};
     }
 
     /**

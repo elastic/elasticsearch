@@ -20,6 +20,7 @@
 package org.elasticsearch.search.internal;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.IndicesRelatedRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.type.ParsedScrollId;
@@ -54,7 +55,7 @@ import static org.elasticsearch.search.Scroll.readScroll;
  * }
  * </pre>
  */
-public class ShardSearchRequest extends TransportRequest {
+public class ShardSearchRequest extends TransportRequest implements IndicesRelatedRequest {
 
     private String index;
 
@@ -110,6 +111,11 @@ public class ShardSearchRequest extends TransportRequest {
         this.shardId = shardId;
         this.numberOfShards = numberOfShards;
         this.searchType = searchType;
+    }
+
+    @Override
+    public String[] relatedIndices() {
+        return new String[]{index};
     }
 
     public String index() {

@@ -21,6 +21,8 @@ package org.elasticsearch.action.admin.cluster.state;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.IndicesRelatedRequest;
+import org.elasticsearch.action.IndicesRelatedRequestHelper;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -31,7 +33,7 @@ import java.io.IOException;
 /**
  *
  */
-public class ClusterStateRequest extends MasterNodeReadOperationRequest<ClusterStateRequest> {
+public class ClusterStateRequest extends MasterNodeReadOperationRequest<ClusterStateRequest> implements IndicesRelatedRequest {
 
     private boolean routingTable = true;
     private boolean nodes = true;
@@ -108,6 +110,11 @@ public class ClusterStateRequest extends MasterNodeReadOperationRequest<ClusterS
     public ClusterStateRequest indices(String... indices) {
         this.indices = indices;
         return this;
+    }
+
+    @Override
+    public String[] relatedIndices() {
+        return IndicesRelatedRequestHelper.indicesOrAll(indices);
     }
 
     @Override

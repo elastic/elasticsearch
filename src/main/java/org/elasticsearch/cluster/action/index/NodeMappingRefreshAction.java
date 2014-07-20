@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.action.index;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.IndicesRelatedRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaDataMappingService;
@@ -85,7 +86,7 @@ public class NodeMappingRefreshAction extends AbstractComponent {
         }
     }
 
-    public static class NodeMappingRefreshRequest extends TransportRequest {
+    public static class NodeMappingRefreshRequest extends TransportRequest implements IndicesRelatedRequest {
 
         private String index;
         private String indexUUID = IndexMetaData.INDEX_UUID_NA_VALUE;
@@ -100,6 +101,11 @@ public class NodeMappingRefreshAction extends AbstractComponent {
             this.indexUUID = indexUUID;
             this.types = types;
             this.nodeId = nodeId;
+        }
+
+        @Override
+        public String[] relatedIndices() {
+            return new String[]{index};
         }
 
         public String index() {

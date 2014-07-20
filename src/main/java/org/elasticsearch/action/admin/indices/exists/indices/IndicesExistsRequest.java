@@ -21,6 +21,8 @@ package org.elasticsearch.action.admin.indices.exists.indices;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.IndicesRelatedRequest;
+import org.elasticsearch.action.IndicesRelatedRequestHelper;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequest;
 import org.elasticsearch.common.Strings;
@@ -31,7 +33,7 @@ import java.io.IOException;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class IndicesExistsRequest extends MasterNodeReadOperationRequest<IndicesExistsRequest> {
+public class IndicesExistsRequest extends MasterNodeReadOperationRequest<IndicesExistsRequest> implements IndicesRelatedRequest {
 
     private String[] indices = Strings.EMPTY_ARRAY;
     private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, true);
@@ -65,6 +67,11 @@ public class IndicesExistsRequest extends MasterNodeReadOperationRequest<Indices
             validationException = addValidationError("index/indices is missing", validationException);
         }
         return validationException;
+    }
+
+    @Override
+    public String[] relatedIndices() {
+        return IndicesRelatedRequestHelper.indicesOrAll(indices);
     }
 
     @Override

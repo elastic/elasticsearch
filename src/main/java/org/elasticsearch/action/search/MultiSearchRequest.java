@@ -24,6 +24,7 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.IndicesRelatedRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -37,6 +38,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -44,7 +46,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * A multi search API request.
  */
-public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> {
+public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> implements IndicesRelatedRequest {
 
     private List<SearchRequest> requests = Lists.newArrayList();
 
@@ -250,6 +252,15 @@ public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> {
     public MultiSearchRequest indicesOptions(IndicesOptions indicesOptions) {
         this.indicesOptions = indicesOptions;
         return this;
+    }
+
+    @Override
+    public String[] relatedIndices() {
+        List<String> indices = Lists.newArrayList();
+        for (SearchRequest searchRequest : requests()) {
+            Collections.addAll(indices, searchRequest.relatedIndices());
+        }
+        return indices.toArray(new String[indices.size()]);
     }
 
     @Override

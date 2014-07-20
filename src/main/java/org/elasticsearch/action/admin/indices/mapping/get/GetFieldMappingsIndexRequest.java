@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.indices.mapping.get;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.IndicesRelatedRequest;
 import org.elasticsearch.action.support.single.custom.SingleCustomOperationRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -27,7 +28,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-class GetFieldMappingsIndexRequest extends SingleCustomOperationRequest<GetFieldMappingsIndexRequest> {
+class GetFieldMappingsIndexRequest extends SingleCustomOperationRequest<GetFieldMappingsIndexRequest> implements IndicesRelatedRequest {
 
     private String index;
 
@@ -77,6 +78,11 @@ class GetFieldMappingsIndexRequest extends SingleCustomOperationRequest<GetField
     @Override
     public ActionRequestValidationException validate() {
         return null;
+    }
+
+    @Override
+    public String[] relatedIndices() {
+        return new String[]{index};
     }
 
     @Override

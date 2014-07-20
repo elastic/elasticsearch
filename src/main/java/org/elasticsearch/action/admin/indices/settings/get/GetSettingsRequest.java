@@ -21,6 +21,8 @@ package org.elasticsearch.action.admin.indices.settings.get;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.IndicesRelatedRequest;
+import org.elasticsearch.action.IndicesRelatedRequestHelper;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequest;
@@ -32,7 +34,7 @@ import java.io.IOException;
 
 /**
  */
-public class GetSettingsRequest extends MasterNodeReadOperationRequest<GetSettingsRequest> {
+public class GetSettingsRequest extends MasterNodeReadOperationRequest<GetSettingsRequest> implements IndicesRelatedRequest {
 
     private String[] indices = Strings.EMPTY_ARRAY;
     private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, true, true, true);
@@ -72,6 +74,11 @@ public class GetSettingsRequest extends MasterNodeReadOperationRequest<GetSettin
             validationException = ValidateActions.addValidationError("names may not be null", validationException);
         }
         return validationException;
+    }
+
+    @Override
+    public String[] relatedIndices() {
+        return IndicesRelatedRequestHelper.indicesOrAll(indices);
     }
 
     @Override

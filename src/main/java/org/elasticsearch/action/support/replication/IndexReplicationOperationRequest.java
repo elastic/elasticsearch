@@ -21,6 +21,7 @@ package org.elasticsearch.action.support.replication;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.IndicesRelatedRequest;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -33,7 +34,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  *
  */
-public class IndexReplicationOperationRequest<T extends IndexReplicationOperationRequest> extends ActionRequest<T> {
+public class IndexReplicationOperationRequest<T extends IndexReplicationOperationRequest> extends ActionRequest<T> implements IndicesRelatedRequest {
 
     protected TimeValue timeout = ShardReplicationOperationRequest.DEFAULT_TIMEOUT;
 
@@ -54,6 +55,11 @@ public class IndexReplicationOperationRequest<T extends IndexReplicationOperatio
     public T index(String index) {
         this.index = index;
         return (T) this;
+    }
+
+    @Override
+    public String[] relatedIndices() {
+        return new String[]{index};
     }
 
     /**

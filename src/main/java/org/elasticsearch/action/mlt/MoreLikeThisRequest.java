@@ -22,9 +22,7 @@ package org.elasticsearch.action.mlt;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.ValidateActions;
+import org.elasticsearch.action.*;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Strings;
@@ -52,7 +50,7 @@ import static org.elasticsearch.search.Scroll.readScroll;
  * @see org.elasticsearch.client.Requests#moreLikeThisRequest(String)
  * @see org.elasticsearch.action.search.SearchResponse
  */
-public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
+public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> implements IndicesRelatedRequest {
 
     private String index;
 
@@ -536,6 +534,18 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
             validationException = ValidateActions.addValidationError("id is missing", validationException);
         }
         return validationException;
+    }
+
+    @Override
+    public String[] relatedIndices() {
+        if (searchIndices == null) {
+            return new String[]{index};
+        }
+        String[] indicesOrAll = IndicesRelatedRequestHelper.indicesOrAll(searchIndices);
+        String[] indices = new String[indicesOrAll.length + 1];
+        System.arraycopy(indicesOrAll, 0, indices, 0, indicesOrAll.length);
+        indices[indices.length - 1] = index;
+        return indices;
     }
 
     @Override

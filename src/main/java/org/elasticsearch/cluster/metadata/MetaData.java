@@ -58,6 +58,8 @@ import static org.elasticsearch.common.settings.ImmutableSettings.*;
  */
 public class MetaData implements Iterable<IndexMetaData> {
 
+    public static final String ALL = "_all";
+
     public interface Custom {
 
         interface Factory<T extends Custom> {
@@ -975,7 +977,7 @@ public class MetaData implements Iterable<IndexMetaData> {
      * @param aliasesOrIndices the array containing index names
      * @return true if the provided array maps to all indices, false otherwise
      */
-    public boolean isAllIndices(String[] aliasesOrIndices) {
+    public static boolean isAllIndices(String[] aliasesOrIndices) {
         return aliasesOrIndices == null || aliasesOrIndices.length == 0 || isExplicitAllPattern(aliasesOrIndices);
     }
     
@@ -997,8 +999,8 @@ public class MetaData implements Iterable<IndexMetaData> {
      * @param aliasesOrIndices the array containing index names
      * @return true if the provided array explicitly maps to all indices, false otherwise
      */
-    public boolean isExplicitAllPattern(String[] aliasesOrIndices) {
-        return aliasesOrIndices != null && aliasesOrIndices.length == 1 && "_all".equals(aliasesOrIndices[0]);
+    public static boolean isExplicitAllPattern(String[] aliasesOrIndices) {
+        return aliasesOrIndices != null && aliasesOrIndices.length == 1 && ALL.equals(aliasesOrIndices[0]);
     }
 
     /**

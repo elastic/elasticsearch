@@ -24,6 +24,8 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.IndicesRelatedRequest;
+import org.elasticsearch.action.IndicesRelatedRequestHelper;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Nullable;
@@ -58,7 +60,7 @@ import static org.elasticsearch.search.Scroll.readScroll;
  * @see org.elasticsearch.client.Client#search(SearchRequest)
  * @see SearchResponse
  */
-public class SearchRequest extends ActionRequest<SearchRequest> {
+public class SearchRequest extends ActionRequest<SearchRequest> implements IndicesRelatedRequest {
 
     private SearchType searchType = SearchType.DEFAULT;
 
@@ -486,6 +488,11 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
      */
     public SearchRequest scroll(String keepAlive) {
         return scroll(new Scroll(TimeValue.parseTimeValue(keepAlive, null)));
+    }
+
+    @Override
+    public String[] relatedIndices() {
+        return IndicesRelatedRequestHelper.indicesOrAll(indices);
     }
 
     @Override

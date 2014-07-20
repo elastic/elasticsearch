@@ -22,6 +22,7 @@ package org.elasticsearch.action.percolate;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.IndicesRelatedRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.single.shard.SingleShardOperationRequest;
@@ -115,7 +116,7 @@ public class TransportShardMultiPercolateAction extends TransportShardSingleOper
     }
 
 
-    public static class Request extends SingleShardOperationRequest {
+    public static class Request extends SingleShardOperationRequest implements IndicesRelatedRequest {
 
         private int shardId;
         private String preference;
@@ -129,6 +130,11 @@ public class TransportShardMultiPercolateAction extends TransportShardSingleOper
             this.shardId = shardId;
             this.preference = preference;
             this.items = new ArrayList<>();
+        }
+
+        @Override
+        public String[] relatedIndices() {
+            return new String[]{index};
         }
 
         public int shardId() {

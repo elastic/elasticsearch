@@ -20,6 +20,7 @@ package org.elasticsearch.action.percolate;
 
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.IndicesRelatedRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
 import org.elasticsearch.client.Requests;
@@ -39,7 +40,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  *
  */
-public class PercolateRequest extends BroadcastOperationRequest<PercolateRequest> {
+public class PercolateRequest extends BroadcastOperationRequest<PercolateRequest> implements IndicesRelatedRequest {
 
     private String documentType;
     private String routing;
@@ -194,6 +195,18 @@ public class PercolateRequest extends BroadcastOperationRequest<PercolateRequest
             validationException = addValidationError("get fields option isn't supported via percolate request", validationException);
         }
         return validationException;
+    }
+
+    @Override
+    public String[] relatedIndices() {
+        String[] relatedIndices = super.relatedIndices();
+        if (getRequest == null) {
+            return relatedIndices;
+        }
+        String[] indices = new String[relatedIndices.length + 1];
+        System.arraycopy(relatedIndices, 0, indices, 0, relatedIndices.length);
+        indices[indices.length - 1] = getRequest.index();
+        return indices;
     }
 
     @Override

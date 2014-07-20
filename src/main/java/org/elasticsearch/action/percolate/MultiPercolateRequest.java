@@ -23,6 +23,7 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.IndicesRelatedRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
@@ -35,16 +36,13 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  */
-public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> {
+public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> implements IndicesRelatedRequest {
 
     private String[] indices;
     private String documentType;
@@ -350,6 +348,15 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
         }
 
         return validationException;
+    }
+
+    @Override
+    public String[] relatedIndices() {
+        List<String> indices = Lists.newArrayList();
+        for (PercolateRequest percolateRequest : requests()) {
+            Collections.addAll(indices, percolateRequest.relatedIndices());
+        }
+        return indices.toArray(new String[indices.size()]);
     }
 
     @Override

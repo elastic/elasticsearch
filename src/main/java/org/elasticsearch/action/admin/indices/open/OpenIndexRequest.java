@@ -20,6 +20,8 @@
 package org.elasticsearch.action.admin.indices.open;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.IndicesRelatedRequest;
+import org.elasticsearch.action.IndicesRelatedRequestHelper;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -32,7 +34,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * A request to open an index.
  */
-public class OpenIndexRequest extends AcknowledgedRequest<OpenIndexRequest> {
+public class OpenIndexRequest extends AcknowledgedRequest<OpenIndexRequest> implements IndicesRelatedRequest {
 
     private String[] indices;
     private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, false, true);
@@ -60,7 +62,7 @@ public class OpenIndexRequest extends AcknowledgedRequest<OpenIndexRequest> {
      * The indices to be opened
      * @return the indices to be opened
      */
-    String[] indices() {
+    public String[] indices() {
         return indices;
     }
 
@@ -94,6 +96,11 @@ public class OpenIndexRequest extends AcknowledgedRequest<OpenIndexRequest> {
     public OpenIndexRequest indicesOptions(IndicesOptions indicesOptions) {
         this.indicesOptions = indicesOptions;
         return this;
+    }
+
+    @Override
+    public String[] relatedIndices() {
+        return IndicesRelatedRequestHelper.indicesOrAll(indices);
     }
 
     @Override

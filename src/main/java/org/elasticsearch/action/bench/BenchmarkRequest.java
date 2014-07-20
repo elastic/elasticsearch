@@ -18,7 +18,9 @@
  */
 package org.elasticsearch.action.bench;
 
+import com.google.common.collect.Lists;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.IndicesRelatedRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
@@ -27,6 +29,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -34,7 +37,7 @@ import java.util.List;
  * perform an individual benchmark. Each competitor has its own settings such as concurrency,
  * number of iterations to perform, and what type of search to perform.
  */
-public class BenchmarkRequest extends MasterNodeOperationRequest<BenchmarkRequest> {
+public class BenchmarkRequest extends MasterNodeOperationRequest<BenchmarkRequest> implements IndicesRelatedRequest {
 
     private String benchmarkName;
     private boolean verbose;
@@ -236,6 +239,17 @@ public class BenchmarkRequest extends MasterNodeOperationRequest<BenchmarkReques
      */
     public void addCompetitor(BenchmarkCompetitor competitor) {
         this.competitors.add(competitor);
+    }
+
+    @Override
+    public String[] relatedIndices() {
+        List<String> indices = Lists.newArrayList();
+        for (BenchmarkCompetitor competitor : competitors) {
+            for (SearchRequest searchRequest : competitor.settings().searchRequests()) {
+                Collections.addAll(indices, searchRequest.relatedIndices());
+            }
+        }
+        return indices.toArray(new String[indices.size()]);
     }
 
     @Override

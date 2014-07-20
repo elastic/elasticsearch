@@ -19,6 +19,8 @@
 
 package org.elasticsearch.action.support.master.info;
 
+import org.elasticsearch.action.IndicesRelatedRequest;
+import org.elasticsearch.action.IndicesRelatedRequestHelper;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequest;
 import org.elasticsearch.common.Strings;
@@ -29,7 +31,7 @@ import java.io.IOException;
 
 /**
  */
-public abstract class ClusterInfoRequest<T extends ClusterInfoRequest> extends MasterNodeReadOperationRequest<T> {
+public abstract class ClusterInfoRequest<T extends ClusterInfoRequest> extends MasterNodeReadOperationRequest<T> implements IndicesRelatedRequest {
 
     private String[] indices = Strings.EMPTY_ARRAY;
     private String[] types = Strings.EMPTY_ARRAY;
@@ -64,6 +66,11 @@ public abstract class ClusterInfoRequest<T extends ClusterInfoRequest> extends M
 
     public IndicesOptions indicesOptions() {
         return indicesOptions;
+    }
+
+    @Override
+    public String[] relatedIndices() {
+        return IndicesRelatedRequestHelper.indicesOrAll(indices);
     }
 
     @Override

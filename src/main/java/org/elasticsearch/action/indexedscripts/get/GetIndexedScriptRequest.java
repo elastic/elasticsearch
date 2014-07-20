@@ -95,6 +95,11 @@ public class GetIndexedScriptRequest extends SingleShardOperationRequest<GetInde
         return validationException;
     }
 
+    @Override
+    public String[] relatedIndices() {
+        return new String[]{ScriptService.SCRIPT_INDEX};
+    }
+
     /**
      * Sets the type of the document to fetch.
      */

@@ -22,6 +22,8 @@ package org.elasticsearch.action.support.broadcast;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.IndicesRelatedRequest;
+import org.elasticsearch.action.IndicesRelatedRequestHelper;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -31,7 +33,7 @@ import java.io.IOException;
 /**
  *
  */
-public abstract class BroadcastOperationRequest<T extends BroadcastOperationRequest> extends ActionRequest<T> {
+public abstract class BroadcastOperationRequest<T extends BroadcastOperationRequest> extends ActionRequest<T> implements IndicesRelatedRequest {
 
     protected String[] indices;
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosed();
@@ -75,6 +77,11 @@ public abstract class BroadcastOperationRequest<T extends BroadcastOperationRequ
 
     protected void beforeLocalFork() {
 
+    }
+
+    @Override
+    public String[] relatedIndices() {
+        return IndicesRelatedRequestHelper.indicesOrAll(indices);
     }
 
     @Override

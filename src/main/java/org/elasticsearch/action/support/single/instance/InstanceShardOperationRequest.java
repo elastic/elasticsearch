@@ -21,6 +21,7 @@ package org.elasticsearch.action.support.single.instance;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.IndicesRelatedRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -32,7 +33,7 @@ import java.util.concurrent.TimeUnit;
 /**
  *
  */
-public abstract class InstanceShardOperationRequest<T extends InstanceShardOperationRequest> extends ActionRequest<T> {
+public abstract class InstanceShardOperationRequest<T extends InstanceShardOperationRequest> extends ActionRequest<T> implements IndicesRelatedRequest {
 
     public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(1, TimeUnit.MINUTES);
 
@@ -66,6 +67,11 @@ public abstract class InstanceShardOperationRequest<T extends InstanceShardOpera
     public final T index(String index) {
         this.index = index;
         return (T) this;
+    }
+
+    @Override
+    public String[] relatedIndices() {
+        return new String[]{index};
     }
 
     public TimeValue timeout() {

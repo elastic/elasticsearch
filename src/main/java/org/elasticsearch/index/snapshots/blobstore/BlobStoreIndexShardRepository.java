@@ -21,6 +21,7 @@ package org.elasticsearch.index.snapshots.blobstore;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
+import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
@@ -674,6 +675,9 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                 Map<String, StoreFileMetaData> metadata = Collections.emptyMap();
                 try {
                     metadata = store.getMetadata().asMap();
+                } catch (CorruptIndexException e) {
+                    logger.warn("{} Can't read metadata from store", e, shardId);
+                    throw new IndexShardRestoreFailedException(shardId, "Can't restore corrupted shard", e);
                 } catch (Throwable e) {
                     // if the index is broken we might not be able to read it
                     logger.warn("{} Can't read metadata from store", e, shardId);
@@ -684,8 +688,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                     String fileName = fileInfo.physicalName();
                     final StoreFileMetaData md = metadata.get(fileName);
                     numberOfFiles++;
-                    // we don't compute checksum for segments, so always recover them
-                    if (!fileName.startsWith("segments") && md != null && fileInfo.isSame(md)) {
+                    if (md != null && fileInfo.isSame(md)) {
                         totalSize += md.length();
                         numberOfReusedFiles++;
                         reusedTotalSize += md.length();
@@ -845,6 +848,13 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                         try {
                             failures.add(t);
                             IOUtils.closeWhileHandlingException(indexOutput);
+                            if (t instanceof CorruptIndexException) {
+                                try {
+                                    store.markStoreCorrupted((CorruptIndexException)t);
+                                } catch (IOException e) {
+                                    //
+                                }
+                            }
                             store.deleteQuiet(fileInfo.physicalName());
                         } finally {
                             latch.countDown();

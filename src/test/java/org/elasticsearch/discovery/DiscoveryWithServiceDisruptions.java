@@ -19,9 +19,11 @@
 
 package org.elasticsearch.discovery;
 
+import com.google.common.base.Predicate;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
@@ -39,6 +41,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.discovery.zen.ping.ZenPingService;
@@ -49,6 +52,7 @@ import org.elasticsearch.test.disruption.*;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.*;
+import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -69,7 +73,8 @@ import static org.hamcrest.Matchers.is;
  */
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, transportClientRatio = 0)
 @TestLogging("discovery.zen:TRACE")
-public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationTest {
+@LuceneTestCase.Slow
+public class DiscoveryWithServiceDisruptions extends ElasticsearchIntegrationTest {
 
     private static final TimeValue DISRUPTION_HEALING_OVERHEAD = TimeValue.timeValueSeconds(40); // we use 30s as timeout in many places.
 
@@ -109,8 +114,9 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
     }
 
     final static Settings DEFAULT_SETTINGS = ImmutableSettings.builder()
-            .put("discovery.zen.fd.ping_timeout", "1s") // <-- for hitting simulated network failures quickly
-            .put("discovery.zen.fd.ping_retries", "1") // <-- for hitting simulated network failures quickly
+            .put("discovery.zen.fd.ping_timeout", "1s") // for hitting simulated network failures quickly
+            .put("discovery.zen.fd.ping_retries", "1") // for hitting simulated network failures quickly
+            .put("discovery.zen.join_timeout", "10s")  // still long to induce failures but to long so test won't time out
             .put(DiscoverySettings.PUBLISH_TIMEOUT, "1s") // <-- for hitting simulated network failures quickly
             .put("http.enabled", false) // just to make test quicker
             .put("gateway.local.list_timeout", "10s") // still long to induce failures but to long so test won't time out
@@ -136,7 +142,7 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
         return nodes;
     }
 
-    private List<String> startUnicastCluster(int numberOfNodes,@Nullable int[] unicastHostsOrdinals, int minimumMasterNode) throws ExecutionException, InterruptedException {
+    private List<String> startUnicastCluster(int numberOfNodes, @Nullable int[] unicastHostsOrdinals, int minimumMasterNode) throws ExecutionException, InterruptedException {
         if (minimumMasterNode < 0) {
             minimumMasterNode = numberOfNodes / 2 + 1;
         }
@@ -495,6 +501,57 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
     }
 
     /**
+     * Test that cluster recovers from a long GC on master that causes other nodes to elect a new one
+     */
+    @Test
+    @TestLogging("discovery.zen:TRACE,action:TRACE,cluster.service:TRACE,indices.recovery:TRACE,indices.cluster:TRACE")
+    public void testMasterNodeGCs() throws Exception {
+        final List<String> nodes;
+        // TODO: on mac OS multicast threads are shared between nodes and we therefore we can't simulate GC and stop pinging for just one node
+        // find a way to block thread creation in the generic thread pool to avoid this.
+        nodes = startCluster(3);
+
+        String oldMasterNode = internalCluster().getMasterName();
+        // a very long GC, but it's OK as we remove the disruption when it has had an effect
+        SingleNodeDisruption masterNodeDisruption = new LongGCDisruption(oldMasterNode, getRandom(), 100, 200, 30000, 60000);
+        internalCluster().setDisruptionScheme(masterNodeDisruption);
+        masterNodeDisruption.startDisrupting();
+
+        Set<String> oldNonMasterNodesSet = new HashSet<>(nodes);
+        oldNonMasterNodesSet.remove(oldMasterNode);
+
+        List<String> oldNonMasterNodes = new ArrayList<>(oldNonMasterNodesSet);
+
+        logger.info("waiting for nodes to de-elect master [{}]", oldMasterNode);
+        for (String node : oldNonMasterNodesSet) {
+            assertDifferentMaster(node, oldMasterNode);
+        }
+
+        logger.info("waiting for nodes to elect a new master");
+        ensureStableCluster(2, oldNonMasterNodes.get(0));
+
+        logger.info("waiting for any pinging to stop");
+        for (final String node : oldNonMasterNodes) {
+            assertTrue("node [" + node + "] is still joining master", awaitBusy(new Predicate<Object>() {
+                @Override
+                public boolean apply(Object input) {
+                    return !((ZenDiscovery) internalCluster().getInstance(Discovery.class, node)).joiningCluster();
+                }
+            }, 30, TimeUnit.SECONDS));
+        }
+
+        // restore GC
+        masterNodeDisruption.stopDisrupting();
+
+        ensureStableCluster(3, new TimeValue(DISRUPTION_HEALING_OVERHEAD.millis() + masterNodeDisruption.expectedTimeToHeal().millis()),
+                oldNonMasterNodes.get(0));
+
+        // make sure all nodes agree on master
+        String newMaster = internalCluster().getMasterName();
+        assertMaster(newMaster, nodes);
+    }
+
+    /**
      * Test that a document which is indexed on the majority side of a partition, is available from the minory side,
      * once the partition is healed
      *
@@ -559,7 +616,7 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
     @Test
     @TestLogging("discovery.zen:TRACE,action:TRACE")
     public void unicastSinglePingResponseContainsMaster() throws Exception {
-        List<String> nodes = startUnicastCluster(4, new int[] {0}, -1);
+        List<String> nodes = startUnicastCluster(4, new int[]{0}, -1);
         // Figure out what is the elected master node
         final String masterNode = internalCluster().getMasterName();
         logger.info("---> legit elected master node=" + masterNode);
@@ -699,6 +756,9 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
     }
 
     private void ensureStableCluster(int nodeCount, TimeValue timeValue, @Nullable String viaNode) {
+        if (viaNode == null) {
+            viaNode = randomFrom(internalCluster().getNodeNames());
+        }
         logger.debug("ensuring cluster is stable with [{}] nodes. access node: [{}]. timeout: [{}]", nodeCount, viaNode, timeValue);
         ClusterHealthResponse clusterHealthResponse = client(viaNode).admin().cluster().prepareHealth()
                 .setWaitForEvents(Priority.LANGUID)
@@ -706,6 +766,11 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
                 .setTimeout(timeValue)
                 .setWaitForRelocatingShards(0)
                 .get();
+        if (clusterHealthResponse.isTimedOut()) {
+            ClusterStateResponse stateResponse = client(viaNode).admin().cluster().prepareState().get();
+            fail("failed to reach a stable cluster of [" + nodeCount + "] nodes. Tried via [" + viaNode + "]. last cluster state:\n"
+                    + stateResponse.getState().prettyPrint());
+        }
         assertThat(clusterHealthResponse.isTimedOut(), is(false));
     }
 
@@ -736,11 +801,28 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
         }, maxWaitTime.getMillis(), TimeUnit.MILLISECONDS);
     }
 
+    private void assertDifferentMaster(final String node, final String oldMasterNode) throws Exception {
+        assertBusy(new Runnable() {
+            @Override
+            public void run() {
+                ClusterState state = getNodeClusterState(node);
+                String masterNode = null;
+                if (state.nodes().masterNode() != null) {
+                    masterNode = state.nodes().masterNode().name();
+                }
+                logger.trace("[{}] master is [{}]", node, state.nodes().masterNode());
+                assertThat("node [" + node + "] still has [" + masterNode + "] as master",
+                        oldMasterNode, Matchers.not(equalTo(masterNode)));
+            }
+        }, 10, TimeUnit.SECONDS);
+    }
+
     private void assertMaster(String masterNode, List<String> nodes) {
         for (String node : nodes) {
             ClusterState state = getNodeClusterState(node);
-            assertThat(state.nodes().size(), equalTo(nodes.size()));
-            assertThat(state.nodes().masterNode().name(), equalTo(masterNode));
+            String failMsgSuffix = "cluster_state:\n" + state.prettyPrint();
+            assertThat("wrong node count on [" + node + "]. " + failMsgSuffix, state.nodes().size(), equalTo(nodes.size()));
+            assertThat("wrong master on node [" + node + "]. " + failMsgSuffix, state.nodes().masterNode().name(), equalTo(masterNode));
         }
     }
 }

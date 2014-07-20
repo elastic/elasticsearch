@@ -311,6 +311,15 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         });
     }
 
+
+    /**
+     * returns true if there is a currently a background thread active for (re)joining the cluster
+     * used for testing.
+     */
+    public boolean joiningCluster() {
+        return currentJoinThread != null;
+    }
+
     private void innerJoinCluster() {
         boolean retry = true;
         while (retry) {
@@ -408,7 +417,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                     }
                 } else {
                     if (logger.isTraceEnabled()) {
-                        logger.trace("failed to send join request to master [{}]", t);
+                        logger.trace("failed to send join request to master [{}]", t, masterNode);
                     } else {
                         logger.info("failed to send join request to master [{}], reason [{}]", masterNode, ExceptionsHelper.detailedMessage(t));
                     }

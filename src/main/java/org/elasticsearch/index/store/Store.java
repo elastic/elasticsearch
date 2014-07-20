@@ -107,6 +107,27 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
         return directory;
     }
 
+    /**
+     * Returns the last committed segments info for this store
+     * @throws IOException if the index is corrupted or the segments file is not present
+     */
+    public SegmentInfos readLastCommittedSegmentsInfo() throws IOException {
+        return readLastCommittedSegmentsInfo(directory());
+    }
+
+    /**
+     * Returns the last committed segments info for the given directory
+     * @throws IOException if the index is corrupted or the segments file is not present
+     */
+    private static SegmentInfos readLastCommittedSegmentsInfo(Directory directory) throws IOException {
+        try {
+            return Lucene.readSegmentInfos(directory);
+        } catch (EOFException eof) {
+            // TODO this should be caught by lucene - EOF is almost certainly an index corruption
+            throw new CorruptIndexException("Read past EOF while reading segment infos", eof);
+        }
+    }
+
     private final void ensureOpen() {
         if (this.refCount.get() <= 0) {
             throw new AlreadyClosedException("Store is already closed");
@@ -119,7 +140,12 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
     public MetadataSnapshot getMetadata() throws IOException {
         ensureOpen();
         failIfCorrupted();
-        return new MetadataSnapshot(distributorDirectory, logger);
+        try {
+            return new MetadataSnapshot(distributorDirectory, logger);
+        } catch (CorruptIndexException ex) {
+            markStoreCorrupted(ex);
+            throw ex;
+        }
     }
 
     /**
@@ -241,6 +267,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
                 dirs[i] = new SimpleFSDirectory(indexLocations[i]);
             }
             DistributorDirectory dir = new DistributorDirectory(dirs);
+            failIfCorrupted(dir, new ShardId("", 1));
             return new MetadataSnapshot(dir, logger);
         } finally {
             IOUtils.close(dirs);
@@ -298,14 +325,18 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
 
     public void failIfCorrupted() throws IOException {
         ensureOpen();
-        final String[] files = directory().listAll();
+        failIfCorrupted(directory, shardId);
+    }
+
+    private static final void failIfCorrupted(Directory directory, ShardId shardId) throws IOException {
+        final String[] files = directory.listAll();
         List<CorruptIndexException> ex = new ArrayList<>();
         for (String file : files) {
             if (file.startsWith(CORRUPTED)) {
-                try(ChecksumIndexInput input = directory().openChecksumInput(file, IOContext.READONCE)) {
+                try(ChecksumIndexInput input = directory.openChecksumInput(file, IOContext.READONCE)) {
                     CodecUtil.checkHeader(input, CODEC, VERSION, VERSION);
                     String msg = input.readString();
-                    StringBuilder builder = new StringBuilder(this.shardId.toString());
+                    StringBuilder builder = new StringBuilder(shardId.toString());
                     builder.append(" Corrupted index [");
                     builder.append(file).append("] caused by: ");
                     builder.append(msg);
@@ -408,14 +439,11 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
             try {
                 final SegmentInfos segmentCommitInfos;
                 try {
-                     segmentCommitInfos = Lucene.readSegmentInfos(directory);
+                    segmentCommitInfos = Store.readLastCommittedSegmentsInfo(directory);
                 } catch (FileNotFoundException | NoSuchFileException ex) {
                     // no segments file -- can't read metadata
                     logger.trace("Can't read segment infos", ex);
                     return ImmutableMap.of();
-                } catch (EOFException eof) {
-                    // TODO this should be caught by lucene - EOF is almost certainly an index corruption
-                    throw new CorruptIndexException("Read past EOF while reading segment infos", eof);
                 }
                 Version maxVersion = Version.LUCENE_3_0; // we don't know which version was used to write so we take the max version.
                 Set<String> added = new HashSet<>();

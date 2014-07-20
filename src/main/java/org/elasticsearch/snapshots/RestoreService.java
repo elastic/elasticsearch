@@ -477,6 +477,21 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
         }
     }
 
+    /**
+     * Fails the given snapshot restore operation for the given shard
+     */
+    public void failRestore(SnapshotId snapshotId, ShardId shardId) {
+        logger.debug("[{}] failed to restore shard  [{}]", snapshotId, shardId);
+        UpdateIndexShardRestoreStatusRequest request = new UpdateIndexShardRestoreStatusRequest(snapshotId, shardId,
+                new ShardRestoreStatus(clusterService.state().nodes().localNodeId(), RestoreMetaData.State.FAILURE));
+        if (clusterService.state().nodes().localNodeMaster()) {
+            innerUpdateRestoreState(request);
+        } else {
+            transportService.sendRequest(clusterService.state().nodes().masterNode(),
+                    UpdateRestoreStateRequestHandler.ACTION, request, EmptyTransportResponseHandler.INSTANCE_SAME);
+        }
+    }
+
     private boolean failed(Snapshot snapshot, String index) {
         for (SnapshotShardFailure failure : snapshot.shardFailures()) {
             if (index.equals(failure.index())) {

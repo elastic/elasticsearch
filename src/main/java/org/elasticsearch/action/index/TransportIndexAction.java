@@ -114,7 +114,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
     protected boolean resolveRequest(ClusterState state, IndexRequest request, ActionListener<IndexResponse> indexResponseActionListener) {
         MetaData metaData = clusterService.state().metaData();
         String aliasOrIndex = request.index();
-        request.index(metaData.concreteSingleIndex(request.index()));
+        request.index(metaData.concreteSingleIndex(request.index(), request.indicesOptions()));
         MappingMetaData mappingMd = null;
         if (metaData.hasIndex(request.index())) {
             mappingMd = metaData.index(request.index()).mappingOrDefault(request.type());

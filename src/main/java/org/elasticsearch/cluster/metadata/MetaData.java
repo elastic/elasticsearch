@@ -58,6 +58,8 @@ import static org.elasticsearch.common.settings.ImmutableSettings.*;
  */
 public class MetaData implements Iterable<IndexMetaData> {
 
+    public static final String ALL = "_all";
+
     public interface Custom {
 
         interface Factory<T extends Custom> {
@@ -713,9 +715,24 @@ public class MetaData implements Iterable<IndexMetaData> {
         return actualIndices.toArray(new String[actualIndices.size()]);
     }
 
-    public String concreteSingleIndex(String indexOrAlias) throws IndexMissingException, ElasticsearchIllegalArgumentException {
-        String[] indices = concreteIndices(IndicesOptions.strictSingleIndexNoExpandForbidClosed(), indexOrAlias);
-        assert indices.length == 1 : "expected an exception to be thrown otherwise";
+    /**
+     *
+     * Utility method that allows to resolve an index or alias to its corresponding single concrete index.
+     * Callers should make sure they provide proper {@link org.elasticsearch.action.support.IndicesOptions}
+     * that require a single index as a result. The indices resolution must in fact return a single index when
+     * using this method, an {@link org.elasticsearch.ElasticsearchIllegalArgumentException} gets thrown otherwise.
+     *
+     * @param indexOrAlias the index or alias to be resolved to concrete index
+     * @param indicesOptions the indices options to be used for the index resolution
+     * @return the concrete index obtained as a result of the index resolution
+     * @throws IndexMissingException if the index or alias provided doesn't exist
+     * @throws ElasticsearchIllegalArgumentException if the index resolution lead to more than one index
+     */
+    public String concreteSingleIndex(String indexOrAlias, IndicesOptions indicesOptions) throws IndexMissingException, ElasticsearchIllegalArgumentException {
+        String[] indices = concreteIndices(indicesOptions, indexOrAlias);
+        if (indices.length != 1) {
+            throw new ElasticsearchIllegalArgumentException("unable to return a single index as the index and options provided got resolved to multiple indices");
+        }
         return indices[0];
     }
 
@@ -984,7 +1001,7 @@ public class MetaData implements Iterable<IndexMetaData> {
      * @param aliasesOrIndices the array containing index names
      * @return true if the provided array maps to all indices, false otherwise
      */
-    public boolean isAllIndices(String[] aliasesOrIndices) {
+    public static boolean isAllIndices(String[] aliasesOrIndices) {
         return aliasesOrIndices == null || aliasesOrIndices.length == 0 || isExplicitAllPattern(aliasesOrIndices);
     }
     
@@ -1006,8 +1023,8 @@ public class MetaData implements Iterable<IndexMetaData> {
      * @param aliasesOrIndices the array containing index names
      * @return true if the provided array explicitly maps to all indices, false otherwise
      */
-    public boolean isExplicitAllPattern(String[] aliasesOrIndices) {
-        return aliasesOrIndices != null && aliasesOrIndices.length == 1 && "_all".equals(aliasesOrIndices[0]);
+    public static boolean isExplicitAllPattern(String[] aliasesOrIndices) {
+        return aliasesOrIndices != null && aliasesOrIndices.length == 1 && ALL.equals(aliasesOrIndices[0]);
     }
 
     /**

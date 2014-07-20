@@ -24,6 +24,7 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Nullable;
@@ -58,7 +59,7 @@ import static org.elasticsearch.search.Scroll.readScroll;
  * @see org.elasticsearch.client.Client#search(SearchRequest)
  * @see SearchResponse
  */
-public class SearchRequest extends ActionRequest<SearchRequest> {
+public class SearchRequest extends ActionRequest<SearchRequest> implements IndicesRequest {
 
     private SearchType searchType = SearchType.DEFAULT;
 
@@ -85,7 +86,9 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
 
     private String[] types = Strings.EMPTY_ARRAY;
 
-    private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosed();
+    public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpenAndForbidClosed();
+
+    private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
 
     public SearchRequest() {
     }
@@ -142,7 +145,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
         } else {
             for (int i = 0; i < indices.length; i++) {
                 if (indices[i] == null) {
-                    throw new ElasticsearchIllegalArgumentException("indices[" + i +"] must not be null");
+                    throw new ElasticsearchIllegalArgumentException("indices[" + i + "] must not be null");
                 }
             }
         }
@@ -150,6 +153,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
         return this;
     }
 
+    @Override
     public IndicesOptions indicesOptions() {
         return indicesOptions;
     }
@@ -406,7 +410,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
         this.templateName = templateName;
     }
 
-    public void templateType(ScriptService.ScriptType templateType){
+    public void templateType(ScriptService.ScriptType templateType) {
         this.templateType = templateType;
     }
 
@@ -455,6 +459,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
     /**
      * The indices
      */
+    @Override
     public String[] indices() {
         return indices;
     }
@@ -520,7 +525,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
         if (in.getVersion().onOrAfter(Version.V_1_1_0)) {
             templateSourceUnsafe = false;
             templateSource = in.readBytesReference();
-            templateName =  in.readOptionalString();
+            templateName = in.readOptionalString();
             if (in.getVersion().onOrAfter(Version.V_1_3_0)) {
                 templateType = ScriptService.ScriptType.readFrom(in);
             }
@@ -560,8 +565,8 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
         if (out.getVersion().onOrAfter(Version.V_1_1_0)) {
             out.writeBytesReference(templateSource);
             out.writeOptionalString(templateName);
-            if (out.getVersion().onOrAfter(Version.V_1_3_0)){
-                ScriptService.ScriptType.writeTo(templateType,out);
+            if (out.getVersion().onOrAfter(Version.V_1_3_0)) {
+                ScriptService.ScriptType.writeTo(templateType, out);
             }
             boolean existTemplateParams = templateParams != null;
             out.writeBoolean(existTemplateParams);

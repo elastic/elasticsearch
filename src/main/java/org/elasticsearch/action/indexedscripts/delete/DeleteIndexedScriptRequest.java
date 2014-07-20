@@ -21,6 +21,8 @@ package org.elasticsearch.action.indexedscripts.delete;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -41,7 +43,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * @see DeleteIndexedScriptResponse
  * @see org.elasticsearch.client.Client#deleteIndexedScript(DeleteIndexedScriptRequest)
  */
-public class DeleteIndexedScriptRequest extends ActionRequest<DeleteIndexedScriptRequest> {
+public class DeleteIndexedScriptRequest extends ActionRequest<DeleteIndexedScriptRequest> implements IndicesRequest {
 
     private String scriptLang;
     private String id;
@@ -85,6 +87,16 @@ public class DeleteIndexedScriptRequest extends ActionRequest<DeleteIndexedScrip
             validationException = addValidationError("illegal version value [" + version + "] for version scriptLang [" + versionType.name() + "]", validationException);
         }
         return validationException;
+    }
+
+    @Override
+    public String[] indices() {
+        return new String[]{ScriptService.SCRIPT_INDEX};
+    }
+
+    @Override
+    public IndicesOptions indicesOptions() {
+        return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
     }
 
     /**

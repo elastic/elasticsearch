@@ -20,6 +20,8 @@
 package org.elasticsearch.action.admin.cluster.health;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequest;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -35,7 +37,7 @@ import static org.elasticsearch.common.unit.TimeValue.readTimeValue;
 /**
  *
  */
-public class ClusterHealthRequest extends MasterNodeReadOperationRequest<ClusterHealthRequest> {
+public class ClusterHealthRequest extends MasterNodeReadOperationRequest<ClusterHealthRequest> implements IndicesRequest {
 
     private String[] indices;
     private TimeValue timeout = new TimeValue(30, TimeUnit.SECONDS);
@@ -52,6 +54,7 @@ public class ClusterHealthRequest extends MasterNodeReadOperationRequest<Cluster
         this.indices = indices;
     }
 
+    @Override
     public String[] indices() {
         return indices;
     }
@@ -59,6 +62,11 @@ public class ClusterHealthRequest extends MasterNodeReadOperationRequest<Cluster
     public ClusterHealthRequest indices(String[] indices) {
         this.indices = indices;
         return this;
+    }
+
+    @Override
+    public IndicesOptions indicesOptions() {
+        return IndicesOptions.lenientExpandOpen();
     }
 
     public TimeValue timeout() {

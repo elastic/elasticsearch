@@ -135,7 +135,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
      * means a different execution, then return false here to indicate not to continue and execute this request.
      */
     protected boolean resolveRequest(ClusterState state, Request request, ActionListener<Response> listener) {
-        request.index(state.metaData().concreteSingleIndex(request.index()));
+        request.index(state.metaData().concreteSingleIndex(request.index(), request.indicesOptions()));
         return true;
     }
 

@@ -23,6 +23,8 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.CompositeIndicesRequest;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
@@ -44,7 +46,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  */
-public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> {
+public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> implements CompositeIndicesRequest {
 
     private String[] indices;
     private String documentType;
@@ -146,6 +148,15 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
         }
 
         return this;
+    }
+
+    @Override
+    public List<? extends IndicesRequest> subRequests() {
+        List<IndicesRequest> indicesRequests = Lists.newArrayList();
+        for (PercolateRequest percolateRequest : this.requests) {
+            indicesRequests.addAll(percolateRequest.subRequests());
+        }
+        return indicesRequests;
     }
 
     private void parsePercolateAction(XContentParser parser, PercolateRequest percolateRequest, boolean allowExplicitIndex) throws IOException {

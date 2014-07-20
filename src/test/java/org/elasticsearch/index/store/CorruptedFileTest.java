@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.index.store;
 
+import com.carrotsearch.randomizedtesting.LifecycleScope;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.google.common.base.Charsets;
 import com.google.common.base.Predicate;
@@ -32,6 +33,8 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -62,6 +65,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryFileChunkRequest;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.monitor.fs.FsStats;
+import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.store.MockFSDirectoryService;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -376,6 +380,72 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
 
     }
 
+
+    /**
+     * Tests that restoring of a corrupted shard fails and we get a partial snapshot.
+     * TODO once checksum verification on snapshotting is implemented this test needs to be fixed or split into several
+     * parts... We should also corrupt files on the actual snapshot and check that we don't restore the corrupted shard.
+     */
+    @Test
+    public void testCorruptFileThenSnapshotAndRestore() throws ExecutionException, InterruptedException, IOException {
+        int numDocs = scaledRandomIntBetween(100, 1000);
+        assertThat(cluster().numDataNodes(), greaterThanOrEqualTo(2));
+
+        assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder()
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0") // no replicas for this test
+                .put(MergePolicyModule.MERGE_POLICY_TYPE_KEY, NoMergePolicyProvider.class)
+                .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, false) // no checkindex - we corrupt shards on purpose
+                .put(InternalEngine.INDEX_FAIL_ON_CORRUPTION, true)
+                .put("indices.recovery.concurrent_streams", 10)
+        ));
+        ensureGreen();
+        IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
+        for (int i = 0; i < builders.length; i++) {
+            builders[i] = client().prepareIndex("test", "type").setSource("field", "value");
+        }
+        indexRandom(true, builders);
+        ensureGreen();
+        assertAllSuccessful(client().admin().indices().prepareFlush().setForce(true).execute().actionGet());
+        // we have to flush at least once here since we don't corrupt the translog
+        CountResponse countResponse = client().prepareCount().get();
+        assertHitCount(countResponse, numDocs);
+
+        ShardRouting shardRouting = corruptRandomFile(false);
+        // we don't corrupt segments.gen since S/R doesn't snapshot this file
+        // the other problem here why we can't corrupt segments.X files is that the snapshot flushes again before
+        // it snapshots and that will write a new segments.X+1 file
+        logger.info("-->  creating repository");
+        assertAcked(client().admin().cluster().preparePutRepository("test-repo")
+                .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
+                        .put("location", newTempDir(LifecycleScope.SUITE).getAbsolutePath())
+                        .put("compress", randomBoolean())
+                        .put("chunk_size", randomIntBetween(100, 1000))));
+        logger.info("--> snapshot");
+        CreateSnapshotResponse createSnapshotResponse = client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(true).setIndices("test").get();
+        if (createSnapshotResponse.getSnapshotInfo().state() == SnapshotState.PARTIAL) {
+            logger.info("failed during snapshot -- maybe SI file got corrupted");
+            final List<File> files = listShardFiles(shardRouting);
+            File corruptedFile = null;
+            for (File file : files) {
+                if (file.getName().startsWith("corrupted_")) {
+                    corruptedFile = file;
+                    break;
+                }
+            }
+            assertThat(corruptedFile, notNullValue());
+        } else {
+            assertThat(""+createSnapshotResponse.getSnapshotInfo().state(), createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
+            assertThat(""+createSnapshotResponse.getSnapshotInfo().state(), createSnapshotResponse.getSnapshotInfo().successfulShards(), equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
+
+            assertThat(client().admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap").get().getSnapshots().get(0).state(), equalTo(SnapshotState.SUCCESS));
+
+            cluster().wipeIndices("test");
+            RestoreSnapshotResponse restoreSnapshotResponse = client().admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setWaitForCompletion(true).execute().actionGet();
+            assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
+            assertThat(restoreSnapshotResponse.getRestoreInfo().successfulShards(), equalTo(restoreSnapshotResponse.getRestoreInfo().totalShards()-1));
+        }
+    }
+
     private int numShards(String... index) {
         ClusterState state = client().admin().cluster().prepareState().get().getState();
         GroupShardsIterator shardIterators = state.getRoutingNodes().getRoutingTable().activePrimaryShardsGrouped(index, false);
@@ -384,6 +454,10 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
 
 
     private ShardRouting corruptRandomFile() throws IOException {
+        return corruptRandomFile(true);
+    }
+
+    private ShardRouting corruptRandomFile(final boolean includeSegmentsFiles) throws IOException {
         ClusterState state = client().admin().cluster().prepareState().get().getState();
         GroupShardsIterator shardIterators = state.getRoutingNodes().getRoutingTable().activePrimaryShardsGrouped(new String[]{"test"}, false);
         ShardIterator shardIterator = RandomPicks.randomFrom(getRandom(), shardIterators.iterators());
@@ -401,7 +475,8 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
             files.addAll(Arrays.asList(file.listFiles(new FileFilter() {
                 @Override
                 public boolean accept(File pathname) {
-                    return pathname.isFile() && !"write.lock".equals(pathname.getName());
+                    return pathname.isFile() && !"write.lock".equals(pathname.getName()) &&
+                            (includeSegmentsFiles == true || pathname.getName().startsWith("segments") == false);
                 }
             })));
         }

@@ -19,6 +19,7 @@
 package org.elasticsearch.action.admin.indices.warmer.delete;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.Nullable;
@@ -34,7 +35,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * A request to delete an index warmer.
  */
-public class DeleteWarmerRequest extends AcknowledgedRequest<DeleteWarmerRequest> {
+public class DeleteWarmerRequest extends AcknowledgedRequest<DeleteWarmerRequest> implements IndicesRequest {
 
     private String[] names = Strings.EMPTY_ARRAY;
     private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, false);
@@ -46,7 +47,7 @@ public class DeleteWarmerRequest extends AcknowledgedRequest<DeleteWarmerRequest
     /**
      * Constructs a new delete warmer request for the specified name.
      *
-     * @param name: the name (or wildcard expression) of the warmer to match, null to delete all.
+     * @param names: the name (or wildcard expression) of the warmer to match, null to delete all.
      */
     public DeleteWarmerRequest(String... names) {
         names(names);
@@ -109,10 +110,12 @@ public class DeleteWarmerRequest extends AcknowledgedRequest<DeleteWarmerRequest
     /**
      * The indices the mappings will be put.
      */
+    @Override
     public String[] indices() {
         return indices;
     }
 
+    @Override
     public IndicesOptions indicesOptions() {
         return indicesOptions;
     }

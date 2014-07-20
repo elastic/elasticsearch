@@ -69,7 +69,7 @@ public abstract class TransportIndexReplicationOperationAction<Request extends I
             throw blockException;
         }
         // update to concrete index
-        request.index(clusterState.metaData().concreteSingleIndex(request.index()));
+        request.index(clusterState.metaData().concreteSingleIndex(request.index(), request.indicesOptions()));
         blockException = checkRequestBlock(clusterState, request);
         if (blockException != null) {
             throw blockException;

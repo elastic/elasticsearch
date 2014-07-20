@@ -20,17 +20,22 @@
 package org.elasticsearch.action.indexedscripts.put;
 
 import com.google.common.base.Charsets;
-import org.elasticsearch.*;
+import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.script.ScriptService;
 
@@ -53,7 +58,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  *
  * @see PutIndexedScriptResponse
  */
-public class PutIndexedScriptRequest extends ActionRequest<PutIndexedScriptRequest> {
+public class PutIndexedScriptRequest extends ActionRequest<PutIndexedScriptRequest> implements IndicesRequest {
 
     private String scriptLang;
     private String id;
@@ -109,6 +114,16 @@ public class PutIndexedScriptRequest extends ActionRequest<PutIndexedScriptReque
             validationException = addValidationError("illegal version value [" + version + "] for version type [" + versionType.name() + "]", validationException);
         }
         return validationException;
+    }
+
+    @Override
+    public String[] indices() {
+        return new String[]{ScriptService.SCRIPT_INDEX};
+    }
+
+    @Override
+    public IndicesOptions indicesOptions() {
+        return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
     }
 
     /**

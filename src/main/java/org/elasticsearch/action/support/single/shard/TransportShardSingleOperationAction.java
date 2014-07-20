@@ -86,7 +86,7 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
     protected abstract ClusterBlockException checkRequestBlock(ClusterState state, Request request);
 
     protected void resolveRequest(ClusterState state, Request request) {
-        request.index(state.metaData().concreteSingleIndex(request.index()));
+        request.index(state.metaData().concreteSingleIndex(request.index(), request.indicesOptions()));
     }
 
     protected abstract ShardIterator shards(ClusterState state, Request request) throws ElasticsearchException;

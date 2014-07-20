@@ -21,16 +21,13 @@ package org.elasticsearch.action.termvector;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.ValidateActions;
+import org.elasticsearch.action.*;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.rest.RestRequest;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -38,7 +35,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-public class MultiTermVectorsRequest extends ActionRequest<MultiTermVectorsRequest> {
+public class MultiTermVectorsRequest extends ActionRequest<MultiTermVectorsRequest> implements CompositeIndicesRequest {
 
     String preference;
     List<TermVectorRequest> requests = new ArrayList<>();
@@ -71,6 +68,11 @@ public class MultiTermVectorsRequest extends ActionRequest<MultiTermVectorsReque
             }
         }
         return validationException;
+    }
+
+    @Override
+    public List<? extends IndicesRequest> subRequests() {
+        return requests;
     }
 
     public void add(TermVectorRequest template, BytesReference data)

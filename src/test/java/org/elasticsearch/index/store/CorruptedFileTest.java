@@ -261,7 +261,7 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
                 if (routing.getId() == shardRouting.getId()) {
                     assertThat(routing.state(), equalTo(ShardRoutingState.UNASSIGNED));
                 } else {
-                    assertThat(routing.state(), equalTo(ShardRoutingState.STARTED));
+                    assertThat(routing.state(), anyOf(equalTo(ShardRoutingState.RELOCATING), equalTo(ShardRoutingState.STARTED)));
                 }
             }
         }

@@ -25,6 +25,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.Random;
+import java.util.concurrent.CountDownLatch;
 
 public class SlowClusterStateProcessing extends SingleNodeDisruption {
 
@@ -75,7 +76,9 @@ public class SlowClusterStateProcessing extends SingleNodeDisruption {
         if (worker == null) {
             return;
         }
+        logger.info("stopping to slow down cluster state processing on [{}]", disruptedNode);
         disrupting = false;
+        worker.interrupt();
         try {
             worker.join(2 * (intervalBetweenDelaysMax + delayDurationMax));
         } catch (InterruptedException e) {
@@ -85,49 +88,61 @@ public class SlowClusterStateProcessing extends SingleNodeDisruption {
     }
 
 
-    private synchronized boolean interruptClusterStateProcessing(final TimeValue duration) {
-        if (disruptedNode == null) {
+    private boolean interruptClusterStateProcessing(final TimeValue duration) throws InterruptedException {
+        final String disruptionNodeCopy = disruptedNode;
+        if (disruptionNodeCopy == null) {
             return false;
         }
-        logger.info("delaying cluster state updates on node [{}] for [{}]", disruptedNode, duration);
-        ClusterService clusterService = cluster.getInstance(ClusterService.class, disruptedNode);
+        logger.info("delaying cluster state updates on node [{}] for [{}]", disruptionNodeCopy, duration);
+        final CountDownLatch countDownLatch = new CountDownLatch(1);
+        ClusterService clusterService = cluster.getInstance(ClusterService.class, disruptionNodeCopy);
+        if (clusterService == null) {
+            return false;
+        }
         clusterService.submitStateUpdateTask("service_disruption_delay", Priority.IMMEDIATE, new ClusterStateNonMasterUpdateTask() {
 
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
                 Thread.sleep(duration.millis());
+                countDownLatch.countDown();
                 return currentState;
             }
 
             @Override
             public void onFailure(String source, Throwable t) {
-
+                countDownLatch.countDown();
             }
         });
+        try {
+            countDownLatch.await();
+        } catch (InterruptedException e) {
+            // try to wait again, we really want the cluster state thread to be freed up when stopping disruption
+            countDownLatch.await();
+        }
         return true;
     }
 
     @Override
     public TimeValue expectedTimeToHeal() {
-        return TimeValue.timeValueSeconds(delayDurationMax + intervalBetweenDelaysMax);
+        return TimeValue.timeValueMillis(0);
     }
 
     class BackgroundWorker implements Runnable {
 
         @Override
         public void run() {
-            while (disrupting) {
+            while (disrupting && disruptedNode != null) {
                 try {
                     TimeValue duration = new TimeValue(delayDurationMin + random.nextInt((int) (delayDurationMax - delayDurationMin)));
                     if (!interruptClusterStateProcessing(duration)) {
                         continue;
                     }
-                    Thread.sleep(duration.millis());
 
-                    if (disruptedNode == null) {
-                        return;
+                    duration = new TimeValue(intervalBetweenDelaysMin + random.nextInt((int) (intervalBetweenDelaysMax - intervalBetweenDelaysMin)));
+                    if (disrupting && disruptedNode != null) {
+                        Thread.sleep(duration.millis());
                     }
-
+                } catch (InterruptedException e) {
                 } catch (Exception e) {
                     logger.error("error in background worker", e);
                 }

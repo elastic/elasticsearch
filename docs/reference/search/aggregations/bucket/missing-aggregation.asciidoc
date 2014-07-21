@@ -16,7 +16,7 @@ Example:
 }
 --------------------------------------------------
 
-In the above example, we calculate the average price of all the products that are currently in-stock.
+In the above example, we get the total number of products that do not have a price.
 
 Response:
 

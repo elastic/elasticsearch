@@ -109,7 +109,7 @@ public class MultiOrdinals extends Ordinals {
 
         @Override
         public int getOrd(int docId) {
-            final long offset = docId > 0 ? endOffsets.get(docId - 1) : 0;
+            final long offset = docId != 0 ? endOffsets.get(docId - 1) : 0;
             return (int) ords.get(offset);
         }
 
@@ -148,7 +148,7 @@ public class MultiOrdinals extends Ordinals {
 
         @Override
         public void doSetDocument(int docId) {
-            final long startOffset = docId > 0 ? endOffsets.get(docId - 1) : 0;
+            final long startOffset = docId != 0 ? endOffsets.get(docId - 1) : 0;
             final long endOffset = endOffsets.get(docId);
             offset = startOffset;
             cardinality = (int) (endOffset - startOffset);

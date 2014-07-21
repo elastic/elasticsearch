@@ -20,12 +20,14 @@
 package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.index.*;
-import org.apache.lucene.util.*;
+import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.Version;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.Lucene;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -422,42 +424,22 @@ public enum FieldData {
         }
     }
 
-    private static SortedBinaryDocValues toString(final ToStringValues values) {
-        return new SortedBinaryDocValues() {
+    private static SortedBinaryDocValues toString(final ToStringValues toStringValues) {
+        return new SortingBinaryDocValues() {
 
             final List<CharSequence> list = new ArrayList<>();
-            BytesRef[] refs = new BytesRef[0];
-            Sorter sorter = new BytesRefSorter(refs);
-            int count;
 
             @Override
             public void setDocument(int docID) {
                 list.clear();
-                values.get(docID, list);
+                toStringValues.get(docID, list);
                 count = list.size();
-                if (count > refs.length) {
-                    final int prevLen = refs.length;
-                    refs = Arrays.copyOf(refs, ArrayUtil.oversize(count, RamUsageEstimator.NUM_BYTES_OBJECT_REF));
-                    for (int i = prevLen; i < refs.length; ++i) {
-                        refs[i] = new BytesRef();
-                    }
-                    sorter = new BytesRefSorter(refs);
-                }
+                grow();
                 for (int i = 0; i < count; ++i) {
                     final CharSequence s = list.get(i);
-                    refs[i].copyChars(s);
+                    values[i].copyChars(s);
                 }
-                sorter.sort(0, count);
-            }
-
-            @Override
-            public int count() {
-                return count;
-            }
-
-            @Override
-            public BytesRef valueAt(int index) {
-                return refs[index];
+                sort();
             }
 
         };

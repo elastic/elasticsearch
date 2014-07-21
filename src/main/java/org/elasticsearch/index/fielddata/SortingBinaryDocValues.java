@@ -38,9 +38,7 @@ public abstract class SortingBinaryDocValues extends SortedBinaryDocValues {
 
             @Override
             protected void swap(int i, int j) {
-                final BytesRef tmp = values[i];
-                values[i] = values[j];
-                values[j] = tmp;
+                ArrayUtil.swap(values, i, j);
             }
 
             @Override

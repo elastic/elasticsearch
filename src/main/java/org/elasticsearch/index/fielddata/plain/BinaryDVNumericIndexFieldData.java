@@ -27,6 +27,7 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.index.Index;
@@ -79,7 +80,7 @@ public class BinaryDVNumericIndexFieldData extends DocValuesIndexFieldData imple
                         case DOUBLE:
                             return new BinaryAsSortedNumericDoubleValues(values);
                         default:
-                            throw new AssertionError();
+                            throw new ElasticsearchIllegalArgumentException("" + numericType);
                         }
                     }
 

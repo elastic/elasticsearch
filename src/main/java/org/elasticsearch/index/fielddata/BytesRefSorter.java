@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.fielddata;
 
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.InPlaceMergeSorter;
 import org.apache.lucene.util.Sorter;
@@ -36,14 +37,12 @@ public class BytesRefSorter extends InPlaceMergeSorter {
 
     @Override
     protected int compare(int i, int j) {
-        return BytesRef.getUTF8SortedAsUnicodeComparator().compare(refs[i], refs[j]);
+        return refs[i].compareTo(refs[j]);
     }
 
     @Override
     protected void swap(int i, int j) {
-        final BytesRef tmp = refs[i];
-        refs[i] = refs[j];
-        refs[j] = tmp;
+        ArrayUtil.swap(refs, i, j);
     }
 
 }

@@ -22,6 +22,7 @@ package org.elasticsearch.index.fielddata.plain;
 import com.google.common.collect.ImmutableSet;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.AtomicParentChildFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
@@ -60,9 +61,7 @@ abstract class AbstractAtomicParentChildFieldData implements AtomicParentChildFi
                 if (count > 1) {
                     int cmp = terms[0].compareTo(terms[1]);
                     if (cmp > 0) {
-                        BytesRef temp = terms[0];
-                        terms[0] = terms[1];
-                        terms[1] = temp;
+                        ArrayUtil.swap(terms, 0, 1);
                     } else if (cmp == 0) {
                         // If the id is the same between types the only omit one. For example: a doc has parent#1 in _uid field and has grand_parent#1 in _parent field.
                         count = 1;

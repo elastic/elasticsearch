@@ -31,6 +31,9 @@ import java.util.Arrays;
 
 final class GeoPointBinaryDVAtomicFieldData extends AbstractAtomicGeoPointFieldData {
 
+    private static final int COORDINATE_SIZE = 8; // number of bytes per coordinate
+    private static final int GEOPOINT_SIZE = COORDINATE_SIZE * 2; // lat + lon
+
     private final BinaryDocValues values;
 
     GeoPointBinaryDVAtomicFieldData(BinaryDocValues values) {
@@ -58,7 +61,7 @@ final class GeoPointBinaryDVAtomicFieldData extends AbstractAtomicGeoPointFieldD
             @Override
             public void setDocument(int docId) {
                 final BytesRef bytes = values.get(docId);
-                assert bytes.length % 16 == 0;
+                assert bytes.length % GEOPOINT_SIZE == 0;
                 count = (bytes.length >>> 4);
                 if (count > points.length) {
                     final int previousLength = points.length;
@@ -68,8 +71,8 @@ final class GeoPointBinaryDVAtomicFieldData extends AbstractAtomicGeoPointFieldD
                     }
                 }
                 for (int i = 0; i < count; ++i) {
-                    final double lat = ByteUtils.readDoubleLE(bytes.bytes, bytes.offset + i * 16);
-                    final double lon = ByteUtils.readDoubleLE(bytes.bytes, bytes.offset + i * 16 + 8);
+                    final double lat = ByteUtils.readDoubleLE(bytes.bytes, bytes.offset + i * GEOPOINT_SIZE);
+                    final double lon = ByteUtils.readDoubleLE(bytes.bytes, bytes.offset + i * GEOPOINT_SIZE + COORDINATE_SIZE);
                     points[i].reset(lat, lon);
                 }
             }

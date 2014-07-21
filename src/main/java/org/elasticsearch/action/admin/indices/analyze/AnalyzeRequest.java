@@ -91,7 +91,7 @@ public class AnalyzeRequest extends SingleCustomOperationRequest<AnalyzeRequest>
     @Override
     public String[] requestedIndices() {
         if (index == null) {
-            return new String[0];
+            return Strings.EMPTY_ARRAY;
         }
         return new String[]{index};
     }

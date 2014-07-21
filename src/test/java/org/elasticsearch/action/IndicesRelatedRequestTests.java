@@ -78,6 +78,7 @@ import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.action.index.NodeMappingRefreshAction;
 import org.elasticsearch.cluster.metadata.AliasAction;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -163,7 +164,7 @@ public class IndicesRelatedRequestTests extends ElasticsearchTestCase {
             analyzeRequest.index(randomIndex());
         }
         if (analyzeRequest.index() == null) {
-            assertThat(analyzeRequest.requestedIndices(), equalTo(new String[0]));
+            assertThat(analyzeRequest.requestedIndices(), equalTo(Strings.EMPTY_ARRAY));
         } else {
             assertThat(analyzeRequest.requestedIndices(), equalTo(new String[]{analyzeRequest.index()}));
         }
@@ -241,7 +242,7 @@ public class IndicesRelatedRequestTests extends ElasticsearchTestCase {
 
     @Test
     public void testNodeMappingRefreshRequest() {
-        NodeMappingRefreshAction.NodeMappingRefreshRequest request = new NodeMappingRefreshAction.NodeMappingRefreshRequest(randomIndex(), "uuid", new String[0], "node");
+        NodeMappingRefreshAction.NodeMappingRefreshRequest request = new NodeMappingRefreshAction.NodeMappingRefreshRequest(randomIndex(), "uuid", Strings.EMPTY_ARRAY, "node");
         assertThat(request.requestedIndices(), equalTo(new String[]{request.index()}));
     }
 
@@ -571,7 +572,7 @@ public class IndicesRelatedRequestTests extends ElasticsearchTestCase {
     public void testIndicesAliasesRequestIllegalState() {
         IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest();
         AliasOperation aliasOperation = randomFrom(AliasOperation.values());
-        indicesAliasesRequest.addAliasAction(aliasOperation.aliasActions(new String[0]));
+        indicesAliasesRequest.addAliasAction(aliasOperation.aliasActions(Strings.EMPTY_ARRAY));
         indicesAliasesRequest.requestedIndices();
     }
 
@@ -621,7 +622,7 @@ public class IndicesRelatedRequestTests extends ElasticsearchTestCase {
         } else {
             int randomInt = randomInt(2);
             if (emptyAllowed && randomInt == 0) {
-                randomIndices = new String[0];
+                randomIndices = Strings.EMPTY_ARRAY;
             } else if (nullAllowed && randomInt == 1) {
                 randomIndices = null;
             } else {

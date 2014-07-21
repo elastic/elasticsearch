@@ -382,26 +382,25 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             logger.warn("failed to connect to master [{}], retrying...", e, masterNode);
             return false;
         }
-        for (int joinAttempt = 1; joinAttempt <= this.joinRetryAttempts; joinAttempt++) {
+        for (int joinAttempt = 0; joinAttempt < this.joinRetryAttempts; joinAttempt++) {
             try {
                 logger.trace("joining master {}", masterNode);
                 membership.sendJoinRequestBlocking(masterNode, localNode, joinTimeout);
             } catch (ElasticsearchIllegalStateException e) {
                 if (joinAttempt >= this.joinRetryAttempts) {
                     logger.info("failed to send join request to master [{}], reason [{}]. Tried [{}] times",
-                            masterNode, e.getDetailedMessage(), joinAttempt);
+                            masterNode, e.getDetailedMessage(), joinAttempt + 1);
                     return false;
                 } else {
-                    logger.trace("master {} failed with [{}]. retrying... (attempts done: [{}])", masterNode, e.getDetailedMessage(), joinAttempt);
+                    logger.trace("master {} failed with [{}]. retrying... (attempts done: [{}])", masterNode, e.getDetailedMessage(), joinAttempt + 1);
                 }
             } catch (Exception e) {
-                if (e instanceof ElasticsearchException) {
+                if (logger.isTraceEnabled()) {
+                    logger.trace("failed to send join request to master [{}]", e);
+                } else if (e instanceof ElasticsearchException) {
                     logger.info("failed to send join request to master [{}], reason [{}]", masterNode, ((ElasticsearchException) e).getDetailedMessage());
                 } else {
                     logger.info("failed to send join request to master [{}], reason [{}]", masterNode, e.getMessage());
-                }
-                if (logger.isTraceEnabled()) {
-                    logger.trace("detailed failed reason", e);
                 }
                 return false;
             }

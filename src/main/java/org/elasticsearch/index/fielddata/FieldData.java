@@ -22,6 +22,7 @@ package org.elasticsearch.index.fielddata;
 import org.apache.lucene.index.*;
 import org.apache.lucene.util.*;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.lucene.Lucene;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -32,6 +33,10 @@ import java.util.List;
  */
 public enum FieldData {
     ;
+
+    static {
+        assert Lucene.VERSION == Version.LUCENE_4_9 : "Remove emptySortedNumeric in 4.10 and use the method with the same name from Lucene's DocValues class. See LUCENE-5834.";
+    }
 
     /**
      * Return a {@link SortedNumericDocValues} that doesn't contain any value.

@@ -568,9 +568,9 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
                 .execute().actionGet();
         ensureGreen();
 
-        final int numberOfThreads = scaledRandomIntBetween(5,20);
+        final int numberOfThreads = scaledRandomIntBetween(5,10);
         final int numberOfIdsPerThread = scaledRandomIntBetween(3,10);
-        final int numberOfUpdatesPerId = scaledRandomIntBetween(100,1000);
+        final int numberOfUpdatesPerId = scaledRandomIntBetween(100,200);
         final int retryOnConflict = randomIntBetween(0,1);
         final CountDownLatch latch = new CountDownLatch(numberOfThreads);
         final CountDownLatch startLatch = new CountDownLatch(1);

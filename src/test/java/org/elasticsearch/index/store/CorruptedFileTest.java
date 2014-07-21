@@ -107,13 +107,18 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
         }
         assertThat(cluster().numDataNodes(), greaterThanOrEqualTo(3));
 
+        final boolean failOnCorruption = randomBoolean();
         assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "1")
                 .put(MergePolicyModule.MERGE_POLICY_TYPE_KEY, NoMergePolicyProvider.class)
                 .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, false) // no checkindex - we corrupt shards on purpose
-                .put(InternalEngine.ENGINE_FAIL_ON_CORRUPTION, true)
+                .put(InternalEngine.INDEX_FAIL_ON_CORRUPTION, failOnCorruption)
                 .put("indices.recovery.concurrent_streams", 10)
         ));
+        if (failOnCorruption == false) { // test the dynamic setting
+            client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder()
+                    .put(InternalEngine.INDEX_FAIL_ON_CORRUPTION, true)).get();
+        }
         ensureGreen();
         disableAllocation("test");
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
@@ -215,7 +220,7 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
                 .put(MergePolicyModule.MERGE_POLICY_TYPE_KEY, NoMergePolicyProvider.class)
                 .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, false) // no checkindex - we corrupt shards on purpose
-                .put(InternalEngine.ENGINE_FAIL_ON_CORRUPTION, true)
+                .put(InternalEngine.INDEX_FAIL_ON_CORRUPTION, true)
                 .put("indices.recovery.concurrent_streams", 10)
         ));
         ensureGreen();
@@ -303,7 +308,7 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
 
         assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
-                .put(InternalEngine.ENGINE_FAIL_ON_CORRUPTION, true)
+                .put(InternalEngine.INDEX_FAIL_ON_CORRUPTION, true)
                 .put("index.routing.allocation.include._name", primariesNode.getNode().name())
                 .put("indices.recovery.concurrent_streams", 10)
         ));

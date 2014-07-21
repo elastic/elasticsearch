@@ -65,16 +65,12 @@ public class HistogramParser implements Aggregator.Parser {
                 currentFieldName = parser.currentName();
             } else if (vsParser.token(currentFieldName, token, parser)) {
                 continue;
-            } else if (token == XContentParser.Token.VALUE_NUMBER) {
+            } else if (token.isValue()) {
                 if ("interval".equals(currentFieldName)) {
                     interval = parser.longValue();
                 } else if ("min_doc_count".equals(currentFieldName) || "minDocCount".equals(currentFieldName)) {
                     minDocCount = parser.longValue();
-                } else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in aggregation [" + aggregationName + "]: [" + currentFieldName + "].");
-                }
-            } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
-                if ("keyed".equals(currentFieldName)) {
+                } else if ("keyed".equals(currentFieldName)) {
                     keyed = parser.booleanValue();
                 } else {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in aggregation [" + aggregationName + "]: [" + currentFieldName + "].");

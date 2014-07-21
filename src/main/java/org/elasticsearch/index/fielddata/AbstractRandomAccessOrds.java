@@ -24,7 +24,6 @@ import org.apache.lucene.index.RandomAccessOrds;
 /**
  * Base implementation of a {@link RandomAccessOrds} instance.
  */
-// TODO: should it be merged into Lucene's RandomAccessOrds?
 public abstract class AbstractRandomAccessOrds extends RandomAccessOrds {
 
     int i = 0;

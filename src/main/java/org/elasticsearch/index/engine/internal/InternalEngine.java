@@ -210,7 +210,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         this.optimizeAutoGenerateId = indexSettings.getAsBoolean("index.optimize_auto_generated_id", true);
 
         this.indexSettingsService.addListener(applySettings);
-        this.failEngineOnCorruption = indexSettings.getAsBoolean(ENGINE_FAIL_ON_CORRUPTION, true);
+        this.failEngineOnCorruption = indexSettings.getAsBoolean(INDEX_FAIL_ON_CORRUPTION, true);
         this.failOnMergeFailure = indexSettings.getAsBoolean(INDEX_FAIL_ON_MERGE_FAILURE, true);
         if (failOnMergeFailure) {
             this.mergeScheduler.addFailureListener(new FailEngineOnMergeFailure());
@@ -1107,7 +1107,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             if (this.failEngineOnCorruption) {
                 failEngine("corrupt file detected source: [" + source + "]", t);
             } else {
-                logger.warn("corrupt file detected source: [{}] but [{}] is set to [{}]", t, source, ENGINE_FAIL_ON_CORRUPTION, this.failEngineOnCorruption);
+                logger.warn("corrupt file detected source: [{}] but [{}] is set to [{}]", t, source, INDEX_FAIL_ON_CORRUPTION, this.failEngineOnCorruption);
             }
         }else if (ExceptionsHelper.isOOM(t)) {
             failEngine("out of memory", t);
@@ -1265,7 +1265,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                 if (failEngineOnCorruption) {
                     failEngine("corrupt file detected source: [merge]", e);
                 } else {
-                    logger.warn("corrupt file detected source: [merge] but [{}] is set to [{}]", e, ENGINE_FAIL_ON_CORRUPTION, failEngineOnCorruption);
+                    logger.warn("corrupt file detected source: [merge] but [{}] is set to [{}]", e, INDEX_FAIL_ON_CORRUPTION, failEngineOnCorruption);
                 }
             } else {
                 failEngine("merge exception", e);
@@ -1405,7 +1405,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
     public static final String INDEX_COMPOUND_ON_FLUSH = "index.compound_on_flush";
     public static final String INDEX_GC_DELETES = "index.gc_deletes";
     public static final String INDEX_FAIL_ON_MERGE_FAILURE = "index.fail_on_merge_failure";
-    public static final String ENGINE_FAIL_ON_CORRUPTION = "index.fail_on_corruption";
+    public static final String INDEX_FAIL_ON_CORRUPTION = "index.fail_on_corruption";
 
 
     class ApplySettings implements IndexSettingsService.Listener {
@@ -1425,7 +1425,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                 indexWriter.getConfig().setUseCompoundFile(compoundOnFlush);
             }
 
-            InternalEngine.this.failEngineOnCorruption = indexSettings.getAsBoolean(ENGINE_FAIL_ON_CORRUPTION, InternalEngine.this.failEngineOnCorruption);
+            InternalEngine.this.failEngineOnCorruption = settings.getAsBoolean(INDEX_FAIL_ON_CORRUPTION, InternalEngine.this.failEngineOnCorruption);
             int indexConcurrency = settings.getAsInt(INDEX_INDEX_CONCURRENCY, InternalEngine.this.indexConcurrency);
             boolean failOnMergeFailure = settings.getAsBoolean(INDEX_FAIL_ON_MERGE_FAILURE, InternalEngine.this.failOnMergeFailure);
             String codecName = settings.get(INDEX_CODEC, InternalEngine.this.codecName);

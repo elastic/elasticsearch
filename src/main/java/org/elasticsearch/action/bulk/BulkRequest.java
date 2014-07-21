@@ -470,9 +470,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements IndicesRe
         for (ActionRequest request : requests) {
             assert request instanceof IndicesRelatedRequest;
             String[] relatedIndices = ((IndicesRelatedRequest) request).requestedIndices();
-            if (relatedIndices.length != 1) {
-                throw new IllegalStateException("each request within a bulk should relate to one and only one index");
-            }
+            assert relatedIndices.length == 1;
             indices[i++] = relatedIndices[0];
         }
         return indices;

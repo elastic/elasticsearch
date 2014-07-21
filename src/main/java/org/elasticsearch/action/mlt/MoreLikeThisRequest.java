@@ -538,6 +538,9 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> impl
 
     @Override
     public String[] requestedIndices() {
+        if (index == null) {
+            throw new IllegalStateException("index is missing");
+        }
         if (searchIndices == null) {
             return new String[]{index};
         }

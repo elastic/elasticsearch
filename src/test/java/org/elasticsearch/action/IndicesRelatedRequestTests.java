@@ -336,6 +336,12 @@ public class IndicesRelatedRequestTests extends ElasticsearchTestCase {
         assertThat(moreLikeThisRequest.requestedIndices(), equalTo(expectedIndices.toArray(new String[expectedIndices.size()])));
     }
 
+    @Test(expected = IllegalStateException.class)
+    public void testMoreLikeThisRequestIllegalState() {
+        MoreLikeThisRequest moreLikeThisRequest = new MoreLikeThisRequest(null);
+        moreLikeThisRequest.requestedIndices();
+    }
+
     @Test
     public void testMultiPercolateRequest() {
         MultiPercolateRequest multiPercolateRequest = new MultiPercolateRequest();

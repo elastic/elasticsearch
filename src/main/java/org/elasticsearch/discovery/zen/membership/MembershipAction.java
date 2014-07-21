@@ -92,12 +92,8 @@ public class MembershipAction extends AbstractComponent {
     }
 
     public void sendJoinRequestBlocking(DiscoveryNode masterNode, DiscoveryNode node, TimeValue timeout) throws ElasticsearchException {
-        transportService.submitRequest(masterNode, JoinRequestRequestHandler.ACTION, new JoinRequest(node), new FutureTransportResponseHandler<JoinResponse>() {
-            @Override
-            public JoinResponse newInstance() {
-                return new JoinResponse();
-            }
-        }).txGet(timeout.millis(), TimeUnit.MILLISECONDS);
+        transportService.submitRequest(masterNode, JoinRequestRequestHandler.ACTION, new JoinRequest(node), EmptyTransportResponseHandler.INSTANCE_SAME)
+                .txGet(timeout.millis(), TimeUnit.MILLISECONDS);
     }
 
     /**

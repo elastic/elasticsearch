@@ -57,7 +57,7 @@ given filter:
 If no filter is given with a function this is equivalent to specifying
 `"match_all": {}`
 
-First, each document is scored by the defined functons. The parameter
+First, each document is scored by the defined functions. The parameter
 `score_mode` specifies how the computed scores are combined:
 
 [horizontal]

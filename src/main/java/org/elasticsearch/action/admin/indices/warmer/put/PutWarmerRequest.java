@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.warmer.put;
 
+import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRelatedRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -28,7 +29,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
-import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -100,7 +100,7 @@ public class PutWarmerRequest extends AcknowledgedRequest<PutWarmerRequest> impl
     }
 
     @Override
-    public Set<String> requestedIndices() {
+    public ImmutableSet<String> requestedIndices() {
         if (searchRequest == null) {
             throw new IllegalStateException("unable to retrieve indices, search request is null");
         }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.create;
 
+import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -39,7 +40,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.Strings.EMPTY_ARRAY;
@@ -464,7 +464,7 @@ public class CreateSnapshotRequest extends MasterNodeOperationRequest<CreateSnap
     }
 
     @Override
-    public Set<String> requestedIndices() {
+    public ImmutableSet<String> requestedIndices() {
         return Helper.indicesOrAll(indices);
     }
 

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.mapping.get;
 
+import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRelatedRequest;
@@ -30,7 +31,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
-import java.util.Set;
 
 /** Request the mappings of specific fields */
 public class GetFieldMappingsRequest extends ActionRequest<GetFieldMappingsRequest> implements IndicesRelatedRequest {
@@ -125,7 +125,7 @@ public class GetFieldMappingsRequest extends ActionRequest<GetFieldMappingsReque
     }
 
     @Override
-    public Set<String> requestedIndices() {
+    public ImmutableSet<String> requestedIndices() {
         return Helper.indicesOrAll(indices);
     }
 

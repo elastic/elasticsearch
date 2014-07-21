@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.mlt;
 
-import com.google.common.collect.Sets;
+import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.Version;
@@ -41,7 +41,6 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.search.Scroll.readScroll;
 
@@ -542,16 +541,15 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> impl
     }
 
     @Override
-    public Set<String> requestedIndices() {
+    public ImmutableSet<String> requestedIndices() {
         if (index == null) {
             throw new IllegalStateException("index is missing");
         }
         if (searchIndices == null) {
-            return Sets.newHashSet(index);
+            return ImmutableSet.of(index);
         }
-        Set<String> indices = Helper.indicesOrAll(searchIndices);
-        indices.add(index);
-        return indices;
+        ImmutableSet<String> indices = Helper.indicesOrAll(searchIndices);
+        return ImmutableSet.<String>builder().addAll(indices).add(index).build();
     }
 
     @Override

@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.action.admin.indices.alias.get;
 
+import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRelatedRequest;
@@ -28,7 +29,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
-import java.util.Set;
 
 /**
  */
@@ -83,7 +83,7 @@ public class GetAliasesRequest extends MasterNodeReadOperationRequest<GetAliases
     }
 
     @Override
-    public Set<String> requestedIndices() {
+    public ImmutableSet<String> requestedIndices() {
         return Helper.indicesOrAll(indices);
     }
 

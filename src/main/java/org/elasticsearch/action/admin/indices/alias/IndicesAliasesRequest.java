@@ -21,8 +21,8 @@ package org.elasticsearch.action.admin.indices.alias;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRelatedRequest;
@@ -40,7 +40,10 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.query.FilterBuilder;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.cluster.metadata.AliasAction.readAliasAction;
@@ -313,15 +316,15 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
     }
 
     @Override
-    public Set<String> requestedIndices() {
-        Set<String> indices = Sets.newHashSet();
+    public ImmutableSet<String> requestedIndices() {
+        ImmutableSet.Builder<String> builder = new ImmutableSet.Builder<>();
         for (AliasActions aliasActions : aliasActions()) {
             if (CollectionUtils.isEmpty(aliasActions.indices())) {
                 throw new IllegalStateException("indices are empty or null");
             }
-            Collections.addAll(indices, aliasActions.indices());
+            builder.add(aliasActions.indices());
         }
-        return indices;
+        return builder.build();
     }
 
     @Override

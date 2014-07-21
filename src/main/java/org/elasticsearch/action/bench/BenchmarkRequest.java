@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.action.bench;
 
-import com.google.common.collect.Sets;
+import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRelatedRequest;
 import org.elasticsearch.action.ValidateActions;
@@ -30,7 +30,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 
 /**
  * A benchmark request contains one or more competitors, which are descriptions of how to
@@ -242,14 +241,14 @@ public class BenchmarkRequest extends MasterNodeOperationRequest<BenchmarkReques
     }
 
     @Override
-    public Set<String> requestedIndices() {
-        Set<String> indices = Sets.newHashSet();
+    public ImmutableSet<String> requestedIndices() {
+        ImmutableSet.Builder<String> builder = ImmutableSet.builder();
         for (BenchmarkCompetitor competitor : competitors) {
             for (SearchRequest searchRequest : competitor.settings().searchRequests()) {
-                indices.addAll(searchRequest.requestedIndices());
+                builder.addAll(searchRequest.requestedIndices());
             }
         }
-        return indices;
+        return builder.build();
     }
 
     @Override

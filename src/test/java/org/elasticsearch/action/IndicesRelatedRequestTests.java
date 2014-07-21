@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action;
 
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
@@ -97,20 +98,20 @@ public class IndicesRelatedRequestTests extends ElasticsearchTestCase {
     @Test
     public void testIndexRequest() {
         IndexRequest indexRequest = new IndexRequest(randomIndex());
-        assertThat(indexRequest.requestedIndices(), equalTo(newSet(indexRequest.index())));
+        assertThat(indexRequest.requestedIndices(), equalTo(ImmutableSet.of(indexRequest.index())));
         
     }
 
     @Test
     public void testDeleteRequest() {
         DeleteRequest deleteRequest = new DeleteRequest(randomIndex());
-        assertThat(deleteRequest.requestedIndices(), equalTo(newSet(deleteRequest.index())));
+        assertThat(deleteRequest.requestedIndices(), equalTo(ImmutableSet.of(deleteRequest.index())));
     }
 
     @Test
     public void testUpdateRequest() {
         UpdateRequest updateRequest = new UpdateRequest(randomIndex(), "type", "id");
-        assertThat(updateRequest.requestedIndices(), equalTo(newSet(updateRequest.index())));
+        assertThat(updateRequest.requestedIndices(), equalTo(ImmutableSet.of(updateRequest.index())));
     }
 
     @Test
@@ -154,7 +155,7 @@ public class IndicesRelatedRequestTests extends ElasticsearchTestCase {
     @Test
     public void testExplainRequest() {
         ExplainRequest explainRequest = new ExplainRequest(randomIndex(), "type", "id");
-        assertThat(explainRequest.requestedIndices(), equalTo(newSet(explainRequest.index())));
+        assertThat(explainRequest.requestedIndices(), equalTo(ImmutableSet.of(explainRequest.index())));
     }
 
     @Test
@@ -164,16 +165,16 @@ public class IndicesRelatedRequestTests extends ElasticsearchTestCase {
             analyzeRequest.index(randomIndex());
         }
         if (analyzeRequest.index() == null) {
-            assertThat(analyzeRequest.requestedIndices(), equalTo(newSet()));
+            assertThat(analyzeRequest.requestedIndices(), equalTo(ImmutableSet.<String>of()));
         } else {
-            assertThat(analyzeRequest.requestedIndices(), equalTo(newSet(analyzeRequest.index())));
+            assertThat(analyzeRequest.requestedIndices(), equalTo(ImmutableSet.of(analyzeRequest.index())));
         }
     }
 
     @Test
     public void testTermVectorRequest() {
         TermVectorRequest termVectorRequest = new TermVectorRequest(randomIndex(), "type", "id");
-        assertThat(termVectorRequest.requestedIndices(), equalTo(newSet(termVectorRequest.index())));
+        assertThat(termVectorRequest.requestedIndices(), equalTo(ImmutableSet.of(termVectorRequest.index())));
     }
 
     @Test
@@ -193,7 +194,7 @@ public class IndicesRelatedRequestTests extends ElasticsearchTestCase {
     @Test
     public void testGetRequest() {
         GetRequest getRequest = new GetRequest(randomIndex(), "type", "id");
-        assertThat(getRequest.requestedIndices(), equalTo(newSet(getRequest.index())));
+        assertThat(getRequest.requestedIndices(), equalTo(ImmutableSet.of(getRequest.index())));
     }
 
     @Test
@@ -213,55 +214,55 @@ public class IndicesRelatedRequestTests extends ElasticsearchTestCase {
     @Test
     public void testDeleteIndexedScriptRequest() {
         DeleteIndexedScriptRequest deleteIndexedScriptRequest = new DeleteIndexedScriptRequest();
-        assertThat(deleteIndexedScriptRequest.requestedIndices(), equalTo(newSet(ScriptService.SCRIPT_INDEX)));
+        assertThat(deleteIndexedScriptRequest.requestedIndices(), equalTo(ImmutableSet.of(ScriptService.SCRIPT_INDEX)));
     }
 
     @Test
     public void testPutIndexedScriptRequest() {
         PutIndexedScriptRequest putIndexedScriptRequest = new PutIndexedScriptRequest();
-        assertThat(putIndexedScriptRequest.requestedIndices(), equalTo(newSet(ScriptService.SCRIPT_INDEX)));
+        assertThat(putIndexedScriptRequest.requestedIndices(), equalTo(ImmutableSet.of(ScriptService.SCRIPT_INDEX)));
     }
 
     @Test
     public void testGetIndexedScriptRequest() {
         GetIndexedScriptRequest getIndexedScriptRequest = new GetIndexedScriptRequest();
-        assertThat(getIndexedScriptRequest.requestedIndices(), equalTo(newSet(ScriptService.SCRIPT_INDEX)));
+        assertThat(getIndexedScriptRequest.requestedIndices(), equalTo(ImmutableSet.of(ScriptService.SCRIPT_INDEX)));
     }
 
     @Test
     public void testShardMultiPercolateRequest() {
         TransportShardMultiPercolateAction.Request request = new TransportShardMultiPercolateAction.Request(randomIndex(), 1, "pref");
-        assertThat(request.requestedIndices(), equalTo(newSet(request.index())));
+        assertThat(request.requestedIndices(), equalTo(ImmutableSet.of(request.index())));
     }
 
     @Test
     public void testMappingUpdatedRequest() {
         MappingUpdatedAction.MappingUpdatedRequest request = new MappingUpdatedAction.MappingUpdatedRequest(randomIndex(), "uuid", "type", null, 0, "node");
-        assertThat(request.requestedIndices(), equalTo(newSet(request.index())));
+        assertThat(request.requestedIndices(), equalTo(ImmutableSet.of(request.index())));
     }
 
     @Test
     public void testNodeMappingRefreshRequest() {
         NodeMappingRefreshAction.NodeMappingRefreshRequest request = new NodeMappingRefreshAction.NodeMappingRefreshRequest(randomIndex(), "uuid", Strings.EMPTY_ARRAY, "node");
-        assertThat(request.requestedIndices(), equalTo(newSet(request.index())));
+        assertThat(request.requestedIndices(), equalTo(ImmutableSet.of(request.index())));
     }
 
     @Test
     public void testIndexDeleteRequest() {
         IndexDeleteRequest request = new IndexDeleteRequest(new DeleteRequest(randomIndex()));
-        assertThat(request.requestedIndices(), equalTo(newSet(request.index())));
+        assertThat(request.requestedIndices(), equalTo(ImmutableSet.of(request.index())));
     }
 
     @Test
     public void testPercolateShardRequest() {
         PercolateShardRequest request = new PercolateShardRequest(randomIndex(), 1);
-        assertThat(request.requestedIndices(), equalTo(newSet(request.index())));
+        assertThat(request.requestedIndices(), equalTo(ImmutableSet.of(request.index())));
     }
 
     @Test
     public void testShardSearchRequest() {
         ShardSearchRequest request = new ShardSearchRequest(randomIndex(), 1, 1, randomFrom(SearchType.values()));
-        assertThat(request.requestedIndices(), equalTo(newSet(request.index()) ));
+        assertThat(request.requestedIndices(), equalTo(ImmutableSet.of(request.index()) ));
     }
 
     private static String randomIndex() {
@@ -634,9 +635,5 @@ public class IndicesRelatedRequestTests extends ElasticsearchTestCase {
             }
         }
         return randomIndices;
-    }
-
-    private static Set<String> newSet(String... indices) {
-        return Sets.newHashSet(indices);
     }
 }

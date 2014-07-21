@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.support.single.instance;
 
-import com.google.common.collect.Sets;
+import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRelatedRequest;
@@ -29,7 +29,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -72,9 +71,9 @@ public abstract class InstanceShardOperationRequest<T extends InstanceShardOpera
     }
 
     @Override
-    public Set<String> requestedIndices() {
+    public ImmutableSet<String> requestedIndices() {
         assert index != null;
-        return Sets.newHashSet(index);
+        return ImmutableSet.of(index);
     }
 
     public TimeValue timeout() {

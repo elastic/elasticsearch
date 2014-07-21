@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.internal;
 
-import com.google.common.collect.Sets;
+import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.IndicesRelatedRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -36,7 +36,6 @@ import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.search.Scroll.readScroll;
 
@@ -116,9 +115,9 @@ public class ShardSearchRequest extends TransportRequest implements IndicesRelat
     }
 
     @Override
-    public Set<String> requestedIndices() {
+    public ImmutableSet<String> requestedIndices() {
         assert index != null;
-        return Sets.newHashSet(index);
+        return ImmutableSet.of(index);
     }
 
     public String index() {

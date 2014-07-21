@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.delete;
 
+import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRelatedRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -29,7 +30,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
-import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.unit.TimeValue.readTimeValue;
@@ -121,7 +121,7 @@ public class DeleteIndexRequest extends MasterNodeOperationRequest<DeleteIndexRe
     }
 
     @Override
-    public Set<String> requestedIndices() {
+    public ImmutableSet<String> requestedIndices() {
         return Helper.indicesOrAll(indices);
     }
 

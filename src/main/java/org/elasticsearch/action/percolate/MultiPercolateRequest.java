@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.action.percolate;
 
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequest;
@@ -37,7 +37,10 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -352,12 +355,12 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
     }
 
     @Override
-    public Set<String> requestedIndices() {
-        Set<String> indices = Sets.newHashSet();
+    public ImmutableSet<String> requestedIndices() {
+        ImmutableSet.Builder<String> builder = ImmutableSet.builder();
         for (PercolateRequest percolateRequest : requests()) {
-            indices.addAll(percolateRequest.requestedIndices());
+            builder.addAll(percolateRequest.requestedIndices());
         }
-        return indices;
+        return builder.build();
     }
 
     @Override

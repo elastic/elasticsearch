@@ -19,11 +19,9 @@
 
 package org.elasticsearch.action.bulk;
 
-import com.google.common.collect.Sets;
+import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
-
-import java.util.Set;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
@@ -33,6 +31,6 @@ public class BulkShardRequestTests extends ElasticsearchTestCase {
     public void testRelatedIndices() {
         String randomIndex = randomAsciiOfLength(randomInt(30));
         BulkShardRequest request = new BulkShardRequest(randomIndex, 1, false, null);
-        assertThat(request.requestedIndices(), equalTo((Set<String>) Sets.newHashSet(randomIndex)));
+        assertThat(request.requestedIndices(), equalTo(ImmutableSet.of(randomIndex)));
     }
 }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.support.master.info;
 
+import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.action.IndicesRelatedRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequest;
@@ -27,7 +28,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
-import java.util.Set;
 
 /**
  */
@@ -69,7 +69,7 @@ public abstract class ClusterInfoRequest<T extends ClusterInfoRequest> extends M
     }
 
     @Override
-    public Set<String> requestedIndices() {
+    public ImmutableSet<String> requestedIndices() {
         return Helper.indicesOrAll(indices);
     }
 

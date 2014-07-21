@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.action.percolate;
 
+import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRelatedRequest;
@@ -34,7 +35,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -199,13 +199,13 @@ public class PercolateRequest extends BroadcastOperationRequest<PercolateRequest
     }
 
     @Override
-    public Set<String> requestedIndices() {
-        Set<String> indices = super.requestedIndices();
+    public ImmutableSet<String> requestedIndices() {
         if (getRequest == null) {
-            return indices;
+            return super.requestedIndices();
         }
-        indices.addAll(getRequest.requestedIndices());
-        return indices;
+        return ImmutableSet.<String>builder()
+                .addAll(super.requestedIndices())
+                .addAll(getRequest.requestedIndices()).build();
     }
 
     @Override

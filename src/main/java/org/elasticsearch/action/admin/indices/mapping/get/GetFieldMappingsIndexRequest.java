@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.mapping.get;
 
-import com.google.common.collect.Sets;
+import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRelatedRequest;
 import org.elasticsearch.action.support.single.custom.SingleCustomOperationRequest;
@@ -28,7 +28,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
-import java.util.Set;
 
 class GetFieldMappingsIndexRequest extends SingleCustomOperationRequest<GetFieldMappingsIndexRequest> implements IndicesRelatedRequest {
 
@@ -83,9 +82,9 @@ class GetFieldMappingsIndexRequest extends SingleCustomOperationRequest<GetField
     }
 
     @Override
-    public Set<String> requestedIndices() {
+    public ImmutableSet<String> requestedIndices() {
         assert index != null;
-        return Sets.newHashSet(index);
+        return ImmutableSet.of(index);
     }
 
     @Override

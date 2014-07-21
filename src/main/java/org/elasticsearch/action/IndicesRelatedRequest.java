@@ -19,10 +19,8 @@
 
 package org.elasticsearch.action;
 
-import com.google.common.collect.Sets;
+import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.cluster.metadata.MetaData;
-
-import java.util.Set;
 
 /**
  * Needs to be implemented by all {@link org.elasticsearch.action.ActionRequest} subclasses that relate to
@@ -33,14 +31,14 @@ public interface IndicesRelatedRequest {
     /**
      * Returns a set of unique indices the action relates to
      */
-    Set<String> requestedIndices();
+    ImmutableSet<String> requestedIndices();
 
     public static class Helper {
-        public static Set<String> indicesOrAll(String... indices) {
+        public static ImmutableSet<String> indicesOrAll(String... indices) {
             if (MetaData.isAllIndices(indices)) {
-                return Sets.newHashSet(MetaData.ALL);
+                return ImmutableSet.of(MetaData.ALL);
             }
-            return Sets.newHashSet(indices);
+            return ImmutableSet.copyOf(indices);
         }
     }
 }

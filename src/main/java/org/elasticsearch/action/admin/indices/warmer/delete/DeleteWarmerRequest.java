@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.action.admin.indices.warmer.delete;
 
+import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRelatedRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -29,7 +30,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.CollectionUtils;
 
 import java.io.IOException;
-import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -125,7 +125,7 @@ public class DeleteWarmerRequest extends AcknowledgedRequest<DeleteWarmerRequest
     }
 
     @Override
-    public Set<String> requestedIndices() {
+    public ImmutableSet<String> requestedIndices() {
         return Helper.indicesOrAll(indices);
     }
 

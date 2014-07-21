@@ -19,11 +19,9 @@
 
 package org.elasticsearch.action.count;
 
-import com.google.common.collect.Sets;
+import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
-
-import java.util.Set;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
@@ -33,6 +31,6 @@ public class ShardCountRequestTests extends ElasticsearchTestCase {
     public void testRelatedIndices() {
         String randomIndex = randomAsciiOfLength(randomInt(30));
         ShardCountRequest request = new ShardCountRequest(randomIndex, 1, null, new CountRequest());
-        assertThat(request.requestedIndices(), equalTo((Set<String>) Sets.newHashSet(randomIndex)));
+        assertThat(request.requestedIndices(), equalTo(ImmutableSet.of(randomIndex)));
     }
 }

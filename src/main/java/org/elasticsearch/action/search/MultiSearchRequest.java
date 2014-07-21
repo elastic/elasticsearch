@@ -19,8 +19,8 @@
 
 package org.elasticsearch.action.search;
 
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequest;
@@ -40,7 +40,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -256,12 +255,12 @@ public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> implem
     }
 
     @Override
-    public Set<String> requestedIndices() {
-        Set<String> indices = Sets.newHashSet();
+    public ImmutableSet<String> requestedIndices() {
+        ImmutableSet.Builder<String> builder = ImmutableSet.builder();
         for (SearchRequest searchRequest : requests()) {
-            indices.addAll(searchRequest.requestedIndices());
+            builder.addAll(searchRequest.requestedIndices());
         }
-        return indices;
+        return builder.build();
     }
 
     @Override

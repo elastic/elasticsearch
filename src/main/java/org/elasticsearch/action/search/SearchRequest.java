@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.search;
 
+import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.Version;
@@ -43,7 +44,6 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.search.Scroll.readScroll;
 
@@ -491,7 +491,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
     }
 
     @Override
-    public Set<String> requestedIndices() {
+    public ImmutableSet<String> requestedIndices() {
         return Helper.indicesOrAll(indices);
     }
 

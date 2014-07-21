@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.termvector;
 
-import com.google.common.collect.Sets;
+import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequest;
@@ -34,7 +34,10 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 public class MultiTermVectorsRequest extends ActionRequest<MultiTermVectorsRequest> implements IndicesRelatedRequest {
 
@@ -54,12 +57,12 @@ public class MultiTermVectorsRequest extends ActionRequest<MultiTermVectorsReque
     }
 
     @Override
-    public Set<String> requestedIndices() {
-        Set<String> indices = Sets.newHashSet();
+    public ImmutableSet<String> requestedIndices() {
+        ImmutableSet.Builder<String> builder = ImmutableSet.builder();
         for (TermVectorRequest termVectorRequest : requests) {
-            indices.addAll(termVectorRequest.requestedIndices());
+            builder.addAll(termVectorRequest.requestedIndices());
         }
-        return indices;
+        return builder.build();
     }
 
     @Override

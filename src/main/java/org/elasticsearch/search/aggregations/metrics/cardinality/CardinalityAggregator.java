@@ -80,13 +80,13 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         // requested not to hash the values (perhaps they already hashed the values themselves before indexing the doc)
         // so we can just work with the original value source as is
         if (!rehash) {
-            SortedNumericDocValues hashValues = ((ValuesSource.Numeric) valuesSource).longValues();
+            MurmurHash3Values hashValues = MurmurHash3Values.cast(((ValuesSource.Numeric) valuesSource).longValues());
             return new DirectCollector(counts, hashValues);
         }
 
         if (valuesSource instanceof ValuesSource.Numeric) {
             ValuesSource.Numeric source = (ValuesSource.Numeric) valuesSource;
-            SortedNumericDocValues hashValues = source.isFloatingPoint() ? MurmurHash3Values.wrap(source.doubleValues()) : MurmurHash3Values.wrap(source.longValues());
+            MurmurHash3Values hashValues = source.isFloatingPoint() ? MurmurHash3Values.hash(source.doubleValues()) : MurmurHash3Values.hash(source.longValues());
             return new DirectCollector(counts, hashValues);
         }
 
@@ -106,7 +106,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             }
         }
 
-        return new DirectCollector(counts, MurmurHash3Values.wrap(valuesSource.bytesValues()));
+        return new DirectCollector(counts, MurmurHash3Values.hash(valuesSource.bytesValues()));
     }
 
 
@@ -191,10 +191,10 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
     private static class DirectCollector implements Collector {
 
-        private final SortedNumericDocValues hashes;
+        private final MurmurHash3Values hashes;
         private final HyperLogLogPlusPlus counts;
 
-        DirectCollector(HyperLogLogPlusPlus counts, SortedNumericDocValues values) {
+        DirectCollector(HyperLogLogPlusPlus counts, MurmurHash3Values values) {
             this.counts = counts;
             this.hashes = values;
         }
@@ -298,24 +298,58 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
     }
 
     /**
-     * These classes are not legal implementations of {@link SortedNumericDocValues},... since they
-     * don't guarantee order, but it is ok in the context of this aggregator that doesn't take care about order.
+     * Representation of a list of hash values. There might be dups and there is no guarantee on the order.
      */
-    static class MurmurHash3Values {
+    static abstract class MurmurHash3Values {
 
-        public static SortedNumericDocValues wrap(SortedNumericDoubleValues values) {
+        public abstract void setDocument(int docId);
+
+        public abstract int count();
+
+        public abstract long valueAt(int index);
+
+        /**
+         * Return a {@link MurmurHash3Values} instance that returns each value as its hash.
+         */
+        public static MurmurHash3Values cast(final SortedNumericDocValues values) {
+            return new MurmurHash3Values() {
+                @Override
+                public void setDocument(int docId) {
+                    values.setDocument(docId);
+                }
+                @Override
+                public int count() {
+                    return values.count();
+                }
+                @Override
+                public long valueAt(int index) {
+                    return values.valueAt(index);
+                }
+            };
+        }
+
+        /**
+         * Return a {@link MurmurHash3Values} instance that computes hashes on the fly for each double value.
+         */
+        public static MurmurHash3Values hash(SortedNumericDoubleValues values) {
             return new Double(values);
         }
 
-        public static SortedNumericDocValues wrap(SortedNumericDocValues values) {
+        /**
+         * Return a {@link MurmurHash3Values} instance that computes hashes on the fly for each long value.
+         */
+        public static MurmurHash3Values hash(SortedNumericDocValues values) {
             return new Long(values);
         }
 
-        public static SortedNumericDocValues wrap(SortedBinaryDocValues values) {
+        /**
+         * Return a {@link MurmurHash3Values} instance that computes hashes on the fly for each binary value.
+         */
+        public static MurmurHash3Values hash(SortedBinaryDocValues values) {
             return new Bytes(values);
         }
 
-        private static class Long extends SortedNumericDocValues {
+        private static class Long extends MurmurHash3Values {
 
             private final SortedNumericDocValues values;
 
@@ -339,7 +373,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             }
         }
 
-        private static class Double extends SortedNumericDocValues {
+        private static class Double extends MurmurHash3Values {
 
             private final SortedNumericDoubleValues values;
 
@@ -363,7 +397,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             }
         }
 
-        private static class Bytes extends SortedNumericDocValues {
+        private static class Bytes extends MurmurHash3Values {
 
             private final org.elasticsearch.common.hash.MurmurHash3.Hash128 hash = new org.elasticsearch.common.hash.MurmurHash3.Hash128();
 

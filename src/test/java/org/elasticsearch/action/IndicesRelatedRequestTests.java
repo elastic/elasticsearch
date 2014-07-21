@@ -552,18 +552,21 @@ public class IndicesRelatedRequestTests extends ElasticsearchTestCase {
         IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest();
         int iters = randomInt(10);
         for (int i = 0; i < iters; i++) {
-            String[] randomIndices;
-            if (frequently()) {
-                randomIndices = randomNonEmptyIndices();
-            } else {
-                randomIndices = new String[]{MetaData.ALL};
-            }
+            String[] randomIndices = randomNonEmptyIndices();
             AliasOperation aliasOperation = randomFrom(AliasOperation.values());
             indicesAliasesRequest.addAliasAction(aliasOperation.aliasActions(randomIndices));
             Collections.addAll(expectedIndices, randomIndices);
         }
 
         assertThat(indicesAliasesRequest.requestedIndices(), equalTo(expectedIndices.toArray(new String[expectedIndices.size()])));
+    }
+
+    @Test(expected = IllegalStateException.class)
+    public void testIndicesAliasesRequestIllegalState() {
+        IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest();
+        AliasOperation aliasOperation = randomFrom(AliasOperation.values());
+        indicesAliasesRequest.addAliasAction(aliasOperation.aliasActions(new String[0]));
+        indicesAliasesRequest.requestedIndices();
     }
 
     private static enum AliasOperation {
@@ -604,18 +607,20 @@ public class IndicesRelatedRequestTests extends ElasticsearchTestCase {
 
     private static String[] randomIndices(boolean emptyAllowed, boolean nullAllowed) {
         String[] randomIndices;
-        if (emptyAllowed && rarely()) {
-            if (nullAllowed && randomBoolean()) {
+        if (frequently()) {
+            randomIndices = new String[randomIntBetween(1, 10)];
+            for (int j = 0; j < randomIndices.length; j++) {
+                randomIndices[j] = randomIndex();
+            }
+        } else {
+            int randomInt = randomInt(2);
+            if (emptyAllowed && randomInt == 0) {
+                randomIndices = new String[0];
+            } else if (nullAllowed && randomInt == 1) {
                 randomIndices = null;
             } else {
                 randomIndices = new String[]{MetaData.ALL};
             }
-        } else {
-            randomIndices = new String[randomInt(10)];
-            for (int j = 0; j < randomIndices.length; j++) {
-                randomIndices[j] = randomIndex();
-            }
-
         }
         return randomIndices;
     }

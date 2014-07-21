@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.internal;
 
+import com.google.common.collect.Sets;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.IndicesRelatedRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -35,6 +36,7 @@ import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.search.Scroll.readScroll;
 
@@ -114,9 +116,9 @@ public class ShardSearchRequest extends TransportRequest implements IndicesRelat
     }
 
     @Override
-    public String[] requestedIndices() {
+    public Set<String> requestedIndices() {
         assert index != null;
-        return new String[]{index};
+        return Sets.newHashSet(index);
     }
 
     public String index() {

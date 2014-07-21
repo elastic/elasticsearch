@@ -19,8 +19,11 @@
 
 package org.elasticsearch.action.admin.indices.mapping.get;
 
+import com.google.common.collect.Sets;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
+
+import java.util.Set;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
@@ -30,6 +33,6 @@ public class GetFieldMappingsIndexRequestTests extends ElasticsearchTestCase {
     public void testRelatedIndices() {
         String randomIndex = randomAsciiOfLength(randomInt(30));
         GetFieldMappingsIndexRequest request = new GetFieldMappingsIndexRequest(new GetFieldMappingsRequest(), randomIndex, false);
-        assertThat(request.requestedIndices(), equalTo(new String[]{randomIndex}));
+        assertThat(request.requestedIndices(), equalTo((Set<String>) Sets.newHashSet(randomIndex)));
     }
 }

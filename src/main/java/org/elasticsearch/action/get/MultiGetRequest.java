@@ -20,6 +20,7 @@
 package org.elasticsearch.action.get;
 
 import com.google.common.collect.Iterators;
+import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequest;
@@ -40,10 +41,7 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Iterator;
-import java.util.List;
+import java.util.*;
 
 public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements Iterable<MultiGetRequest.Item>, IndicesRelatedRequest {
 
@@ -472,11 +470,11 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
     }
 
     @Override
-    public String[] requestedIndices() {
-        String[] indices = new String[items.size()];
+    public Set<String> requestedIndices() {
+        Set<String> indices = Sets.newHashSet();
         int i = 0;
         for (Item item : items) {
-            indices[i++] = item.index();
+            indices.add(item.index());
         }
         return indices;
     }

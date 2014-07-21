@@ -35,6 +35,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -253,7 +254,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
     }
 
     @Override
-    public String[] requestedIndices() {
+    public Set<String> requestedIndices() {
         return Helper.indicesOrAll(indices);
     }
 

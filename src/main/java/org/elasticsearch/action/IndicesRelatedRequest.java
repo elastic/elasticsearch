@@ -19,7 +19,10 @@
 
 package org.elasticsearch.action;
 
+import com.google.common.collect.Sets;
 import org.elasticsearch.cluster.metadata.MetaData;
+
+import java.util.Set;
 
 /**
  * Needs to be implemented by all {@link org.elasticsearch.action.ActionRequest} subclasses that relate to
@@ -28,16 +31,16 @@ import org.elasticsearch.cluster.metadata.MetaData;
 public interface IndicesRelatedRequest {
 
     /**
-     * Returns the indices the action relates to
+     * Returns a set of unique indices the action relates to
      */
-    String[] requestedIndices();
+    Set<String> requestedIndices();
 
     public static class Helper {
-        public static String[] indicesOrAll(String... indices) {
+        public static Set<String> indicesOrAll(String... indices) {
             if (MetaData.isAllIndices(indices)) {
-                return new String[]{MetaData.ALL};
+                return Sets.newHashSet(MetaData.ALL);
             }
-            return indices;
+            return Sets.newHashSet(indices);
         }
     }
 }

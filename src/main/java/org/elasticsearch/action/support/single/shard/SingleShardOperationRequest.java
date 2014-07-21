@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.support.single.shard;
 
+import com.google.common.collect.Sets;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRelatedRequest;
@@ -27,6 +28,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.Set;
 
 /**
  *
@@ -67,9 +69,9 @@ public abstract class SingleShardOperationRequest<T extends SingleShardOperation
     }
 
     @Override
-    public String[] requestedIndices() {
+    public Set<String> requestedIndices() {
         assert index != null;
-        return new String[]{index};
+        return Sets.newHashSet(index);
     }
 
     /**

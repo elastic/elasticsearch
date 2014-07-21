@@ -34,6 +34,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
@@ -141,7 +142,7 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
     }
 
     @Override
-    public String[] requestedIndices() {
+    public Set<String> requestedIndices() {
         return Helper.indicesOrAll(indices);
     }
 

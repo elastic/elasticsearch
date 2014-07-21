@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action;
 
+import com.google.common.collect.Sets;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
@@ -84,9 +85,7 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
@@ -98,24 +97,25 @@ public class IndicesRelatedRequestTests extends ElasticsearchTestCase {
     @Test
     public void testIndexRequest() {
         IndexRequest indexRequest = new IndexRequest(randomIndex());
-        assertThat(indexRequest.requestedIndices(), equalTo(new String[]{indexRequest.index()}));
+        assertThat(indexRequest.requestedIndices(), equalTo(newSet(indexRequest.index())));
+        
     }
 
     @Test
     public void testDeleteRequest() {
         DeleteRequest deleteRequest = new DeleteRequest(randomIndex());
-        assertThat(deleteRequest.requestedIndices(), equalTo(new String[]{deleteRequest.index()}));
+        assertThat(deleteRequest.requestedIndices(), equalTo(newSet(deleteRequest.index())));
     }
 
     @Test
     public void testUpdateRequest() {
         UpdateRequest updateRequest = new UpdateRequest(randomIndex(), "type", "id");
-        assertThat(updateRequest.requestedIndices(), equalTo(new String[]{updateRequest.index()}));
+        assertThat(updateRequest.requestedIndices(), equalTo(newSet(updateRequest.index())));
     }
 
     @Test
     public void testBulkRequest() {
-        List<String> expectedIndices = new ArrayList<>();
+        Set<String> expectedIndices = Sets.newHashSet();
         BulkRequest bulkRequest = new BulkRequest();
         int iters = randomInt(10);
         for (int i = 0; i < iters; i++) {
@@ -125,7 +125,7 @@ public class IndicesRelatedRequestTests extends ElasticsearchTestCase {
             expectedIndices.add(randomIndex);
         }
 
-        assertThat(bulkRequest.requestedIndices(), equalTo(expectedIndices.toArray(new String[expectedIndices.size()])));
+        assertThat(bulkRequest.requestedIndices(), equalTo(expectedIndices));
     }
 
     private static enum BulkOperation {
@@ -154,7 +154,7 @@ public class IndicesRelatedRequestTests extends ElasticsearchTestCase {
     @Test
     public void testExplainRequest() {
         ExplainRequest explainRequest = new ExplainRequest(randomIndex(), "type", "id");
-        assertThat(explainRequest.requestedIndices(), equalTo(new String[]{explainRequest.index()}));
+        assertThat(explainRequest.requestedIndices(), equalTo(newSet(explainRequest.index())));
     }
 
     @Test
@@ -164,22 +164,22 @@ public class IndicesRelatedRequestTests extends ElasticsearchTestCase {
             analyzeRequest.index(randomIndex());
         }
         if (analyzeRequest.index() == null) {
-            assertThat(analyzeRequest.requestedIndices(), equalTo(Strings.EMPTY_ARRAY));
+            assertThat(analyzeRequest.requestedIndices(), equalTo(newSet()));
         } else {
-            assertThat(analyzeRequest.requestedIndices(), equalTo(new String[]{analyzeRequest.index()}));
+            assertThat(analyzeRequest.requestedIndices(), equalTo(newSet(analyzeRequest.index())));
         }
     }
 
     @Test
     public void testTermVectorRequest() {
         TermVectorRequest termVectorRequest = new TermVectorRequest(randomIndex(), "type", "id");
-        assertThat(termVectorRequest.requestedIndices(), equalTo(new String[]{termVectorRequest.index()}));
+        assertThat(termVectorRequest.requestedIndices(), equalTo(newSet(termVectorRequest.index())));
     }
 
     @Test
     public void testMultiTermVectorRequest() {
         MultiTermVectorsRequest multiTermVectorsRequest = new MultiTermVectorsRequest();
-        List<String> expectedIndices = new ArrayList<>();
+        Set<String> expectedIndices = Sets.newHashSet();
         int numRequests = randomInt(10);
         for (int i = 0; i < numRequests; i++) {
             String randomIndex = randomIndex();
@@ -187,19 +187,19 @@ public class IndicesRelatedRequestTests extends ElasticsearchTestCase {
             expectedIndices.add(randomIndex);
         }
 
-        assertThat(multiTermVectorsRequest.requestedIndices(), equalTo(expectedIndices.toArray(new String[expectedIndices.size()])));
+        assertThat(multiTermVectorsRequest.requestedIndices(), equalTo(expectedIndices));
     }
 
     @Test
     public void testGetRequest() {
         GetRequest getRequest = new GetRequest(randomIndex(), "type", "id");
-        assertThat(getRequest.requestedIndices(), equalTo(new String[]{getRequest.index()}));
+        assertThat(getRequest.requestedIndices(), equalTo(newSet(getRequest.index())));
     }
 
     @Test
     public void testMultiGetRequest() {
         MultiGetRequest multiGetRequest = new MultiGetRequest();
-        List<String> expectedIndices = new ArrayList<>();
+        Set<String> expectedIndices = Sets.newHashSet();
         int numRequests = randomInt(10);
         for (int i = 0; i < numRequests; i++) {
             String randomIndex = randomIndex();
@@ -207,61 +207,61 @@ public class IndicesRelatedRequestTests extends ElasticsearchTestCase {
             expectedIndices.add(randomIndex);
         }
 
-        assertThat(multiGetRequest.requestedIndices(), equalTo(expectedIndices.toArray(new String[expectedIndices.size()])));
+        assertThat(multiGetRequest.requestedIndices(), equalTo(expectedIndices));
     }
 
     @Test
     public void testDeleteIndexedScriptRequest() {
         DeleteIndexedScriptRequest deleteIndexedScriptRequest = new DeleteIndexedScriptRequest();
-        assertThat(deleteIndexedScriptRequest.requestedIndices(), equalTo(new String[]{ScriptService.SCRIPT_INDEX}));
+        assertThat(deleteIndexedScriptRequest.requestedIndices(), equalTo(newSet(ScriptService.SCRIPT_INDEX)));
     }
 
     @Test
     public void testPutIndexedScriptRequest() {
         PutIndexedScriptRequest putIndexedScriptRequest = new PutIndexedScriptRequest();
-        assertThat(putIndexedScriptRequest.requestedIndices(), equalTo(new String[]{ScriptService.SCRIPT_INDEX}));
+        assertThat(putIndexedScriptRequest.requestedIndices(), equalTo(newSet(ScriptService.SCRIPT_INDEX)));
     }
 
     @Test
     public void testGetIndexedScriptRequest() {
         GetIndexedScriptRequest getIndexedScriptRequest = new GetIndexedScriptRequest();
-        assertThat(getIndexedScriptRequest.requestedIndices(), equalTo(new String[]{ScriptService.SCRIPT_INDEX}));
+        assertThat(getIndexedScriptRequest.requestedIndices(), equalTo(newSet(ScriptService.SCRIPT_INDEX)));
     }
 
     @Test
     public void testShardMultiPercolateRequest() {
         TransportShardMultiPercolateAction.Request request = new TransportShardMultiPercolateAction.Request(randomIndex(), 1, "pref");
-        assertThat(request.requestedIndices(), equalTo(new String[]{request.index()}));
+        assertThat(request.requestedIndices(), equalTo(newSet(request.index())));
     }
 
     @Test
     public void testMappingUpdatedRequest() {
         MappingUpdatedAction.MappingUpdatedRequest request = new MappingUpdatedAction.MappingUpdatedRequest(randomIndex(), "uuid", "type", null, 0, "node");
-        assertThat(request.requestedIndices(), equalTo(new String[]{request.index()}));
+        assertThat(request.requestedIndices(), equalTo(newSet(request.index())));
     }
 
     @Test
     public void testNodeMappingRefreshRequest() {
         NodeMappingRefreshAction.NodeMappingRefreshRequest request = new NodeMappingRefreshAction.NodeMappingRefreshRequest(randomIndex(), "uuid", Strings.EMPTY_ARRAY, "node");
-        assertThat(request.requestedIndices(), equalTo(new String[]{request.index()}));
+        assertThat(request.requestedIndices(), equalTo(newSet(request.index())));
     }
 
     @Test
     public void testIndexDeleteRequest() {
         IndexDeleteRequest request = new IndexDeleteRequest(new DeleteRequest(randomIndex()));
-        assertThat(request.requestedIndices(), equalTo(new String[]{request.index()}));
+        assertThat(request.requestedIndices(), equalTo(newSet(request.index())));
     }
 
     @Test
     public void testPercolateShardRequest() {
         PercolateShardRequest request = new PercolateShardRequest(randomIndex(), 1);
-        assertThat(request.requestedIndices(), equalTo(new String[]{request.index()}));
+        assertThat(request.requestedIndices(), equalTo(newSet(request.index())));
     }
 
     @Test
     public void testShardSearchRequest() {
         ShardSearchRequest request = new ShardSearchRequest(randomIndex(), 1, 1, randomFrom(SearchType.values()));
-        assertThat(request.requestedIndices(), equalTo(new String[]{request.index()}));
+        assertThat(request.requestedIndices(), equalTo(newSet(request.index()) ));
     }
 
     private static String randomIndex() {
@@ -284,15 +284,15 @@ public class IndicesRelatedRequestTests extends ElasticsearchTestCase {
     @Test
     public void testMultiSearchRequest() {
         MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
-        List<String> expectedIndices = new ArrayList<>();
+        Set<String> expectedIndices = Sets.newHashSet();
         int numRequests = randomInt(10);
         for (int i = 0; i < numRequests; i++) {
             SearchRequest searchRequest = new SearchRequest().indices(randomNonNullIndices());
             multiSearchRequest.add(searchRequest);
-            Collections.addAll(expectedIndices, expectedIndices(searchRequest.indices()));
+            expectedIndices.addAll(expectedIndices(searchRequest.indices()));
         }
 
-        assertThat(multiSearchRequest.requestedIndices(), equalTo(expectedIndices.toArray(new String[expectedIndices.size()])));
+        assertThat(multiSearchRequest.requestedIndices(), equalTo(expectedIndices));
     }
 
     @Test
@@ -306,7 +306,7 @@ public class IndicesRelatedRequestTests extends ElasticsearchTestCase {
     @Test
     public void testBenchmarkRequest() {
         BenchmarkRequest benchmarkRequest = new BenchmarkRequest();
-        List<String> expectedIndices = new ArrayList<>();
+        Set<String> expectedIndices = Sets.newHashSet();
         int numCompetitors = randomInt(10);
         for (int i = 0; i < numCompetitors; i++) {
             BenchmarkCompetitorBuilder benchmarkCompetitorBuilder = new BenchmarkCompetitorBuilder();
@@ -314,27 +314,27 @@ public class IndicesRelatedRequestTests extends ElasticsearchTestCase {
             for (int j = 0; j < numRequests; j++) {
                 SearchRequest searchRequest = new SearchRequest().indices(randomNonNullIndices());
                 benchmarkCompetitorBuilder.addSearchRequest(searchRequest);
-                Collections.addAll(expectedIndices, expectedIndices(searchRequest.indices()));
+                expectedIndices.addAll(expectedIndices(searchRequest.indices()));
             }
             benchmarkRequest.addCompetitor(benchmarkCompetitorBuilder.build());
         }
 
-        assertThat(benchmarkRequest.requestedIndices(), equalTo(expectedIndices.toArray(new String[expectedIndices.size()])));
+        assertThat(benchmarkRequest.requestedIndices(), equalTo(expectedIndices));
     }
 
     @Test
     public void testMoreLikeThisRequest() {
-        List<String> expectedIndices = new ArrayList<>();
+        Set<String> expectedIndices = Sets.newHashSet();
         String randomIndex = randomIndex();
         MoreLikeThisRequest moreLikeThisRequest = new MoreLikeThisRequest(randomIndex);
         if (randomBoolean()) {
             String[] randomIndices = randomNonNullIndices();
             moreLikeThisRequest.searchIndices(randomIndices);
-            Collections.addAll(expectedIndices, expectedIndices(randomIndices));
+            expectedIndices.addAll(expectedIndices(randomIndices));
         }
         expectedIndices.add(randomIndex);
 
-        assertThat(moreLikeThisRequest.requestedIndices(), equalTo(expectedIndices.toArray(new String[expectedIndices.size()])));
+        assertThat(moreLikeThisRequest.requestedIndices(), equalTo(expectedIndices));
     }
 
     @Test(expected = IllegalStateException.class)
@@ -346,23 +346,20 @@ public class IndicesRelatedRequestTests extends ElasticsearchTestCase {
     @Test
     public void testMultiPercolateRequest() {
         MultiPercolateRequest multiPercolateRequest = new MultiPercolateRequest();
-        List<String> expectedIndices = new ArrayList<>();
+        Set<String> expectedIndices = Sets.newHashSet();
         int iters = randomInt(10);
         for (int i = 0; i < iters; i++) {
             PercolateRequest percolateRequest = new PercolateRequest().indices(randomIndices());
-            String[] indices = expectedIndices(percolateRequest.indices());
+            expectedIndices.addAll(expectedIndices(percolateRequest.indices()));
             if (randomBoolean()) {
-                percolateRequest.getRequest(new GetRequest(randomIndex()));
-                String[] newIndices = new String[indices.length + 1];
-                System.arraycopy(indices, 0, newIndices, 0, indices.length);
-                newIndices[indices.length] = percolateRequest.getRequest().index();
-                indices = newIndices;
+                String randomIndex = randomIndex();
+                percolateRequest.getRequest(new GetRequest(randomIndex));
+                expectedIndices.add(randomIndex);
             }
             multiPercolateRequest.add(percolateRequest);
-            Collections.addAll(expectedIndices, indices);
         }
 
-        assertThat(multiPercolateRequest.requestedIndices(), equalTo(expectedIndices.toArray(new String[expectedIndices.size()])));
+        assertThat(multiPercolateRequest.requestedIndices(), equalTo(expectedIndices));
     }
 
     @Test
@@ -404,13 +401,11 @@ public class IndicesRelatedRequestTests extends ElasticsearchTestCase {
     @Test
     public void testPercolateRequest() {
         PercolateRequest percolateRequest = new PercolateRequest().indices(randomIndices());
-        String[] expectedIndices = expectedIndices(percolateRequest.indices());
+        Set<String> expectedIndices = expectedIndices(percolateRequest.indices());
         if (randomBoolean()) {
-            percolateRequest.getRequest(new GetRequest(randomIndex()));
-            String[] newIndices = new String[expectedIndices.length + 1];
-            System.arraycopy(expectedIndices, 0, newIndices, 0, expectedIndices.length);
-            newIndices[expectedIndices.length] = percolateRequest.getRequest().index();
-            expectedIndices = newIndices;
+            String randomIndex = randomIndex();
+            percolateRequest.getRequest(new GetRequest(randomIndex));
+            expectedIndices.add(randomIndex);
         }
         assertThat(percolateRequest.requestedIndices(), equalTo(expectedIndices));
     }
@@ -555,7 +550,7 @@ public class IndicesRelatedRequestTests extends ElasticsearchTestCase {
 
     @Test
     public void testIndicesAliasesRequest() {
-        List<String> expectedIndices = new ArrayList<>();
+        Set<String> expectedIndices = Sets.newHashSet();
         IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest();
         int iters = randomInt(10);
         for (int i = 0; i < iters; i++) {
@@ -565,7 +560,7 @@ public class IndicesRelatedRequestTests extends ElasticsearchTestCase {
             Collections.addAll(expectedIndices, randomIndices);
         }
 
-        assertThat(indicesAliasesRequest.requestedIndices(), equalTo(expectedIndices.toArray(new String[expectedIndices.size()])));
+        assertThat(indicesAliasesRequest.requestedIndices(), equalTo(expectedIndices));
     }
 
     @Test(expected = IllegalStateException.class)
@@ -593,11 +588,15 @@ public class IndicesRelatedRequestTests extends ElasticsearchTestCase {
         abstract IndicesAliasesRequest.AliasActions aliasActions(String[] indices);
     }
 
-    private static String[] expectedIndices(String... indices) {
+    /*
+    End multiple indices operations
+     */
+
+    private static Set<String> expectedIndices(String... indices) {
         if (MetaData.isAllIndices(indices)) {
-            return new String[]{MetaData.ALL};
+            return Sets.newHashSet(MetaData.ALL);
         }
-        return indices;
+        return Sets.newHashSet(indices);
     }
 
     private static String[] randomIndices() {
@@ -617,7 +616,12 @@ public class IndicesRelatedRequestTests extends ElasticsearchTestCase {
         if (frequently()) {
             randomIndices = new String[randomIntBetween(1, 10)];
             for (int j = 0; j < randomIndices.length; j++) {
-                randomIndices[j] = randomIndex();
+                if (j > 0 && randomBoolean()) {
+                    //ensure we have duplicates
+                    randomIndices[j] = randomIndices[randomInt(j-1)];
+                } else {
+                    randomIndices[j] = randomIndex();
+                }
             }
         } else {
             int randomInt = randomInt(2);
@@ -632,7 +636,7 @@ public class IndicesRelatedRequestTests extends ElasticsearchTestCase {
         return randomIndices;
     }
 
-    /*
-    End multiple indices operations
-     */
+    private static Set<String> newSet(String... indices) {
+        return Sets.newHashSet(indices);
+    }
 }

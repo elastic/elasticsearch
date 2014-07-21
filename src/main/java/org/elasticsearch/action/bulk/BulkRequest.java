@@ -20,6 +20,7 @@
 package org.elasticsearch.action.bulk;
 
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -44,6 +45,7 @@ import org.elasticsearch.index.VersionType;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -464,14 +466,12 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements IndicesRe
     }
 
     @Override
-    public String[] requestedIndices() {
-        String[] indices = new String[requests.size()];
+    public Set<String> requestedIndices() {
+        Set<String> indices = Sets.newHashSet();
         int i = 0;
         for (ActionRequest request : requests) {
             assert request instanceof IndicesRelatedRequest;
-            String[] relatedIndices = ((IndicesRelatedRequest) request).requestedIndices();
-            assert relatedIndices.length == 1;
-            indices[i++] = relatedIndices[0];
+            indices.addAll(((IndicesRelatedRequest) request).requestedIndices());
         }
         return indices;
     }

@@ -19,8 +19,11 @@
 
 package org.elasticsearch.action.suggest;
 
+import com.google.common.collect.Sets;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
+
+import java.util.Set;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
@@ -30,6 +33,6 @@ public class ShardSuggestRequestTests extends ElasticsearchTestCase {
     public void testRelatedIndices() {
         String randomIndex = randomAsciiOfLength(randomInt(30));
         ShardSuggestRequest request = new ShardSuggestRequest(randomIndex, 1, new SuggestRequest());
-        assertThat(request.requestedIndices(), equalTo(new String[]{randomIndex}));
+        assertThat(request.requestedIndices(), equalTo((Set<String>) Sets.newHashSet(randomIndex)));
     }
 }

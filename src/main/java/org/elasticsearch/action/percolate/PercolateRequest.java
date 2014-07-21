@@ -34,6 +34,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -198,14 +199,12 @@ public class PercolateRequest extends BroadcastOperationRequest<PercolateRequest
     }
 
     @Override
-    public String[] requestedIndices() {
-        String[] relatedIndices = super.requestedIndices();
+    public Set<String> requestedIndices() {
+        Set<String> indices = super.requestedIndices();
         if (getRequest == null) {
-            return relatedIndices;
+            return indices;
         }
-        String[] indices = new String[relatedIndices.length + 1];
-        System.arraycopy(relatedIndices, 0, indices, 0, relatedIndices.length);
-        indices[indices.length - 1] = getRequest.index();
+        indices.addAll(getRequest.requestedIndices());
         return indices;
     }
 

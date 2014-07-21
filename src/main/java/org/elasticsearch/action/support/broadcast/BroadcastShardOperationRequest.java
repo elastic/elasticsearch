@@ -19,12 +19,14 @@
 
 package org.elasticsearch.action.support.broadcast;
 
+import com.google.common.collect.Sets;
 import org.elasticsearch.action.IndicesRelatedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
+import java.util.Set;
 
 /**
  *
@@ -53,9 +55,9 @@ public abstract class BroadcastShardOperationRequest extends TransportRequest im
     }
 
     @Override
-    public String[] requestedIndices() {
+    public Set<String> requestedIndices() {
         assert index != null;
-        return new String[]{index};
+        return Sets.newHashSet(index);
     }
 
     public int shardId() {

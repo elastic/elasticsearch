@@ -19,8 +19,11 @@
 
 package org.elasticsearch.action.admin.indices.refresh;
 
+import com.google.common.collect.Sets;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
+
+import java.util.Set;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
@@ -30,6 +33,6 @@ public class ShardRefreshRequestTests extends ElasticsearchTestCase {
     public void testRelatedIndices() {
         String randomIndex = randomAsciiOfLength(randomInt(30));
         ShardRefreshRequest request = new ShardRefreshRequest(randomIndex, 1, new RefreshRequest());
-        assertThat(request.requestedIndices(), equalTo(new String[]{randomIndex}));
+        assertThat(request.requestedIndices(), equalTo((Set<String>) Sets.newHashSet(randomIndex)));
     }
 }

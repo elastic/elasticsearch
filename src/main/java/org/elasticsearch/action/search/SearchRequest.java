@@ -43,6 +43,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.search.Scroll.readScroll;
 
@@ -490,7 +491,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
     }
 
     @Override
-    public String[] requestedIndices() {
+    public Set<String> requestedIndices() {
         return Helper.indicesOrAll(indices);
     }
 

@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.action.index;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -51,10 +52,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -187,9 +185,9 @@ public class MappingUpdatedAction extends TransportMasterNodeOperationAction<Map
         }
 
         @Override
-        public String[] requestedIndices() {
+        public Set<String> requestedIndices() {
             assert index != null;
-            return new String[]{index};
+            return Sets.newHashSet(index);
         }
 
         public String indexUUID() {

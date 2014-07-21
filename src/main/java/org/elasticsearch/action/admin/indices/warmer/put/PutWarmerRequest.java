@@ -28,6 +28,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -99,7 +100,7 @@ public class PutWarmerRequest extends AcknowledgedRequest<PutWarmerRequest> impl
     }
 
     @Override
-    public String[] requestedIndices() {
+    public Set<String> requestedIndices() {
         if (searchRequest == null) {
             throw new IllegalStateException("unable to retrieve indices, search request is null");
         }

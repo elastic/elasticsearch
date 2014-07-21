@@ -29,6 +29,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -69,7 +70,7 @@ public class IndicesExistsRequest extends MasterNodeReadOperationRequest<Indices
     }
 
     @Override
-    public String[] requestedIndices() {
+    public Set<String> requestedIndices() {
         return Helper.indicesOrAll(indices);
     }
 

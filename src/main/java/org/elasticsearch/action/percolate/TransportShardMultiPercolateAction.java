@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.percolate;
 
+import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionResponse;
@@ -45,6 +46,7 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 /**
  */
@@ -133,9 +135,9 @@ public class TransportShardMultiPercolateAction extends TransportShardSingleOper
         }
 
         @Override
-        public String[] requestedIndices() {
+        public Set<String> requestedIndices() {
             assert index != null;
-            return new String[]{index};
+            return Sets.newHashSet(index);
         }
 
         public int shardId() {

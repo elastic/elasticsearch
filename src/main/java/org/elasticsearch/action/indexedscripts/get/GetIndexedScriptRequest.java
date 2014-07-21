@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.indexedscripts.get;
 
+import com.google.common.collect.Sets;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.single.shard.SingleShardOperationRequest;
@@ -31,6 +32,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 
 import java.io.IOException;
+import java.util.Set;
 
 /**
  * A request to get a document (its source) from an index based on its type/language (optional) and id. Best created using
@@ -96,8 +98,8 @@ public class GetIndexedScriptRequest extends SingleShardOperationRequest<GetInde
     }
 
     @Override
-    public String[] requestedIndices() {
-        return new String[]{ScriptService.SCRIPT_INDEX};
+    public Set<String> requestedIndices() {
+        return Sets.newHashSet(ScriptService.SCRIPT_INDEX);
     }
 
     /**

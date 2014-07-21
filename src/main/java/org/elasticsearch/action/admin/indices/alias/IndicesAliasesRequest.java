@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.indices.alias;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRelatedRequest;
@@ -312,15 +313,15 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
     }
 
     @Override
-    public String[] requestedIndices() {
-        List<String> indices = Lists.newArrayList();
+    public Set<String> requestedIndices() {
+        Set<String> indices = Sets.newHashSet();
         for (AliasActions aliasActions : aliasActions()) {
             if (CollectionUtils.isEmpty(aliasActions.indices())) {
                 throw new IllegalStateException("indices are empty or null");
             }
             Collections.addAll(indices, aliasActions.indices());
         }
-        return indices.toArray(new String[indices.size()]);
+        return indices;
     }
 
     @Override

@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.action.admin.indices.analyze;
 
+import com.google.common.collect.Sets;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRelatedRequest;
@@ -28,6 +29,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -89,11 +91,11 @@ public class AnalyzeRequest extends SingleCustomOperationRequest<AnalyzeRequest>
     }
 
     @Override
-    public String[] requestedIndices() {
+    public Set<String> requestedIndices() {
         if (index == null) {
-            return Strings.EMPTY_ARRAY;
+            return Sets.newHashSet();
         }
-        return new String[]{index};
+        return Sets.newHashSet(index);
     }
 
     public AnalyzeRequest analyzer(String analyzer) {

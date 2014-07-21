@@ -30,6 +30,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.Set;
 
 /**
  */
@@ -76,7 +77,7 @@ public class GetSettingsRequest extends MasterNodeReadOperationRequest<GetSettin
     }
 
     @Override
-    public String[] requestedIndices() {
+    public Set<String> requestedIndices() {
         return Helper.indicesOrAll(indices);
     }
 

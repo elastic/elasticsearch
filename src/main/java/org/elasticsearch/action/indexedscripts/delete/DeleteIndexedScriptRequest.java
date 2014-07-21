@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.indexedscripts.delete;
 
+import com.google.common.collect.Sets;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRelatedRequest;
@@ -30,6 +31,7 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.script.ScriptService;
 
 import java.io.IOException;
+import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -89,8 +91,8 @@ public class DeleteIndexedScriptRequest extends ActionRequest<DeleteIndexedScrip
     }
 
     @Override
-    public String[] requestedIndices() {
-        return new String[]{ScriptService.SCRIPT_INDEX};
+    public Set<String> requestedIndices() {
+        return Sets.newHashSet(ScriptService.SCRIPT_INDEX);
     }
 
     /**

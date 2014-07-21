@@ -19,10 +19,14 @@
 
 package org.elasticsearch.action.mlt;
 
+import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.*;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.IndicesRelatedRequest;
+import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Strings;
@@ -37,6 +41,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.search.Scroll.readScroll;
 
@@ -537,17 +542,15 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> impl
     }
 
     @Override
-    public String[] requestedIndices() {
+    public Set<String> requestedIndices() {
         if (index == null) {
             throw new IllegalStateException("index is missing");
         }
         if (searchIndices == null) {
-            return new String[]{index};
+            return Sets.newHashSet(index);
         }
-        String[] indicesOrAll = Helper.indicesOrAll(searchIndices);
-        String[] indices = new String[indicesOrAll.length + 1];
-        System.arraycopy(indicesOrAll, 0, indices, 0, indicesOrAll.length);
-        indices[indices.length - 1] = index;
+        Set<String> indices = Helper.indicesOrAll(searchIndices);
+        indices.add(index);
         return indices;
     }
 

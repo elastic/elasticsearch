@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.action.index;
 
+import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.IndicesRelatedRequest;
 import org.elasticsearch.cluster.ClusterState;
@@ -34,6 +35,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
 import java.io.IOException;
+import java.util.Set;
 
 /**
  *
@@ -104,9 +106,9 @@ public class NodeMappingRefreshAction extends AbstractComponent {
         }
 
         @Override
-        public String[] requestedIndices() {
+        public Set<String> requestedIndices() {
             assert index != null;
-            return new String[]{index};
+            return Sets.newHashSet(index);
         }
 
         public String index() {

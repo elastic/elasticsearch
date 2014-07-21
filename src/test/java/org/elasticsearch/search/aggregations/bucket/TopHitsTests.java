@@ -413,15 +413,25 @@ public class TopHitsTests extends ElasticsearchIntegrationTest {
     }
     
     @Test
-    public void testFailDeferred() throws Exception {
-        
+    public void testFailDeferredOnlyWhenScorerIsUsed() throws Exception {
+        // No track_scores or score based sort defined in top_hits agg, so don't fail:
+        SearchResponse response = client().prepareSearch("idx")
+                .setTypes("type")
+                .addAggregation(
+                        terms("terms").executionHint(randomExecutionHint()).field(TERMS_AGGS_FIELD)
+                                .collectMode(SubAggCollectionMode.BREADTH_FIRST)
+                                .subAggregation(topHits("hits").addSort(SortBuilders.fieldSort(SORT_FIELD).order(SortOrder.DESC))))
+                .get();
+        assertSearchResponse(response);
+
+        // Score based, so fail with deferred aggs:
         try {
             client().prepareSearch("idx")
                     .setTypes("type")
                     .addAggregation(
                             terms("terms").executionHint(randomExecutionHint()).field(TERMS_AGGS_FIELD)
                                     .collectMode(SubAggCollectionMode.BREADTH_FIRST)
-                                    .subAggregation(topHits("hits").addSort(SortBuilders.fieldSort(SORT_FIELD).order(SortOrder.DESC))))
+                                    .subAggregation(topHits("hits")))
                     .get();
             fail();
         } catch (Exception e) {

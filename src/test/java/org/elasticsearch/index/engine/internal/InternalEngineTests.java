@@ -115,7 +115,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         defaultSettings = ImmutableSettings.builder()
                 .put(InternalEngine.INDEX_COMPOUND_ON_FLUSH, getRandom().nextBoolean())
                 .put(InternalEngine.INDEX_GC_DELETES, "1h") // make sure this doesn't kick in on us
-                .put(InternalEngine.ENGINE_FAIL_ON_CORRUPTION, randomBoolean())
+                .put(InternalEngine.INDEX_FAIL_ON_CORRUPTION, randomBoolean())
                 .build(); // TODO randomize more settings
         threadPool = new ThreadPool(getClass().getName());
         store = createStore();
@@ -608,7 +608,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), Lucene.STANDARD_ANALYZER, B_1, false);
         engine.create(new Engine.Create(null, newUid("1"), doc));
         engine.flush(new Engine.Flush());
-        final boolean failEngine = defaultSettings.getAsBoolean(InternalEngine.ENGINE_FAIL_ON_CORRUPTION, false);
+        final boolean failEngine = defaultSettings.getAsBoolean(InternalEngine.INDEX_FAIL_ON_CORRUPTION, false);
         final int failInPhase = randomIntBetween(1,3);
         try {
             engine.recover(new Engine.RecoveryHandler() {

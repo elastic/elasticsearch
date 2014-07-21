@@ -26,19 +26,21 @@ And here is a sample nested query usage:
 [source,js]
 --------------------------------------------------
 {
-    "nested" : {
-        "path" : "obj1",
-        "score_mode" : "avg",
-        "query" : {
-            "bool" : {
-                "must" : [
-                    {
-                        "match" : {"obj1.name" : "blue"}
-                    },
-                    {
-                        "range" : {"obj1.count" : {"gt" : 5}}
-                    }
-                ]
+    "query" : {
+        "nested" : {
+            "path" : "obj1",
+            "score_mode" : "avg",
+            "query" : {
+                "bool" : {
+                    "must" : [
+                        {
+                            "match" : {"obj1.name" : "blue"}
+                        },
+                        {
+                            "range" : {"obj1.count" : {"gt" : 5}}
+                        }
+                    ]
+                }
             }
         }
     }

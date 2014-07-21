@@ -19,7 +19,11 @@
 
 package org.elasticsearch.update;
 
+import org.apache.lucene.document.Field;
+import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.util.LuceneTestCase.Slow;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -29,12 +33,19 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.index.merge.policy.AbstractMergePolicyProvider;
+import org.elasticsearch.index.merge.policy.MergePolicyModule;
+import org.elasticsearch.index.merge.policy.TieredMergePolicyProvider;
+import org.elasticsearch.index.store.CorruptedFileTest;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
@@ -524,12 +535,39 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
     }
 
 
+    public static class NoMergePolicyProvider  extends AbstractMergePolicyProvider<MergePolicy> {
+
+        @Inject
+        public NoMergePolicyProvider(Store store) {
+            super(store);
+        }
+
+        @Override
+        public MergePolicy newMergePolicy() {
+            return NoMergePolicy.INSTANCE;
+        }
+
+        @Override
+        public void close() throws ElasticsearchException {
+        }
+    }
+
     @Test
     @Slow
     public void stressUpdateDeleteConcurrency() throws Exception {
-        final boolean useBulkApi = randomBoolean();
-        createIndex();
+        //We create an index with merging disabled so that deletes don't get merged away
+        client().admin().indices().prepareCreate("test")
+                .addMapping("type1", XContentFactory.jsonBuilder()
+                        .startObject()
+                        .startObject("type1")
+                        .startObject("_timestamp").field("enabled", true).field("store", "yes").endObject()
+                        .startObject("_ttl").field("enabled", true).field("store", "yes").endObject()
+                        .endObject()
+                        .endObject())
+                .setSettings(ImmutableSettings.builder().put(MergePolicyModule.MERGE_POLICY_TYPE_KEY, NoMergePolicyProvider.class))
+                .execute().actionGet();
         ensureGreen();
+
         final int numberOfThreads = scaledRandomIntBetween(5,20);
         final int numberOfIdsPerThread = scaledRandomIntBetween(3,10);
         final int numberOfUpdatesPerId = scaledRandomIntBetween(100,1000);

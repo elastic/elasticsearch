@@ -154,7 +154,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
         this.publishClusterState = new PublishClusterStateAction(settings, transportService, this, new NewClusterStateListener(), discoverySettings);
         this.pingService.setNodesProvider(this);
-        this.membership = new MembershipAction(settings, transportService, this, new MembershipListener());
+        this.membership = new MembershipAction(settings, clusterService, transportService, this, new MembershipListener());
 
         transportService.registerHandler(RejoinClusterRequestHandler.ACTION, new RejoinClusterRequestHandler());
     }
@@ -720,11 +720,10 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         } else {
             // try and connect to the node, if it fails, we can raise an exception back to the client...
             transportService.connectToNode(node);
-            ClusterState state = clusterService.state();
 
             // validate the join request, will throw a failure if it fails, which will get back to the
             // node calling the join request
-            membership.sendValidateJoinRequestBlocking(node, state, joinTimeout);
+            membership.sendValidateJoinRequestBlocking(node, joinTimeout);
 
             clusterService.submitStateUpdateTask("zen-disco-receive(join from node[" + node + "])", Priority.IMMEDIATE, new ProcessedClusterStateUpdateTask() {
                 @Override
@@ -755,7 +754,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
                 @Override
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                    callback.onSuccess(newState);
+                    callback.onSuccess();
                 }
             });
         }

@@ -98,7 +98,7 @@ public class OpenIndexRequest extends AcknowledgedRequest<OpenIndexRequest> impl
     }
 
     @Override
-    public String[] relatedIndices() {
+    public String[] requestedIndices() {
         return Helper.indicesOrAll(indices);
     }
 

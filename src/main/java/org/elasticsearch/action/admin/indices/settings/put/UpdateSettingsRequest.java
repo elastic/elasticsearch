@@ -141,7 +141,7 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
     }
 
     @Override
-    public String[] relatedIndices() {
+    public String[] requestedIndices() {
         return Helper.indicesOrAll(indices);
     }
 

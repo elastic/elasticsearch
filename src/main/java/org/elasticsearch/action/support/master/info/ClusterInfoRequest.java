@@ -68,7 +68,7 @@ public abstract class ClusterInfoRequest<T extends ClusterInfoRequest> extends M
     }
 
     @Override
-    public String[] relatedIndices() {
+    public String[] requestedIndices() {
         return Helper.indicesOrAll(indices);
     }
 

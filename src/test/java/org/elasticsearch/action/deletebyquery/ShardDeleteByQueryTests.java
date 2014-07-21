@@ -30,6 +30,6 @@ public class ShardDeleteByQueryTests extends ElasticsearchTestCase {
     public void testRelatedIndices() {
         String randomIndex = randomAsciiOfLength(randomInt(30));
         ShardDeleteByQueryRequest request = new ShardDeleteByQueryRequest(new IndexDeleteByQueryRequest().index(randomIndex), 1);
-        assertThat(request.relatedIndices(), equalTo(new String[]{randomIndex}));
+        assertThat(request.requestedIndices(), equalTo(new String[]{randomIndex}));
     }
 }

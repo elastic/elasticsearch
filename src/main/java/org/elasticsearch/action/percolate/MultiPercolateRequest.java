@@ -351,10 +351,10 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
     }
 
     @Override
-    public String[] relatedIndices() {
+    public String[] requestedIndices() {
         List<String> indices = Lists.newArrayList();
         for (PercolateRequest percolateRequest : requests()) {
-            Collections.addAll(indices, percolateRequest.relatedIndices());
+            Collections.addAll(indices, percolateRequest.requestedIndices());
         }
         return indices.toArray(new String[indices.size()]);
     }

@@ -253,7 +253,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
     }
 
     @Override
-    public String[] relatedIndices() {
+    public String[] requestedIndices() {
         return Helper.indicesOrAll(indices);
     }
 

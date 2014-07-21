@@ -490,7 +490,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
     }
 
     @Override
-    public String[] relatedIndices() {
+    public String[] requestedIndices() {
         return Helper.indicesOrAll(indices);
     }
 

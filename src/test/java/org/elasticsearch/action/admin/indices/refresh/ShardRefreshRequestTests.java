@@ -30,6 +30,6 @@ public class ShardRefreshRequestTests extends ElasticsearchTestCase {
     public void testRelatedIndices() {
         String randomIndex = randomAsciiOfLength(randomInt(30));
         ShardRefreshRequest request = new ShardRefreshRequest(randomIndex, 1, new RefreshRequest());
-        assertThat(request.relatedIndices(), equalTo(new String[]{randomIndex}));
+        assertThat(request.requestedIndices(), equalTo(new String[]{randomIndex}));
     }
 }

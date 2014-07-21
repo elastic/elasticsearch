@@ -76,7 +76,7 @@ public class GetSettingsRequest extends MasterNodeReadOperationRequest<GetSettin
     }
 
     @Override
-    public String[] relatedIndices() {
+    public String[] requestedIndices() {
         return Helper.indicesOrAll(indices);
     }
 

@@ -104,7 +104,7 @@ public class NodeMappingRefreshAction extends AbstractComponent {
         }
 
         @Override
-        public String[] relatedIndices() {
+        public String[] requestedIndices() {
             return new String[]{index};
         }
 

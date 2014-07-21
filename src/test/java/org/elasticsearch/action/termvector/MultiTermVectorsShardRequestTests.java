@@ -30,6 +30,6 @@ public class MultiTermVectorsShardRequestTests extends ElasticsearchTestCase {
     public void testRelatedIndices() {
         String randomIndex = randomAsciiOfLength(randomInt(30));
         MultiTermVectorsShardRequest request = new MultiTermVectorsShardRequest(randomIndex, 1);
-        assertThat(request.relatedIndices(), equalTo(new String[]{randomIndex}));
+        assertThat(request.requestedIndices(), equalTo(new String[]{randomIndex}));
     }
 }

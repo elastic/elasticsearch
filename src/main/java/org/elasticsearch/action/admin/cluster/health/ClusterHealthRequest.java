@@ -140,7 +140,7 @@ public class ClusterHealthRequest extends MasterNodeReadOperationRequest<Cluster
     }
 
     @Override
-    public String[] relatedIndices() {
+    public String[] requestedIndices() {
         return Helper.indicesOrAll(indices);
     }
 

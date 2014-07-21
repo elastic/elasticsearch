@@ -120,7 +120,7 @@ public class DeleteIndexRequest extends MasterNodeOperationRequest<DeleteIndexRe
     }
 
     @Override
-    public String[] relatedIndices() {
+    public String[] requestedIndices() {
         return Helper.indicesOrAll(indices);
     }
 

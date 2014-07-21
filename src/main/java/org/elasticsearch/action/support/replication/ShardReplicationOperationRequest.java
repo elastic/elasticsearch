@@ -125,7 +125,7 @@ public abstract class ShardReplicationOperationRequest<T extends ShardReplicatio
     }
 
     @Override
-    public String[] relatedIndices() {
+    public String[] requestedIndices() {
         return new String[]{index};
     }
 

@@ -187,7 +187,7 @@ public class MappingUpdatedAction extends TransportMasterNodeOperationAction<Map
         }
 
         @Override
-        public String[] relatedIndices() {
+        public String[] requestedIndices() {
             return new String[]{index};
         }
 

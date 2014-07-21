@@ -89,7 +89,7 @@ public class DeleteIndexedScriptRequest extends ActionRequest<DeleteIndexedScrip
     }
 
     @Override
-    public String[] relatedIndices() {
+    public String[] requestedIndices() {
         return new String[]{ScriptService.SCRIPT_INDEX};
     }
 

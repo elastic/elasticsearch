@@ -113,7 +113,7 @@ public class PutIndexedScriptRequest extends ActionRequest<PutIndexedScriptReque
     }
 
     @Override
-    public String[] relatedIndices() {
+    public String[] requestedIndices() {
         return new String[]{ScriptService.SCRIPT_INDEX};
     }
 

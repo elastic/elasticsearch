@@ -89,7 +89,7 @@ public class AnalyzeRequest extends SingleCustomOperationRequest<AnalyzeRequest>
     }
 
     @Override
-    public String[] relatedIndices() {
+    public String[] requestedIndices() {
         if (index == null) {
             return new String[0];
         }

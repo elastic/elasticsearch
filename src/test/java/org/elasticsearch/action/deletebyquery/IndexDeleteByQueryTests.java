@@ -30,6 +30,6 @@ public class IndexDeleteByQueryTests extends ElasticsearchTestCase {
     public void testRelatedIndices() {
         String randomIndex = randomAsciiOfLength(randomInt(30));
         IndexDeleteByQueryRequest request = new IndexDeleteByQueryRequest(new DeleteByQueryRequest(), randomIndex, null, null, -1);
-        assertThat(request.relatedIndices(), equalTo(new String[]{randomIndex}));
+        assertThat(request.requestedIndices(), equalTo(new String[]{randomIndex}));
     }
 }

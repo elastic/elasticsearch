@@ -133,7 +133,7 @@ public class TransportShardMultiPercolateAction extends TransportShardSingleOper
         }
 
         @Override
-        public String[] relatedIndices() {
+        public String[] requestedIndices() {
             return new String[]{index};
         }
 

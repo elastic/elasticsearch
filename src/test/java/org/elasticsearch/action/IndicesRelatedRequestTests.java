@@ -97,19 +97,19 @@ public class IndicesRelatedRequestTests extends ElasticsearchTestCase {
     @Test
     public void testIndexRequest() {
         IndexRequest indexRequest = new IndexRequest(randomIndex());
-        assertThat(indexRequest.relatedIndices(), equalTo(new String[]{indexRequest.index()}));
+        assertThat(indexRequest.requestedIndices(), equalTo(new String[]{indexRequest.index()}));
     }
 
     @Test
     public void testDeleteRequest() {
         DeleteRequest deleteRequest = new DeleteRequest(randomIndex());
-        assertThat(deleteRequest.relatedIndices(), equalTo(new String[]{deleteRequest.index()}));
+        assertThat(deleteRequest.requestedIndices(), equalTo(new String[]{deleteRequest.index()}));
     }
 
     @Test
     public void testUpdateRequest() {
         UpdateRequest updateRequest = new UpdateRequest(randomIndex(), "type", "id");
-        assertThat(updateRequest.relatedIndices(), equalTo(new String[]{updateRequest.index()}));
+        assertThat(updateRequest.requestedIndices(), equalTo(new String[]{updateRequest.index()}));
     }
 
     @Test
@@ -124,7 +124,7 @@ public class IndicesRelatedRequestTests extends ElasticsearchTestCase {
             expectedIndices.add(randomIndex);
         }
 
-        assertThat(bulkRequest.relatedIndices(), equalTo(expectedIndices.toArray(new String[expectedIndices.size()])));
+        assertThat(bulkRequest.requestedIndices(), equalTo(expectedIndices.toArray(new String[expectedIndices.size()])));
     }
 
     private static enum BulkOperation {
@@ -153,7 +153,7 @@ public class IndicesRelatedRequestTests extends ElasticsearchTestCase {
     @Test
     public void testExplainRequest() {
         ExplainRequest explainRequest = new ExplainRequest(randomIndex(), "type", "id");
-        assertThat(explainRequest.relatedIndices(), equalTo(new String[]{explainRequest.index()}));
+        assertThat(explainRequest.requestedIndices(), equalTo(new String[]{explainRequest.index()}));
     }
 
     @Test
@@ -163,16 +163,16 @@ public class IndicesRelatedRequestTests extends ElasticsearchTestCase {
             analyzeRequest.index(randomIndex());
         }
         if (analyzeRequest.index() == null) {
-            assertThat(analyzeRequest.relatedIndices(), equalTo(new String[0]));
+            assertThat(analyzeRequest.requestedIndices(), equalTo(new String[0]));
         } else {
-            assertThat(analyzeRequest.relatedIndices(), equalTo(new String[]{analyzeRequest.index()}));
+            assertThat(analyzeRequest.requestedIndices(), equalTo(new String[]{analyzeRequest.index()}));
         }
     }
 
     @Test
     public void testTermVectorRequest() {
         TermVectorRequest termVectorRequest = new TermVectorRequest(randomIndex(), "type", "id");
-        assertThat(termVectorRequest.relatedIndices(), equalTo(new String[]{termVectorRequest.index()}));
+        assertThat(termVectorRequest.requestedIndices(), equalTo(new String[]{termVectorRequest.index()}));
     }
 
     @Test
@@ -186,13 +186,13 @@ public class IndicesRelatedRequestTests extends ElasticsearchTestCase {
             expectedIndices.add(randomIndex);
         }
 
-        assertThat(multiTermVectorsRequest.relatedIndices(), equalTo(expectedIndices.toArray(new String[expectedIndices.size()])));
+        assertThat(multiTermVectorsRequest.requestedIndices(), equalTo(expectedIndices.toArray(new String[expectedIndices.size()])));
     }
 
     @Test
     public void testGetRequest() {
         GetRequest getRequest = new GetRequest(randomIndex(), "type", "id");
-        assertThat(getRequest.relatedIndices(), equalTo(new String[]{getRequest.index()}));
+        assertThat(getRequest.requestedIndices(), equalTo(new String[]{getRequest.index()}));
     }
 
     @Test
@@ -206,61 +206,61 @@ public class IndicesRelatedRequestTests extends ElasticsearchTestCase {
             expectedIndices.add(randomIndex);
         }
 
-        assertThat(multiGetRequest.relatedIndices(), equalTo(expectedIndices.toArray(new String[expectedIndices.size()])));
+        assertThat(multiGetRequest.requestedIndices(), equalTo(expectedIndices.toArray(new String[expectedIndices.size()])));
     }
 
     @Test
     public void testDeleteIndexedScriptRequest() {
         DeleteIndexedScriptRequest deleteIndexedScriptRequest = new DeleteIndexedScriptRequest();
-        assertThat(deleteIndexedScriptRequest.relatedIndices(), equalTo(new String[]{ScriptService.SCRIPT_INDEX}));
+        assertThat(deleteIndexedScriptRequest.requestedIndices(), equalTo(new String[]{ScriptService.SCRIPT_INDEX}));
     }
 
     @Test
     public void testPutIndexedScriptRequest() {
         PutIndexedScriptRequest putIndexedScriptRequest = new PutIndexedScriptRequest();
-        assertThat(putIndexedScriptRequest.relatedIndices(), equalTo(new String[]{ScriptService.SCRIPT_INDEX}));
+        assertThat(putIndexedScriptRequest.requestedIndices(), equalTo(new String[]{ScriptService.SCRIPT_INDEX}));
     }
 
     @Test
     public void testGetIndexedScriptRequest() {
         GetIndexedScriptRequest getIndexedScriptRequest = new GetIndexedScriptRequest();
-        assertThat(getIndexedScriptRequest.relatedIndices(), equalTo(new String[]{ScriptService.SCRIPT_INDEX}));
+        assertThat(getIndexedScriptRequest.requestedIndices(), equalTo(new String[]{ScriptService.SCRIPT_INDEX}));
     }
 
     @Test
     public void testShardMultiPercolateRequest() {
         TransportShardMultiPercolateAction.Request request = new TransportShardMultiPercolateAction.Request(randomIndex(), 1, "pref");
-        assertThat(request.relatedIndices(), equalTo(new String[]{request.index()}));
+        assertThat(request.requestedIndices(), equalTo(new String[]{request.index()}));
     }
 
     @Test
     public void testMappingUpdatedRequest() {
         MappingUpdatedAction.MappingUpdatedRequest request = new MappingUpdatedAction.MappingUpdatedRequest(randomIndex(), "uuid", "type", null, 0, "node");
-        assertThat(request.relatedIndices(), equalTo(new String[]{request.index()}));
+        assertThat(request.requestedIndices(), equalTo(new String[]{request.index()}));
     }
 
     @Test
     public void testNodeMappingRefreshRequest() {
         NodeMappingRefreshAction.NodeMappingRefreshRequest request = new NodeMappingRefreshAction.NodeMappingRefreshRequest(randomIndex(), "uuid", new String[0], "node");
-        assertThat(request.relatedIndices(), equalTo(new String[]{request.index()}));
+        assertThat(request.requestedIndices(), equalTo(new String[]{request.index()}));
     }
 
     @Test
     public void testIndexDeleteRequest() {
         IndexDeleteRequest request = new IndexDeleteRequest(new DeleteRequest(randomIndex()));
-        assertThat(request.relatedIndices(), equalTo(new String[]{request.index()}));
+        assertThat(request.requestedIndices(), equalTo(new String[]{request.index()}));
     }
 
     @Test
     public void testPercolateShardRequest() {
         PercolateShardRequest request = new PercolateShardRequest(randomIndex(), 1);
-        assertThat(request.relatedIndices(), equalTo(new String[]{request.index()}));
+        assertThat(request.requestedIndices(), equalTo(new String[]{request.index()}));
     }
 
     @Test
     public void testShardSearchRequest() {
         ShardSearchRequest request = new ShardSearchRequest(randomIndex(), 1, 1, randomFrom(SearchType.values()));
-        assertThat(request.relatedIndices(), equalTo(new String[]{request.index()}));
+        assertThat(request.requestedIndices(), equalTo(new String[]{request.index()}));
     }
 
     private static String randomIndex() {
@@ -277,7 +277,7 @@ public class IndicesRelatedRequestTests extends ElasticsearchTestCase {
     @Test
     public void testSearchRequest() {
         SearchRequest searchRequest = new SearchRequest().indices(randomNonNullIndices());
-        assertThat(searchRequest.relatedIndices(), equalTo(expectedIndices(searchRequest.indices())));
+        assertThat(searchRequest.requestedIndices(), equalTo(expectedIndices(searchRequest.indices())));
     }
 
     @Test
@@ -291,7 +291,7 @@ public class IndicesRelatedRequestTests extends ElasticsearchTestCase {
             Collections.addAll(expectedIndices, expectedIndices(searchRequest.indices()));
         }
 
-        assertThat(multiSearchRequest.relatedIndices(), equalTo(expectedIndices.toArray(new String[expectedIndices.size()])));
+        assertThat(multiSearchRequest.requestedIndices(), equalTo(expectedIndices.toArray(new String[expectedIndices.size()])));
     }
 
     @Test
@@ -299,7 +299,7 @@ public class IndicesRelatedRequestTests extends ElasticsearchTestCase {
         PutWarmerRequest putWarmerRequest = new PutWarmerRequest("name");
         SearchRequest searchRequest = new SearchRequest().indices(randomNonNullIndices());
         putWarmerRequest.searchRequest(searchRequest);
-        assertThat(putWarmerRequest.relatedIndices(), equalTo(expectedIndices(searchRequest.indices())));
+        assertThat(putWarmerRequest.requestedIndices(), equalTo(expectedIndices(searchRequest.indices())));
     }
 
     @Test
@@ -318,7 +318,7 @@ public class IndicesRelatedRequestTests extends ElasticsearchTestCase {
             benchmarkRequest.addCompetitor(benchmarkCompetitorBuilder.build());
         }
 
-        assertThat(benchmarkRequest.relatedIndices(), equalTo(expectedIndices.toArray(new String[expectedIndices.size()])));
+        assertThat(benchmarkRequest.requestedIndices(), equalTo(expectedIndices.toArray(new String[expectedIndices.size()])));
     }
 
     @Test
@@ -333,7 +333,7 @@ public class IndicesRelatedRequestTests extends ElasticsearchTestCase {
         }
         expectedIndices.add(randomIndex);
 
-        assertThat(moreLikeThisRequest.relatedIndices(), equalTo(expectedIndices.toArray(new String[expectedIndices.size()])));
+        assertThat(moreLikeThisRequest.requestedIndices(), equalTo(expectedIndices.toArray(new String[expectedIndices.size()])));
     }
 
     @Test
@@ -355,43 +355,43 @@ public class IndicesRelatedRequestTests extends ElasticsearchTestCase {
             Collections.addAll(expectedIndices, indices);
         }
 
-        assertThat(multiPercolateRequest.relatedIndices(), equalTo(expectedIndices.toArray(new String[expectedIndices.size()])));
+        assertThat(multiPercolateRequest.requestedIndices(), equalTo(expectedIndices.toArray(new String[expectedIndices.size()])));
     }
 
     @Test
     public void testSuggestRequest() {
         SuggestRequest suggestRequest = new SuggestRequest(randomIndices());
-        assertThat(suggestRequest.relatedIndices(), equalTo(expectedIndices(suggestRequest.indices())));
+        assertThat(suggestRequest.requestedIndices(), equalTo(expectedIndices(suggestRequest.indices())));
     }
 
     @Test
     public void testClearIndicesCacheRequest() {
         ClearIndicesCacheRequest clearIndicesCacheRequest = new ClearIndicesCacheRequest(randomIndices());
-        assertThat(clearIndicesCacheRequest.relatedIndices(), equalTo(expectedIndices(clearIndicesCacheRequest.indices())));
+        assertThat(clearIndicesCacheRequest.requestedIndices(), equalTo(expectedIndices(clearIndicesCacheRequest.indices())));
     }
 
     @Test
     public void testIndicesStatsRequest() {
         IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest().indices(randomIndices());
-        assertThat(indicesStatsRequest.relatedIndices(), equalTo(expectedIndices(indicesStatsRequest.indices())));
+        assertThat(indicesStatsRequest.requestedIndices(), equalTo(expectedIndices(indicesStatsRequest.indices())));
     }
 
     @Test
     public void testIndicesSegmentsRequest() {
         IndicesSegmentsRequest indicesSegmentsRequest = new IndicesSegmentsRequest(randomIndices());
-        assertThat(indicesSegmentsRequest.relatedIndices(), equalTo(expectedIndices(indicesSegmentsRequest.indices())));
+        assertThat(indicesSegmentsRequest.requestedIndices(), equalTo(expectedIndices(indicesSegmentsRequest.indices())));
     }
 
     @Test
     public void testFlushRequest() {
         FlushRequest flushRequest = new FlushRequest(randomIndices());
-        assertThat(flushRequest.relatedIndices(), equalTo(expectedIndices(flushRequest.indices())));
+        assertThat(flushRequest.requestedIndices(), equalTo(expectedIndices(flushRequest.indices())));
     }
 
     @Test
     public void testOptimizeRequest() {
         OptimizeRequest optimizeRequest = new OptimizeRequest(randomIndices());
-        assertThat(optimizeRequest.relatedIndices(), equalTo(expectedIndices(optimizeRequest.indices())));
+        assertThat(optimizeRequest.requestedIndices(), equalTo(expectedIndices(optimizeRequest.indices())));
     }
 
     @Test
@@ -405,145 +405,145 @@ public class IndicesRelatedRequestTests extends ElasticsearchTestCase {
             newIndices[expectedIndices.length] = percolateRequest.getRequest().index();
             expectedIndices = newIndices;
         }
-        assertThat(percolateRequest.relatedIndices(), equalTo(expectedIndices));
+        assertThat(percolateRequest.requestedIndices(), equalTo(expectedIndices));
     }
 
     @Test
     public void testRecoveryRequest() {
         RecoveryRequest recoveryRequest = new RecoveryRequest(randomIndices());
-        assertThat(recoveryRequest.relatedIndices(), equalTo(expectedIndices(recoveryRequest.indices())));
+        assertThat(recoveryRequest.requestedIndices(), equalTo(expectedIndices(recoveryRequest.indices())));
     }
 
     @Test
     public void testCountRequest() {
         CountRequest countRequest = new CountRequest(randomIndices());
-        assertThat(countRequest.relatedIndices(), equalTo(expectedIndices(countRequest.indices())));
+        assertThat(countRequest.requestedIndices(), equalTo(expectedIndices(countRequest.indices())));
     }
 
     @Test
     public void testRefreshRequest() {
         RefreshRequest refreshRequest = new RefreshRequest(randomIndices());
-        assertThat(refreshRequest.relatedIndices(), equalTo(expectedIndices(refreshRequest.indices())));
+        assertThat(refreshRequest.requestedIndices(), equalTo(expectedIndices(refreshRequest.indices())));
     }
 
     @Test
     public void testValidateQueryRequest() {
         ValidateQueryRequest validateQueryRequest = new ValidateQueryRequest(randomIndices());
-        assertThat(validateQueryRequest.relatedIndices(), equalTo(expectedIndices(validateQueryRequest.indices())));
+        assertThat(validateQueryRequest.requestedIndices(), equalTo(expectedIndices(validateQueryRequest.indices())));
     }
 
     @Test
     public void testGetSettingsRequest() {
         GetSettingsRequest getSettingsRequest = new GetSettingsRequest().indices(randomIndices());
-        assertThat(getSettingsRequest.relatedIndices(), equalTo(expectedIndices(getSettingsRequest.indices())));
+        assertThat(getSettingsRequest.requestedIndices(), equalTo(expectedIndices(getSettingsRequest.indices())));
     }
 
     @Test
     public void testUpdateSettingsRequest() {
         UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest().indices(randomIndices());
-        assertThat(updateSettingsRequest.relatedIndices(), equalTo(expectedIndices(updateSettingsRequest.indices())));
+        assertThat(updateSettingsRequest.requestedIndices(), equalTo(expectedIndices(updateSettingsRequest.indices())));
     }
 
     @Test
     public void testIndicesExistsRequest() {
         IndicesExistsRequest indicesExistsRequest = new IndicesExistsRequest(randomIndices());
-        assertThat(indicesExistsRequest.relatedIndices(), equalTo(expectedIndices(indicesExistsRequest.indices())));
+        assertThat(indicesExistsRequest.requestedIndices(), equalTo(expectedIndices(indicesExistsRequest.indices())));
     }
 
     @Test
     public void testTypesExistsRequest() {
         TypesExistsRequest typesExistsRequest = new TypesExistsRequest(randomIndices(), "type");
-        assertThat(typesExistsRequest.relatedIndices(), equalTo(expectedIndices(typesExistsRequest.indices())));
+        assertThat(typesExistsRequest.requestedIndices(), equalTo(expectedIndices(typesExistsRequest.indices())));
     }
 
     @Test
     public void testPutMappingRequest() {
         PutMappingRequest putMappingRequest = new PutMappingRequest(randomIndices());
-        assertThat(putMappingRequest.relatedIndices(), equalTo(expectedIndices(putMappingRequest.indices())));
+        assertThat(putMappingRequest.requestedIndices(), equalTo(expectedIndices(putMappingRequest.indices())));
     }
 
     @Test
     public void testDeleteMappingRequest() {
         DeleteMappingRequest deleteMappingRequest = new DeleteMappingRequest(randomIndices());
-        assertThat(deleteMappingRequest.relatedIndices(), equalTo(expectedIndices(deleteMappingRequest.indices())));
+        assertThat(deleteMappingRequest.requestedIndices(), equalTo(expectedIndices(deleteMappingRequest.indices())));
     }
 
     @Test
     public void testGetMappingRequest() {
         GetMappingsRequest getMappingsRequest = new GetMappingsRequest().indices(randomIndices());
-        assertThat(getMappingsRequest.relatedIndices(), equalTo(expectedIndices(getMappingsRequest.indices())));
+        assertThat(getMappingsRequest.requestedIndices(), equalTo(expectedIndices(getMappingsRequest.indices())));
     }
 
     @Test
     public void testGetFieldMappingsRequest() {
         GetFieldMappingsRequest getFieldMappingsRequest = new GetFieldMappingsRequest().indices(randomIndices());
-        assertThat(getFieldMappingsRequest.relatedIndices(), equalTo(expectedIndices(getFieldMappingsRequest.indices())));
+        assertThat(getFieldMappingsRequest.requestedIndices(), equalTo(expectedIndices(getFieldMappingsRequest.indices())));
     }
 
     @Test
     public void testGetWarmerRequest() {
         GetWarmersRequest getWarmersRequest = new GetWarmersRequest().indices(randomIndices());
-        assertThat(getWarmersRequest.relatedIndices(), equalTo(expectedIndices(getWarmersRequest.indices())));
+        assertThat(getWarmersRequest.requestedIndices(), equalTo(expectedIndices(getWarmersRequest.indices())));
     }
 
     @Test
     public void testDeleteWarmerRequest() {
         DeleteWarmerRequest deleteWarmerRequest = new DeleteWarmerRequest("name").indices(randomIndices());
-        assertThat(deleteWarmerRequest.relatedIndices(), equalTo(expectedIndices(deleteWarmerRequest.indices())));
+        assertThat(deleteWarmerRequest.requestedIndices(), equalTo(expectedIndices(deleteWarmerRequest.indices())));
     }
 
     @Test
     public void testOpenIndexRequest() {
         OpenIndexRequest openIndexRequest = new OpenIndexRequest(randomIndices());
-        assertThat(openIndexRequest.relatedIndices(), equalTo(expectedIndices(openIndexRequest.indices())));
+        assertThat(openIndexRequest.requestedIndices(), equalTo(expectedIndices(openIndexRequest.indices())));
     }
 
     @Test
     public void testCloseIndexRequest() {
         CloseIndexRequest closeIndexRequest = new CloseIndexRequest(randomIndices());
-        assertThat(closeIndexRequest.relatedIndices(), equalTo(expectedIndices(closeIndexRequest.indices())));
+        assertThat(closeIndexRequest.requestedIndices(), equalTo(expectedIndices(closeIndexRequest.indices())));
     }
 
     @Test
     public void testDeleteIndexRequest() {
         DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(randomIndices());
-        assertThat(deleteIndexRequest.relatedIndices(), equalTo(expectedIndices(deleteIndexRequest.indices())));
+        assertThat(deleteIndexRequest.requestedIndices(), equalTo(expectedIndices(deleteIndexRequest.indices())));
     }
 
     @Test
     public void testClusterHealthRequest() {
         ClusterHealthRequest clusterHealthRequest = new ClusterHealthRequest(randomIndices());
-        assertThat(clusterHealthRequest.relatedIndices(), equalTo(expectedIndices(clusterHealthRequest.indices())));
+        assertThat(clusterHealthRequest.requestedIndices(), equalTo(expectedIndices(clusterHealthRequest.indices())));
     }
 
     @Test
     public void testClusterStateRequest() {
         ClusterStateRequest clusterStateRequest = new ClusterStateRequest().indices(randomIndices());
-        assertThat(clusterStateRequest.relatedIndices(), equalTo(expectedIndices(clusterStateRequest.indices())));
+        assertThat(clusterStateRequest.requestedIndices(), equalTo(expectedIndices(clusterStateRequest.indices())));
     }
 
     @Test
     public void testClusterSearchShardsRequest() {
         ClusterSearchShardsRequest clusterSearchShardsRequest = new ClusterSearchShardsRequest(randomNonNullIndices());
-        assertThat(clusterSearchShardsRequest.relatedIndices(), equalTo(expectedIndices(clusterSearchShardsRequest.indices())));
+        assertThat(clusterSearchShardsRequest.requestedIndices(), equalTo(expectedIndices(clusterSearchShardsRequest.indices())));
     }
 
     @Test
     public void testDeleteByQueryRequest() {
         DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(randomIndices());
-        assertThat(deleteByQueryRequest.relatedIndices(), equalTo(expectedIndices(deleteByQueryRequest.indices())));
+        assertThat(deleteByQueryRequest.requestedIndices(), equalTo(expectedIndices(deleteByQueryRequest.indices())));
     }
 
     @Test
     public void testCreateSnapshotRequest() {
         CreateSnapshotRequest createSnapshotRequest = new CreateSnapshotRequest("repo", "snap").indices(randomIndices());
-        assertThat(createSnapshotRequest.relatedIndices(), equalTo(expectedIndices(createSnapshotRequest.indices())));
+        assertThat(createSnapshotRequest.requestedIndices(), equalTo(expectedIndices(createSnapshotRequest.indices())));
     }
 
     @Test
     public void testGetAliasesRequest() {
         GetAliasesRequest getAliasesRequest = new GetAliasesRequest(randomIndices());
-        assertThat(getAliasesRequest.relatedIndices(), equalTo(expectedIndices(getAliasesRequest.indices())));
+        assertThat(getAliasesRequest.requestedIndices(), equalTo(expectedIndices(getAliasesRequest.indices())));
     }
 
     @Test
@@ -563,7 +563,7 @@ public class IndicesRelatedRequestTests extends ElasticsearchTestCase {
             Collections.addAll(expectedIndices, randomIndices);
         }
 
-        assertThat(indicesAliasesRequest.relatedIndices(), equalTo(expectedIndices.toArray(new String[expectedIndices.size()])));
+        assertThat(indicesAliasesRequest.requestedIndices(), equalTo(expectedIndices.toArray(new String[expectedIndices.size()])));
     }
 
     private static enum AliasOperation {

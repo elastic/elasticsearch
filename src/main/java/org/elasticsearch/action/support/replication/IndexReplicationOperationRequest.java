@@ -58,7 +58,7 @@ public class IndexReplicationOperationRequest<T extends IndexReplicationOperatio
     }
 
     @Override
-    public String[] relatedIndices() {
+    public String[] requestedIndices() {
         return new String[]{index};
     }
 

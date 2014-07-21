@@ -54,10 +54,10 @@ public class MultiTermVectorsRequest extends ActionRequest<MultiTermVectorsReque
     }
 
     @Override
-    public String[] relatedIndices() {
+    public String[] requestedIndices() {
         List<String> indices = Lists.newArrayList();
         for (TermVectorRequest termVectorRequest : requests) {
-            Collections.addAll(indices, termVectorRequest.relatedIndices());
+            Collections.addAll(indices, termVectorRequest.requestedIndices());
         }
         return indices.toArray(new String[indices.size()]);
     }

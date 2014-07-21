@@ -30,6 +30,6 @@ public class ShardOptimizeRequestTests extends ElasticsearchTestCase {
     public void testRelatedIndices() {
         String randomIndex = randomAsciiOfLength(randomInt(30));
         ShardOptimizeRequest request = new ShardOptimizeRequest(randomIndex, 1, new OptimizeRequest());
-        assertThat(request.relatedIndices(), equalTo(new String[]{randomIndex}));
+        assertThat(request.requestedIndices(), equalTo(new String[]{randomIndex}));
     }
 }

@@ -30,6 +30,6 @@ public class ShardValidateQueryRequestTests extends ElasticsearchTestCase {
     public void testRelatedIndices() {
         String randomIndex = randomAsciiOfLength(randomInt(30));
         ShardValidateQueryRequest request = new ShardValidateQueryRequest(randomIndex, 1, null, new ValidateQueryRequest());
-        assertThat(request.relatedIndices(), equalTo(new String[]{randomIndex}));
+        assertThat(request.requestedIndices(), equalTo(new String[]{randomIndex}));
     }
 }

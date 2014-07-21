@@ -99,11 +99,11 @@ public class PutWarmerRequest extends AcknowledgedRequest<PutWarmerRequest> impl
     }
 
     @Override
-    public String[] relatedIndices() {
+    public String[] requestedIndices() {
         if (searchRequest == null) {
             throw new IllegalArgumentException("unable to retrieve indices, search request is null");
         }
-        return searchRequest.relatedIndices();
+        return searchRequest.requestedIndices();
     }
 
     @Override

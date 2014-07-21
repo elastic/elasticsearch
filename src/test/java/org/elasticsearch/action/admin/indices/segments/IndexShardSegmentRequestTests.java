@@ -30,6 +30,6 @@ public class IndexShardSegmentRequestTests extends ElasticsearchTestCase {
     public void testRelatedIndices() {
         String randomIndex = randomAsciiOfLength(randomInt(30));
         TransportIndicesSegmentsAction.IndexShardSegmentRequest request = new TransportIndicesSegmentsAction.IndexShardSegmentRequest(randomIndex, 1, new IndicesSegmentsRequest());
-        assertThat(request.relatedIndices(), equalTo(new String[]{randomIndex}));
+        assertThat(request.requestedIndices(), equalTo(new String[]{randomIndex}));
     }
 }

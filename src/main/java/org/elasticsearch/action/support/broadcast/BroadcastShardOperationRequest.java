@@ -53,7 +53,7 @@ public abstract class BroadcastShardOperationRequest extends TransportRequest im
     }
 
     @Override
-    public String[] relatedIndices() {
+    public String[] requestedIndices() {
         return new String[]{index};
     }
 

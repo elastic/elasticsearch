@@ -30,6 +30,6 @@ public class GetFieldMappingsIndexRequestTests extends ElasticsearchTestCase {
     public void testRelatedIndices() {
         String randomIndex = randomAsciiOfLength(randomInt(30));
         GetFieldMappingsIndexRequest request = new GetFieldMappingsIndexRequest(new GetFieldMappingsRequest(), randomIndex, false);
-        assertThat(request.relatedIndices(), equalTo(new String[]{randomIndex}));
+        assertThat(request.requestedIndices(), equalTo(new String[]{randomIndex}));
     }
 }

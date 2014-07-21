@@ -198,8 +198,8 @@ public class PercolateRequest extends BroadcastOperationRequest<PercolateRequest
     }
 
     @Override
-    public String[] relatedIndices() {
-        String[] relatedIndices = super.relatedIndices();
+    public String[] requestedIndices() {
+        String[] relatedIndices = super.requestedIndices();
         if (getRequest == null) {
             return relatedIndices;
         }

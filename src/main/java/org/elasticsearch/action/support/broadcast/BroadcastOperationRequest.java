@@ -79,7 +79,7 @@ public abstract class BroadcastOperationRequest<T extends BroadcastOperationRequ
     }
 
     @Override
-    public String[] relatedIndices() {
+    public String[] requestedIndices() {
         return Helper.indicesOrAll(indices);
     }
 

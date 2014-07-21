@@ -70,7 +70,7 @@ public abstract class InstanceShardOperationRequest<T extends InstanceShardOpera
     }
 
     @Override
-    public String[] relatedIndices() {
+    public String[] requestedIndices() {
         return new String[]{index};
     }
 

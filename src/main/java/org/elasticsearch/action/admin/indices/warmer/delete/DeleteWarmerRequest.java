@@ -124,7 +124,7 @@ public class DeleteWarmerRequest extends AcknowledgedRequest<DeleteWarmerRequest
     }
 
     @Override
-    public String[] relatedIndices() {
+    public String[] requestedIndices() {
         return Helper.indicesOrAll(indices);
     }
 

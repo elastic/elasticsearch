@@ -472,7 +472,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
     }
 
     @Override
-    public String[] relatedIndices() {
+    public String[] requestedIndices() {
         String[] indices = new String[items.size()];
         int i = 0;
         for (Item item : items) {

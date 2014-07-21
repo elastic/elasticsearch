@@ -122,7 +122,7 @@ public class DeleteMappingRequest extends AcknowledgedRequest<DeleteMappingReque
     }
 
     @Override
-    public String[] relatedIndices() {
+    public String[] requestedIndices() {
         return Helper.indicesOrAll(indices);
     }
 

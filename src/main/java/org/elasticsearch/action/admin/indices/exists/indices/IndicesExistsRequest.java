@@ -69,7 +69,7 @@ public class IndicesExistsRequest extends MasterNodeReadOperationRequest<Indices
     }
 
     @Override
-    public String[] relatedIndices() {
+    public String[] requestedIndices() {
         return Helper.indicesOrAll(indices);
     }
 

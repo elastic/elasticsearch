@@ -112,7 +112,7 @@ public class ClusterStateRequest extends MasterNodeReadOperationRequest<ClusterS
     }
 
     @Override
-    public String[] relatedIndices() {
+    public String[] requestedIndices() {
         return Helper.indicesOrAll(indices);
     }
 

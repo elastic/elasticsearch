@@ -30,6 +30,6 @@ public class ShardRecoveryRequestTests extends ElasticsearchTestCase {
     public void testRelatedIndices() {
         String randomIndex = randomAsciiOfLength(randomInt(30));
         TransportRecoveryAction.ShardRecoveryRequest request = new TransportRecoveryAction.ShardRecoveryRequest(randomIndex, 1, new RecoveryRequest());
-        assertThat(request.relatedIndices(), equalTo(new String[]{randomIndex}));
+        assertThat(request.requestedIndices(), equalTo(new String[]{randomIndex}));
     }
 }

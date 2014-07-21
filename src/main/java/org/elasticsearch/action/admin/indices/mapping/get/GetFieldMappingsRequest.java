@@ -124,7 +124,7 @@ public class GetFieldMappingsRequest extends ActionRequest<GetFieldMappingsReque
     }
 
     @Override
-    public String[] relatedIndices() {
+    public String[] requestedIndices() {
         return Helper.indicesOrAll(indices);
     }
 

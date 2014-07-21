@@ -255,10 +255,10 @@ public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> implem
     }
 
     @Override
-    public String[] relatedIndices() {
+    public String[] requestedIndices() {
         List<String> indices = Lists.newArrayList();
         for (SearchRequest searchRequest : requests()) {
-            Collections.addAll(indices, searchRequest.relatedIndices());
+            Collections.addAll(indices, searchRequest.requestedIndices());
         }
         return indices.toArray(new String[indices.size()]);
     }

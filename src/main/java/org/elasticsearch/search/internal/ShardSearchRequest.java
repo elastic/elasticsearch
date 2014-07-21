@@ -114,7 +114,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesRelat
     }
 
     @Override
-    public String[] relatedIndices() {
+    public String[] requestedIndices() {
         return new String[]{index};
     }
 

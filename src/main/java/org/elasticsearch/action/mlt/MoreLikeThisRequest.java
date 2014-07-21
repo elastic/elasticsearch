@@ -537,7 +537,7 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> impl
     }
 
     @Override
-    public String[] relatedIndices() {
+    public String[] requestedIndices() {
         if (searchIndices == null) {
             return new String[]{index};
         }

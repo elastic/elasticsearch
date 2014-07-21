@@ -82,7 +82,7 @@ public class GetAliasesRequest extends MasterNodeReadOperationRequest<GetAliases
     }
 
     @Override
-    public String[] relatedIndices() {
+    public String[] requestedIndices() {
         return Helper.indicesOrAll(indices);
     }
 

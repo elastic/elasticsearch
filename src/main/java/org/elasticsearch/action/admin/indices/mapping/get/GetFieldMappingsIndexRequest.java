@@ -81,7 +81,7 @@ class GetFieldMappingsIndexRequest extends SingleCustomOperationRequest<GetField
     }
 
     @Override
-    public String[] relatedIndices() {
+    public String[] requestedIndices() {
         return new String[]{index};
     }
 

@@ -96,7 +96,7 @@ public class GetIndexedScriptRequest extends SingleShardOperationRequest<GetInde
     }
 
     @Override
-    public String[] relatedIndices() {
+    public String[] requestedIndices() {
         return new String[]{ScriptService.SCRIPT_INDEX};
     }
 

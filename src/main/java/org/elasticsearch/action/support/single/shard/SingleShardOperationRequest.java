@@ -67,7 +67,7 @@ public abstract class SingleShardOperationRequest<T extends SingleShardOperation
     }
 
     @Override
-    public String[] relatedIndices() {
+    public String[] requestedIndices() {
         return new String[]{index};
     }
 

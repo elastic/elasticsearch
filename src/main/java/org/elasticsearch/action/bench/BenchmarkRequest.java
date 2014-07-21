@@ -242,11 +242,11 @@ public class BenchmarkRequest extends MasterNodeOperationRequest<BenchmarkReques
     }
 
     @Override
-    public String[] relatedIndices() {
+    public String[] requestedIndices() {
         List<String> indices = Lists.newArrayList();
         for (BenchmarkCompetitor competitor : competitors) {
             for (SearchRequest searchRequest : competitor.settings().searchRequests()) {
-                Collections.addAll(indices, searchRequest.relatedIndices());
+                Collections.addAll(indices, searchRequest.requestedIndices());
             }
         }
         return indices.toArray(new String[indices.size()]);

@@ -30,6 +30,6 @@ public class ShardClearIndicesCacheRequestTests extends ElasticsearchTestCase {
     public void testRelatedIndices() {
         String randomIndex = randomAsciiOfLength(randomInt(30));
         ShardClearIndicesCacheRequest request = new ShardClearIndicesCacheRequest(randomIndex, 1, new ClearIndicesCacheRequest());
-        assertThat(request.relatedIndices(), equalTo(new String[]{randomIndex}));
+        assertThat(request.requestedIndices(), equalTo(new String[]{randomIndex}));
     }
 }

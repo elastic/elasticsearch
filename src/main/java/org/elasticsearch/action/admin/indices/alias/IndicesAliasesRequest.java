@@ -308,7 +308,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
     }
 
     @Override
-    public String[] relatedIndices() {
+    public String[] requestedIndices() {
         List<String> indices = Lists.newArrayList();
         for (AliasActions aliasActions : aliasActions()) {
             Collections.addAll(indices, aliasActions.indices());

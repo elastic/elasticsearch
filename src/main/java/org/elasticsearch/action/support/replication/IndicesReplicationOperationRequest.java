@@ -131,7 +131,7 @@ public class IndicesReplicationOperationRequest<T extends IndicesReplicationOper
     }
 
     @Override
-    public String[] relatedIndices() {
+    public String[] requestedIndices() {
         return Helper.indicesOrAll(indices);
     }
 

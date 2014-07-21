@@ -30,7 +30,7 @@ public interface IndicesRelatedRequest {
     /**
      * Returns the indices the action relates to
      */
-    String[] relatedIndices();
+    String[] requestedIndices();
 
     public static class Helper {
         public static String[] indicesOrAll(String... indices) {

@@ -272,7 +272,7 @@ parameter. For example:
 --------------------------------------------------
 $ curl -XPUT localhost:9200/twitter/tweet/1?timestamp=2009-11-15T14%3A12%3A12 -d '{
     "user" : "kimchy",
-    "message" : "trying out Elasticsearch",
+    "message" : "trying out Elasticsearch"
 }'
 --------------------------------------------------
 

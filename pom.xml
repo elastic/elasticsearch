@@ -301,7 +301,7 @@
                             <excludes>
                                 <exclude>jsr166e/**</exclude>
                                 <!-- start excludes for valid system-out -->
-                                <exclude>org/elasticsearch/shield/support/CmdLineTool*</exclude>
+                                <exclude>org/elasticsearch/shield/support/cli/Terminal*</exclude>
                                 <exclude>org/elasticsearch/common/logging/log4j/ConsoleAppender*</exclude>
                                 <exclude>org/elasticsearch/plugins/PluginManager.class</exclude>
                                 <exclude>org/elasticsearch/bootstrap/Bootstrap.class</exclude>

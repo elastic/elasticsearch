@@ -1,0 +1,16 @@
+USAGE:
+
+   esusers userdel <username>
+
+DESCRIPTION:
+
+   Removes an existing native user from elasticsearch. The user will be
+   removed from the users file and its roles will be removed to the
+   users_roles file. If non-default files are used (different file
+   locations are configured in elasticsearch.yml) the appropriate files
+   will be resolved from the settings and the user and its roles will be
+   removed to them.
+
+OPTIONS:
+
+   -h,--help     Shows this message

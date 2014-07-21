@@ -51,7 +51,7 @@ public class FileUserPasswdStore extends AbstractComponent implements UserPasswd
 
     FileUserPasswdStore(Settings settings, Environment env, ResourceWatcherService watcherService, Listener listener) {
         super(settings);
-        file = resolveFile(componentSettings, env);
+        file = resolveFile(settings, env);
         esUsers = ImmutableMap.copyOf(parseFile(file, logger));
         watcher = new FileWatcher(file.getParent().toFile());
         watcher.addListener(new FileListener());
@@ -72,7 +72,7 @@ public class FileUserPasswdStore extends AbstractComponent implements UserPasswd
     }
 
     public static Path resolveFile(Settings settings, Environment env) {
-        String location = settings.get("file.users");
+        String location = settings.get("shield.authc.esusers.files.users");
         if (location == null) {
             return env.configFile().toPath().resolve(".users");
         }
@@ -110,9 +110,9 @@ public class FileUserPasswdStore extends AbstractComponent implements UserPasswd
     }
 
     public static void writeFile(Map<String, char[]> esUsers, Path path) {
-        try (PrintWriter writer = new PrintWriter(Files.newBufferedWriter(path, Charsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.WRITE))) {
+        try (PrintWriter writer = new PrintWriter(Files.newBufferedWriter(path, Charsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE))) {
             for (Map.Entry<String, char[]> entry : esUsers.entrySet()) {
-                writer.printf(Locale.ROOT, "{}\t{}", entry.getKey(), new String(entry.getValue()));
+                writer.printf(Locale.ROOT, "%s:%s%s", entry.getKey(), new String(entry.getValue()), System.lineSeparator());
             }
         } catch (IOException ioe) {
             throw new ElasticsearchException("Could not write users file [" + path.toAbsolutePath() + "], please check file permissions", ioe);

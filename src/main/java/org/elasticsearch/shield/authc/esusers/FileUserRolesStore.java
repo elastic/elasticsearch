@@ -8,6 +8,7 @@ package org.elasticsearch.shield.authc.esusers;
 import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -52,7 +53,7 @@ public class FileUserRolesStore extends AbstractComponent implements UserRolesSt
 
     FileUserRolesStore(Settings settings, Environment env, ResourceWatcherService watcherService, Listener listener) {
         super(settings);
-        file = resolveFile(componentSettings, env);
+        file = resolveFile(settings, env);
         userRoles = ImmutableMap.copyOf(parseFile(file, logger));
         FileWatcher watcher = new FileWatcher(file.getParent().toFile());
         watcher.addListener(new FileListener());
@@ -65,7 +66,7 @@ public class FileUserRolesStore extends AbstractComponent implements UserRolesSt
     }
 
     public static Path resolveFile(Settings settings, Environment env) {
-        String location = settings.get("file.users_roles");
+        String location = settings.get("shield.authc.esusers.files.users_roles");
         if (location == null) {
             return env.configFile().toPath().resolve(".users_roles");
         }
@@ -104,9 +105,9 @@ public class FileUserRolesStore extends AbstractComponent implements UserRolesSt
     }
 
     public static void writeFile(Map<String, String[]> userRoles, Path path) {
-        try (PrintWriter writer = new PrintWriter(Files.newBufferedWriter(path, Charsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.WRITE))) {
+        try (PrintWriter writer = new PrintWriter(Files.newBufferedWriter(path, Charsets.UTF_8, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.CREATE, StandardOpenOption.WRITE))) {
             for (Map.Entry<String, String[]> entry : userRoles.entrySet()) {
-                writer.printf(Locale.ROOT, "{}\t{}", entry.getKey(), Strings.arrayToCommaDelimitedString(entry.getValue()));
+                writer.printf(Locale.ROOT, "%s:%s%s", entry.getKey(), Strings.arrayToCommaDelimitedString(entry.getValue()), System.lineSeparator());
             }
         } catch (IOException ioe) {
             throw new ElasticsearchException("Could not write users file [" + path.toAbsolutePath() + "], please check file permissions");

@@ -386,8 +386,14 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             try {
                 logger.trace("joining master {}", masterNode);
                 membership.sendJoinRequestBlocking(masterNode, localNode, joinTimeout);
-            } catch (ClusterService.NoLongerMasterException e) {
-                logger.trace("master {} didn't yet decide it's master. retrying.. (attempts done: [{}])", masterNode, joinAttempt);
+            } catch (ElasticsearchIllegalStateException e) {
+                if (joinAttempt >= this.joinRetryAttempts) {
+                    logger.info("failed to send join request to master [{}], reason [{}]. Tried [{}] times",
+                            masterNode, e.getDetailedMessage(), joinAttempt);
+                    return false;
+                } else {
+                    logger.trace("master {} failed with [{}]. retrying... (attempts done: [{}])", masterNode, e.getDetailedMessage(), joinAttempt);
+                }
             } catch (Exception e) {
                 if (e instanceof ElasticsearchException) {
                     logger.info("failed to send join request to master [{}], reason [{}]", masterNode, ((ElasticsearchException) e).getDetailedMessage());
@@ -794,7 +800,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
     private void handleJoinRequest(final DiscoveryNode node, final MembershipAction.JoinCallback callback) {
         if (!master) {
-            throw new ClusterService.NoLongerMasterException("Node [" + localNode + "] not master for join request from [" + node + "]");
+            throw new ElasticsearchIllegalStateException("Node [" + localNode + "] not master for join request from [" + node + "]");
         }
 
         if (!transportService.addressSupported(node.address().getClass())) {

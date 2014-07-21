@@ -68,6 +68,7 @@ public abstract class SingleShardOperationRequest<T extends SingleShardOperation
 
     @Override
     public String[] requestedIndices() {
+        assert index != null;
         return new String[]{index};
     }
 

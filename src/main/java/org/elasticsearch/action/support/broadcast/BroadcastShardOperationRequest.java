@@ -54,6 +54,7 @@ public abstract class BroadcastShardOperationRequest extends TransportRequest im
 
     @Override
     public String[] requestedIndices() {
+        assert index != null;
         return new String[]{index};
     }
 

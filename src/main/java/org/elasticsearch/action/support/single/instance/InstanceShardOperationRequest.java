@@ -71,6 +71,7 @@ public abstract class InstanceShardOperationRequest<T extends InstanceShardOpera
 
     @Override
     public String[] requestedIndices() {
+        assert index != null;
         return new String[]{index};
     }
 

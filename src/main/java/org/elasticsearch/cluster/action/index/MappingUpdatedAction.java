@@ -188,6 +188,7 @@ public class MappingUpdatedAction extends TransportMasterNodeOperationAction<Map
 
         @Override
         public String[] requestedIndices() {
+            assert index != null;
             return new String[]{index};
         }
 

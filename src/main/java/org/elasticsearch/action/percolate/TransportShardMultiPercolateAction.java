@@ -134,6 +134,7 @@ public class TransportShardMultiPercolateAction extends TransportShardSingleOper
 
         @Override
         public String[] requestedIndices() {
+            assert index != null;
             return new String[]{index};
         }
 

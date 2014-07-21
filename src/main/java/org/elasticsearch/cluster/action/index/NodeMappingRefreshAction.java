@@ -105,6 +105,7 @@ public class NodeMappingRefreshAction extends AbstractComponent {
 
         @Override
         public String[] requestedIndices() {
+            assert index != null;
             return new String[]{index};
         }
 

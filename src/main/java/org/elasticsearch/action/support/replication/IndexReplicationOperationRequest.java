@@ -59,6 +59,7 @@ public class IndexReplicationOperationRequest<T extends IndexReplicationOperatio
 
     @Override
     public String[] requestedIndices() {
+        assert index != null;
         return new String[]{index};
     }
 

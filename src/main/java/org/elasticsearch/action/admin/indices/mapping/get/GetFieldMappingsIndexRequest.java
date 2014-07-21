@@ -82,6 +82,7 @@ class GetFieldMappingsIndexRequest extends SingleCustomOperationRequest<GetField
 
     @Override
     public String[] requestedIndices() {
+        assert index != null;
         return new String[]{index};
     }
 

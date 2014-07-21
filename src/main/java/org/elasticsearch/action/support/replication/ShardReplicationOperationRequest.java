@@ -126,6 +126,7 @@ public abstract class ShardReplicationOperationRequest<T extends ShardReplicatio
 
     @Override
     public String[] requestedIndices() {
+        assert index != null;
         return new String[]{index};
     }
 

@@ -22,7 +22,6 @@ package org.elasticsearch.action.admin.cluster.shards;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRelatedRequest;
-import org.elasticsearch.action.IndicesRelatedRequestHelper;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequest;
 import org.elasticsearch.common.Nullable;
@@ -145,7 +144,7 @@ public class ClusterSearchShardsRequest extends MasterNodeReadOperationRequest<C
 
     @Override
     public String[] relatedIndices() {
-        return IndicesRelatedRequestHelper.indicesOrAll(indices);
+        return Helper.indicesOrAll(indices);
     }
 
     @Override

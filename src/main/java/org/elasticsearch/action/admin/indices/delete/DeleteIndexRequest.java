@@ -21,7 +21,6 @@ package org.elasticsearch.action.admin.indices.delete;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRelatedRequest;
-import org.elasticsearch.action.IndicesRelatedRequestHelper;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
@@ -122,7 +121,7 @@ public class DeleteIndexRequest extends MasterNodeOperationRequest<DeleteIndexRe
 
     @Override
     public String[] relatedIndices() {
-        return IndicesRelatedRequestHelper.indicesOrAll(indices);
+        return Helper.indicesOrAll(indices);
     }
 
     @Override

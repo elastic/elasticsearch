@@ -20,7 +20,6 @@
 package org.elasticsearch.action.support.master.info;
 
 import org.elasticsearch.action.IndicesRelatedRequest;
-import org.elasticsearch.action.IndicesRelatedRequestHelper;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequest;
 import org.elasticsearch.common.Strings;
@@ -70,7 +69,7 @@ public abstract class ClusterInfoRequest<T extends ClusterInfoRequest> extends M
 
     @Override
     public String[] relatedIndices() {
-        return IndicesRelatedRequestHelper.indicesOrAll(indices);
+        return Helper.indicesOrAll(indices);
     }
 
     @Override

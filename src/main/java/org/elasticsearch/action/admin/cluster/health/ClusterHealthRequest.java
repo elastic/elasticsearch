@@ -21,7 +21,6 @@ package org.elasticsearch.action.admin.cluster.health;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRelatedRequest;
-import org.elasticsearch.action.IndicesRelatedRequestHelper;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequest;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -142,7 +141,7 @@ public class ClusterHealthRequest extends MasterNodeReadOperationRequest<Cluster
 
     @Override
     public String[] relatedIndices() {
-        return IndicesRelatedRequestHelper.indicesOrAll(indices);
+        return Helper.indicesOrAll(indices);
     }
 
     @Override

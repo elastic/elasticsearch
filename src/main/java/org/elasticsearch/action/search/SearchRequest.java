@@ -25,7 +25,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRelatedRequest;
-import org.elasticsearch.action.IndicesRelatedRequestHelper;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Nullable;
@@ -492,7 +491,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
 
     @Override
     public String[] relatedIndices() {
-        return IndicesRelatedRequestHelper.indicesOrAll(indices);
+        return Helper.indicesOrAll(indices);
     }
 
     @Override

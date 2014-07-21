@@ -19,6 +19,8 @@
 
 package org.elasticsearch.action;
 
+import org.elasticsearch.cluster.metadata.MetaData;
+
 /**
  * Needs to be implemented by all {@link org.elasticsearch.action.ActionRequest} subclasses that relate to
  * one or more indices. Allows to retrieve which indices the action relates to.
@@ -29,4 +31,13 @@ public interface IndicesRelatedRequest {
      * Returns the indices the action relates to
      */
     String[] relatedIndices();
+
+    public static class Helper {
+        public static String[] indicesOrAll(String... indices) {
+            if (MetaData.isAllIndices(indices)) {
+                return new String[]{MetaData.ALL};
+            }
+            return indices;
+        }
+    }
 }

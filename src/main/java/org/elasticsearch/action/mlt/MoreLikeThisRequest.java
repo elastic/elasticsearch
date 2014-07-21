@@ -541,7 +541,7 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> impl
         if (searchIndices == null) {
             return new String[]{index};
         }
-        String[] indicesOrAll = IndicesRelatedRequestHelper.indicesOrAll(searchIndices);
+        String[] indicesOrAll = Helper.indicesOrAll(searchIndices);
         String[] indices = new String[indicesOrAll.length + 1];
         System.arraycopy(indicesOrAll, 0, indices, 0, indicesOrAll.length);
         indices[indices.length - 1] = index;

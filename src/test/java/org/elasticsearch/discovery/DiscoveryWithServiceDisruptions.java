@@ -506,10 +506,9 @@ public class DiscoveryWithServiceDisruptions extends ElasticsearchIntegrationTes
     @Test
     @TestLogging("discovery.zen:TRACE,action:TRACE,cluster.service:TRACE,indices.recovery:TRACE,indices.cluster:TRACE")
     public void testMasterNodeGCs() throws Exception {
-        final List<String> nodes;
         // TODO: on mac OS multicast threads are shared between nodes and we therefore we can't simulate GC and stop pinging for just one node
         // find a way to block thread creation in the generic thread pool to avoid this.
-        nodes = startCluster(3);
+        final List<String> nodes = startCluster(3);
 
         String oldMasterNode = internalCluster().getMasterName();
         // a very long GC, but it's OK as we remove the disruption when it has had an effect

@@ -68,3 +68,5 @@ any field the document:
 <1> The original query, now wrapped in a `function_score` query.
 <2> This function returns the value in `my_boost_field`, which is then
     multiplied by the query `_score` for each document.
+
+Note, that `field_value_factor` is a 1.2.x feature.

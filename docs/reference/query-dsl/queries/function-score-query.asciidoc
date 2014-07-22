@@ -151,6 +151,9 @@ that is initialized with a `seed`.
 --------------------------------------------------
 
 ===== Field Value factor
+
+added[1.2.0]
+
 The `field_value_factor` function allows you to use a field from a document to
 influence the score. It's similar to using the `script_score` function, however,
 it avoids the overhead of scripting. If used on a multi-valued field, only the

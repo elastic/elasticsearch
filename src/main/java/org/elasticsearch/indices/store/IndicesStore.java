@@ -320,7 +320,7 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
                         if (nodeEnv.hasNodeFile()) {
                             File[] shardLocations = nodeEnv.shardLocations(shardId);
                             if (FileSystemUtils.exists(shardLocations)) {
-                                logger.debug("[{}][{}] deleting shard that is no longer used", shardId);
+                                logger.debug("{} deleting shard that is no longer used", shardId);
                                 FileSystemUtils.deleteRecursively(shardLocations);
                             }
                         }

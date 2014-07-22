@@ -28,6 +28,7 @@ import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.CollectionUtils;
 
 import java.io.IOException;
 
@@ -77,7 +78,7 @@ public class DeleteIndexRequest extends MasterNodeOperationRequest<DeleteIndexRe
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (indices == null || indices.length == 0) {
+        if (CollectionUtils.isEmpty(indices)) {
             validationException = addValidationError("index / indices is missing", validationException);
         }
         return validationException;
@@ -122,6 +123,9 @@ public class DeleteIndexRequest extends MasterNodeOperationRequest<DeleteIndexRe
 
     @Override
     public ImmutableSet<String> requestedIndices() {
+        if (CollectionUtils.isEmpty(indices)) {
+            throw new IllegalStateException("indices is empty or missing");
+        }
         return Helper.indicesOrAll(indices);
     }
 

@@ -124,6 +124,9 @@ public class DeleteMappingRequest extends AcknowledgedRequest<DeleteMappingReque
 
     @Override
     public ImmutableSet<String> requestedIndices() {
+        if (CollectionUtils.isEmpty(indices)) {
+            throw new IllegalStateException("indices is empty or missing");
+        }
         return Helper.indicesOrAll(indices);
     }
 

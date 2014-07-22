@@ -467,8 +467,23 @@ public class IndicesRelatedRequestTests extends ElasticsearchTestCase {
 
     @Test
     public void testDeleteMappingRequest() {
-        DeleteMappingRequest deleteMappingRequest = new DeleteMappingRequest(randomIndices());
+        DeleteMappingRequest deleteMappingRequest = new DeleteMappingRequest(randomNonEmptyIndices());
         assertThat(deleteMappingRequest.requestedIndices(), equalTo(expectedIndices(deleteMappingRequest.indices())));
+    }
+
+    @Test(expected = IllegalStateException.class)
+    public void testDeleteMappingRequestIllegalStateEmptyIndices() {
+        new DeleteMappingRequest(Strings.EMPTY_ARRAY).requestedIndices();
+    }
+
+    @Test(expected = IllegalStateException.class)
+    public void testDeleteMappingRequestIllegalStateNullIndices() {
+        new DeleteMappingRequest(null).requestedIndices();
+    }
+
+    @Test(expected = IllegalStateException.class)
+    public void testDeleteMappingRequestIllegalStateNoIndices() {
+        new DeleteMappingRequest().requestedIndices();
     }
 
     @Test
@@ -497,20 +512,65 @@ public class IndicesRelatedRequestTests extends ElasticsearchTestCase {
 
     @Test
     public void testOpenIndexRequest() {
-        OpenIndexRequest openIndexRequest = new OpenIndexRequest(randomIndices());
+        OpenIndexRequest openIndexRequest = new OpenIndexRequest(randomNonEmptyIndices());
         assertThat(openIndexRequest.requestedIndices(), equalTo(expectedIndices(openIndexRequest.indices())));
+    }
+
+    @Test(expected = IllegalStateException.class)
+    public void testOpenIndexRequestIllegalStateEmptyIndices() {
+        new OpenIndexRequest(Strings.EMPTY_ARRAY).requestedIndices();
+    }
+
+    @Test(expected = IllegalStateException.class)
+    public void testOpenIndexRequestIllegalStateNullIndices() {
+        new OpenIndexRequest(null).requestedIndices();
+    }
+
+    @Test(expected = IllegalStateException.class)
+    public void testOpenIndexRequestIllegalStateNoIndices() {
+        new OpenIndexRequest().requestedIndices();
     }
 
     @Test
     public void testCloseIndexRequest() {
-        CloseIndexRequest closeIndexRequest = new CloseIndexRequest(randomIndices());
+        CloseIndexRequest closeIndexRequest = new CloseIndexRequest(randomNonEmptyIndices());
         assertThat(closeIndexRequest.requestedIndices(), equalTo(expectedIndices(closeIndexRequest.indices())));
+    }
+
+    @Test(expected = IllegalStateException.class)
+    public void testCloseIndexRequestIllegalStateEmptyIndices() {
+        new CloseIndexRequest(Strings.EMPTY_ARRAY).requestedIndices();
+    }
+
+    @Test(expected = IllegalStateException.class)
+    public void testCloseIndexRequestIllegalStateNullIndices() {
+        new CloseIndexRequest(null).requestedIndices();
+    }
+
+    @Test(expected = IllegalStateException.class)
+    public void testCloseIndexRequestIllegalStateNoIndices() {
+        new CloseIndexRequest().requestedIndices();
     }
 
     @Test
     public void testDeleteIndexRequest() {
-        DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(randomIndices());
+        DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(randomNonEmptyIndices());
         assertThat(deleteIndexRequest.requestedIndices(), equalTo(expectedIndices(deleteIndexRequest.indices())));
+    }
+
+    @Test(expected = IllegalStateException.class)
+    public void testDeleteIndexRequestIllegalStateNoIndices() {
+        new DeleteIndexRequest().requestedIndices();
+    }
+
+    @Test(expected = IllegalStateException.class)
+    public void testDeleteIndexRequestIllegalStateNullIndices() {
+        new DeleteIndexRequest().indices((String[])null).requestedIndices();
+    }
+
+    @Test(expected = IllegalStateException.class)
+    public void testDeleteIndexRequestIllegalStateEmptyIndices() {
+        new DeleteIndexRequest().indices(Strings.EMPTY_ARRAY).requestedIndices();
     }
 
     @Test

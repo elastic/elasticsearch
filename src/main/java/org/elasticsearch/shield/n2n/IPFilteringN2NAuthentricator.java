@@ -11,14 +11,14 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.netty.handler.ipfilter.IpFilterRule;
+import org.elasticsearch.common.netty.handler.ipfilter.IpSubnetFilterRule;
+import org.elasticsearch.common.netty.handler.ipfilter.PatternRule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.jboss.netty.handler.ipfilter.IpFilterRule;
-import org.jboss.netty.handler.ipfilter.IpSubnetFilterRule;
-import org.jboss.netty.handler.ipfilter.PatternRule;
 
 import java.io.File;
 import java.io.IOException;

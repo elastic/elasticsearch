@@ -32,7 +32,6 @@
     <properties>
         <lucene.version>4.9.0</lucene.version>
         <elasticsearch.version>1.4.0-SNAPSHOT</elasticsearch.version>
-        <netty.version>3.9.1.Final</netty.version>
 
         <tests.jvms>auto</tests.jvms>
         <tests.shuffle>true</tests.shuffle>
@@ -98,13 +97,6 @@
             <artifactId>commons-cli</artifactId>
             <version>1.2</version>
         </dependency>
-
-        <dependency>
-            <groupId>io.netty</groupId>
-            <artifactId>netty</artifactId>
-            <version>${netty.version}</version>
-        </dependency>
-
 
         <!-- needed for forbidden APIs, embarassing, need to fix -->
         <dependency>

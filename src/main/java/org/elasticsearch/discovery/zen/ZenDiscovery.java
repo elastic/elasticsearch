@@ -386,6 +386,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             try {
                 logger.trace("joining master {}", masterNode);
                 membership.sendJoinRequestBlocking(masterNode, localNode, joinTimeout);
+                return true;
             } catch (ElasticsearchIllegalStateException e) {
                 if (joinAttempt >= this.joinRetryAttempts) {
                     logger.info("failed to send join request to master [{}], reason [{}]. Tried [{}] times",

@@ -574,6 +574,10 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
                     currentFieldName = parser.currentName();
                 } else if ("script".equals(currentFieldName)) {
                     script = parser.textOrNull();
+                    scriptType = ScriptService.ScriptType.INLINE;
+                } else if ("script_id".equals(currentFieldName)) {
+                    script = parser.textOrNull();
+                    scriptType = ScriptService.ScriptType.INDEXED;
                 } else if ("params".equals(currentFieldName)) {
                     scriptParams = parser.map();
                 } else if ("lang".equals(currentFieldName)) {

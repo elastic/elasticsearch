@@ -20,7 +20,6 @@ package org.elasticsearch.common.bytes;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.util.UnsafeUtils;
 import org.jboss.netty.buffer.ChannelBuffer;
 
 import java.io.IOException;
@@ -42,16 +41,11 @@ public interface BytesReference {
                 return false;
             }
 
-            if (a.hasArray() && b.hasArray()) {
-                // court-circuit to compare several bytes at once
-                return UnsafeUtils.equals(a.array(), a.arrayOffset(), b.array(), b.arrayOffset(), a.length());
-            } else {
-                return slowBytesEquals(a, b);
-            }
+            return bytesEquals(a, b);
         }
 
         // pkg-private for testing
-        static boolean slowBytesEquals(BytesReference a, BytesReference b) {
+        static boolean bytesEquals(BytesReference a, BytesReference b) {
             assert a.length() == b.length();
             for (int i = 0, end = a.length(); i < end; ++i) {
                 if (a.get(i) != b.get(i)) {

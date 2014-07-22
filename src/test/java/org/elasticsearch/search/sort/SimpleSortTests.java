@@ -20,7 +20,9 @@
 package org.elasticsearch.search.sort;
 
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticsearchException;
@@ -61,24 +63,24 @@ import static org.hamcrest.Matchers.*;
 public class SimpleSortTests extends ElasticsearchIntegrationTest {
 
 
-    @Test
+    @LuceneTestCase.AwaitsFix(bugUrl = "simon is working on this")
     public void testIssue6614() throws ExecutionException, InterruptedException {
         List<IndexRequestBuilder> builders = new ArrayList<>();
         boolean strictTimeBasedIndices = randomBoolean();
-        final int numIndices = scaledRandomIntBetween(2, 25); // at most 25 days in the month
+        final int numIndices = randomIntBetween(2, 25); // at most 25 days in the month
         for (int i = 0; i < numIndices; i++) {
           final String indexId = strictTimeBasedIndices ? "idx_" + i : "idx";
           if (strictTimeBasedIndices || i == 0) {
             createIndex(indexId);
           }
-          final int numDocs = scaledRandomIntBetween(1, 23);  // hour of the day
+          final int numDocs = randomIntBetween(1, 23);  // hour of the day
           for (int j = 0; j < numDocs; j++) {
             builders.add(client().prepareIndex(indexId, "type").setSource("foo", "bar", "timeUpdated", "2014/07/" + String.format(Locale.ROOT, "%02d", i+1)+" " + String.format(Locale.ROOT, "%02d", j+1) + ":00:00"));
           }
         }
         int docs = builders.size();
         indexRandom(true, builders);
-        ensureGreen();
+        ensureYellow();
         SearchResponse allDocsResponse = client().prepareSearch().setQuery(QueryBuilders.filteredQuery(matchAllQuery(),
                 FilterBuilders.boolFilter().must(FilterBuilders.termFilter("foo", "bar"),
                         FilterBuilders.rangeFilter("timeUpdated").gte("2014/0" + randomIntBetween(1, 7) + "/01").cache(randomBoolean()))))

@@ -24,6 +24,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -388,28 +389,29 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             logger.warn("failed to connect to master [{}], retrying...", e, masterNode);
             return false;
         }
-        for (int joinAttempt = 0; joinAttempt < this.joinRetryAttempts; joinAttempt++) {
+        int joinAttempt = 0; // we retry on illegal state if the master is not yet ready
+        while (true) {
             try {
                 logger.trace("joining master {}", masterNode);
                 membership.sendJoinRequestBlocking(masterNode, localNode, joinTimeout);
                 return true;
-            } catch (ElasticsearchIllegalStateException e) {
-                if (joinAttempt >= this.joinRetryAttempts) {
-                    logger.info("failed to send join request to master [{}], reason [{}]. Tried [{}] times",
-                            masterNode, e.getDetailedMessage(), joinAttempt + 1);
+            } catch (Throwable t) {
+                Throwable unwrap = ExceptionsHelper.unwrapCause(t);
+                if (unwrap instanceof ElasticsearchIllegalStateException) {
+                    if (++joinAttempt == this.joinRetryAttempts) {
+                        logger.info("failed to send join request to master [{}], reason [{}], tried [{}] times", masterNode, ExceptionsHelper.detailedMessage(t), joinAttempt);
+                        return false;
+                    } else {
+                        logger.trace("master {} failed with [{}]. retrying... (attempts done: [{}])", masterNode, ExceptionsHelper.detailedMessage(t), joinAttempt);
+                    }
+                } else {
+                    if (logger.isTraceEnabled()) {
+                        logger.trace("failed to send join request to master [{}]", t);
+                    } else {
+                        logger.info("failed to send join request to master [{}], reason [{}]", masterNode, ExceptionsHelper.detailedMessage(t));
+                    }
                     return false;
-                } else {
-                    logger.trace("master {} failed with [{}]. retrying... (attempts done: [{}])", masterNode, e.getDetailedMessage(), joinAttempt + 1);
                 }
-            } catch (Exception e) {
-                if (logger.isTraceEnabled()) {
-                    logger.trace("failed to send join request to master [{}]", e);
-                } else if (e instanceof ElasticsearchException) {
-                    logger.info("failed to send join request to master [{}], reason [{}]", masterNode, ((ElasticsearchException) e).getDetailedMessage());
-                } else {
-                    logger.info("failed to send join request to master [{}], reason [{}]", masterNode, e.getMessage());
-                }
-                return false;
             }
 
             try {
@@ -418,7 +420,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 Thread.currentThread().interrupt();
             }
         }
-        return false;
     }
 
     private void handleLeaveRequest(final DiscoveryNode node) {

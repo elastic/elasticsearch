@@ -494,8 +494,8 @@ public class ElasticsearchAssertions {
             StreamInput input = new BytesStreamInput(orig);
             input.setVersion(version);
             newInstance.readFrom(input);
-            assertThat("Stream should be fully read with version [" + version + "] for streamable [" + streamable + "]", input.available(), equalTo(0));
-            assertThat("Serialization failed with version [" + version + "] bytes should be equal for streamable [" + streamable + "]", serialize(version, streamable), equalTo(orig));
+            assertThat("Stream should be fully read with version [" + version + "] for streamable [" + newInstance + "]", input.available(), equalTo(0));
+            assertThat("Serialization failed with version [" + version + "] bytes should be equal for streamable [" + streamable + "]", serialize(version, newInstance), equalTo(orig));
         } catch (Throwable ex) {
             throw new RuntimeException("failed to check serialization - version [" + version + "] for streamable [" + streamable + "]", ex);
         }

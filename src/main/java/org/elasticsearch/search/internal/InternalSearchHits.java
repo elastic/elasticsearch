@@ -21,6 +21,7 @@ package org.elasticsearch.search.internal;
 
 import com.carrotsearch.hppc.IntObjectOpenHashMap;
 import com.google.common.collect.Iterators;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -30,9 +31,7 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
 
 import java.io.IOException;
-import java.util.IdentityHashMap;
-import java.util.Iterator;
-import java.util.Map;
+import java.util.*;
 
 import static org.elasticsearch.search.SearchShardTarget.readSearchShardTarget;
 import static org.elasticsearch.search.internal.InternalSearchHit.readSearchHit;
@@ -212,9 +211,16 @@ public class InternalSearchHits implements SearchHits {
         } else {
             if (context.streamShardTarget() == StreamContext.ShardTargetType.LOOKUP) {
                 // read the lookup table first
-                int lookupSize = in.readVInt();
-                for (int i = 0; i < lookupSize; i++) {
-                    context.handleShardLookup().put(in.readVInt(), readSearchShardTarget(in));
+                final IntObjectOpenHashMap<SearchShardTarget> handleShardLookup = context.handleShardLookup();
+                final int lookupSize = in.readVInt();
+                if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
+                    for (int i = 0; i < lookupSize; i++) {
+                        handleShardLookup.put(i + 1, readSearchShardTarget(in));
+                    }
+                } else {
+                    for (int i = 0; i < lookupSize; i++) {
+                        handleShardLookup.put(in.readVInt(), readSearchShardTarget(in));
+                    }
                 }
             }
 
@@ -238,19 +244,26 @@ public class InternalSearchHits implements SearchHits {
             if (context.streamShardTarget() == StreamContext.ShardTargetType.LOOKUP) {
                 // start from 1, 0 is for null!
                 int counter = 1;
+                List<SearchShardTarget> targets = new ArrayList<>();
                 for (InternalSearchHit hit : hits) {
                     if (hit.shard() != null) {
                         Integer handle = context.shardHandleLookup().get(hit.shard());
                         if (handle == null) {
                             context.shardHandleLookup().put(hit.shard(), counter++);
+                            targets.add(hit.shard());
                         }
                     }
                 }
-                out.writeVInt(context.shardHandleLookup().size());
-                if (!context.shardHandleLookup().isEmpty()) {
-                    for (Map.Entry<SearchShardTarget, Integer> entry : context.shardHandleLookup().entrySet()) {
-                        out.writeVInt(entry.getValue());
-                        entry.getKey().writeTo(out);
+                out.writeVInt(targets.size());
+                if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
+                    for (int i = 0; i < targets.size(); i++) {
+                        // the ordinal is implicit here since we write it in-order
+                        targets.get(i).writeTo(out);
+                    }
+                } else {
+                    for (int i = 0; i < targets.size(); i++) {
+                        out.writeVInt(i+1);
+                        targets.get(i).writeTo(out);
                     }
                 }
             }

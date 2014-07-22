@@ -20,9 +20,13 @@
 package org.elasticsearch.index.mapper.core;
 
 import com.carrotsearch.hppc.ObjectArrayList;
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
@@ -46,6 +50,7 @@ import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.*;
 
 import java.io.IOException;
+import java.io.Reader;
 import java.util.List;
 import java.util.Map;
 
@@ -255,7 +260,7 @@ public class BinaryFieldMapper extends AbstractFieldMapper<BytesReference> {
         }
     }
 
-    public static class CustomBinaryDocValuesField extends NumberFieldMapper.CustomNumericDocValuesField {
+    public static class CustomBinaryDocValuesField implements IndexableField {
 
         public static final FieldType TYPE = new FieldType();
         static {
@@ -263,12 +268,14 @@ public class BinaryFieldMapper extends AbstractFieldMapper<BytesReference> {
             TYPE.freeze();
         }
 
+        private final String name;
+        
         private final ObjectArrayList<byte[]> bytesList;
 
         private int totalSize = 0;
 
-        public CustomBinaryDocValuesField(String  name, byte[] bytes) {
-            super(name);
+        public CustomBinaryDocValuesField(String name, byte[] bytes) {
+            this.name = name;
             bytesList = new ObjectArrayList<>();
             add(bytes);
         }
@@ -296,7 +303,41 @@ public class BinaryFieldMapper extends AbstractFieldMapper<BytesReference> {
             } catch (IOException e) {
                 throw new ElasticsearchException("Failed to get binary value", e);
             }
+        }
 
+        @Override
+        public float boost() {
+            return 1f;
+        }
+
+        @Override
+        public IndexableFieldType fieldType() {
+            return TYPE;
+        }
+
+        @Override
+        public String name() {
+            return name;
+        }
+
+        @Override
+        public Number numericValue() {
+            return null;
+        }
+
+        @Override
+        public Reader readerValue() {
+            return null;
+        }
+
+        @Override
+        public String stringValue() {
+            return null;
+        }
+
+        @Override
+        public TokenStream tokenStream(Analyzer analyzer, TokenStream previous) throws IOException {
+            return null;
         }
     }
 }

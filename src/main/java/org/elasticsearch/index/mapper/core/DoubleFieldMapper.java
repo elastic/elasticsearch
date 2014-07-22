@@ -19,12 +19,10 @@
 
 package org.elasticsearch.index.mapper.core;
 
-import com.carrotsearch.hppc.DoubleArrayList;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.NumericRangeFilter;
 import org.apache.lucene.search.NumericRangeQuery;
@@ -37,8 +35,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.common.util.ByteUtils;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NumericDoubleAnalyzer;
@@ -316,13 +312,7 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
             fields.add(field);
         }
         if (hasDocValues()) {
-            CustomDoubleNumericDocValuesField field = (CustomDoubleNumericDocValuesField) context.doc().getByKey(names().indexName());
-            if (field != null) {
-                field.add(value);
-            } else {
-                field = new CustomDoubleNumericDocValuesField(names().indexName(), value);
-                context.doc().addWithKey(names().indexName(), field);
-            }
+            addDocValue(context, fields, NumericUtils.doubleToSortableLong(value));
         }
     }
 
@@ -385,38 +375,5 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
         public String numericAsString() {
             return Double.toString(number);
         }
-    }
-
-    public static class CustomDoubleNumericDocValuesField extends CustomNumericDocValuesField {
-
-        public static final FieldType TYPE = new FieldType();
-        static {
-          TYPE.setDocValueType(FieldInfo.DocValuesType.BINARY);
-          TYPE.freeze();
-        }
-
-        private final DoubleArrayList values;
-
-        public CustomDoubleNumericDocValuesField(String  name, double value) {
-            super(name);
-            values = new DoubleArrayList();
-            add(value);
-        }
-
-        public void add(double value) {
-            values.add(value);
-        }
-
-        @Override
-        public BytesRef binaryValue() {
-            CollectionUtils.sortAndDedup(values);
-
-            final byte[] bytes = new byte[values.size() * 8];
-            for (int i = 0; i < values.size(); ++i) {
-                ByteUtils.writeDoubleLE(values.get(i), bytes, i * 8);
-            }
-            return new BytesRef(bytes);
-        }
-
     }
 }

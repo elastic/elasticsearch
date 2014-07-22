@@ -234,7 +234,7 @@ def run_mvn(*cmd):
   for c in cmd:
     run('%s; %s %s' % (java_exe(), MVN, c))
 
-def build_release(run_tests=False, dry_run=True, cpus=1):
+def build_release(run_tests=False, dry_run=True, cpus=1, bwc_version=None):
   target = 'deploy'
   if dry_run:
     target = 'package'
@@ -242,6 +242,9 @@ def build_release(run_tests=False, dry_run=True, cpus=1):
     run_mvn('clean',
             'test -Dtests.jvms=%s -Des.node.mode=local' % (cpus),
             'test -Dtests.jvms=%s -Des.node.mode=network' % (cpus))
+  if bwc_version:
+      print('Running Backwards compatibilty tests against version [%s]' % (bwc_version))
+      run_mvn('clean', 'test -Dtests.filter=@backwards -Dtests.bwc.version=%s -Dtests.bwc=true -Dtests.jvms=1' % bwc_version)
   run_mvn('clean test-compile -Dforbidden.test.signatures="org.apache.lucene.util.LuceneTestCase\$AwaitsFix @ Please fix all bugs before release"')
   run_mvn('clean %s -DskipTests' % (target))
   success = False
@@ -345,7 +348,7 @@ def generate_checksums(files):
     directory = os.path.dirname(release_file)
     file = os.path.basename(release_file)
     checksum_file = '%s.sha1.txt' % file
-    
+
     if os.system('cd %s; shasum %s > %s' % (directory, file, checksum_file)):
       raise RuntimeError('Failed to generate checksum for file %s' % release_file)
     res = res + [os.path.join(directory, checksum_file), release_file]
@@ -379,12 +382,12 @@ def smoke_test_release(release, files, expected_hash, plugins):
       raise RuntimeError('Smoketest failed missing file %s' % (release_file))
     tmp_dir = tempfile.mkdtemp()
     if release_file.endswith('tar.gz'):
-      run('tar -xzf %s -C %s' % (release_file, tmp_dir)) 
+      run('tar -xzf %s -C %s' % (release_file, tmp_dir))
     elif release_file.endswith('zip'):
-      run('unzip %s -d %s' % (release_file, tmp_dir)) 
+      run('unzip %s -d %s' % (release_file, tmp_dir))
     else:
       log('Skip SmokeTest for [%s]' % release_file)
-      continue # nothing to do here 
+      continue # nothing to do here
     es_run_path = os.path.join(tmp_dir, 'elasticsearch-%s' % (release), 'bin/elasticsearch')
     print('  Smoke testing package [%s]' % release_file)
     es_plugin_path = os.path.join(tmp_dir, 'elasticsearch-%s' % (release),'bin/plugin')
@@ -472,7 +475,7 @@ def print_sonartype_notice():
        for line in settings_file:
          if line.strip() == '<id>sonatype-nexus-snapshots</id>':
            # moving out - we found the indicator no need to print the warning
-           return 
+           return
   print("""
     NOTE: No sonartype settings detected, make sure you have configured
     your sonartype credentials in '~/.m2/settings.xml':
@@ -499,11 +502,25 @@ def check_s3_credentials():
   if not env.get('AWS_ACCESS_KEY_ID', None) or not env.get('AWS_SECRET_ACCESS_KEY', None):
     raise RuntimeError('Could not find "AWS_ACCESS_KEY_ID" / "AWS_SECRET_ACCESS_KEY" in the env variables please export in order to upload to S3')
 
-VERSION_FILE = 'src/main/java/org/elasticsearch/Version.java'    
+VERSION_FILE = 'src/main/java/org/elasticsearch/Version.java'
 POM_FILE = 'pom.xml'
 
-# we print a notice if we can not find the relevant infos in the ~/.m2/settings.xml 
+# we print a notice if we can not find the relevant infos in the ~/.m2/settings.xml
 print_sonartype_notice()
+
+# finds the highest available bwc version to test against
+def find_bwc_version(release_version, bwc_dir='backwards'):
+  log('Lookup bwc version in directory [%s]' % bwc_dir)
+  bwc_version = None
+  max_version = [int(x) for x in release_version.split('.')]
+  for dir in os.listdir(bwc_dir):
+    if os.path.isdir(os.path.join(bwc_dir, dir)) and dir.startswith('elasticsearch-'):
+      version = [int(x) for x in dir[len('elasticsearch-'):].split('.')]
+      if version < max_version: # bwc tests only against smaller versions
+        if (not bwc_version) or version > [int(x) for x in bwc_version.split('.')]:
+          bwc_version = dir[len('elasticsearch-'):]
+  log('Using bwc version [%s]' % bwc_version)
+  return bwc_version
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description='Builds and publishes a Elasticsearch Release')
@@ -520,11 +537,13 @@ if __name__ == '__main__':
                       help='Publishes the release. Disable by default.')
   parser.add_argument('--smoke', '-s', dest='smoke', default='',
                       help='Smoke tests the given release')
+  parser.add_argument('--bwc', '-w', dest='bwc', metavar='backwards', default='backwards',
+                      help='Backwards compatibility version path to use to run compatibility tests against')
 
   parser.set_defaults(dryrun=True)
   parser.set_defaults(smoke=None)
   args = parser.parse_args()
-
+  bwc_path = args.bwc
   src_branch = args.branch
   remote = args.remote
   run_tests = args.tests
@@ -534,7 +553,7 @@ if __name__ == '__main__':
   smoke_test_version = args.smoke
   if not dry_run:
     check_s3_credentials()
-    print('WARNING: dryrun is set to "false" - this will push and publish the release') 
+    print('WARNING: dryrun is set to "false" - this will push and publish the release')
     input('Press Enter to continue...')
 
   print(''.join(['-' for _ in range(80)]))
@@ -574,7 +593,7 @@ if __name__ == '__main__':
         print('  Running maven builds now and publish to sonartype - run-tests [%s]' % run_tests)
       else:
         print('  Running maven builds now run-tests [%s]' % run_tests)
-      build_release(run_tests=run_tests, dry_run=dry_run, cpus=cpus)
+      build_release(run_tests=run_tests, dry_run=dry_run, cpus=cpus, bwc_version=find_bwc_version(release_version, bwc_path))
       artifacts = get_artifacts(release_version)
       artifacts_and_checksum = generate_checksums(artifacts)
       smoke_test_release(release_version, artifacts, get_head_hash(), PLUGINS)

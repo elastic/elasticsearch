@@ -362,6 +362,12 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                     continue;
                 }
 
+                if (latestDiscoNodes.masterNode() == null) {
+                    logger.debug("no master node is set, despite of join request completing. retrying pings");
+                    retry = true;
+                    continue;
+                }
+
                 masterFD.start(masterNode, "initial_join");
                 // no need to submit the received cluster state, we will get it from the master when it publishes
                 // the fact that we joined

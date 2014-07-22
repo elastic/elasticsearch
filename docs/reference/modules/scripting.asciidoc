@@ -93,7 +93,7 @@ of the script. In the `.scripts` index the type of the document will be set to t
 
 [source,js]
 -----------------------------------
-curl -XPOST localhost:9200/_scripts/mvel/indexedCalculateScore -d '{
+curl -XPOST localhost:9200/_scripts/groovy/indexedCalculateScore -d '{
      "script": "log(_score * 2) + my_modifier"
 }'
 -----------------------------------
@@ -118,6 +118,7 @@ curl -XPOST localhost:9200/_search -d '{
         {
           "script_score": {
             "script_id": "indexedCalculateScore",
+	    "lang" : "groovy",
             "params": {
               "my_modifier": 8
             }
@@ -134,7 +135,7 @@ for non sandboxed languages at query time.
 The script can be viewed by:
 [source,js]
 -----------------------------------
-curl -XGET localhost:9200/_scripts/mvel/calculate-score
+curl -XGET localhost:9200/_scripts/mvel/indexedCalculateScore
 -----------------------------------
 
 This is rendered as:
@@ -149,7 +150,7 @@ This is rendered as:
 Indexed scripts can be deleted by:
 [source,js]
 -----------------------------------
-curl -XDELETE localhost:9200/_scripts/mvel/calculate-score
+curl -XDELETE localhost:9200/_scripts/mvel/indexedCalculateScore
 -----------------------------------
 
 [float]

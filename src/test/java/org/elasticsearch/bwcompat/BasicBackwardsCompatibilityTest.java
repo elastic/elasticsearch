@@ -31,6 +31,7 @@ import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -47,6 +48,8 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -177,7 +180,7 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
         int numDocs = randomIntBetween(100, 150);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
-            docs[i] = client().prepareIndex("test", "type1", randomRealisticUnicodeOfLength(10) + String.valueOf(i)).setSource("field1", English.intToEnglish(i));
+            docs[i] = client().prepareIndex("test", "type1", randomRealisticUnicodeOfLength(10) + String.valueOf(i)).setSource("field1", English.intToEnglish(i), "num_int", randomInt(), "num_double", randomDouble());
         }
         indexRandom(true, docs);
         backwardsCluster().allowOnAllNodes("test");
@@ -191,8 +194,26 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
         for (int i = 0; i < numIters; i++) {
             countResponse = client().prepareCount().get();
             assertHitCount(countResponse, numDocs);
+            assertSimpleSort("num_double", "num_int");
         }
         assertVersionCreated(compatibilityVersion(), "test");
+    }
+
+
+    public void assertSimpleSort(String... numericFields) {
+        for(String field : numericFields) {
+            SearchResponse searchResponse = client().prepareSearch().addSort(field, SortOrder.ASC).get();
+            SearchHit[] hits = searchResponse.getHits().getHits();
+            assertThat(hits.length, greaterThan(0));
+            Number previous = null;
+            for (SearchHit hit : hits) {
+                assertNotNull(hit.getSource().get(field));
+                if (previous != null) {
+                    assertThat(previous.doubleValue(), lessThanOrEqualTo(((Number) hit.getSource().get(field)).doubleValue()));
+                }
+                previous = (Number) hit.getSource().get(field);
+            }
+        }
     }
 
     public void assertAllShardsOnNodes(String index, String pattern) {
@@ -219,7 +240,7 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
         int numDocs = randomIntBetween(100, 150);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
-            docs[i] = client().prepareIndex("test", "type1", String.valueOf(i)).setSource("field1", English.intToEnglish(i));
+            docs[i] = client().prepareIndex("test", "type1", String.valueOf(i)).setSource("field1", English.intToEnglish(i), "num_int", randomInt(), "num_double", randomDouble());
         }
 
         indexRandom(true, docs);
@@ -232,7 +253,7 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
         ensureYellow();
         if (randomBoolean()) {
             for (int i = 0; i < numDocs; i++) {
-                docs[i] = client().prepareIndex("test", "type1", String.valueOf(i)).setSource("field1", English.intToEnglish(i));
+                docs[i] = client().prepareIndex("test", "type1", String.valueOf(i)).setSource("field1", English.intToEnglish(i), "num_int", randomInt(), "num_double", randomDouble());
             }
             indexRandom(true, docs);
         }
@@ -241,6 +262,7 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
         final int numIters = randomIntBetween(1, 20);
         for (int i = 0; i < numIters; i++) {
             assertHitCount(client().prepareCount().get(), numDocs);
+            assertSimpleSort("num_double", "num_int");
         }
         assertVersionCreated(compatibilityVersion(), "test");
     }
@@ -262,7 +284,7 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         String[] indexForDoc = new String[docs.length];
         for (int i = 0; i < numDocs; i++) {
-            docs[i] = client().prepareIndex(indexForDoc[i] = RandomPicks.randomFrom(getRandom(), indices), "type1", String.valueOf(i)).setSource("field1", English.intToEnglish(i));
+            docs[i] = client().prepareIndex(indexForDoc[i] = RandomPicks.randomFrom(getRandom(), indices), "type1", String.valueOf(i)).setSource("field1", English.intToEnglish(i), "num_int", randomInt(), "num_double", randomDouble());
         }
         indexRandom(true, docs);
         for (int i = 0; i < indices.length; i++) {
@@ -276,18 +298,21 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
             logClusterState();
             CountResponse countResponse = client().prepareCount().get();
             assertHitCount(countResponse, numDocs);
+            assertSimpleSort("num_double", "num_int");
             upgraded = backwardsCluster().upgradeOneNode();
             ensureYellow();
             countResponse = client().prepareCount().get();
             assertHitCount(countResponse, numDocs);
             for (int i = 0; i < numDocs; i++) {
-                docs[i] = client().prepareIndex(indexForDoc[i], "type1", String.valueOf(i)).setSource("field1", English.intToEnglish(i));
+                docs[i] = client().prepareIndex(indexForDoc[i], "type1", String.valueOf(i)).setSource("field1", English.intToEnglish(i), "num_int", randomInt(), "num_double", randomDouble());
             }
             indexRandom(true, docs);
         } while (upgraded);
         client().admin().indices().prepareUpdateSettings(indices).setSettings(ImmutableSettings.builder().put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE, "all")).get();
         CountResponse countResponse  = client().prepareCount().get();
         assertHitCount(countResponse, numDocs);
+        assertSimpleSort("num_double", "num_int");
+
         String[] newIndices = new String[randomIntBetween(1,3)];
 
         for (int i = 0; i < newIndices.length; i++) {

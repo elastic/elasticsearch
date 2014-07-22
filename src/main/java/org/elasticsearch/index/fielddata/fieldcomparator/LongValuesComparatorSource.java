@@ -31,11 +31,11 @@ import java.io.IOException;
  */
 public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorSource {
 
-    private final IndexNumericFieldData<?> indexFieldData;
+    private final IndexNumericFieldData indexFieldData;
     private final Object missingValue;
     private final MultiValueMode sortMode;
 
-    public LongValuesComparatorSource(IndexNumericFieldData<?> indexFieldData, @Nullable Object missingValue, MultiValueMode sortMode) {
+    public LongValuesComparatorSource(IndexNumericFieldData indexFieldData, @Nullable Object missingValue, MultiValueMode sortMode) {
         this.indexFieldData = indexFieldData;
         this.missingValue = missingValue;
         this.sortMode = sortMode;

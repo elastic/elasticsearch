@@ -22,7 +22,7 @@ import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.LongHash;
-import org.elasticsearch.index.fielddata.DoubleValues;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.terms.support.BucketPriorityQueue;
@@ -43,7 +43,7 @@ public class DoubleTermsAggregator extends TermsAggregator {
     private final ValuesSource.Numeric valuesSource;
     private final ValueFormatter formatter;
     private final LongHash bucketOrds;
-    private DoubleValues values;
+    private SortedNumericDoubleValues values;
 
     public DoubleTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, @Nullable ValueFormat format, long estimatedBucketCount,
                                InternalOrder order, BucketCountThresholds bucketCountThresholds, AggregationContext aggregationContext, Aggregator parent, SubAggCollectionMode collectionMode) {
@@ -66,17 +66,22 @@ public class DoubleTermsAggregator extends TermsAggregator {
     @Override
     public void collect(int doc, long owningBucketOrdinal) throws IOException {
         assert owningBucketOrdinal == 0;
-        final int valuesCount = values.setDocument(doc);
+        values.setDocument(doc);
+        final int valuesCount = values.count();
 
+        double previous = Double.NaN;
         for (int i = 0; i < valuesCount; ++i) {
-            final double val = values.nextValue();
-            final long bits = Double.doubleToRawLongBits(val);
-            long bucketOrdinal = bucketOrds.add(bits);
-            if (bucketOrdinal < 0) { // already seen
-                bucketOrdinal = - 1 - bucketOrdinal;
-                collectExistingBucket(doc, bucketOrdinal);
-            } else {
-                collectBucket(doc, bucketOrdinal);
+            final double val = values.valueAt(i);
+            if (val != previous) {
+                final long bits = Double.doubleToRawLongBits(val);
+                long bucketOrdinal = bucketOrds.add(bits);
+                if (bucketOrdinal < 0) { // already seen
+                    bucketOrdinal = - 1 - bucketOrdinal;
+                    collectExistingBucket(doc, bucketOrdinal);
+                } else {
+                    collectBucket(doc, bucketOrdinal);
+                }
+                previous = val;
             }
         }
     }
@@ -89,11 +94,12 @@ public class DoubleTermsAggregator extends TermsAggregator {
             // we need to fill-in the blanks
             for (AtomicReaderContext ctx : context.searchContext().searcher().getTopReaderContext().leaves()) {
                 context.setNextReader(ctx);
-                final DoubleValues values = valuesSource.doubleValues();
+                final SortedNumericDoubleValues values = valuesSource.doubleValues();
                 for (int docId = 0; docId < ctx.reader().maxDoc(); ++docId) {
-                    final int valueCount = values.setDocument(docId);
+                    values.setDocument(docId);
+                    final int valueCount = values.count();
                     for (int i = 0; i < valueCount; ++i) {
-                        bucketOrds.add(Double.doubleToLongBits(values.nextValue()));
+                        bucketOrds.add(Double.doubleToLongBits(values.valueAt(i)));
                     }
                 }
             }

@@ -107,7 +107,7 @@ public class TopHitsAggregator extends MetricsAggregator implements ScorerAware 
             int topN = topHitsContext.from() + topHitsContext.size();
             topDocsCollectors.put(
                     bucketOrdinal,
-                    topDocsCollector = sort != null ? TopFieldCollector.create(sort, topN, true, topHitsContext.trackScores(), true, false) : TopScoreDocCollector.create(topN, false)
+                    topDocsCollector = sort != null ? TopFieldCollector.create(sort, topN, true, topHitsContext.trackScores(), topHitsContext.trackScores(), false) : TopScoreDocCollector.create(topN, false)
             );
             topDocsCollector.setNextReader(currentContext);
             topDocsCollector.setScorer(currentScorer);

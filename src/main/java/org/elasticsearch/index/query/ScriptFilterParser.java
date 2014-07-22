@@ -85,7 +85,7 @@ public class ScriptFilterParser implements FilterParser {
                 if ("script".equals(currentFieldName)) {
                     script = parser.text();
                     scriptType = ScriptService.ScriptType.INLINE;
-                } else if ("id".equals(currentFieldName)) {
+                } else if ("script_id".equals(currentFieldName)) {
                     script = parser.text();
                     scriptType = ScriptService.ScriptType.INDEXED;
                 } else if ("file".equals(currentFieldName)) {

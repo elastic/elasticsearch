@@ -19,17 +19,17 @@
 
 package org.elasticsearch.search.facet.geodistance;
 
-import java.io.IOException;
-
 import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.unit.DistanceUnit;
-import org.elasticsearch.index.fielddata.GeoPointValues;
+import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.InternalFacet;
 import org.elasticsearch.search.internal.SearchContext;
+
+import java.io.IOException;
 
 /**
  *
@@ -68,7 +68,7 @@ public class GeoDistanceFacetExecutor extends FacetExecutor {
 
     class Collector extends FacetExecutor.Collector {
 
-        protected GeoPointValues values;
+        protected MultiGeoPointValues values;
         protected final Aggregator aggregator;
 
         Collector(Aggregator aggregator) {
@@ -104,10 +104,11 @@ public class GeoDistanceFacetExecutor extends FacetExecutor {
             this.entries = entries;
         }
         
-        public void onDoc(int docId, GeoPointValues values) {
-            final int length = values.setDocument(docId);
+        public void onDoc(int docId, MultiGeoPointValues values) {
+            values.setDocument(docId);
+            final int length = values.count();
             for (int i = 0; i < length; i++) {
-                final GeoPoint next = values.nextValue();
+                final GeoPoint next = values.valueAt(i);
                 double distance = fixedSourceDistance.calculate(next.getLat(), next.getLon());
                 for (GeoDistanceFacet.Entry entry : entries) {
                     if (entry.foundInDoc) {

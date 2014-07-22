@@ -18,22 +18,21 @@
  */
 package org.elasticsearch.index.fielddata.plain;
 
+import org.apache.lucene.index.RandomAccessOrds;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IntsRef;
 import org.apache.lucene.util.fst.FST;
 import org.apache.lucene.util.fst.FST.Arc;
 import org.apache.lucene.util.fst.FST.BytesReader;
 import org.apache.lucene.util.fst.Util;
-import org.elasticsearch.index.fielddata.AtomicFieldData;
-import org.elasticsearch.index.fielddata.BytesValues;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 
 import java.io.IOException;
 
 /**
  */
-public class FSTBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<ScriptDocValues.Strings> {
+public class FSTBytesAtomicFieldData extends AbstractAtomicOrdinalsFieldData {
 
     // 0 ordinal in values means no value (its null)
     protected final Ordinals ordinals;
@@ -63,14 +62,8 @@ public class FSTBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<Scr
     }
 
     @Override
-    public BytesValues.WithOrdinals getBytesValues() {
+    public RandomAccessOrds getOrdinalsValues() {
         return ordinals.ordinals(new ValuesHolder(fst));
-    }
-
-    @Override
-    public ScriptDocValues.Strings getScriptValues() {
-        assert fst != null;
-        return new ScriptDocValues.Strings(getBytesValues());
     }
 
     private static class ValuesHolder implements Ordinals.ValuesHolder {
@@ -91,8 +84,8 @@ public class FSTBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<Scr
         }
 
         @Override
-        public BytesRef getValueByOrd(long ord) {
-            assert ord != BytesValues.WithOrdinals.MISSING_ORDINAL;
+        public BytesRef lookupOrd(long ord) {
+            assert ord != SortedSetDocValues.NO_MORE_ORDS;
             in.setPosition(0);
             fst.getFirstArc(firstArc);
             try {

@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.mapping.put;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -42,8 +43,8 @@ public class TransportPutMappingAction extends TransportMasterNodeOperationActio
 
     @Inject
     public TransportPutMappingAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                     ThreadPool threadPool, MetaDataMappingService metaDataMappingService) {
-        super(settings, PutMappingAction.NAME, transportService, clusterService, threadPool);
+                                     ThreadPool threadPool, MetaDataMappingService metaDataMappingService, ActionFilters actionFilters) {
+        super(settings, PutMappingAction.NAME, transportService, clusterService, threadPool, actionFilters);
         this.metaDataMappingService = metaDataMappingService;
     }
 

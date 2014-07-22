@@ -56,6 +56,7 @@ import java.io.IOException;
 /**
  * Test parsing and executing a template request.
  */
+// NOTE: this can't be migrated to ElasticsearchSingleNodeTest because of the custom path.conf
 public class TemplateQueryParserTest extends ElasticsearchTestCase {
 
     private Injector injector;

@@ -27,6 +27,7 @@ import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.analysis.tokenattributes.TypeAttribute;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.custom.TransportSingleCustomOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -59,8 +60,8 @@ public class TransportAnalyzeAction extends TransportSingleCustomOperationAction
 
     @Inject
     public TransportAnalyzeAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
-                                  IndicesService indicesService, IndicesAnalysisService indicesAnalysisService) {
-        super(settings, AnalyzeAction.NAME, threadPool, clusterService, transportService);
+                                  IndicesService indicesService, IndicesAnalysisService indicesAnalysisService, ActionFilters actionFilters) {
+        super(settings, AnalyzeAction.NAME, threadPool, clusterService, transportService, actionFilters);
         this.indicesService = indicesService;
         this.indicesAnalysisService = indicesAnalysisService;
     }

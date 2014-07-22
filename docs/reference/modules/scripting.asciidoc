@@ -239,6 +239,7 @@ using `watcher.interval` setting, which defaults to `60s`.
 To disable script reloading completely set `script.auto_reload_enabled`
 to `false`.
 
+[[native-java-scripts]]
 [float]
 === Native (Java) Scripts
 

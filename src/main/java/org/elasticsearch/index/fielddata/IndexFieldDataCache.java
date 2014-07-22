@@ -48,7 +48,7 @@ public interface IndexFieldDataCache {
 
     <FD extends AtomicFieldData, IFD extends IndexFieldData<FD>> FD load(AtomicReaderContext context, IFD indexFieldData) throws Exception;
 
-    <IFD extends IndexFieldData.WithOrdinals<?>> IFD load(final IndexReader indexReader, final IFD indexFieldData) throws Exception;
+    <FD extends AtomicFieldData, IFD extends IndexFieldData.Global<FD>> IFD load(final IndexReader indexReader, final IFD indexFieldData) throws Exception;
 
     /**
      * Clears all the field data stored cached in on this index.
@@ -78,7 +78,7 @@ public interface IndexFieldDataCache {
 
         @Override
         @SuppressWarnings("unchecked")
-        public <IFD extends IndexFieldData.WithOrdinals<?>> IFD load(IndexReader indexReader, IFD indexFieldData) throws Exception {
+        public <FD extends AtomicFieldData, IFD extends IndexFieldData.Global<FD>> IFD load(IndexReader indexReader, IFD indexFieldData) throws Exception {
             return (IFD) indexFieldData.localGlobalDirect(indexReader);
         }
 
@@ -143,9 +143,9 @@ public interface IndexFieldDataCache {
         public <FD extends AtomicFieldData, IFD extends IndexFieldData<FD>> FD load(final AtomicReaderContext context, final IFD indexFieldData) throws Exception {
             final Key key = new Key(context.reader().getCoreCacheKey());
             //noinspection unchecked
-            return (FD) cache.get(key, new Callable<AtomicFieldData>() {
+            Accountable fd = cache.get(key, new Callable<FD>() {
                 @Override
-                public AtomicFieldData call() throws Exception {
+                public FD call() throws Exception {
                     SegmentReaderUtils.registerCoreListener(context.reader(), FieldBased.this);
 
                     key.listeners.add(indicesFieldDataCacheListener);
@@ -156,7 +156,7 @@ public interface IndexFieldDataCache {
                             key.listeners.add(shard.fieldData());
                         }
                     }
-                    final AtomicFieldData fieldData = indexFieldData.loadDirect(context);
+                    final FD fieldData = indexFieldData.loadDirect(context);
                     key.sizeInBytes = fieldData.ramBytesUsed();
                     for (Listener listener : key.listeners) {
                         try {
@@ -169,12 +169,13 @@ public interface IndexFieldDataCache {
                     return fieldData;
                 }
             });
+            return (FD) fd;
         }
 
-        public <IFD extends IndexFieldData.WithOrdinals<?>> IFD load(final IndexReader indexReader, final IFD indexFieldData) throws Exception {
+        public <FD extends AtomicFieldData, IFD extends IndexFieldData.Global<FD>> IFD load(final IndexReader indexReader, final IFD indexFieldData) throws Exception {
             final Key key = new Key(indexReader.getCoreCacheKey());
             //noinspection unchecked
-            return (IFD) cache.get(key, new Callable<Accountable>() {
+            Accountable ifd = cache.get(key, new Callable<Accountable>() {
                 @Override
                 public GlobalOrdinalsIndexFieldData call() throws Exception {
                     indexReader.addReaderClosedListener(FieldBased.this);
@@ -201,6 +202,7 @@ public interface IndexFieldDataCache {
                     return ifd;
                 }
             });
+            return (IFD) ifd;
         }
 
         @Override

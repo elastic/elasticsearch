@@ -19,10 +19,10 @@
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.LongHash;
-import org.elasticsearch.index.fielddata.LongValues;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -44,7 +44,7 @@ public class LongTermsAggregator extends TermsAggregator {
     protected final ValuesSource.Numeric valuesSource;
     protected final @Nullable ValueFormatter formatter;
     protected final LongHash bucketOrds;
-    private LongValues values;
+    private SortedNumericDocValues values;
 
     public LongTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, @Nullable ValueFormat format, long estimatedBucketCount,
                                InternalOrder order, BucketCountThresholds bucketCountThresholds, AggregationContext aggregationContext, Aggregator parent, SubAggCollectionMode subAggCollectMode) {
@@ -69,17 +69,21 @@ public class LongTermsAggregator extends TermsAggregator {
     @Override
     public void collect(int doc, long owningBucketOrdinal) throws IOException {
         assert owningBucketOrdinal == 0;
-        final int valuesCount = values.setDocument(doc);
+        values.setDocument(doc);
+        final int valuesCount = values.count();
 
+        long previous = Long.MAX_VALUE;
         for (int i = 0; i < valuesCount; ++i) {
-            final long val = values.nextValue();
-            long bucketOrdinal = bucketOrds.add(val);
-            if (bucketOrdinal < 0) { // already seen
-                bucketOrdinal = - 1 - bucketOrdinal;
-                collectExistingBucket(doc, bucketOrdinal);
-                
-            } else {
-                collectBucket(doc, bucketOrdinal);
+            final long val = values.valueAt(i);
+            if (previous != val || i != 0) {
+                long bucketOrdinal = bucketOrds.add(val);
+                if (bucketOrdinal < 0) { // already seen
+                    bucketOrdinal = - 1 - bucketOrdinal;
+                    collectExistingBucket(doc, bucketOrdinal);
+                } else {
+                    collectBucket(doc, bucketOrdinal);
+                }
+                previous = val;
             }
         }
     }
@@ -92,11 +96,12 @@ public class LongTermsAggregator extends TermsAggregator {
             // we need to fill-in the blanks
             for (AtomicReaderContext ctx : context.searchContext().searcher().getTopReaderContext().leaves()) {
                 context.setNextReader(ctx);
-                final LongValues values = valuesSource.longValues();
+                final SortedNumericDocValues values = valuesSource.longValues();
                 for (int docId = 0; docId < ctx.reader().maxDoc(); ++docId) {
-                    final int valueCount = values.setDocument(docId);
+                    values.setDocument(docId);
+                    final int valueCount = values.count();
                     for (int i = 0; i < valueCount; ++i) {
-                        bucketOrds.add(values.nextValue());
+                        bucketOrds.add(values.valueAt(i));
                     }
                 }
             }

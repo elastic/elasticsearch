@@ -21,17 +21,16 @@ package org.elasticsearch.index.mapper.typelevels;
 
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.MapperTestUtils;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.index.mapper.DocumentMapperParser;
+import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
  *
  */
-public class ParseMappingTypeLevelTests extends ElasticsearchTestCase {
+public class ParseMappingTypeLevelTests extends ElasticsearchSingleNodeTest {
 
     @Test
     public void testTypeLevel() throws Exception {
@@ -39,11 +38,12 @@ public class ParseMappingTypeLevelTests extends ElasticsearchTestCase {
                 .startObject("_source").field("enabled", false).endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper mapper = MapperTestUtils.newParser().parse("type", mapping);
+        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+        DocumentMapper mapper = parser.parse("type", mapping);
         assertThat(mapper.type(), equalTo("type"));
         assertThat(mapper.sourceMapper().enabled(), equalTo(false));
 
-        mapper = MapperTestUtils.newParser().parse(mapping);
+        mapper = parser.parse(mapping);
         assertThat(mapper.type(), equalTo("type"));
         assertThat(mapper.sourceMapper().enabled(), equalTo(false));
     }

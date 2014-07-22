@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.recovery;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationRequest;
@@ -64,9 +65,9 @@ public class TransportRecoveryAction extends
 
     @Inject
     public TransportRecoveryAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                                   TransportService transportService, IndicesService indicesService, RecoveryTarget recoveryTarget) {
+                                   TransportService transportService, IndicesService indicesService, RecoveryTarget recoveryTarget, ActionFilters actionFilters) {
 
-        super(settings, RecoveryAction.NAME, threadPool, clusterService, transportService);
+        super(settings, RecoveryAction.NAME, threadPool, clusterService, transportService, actionFilters);
         this.indicesService = indicesService;
         this.recoveryTarget = recoveryTarget;
     }

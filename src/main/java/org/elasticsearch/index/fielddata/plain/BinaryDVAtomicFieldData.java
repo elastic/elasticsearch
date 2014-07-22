@@ -23,17 +23,14 @@ import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchIllegalStateException;
-import org.elasticsearch.index.fielddata.AtomicFieldData;
-import org.elasticsearch.index.fielddata.BytesValues;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.ScriptDocValues.Strings;
 
 import java.io.IOException;
 
 /** {@link AtomicFieldData} impl on top of Lucene's binary doc values. */
-public class BinaryDVAtomicFieldData implements AtomicFieldData<ScriptDocValues.Strings> {
+public class BinaryDVAtomicFieldData implements AtomicFieldData {
 
     private final AtomicReader reader;
     private final String field;
@@ -44,30 +41,11 @@ public class BinaryDVAtomicFieldData implements AtomicFieldData<ScriptDocValues.
     }
 
     @Override
-    public long ramBytesUsed() {
-        // TODO: Lucene doesn't expose it right now
-        return -1;
-    }
-
-    @Override
-    public BytesValues getBytesValues() {
+    public SortedBinaryDocValues getBytesValues() {
         try {
             final BinaryDocValues values = DocValues.getBinary(reader, field);
             final Bits docsWithField = DocValues.getDocsWithField(reader, field);
-            return new BytesValues(false) {
-                int docId;
-
-                @Override
-                public int setDocument(int docId) {
-                    this.docId = docId;
-                    return docsWithField.get(docId) ? 1 : 0;
-                }
-
-                @Override
-                public BytesRef nextValue() {
-                    return values.get(docId);
-                }
-            };
+            return FieldData.singleton(values, docsWithField);
         } catch (IOException e) {
             throw new ElasticsearchIllegalStateException("Cannot load doc values", e);
         }
@@ -81,6 +59,11 @@ public class BinaryDVAtomicFieldData implements AtomicFieldData<ScriptDocValues.
     @Override
     public void close() {
         // no-op
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return -1; // unknown
     }
 
 }

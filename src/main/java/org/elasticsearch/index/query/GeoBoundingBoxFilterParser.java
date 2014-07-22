@@ -175,7 +175,7 @@ public class GeoBoundingBoxFilterParser implements FilterParser {
         if ("indexed".equals(type)) {
             filter = IndexedGeoBoundingBoxFilter.create(topLeft, bottomRight, geoMapper);
         } else if ("memory".equals(type)) {
-            IndexGeoPointFieldData<?> indexFieldData = parseContext.getForField(mapper);
+            IndexGeoPointFieldData indexFieldData = parseContext.getForField(mapper);
             filter = new InMemoryGeoBoundingBoxFilter(topLeft, bottomRight, indexFieldData);
         } else {
             throw new QueryParsingException(parseContext.index(), "geo bounding box type [" + type + "] not supported, either 'indexed' or 'memory' are allowed");

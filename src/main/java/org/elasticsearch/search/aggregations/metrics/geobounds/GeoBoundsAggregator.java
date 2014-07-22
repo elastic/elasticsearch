@@ -23,7 +23,7 @@ import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.DoubleArray;
-import org.elasticsearch.index.fielddata.GeoPointValues;
+import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
@@ -44,7 +44,7 @@ public final class GeoBoundsAggregator extends MetricsAggregator {
     private DoubleArray posRights;
     private DoubleArray negLefts;
     private DoubleArray negRights;
-    private GeoPointValues values;
+    private MultiGeoPointValues values;
 
     protected GeoBoundsAggregator(String name, long estimatedBucketsCount,
             AggregationContext aggregationContext, Aggregator parent, ValuesSource.GeoPoint valuesSource, boolean wrapLongitude) {
@@ -116,10 +116,11 @@ public final class GeoBoundsAggregator extends MetricsAggregator {
             negRights.fill(from, negRights.size(), Double.NEGATIVE_INFINITY);
         }
 
-        final int valuesCount = values.setDocument(docId);
+        values.setDocument(docId);
+        final int valuesCount = values.count();
 
         for (int i = 0; i < valuesCount; ++i) {
-            GeoPoint value = values.nextValue();
+            GeoPoint value = values.valueAt(i);
             double top = tops.get(owningBucketOrdinal);
             if (value.lat() > top) {
                 top = value.lat();

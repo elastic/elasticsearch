@@ -38,65 +38,25 @@ import java.util.Map;
  */
 class ExpressionScript implements SearchScript {
 
-    /** Fake scorer for a single document */
-    static class CannedScorer extends Scorer {
-        protected int docid;
-        protected float score;
-
-        public CannedScorer() {
-            super(null);
-        }
-
-        @Override
-        public int docID() {
-            return docid;
-        }
-
-        @Override
-        public float score() throws IOException {
-            return score;
-        }
-
-        @Override
-        public int freq() throws IOException {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public int nextDoc() throws IOException {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public int advance(int target) throws IOException {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public long cost() {
-            return 1;
-        }
-    }
-
     final Expression expression;
     final SimpleBindings bindings;
-    final CannedScorer scorer;
     final ValueSource source;
-    final Map<String, CannedScorer> context;
     final ReplaceableConstValueSource specialValue; // _value
+    Map<String, Scorer> context;
+    Scorer scorer;
     FunctionValues values;
+    int docid;
 
     ExpressionScript(Expression e, SimpleBindings b, ReplaceableConstValueSource v) {
         expression = e;
         bindings = b;
-        scorer = new CannedScorer();
-        context = Collections.singletonMap("scorer", scorer);
+        context = Collections.EMPTY_MAP;
         source = expression.getValueSource(bindings);
         specialValue = v;
     }
 
     double evaluate() {
-        return values.doubleVal(scorer.docid);
+        return values.doubleVal(docid);
     }
 
     @Override
@@ -116,17 +76,7 @@ class ExpressionScript implements SearchScript {
 
     @Override
     public void setNextDocId(int d) {
-        scorer.docid = d;
-    }
-
-    @Override
-    public void setNextScore(float score) {
-        // TODO: fix this API to remove setNextScore and just use a Scorer
-        // Expressions know if they use the score or not, and should be able to pull from the scorer only
-        // if they need it. Right now, score can only be used within a ScriptScoreFunction.  But there shouldn't
-        // be any reason a script values or aggregation can't use the score.  It is also possible
-        // these layers are preventing inlining of scoring into expressions.
-        scorer.score = score;
+        docid = d;
     }
 
     @Override
@@ -140,8 +90,8 @@ class ExpressionScript implements SearchScript {
 
     @Override
     public void setScorer(Scorer s) {
-         // noop: The scorer isn't actually ever set.  Instead setNextScore is called.
-         // NOTE: This seems broken.  Why can't we just use the scorer and get rid of setNextScore?
+        scorer = s;
+        context = Collections.singletonMap("scorer", scorer);
     }
 
     @Override

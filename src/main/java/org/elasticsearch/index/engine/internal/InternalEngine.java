@@ -210,7 +210,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         this.optimizeAutoGenerateId = indexSettings.getAsBoolean("index.optimize_auto_generated_id", true);
 
         this.indexSettingsService.addListener(applySettings);
-        this.failEngineOnCorruption = indexSettings.getAsBoolean(ENGINE_FAIL_ON_CORRUPTION, true);
+        this.failEngineOnCorruption = indexSettings.getAsBoolean(INDEX_FAIL_ON_CORRUPTION, true);
         this.failOnMergeFailure = indexSettings.getAsBoolean(INDEX_FAIL_ON_MERGE_FAILURE, true);
         if (failOnMergeFailure) {
             this.mergeScheduler.addFailureListener(new FailEngineOnMergeFailure());
@@ -315,9 +315,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
     }
 
     private void readLastCommittedSegmentsInfo() throws IOException {
-        SegmentInfos infos = new SegmentInfos();
-        infos.read(store.directory());
-        lastCommittedSegmentInfos = infos;
+        lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
     }
 
     @Override
@@ -907,11 +905,13 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             } catch (Throwable e) {
                 if (!closed) {
                     logger.warn("failed to read latest segment infos on flush", e);
+                    if (Lucene.isCorruptionException(e)) {
+                        throw new FlushFailedEngineException(shardId, e);
+                    }
                 }
             }
-
         } catch (FlushFailedEngineException ex) {
-            maybeFailEngine(ex.getCause(), "flush");
+            maybeFailEngine(ex, "flush");
             throw ex;
         } finally {
             flushLock.unlock();
@@ -1033,8 +1033,10 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
 
     @Override
     public SnapshotIndexCommit snapshotIndex() throws EngineException {
+        // we have to flush outside of the readlock otherwise we might have a problem upgrading
+        // the to a write lock when we fail the engine in this operation
+        flush(new Flush().type(Flush.Type.COMMIT).waitIfOngoing(true));
         try (InternalLock _ = readLock.acquire()) {
-            flush(new Flush().type(Flush.Type.COMMIT).waitIfOngoing(true));
             ensureOpen();
             return deletionPolicy.snapshot();
         } catch (IOException e) {
@@ -1102,16 +1104,19 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         }
     }
 
-    private void maybeFailEngine(Throwable t, String source) {
+    private boolean maybeFailEngine(Throwable t, String source) {
         if (Lucene.isCorruptionException(t)) {
             if (this.failEngineOnCorruption) {
                 failEngine("corrupt file detected source: [" + source + "]", t);
+                return true;
             } else {
-                logger.warn("corrupt file detected source: [{}] but [{}] is set to [{}]", t, source, ENGINE_FAIL_ON_CORRUPTION, this.failEngineOnCorruption);
+                logger.warn("corrupt file detected source: [{}] but [{}] is set to [{}]", t, source, INDEX_FAIL_ON_CORRUPTION, this.failEngineOnCorruption);
             }
         }else if (ExceptionsHelper.isOOM(t)) {
             failEngine("out of memory", t);
+            return true;
         }
+        return false;
     }
 
     private Throwable wrapIfClosed(Throwable t) {
@@ -1265,7 +1270,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                 if (failEngineOnCorruption) {
                     failEngine("corrupt file detected source: [merge]", e);
                 } else {
-                    logger.warn("corrupt file detected source: [merge] but [{}] is set to [{}]", e, ENGINE_FAIL_ON_CORRUPTION, failEngineOnCorruption);
+                    logger.warn("corrupt file detected source: [merge] but [{}] is set to [{}]", e, INDEX_FAIL_ON_CORRUPTION, failEngineOnCorruption);
                 }
             } else {
                 failEngine("merge exception", e);
@@ -1405,7 +1410,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
     public static final String INDEX_COMPOUND_ON_FLUSH = "index.compound_on_flush";
     public static final String INDEX_GC_DELETES = "index.gc_deletes";
     public static final String INDEX_FAIL_ON_MERGE_FAILURE = "index.fail_on_merge_failure";
-    public static final String ENGINE_FAIL_ON_CORRUPTION = "index.fail_on_corruption";
+    public static final String INDEX_FAIL_ON_CORRUPTION = "index.fail_on_corruption";
 
 
     class ApplySettings implements IndexSettingsService.Listener {
@@ -1425,7 +1430,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                 indexWriter.getConfig().setUseCompoundFile(compoundOnFlush);
             }
 
-            InternalEngine.this.failEngineOnCorruption = indexSettings.getAsBoolean(ENGINE_FAIL_ON_CORRUPTION, InternalEngine.this.failEngineOnCorruption);
+            InternalEngine.this.failEngineOnCorruption = settings.getAsBoolean(INDEX_FAIL_ON_CORRUPTION, InternalEngine.this.failEngineOnCorruption);
             int indexConcurrency = settings.getAsInt(INDEX_INDEX_CONCURRENCY, InternalEngine.this.indexConcurrency);
             boolean failOnMergeFailure = settings.getAsBoolean(INDEX_FAIL_ON_MERGE_FAILURE, InternalEngine.this.failOnMergeFailure);
             String codecName = settings.get(INDEX_CODEC, InternalEngine.this.codecName);
@@ -1611,11 +1616,11 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
     }
 
     private static final class InternalLock implements Releasable {
-        private final ThreadLocal<Boolean> lockIsHeld;
+        private final ThreadLocal<AtomicInteger> lockIsHeld;
         private final Lock lock;
 
         InternalLock(Lock lock) {
-            ThreadLocal<Boolean> tl = null;
+            ThreadLocal<AtomicInteger> tl = null;
             assert (tl = new ThreadLocal<>()) != null;
             lockIsHeld = tl;
             this.lock = lock;
@@ -1635,18 +1640,26 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
 
 
         protected boolean onAssertRelease() {
-            lockIsHeld.set(Boolean.FALSE);
+            AtomicInteger count = lockIsHeld.get();
+            if (count.decrementAndGet() == 0) {
+                lockIsHeld.remove();
+            }
             return true;
         }
 
         protected boolean onAssertLock() {
-            lockIsHeld.remove();
+            AtomicInteger count = lockIsHeld.get();
+            if (count == null) {
+                count = new AtomicInteger(0);
+                lockIsHeld.set(count);
+            }
+            count.incrementAndGet();
             return true;
         }
 
         boolean assertLockIsHeld() {
-            Boolean aBoolean = lockIsHeld.get();
-            return aBoolean != null && aBoolean.booleanValue();
+            AtomicInteger count = lockIsHeld.get();
+            return count != null && count.get() > 0;
         }
     }
 

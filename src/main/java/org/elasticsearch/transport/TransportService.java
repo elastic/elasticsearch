@@ -127,7 +127,11 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
     }
 
     public TransportInfo info() {
-        return new TransportInfo(boundAddress());
+        BoundTransportAddress boundTransportAddress = boundAddress();
+        if (boundTransportAddress == null) {
+            return null;
+        }
+        return new TransportInfo(boundTransportAddress);
     }
 
     public TransportStats stats() {

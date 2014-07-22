@@ -395,7 +395,7 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
         }
 
         Filter filter =  NumericRangeFieldDataFilter.newLongRange(
-            (IndexNumericFieldData<?>) parseContext.getForField(this), lowerVal,upperVal, includeLower, includeUpper
+            (IndexNumericFieldData) parseContext.getForField(this), lowerVal,upperVal, includeLower, includeUpper
         );
         if (!cache) {
             // We don't cache range filter if `now` date expression is used and also when a compound filter wraps

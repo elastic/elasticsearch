@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.cluster.repositories.put;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -42,8 +43,8 @@ public class TransportPutRepositoryAction extends TransportMasterNodeOperationAc
 
     @Inject
     public TransportPutRepositoryAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                        RepositoriesService repositoriesService, ThreadPool threadPool) {
-        super(settings, PutRepositoryAction.NAME, transportService, clusterService, threadPool);
+                                        RepositoriesService repositoriesService, ThreadPool threadPool, ActionFilters actionFilters) {
+        super(settings, PutRepositoryAction.NAME, transportService, clusterService, threadPool, actionFilters);
         this.repositoriesService = repositoriesService;
     }
 

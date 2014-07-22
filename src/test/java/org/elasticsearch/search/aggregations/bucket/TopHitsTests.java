@@ -48,6 +48,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.core.IsNull.notNullValue;
 
 /**
@@ -412,15 +413,25 @@ public class TopHitsTests extends ElasticsearchIntegrationTest {
     }
     
     @Test
-    public void testFailDeferred() throws Exception {
-        
+    public void testFailDeferredOnlyWhenScorerIsUsed() throws Exception {
+        // No track_scores or score based sort defined in top_hits agg, so don't fail:
+        SearchResponse response = client().prepareSearch("idx")
+                .setTypes("type")
+                .addAggregation(
+                        terms("terms").executionHint(randomExecutionHint()).field(TERMS_AGGS_FIELD)
+                                .collectMode(SubAggCollectionMode.BREADTH_FIRST)
+                                .subAggregation(topHits("hits").addSort(SortBuilders.fieldSort(SORT_FIELD).order(SortOrder.DESC))))
+                .get();
+        assertSearchResponse(response);
+
+        // Score based, so fail with deferred aggs:
         try {
             client().prepareSearch("idx")
                     .setTypes("type")
                     .addAggregation(
                             terms("terms").executionHint(randomExecutionHint()).field(TERMS_AGGS_FIELD)
                                     .collectMode(SubAggCollectionMode.BREADTH_FIRST)
-                                    .subAggregation(topHits("hits").addSort(SortBuilders.fieldSort(SORT_FIELD).order(SortOrder.DESC))))
+                                    .subAggregation(topHits("hits")))
                     .get();
             fail();
         } catch (Exception e) {
@@ -431,9 +442,6 @@ public class TopHitsTests extends ElasticsearchIntegrationTest {
             assertThat(e.getMessage(), containsString("ElasticsearchParseException"));
         }
     }
-    
-    
-    
 
     @Test
     public void testEmptyIndex() throws Exception {
@@ -446,6 +454,53 @@ public class TopHitsTests extends ElasticsearchIntegrationTest {
         assertThat(hits, notNullValue());
         assertThat(hits.getName(), equalTo("hits"));
         assertThat(hits.getHits().totalHits(), equalTo(0l));
+    }
+
+    @Test
+    public void testTrackScores() throws Exception {
+        boolean[] trackScores = new boolean[]{true, false};
+        for (boolean trackScore : trackScores) {
+            logger.info("Track score=" + trackScore);
+            SearchResponse response = client().prepareSearch("idx").setTypes("field-collapsing")
+                    .setQuery(matchQuery("text", "term rare"))
+                    .addAggregation(terms("terms")
+                                    .field("group")
+                                    .subAggregation(
+                                            topHits("hits")
+                                                    .setTrackScores(trackScore)
+                                                    .setSize(1)
+                                                    .addSort("_id", SortOrder.DESC)
+                                    )
+                    )
+                    .get();
+            assertSearchResponse(response);
+
+            Terms terms = response.getAggregations().get("terms");
+            assertThat(terms, notNullValue());
+            assertThat(terms.getName(), equalTo("terms"));
+            assertThat(terms.getBuckets().size(), equalTo(3));
+
+            Terms.Bucket bucket = terms.getBucketByKey("a");
+            assertThat(key(bucket), equalTo("a"));
+            TopHits topHits = bucket.getAggregations().get("hits");
+            SearchHits hits = topHits.getHits();
+            assertThat(hits.getMaxScore(), trackScore ? not(equalTo(Float.NaN)) : equalTo(Float.NaN));
+            assertThat(hits.getAt(0).score(), trackScore ? not(equalTo(Float.NaN)) : equalTo(Float.NaN));
+
+            bucket = terms.getBucketByKey("b");
+            assertThat(key(bucket), equalTo("b"));
+            topHits = bucket.getAggregations().get("hits");
+            hits = topHits.getHits();
+            assertThat(hits.getMaxScore(), trackScore ? not(equalTo(Float.NaN)) : equalTo(Float.NaN));
+            assertThat(hits.getAt(0).score(), trackScore ? not(equalTo(Float.NaN)) : equalTo(Float.NaN));
+
+            bucket = terms.getBucketByKey("c");
+            assertThat(key(bucket), equalTo("c"));
+            topHits = bucket.getAggregations().get("hits");
+            hits = topHits.getHits();
+            assertThat(hits.getMaxScore(), trackScore ? not(equalTo(Float.NaN)) : equalTo(Float.NaN));
+            assertThat(hits.getAt(0).score(), trackScore ? not(equalTo(Float.NaN)) : equalTo(Float.NaN));
+        }
     }
 
 }

@@ -21,26 +21,26 @@ package org.elasticsearch.index.mapper.camelcase;
 
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.MapperTestUtils;
+import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
  *
  */
-public class CamelCaseFieldNameTests extends ElasticsearchTestCase {
+public class CamelCaseFieldNameTests extends ElasticsearchSingleNodeTest {
 
     @Test
     public void testCamelCaseFieldNameStaysAsIs() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .endObject().endObject().string();
 
-        DocumentMapper documentMapper = MapperTestUtils.newParser().parse(mapping);
+        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+        DocumentMapper documentMapper = parser.parse(mapping);
 
         ParsedDocument doc = documentMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
                 .field("thisIsCamelCase", "value1")
@@ -50,7 +50,7 @@ public class CamelCaseFieldNameTests extends ElasticsearchTestCase {
         assertThat(documentMapper.mappers().indexName("this_is_camel_case"), nullValue());
 
         documentMapper.refreshSource();
-        documentMapper = MapperTestUtils.newParser().parse(documentMapper.mappingSource().string());
+        documentMapper = parser.parse(documentMapper.mappingSource().string());
 
         assertThat(documentMapper.mappers().indexName("thisIsCamelCase").isEmpty(), equalTo(false));
         assertThat(documentMapper.mappers().indexName("this_is_camel_case"), nullValue());

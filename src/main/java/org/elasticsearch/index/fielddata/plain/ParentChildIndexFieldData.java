@@ -21,8 +21,12 @@ package org.elasticsearch.index.fielddata.plain;
 
 import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import com.google.common.collect.ImmutableSortedSet;
 import org.apache.lucene.index.*;
+import org.apache.lucene.index.MultiDocValues.OrdinalMap;
+import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.LongValues;
 import org.apache.lucene.util.PagedBytes;
 import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PackedLongValues;
@@ -32,17 +36,14 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.breaker.MemoryCircuitBreaker;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
-import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsBuilder;
-import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsIndexFieldData;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.DocumentTypeListener;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.FieldMapper.Names;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -50,18 +51,17 @@ import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
 import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
-import java.util.NavigableSet;
-import java.util.TreeSet;
+import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 /**
  * ParentChildIndexFieldData is responsible for loading the id cache mapping
  * needed for has_child and has_parent queries into memory.
  */
-public class ParentChildIndexFieldData extends AbstractIndexFieldData<ParentChildAtomicFieldData> implements DocumentTypeListener {
+public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicParentChildFieldData> implements IndexParentChildFieldData, DocumentTypeListener {
 
     private final NavigableSet<BytesRef> parentTypes;
     private final CircuitBreakerService breakerService;
-    private final GlobalOrdinalsBuilder globalOrdinalsBuilder;
 
     // If child type (a type with _parent field) is added or removed, we want to make sure modifications don't happen
     // while loading.
@@ -69,20 +69,14 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<ParentChil
 
     public ParentChildIndexFieldData(Index index, @IndexSettings Settings indexSettings, FieldMapper.Names fieldNames,
                                      FieldDataType fieldDataType, IndexFieldDataCache cache, MapperService mapperService,
-                                     CircuitBreakerService breakerService, GlobalOrdinalsBuilder globalOrdinalsBuilder) {
+                                     CircuitBreakerService breakerService) {
         super(index, indexSettings, fieldNames, fieldDataType, cache);
         parentTypes = new TreeSet<>(BytesRef.getUTF8SortedAsUnicodeComparator());
         this.breakerService = breakerService;
-        this.globalOrdinalsBuilder = globalOrdinalsBuilder;
         for (DocumentMapper documentMapper : mapperService.docMappers(false)) {
             beforeCreate(documentMapper);
         }
         mapperService.addTypeListener(this);
-    }
-
-    @Override
-    public boolean valuesOrdered() {
-        return true;
     }
 
     @Override
@@ -97,74 +91,69 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<ParentChil
                 "acceptable_transient_overhead_ratio", OrdinalsBuilder.DEFAULT_ACCEPTABLE_OVERHEAD_RATIO
         );
 
+        final NavigableSet<BytesRef> parentTypes;
         synchronized (lock) {
-            boolean success = false;
-            ParentChildAtomicFieldData data = null;
-            ParentChildFilteredTermsEnum termsEnum = new ParentChildFilteredTermsEnum(
-                    new ParentChildIntersectTermsEnum(reader, UidFieldMapper.NAME, ParentFieldMapper.NAME),
-                    parentTypes
-            );
-            ParentChildEstimator estimator = new ParentChildEstimator(breakerService.getBreaker(), termsEnum);
-            TermsEnum estimatedTermsEnum = estimator.beforeLoad(null);
-            ObjectObjectOpenHashMap<String, TypeBuilder> typeBuilders = ObjectObjectOpenHashMap.newInstance();
+            parentTypes = ImmutableSortedSet.copyOf(BytesRef.getUTF8SortedAsUnicodeComparator(), this.parentTypes);
+        }
+        boolean success = false;
+        ParentChildAtomicFieldData data = null;
+        ParentChildFilteredTermsEnum termsEnum = new ParentChildFilteredTermsEnum(
+                new ParentChildIntersectTermsEnum(reader, UidFieldMapper.NAME, ParentFieldMapper.NAME),
+                parentTypes
+        );
+        ParentChildEstimator estimator = new ParentChildEstimator(breakerService.getBreaker(), termsEnum);
+        TermsEnum estimatedTermsEnum = estimator.beforeLoad(null);
+        ObjectObjectOpenHashMap<String, TypeBuilder> typeBuilders = ObjectObjectOpenHashMap.newInstance();
+        try {
             try {
-                try {
-                    DocsEnum docsEnum = null;
-                    for (BytesRef term = estimatedTermsEnum.next(); term != null; term = estimatedTermsEnum.next()) {
-                        // Usually this would be estimatedTermsEnum, but the
-                        // abstract TermsEnum class does not support the .type()
-                        // and .id() methods, so we skip using the wrapped
-                        // TermsEnum and delegate directly to the
-                        // ParentChildFilteredTermsEnum that was originally wrapped
-                        String type = termsEnum.type();
-                        TypeBuilder typeBuilder = typeBuilders.get(type);
-                        if (typeBuilder == null) {
-                            typeBuilders.put(type, typeBuilder = new TypeBuilder(acceptableTransientOverheadRatio, reader));
-                        }
-
-                        BytesRef id = termsEnum.id();
-                        final long termOrd = typeBuilder.builder.nextOrdinal();
-                        assert termOrd == typeBuilder.termOrdToBytesOffset.size();
-                        typeBuilder.termOrdToBytesOffset.add(typeBuilder.bytes.copyUsingLengthPrefix(id));
-                        docsEnum = estimatedTermsEnum.docs(null, docsEnum, DocsEnum.FLAG_NONE);
-                        for (int docId = docsEnum.nextDoc(); docId != DocsEnum.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {
-                            typeBuilder.builder.addDoc(docId);
-                        }
+                DocsEnum docsEnum = null;
+                for (BytesRef term = estimatedTermsEnum.next(); term != null; term = estimatedTermsEnum.next()) {
+                    // Usually this would be estimatedTermsEnum, but the
+                    // abstract TermsEnum class does not support the .type()
+                    // and .id() methods, so we skip using the wrapped
+                    // TermsEnum and delegate directly to the
+                    // ParentChildFilteredTermsEnum that was originally wrapped
+                    String type = termsEnum.type();
+                    TypeBuilder typeBuilder = typeBuilders.get(type);
+                    if (typeBuilder == null) {
+                        typeBuilders.put(type, typeBuilder = new TypeBuilder(acceptableTransientOverheadRatio, reader));
                     }
 
-                    ImmutableOpenMap.Builder<String, PagedBytesAtomicFieldData> typeToAtomicFieldData = ImmutableOpenMap.builder(typeBuilders.size());
-                    for (ObjectObjectCursor<String, TypeBuilder> cursor : typeBuilders) {
-                        final long sizePointer = cursor.value.bytes.getPointer();
-                        PagedBytes.Reader bytesReader = cursor.value.bytes.freeze(true);
-                        final Ordinals ordinals = cursor.value.builder.build(fieldDataType.getSettings());
-
-                        typeToAtomicFieldData.put(
-                                cursor.key,
-                                new PagedBytesAtomicFieldData(bytesReader, sizePointer, cursor.value.termOrdToBytesOffset.build(), ordinals)
-                        );
-                    }
-                    data = new ParentChildAtomicFieldData(typeToAtomicFieldData.build());
-                } finally {
-                    for (ObjectObjectCursor<String, TypeBuilder> cursor : typeBuilders) {
-                        cursor.value.builder.close();
+                    BytesRef id = termsEnum.id();
+                    final long termOrd = typeBuilder.builder.nextOrdinal();
+                    assert termOrd == typeBuilder.termOrdToBytesOffset.size();
+                    typeBuilder.termOrdToBytesOffset.add(typeBuilder.bytes.copyUsingLengthPrefix(id));
+                    docsEnum = estimatedTermsEnum.docs(null, docsEnum, DocsEnum.FLAG_NONE);
+                    for (int docId = docsEnum.nextDoc(); docId != DocsEnum.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {
+                        typeBuilder.builder.addDoc(docId);
                     }
                 }
-                success = true;
-                return data;
+
+                ImmutableOpenMap.Builder<String, AtomicOrdinalsFieldData> typeToAtomicFieldData = ImmutableOpenMap.builder(typeBuilders.size());
+                for (ObjectObjectCursor<String, TypeBuilder> cursor : typeBuilders) {
+                    PagedBytes.Reader bytesReader = cursor.value.bytes.freeze(true);
+                    final Ordinals ordinals = cursor.value.builder.build(fieldDataType.getSettings());
+
+                    typeToAtomicFieldData.put(
+                            cursor.key,
+                            new PagedBytesAtomicFieldData(bytesReader, cursor.value.termOrdToBytesOffset.build(), ordinals)
+                    );
+                }
+                data = new ParentChildAtomicFieldData(typeToAtomicFieldData.build());
             } finally {
-                if (success) {
-                    estimator.afterLoad(estimatedTermsEnum, data.ramBytesUsed());
-                } else {
-                    estimator.afterLoad(estimatedTermsEnum, 0);
+                for (ObjectObjectCursor<String, TypeBuilder> cursor : typeBuilders) {
+                    cursor.value.builder.close();
                 }
             }
+            success = true;
+            return data;
+        } finally {
+            if (success) {
+                estimator.afterLoad(estimatedTermsEnum, data.ramBytesUsed());
+            } else {
+                estimator.afterLoad(estimatedTermsEnum, 0);
+            }
         }
-    }
-
-    public WithOrdinals getGlobalParentChild(String type, IndexReader indexReader) {
-        ParentTypesGlobalOrdinalsLoading loading = new ParentTypesGlobalOrdinalsLoading();
-        ParentChildGlobalOrdinalsIndexFieldData holder = (ParentChildGlobalOrdinalsIndexFieldData) loading.loadGlobal(indexReader);
-        return holder.type(type);
     }
 
     @Override
@@ -209,9 +198,9 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<ParentChil
         @Override
         public IndexFieldData<?> build(Index index, @IndexSettings Settings indexSettings, FieldMapper<?> mapper,
                                        IndexFieldDataCache cache, CircuitBreakerService breakerService,
-                                       MapperService mapperService, GlobalOrdinalsBuilder globalOrdinalBuilder) {
+                                       MapperService mapperService) {
             return new ParentChildIndexFieldData(index, indexSettings, mapper.names(), mapper.fieldDataType(), cache,
-                    mapperService, breakerService, globalOrdinalBuilder);
+                    mapperService, breakerService);
         }
     }
 
@@ -264,59 +253,142 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<ParentChil
         }
     }
 
-    private class ParentTypesGlobalOrdinalsLoading implements WithOrdinals {
+    @Override
+    public IndexParentChildFieldData loadGlobal(IndexReader indexReader) {
+        if (indexReader.leaves().size() <= 1) {
+            // ordinals are already global
+            return this;
+        }
+        try {
+            return cache.load(indexReader, this);
+        } catch (Throwable e) {
+            if (e instanceof ElasticsearchException) {
+                throw (ElasticsearchException) e;
+            } else {
+                throw new ElasticsearchException(e.getMessage(), e);
+            }
+        }
+    }
 
-        public ParentTypesGlobalOrdinalsLoading() {
+    @Override
+    public IndexParentChildFieldData localGlobalDirect(IndexReader indexReader) throws Exception {
+        final long startTime = System.nanoTime();
+        final Map<String, SortedDocValues[]> types = new HashMap<>();
+        synchronized (lock) {
+            for (BytesRef type : parentTypes) {
+                final SortedDocValues[] values = new SortedDocValues[indexReader.leaves().size()];
+                Arrays.fill(values, DocValues.emptySorted());
+                types.put(type.utf8ToString(), values);
+            }
         }
 
-        @Override
-        public AtomicFieldData.WithOrdinals load(AtomicReaderContext context) {
-            throw new ElasticsearchIllegalStateException("Shouldn't be invoked");
-        }
-
-        @Override
-        public AtomicFieldData.WithOrdinals loadDirect(AtomicReaderContext context) {
-            throw new ElasticsearchIllegalStateException("Shouldn't be invoked");
-        }
-
-        @Override
-        public WithOrdinals loadGlobal(IndexReader indexReader) {
-            if (indexReader.leaves().size() <= 1) {
-                // ordinals are already global
-                ImmutableOpenMap.Builder<String, WithOrdinals> globalIfdPerType = ImmutableOpenMap.builder();
-                for (BytesRef parentType : parentTypes) {
-                    PerType perType = new PerType(parentType.utf8ToString());
-                    globalIfdPerType.put(perType.type, perType);
+        for (Map.Entry<String, SortedDocValues[]> entry : types.entrySet()) {
+            final String parentType = entry.getKey();
+            final SortedDocValues[] values = entry.getValue();
+            for (AtomicReaderContext context : indexReader.leaves()) {
+                SortedDocValues vals = load(context).getOrdinalsValues(parentType);
+                if (vals != null) {
+                    values[context.ord] = vals;
                 }
-                return new ParentChildGlobalOrdinalsIndexFieldData(globalIfdPerType.build(), 0);
             }
+        }
 
-            try {
-                return cache.load(indexReader, this);
-            } catch (Throwable e) {
-                if (e instanceof ElasticsearchException) {
-                    throw (ElasticsearchException) e;
-                } else {
-                    throw new ElasticsearchException(e.getMessage(), e);
+        long ramBytesUsed = 0;
+        @SuppressWarnings("unchecked")
+        final Map<String, SortedDocValues>[] global = new Map[indexReader.leaves().size()];
+        for (Map.Entry<String, SortedDocValues[]> entry : types.entrySet()) {
+            final String parentType = entry.getKey();
+            final SortedDocValues[] values = entry.getValue();
+            final OrdinalMap ordinalMap = OrdinalMap.build(null, entry.getValue(), PackedInts.DEFAULT);
+            ramBytesUsed += ordinalMap.ramBytesUsed();
+            for (int i = 0; i < values.length; ++i) {
+                final SortedDocValues segmentValues = values[i];
+                final LongValues globalOrds = ordinalMap.getGlobalOrds(i);
+                final SortedDocValues globalSortedValues = new SortedDocValues() {
+                    @Override
+                    public BytesRef lookupOrd(int ord) {
+                        final int segmentNum = ordinalMap.getFirstSegmentNumber(ord);
+                        final int segmentOrd = (int) ordinalMap.getFirstSegmentOrd(ord);
+                        return values[segmentNum].lookupOrd(segmentOrd);
+                    }
+
+                    @Override
+                    public int getValueCount() {
+                        return (int) ordinalMap.getValueCount();
+                    }
+
+                    @Override
+                    public int getOrd(int docID) {
+                        final int segmentOrd = segmentValues.getOrd(docID);
+                        // TODO: is there a way we can get rid of this branch?
+                        if (segmentOrd >= 0) {
+                            return (int) globalOrds.get(segmentOrd);
+                        } else {
+                            return segmentOrd;
+                        }
+                    }
+                };
+                Map<String, SortedDocValues> perSegmentGlobal = global[i];
+                if (perSegmentGlobal == null) {
+                    perSegmentGlobal = new HashMap<>(1);
+                    global[i] = perSegmentGlobal;
                 }
+                perSegmentGlobal.put(parentType, globalSortedValues);
+            }
+        }
+
+        breakerService.getBreaker().addWithoutBreaking(ramBytesUsed);
+        if (logger.isDebugEnabled()) {
+            logger.debug(
+                    "Global-ordinals[_parent] took {}",
+                    new TimeValue(System.nanoTime() - startTime, TimeUnit.NANOSECONDS)
+            );
+        }
+
+        return new GlobalFieldData(indexReader, global, ramBytesUsed);
+    }
+
+    private class GlobalFieldData implements IndexParentChildFieldData, Accountable {
+
+        private final AtomicParentChildFieldData[] atomicFDs;
+        private final IndexReader reader;
+        private final long ramBytesUsed;
+
+        GlobalFieldData(IndexReader reader, final Map<String, SortedDocValues>[] globalValues, long ramBytesUsed) {
+            this.reader = reader;
+            this.ramBytesUsed = ramBytesUsed;
+            this.atomicFDs = new AtomicParentChildFieldData[globalValues.length];
+            for (int i = 0; i < globalValues.length; ++i) {
+                final int ord = i;
+                atomicFDs[i] = new AbstractAtomicParentChildFieldData() {
+                    @Override
+                    public long ramBytesUsed() {
+                        return 0;
+                    }
+
+                    @Override
+                    public void close() {
+                    }
+
+                    @Override
+                    public Set<String> types() {
+                        return Collections.unmodifiableSet(globalValues[ord].keySet());
+                    }
+
+                    @Override
+                    public SortedDocValues getOrdinalsValues(String type) {
+                        SortedDocValues dv = globalValues[ord].get(type);
+                        if (dv == null) {
+                            dv = DocValues.emptySorted();
+                        }
+                        return dv;
+                    }
+                };
             }
         }
 
         @Override
-        public WithOrdinals localGlobalDirect(IndexReader indexReader) throws Exception {
-            ImmutableOpenMap.Builder<String, WithOrdinals> globalIfdPerType = ImmutableOpenMap.builder();
-            long memorySizeInBytes = 0;
-            for (BytesRef parentType : parentTypes) {
-                PerType perType = new PerType(parentType.utf8ToString());
-                GlobalOrdinalsIndexFieldData globalIfd = (GlobalOrdinalsIndexFieldData) globalOrdinalsBuilder.build(indexReader, perType, indexSettings, breakerService);
-                globalIfdPerType.put(perType.type, globalIfd);
-                memorySizeInBytes += globalIfd.ramBytesUsed();
-            }
-            return new ParentChildGlobalOrdinalsIndexFieldData(globalIfdPerType.build(), memorySizeInBytes);
-        }
-
-        @Override
-        public FieldMapper.Names getFieldNames() {
+        public Names getFieldNames() {
             return ParentChildIndexFieldData.this.getFieldNames();
         }
 
@@ -326,21 +398,30 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<ParentChil
         }
 
         @Override
-        public boolean valuesOrdered() {
-            return ParentChildIndexFieldData.this.valuesOrdered();
+        public AtomicParentChildFieldData load(AtomicReaderContext context) {
+            assert context.reader().getCoreCacheKey() == reader.leaves().get(context.ord).reader().getCoreCacheKey();
+            return atomicFDs[context.ord];
         }
 
         @Override
-        public XFieldComparatorSource comparatorSource(@Nullable Object missingValue, MultiValueMode sortMode) {
-            throw new UnsupportedOperationException("Sort not supported on PerParentTypeGlobalOrdinals...");
+        public AtomicParentChildFieldData loadDirect(AtomicReaderContext context) throws Exception {
+            return load(context);
+        }
+
+        @Override
+        public org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource comparatorSource(Object missingValue,
+                MultiValueMode sortMode) {
+            throw new UnsupportedOperationException("No sorting on global ords");
         }
 
         @Override
         public void clear() {
+            ParentChildIndexFieldData.this.clear();
         }
 
         @Override
         public void clear(IndexReader reader) {
+            ParentChildIndexFieldData.this.clear(reader);
         }
 
         @Override
@@ -348,60 +429,24 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<ParentChil
             return ParentChildIndexFieldData.this.index();
         }
 
-        private final class PerType extends ParentTypesGlobalOrdinalsLoading {
-
-            private final String type;
-
-            public PerType(String type) {
-                this.type = type;
-            }
-
-            @Override
-            public AtomicFieldData.WithOrdinals load(AtomicReaderContext context) {
-                return loadDirect(context);
-            }
-
-            @Override
-            public AtomicFieldData.WithOrdinals loadDirect(AtomicReaderContext context) {
-                ParentChildAtomicFieldData parentChildAtomicFieldData = ParentChildIndexFieldData.this.load(context);
-                AtomicFieldData.WithOrdinals typeAfd = parentChildAtomicFieldData.getAtomicFieldData(type);
-                if(typeAfd != null) {
-                    return typeAfd;
-                } else {
-                    return AtomicFieldData.WithOrdinals.EMPTY;
-                }
-            }
-
-            @Override
-            public WithOrdinals loadGlobal(IndexReader indexReader) {
-                return this;
-            }
-
-            @Override
-            public WithOrdinals localGlobalDirect(IndexReader indexReader) throws Exception {
-                return this;
-            }
-        }
-    }
-
-    // Effectively this is a cache key for in the field data cache
-    private final class ParentChildGlobalOrdinalsIndexFieldData extends GlobalOrdinalsIndexFieldData {
-
-        private final ImmutableOpenMap<String, WithOrdinals> typeGlobalOrdinals;
-
-        private ParentChildGlobalOrdinalsIndexFieldData(ImmutableOpenMap<String, WithOrdinals> typeGlobalOrdinals, long memorySizeInBytes) {
-            super(ParentChildIndexFieldData.this.index(), ParentChildIndexFieldData.this.indexSettings, ParentChildIndexFieldData.this.getFieldNames(), ParentChildIndexFieldData.this.getFieldDataType(), memorySizeInBytes);
-            this.typeGlobalOrdinals = typeGlobalOrdinals;
+        @Override
+        public long ramBytesUsed() {
+            return ramBytesUsed;
         }
 
         @Override
-        public AtomicFieldData.WithOrdinals load(AtomicReaderContext context) {
-            throw new ElasticsearchIllegalStateException("Can't use directly");
+        public IndexParentChildFieldData loadGlobal(IndexReader indexReader) {
+            if (indexReader.getCoreCacheKey() == reader.getCoreCacheKey()) {
+                return this;
+            }
+            throw new ElasticsearchIllegalStateException();
         }
 
-        public WithOrdinals type(String type) {
-            return typeGlobalOrdinals.get(type);
+        @Override
+        public IndexParentChildFieldData localGlobalDirect(IndexReader indexReader) throws Exception {
+            return loadGlobal(indexReader);
         }
+
     }
 
 }

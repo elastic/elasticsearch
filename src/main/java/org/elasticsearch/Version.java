@@ -454,6 +454,17 @@ public class Version implements Serializable {
     }
 
     /**
+     * Returns the minimum compatible version based on the current
+     * version. Ie a node needs to have at least the return version in order
+     * to communicate with a node running the current version. The returned version
+     * is in most of the cases the smallest major version release unless the current version
+     * is a beta or RC release then the version itself is returned.
+     */
+    public Version minimumCompatibilityVersion() {
+        return Version.smallest(this, fromId(major * 1000000 + 99));
+    }
+
+    /**
      * Just the version number (without -SNAPSHOT if snapshot).
      */
     public String number() {

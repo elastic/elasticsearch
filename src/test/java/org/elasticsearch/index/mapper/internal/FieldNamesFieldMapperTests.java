@@ -23,15 +23,14 @@ import com.google.common.collect.ImmutableSet;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.MapperTestUtils;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 
-public class FieldNamesFieldMapperTests extends ElasticsearchTestCase {
+public class FieldNamesFieldMapperTests extends ElasticsearchSingleNodeTest {
 
     private static Set<String> extract(String path) {
         return ImmutableSet.<String>builder().addAll(FieldNamesFieldMapper.extractFieldNames(path)).build();
@@ -52,7 +51,7 @@ public class FieldNamesFieldMapperTests extends ElasticsearchTestCase {
     }
 
     public void test() throws Exception {
-        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string());
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string());
 
         ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()

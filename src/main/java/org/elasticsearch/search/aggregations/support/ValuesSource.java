@@ -18,21 +18,16 @@
  */
 package org.elasticsearch.search.aggregations.support;
 
-import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexReaderContext;
+import org.apache.lucene.index.*;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefArray;
-import org.apache.lucene.util.Counter;
 import org.elasticsearch.common.lucene.ReaderContextAware;
 import org.elasticsearch.common.lucene.TopReaderContextAware;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.fielddata.*;
-import org.elasticsearch.index.fielddata.AtomicFieldData.Order;
 import org.elasticsearch.script.SearchScript;
-import org.elasticsearch.search.aggregations.support.ValuesSource.Bytes.SortedAndUnique.SortedUniqueBytesValues;
+import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric.WithScript.DoubleValues;
+import org.elasticsearch.search.aggregations.support.ValuesSource.WithScript.BytesValues;
 import org.elasticsearch.search.aggregations.support.values.ScriptBytesValues;
 import org.elasticsearch.search.aggregations.support.values.ScriptDoubleValues;
 import org.elasticsearch.search.aggregations.support.values.ScriptLongValues;
@@ -84,25 +79,25 @@ public abstract class ValuesSource {
             return uniqueness;
         }
 
-        public static MetaData load(IndexFieldData indexFieldData, SearchContext context) {
+        public static MetaData load(IndexFieldData<?> indexFieldData, SearchContext context) {
             MetaData metaData = new MetaData();
             metaData.uniqueness = Uniqueness.UNIQUE;
             for (AtomicReaderContext readerContext : context.searcher().getTopReaderContext().leaves()) {
                 AtomicFieldData fieldData = indexFieldData.load(readerContext);
-                if (fieldData instanceof AtomicFieldData.WithOrdinals<?>) {
-                    AtomicFieldData.WithOrdinals<?> fd = (AtomicFieldData.WithOrdinals<?>) fieldData;
-                    BytesValues.WithOrdinals values = fd.getBytesValues();
-                    metaData.multiValued |= values.isMultiValued();
-                    metaData.maxAtomicUniqueValuesCount = Math.max(metaData.maxAtomicUniqueValuesCount, values.getMaxOrd());
+                if (fieldData instanceof AtomicOrdinalsFieldData) {
+                    AtomicOrdinalsFieldData fd = (AtomicOrdinalsFieldData) fieldData;
+                    RandomAccessOrds values = fd.getOrdinalsValues();
+                    metaData.multiValued |= FieldData.isMultiValued(values);
+                    metaData.maxAtomicUniqueValuesCount = Math.max(metaData.maxAtomicUniqueValuesCount, values.getValueCount());
                 } else if (fieldData instanceof AtomicNumericFieldData) {
                     AtomicNumericFieldData fd = (AtomicNumericFieldData) fieldData;
-                    DoubleValues values = fd.getDoubleValues();
-                    metaData.multiValued |= values.isMultiValued();
+                    SortedNumericDoubleValues values = fd.getDoubleValues();
+                    metaData.multiValued |= FieldData.isMultiValued(values);
                     metaData.maxAtomicUniqueValuesCount = Long.MAX_VALUE;
-                } else if (fieldData instanceof AtomicGeoPointFieldData<?>) {
-                    AtomicGeoPointFieldData<?> fd = (AtomicGeoPointFieldData<?>) fieldData;
-                    GeoPointValues values = fd.getGeoPointValues();
-                    metaData.multiValued |= values.isMultiValued();
+                } else if (fieldData instanceof AtomicGeoPointFieldData) {
+                    AtomicGeoPointFieldData fd = (AtomicGeoPointFieldData) fieldData;
+                    MultiGeoPointValues values = fd.getGeoPointValues();
+                    metaData.multiValued |= FieldData.isMultiValued(values);
                     metaData.maxAtomicUniqueValuesCount = Long.MAX_VALUE;
                 } else {
                     metaData.multiValued = true;
@@ -157,7 +152,9 @@ public abstract class ValuesSource {
     /**
      * Get the current {@link BytesValues}.
      */
-    public abstract BytesValues bytesValues();
+    public abstract SortedBinaryDocValues bytesValues();
+
+    public abstract Bits docsWithValue(int maxDoc);
 
     public void setNeedsGlobalOrdinals(boolean needsGlobalOrdinals) {}
 
@@ -165,32 +162,51 @@ public abstract class ValuesSource {
 
     public static abstract class Bytes extends ValuesSource {
 
+        public Bits docsWithValue(int maxDoc) {
+            final SortedBinaryDocValues bytes = bytesValues();
+            if (org.elasticsearch.index.fielddata.FieldData.unwrapSingleton(bytes) != null) {
+                return org.elasticsearch.index.fielddata.FieldData.unwrapSingletonBits(bytes);
+            } else {
+                return org.elasticsearch.index.fielddata.FieldData.docsWithValue(bytes, maxDoc);
+            }
+        }
+
         public static abstract class WithOrdinals extends Bytes implements TopReaderContextAware {
 
-            public abstract BytesValues.WithOrdinals bytesValues();
+            public Bits docsWithValue(int maxDoc) {
+                final RandomAccessOrds ordinals = ordinalsValues();
+                if (DocValues.unwrapSingleton(ordinals) != null) {
+                    return DocValues.docsWithValue(DocValues.unwrapSingleton(ordinals), maxDoc);
+                } else {
+                    return DocValues.docsWithValue(ordinals, maxDoc);
+                }
+            }
+
+            public abstract RandomAccessOrds ordinalsValues();
 
             public abstract void setNextReader(IndexReaderContext reader);
 
-            public abstract BytesValues.WithOrdinals globalBytesValues();
+            public abstract RandomAccessOrds globalOrdinalsValues();
 
             public abstract long globalMaxOrd(IndexSearcher indexSearcher);
 
             public static class FieldData extends WithOrdinals implements ReaderContextAware {
 
-                protected final IndexFieldData.WithOrdinals<?> indexFieldData;
+                protected final IndexOrdinalsFieldData indexFieldData;
                 protected final MetaData metaData;
                 private boolean needsGlobalOrdinals;
 
-                protected AtomicFieldData.WithOrdinals<?> atomicFieldData;
-                private BytesValues.WithOrdinals bytesValues;
+                protected AtomicOrdinalsFieldData atomicFieldData;
+                private SortedBinaryDocValues bytesValues;
+                private RandomAccessOrds ordinalsValues;
 
-                protected IndexFieldData.WithOrdinals<?> globalFieldData;
-                protected AtomicFieldData.WithOrdinals<?> globalAtomicFieldData;
-                private BytesValues.WithOrdinals globalBytesValues;
+                protected IndexOrdinalsFieldData globalFieldData;
+                protected AtomicOrdinalsFieldData globalAtomicFieldData;
+                private RandomAccessOrds globalBytesValues;
 
                 private long maxOrd = -1;
 
-                public FieldData(IndexFieldData.WithOrdinals<?> indexFieldData, MetaData metaData) {
+                public FieldData(IndexOrdinalsFieldData indexFieldData, MetaData metaData) {
                     this.indexFieldData = indexFieldData;
                     this.metaData = metaData;
                 }
@@ -211,20 +227,31 @@ public abstract class ValuesSource {
                     if (bytesValues != null) {
                         bytesValues = atomicFieldData.getBytesValues();
                     }
+                    if (ordinalsValues != null) {
+                        ordinalsValues = atomicFieldData.getOrdinalsValues();
+                    }
                     if (globalFieldData != null) {
                         globalAtomicFieldData = globalFieldData.load(reader);
                         if (globalBytesValues != null) {
-                            globalBytesValues = globalAtomicFieldData.getBytesValues();
+                            globalBytesValues = globalAtomicFieldData.getOrdinalsValues();
                         }
                     }
                 }
 
                 @Override
-                public BytesValues.WithOrdinals bytesValues() {
+                public SortedBinaryDocValues bytesValues() {
                     if (bytesValues == null) {
                         bytesValues = atomicFieldData.getBytesValues();
                     }
                     return bytesValues;
+                }
+
+                @Override
+                public RandomAccessOrds ordinalsValues() {
+                    if (ordinalsValues == null) {
+                        ordinalsValues = atomicFieldData.getOrdinalsValues();
+                    }
+                    return ordinalsValues;
                 }
 
                 @Override
@@ -235,9 +262,9 @@ public abstract class ValuesSource {
                 }
 
                 @Override
-                public BytesValues.WithOrdinals globalBytesValues() {
+                public RandomAccessOrds globalOrdinalsValues() {
                     if (globalBytesValues == null) {
-                        globalBytesValues = globalAtomicFieldData.getBytesValues();
+                        globalBytesValues = globalAtomicFieldData.getOrdinalsValues();
                     }
                     return globalBytesValues;
                 }
@@ -253,10 +280,10 @@ public abstract class ValuesSource {
                         return maxOrd = 0;
                     } else {
                         AtomicReaderContext atomicReaderContext = indexReader.leaves().get(0);
-                        IndexFieldData.WithOrdinals<?> globalFieldData = indexFieldData.loadGlobal(indexReader);
-                        AtomicFieldData.WithOrdinals afd = globalFieldData.load(atomicReaderContext);
-                        BytesValues.WithOrdinals values = afd.getBytesValues();
-                        return maxOrd = values.getMaxOrd();
+                        IndexOrdinalsFieldData globalFieldData = indexFieldData.loadGlobal(indexReader);
+                        AtomicOrdinalsFieldData afd = globalFieldData.load(atomicReaderContext);
+                        RandomAccessOrds values = afd.getOrdinalsValues();
+                        return maxOrd = values.getValueCount();
                     }
                 }
             }
@@ -265,25 +292,19 @@ public abstract class ValuesSource {
 
         public static class FieldData extends Bytes implements ReaderContextAware {
 
-            protected boolean needsHashes;
             protected final IndexFieldData<?> indexFieldData;
             protected final MetaData metaData;
-            protected AtomicFieldData<?> atomicFieldData;
-            private BytesValues bytesValues;
+            protected AtomicFieldData atomicFieldData;
+            private SortedBinaryDocValues bytesValues;
 
             public FieldData(IndexFieldData<?> indexFieldData, MetaData metaData) {
                 this.indexFieldData = indexFieldData;
                 this.metaData = metaData;
-                needsHashes = false;
             }
 
             @Override
             public MetaData metaData() {
                 return metaData;
-            }
-
-            public final void setNeedsHashes(boolean needsHashes) {
-                this.needsHashes = needsHashes;
             }
 
             @Override
@@ -295,7 +316,7 @@ public abstract class ValuesSource {
             }
 
             @Override
-            public org.elasticsearch.index.fielddata.BytesValues bytesValues() {
+            public SortedBinaryDocValues bytesValues() {
                 if (bytesValues == null) {
                     bytesValues = atomicFieldData.getBytesValues();
                 }
@@ -317,90 +338,11 @@ public abstract class ValuesSource {
             }
 
             @Override
-            public org.elasticsearch.index.fielddata.BytesValues bytesValues() {
+            public SortedBinaryDocValues bytesValues() {
                 return values;
             }
         }
 
-        public static class SortedAndUnique extends Bytes implements ReaderContextAware {
-
-            private final ValuesSource delegate;
-            private final MetaData metaData;
-            private BytesValues bytesValues;
-
-            public SortedAndUnique(ValuesSource delegate) {
-                this.delegate = delegate;
-                this.metaData = MetaData.builder(delegate.metaData()).uniqueness(MetaData.Uniqueness.UNIQUE).build();
-            }
-
-            @Override
-            public MetaData metaData() {
-                return metaData;
-            }
-
-            @Override
-            public void setNextReader(AtomicReaderContext reader) {
-                bytesValues = null; // order may change per-segment -> reset
-            }
-
-            @Override
-            public org.elasticsearch.index.fielddata.BytesValues bytesValues() {
-                if (bytesValues == null) {
-                    bytesValues = delegate.bytesValues();
-                    if (bytesValues.isMultiValued() &&
-                            (!delegate.metaData().uniqueness.unique() || bytesValues.getOrder() != Order.BYTES)) {
-                        bytesValues = new SortedUniqueBytesValues(bytesValues);
-                    }
-                }
-                return bytesValues;
-            }
-
-            static class SortedUniqueBytesValues extends BytesValues {
-                final BytesRef scratch = new BytesRef();
-                final BytesValues delegate;
-                int[] indices = new int[1]; // at least one
-                final BytesRefArray bytes;
-                int numUniqueValues;
-                int pos = Integer.MAX_VALUE;
-
-                public SortedUniqueBytesValues(BytesValues delegate) {
-                    super(delegate.isMultiValued());
-                    this.delegate = delegate;
-                    bytes = new BytesRefArray(Counter.newCounter(false));
-                }
-
-                @Override
-                public int setDocument(int docId) {
-                    final int numValues = delegate.setDocument(docId);
-                    numUniqueValues = 0;
-                    pos = 0;
-                    if (numValues > 0) {
-                        bytes.clear();
-                        indices = ArrayUtil.grow(this.indices, numValues);
-                        for (int i = 0; i < numValues; ++i) {
-                            final BytesRef next = delegate.nextValue();
-                            indices[i] = i;
-                            bytes.append(next);
-                        }
-                        numUniqueValues = CollectionUtils.sortAndDedup(bytes, indices);
-                    }
-                    return numUniqueValues;
-                }
-
-                @Override
-                public BytesRef nextValue() {
-                    bytes.get(scratch, indices[pos++]);
-                    return scratch;
-                }
-
-                @Override
-                public Order getOrder() {
-                    return Order.BYTES;
-                }
-
-            }
-
-        }
 
     }
 
@@ -410,16 +352,34 @@ public abstract class ValuesSource {
         public abstract boolean isFloatingPoint();
 
         /** Get the current {@link LongValues}. */
-        public abstract LongValues longValues();
+        public abstract SortedNumericDocValues longValues();
 
         /** Get the current {@link DoubleValues}. */
-        public abstract DoubleValues doubleValues();
+        public abstract SortedNumericDoubleValues doubleValues();
+
+        public Bits docsWithValue(int maxDoc) {
+            if (isFloatingPoint()) {
+                final SortedNumericDoubleValues values = doubleValues();
+                if (org.elasticsearch.index.fielddata.FieldData.unwrapSingleton(values) != null) {
+                    return org.elasticsearch.index.fielddata.FieldData.unwrapSingletonBits(values);
+                } else {
+                    return org.elasticsearch.index.fielddata.FieldData.docsWithValue(values, maxDoc);
+                }
+            } else {
+                final SortedNumericDocValues values = longValues();
+                if (DocValues.unwrapSingleton(values) != null) {
+                    return DocValues.unwrapSingletonBits(values);
+                } else {
+                    return DocValues.docsWithValue(values, maxDoc);
+                }
+            }
+        }
 
         public static class WithScript extends Numeric {
 
-            private final LongValues longValues;
-            private final DoubleValues doubleValues;
-            private final ValuesSource.WithScript.BytesValues bytesValues;
+            private final SortedNumericDocValues longValues;
+            private final SortedNumericDoubleValues doubleValues;
+            private final SortedBinaryDocValues bytesValues;
 
             public WithScript(Numeric delegate, SearchScript script) {
                 this.longValues = new LongValues(delegate, script);
@@ -433,17 +393,17 @@ public abstract class ValuesSource {
             }
 
             @Override
-            public BytesValues bytesValues() {
+            public SortedBinaryDocValues bytesValues() {
                 return bytesValues;
             }
 
             @Override
-            public LongValues longValues() {
+            public SortedNumericDocValues longValues() {
                 return longValues;
             }
 
             @Override
-            public DoubleValues doubleValues() {
+            public SortedNumericDoubleValues doubleValues() {
                 return doubleValues;
             }
 
@@ -452,51 +412,51 @@ public abstract class ValuesSource {
                 return MetaData.UNKNOWN;
             }
 
-            static class LongValues extends org.elasticsearch.index.fielddata.LongValues {
+            static class LongValues extends SortingNumericDocValues {
 
                 private final Numeric source;
                 private final SearchScript script;
 
                 public LongValues(Numeric source, SearchScript script) {
-                    super(true);
                     this.source = source;
                     this.script = script;
                 }
 
                 @Override
-                public int setDocument(int docId) {
+                public void setDocument(int docId) {
                     script.setNextDocId(docId);
-                    return source.longValues().setDocument(docId);
-                }
-
-                @Override
-                public long nextValue() {
-                    script.setNextVar("_value", source.longValues().nextValue());
-                    return script.runAsLong();
+                    source.longValues().setDocument(docId);
+                    count = source.longValues().count();
+                    grow();
+                    for (int i = 0; i < count; ++i) {
+                        script.setNextVar("_value", source.longValues().valueAt(i));
+                        values[i] = script.runAsLong();
+                    }
+                    sort();
                 }
             }
 
-            static class DoubleValues extends org.elasticsearch.index.fielddata.DoubleValues {
+            static class DoubleValues extends SortingNumericDoubleValues {
 
                 private final Numeric source;
                 private final SearchScript script;
 
                 public DoubleValues(Numeric source, SearchScript script) {
-                    super(true);
                     this.source = source;
                     this.script = script;
                 }
 
                 @Override
-                public int setDocument(int docId) {
+                public void setDocument(int docId) {
                     script.setNextDocId(docId);
-                    return source.doubleValues().setDocument(docId);
-                }
-
-                @Override
-                public double nextValue() {
-                    script.setNextVar("_value", source.doubleValues().nextValue());
-                    return script.runAsDouble();
+                    source.doubleValues().setDocument(docId);
+                    count = source.doubleValues().count();
+                    grow();
+                    for (int i = 0; i < count; ++i) {
+                        script.setNextVar("_value", source.doubleValues().valueAt(i));
+                        values[i] = script.runAsDouble();
+                    }
+                    sort();
                 }
             }
         }
@@ -504,14 +464,14 @@ public abstract class ValuesSource {
         public static class FieldData extends Numeric implements ReaderContextAware {
 
             protected boolean needsHashes;
-            protected final IndexNumericFieldData<?> indexFieldData;
+            protected final IndexNumericFieldData indexFieldData;
             protected final MetaData metaData;
             protected AtomicNumericFieldData atomicFieldData;
-            private BytesValues bytesValues;
-            private LongValues longValues;
-            private DoubleValues doubleValues;
+            private SortedBinaryDocValues bytesValues;
+            private SortedNumericDocValues longValues;
+            private SortedNumericDoubleValues doubleValues;
 
-            public FieldData(IndexNumericFieldData<?> indexFieldData, MetaData metaData) {
+            public FieldData(IndexNumericFieldData indexFieldData, MetaData metaData) {
                 this.indexFieldData = indexFieldData;
                 this.metaData = metaData;
                 needsHashes = false;
@@ -542,7 +502,7 @@ public abstract class ValuesSource {
             }
 
             @Override
-            public org.elasticsearch.index.fielddata.BytesValues bytesValues() {
+            public SortedBinaryDocValues bytesValues() {
                 if (bytesValues == null) {
                     bytesValues = atomicFieldData.getBytesValues();
                 }
@@ -550,20 +510,18 @@ public abstract class ValuesSource {
             }
 
             @Override
-            public org.elasticsearch.index.fielddata.LongValues longValues() {
+            public SortedNumericDocValues longValues() {
                 if (longValues == null) {
                     longValues = atomicFieldData.getLongValues();
                 }
-                assert longValues.getOrder() == Order.NUMERIC;
                 return longValues;
             }
 
             @Override
-            public org.elasticsearch.index.fielddata.DoubleValues doubleValues() {
+            public SortedNumericDoubleValues doubleValues() {
                 if (doubleValues == null) {
                     doubleValues = atomicFieldData.getDoubleValues();
                 }
-                assert doubleValues.getOrder() == Order.NUMERIC;
                 return doubleValues;
             }
         }
@@ -593,154 +551,18 @@ public abstract class ValuesSource {
             }
 
             @Override
-            public LongValues longValues() {
+            public SortedNumericDocValues longValues() {
                 return longValues;
             }
 
             @Override
-            public DoubleValues doubleValues() {
+            public SortedNumericDoubleValues doubleValues() {
                 return doubleValues;
             }
 
             @Override
-            public BytesValues bytesValues() {
+            public SortedBinaryDocValues bytesValues() {
                 return bytesValues;
-            }
-
-        }
-
-        public static class SortedAndUnique extends Numeric implements ReaderContextAware {
-
-            private final Numeric delegate;
-            private final MetaData metaData;
-            private LongValues longValues;
-            private DoubleValues doubleValues;
-            private BytesValues bytesValues;
-
-            public SortedAndUnique(Numeric delegate) {
-                this.delegate = delegate;
-                this.metaData = MetaData.builder(delegate.metaData()).uniqueness(MetaData.Uniqueness.UNIQUE).build();
-            }
-
-            @Override
-            public MetaData metaData() {
-                return metaData;
-            }
-
-            @Override
-            public boolean isFloatingPoint() {
-                return delegate.isFloatingPoint();
-            }
-
-            @Override
-            public void setNextReader(AtomicReaderContext reader) {
-                longValues = null; // order may change per-segment -> reset
-                doubleValues = null;
-                bytesValues = null;
-            }
-
-            @Override
-            public org.elasticsearch.index.fielddata.LongValues longValues() {
-                if (longValues == null) {
-                    longValues = delegate.longValues();
-                    if (longValues.isMultiValued() &&
-                            (!delegate.metaData().uniqueness.unique() || longValues.getOrder() != Order.NUMERIC)) {
-                        longValues = new SortedUniqueLongValues(longValues);
-                    }
-                }
-                return longValues;
-            }
-
-            @Override
-            public org.elasticsearch.index.fielddata.DoubleValues doubleValues() {
-                if (doubleValues == null) {
-                    doubleValues = delegate.doubleValues();
-                    if (doubleValues.isMultiValued() &&
-                            (!delegate.metaData().uniqueness.unique() || doubleValues.getOrder() != Order.NUMERIC)) {
-                        doubleValues = new SortedUniqueDoubleValues(doubleValues);
-                    }
-                }
-                return doubleValues;
-            }
-
-            @Override
-            public org.elasticsearch.index.fielddata.BytesValues bytesValues() {
-                if (bytesValues == null) {
-                    bytesValues = delegate.bytesValues();
-                    if (bytesValues.isMultiValued() &&
-                            (!delegate.metaData().uniqueness.unique() || bytesValues.getOrder() != Order.BYTES)) {
-                        bytesValues = new SortedUniqueBytesValues(bytesValues);
-                    }
-                }
-                return bytesValues;
-            }
-
-            private static class SortedUniqueLongValues extends FilterLongValues {
-
-                int numUniqueValues;
-                long[] array = new long[2];
-                int pos = Integer.MAX_VALUE;
-
-                protected SortedUniqueLongValues(LongValues delegate) {
-                    super(delegate);
-                }
-
-                @Override
-                public int setDocument(int docId) {
-                    final int numValues = super.setDocument(docId);
-                    array = ArrayUtil.grow(array, numValues);
-                    for (int i = 0; i < numValues; ++i) {
-                        array[i] = super.nextValue();
-                    }
-                    pos = 0;
-                    return numUniqueValues = CollectionUtils.sortAndDedup(array, numValues);
-                }
-
-                @Override
-                public long nextValue() {
-                    assert pos < numUniqueValues;
-                    return array[pos++];
-                }
-
-                @Override
-                public Order getOrder() {
-                    return Order.NUMERIC;
-                }
-
-            }
-
-            private static class SortedUniqueDoubleValues extends FilterDoubleValues {
-
-                private int numUniqueValues;
-                private double[] array = new double[2];
-                private int pos = Integer.MAX_VALUE;
-
-                SortedUniqueDoubleValues(DoubleValues delegate) {
-                    super(delegate);
-                }
-
-                @Override
-                public int setDocument(int docId) {
-                    final int numValues = super.setDocument(docId);
-                    array = ArrayUtil.grow(array, numValues);
-                    for (int i = 0; i < numValues; ++i) {
-                        array[i] = super.nextValue();
-                    }
-                    pos = 0;
-                    return numUniqueValues = CollectionUtils.sortAndDedup(array, numValues);
-                }
-
-                @Override
-                public double nextValue() {
-                    assert pos < numUniqueValues;
-                    return array[pos++];
-                }
-
-                @Override
-                public Order getOrder() {
-                    return Order.NUMERIC;
-                }
-
             }
 
         }
@@ -750,7 +572,7 @@ public abstract class ValuesSource {
     // No need to implement ReaderContextAware here, the delegate already takes care of updating data structures
     public static class WithScript extends Bytes {
 
-        private final BytesValues bytesValues;
+        private final SortedBinaryDocValues bytesValues;
 
         public WithScript(ValuesSource delegate, SearchScript script) {
             this.bytesValues = new BytesValues(delegate, script);
@@ -762,48 +584,55 @@ public abstract class ValuesSource {
         }
 
         @Override
-        public BytesValues bytesValues() {
+        public SortedBinaryDocValues bytesValues() {
             return bytesValues;
         }
 
-        static class BytesValues extends org.elasticsearch.index.fielddata.BytesValues {
+        static class BytesValues extends SortingBinaryDocValues {
 
-            private final BytesRef scratch = new BytesRef();
             private final ValuesSource source;
             private final SearchScript script;
 
             public BytesValues(ValuesSource source, SearchScript script) {
-                super(true);
                 this.source = source;
                 this.script = script;
             }
 
             @Override
-            public int setDocument(int docId) {
-                return source.bytesValues().setDocument(docId);
-            }
-
-            @Override
-            public BytesRef nextValue() {
-                BytesRef value = source.bytesValues().nextValue();
-                script.setNextVar("_value", value.utf8ToString());
-                scratch.copyChars(script.run().toString());
-                return scratch;
+            public void setDocument(int docId) {
+                source.bytesValues().setDocument(docId);
+                count = source.bytesValues().count();
+                grow();
+                for (int i = 0; i < count; ++i) {
+                    final BytesRef value = source.bytesValues().valueAt(i);
+                    script.setNextVar("_value", value.utf8ToString());
+                    values[i].copyChars(script.run().toString());
+                }
+                sort();
             }
         }
     }
 
     public static class GeoPoint extends ValuesSource implements ReaderContextAware {
 
-        protected final IndexGeoPointFieldData<?> indexFieldData;
+        protected final IndexGeoPointFieldData indexFieldData;
         private final MetaData metaData;
-        protected AtomicGeoPointFieldData<?> atomicFieldData;
-        private BytesValues bytesValues;
-        private GeoPointValues geoPointValues;
+        protected AtomicGeoPointFieldData atomicFieldData;
+        private SortedBinaryDocValues bytesValues;
+        private MultiGeoPointValues geoPointValues;
 
-        public GeoPoint(IndexGeoPointFieldData<?> indexFieldData, MetaData metaData) {
+        public GeoPoint(IndexGeoPointFieldData indexFieldData, MetaData metaData) {
             this.indexFieldData = indexFieldData;
             this.metaData = metaData;
+        }
+
+        public Bits docsWithValue(int maxDoc) {
+            final MultiGeoPointValues geoPoints = geoPointValues();
+            if (org.elasticsearch.index.fielddata.FieldData.unwrapSingleton(geoPoints) != null) {
+                return org.elasticsearch.index.fielddata.FieldData.unwrapSingletonBits(geoPoints);
+            } else {
+                return org.elasticsearch.index.fielddata.FieldData.docsWithValue(geoPoints, maxDoc);
+            }
         }
 
         @Override
@@ -823,14 +652,14 @@ public abstract class ValuesSource {
         }
 
         @Override
-        public org.elasticsearch.index.fielddata.BytesValues bytesValues() {
+        public SortedBinaryDocValues bytesValues() {
             if (bytesValues == null) {
                 bytesValues = atomicFieldData.getBytesValues();
             }
             return bytesValues;
         }
 
-        public org.elasticsearch.index.fielddata.GeoPointValues geoPointValues() {
+        public org.elasticsearch.index.fielddata.MultiGeoPointValues geoPointValues() {
             if (geoPointValues == null) {
                 geoPointValues = atomicFieldData.getGeoPointValues();
             }

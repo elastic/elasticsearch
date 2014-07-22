@@ -140,7 +140,13 @@ public class UpdateHelper extends AbstractComponent {
             if (indexRequest.parent() != null) {
                 parent = indexRequest.parent();
             }
-            XContentHelper.update(updatedSourceAsMap, indexRequest.sourceAsMap());
+            boolean noop = !XContentHelper.update(updatedSourceAsMap, indexRequest.sourceAsMap(), request.detectNoop());
+            // noop could still be true even if detectNoop isn't because update detects empty maps as noops.  BUT we can only
+            // actually turn the update into a noop if detectNoop is true to preserve backwards compatibility and to handle
+            // cases where users repopulating multi-fields or adding synonyms, etc.
+            if (request.detectNoop() && noop) {
+                operation = "none";
+            }
         } else {
             Map<String, Object> ctx = new HashMap<>(2);
             ctx.put("_source", sourceAndContent.v2());
@@ -196,7 +202,7 @@ public class UpdateHelper extends AbstractComponent {
             return new Result(deleteRequest, Operation.DELETE, updatedSourceAsMap, updateSourceContentType);
         } else if ("none".equals(operation)) {
             UpdateResponse update = new UpdateResponse(getResult.getIndex(), getResult.getType(), getResult.getId(), getResult.getVersion(), false);
-            update.setGetResult(extractGetResult(request, getResult.getVersion(), updatedSourceAsMap, updateSourceContentType, null));
+            update.setGetResult(extractGetResult(request, getResult.getVersion(), updatedSourceAsMap, updateSourceContentType, getResult.internalSourceRef()));
             return new Result(update, Operation.NONE, updatedSourceAsMap, updateSourceContentType);
         } else {
             logger.warn("Used update operation [{}] for script [{}], doing nothing...", operation, request.script);

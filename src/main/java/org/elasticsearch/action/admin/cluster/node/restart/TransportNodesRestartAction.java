@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.cluster.node.restart;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.NodeOperationRequest;
 import org.elasticsearch.action.support.nodes.TransportNodesOperationAction;
 import org.elasticsearch.cluster.ClusterName;
@@ -57,8 +58,8 @@ public class TransportNodesRestartAction extends TransportNodesOperationAction<N
     @Inject
     public TransportNodesRestartAction(Settings settings, ClusterName clusterName, ThreadPool threadPool,
                                        ClusterService clusterService, TransportService transportService,
-                                       Node node) {
-        super(settings, NodesRestartAction.NAME, clusterName, threadPool, clusterService, transportService);
+                                       Node node, ActionFilters actionFilters) {
+        super(settings, NodesRestartAction.NAME, clusterName, threadPool, clusterService, transportService, actionFilters);
         this.node = node;
         disabled = componentSettings.getAsBoolean("disabled", false);
     }

@@ -20,8 +20,8 @@
 package org.elasticsearch.search.facet.statistical;
 
 import org.apache.lucene.index.AtomicReaderContext;
-import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.facet.DoubleFacetAggregatorBase;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.InternalFacet;
@@ -60,10 +60,10 @@ public class StatisticalFieldsFacetExecutor extends FacetExecutor {
     class Collector extends FacetExecutor.Collector {
 
         private final StatsProc statsProc = new StatsProc();
-        private DoubleValues[] values;
+        private SortedNumericDoubleValues[] values;
 
         public Collector() {
-            this.values = new DoubleValues[indexFieldDatas.length];
+            this.values = new SortedNumericDoubleValues[indexFieldDatas.length];
         }
 
         @Override
@@ -75,7 +75,7 @@ public class StatisticalFieldsFacetExecutor extends FacetExecutor {
 
         @Override
         public void collect(int doc) throws IOException {
-            for (DoubleValues value : values) {
+            for (SortedNumericDoubleValues value : values) {
                 statsProc.onDoc(doc, value);
             }
         }

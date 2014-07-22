@@ -67,7 +67,7 @@ public class TransportClientNodesService extends AbstractComponent {
 
     private final ThreadPool threadPool;
 
-    private final Version version;
+    private final Version minCompatibilityVersion;
 
     // nodes that are added to be discovered
     private volatile ImmutableList<DiscoveryNode> listedNodes = ImmutableList.of();
@@ -95,7 +95,7 @@ public class TransportClientNodesService extends AbstractComponent {
         this.clusterName = clusterName;
         this.transportService = transportService;
         this.threadPool = threadPool;
-        this.version = version;
+        this.minCompatibilityVersion = version.minimumCompatibilityVersion();
 
         this.nodesSamplerInterval = componentSettings.getAsTime("nodes_sampler_interval", timeValueSeconds(5));
         this.pingTimeout = componentSettings.getAsTime("ping_timeout", timeValueSeconds(5)).millis();
@@ -161,7 +161,7 @@ public class TransportClientNodesService extends AbstractComponent {
             ImmutableList.Builder<DiscoveryNode> builder = ImmutableList.builder();
             builder.addAll(listedNodes());
             for (TransportAddress transportAddress : filtered) {
-                DiscoveryNode node = new DiscoveryNode("#transport#-" + tempNodeIdGenerator.incrementAndGet(), transportAddress, version);
+                DiscoveryNode node = new DiscoveryNode("#transport#-" + tempNodeIdGenerator.incrementAndGet(), transportAddress, minCompatibilityVersion);
                 logger.debug("adding address [{}]", node);
                 builder.add(node);
             }

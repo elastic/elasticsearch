@@ -24,6 +24,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.get.*;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.elasticsearch.cluster.ClusterService;
@@ -60,8 +61,8 @@ public class TransportMultiPercolateAction extends TransportAction<MultiPercolat
     @Inject
     public TransportMultiPercolateAction(Settings settings, ThreadPool threadPool, TransportShardMultiPercolateAction shardMultiPercolateAction,
                                          ClusterService clusterService, TransportService transportService, PercolatorService percolatorService,
-                                         TransportMultiGetAction multiGetAction) {
-        super(settings, MultiPercolateAction.NAME, threadPool);
+                                         TransportMultiGetAction multiGetAction, ActionFilters actionFilters) {
+        super(settings, MultiPercolateAction.NAME, threadPool, actionFilters);
         this.shardMultiPercolateAction = shardMultiPercolateAction;
         this.clusterService = clusterService;
         this.percolatorService = percolatorService;

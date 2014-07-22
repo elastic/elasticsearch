@@ -19,7 +19,6 @@
 package org.elasticsearch.plugin;
 
 import com.google.common.base.Predicate;
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
@@ -46,7 +45,6 @@ import org.junit.Test;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
-import java.nio.file.Files;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
@@ -91,7 +89,6 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @LuceneTestCase.AwaitsFix(bugUrl = "@uboness works on this")
     public void testLocalPluginInstallWithBinAndConfig() throws Exception {
         String pluginName = "plugin-test";
         Tuple<Settings, Environment> initialSettings = InternalSettingsPreparer.prepareSettings(
@@ -252,7 +249,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
     public void testInstallPlugin() throws IOException {
         PluginManager pluginManager = pluginManager(getPluginUrlForResource("plugin_with_classfile.zip"));
 
-        pluginManager.downloadAndExtract("plugin");
+        pluginManager.downloadAndExtract("plugin-classfile");
         File[] plugins = pluginManager.getListInstalledPlugins();
         assertThat(plugins, notNullValue());
         assertThat(plugins.length, is(1));
@@ -373,6 +370,31 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
         PluginManager pluginManager = pluginManager(null);
         pluginManager.removePlugin("file://whatever");
     }
+
+    @Test
+    public void testForbiddenPluginName_ThrowsException() throws IOException {
+        runTestWithForbiddenName(null);
+        runTestWithForbiddenName("");
+        runTestWithForbiddenName("elasticsearch");
+        runTestWithForbiddenName("elasticsearch.bat");
+        runTestWithForbiddenName("elasticsearch.in.sh");
+        runTestWithForbiddenName("plugin");
+        runTestWithForbiddenName("plugin.bat");
+        runTestWithForbiddenName("service.bat");
+        runTestWithForbiddenName("ELASTICSEARCH");
+        runTestWithForbiddenName("ELASTICSEARCH.IN.SH");
+    }
+
+    private void runTestWithForbiddenName(String name) throws IOException {
+        try {
+            pluginManager(null).removePlugin(name);
+            fail("this plugin name [" + name +
+                    "] should not be allowed");
+        } catch (ElasticsearchIllegalArgumentException e) {
+            // We expect that error
+        }
+    }
+
 
     /**
      * Retrieve a URL string that represents the resource with the given {@code resourceName}.

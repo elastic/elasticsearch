@@ -196,6 +196,10 @@ public class TransportClient extends AbstractClient {
         internalClient = injector.getInstance(InternalTransportClient.class);
     }
 
+    TransportClientNodesService nodeService() {
+        return nodesService;
+    }
+
     /**
      * Returns the current registered transport addresses to use (added using
      * {@link #addTransportAddress(org.elasticsearch.common.transport.TransportAddress)}.

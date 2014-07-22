@@ -20,22 +20,23 @@
 package org.elasticsearch.index.fielddata.ordinals;
 
 import org.apache.lucene.index.MultiDocValues.OrdinalMap;
+import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongValues;
-import org.elasticsearch.index.fielddata.BytesValues;
+import org.elasticsearch.index.fielddata.AbstractRandomAccessOrds;
 
 /**
- * A {@link BytesValues.WithOrdinals} implementation that returns ordinals that are global.
+ * A {@link RandomAccessOrds} implementation that returns ordinals that are global.
  */
-public class GlobalOrdinalMapping extends BytesValues.WithOrdinals {
+public class GlobalOrdinalMapping extends AbstractRandomAccessOrds {
 
-    private final BytesValues.WithOrdinals values;
+    private final RandomAccessOrds values;
     private final OrdinalMap ordinalMap;
     private final LongValues mapping;
-    private final BytesValues.WithOrdinals[] bytesValues;
+    private final RandomAccessOrds[] bytesValues;
 
-    GlobalOrdinalMapping(OrdinalMap ordinalMap, BytesValues.WithOrdinals[] bytesValues, int segmentIndex) {
-        super(bytesValues[segmentIndex].isMultiValued());
+    GlobalOrdinalMapping(OrdinalMap ordinalMap, RandomAccessOrds[] bytesValues, int segmentIndex) {
+        super();
         this.values = bytesValues[segmentIndex];
         this.bytesValues = bytesValues;
         this.ordinalMap = ordinalMap;
@@ -43,42 +44,34 @@ public class GlobalOrdinalMapping extends BytesValues.WithOrdinals {
     }
 
     @Override
-    public long getMaxOrd() {
+    public long getValueCount() {
         return ordinalMap.getValueCount();
     }
-    
-    // NOTE: careful if we change the API here: unnecessary branch for < 0 here hurts a lot. 
-    // so if we already know the count (from setDocument), its bad to do it redundantly.
 
-    public long getGlobalOrd(long segmentOrd) {
+    public final long getGlobalOrd(long segmentOrd) {
         return mapping.get(segmentOrd);
     }
 
     @Override
-    public long getOrd(int docId) {
-        long v = values.getOrd(docId);
-        if (v < 0) {
-            return v;
-        } else {
-            return getGlobalOrd(v);
-        }
+    public long ordAt(int index) {
+        return getGlobalOrd(values.ordAt(index));
     }
 
     @Override
-    public long nextOrd() {
-        return getGlobalOrd(values.nextOrd());
+    public void doSetDocument(int docId) {
+        values.setDocument(docId);
     }
 
     @Override
-    public int setDocument(int docId) {
-        return values.setDocument(docId);
+    public int cardinality() {
+        return values.cardinality();
     }
 
     @Override
-    public BytesRef getValueByOrd(long globalOrd) {
+    public BytesRef lookupOrd(long globalOrd) {
         final long segmentOrd = ordinalMap.getFirstSegmentOrd(globalOrd);
         int readerIndex = ordinalMap.getFirstSegmentNumber(globalOrd);
-        return bytesValues[readerIndex].getValueByOrd(segmentOrd);
+        return bytesValues[readerIndex].lookupOrd(segmentOrd);
     }
 
 }

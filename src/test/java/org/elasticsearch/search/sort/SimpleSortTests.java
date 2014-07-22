@@ -62,47 +62,6 @@ import static org.hamcrest.Matchers.*;
  */
 public class SimpleSortTests extends ElasticsearchIntegrationTest {
 
-
-    @LuceneTestCase.AwaitsFix(bugUrl = "simon is working on this")
-    public void testIssue6614() throws ExecutionException, InterruptedException {
-        List<IndexRequestBuilder> builders = new ArrayList<>();
-        boolean strictTimeBasedIndices = randomBoolean();
-        final int numIndices = randomIntBetween(2, 25); // at most 25 days in the month
-        for (int i = 0; i < numIndices; i++) {
-          final String indexId = strictTimeBasedIndices ? "idx_" + i : "idx";
-          if (strictTimeBasedIndices || i == 0) {
-            createIndex(indexId);
-          }
-          final int numDocs = randomIntBetween(1, 23);  // hour of the day
-          for (int j = 0; j < numDocs; j++) {
-            builders.add(client().prepareIndex(indexId, "type").setSource("foo", "bar", "timeUpdated", "2014/07/" + String.format(Locale.ROOT, "%02d", i+1)+" " + String.format(Locale.ROOT, "%02d", j+1) + ":00:00"));
-          }
-        }
-        int docs = builders.size();
-        indexRandom(true, builders);
-        ensureYellow();
-        SearchResponse allDocsResponse = client().prepareSearch().setQuery(QueryBuilders.filteredQuery(matchAllQuery(),
-                FilterBuilders.boolFilter().must(FilterBuilders.termFilter("foo", "bar"),
-                        FilterBuilders.rangeFilter("timeUpdated").gte("2014/0" + randomIntBetween(1, 7) + "/01").cache(randomBoolean()))))
-                .addSort(new FieldSortBuilder("timeUpdated").order(SortOrder.ASC).ignoreUnmapped(true))
-                .setSize(docs).get();
-        assertSearchResponse(allDocsResponse);
-
-        final int numiters = randomIntBetween(1, 20);
-        for (int i = 0; i < numiters; i++) {
-            SearchResponse searchResponse = client().prepareSearch().setQuery(QueryBuilders.filteredQuery(matchAllQuery(),
-                    FilterBuilders.boolFilter().must(FilterBuilders.termFilter("foo", "bar"),
-                            FilterBuilders.rangeFilter("timeUpdated").gte("2014/" + String.format(Locale.ROOT, "%02d", randomIntBetween(1, 7)) + "/01").cache(randomBoolean()))))
-                    .addSort(new FieldSortBuilder("timeUpdated").order(SortOrder.ASC).ignoreUnmapped(true))
-                    .setSize(scaledRandomIntBetween(1, docs)).get();
-            assertSearchResponse(searchResponse);
-            for (int j = 0; j < searchResponse.getHits().hits().length; j++) {
-                assertThat(searchResponse.toString() + "\n vs. \n" + allDocsResponse.toString(), searchResponse.getHits().hits()[j].getId(), equalTo(allDocsResponse.getHits().hits()[j].getId()));
-            }
-        }
-
-    }
-
     public void testIssue6639() throws ExecutionException, InterruptedException {
         assertAcked(prepareCreate("$index")
                 .addMapping("$type","{\"$type\": {\"_boost\": {\"name\": \"boost\", \"null_value\": 1.0}, \"properties\": {\"grantee\": {\"index\": \"not_analyzed\", \"term_vector\": \"with_positions_offsets\", \"type\": \"string\", \"analyzer\": \"snowball\", \"boost\": 1.0, \"store\": \"yes\"}}}}"));

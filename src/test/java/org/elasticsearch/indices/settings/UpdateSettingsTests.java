@@ -35,6 +35,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.merge.policy.TieredMergePolicyProvider;
 import org.elasticsearch.index.merge.scheduler.ConcurrentMergeSchedulerProvider;
+import org.elasticsearch.index.merge.scheduler.MergeSchedulerModule;
 import org.elasticsearch.index.store.support.AbstractIndexStore;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
@@ -293,6 +294,7 @@ public class UpdateSettingsTests extends ElasticsearchIntegrationTest {
                                      .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
                                      .put(TieredMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE, "2")
                                      .put(TieredMergePolicyProvider.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER, "2")
+                                     .put(MergeSchedulerModule.MERGE_SCHEDULER_TYPE_KEY, ConcurrentMergeSchedulerProvider.class)
                                      .put(ConcurrentMergeSchedulerProvider.MAX_THREAD_COUNT, "10000")
                                      .put(ConcurrentMergeSchedulerProvider.MAX_MERGE_COUNT, "10000")
                                      ));

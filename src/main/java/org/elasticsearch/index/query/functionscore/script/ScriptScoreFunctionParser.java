@@ -71,7 +71,7 @@ public class ScriptScoreFunctionParser implements ScoreFunctionParser {
             } else if (token.isValue()) {
                 if ("script".equals(currentFieldName)) {
                     script = parser.text();
-                } else if ("id".equals(currentFieldName)) {
+                } else if ("script_id".equals(currentFieldName)) {
                     script = parser.text();
                     scriptType = ScriptService.ScriptType.INDEXED;
                 } else if ("file".equals(currentFieldName)) {

@@ -95,7 +95,7 @@ public class StatisticalFacetParser extends AbstractComponent implements FacetPa
                 } else if ("script".equals(currentFieldName)) {
                     script = parser.text();
                     scriptType = ScriptService.ScriptType.INLINE;
-                } else if ("id".equals(currentFieldName)) {
+                } else if ("script_id".equals(currentFieldName)) {
                     script = parser.text();
                     scriptType = ScriptService.ScriptType.INDEXED;
                 } else if ("file".equals(currentFieldName)) {

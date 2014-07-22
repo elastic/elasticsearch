@@ -9,9 +9,14 @@ import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.settings.Settings;
 
 /**
- *
+ * Configures Ldap object injections
  */
 public class LdapModule extends AbstractModule {
+    private final Settings settings;
+
+    public LdapModule(Settings settings) {
+        this.settings = settings;
+    }
 
     public static boolean enabled(Settings settings) {
         Settings ldapSettings = settings.getComponentSettings(LdapModule.class);
@@ -20,6 +25,13 @@ public class LdapModule extends AbstractModule {
 
     @Override
     protected void configure() {
-
+        bind(LdapRealm.class).asEagerSingleton();
+        bind(LdapGroupToRoleMapper.class).asEagerSingleton();
+        String mode = settings.getComponentSettings(LdapModule.class).get("mode", "ldap");
+        if ("ldap".equals(mode)) {
+            bind(LdapConnectionFactory.class).to(StandardLdapConnectionFactory.class);
+        } else {
+            bind(LdapConnectionFactory.class).to(ActiveDirectoryConnectionFactory.class);
+        }
     }
 }

@@ -24,16 +24,18 @@ public abstract class CachingUsernamePasswordRealm extends AbstractComponent imp
 
     private static final TimeValue DEFAULT_TTL = TimeValue.timeValueHours(1);
     private static final int DEFAULT_MAX_USERS = 100000; //100k users
+    public static final String CACHE_TTL = "cache.ttl";
+    public static final String CACHE_MAX_USERS = "cache.max_users";
 
     private final Cache<String, UserWithHash> cache;
 
     protected CachingUsernamePasswordRealm(Settings settings) {
         super(settings);
-        TimeValue ttl = componentSettings.getAsTime("cache.ttl", DEFAULT_TTL);
+        TimeValue ttl = componentSettings.getAsTime(CACHE_TTL, DEFAULT_TTL);
         if (ttl.millis() > 0) {
             cache = CacheBuilder.newBuilder()
                     .expireAfterWrite(ttl.getMillis(), TimeUnit.MILLISECONDS)
-                    .maximumSize(settings.getAsInt("cache.max_users", DEFAULT_MAX_USERS))
+                    .maximumSize(settings.getAsInt(CACHE_MAX_USERS, DEFAULT_MAX_USERS))
                     .build();
         } else {
             cache = null;

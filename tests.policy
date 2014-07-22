@@ -31,4 +31,12 @@ grant {
   // Needed for accept all ssl certs in tests
   permission javax.net.ssl.SSLPermission "setHostnameVerifier";
 
+  // Needed to startup embedded apacheDS LDAP server for tests
+  permission java.security.SecurityPermission "putProviderProperty.BC";
+  permission java.security.SecurityPermission "insertProvider.BC";
+  permission java.security.SecurityPermission "getProperty.ssl.KeyManagerFactory.algorithm";
+
+  //this shouldn't be in a production environment, just to run tests:
+  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+  permission java.lang.RuntimePermission "setDefaultUncaughtExceptionHandler";
 };

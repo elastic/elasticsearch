@@ -33,7 +33,7 @@ public class AuthenticationModule extends AbstractModule implements SpawnModules
             modules.add(new ESUsersModule());
         }
         if (LdapModule.enabled(settings)) {
-            modules.add(new LdapModule());
+            modules.add(new LdapModule(settings));
         }
         return modules.build();
     }

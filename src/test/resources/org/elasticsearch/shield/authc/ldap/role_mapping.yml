@@ -1,0 +1,5 @@
+shield:
+  - "cn=avengers,ou=marvel,o=superheros"
+  - "cn=shield,ou=marvel,o=superheros"
+avenger:
+  - "cn=avengers,ou=marvel,o=superheros"

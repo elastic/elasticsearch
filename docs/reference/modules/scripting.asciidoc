@@ -117,7 +117,7 @@ curl -XPOST localhost:9200/_search -d '{
       "functions": [
         {
           "script_score": {
-            "script_id": "
+            "script_id": "indexedCalculateScore",
             "lang" : "groovy",
             "params": {
               "my_modifier": 8

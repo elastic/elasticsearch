@@ -761,7 +761,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         if (similarity() != null) {
             builder.field("similarity", similarity().name());
         } else if (includeDefaults) {
-            builder.field("similariry", SimilarityLookupService.DEFAULT_SIMILARITY);
+            builder.field("similarity", SimilarityLookupService.DEFAULT_SIMILARITY);
         }
 
         if (customFieldDataSettings != null) {

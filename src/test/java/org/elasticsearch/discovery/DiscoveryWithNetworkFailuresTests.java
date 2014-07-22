@@ -25,10 +25,13 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.operation.hash.djb.DjbHashFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
@@ -45,10 +48,11 @@ import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.disruption.*;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.TransportModule;
+import org.elasticsearch.transport.*;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -93,10 +97,14 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
     }
 
     private List<String> startCluster(int numberOfNodes) throws ExecutionException, InterruptedException {
+        return startCluster(numberOfNodes, -1);
+    }
+
+    private List<String> startCluster(int numberOfNodes, int minimumMasterNode) throws ExecutionException, InterruptedException {
         if (randomBoolean()) {
-            return startMulticastCluster(numberOfNodes, -1);
+            return startMulticastCluster(numberOfNodes, minimumMasterNode);
         } else {
-            return startUnicastCluster(numberOfNodes, null, -1);
+            return startUnicastCluster(numberOfNodes, null, minimumMasterNode);
         }
     }
 
@@ -584,6 +592,56 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
         // master since m_m_n of 3 could never be satisfied.
         assertMaster(masterNode, nodes);
     }
+
+
+    /** Test cluster join with issues in cluster state publishing * */
+    @Test
+    @TestLogging("discovery.zen:TRACE,action:TRACE")
+    public void testClusterJoinDespiteOfPublishingIssues() throws Exception {
+        List<String> nodes = startCluster(2, 1);
+
+        String masterNode = internalCluster().getMasterName();
+        String nonMasterNode;
+        if (masterNode.equals(nodes.get(0))) {
+            nonMasterNode = nodes.get(1);
+        } else {
+            nonMasterNode = nodes.get(0);
+        }
+
+        DiscoveryNodes discoveryNodes = internalCluster().getInstance(ClusterService.class, nonMasterNode).state().nodes();
+
+        logger.info("blocking requests from non master [{}] to master [{}]", nonMasterNode, masterNode);
+        MockTransportService nonMasterTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class, nonMasterNode);
+        nonMasterTransportService.addFailToSendNoConnectRule(discoveryNodes.masterNode());
+
+        assertNoMaster(nonMasterNode);
+
+        logger.info("blocking cluster state publishing from master [{}] to non master [{}]", masterNode, nonMasterNode);
+        MockTransportService masterTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class, masterNode);
+        masterTransportService.addFailToSendNoConnectRule(discoveryNodes.localNode(), "discovery/zen/publish");
+
+        logger.info("allowing requests from non master [{}] to master [{}], waiting for two join request", nonMasterNode, masterNode);
+        final CountDownLatch countDownLatch = new CountDownLatch(2);
+        nonMasterTransportService.addDelegate(discoveryNodes.masterNode(), new MockTransportService.DelegateTransport(nonMasterTransportService.original()) {
+            @Override
+            public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {
+                if (action.equals("discovery/zen/join")) {
+                    countDownLatch.countDown();
+                }
+                super.sendRequest(node, requestId, action, request, options);
+            }
+        });
+
+        countDownLatch.await();
+
+        logger.info("waiting for cluster to reform");
+        masterTransportService.clearRule(discoveryNodes.localNode());
+        nonMasterTransportService.clearRule(discoveryNodes.masterNode());
+
+        ensureStableCluster(2);
+
+    }
+
 
     protected NetworkPartition addRandomPartition() {
         NetworkPartition partition;

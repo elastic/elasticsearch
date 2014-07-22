@@ -37,6 +37,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 
@@ -96,6 +98,13 @@ public class MockTransportService extends TransportService {
                 throw new ConnectTransportException(node, "DISCONNECT: simulated");
             }
         });
+    }
+
+    /**
+     * Adds a rule that will cause matching operations to throw ConnectTransportExceptions
+     */
+    public void addFailToSendNoConnectRule(DiscoveryNode node, final String... blockedActions) {
+        addFailToSendNoConnectRule(node, new HashSet<>(Arrays.asList(blockedActions)));
     }
 
     /**
@@ -307,10 +316,10 @@ public class MockTransportService extends TransportService {
 
         protected final Transport transport;
 
+
         public DelegateTransport(Transport transport) {
             this.transport = transport;
         }
-
 
         @Override
         public void transportServiceAdapter(TransportServiceAdapter service) {

@@ -218,6 +218,9 @@ public class TransportClientNodesService extends AbstractComponent {
         try {
             callback.doWithNode(node, retryListener);
         } catch (ElasticsearchException e) {
+            //ConnectTransportException gets thrown as well by TransportService due to throwConnectException option,
+            //which is needed for the correct operation of execute(...).
+            //We can ignore it here because it will be passed to the listener interface anyway through the request holder.
             if (!(e.unwrapCause() instanceof ConnectTransportException)) {
                 throw e;
             }
@@ -254,10 +257,9 @@ public class TransportClientNodesService extends AbstractComponent {
                     try {
                         callback.doWithNode(nodes.get((index + i) % nodes.size()), this);
                     } catch (Throwable e1) {
-                        //no need to retry here, the transport service will notify this same listener
-                        //of the failure through the request holder, which will retry
-                        //ConnectTransportException gets thrown as well by TransportService due to throwConnectException option
-                        //fail though in case an exception gets thrown before that
+                        //ConnectTransportException gets thrown as well by TransportService due to throwConnectException option,
+                        //which is needed for the correct operation of execute(...).
+                        //We can ignore it here because it will be passed to the listener interface anyway through the request holder.
                         if (!(ExceptionsHelper.unwrapCause(e1) instanceof ConnectTransportException)) {
                             listener.onFailure(e1);
                         }

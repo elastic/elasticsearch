@@ -144,21 +144,21 @@ Type name: `bloom`
 [TIP]
 ==================================================
 
-It can sometime make sense to disable bloom filters. For instance, if you are
-logging into an index per day, and you have thousands of indices, the bloom
-filters can take up a sizable amount of memory. For most queries you are only
-interested in recent indices, so you don't mind CRUD operations on older
-indices taking slightly longer.
+As of 1.4, the bloom filters are no longer loaded at search time by
+default: they consume ~10 bits per unique id value, which can quickly
+add up for indices with many tiny documents, and separate performance
+improvements have made the performance gains with bloom filters very
+small.
 
-In these cases you can disable loading of the bloom filter on  a per-index
-basis by updating the index settings:
+You can enable loading of the bloom filter at search time on a
+per-index basis by updating the index settings:
 
 [source,js]
 --------------------------------------------------
 PUT /old_index/_settings?index.codec.bloom.load=false
 --------------------------------------------------
 
-This setting, which defaults to `true`, can be updated on a live index. Note,
+This setting, which defaults to `false`, can be updated on a live index. Note,
 however, that changing the value will cause the index to be reopened, which
 will invalidate any existing caches.
 

@@ -106,9 +106,12 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
             BytesRef byteSpare = new BytesRef();
 
             MultiSearchResponse multiSearchResponse = collate(suggestion, checkerResult, byteSpare, spare);
+            final boolean collateEnabled = multiSearchResponse != null;
+            final boolean collatePrune = suggestion.collatePrune();
 
             for (int i = 0; i < checkerResult.corrections.length; i++) {
-                if (!hasMatchingDocs(multiSearchResponse, i)) {
+                boolean collateMatch = hasMatchingDocs(multiSearchResponse, i);
+                if (!collateMatch && !collatePrune) {
                     continue;
                 }
                 Correction correction = checkerResult.corrections[i];
@@ -119,7 +122,11 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
                     UnicodeUtil.UTF8toUTF16(correction.join(SEPARATOR, byteSpare, suggestion.getPreTag(), suggestion.getPostTag()), spare);
                     highlighted = new StringText(spare.toString());
                 }
-                resultEntry.addOption(new Suggestion.Entry.Option(phrase, highlighted, (float) (correction.score)));
+                if (collateEnabled && collatePrune) {
+                    resultEntry.addOption(new Suggestion.Entry.Option(phrase, highlighted, (float) (correction.score), collateMatch));
+                } else {
+                    resultEntry.addOption(new Suggestion.Entry.Option(phrase, highlighted, (float) (correction.score)));
+                }
             }
         } else {
             response.addTerm(buildResultEntry(suggestion, spare, Double.MIN_VALUE));

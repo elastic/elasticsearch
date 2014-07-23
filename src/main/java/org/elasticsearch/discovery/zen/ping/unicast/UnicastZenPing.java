@@ -270,7 +270,12 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                 if (sendPingsHandler.isClosed()) {
                     return;
                 }
-                sendPingsHandler.nodeToDisconnect.add(nodeToSend);
+                // only disconnect from nodes that we will end up creating a light connection to, as they are temporal
+                // if we find on the disco nodes a matching node by address, we are going to restore the connection
+                // anyhow down the line if its not connected...
+                if (!nodeFoundByAddress) {
+                    sendPingsHandler.nodeToDisconnect.add(nodeToSend);
+                }
                 // fork the connection to another thread
                 sendPingsHandler.executor().execute(new Runnable() {
                     @Override

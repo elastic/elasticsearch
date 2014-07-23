@@ -158,6 +158,12 @@ public final class PhraseSuggestParser implements SuggestContextParser {
                             suggestion.setPreference(parser.text());
                         } else if ("params".equals(fieldName)) {
                             suggestion.setCollateScriptParams(parser.map());
+                        } else if ("prune".equals(fieldName)) {
+                            if (parser.isBooleanValue()) {
+                                suggestion.setCollatePrune(parser.booleanValue());
+                            } else {
+                                throw new ElasticsearchIllegalArgumentException("suggester[phrase][collate] prune must be either 'true' or 'false'");
+                            }
                         } else {
                             throw new ElasticsearchIllegalArgumentException(
                                     "suggester[phrase][collate] doesn't support field [" + fieldName + "]");

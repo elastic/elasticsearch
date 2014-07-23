@@ -1096,7 +1096,7 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void suggestPhrasesInIndex() throws InterruptedException, ExecutionException, IOException {
+    public void testPhraseSuggesterCollate() throws InterruptedException, ExecutionException, IOException {
         CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
                 .put(indexSettings())
                 .put(SETTING_NUMBER_OF_SHARDS, 1) // A single shard will help to keep the tests repeatable.
@@ -1253,6 +1253,13 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
         } catch (ElasticsearchException e) {
             // expected
         }
+
+        // collate request with prune set to true
+        PhraseSuggestionBuilder phraseSuggestWithParamsAndReturn = suggest.collateFilter(null).collateQuery(collateWithParams).collateParams(params).collatePrune(true);
+        searchSuggest = searchSuggest("united states house of representatives elections in washington 2006", phraseSuggestWithParamsAndReturn);
+        assertSuggestionSize(searchSuggest, 0, 10, "title");
+        assertSuggestionPhraseCollateMatchExists(searchSuggest, "title", 2);
+
     }
 
     protected Suggest searchSuggest(SuggestionBuilder<?>... suggestion) {

@@ -314,6 +314,22 @@ public class ElasticsearchAssertions {
         assertVersionSerializable(searchSuggest);
     }
 
+    public static void assertSuggestionPhraseCollateMatchExists(Suggest searchSuggest, String key, int numberOfPhraseExists) {
+        int counter = 0;
+        assertThat(searchSuggest, notNullValue());
+        String msg = "Suggest result: " + searchSuggest.toString();
+        assertThat(msg, searchSuggest.size(), greaterThanOrEqualTo(1));
+        assertThat(msg, searchSuggest.getSuggestion(key).getName(), equalTo(key));
+
+        for (Suggest.Suggestion.Entry.Option option : searchSuggest.getSuggestion(key).getEntries().get(0).getOptions()) {
+            if (option.collateMatch()) {
+                counter++;
+            }
+        }
+
+        assertThat(counter, equalTo(numberOfPhraseExists));
+    }
+
     public static void assertSuggestion(Suggest searchSuggest, int entry, int ord, String key, String text) {
         assertThat(searchSuggest, notNullValue());
         String msg = "Suggest result: " + searchSuggest.toString();

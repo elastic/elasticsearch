@@ -35,6 +35,8 @@ public class HistogramBuilder extends ValuesSourceAggregationBuilder<HistogramBu
     private Long minDocCount;
     private Long extendedBoundsMin;
     private Long extendedBoundsMax;
+    private Long preOffset;
+    private Long postOffset;
 
     /**
      * Constructs a new histogram aggregation builder.
@@ -83,6 +85,16 @@ public class HistogramBuilder extends ValuesSourceAggregationBuilder<HistogramBu
         extendedBoundsMax = max;
         return this;
     }
+    
+    public HistogramBuilder preOffset(long preOffset) {
+        this.preOffset = preOffset;
+        return this;
+    }
+    
+    public HistogramBuilder postOffset(long postOffset) {
+        this.postOffset = postOffset;
+        return this;
+    }
 
     @Override
     protected XContentBuilder doInternalXContent(XContentBuilder builder, Params params) throws IOException {
@@ -95,6 +107,15 @@ public class HistogramBuilder extends ValuesSourceAggregationBuilder<HistogramBu
             builder.field("order");
             order.toXContent(builder, params);
         }
+
+        if (preOffset != null) {
+            builder.field("pre_offset", preOffset);
+        }
+
+        if (postOffset != null) {
+            builder.field("post_offset", postOffset);
+        }
+
 
         if (minDocCount != null) {
             builder.field("min_doc_count", minDocCount);

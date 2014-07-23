@@ -1,8 +1,8 @@
 [[elasticsearch-reference]]
 = Reference
 
-:version: 1.2.0
-:branch:  1.2
+:version: 1.3.0
+:branch:  1.3
 :jdk:     1.7.0_60
 
 include::getting-started.asciidoc[]

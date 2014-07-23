@@ -85,3 +85,7 @@
 
 * https://github.com/twitter/storehaus[Twitter Storehaus]:
   Thin asynchronous scala client for storehaus.
+
+* https://doc.tiki.org/Elasticsearch[Tiki Wiki CMS Groupware]
+  Tiki has native support for Elasticsearch. This provides faster & better search (facets, etc), along with some Natural Language Processing features (ex.: More like this)
+

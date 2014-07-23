@@ -887,7 +887,7 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testGet_allField() throws Exception {
-        client().admin().indices().prepareCreate("my-index")
+        prepareCreate("my-index")
                 .addMapping("my-type1", jsonBuilder()
                         .startObject()
                         .startObject("my-type1")
@@ -902,9 +902,7 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
                         .endObject()
                         .endObject())
                 .get();
-        client().prepareIndex("my-index", "my-type1", "1")
-                .setSource(jsonBuilder().startObject().field("some_field", "some text").endObject())
-                .get();
+        index("my-index", "my-type1", "1", "some_field", "some text");
         refresh();
 
         GetResponse getResponse = client().prepareGet("my-index", "my-type1", "1").setFields("_all").get();

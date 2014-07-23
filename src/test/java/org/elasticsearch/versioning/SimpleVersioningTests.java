@@ -456,11 +456,14 @@ public class SimpleVersioningTests extends ElasticsearchIntegrationTest {
         public long version;
         public boolean delete;
         public int threadID = -1;
-        public long indexTime;
+        public long indexStartTime;
+        public long indexFinishTime;
+        public boolean versionConflict;
+        public boolean alreadyExists;
 
         @Override
         public String toString() {
-            return "id=" + id + " version=" + version + " delete?=" + delete + " threadID=" + threadID + " indexTime=" + indexTime;
+            return "id=" + id + " version=" + version + " delete?=" + delete + " threadID=" + threadID + " indexStartTime=" + indexStartTime + " indexFinishTime=" + indexFinishTime + " versionConflict=" + versionConflict + " alreadyExists=" + alreadyExists;
         }
     }
 
@@ -583,7 +586,7 @@ public class SimpleVersioningTests extends ElasticsearchIntegrationTest {
 
                                 String id = idVersion.id;
                                 idVersion.threadID = threadID;
-                                idVersion.indexTime = System.nanoTime()-startTime;
+                                idVersion.indexStartTime = System.nanoTime()-startTime;
                                 long version = idVersion.version;
                                 if (idVersion.delete) {
                                     try {
@@ -593,6 +596,7 @@ public class SimpleVersioningTests extends ElasticsearchIntegrationTest {
                                     } catch (VersionConflictEngineException vcee) {
                                         // OK: our version is too old
                                         assertThat(version, lessThanOrEqualTo(truth.get(id).version));
+                                        idVersion.versionConflict = true;
                                     }
                                 } else {
                                     for (int x=0;x<2;x++) {
@@ -613,19 +617,22 @@ public class SimpleVersioningTests extends ElasticsearchIntegrationTest {
                                                 .setVersion(version)
                                                 .setVersionType(VersionType.EXTERNAL).execute().actionGet();
                                             break;
-                                        } catch (DocumentAlreadyExistsException vcee) {
+                                        } catch (DocumentAlreadyExistsException daee) {
                                             if (x == 0) {
-                                                // OK: id was already index by another thread, now use index:
+                                                // OK: id was already indexed by another thread, now use index:
+                                                idVersion.alreadyExists = true;
                                             } else {
                                                 // Should not happen with op=INDEX:
-                                                throw vcee;
+                                                throw daee;
                                             }
                                         } catch (VersionConflictEngineException vcee) {
                                             // OK: our version is too old
                                             assertThat(version, lessThanOrEqualTo(truth.get(id).version));
+                                            idVersion.versionConflict = true;
                                         }
                                     }
                                 }
+                                idVersion.indexFinishTime = System.nanoTime()-startTime;
 
                                 if (threadRandom.nextInt(100) == 7) {
                                     System.out.println(threadID + ": TEST: now refresh at " + (System.nanoTime()-startTime));

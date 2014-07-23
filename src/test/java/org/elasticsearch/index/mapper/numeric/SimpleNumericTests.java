@@ -279,8 +279,8 @@ public class SimpleNumericTests extends ElasticsearchSingleNodeTest {
                 .endObject()
                 .bytes());
         final Document doc = parsedDoc.rootDoc();
-        assertEquals(DocValuesType.BINARY, SimpleStringMappingTests.docValuesType(doc, "int"));
-        assertEquals(DocValuesType.BINARY, SimpleStringMappingTests.docValuesType(doc, "double"));
+        assertEquals(DocValuesType.SORTED_NUMERIC, SimpleStringMappingTests.docValuesType(doc, "int"));
+        assertEquals(DocValuesType.SORTED_NUMERIC, SimpleStringMappingTests.docValuesType(doc, "double"));
     }
 
     public void testDocValuesOnNested() throws Exception {
@@ -326,8 +326,8 @@ public class SimpleNumericTests extends ElasticsearchSingleNodeTest {
             if (doc == parsedDoc.rootDoc()) {
                 continue;
             }
-            assertEquals(DocValuesType.BINARY, SimpleStringMappingTests.docValuesType(doc, "nested.int"));
-            assertEquals(DocValuesType.BINARY, SimpleStringMappingTests.docValuesType(doc, "nested.double"));
+            assertEquals(DocValuesType.SORTED_NUMERIC, SimpleStringMappingTests.docValuesType(doc, "nested.int"));
+            assertEquals(DocValuesType.SORTED_NUMERIC, SimpleStringMappingTests.docValuesType(doc, "nested.double"));
         }
     }
     

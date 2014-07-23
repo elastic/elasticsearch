@@ -319,7 +319,7 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
             fields.add(field);
         }
         if (hasDocValues()) {
-            addDocValue(context, value);
+            addDocValue(context, fields, value);
         }
     }
 

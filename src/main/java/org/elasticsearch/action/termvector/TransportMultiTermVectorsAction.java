@@ -22,6 +22,7 @@ package org.elasticsearch.action.termvector;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -39,7 +40,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class TransportMultiTermVectorsAction extends TransportAction<MultiTermVectorsRequest, MultiTermVectorsResponse> {
+public class TransportMultiTermVectorsAction extends HandledTransportAction<MultiTermVectorsRequest, MultiTermVectorsResponse> {
 
     private final ClusterService clusterService;
 
@@ -48,11 +49,9 @@ public class TransportMultiTermVectorsAction extends TransportAction<MultiTermVe
     @Inject
     public TransportMultiTermVectorsAction(Settings settings, ThreadPool threadPool, TransportService transportService,
                                            ClusterService clusterService, TransportSingleShardMultiTermsVectorAction shardAction, ActionFilters actionFilters) {
-        super(settings, MultiTermVectorsAction.NAME, threadPool, actionFilters);
+        super(settings, MultiTermVectorsAction.NAME, threadPool, transportService, actionFilters);
         this.clusterService = clusterService;
         this.shardAction = shardAction;
-
-        transportService.registerHandler(MultiTermVectorsAction.NAME, new TransportHandler());
     }
 
     @Override
@@ -134,42 +133,8 @@ public class TransportMultiTermVectorsAction extends TransportAction<MultiTermVe
         }
     }
 
-    class TransportHandler extends BaseTransportRequestHandler<MultiTermVectorsRequest> {
-
-        @Override
-        public MultiTermVectorsRequest newInstance() {
-            return new MultiTermVectorsRequest();
-        }
-
-        @Override
-        public void messageReceived(final MultiTermVectorsRequest request, final TransportChannel channel) throws Exception {
-            // no need to use threaded listener, since we just send a response
-            request.listenerThreaded(false);
-            execute(request, new ActionListener<MultiTermVectorsResponse>() {
-                @Override
-                public void onResponse(MultiTermVectorsResponse response) {
-                    try {
-                        channel.sendResponse(response);
-                    } catch (Throwable t) {
-                        onFailure(t);
-                    }
-                }
-
-                @Override
-                public void onFailure(Throwable e) {
-                    try {
-                        channel.sendResponse(e);
-                    } catch (Throwable t) {
-                        logger.warn("Failed to send error response for action [" + MultiTermVectorsAction.NAME + "] and request ["
-                                + request + "]", t);
-                    }
-                }
-            });
-        }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.SAME;
-        }
+    @Override
+    public MultiTermVectorsRequest newRequestInstance() {
+        return new MultiTermVectorsRequest();
     }
 }

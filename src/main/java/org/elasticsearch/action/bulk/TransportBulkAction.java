@@ -34,6 +34,7 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
+import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.ClusterService;
@@ -63,7 +64,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  *
  */
-public class TransportBulkAction extends TransportAction<BulkRequest, BulkResponse> {
+public class TransportBulkAction extends HandledTransportAction<BulkRequest, BulkResponse> {
 
     private final AutoCreateIndex autoCreateIndex;
 
@@ -78,15 +79,18 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
     @Inject
     public TransportBulkAction(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterService clusterService,
                                TransportShardBulkAction shardBulkAction, TransportCreateIndexAction createIndexAction, ActionFilters actionFilters) {
-        super(settings, BulkAction.NAME, threadPool, actionFilters);
+        super(settings, BulkAction.NAME, threadPool, transportService, actionFilters);
         this.clusterService = clusterService;
         this.shardBulkAction = shardBulkAction;
         this.createIndexAction = createIndexAction;
 
         this.autoCreateIndex = new AutoCreateIndex(settings);
         this.allowIdGeneration = componentSettings.getAsBoolean("action.allow_id_generation", true);
+    }
 
-        transportService.registerHandler(BulkAction.NAME, new TransportHandler());
+    @Override
+    public BulkRequest newRequestInstance(){
+        return new BulkRequest();
     }
 
     @Override
@@ -335,44 +339,6 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
                     listener.onResponse(new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]), System.currentTimeMillis() - startTime));
                 }
             });
-        }
-    }
-
-    class TransportHandler extends BaseTransportRequestHandler<BulkRequest> {
-
-        @Override
-        public BulkRequest newInstance() {
-            return new BulkRequest();
-        }
-
-        @Override
-        public void messageReceived(final BulkRequest request, final TransportChannel channel) throws Exception {
-            // no need to use threaded listener, since we just send a response
-            request.listenerThreaded(false);
-            execute(request, new ActionListener<BulkResponse>() {
-                @Override
-                public void onResponse(BulkResponse result) {
-                    try {
-                        channel.sendResponse(result);
-                    } catch (Throwable e) {
-                        onFailure(e);
-                    }
-                }
-
-                @Override
-                public void onFailure(Throwable e) {
-                    try {
-                        channel.sendResponse(e);
-                    } catch (Exception e1) {
-                        logger.warn("Failed to send error response for action [" + BulkAction.NAME + "] and request [" + request + "]", e1);
-                    }
-                }
-            });
-        }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.SAME;
         }
     }
 }

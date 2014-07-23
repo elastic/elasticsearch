@@ -22,6 +22,7 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.type.*;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -41,7 +42,7 @@ import static org.elasticsearch.action.search.SearchType.*;
 /**
  *
  */
-public class TransportSearchAction extends TransportAction<SearchRequest, SearchResponse> {
+public class TransportSearchAction extends HandledTransportAction<SearchRequest, SearchResponse> {
 
     private final ClusterService clusterService;
     private final TransportSearchDfsQueryThenFetchAction dfsQueryThenFetchAction;
@@ -61,7 +62,7 @@ public class TransportSearchAction extends TransportAction<SearchRequest, Search
                                  TransportSearchQueryAndFetchAction queryAndFetchAction,
                                  TransportSearchScanAction scanAction,
                                  TransportSearchCountAction countAction, ActionFilters actionFilters) {
-        super(settings, SearchAction.NAME, threadPool, actionFilters);
+        super(settings, SearchAction.NAME, threadPool, transportService, actionFilters);
         this.clusterService = clusterService;
         this.dfsQueryThenFetchAction = dfsQueryThenFetchAction;
         this.queryThenFetchAction = queryThenFetchAction;
@@ -72,7 +73,7 @@ public class TransportSearchAction extends TransportAction<SearchRequest, Search
 
         this.optimizeSingleShard = componentSettings.getAsBoolean("optimize_single_shard", true);
 
-        transportService.registerHandler(SearchAction.NAME, new TransportHandler());
+
     }
 
     @Override
@@ -111,41 +112,8 @@ public class TransportSearchAction extends TransportAction<SearchRequest, Search
         }
     }
 
-    private class TransportHandler extends BaseTransportRequestHandler<SearchRequest> {
-
-        @Override
-        public SearchRequest newInstance() {
-            return new SearchRequest();
-        }
-
-        @Override
-        public void messageReceived(SearchRequest request, final TransportChannel channel) throws Exception {
-            // no need for a threaded listener
-            request.listenerThreaded(false);
-            execute(request, new ActionListener<SearchResponse>() {
-                @Override
-                public void onResponse(SearchResponse result) {
-                    try {
-                        channel.sendResponse(result);
-                    } catch (Throwable e) {
-                        onFailure(e);
-                    }
-                }
-
-                @Override
-                public void onFailure(Throwable e) {
-                    try {
-                        channel.sendResponse(e);
-                    } catch (Exception e1) {
-                        logger.warn("Failed to send response for search", e1);
-                    }
-                }
-            });
-        }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.SAME;
-        }
+    @Override
+    public SearchRequest newRequestInstance() {
+        return new SearchRequest();
     }
 }

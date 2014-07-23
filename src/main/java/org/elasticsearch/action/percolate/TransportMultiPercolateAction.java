@@ -25,6 +25,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.get.*;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.elasticsearch.cluster.ClusterService;
@@ -50,7 +51,7 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
  */
-public class TransportMultiPercolateAction extends TransportAction<MultiPercolateRequest, MultiPercolateResponse> {
+public class TransportMultiPercolateAction extends HandledTransportAction<MultiPercolateRequest, MultiPercolateResponse> {
 
     private final ClusterService clusterService;
     private final PercolatorService percolatorService;
@@ -62,13 +63,16 @@ public class TransportMultiPercolateAction extends TransportAction<MultiPercolat
     public TransportMultiPercolateAction(Settings settings, ThreadPool threadPool, TransportShardMultiPercolateAction shardMultiPercolateAction,
                                          ClusterService clusterService, TransportService transportService, PercolatorService percolatorService,
                                          TransportMultiGetAction multiGetAction, ActionFilters actionFilters) {
-        super(settings, MultiPercolateAction.NAME, threadPool, actionFilters);
+        super(settings, MultiPercolateAction.NAME, threadPool, transportService, actionFilters);
         this.shardMultiPercolateAction = shardMultiPercolateAction;
         this.clusterService = clusterService;
         this.percolatorService = percolatorService;
         this.multiGetAction = multiGetAction;
+    }
 
-        transportService.registerHandler(MultiPercolateAction.NAME, new TransportHandler());
+    @Override
+    public MultiPercolateRequest newRequestInstance() {
+        return new MultiPercolateRequest();
     }
 
     @Override
@@ -134,7 +138,6 @@ public class TransportMultiPercolateAction extends TransportAction<MultiPercolat
         }
 
     }
-
 
     private class ASyncAction {
 
@@ -320,45 +323,6 @@ public class TransportMultiPercolateAction extends TransportAction<MultiPercolat
             finalListener.onResponse(new MultiPercolateResponse(finalResponse));
         }
 
-    }
-
-
-    class TransportHandler extends BaseTransportRequestHandler<MultiPercolateRequest> {
-
-        @Override
-        public MultiPercolateRequest newInstance() {
-            return new MultiPercolateRequest();
-        }
-
-        @Override
-        public void messageReceived(final MultiPercolateRequest request, final TransportChannel channel) throws Exception {
-            // no need to use threaded listener, since we just send a response
-            request.listenerThreaded(false);
-            execute(request, new ActionListener<MultiPercolateResponse>() {
-                @Override
-                public void onResponse(MultiPercolateResponse response) {
-                    try {
-                        channel.sendResponse(response);
-                    } catch (Throwable e) {
-                        onFailure(e);
-                    }
-                }
-
-                @Override
-                public void onFailure(Throwable e) {
-                    try {
-                        channel.sendResponse(e);
-                    } catch (Exception e1) {
-                        logger.warn("Failed to send error response for action [mpercolate] and request [" + request + "]", e1);
-                    }
-                }
-            });
-        }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.SAME;
-        }
     }
 
 }

@@ -32,6 +32,8 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * Response for a start benchmark request.
@@ -51,16 +53,17 @@ public class BenchmarkStartResponse extends ActionResponse implements Streamable
         this(null);
     }
 
-    public BenchmarkStartResponse(String benchmarkId) {
-        this.benchmarkId        = benchmarkId;
-        this.competitionResults = new HashMap<>();
-        this.errors             = new ArrayList<>();
+    public BenchmarkStartResponse(final String benchmarkId) {
+        this(benchmarkId, null);
     }
 
-    public BenchmarkStartResponse(String benchmarkId, Map<String, CompetitionResult> competitionResults) {
+    public BenchmarkStartResponse(final String benchmarkId, final Map<String, CompetitionResult> competitionResults) {
         this.benchmarkId        = benchmarkId;
-        this.competitionResults = competitionResults;
-        this.errors             = new ArrayList<>();
+        this.errors             = new CopyOnWriteArrayList<>();
+        this.competitionResults = new ConcurrentHashMap<>();
+        if (competitionResults != null && competitionResults.size() > 0) {
+            this.competitionResults.putAll(competitionResults);
+        }
     }
 
     public static enum State {
@@ -182,14 +185,6 @@ public class BenchmarkStartResponse extends ActionResponse implements Streamable
     }
 
     /**
-     * Adds an error message to the response
-     * @param error    Error message
-     */
-    public void error(String error) {
-        errors.add(error);
-    }
-
-    /**
      * Adds error messages to the response
      * @param errors    Error messages
      */
@@ -227,12 +222,15 @@ public class BenchmarkStartResponse extends ActionResponse implements Streamable
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         benchmarkId = in.readOptionalString();
-        verbose = in.readBoolean();
-        state = State.fromId(in.readByte());
-        int size = in.readVInt();
-        errors = new ArrayList<>();
+        verbose     = in.readBoolean();
+        state       = State.fromId(in.readByte());
+        int size    = in.readVInt();
+        errors      = new CopyOnWriteArrayList<>();
         for (int i = 0; i < size; i++) {
-            errors.add(in.readString());
+            final String s = in.readOptionalString();
+            if (s != null) {
+                errors.add(s);
+            }
         }
         size = in.readVInt();
         for (int i = 0; i < size; i++) {
@@ -251,7 +249,7 @@ public class BenchmarkStartResponse extends ActionResponse implements Streamable
         out.writeByte(state.id());
         out.writeVInt(errors.size());
         for (String s : errors) {
-            out.writeString(s);
+            out.writeOptionalString(s);
         }
         out.write(competitionResults.size());
         for (Map.Entry<String, CompetitionResult> entry : competitionResults.entrySet()) {

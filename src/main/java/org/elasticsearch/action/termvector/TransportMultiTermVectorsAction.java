@@ -77,7 +77,7 @@ public class TransportMultiTermVectorsAction extends TransportAction<MultiTermVe
                         termVectorRequest.type(), termVectorRequest.id(), "routing is required, but hasn't been specified")));
                 continue;
             }
-            termVectorRequest.index(clusterState.metaData().concreteSingleIndex(termVectorRequest.index()));
+            termVectorRequest.index(clusterState.metaData().concreteSingleIndex(termVectorRequest.index(), termVectorRequest.indicesOptions()));
             ShardId shardId = clusterService
                     .operationRouting()
                     .getShards(clusterState, termVectorRequest.index(), termVectorRequest.type(), termVectorRequest.id(),

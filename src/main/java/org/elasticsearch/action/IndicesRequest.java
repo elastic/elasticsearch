@@ -19,6 +19,8 @@
 
 package org.elasticsearch.action;
 
+import org.elasticsearch.action.support.IndicesOptions;
+
 /**
  * Needs to be implemented by all {@link org.elasticsearch.action.ActionRequest} subclasses that relate to
  * one or more indices. Allows to retrieve which indices the action relates to.
@@ -29,4 +31,10 @@ public interface IndicesRequest {
      * Returns the array of indices that the action relates to
      */
     String[] indices();
+
+    /**
+     * Returns the indices options used to resolve indices. They tell for instance whether a single index is
+     * accepted, whether an empty array will be converted to _all, and how wildcards will be expanded if needed.
+     */
+    IndicesOptions indicesOptions();
 }

@@ -73,6 +73,7 @@ public class GetAliasesRequest extends MasterNodeReadOperationRequest<GetAliases
         return aliases;
     }
 
+    @Override
     public IndicesOptions indicesOptions() {
         return indicesOptions;
     }

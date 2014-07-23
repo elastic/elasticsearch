@@ -115,6 +115,7 @@ public class DeleteWarmerRequest extends AcknowledgedRequest<DeleteWarmerRequest
         return indices;
     }
 
+    @Override
     public IndicesOptions indicesOptions() {
         return indicesOptions;
     }

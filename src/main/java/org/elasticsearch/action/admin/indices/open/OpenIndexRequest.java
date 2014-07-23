@@ -83,6 +83,7 @@ public class OpenIndexRequest extends AcknowledgedRequest<OpenIndexRequest> impl
      *
      * @return the current behaviour when it comes to index names and wildcard indices expressions
      */
+    @Override
     public IndicesOptions indicesOptions() {
         return indicesOptions;
     }

@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -104,6 +105,14 @@ public class PutWarmerRequest extends AcknowledgedRequest<PutWarmerRequest> impl
             throw new IllegalStateException("unable to retrieve indices, search request is null");
         }
         return searchRequest.indices();
+    }
+
+    @Override
+    public IndicesOptions indicesOptions() {
+        if (searchRequest == null) {
+            throw new IllegalStateException("unable to retrieve indices, search request is null");
+        }
+        return searchRequest.indicesOptions();
     }
 
     @Override

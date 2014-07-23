@@ -23,6 +23,7 @@ import com.google.common.collect.Iterators;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.*;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -81,6 +82,11 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
         @Override
         public String[] indices() {
             return new String[]{index};
+        }
+
+        @Override
+        public IndicesOptions indicesOptions() {
+            return GetRequest.INDICES_OPTIONS;
         }
 
         public Item index(String index) {

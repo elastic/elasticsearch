@@ -95,6 +95,7 @@ public class GetFieldMappingsRequest extends ActionRequest<GetFieldMappingsReque
         return types;
     }
 
+    @Override
     public IndicesOptions indicesOptions() {
         return indicesOptions;
     }

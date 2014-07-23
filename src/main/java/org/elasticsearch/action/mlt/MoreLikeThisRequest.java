@@ -24,7 +24,9 @@ import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.*;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -115,6 +117,10 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> impl
         this.index = index;
     }
 
+    public IndicesOptions indicesOptions() {
+        return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
+    }
+
     @Override
     public List<? extends IndicesRequest> subRequests() {
         List<IndicesRequest> requests = Lists.newArrayList();
@@ -123,12 +129,22 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> impl
             public String[] indices() {
                 return new String[]{index};
             }
+
+            @Override
+            public IndicesOptions indicesOptions() {
+                return MoreLikeThisRequest.this.indicesOptions();
+            }
         });
         if (searchIndices != null) {
             requests.add(new IndicesRequest() {
                 @Override
                 public String[] indices() {
                     return searchIndices;
+                }
+
+                @Override
+                public IndicesOptions indicesOptions() {
+                    return SearchRequest.DEFAULT_INDICES_OPTIONS;
                 }
             });
         }

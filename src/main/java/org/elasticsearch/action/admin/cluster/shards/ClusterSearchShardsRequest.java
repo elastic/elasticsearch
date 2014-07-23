@@ -80,6 +80,7 @@ public class ClusterSearchShardsRequest extends MasterNodeReadOperationRequest<C
         return indices;
     }
 
+    @Override
     public IndicesOptions indicesOptions() {
         return indicesOptions;
     }

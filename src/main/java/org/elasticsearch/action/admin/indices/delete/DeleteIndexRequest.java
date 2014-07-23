@@ -65,6 +65,7 @@ public class DeleteIndexRequest extends MasterNodeOperationRequest<DeleteIndexRe
         this.indices = indices;
     }
 
+    @Override
     public IndicesOptions indicesOptions() {
         return indicesOptions;
     }

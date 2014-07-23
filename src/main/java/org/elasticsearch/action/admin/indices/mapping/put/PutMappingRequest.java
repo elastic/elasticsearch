@@ -106,6 +106,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         return indices;
     }
 
+    @Override
     public IndicesOptions indicesOptions() {
         return indicesOptions;
     }

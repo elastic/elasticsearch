@@ -25,6 +25,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -118,6 +119,11 @@ public class PutIndexedScriptRequest extends ActionRequest<PutIndexedScriptReque
     @Override
     public String[] indices() {
         return new String[]{ScriptService.SCRIPT_INDEX};
+    }
+
+    @Override
+    public IndicesOptions indicesOptions() {
+        return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
     }
 
     /**

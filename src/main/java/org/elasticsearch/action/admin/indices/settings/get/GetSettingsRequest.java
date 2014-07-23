@@ -54,6 +54,7 @@ public class GetSettingsRequest extends MasterNodeReadOperationRequest<GetSettin
         return indices;
     }
 
+    @Override
     public IndicesOptions indicesOptions() {
         return indicesOptions;
     }

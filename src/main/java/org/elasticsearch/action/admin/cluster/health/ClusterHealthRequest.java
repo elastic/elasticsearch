@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.cluster.health;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequest;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -61,6 +62,11 @@ public class ClusterHealthRequest extends MasterNodeReadOperationRequest<Cluster
     public ClusterHealthRequest indices(String[] indices) {
         this.indices = indices;
         return this;
+    }
+
+    @Override
+    public IndicesOptions indicesOptions() {
+        return IndicesOptions.lenientExpandOpen();
     }
 
     public TimeValue timeout() {

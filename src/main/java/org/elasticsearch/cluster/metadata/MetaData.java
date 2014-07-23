@@ -706,8 +706,8 @@ public class MetaData implements Iterable<IndexMetaData> {
         return actualIndices.toArray(new String[actualIndices.size()]);
     }
 
-    public String concreteSingleIndex(String indexOrAlias) throws IndexMissingException, ElasticsearchIllegalArgumentException {
-        String[] indices = concreteIndices(IndicesOptions.strictSingleIndexNoExpandForbidClosed(), indexOrAlias);
+    public String concreteSingleIndex(String indexOrAlias, IndicesOptions indicesOptions) throws IndexMissingException, ElasticsearchIllegalArgumentException {
+        String[] indices = concreteIndices(indicesOptions, indexOrAlias);
         assert indices.length == 1 : "expected an exception to be thrown otherwise";
         return indices[0];
     }

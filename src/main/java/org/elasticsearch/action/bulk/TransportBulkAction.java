@@ -203,7 +203,7 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
             if (request instanceof IndexRequest) {
                 IndexRequest indexRequest = (IndexRequest) request;
                 String aliasOrIndex = indexRequest.index();
-                indexRequest.index(clusterState.metaData().concreteSingleIndex(indexRequest.index()));
+                indexRequest.index(clusterState.metaData().concreteSingleIndex(indexRequest.index(), indexRequest.indicesOptions()));
 
                 MappingMetaData mappingMd = null;
                 if (metaData.hasIndex(indexRequest.index())) {
@@ -221,11 +221,11 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
             } else if (request instanceof DeleteRequest) {
                 DeleteRequest deleteRequest = (DeleteRequest) request;
                 deleteRequest.routing(clusterState.metaData().resolveIndexRouting(deleteRequest.routing(), deleteRequest.index()));
-                deleteRequest.index(clusterState.metaData().concreteSingleIndex(deleteRequest.index()));
+                deleteRequest.index(clusterState.metaData().concreteSingleIndex(deleteRequest.index(), deleteRequest.indicesOptions()));
             } else if (request instanceof UpdateRequest) {
                 UpdateRequest updateRequest = (UpdateRequest) request;
                 updateRequest.routing(clusterState.metaData().resolveIndexRouting(updateRequest.routing(), updateRequest.index()));
-                updateRequest.index(clusterState.metaData().concreteSingleIndex(updateRequest.index()));
+                updateRequest.index(clusterState.metaData().concreteSingleIndex(updateRequest.index(), updateRequest.indicesOptions()));
             }
         }
 

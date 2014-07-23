@@ -83,6 +83,7 @@ public class CloseIndexRequest extends AcknowledgedRequest<CloseIndexRequest> im
      *
      * @return the desired behaviour regarding indices to ignore and wildcard indices expressions
      */
+    @Override
     public IndicesOptions indicesOptions() {
         return indicesOptions;
     }

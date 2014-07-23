@@ -24,6 +24,7 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.type.ParsedScrollId;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -120,6 +121,11 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
     @Override
     public String[] indices() {
         return new String[]{index};
+    }
+
+    @Override
+    public IndicesOptions indicesOptions() {
+        return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
     }
 
     public int shardId() {

@@ -98,6 +98,7 @@ public class DeleteMappingRequest extends AcknowledgedRequest<DeleteMappingReque
         return indices;
     }
 
+    @Override
     public IndicesOptions indicesOptions() {
         return indicesOptions;
     }

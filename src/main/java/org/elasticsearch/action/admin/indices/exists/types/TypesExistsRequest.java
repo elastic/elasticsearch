@@ -64,6 +64,7 @@ public class TypesExistsRequest extends MasterNodeReadOperationRequest<TypesExis
         this.types = types;
     }
 
+    @Override
     public IndicesOptions indicesOptions() {
         return indicesOptions;
     }

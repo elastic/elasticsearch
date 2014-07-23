@@ -69,6 +69,7 @@ public class IndicesReplicationOperationRequest<T extends IndicesReplicationOper
         return this.indices;
     }
 
+    @Override
     public IndicesOptions indicesOptions() {
         return indicesOptions;
     }

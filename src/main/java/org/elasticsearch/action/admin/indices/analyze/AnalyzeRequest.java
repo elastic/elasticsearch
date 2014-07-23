@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.analyze;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.single.custom.SingleCustomOperationRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -94,6 +95,11 @@ public class AnalyzeRequest extends SingleCustomOperationRequest<AnalyzeRequest>
             return Strings.EMPTY_ARRAY;
         }
         return new String[]{index};
+    }
+
+    @Override
+    public IndicesOptions indicesOptions() {
+        return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
     }
 
     public AnalyzeRequest analyzer(String analyzer) {

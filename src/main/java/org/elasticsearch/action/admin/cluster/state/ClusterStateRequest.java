@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.cluster.state;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -110,6 +111,11 @@ public class ClusterStateRequest extends MasterNodeReadOperationRequest<ClusterS
     public ClusterStateRequest indices(String... indices) {
         this.indices = indices;
         return this;
+    }
+
+    @Override
+    public IndicesOptions indicesOptions() {
+        return IndicesOptions.lenientExpandOpen();
     }
 
     @Override

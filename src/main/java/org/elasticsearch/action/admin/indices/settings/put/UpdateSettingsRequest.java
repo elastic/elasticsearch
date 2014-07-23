@@ -93,6 +93,7 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
         return this;
     }
 
+    @Override
     public IndicesOptions indicesOptions() {
         return indicesOptions;
     }

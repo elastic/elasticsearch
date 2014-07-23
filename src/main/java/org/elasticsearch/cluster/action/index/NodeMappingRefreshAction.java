@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.action.index;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaDataMappingService;
@@ -106,6 +107,11 @@ public class NodeMappingRefreshAction extends AbstractComponent {
         @Override
         public String[] indices() {
             return new String[]{index};
+        }
+
+        @Override
+        public IndicesOptions indicesOptions() {
+            return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
         }
 
         public String index() {

@@ -188,7 +188,12 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
     @Override
     @SuppressWarnings("unchecked")
     public List<? extends IndicesRequest> subRequests() {
-        return (List<? extends IndicesRequest>)this.requests;
+        List<IndicesRequest> indicesRequests = Lists.newArrayList();
+        for (ActionRequest request : requests) {
+            assert request instanceof IndicesRequest;
+            indicesRequests.add((IndicesRequest) request);
+        }
+        return indicesRequests;
     }
 
     /**

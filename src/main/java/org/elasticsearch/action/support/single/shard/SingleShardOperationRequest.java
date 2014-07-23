@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.ValidateActions;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -34,6 +35,8 @@ import java.io.IOException;
 public abstract class SingleShardOperationRequest<T extends SingleShardOperationRequest> extends ActionRequest<T> implements IndicesRequest {
 
     protected String index;
+
+    public static final IndicesOptions INDICES_OPTIONS = IndicesOptions.strictSingleIndexNoExpandForbidClosed();
 
     private boolean threadedOperation = true;
 
@@ -69,6 +72,11 @@ public abstract class SingleShardOperationRequest<T extends SingleShardOperation
     @Override
     public String[] indices() {
         return new String[]{index};
+    }
+
+    @Override
+    public IndicesOptions indicesOptions() {
+        return INDICES_OPTIONS;
     }
 
     /**

@@ -22,7 +22,6 @@ package org.elasticsearch.action.admin.cluster.state;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadOperationAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
@@ -99,7 +98,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadOperatio
             }
 
             if (request.indices().length > 0) {
-                String[] indices = currentState.metaData().concreteIndices(IndicesOptions.lenientExpandOpen(), request.indices());
+                String[] indices = currentState.metaData().concreteIndices(request.indicesOptions(), request.indices());
                 for (String filteredIndex : indices) {
                     IndexMetaData indexMetaData = currentState.metaData().index(filteredIndex);
                     if (indexMetaData != null) {

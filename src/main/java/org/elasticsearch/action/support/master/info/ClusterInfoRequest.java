@@ -64,6 +64,7 @@ public abstract class ClusterInfoRequest<T extends ClusterInfoRequest> extends M
         return types;
     }
 
+    @Override
     public IndicesOptions indicesOptions() {
         return indicesOptions;
     }

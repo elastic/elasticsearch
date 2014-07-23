@@ -51,6 +51,7 @@ public class IndicesExistsRequest extends MasterNodeReadOperationRequest<Indices
         return this;
     }
 
+    @Override
     public IndicesOptions indicesOptions() {
         return indicesOptions;
     }

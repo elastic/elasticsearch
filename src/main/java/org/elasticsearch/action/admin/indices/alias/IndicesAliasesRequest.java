@@ -342,6 +342,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
         writeTimeout(out);
     }
 
+    @Override
     public IndicesOptions indicesOptions() {
         return indicesOptions;
     }

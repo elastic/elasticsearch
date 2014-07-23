@@ -235,11 +235,6 @@ public class JavaScriptScriptEngineService extends AbstractComponent implements 
         }
 
         @Override
-        public void setNextScore(float score) {
-            ScriptableObject.putProperty(scope, "_score", score);
-        }
-
-        @Override
         public void setNextVar(String name, Object value) {
             ScriptableObject.putProperty(scope, name, value);
         }

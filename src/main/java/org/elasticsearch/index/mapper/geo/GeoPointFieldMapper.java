@@ -22,14 +22,10 @@ package org.elasticsearch.index.mapper.geo;
 import com.carrotsearch.hppc.ObjectOpenHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.base.Objects;
-import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
-import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
@@ -50,15 +46,12 @@ import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.*;
-import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
-import org.elasticsearch.index.mapper.core.DoubleFieldMapper;
-import org.elasticsearch.index.mapper.core.NumberFieldMapper;
-import org.elasticsearch.index.mapper.core.StringFieldMapper;
+import org.elasticsearch.index.mapper.core.*;
+import org.elasticsearch.index.mapper.core.NumberFieldMapper.CustomNumericDocValuesField;
 import org.elasticsearch.index.mapper.object.ArrayValueMapperParser;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.io.IOException;
-import java.io.Reader;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -720,57 +713,6 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
                 }
             }
         }
-    }
-    
-    private static abstract class CustomNumericDocValuesField implements IndexableField {
-
-        public static final FieldType TYPE = new FieldType();
-        static {
-          TYPE.setDocValueType(FieldInfo.DocValuesType.BINARY);
-          TYPE.freeze();
-        }
-
-        private final String name;
-
-        public CustomNumericDocValuesField(String  name) {
-            this.name = name;
-        }
-
-        @Override
-        public String name() {
-            return name;
-        }
-
-        @Override
-        public IndexableFieldType fieldType() {
-            return TYPE;
-        }
-
-        @Override
-        public float boost() {
-            return 1f;
-        }
-
-        @Override
-        public String stringValue() {
-            return null;
-        }
-
-        @Override
-        public Reader readerValue() {
-            return null;
-        }
-
-        @Override
-        public Number numericValue() {
-            return null;
-        }
-
-        @Override
-        public TokenStream tokenStream(Analyzer analyzer, TokenStream reuse) throws IOException {
-            return null;
-        }
-
     }
 
     public static class CustomGeoPointDocValuesField extends CustomNumericDocValuesField {

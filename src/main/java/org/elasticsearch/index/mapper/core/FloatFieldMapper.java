@@ -19,10 +19,12 @@
 
 package org.elasticsearch.index.mapper.core;
 
+import com.carrotsearch.hppc.FloatArrayList;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.NumericRangeFilter;
 import org.apache.lucene.search.NumericRangeQuery;
@@ -36,6 +38,8 @@ import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.common.util.ByteUtils;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NumericFloatAnalyzer;
@@ -317,7 +321,17 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
             fields.add(field);
         }
         if (hasDocValues()) {
-            addDocValue(context, fields, NumericUtils.floatToSortableInt(value));
+            if (useSortedNumericDocValues) {
+                addDocValue(context, fields, NumericUtils.floatToSortableInt(value));
+            } else {
+                CustomFloatNumericDocValuesField field = (CustomFloatNumericDocValuesField) context.doc().getByKey(names().indexName());
+                if (field != null) {
+                    field.add(value);
+                } else {
+                    field = new CustomFloatNumericDocValuesField(names().indexName(), value);
+                    context.doc().addWithKey(names().indexName(), field);
+                }
+            }
         }
     }
 
@@ -381,5 +395,38 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
         public String numericAsString() {
             return Float.toString(number);
         }
+    }
+
+    public static class CustomFloatNumericDocValuesField extends CustomNumericDocValuesField {
+
+        public static final FieldType TYPE = new FieldType();
+        static {
+          TYPE.setDocValueType(FieldInfo.DocValuesType.BINARY);
+          TYPE.freeze();
+        }
+
+        private final FloatArrayList values;
+
+        public CustomFloatNumericDocValuesField(String  name, float value) {
+            super(name);
+            values = new FloatArrayList();
+            add(value);
+        }
+
+        public void add(float value) {
+            values.add(value);
+        }
+
+        @Override
+        public BytesRef binaryValue() {
+            CollectionUtils.sortAndDedup(values);
+
+            final byte[] bytes = new byte[values.size() * 4];
+            for (int i = 0; i < values.size(); ++i) {
+                ByteUtils.writeFloatLE(values.get(i), bytes, i * 4);
+            }
+            return new BytesRef(bytes);
+        }
+
     }
 }

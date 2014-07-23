@@ -20,19 +20,29 @@
 package org.elasticsearch.index.mapper.core;
 
 import com.carrotsearch.hppc.DoubleOpenHashSet;
+import com.carrotsearch.hppc.LongArrayList;
 import com.carrotsearch.hppc.LongOpenHashSet;
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.NumericTokenStream;
+import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
+import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.common.util.ByteUtils;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
@@ -130,6 +140,14 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
 
     protected Explicit<Boolean> coerce;
     
+    /** 
+     * True if index version is 1.4+
+     * <p>
+     * In this case numerics are encoded with SORTED_NUMERIC docvalues,
+     * otherwise for older indexes we must continue to write BINARY (for now)
+     */
+    protected final boolean useSortedNumericDocValues;
+    
     private ThreadLocal<NumericTokenStream> tokenStream = new ThreadLocal<NumericTokenStream>() {
         @Override
         protected NumericTokenStream initialValue() {
@@ -181,6 +199,8 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
         }
         this.ignoreMalformed = ignoreMalformed;
         this.coerce = coerce;
+        Version v = indexSettings == null ? Version.CURRENT : Version.indexCreated(indexSettings);
+        this.useSortedNumericDocValues = v.onOrAfter(Version.V_1_4_0);
     }
 
     @Override
@@ -227,7 +247,17 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
     protected abstract void innerParseCreateField(ParseContext context, List<Field> fields) throws IOException;
 
     protected final void addDocValue(ParseContext context, List<Field> fields, long value) {
-        fields.add(new SortedNumericDocValuesField(names().indexName(), value));
+        if (useSortedNumericDocValues) {
+            fields.add(new SortedNumericDocValuesField(names().indexName(), value));
+        } else {
+            CustomLongNumericDocValuesField field = (CustomLongNumericDocValuesField) context.doc().getByKey(names().indexName());
+            if (field != null) {
+                field.add(value);
+            } else {
+                field = new CustomLongNumericDocValuesField(names().indexName(), value);
+                context.doc().addWithKey(names().indexName(), field);
+            }
+        }
     }
 
     /**
@@ -397,6 +427,96 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
         }
 
         public abstract String numericAsString();
+    }
+
+    public static abstract class CustomNumericDocValuesField implements IndexableField {
+
+        public static final FieldType TYPE = new FieldType();
+        static {
+          TYPE.setDocValueType(FieldInfo.DocValuesType.BINARY);
+          TYPE.freeze();
+        }
+
+        private final String name;
+
+        public CustomNumericDocValuesField(String  name) {
+            this.name = name;
+        }
+
+        @Override
+        public String name() {
+            return name;
+        }
+
+        @Override
+        public IndexableFieldType fieldType() {
+            return TYPE;
+        }
+
+        @Override
+        public float boost() {
+            return 1f;
+        }
+
+        @Override
+        public String stringValue() {
+            return null;
+        }
+
+        @Override
+        public Reader readerValue() {
+            return null;
+        }
+
+        @Override
+        public Number numericValue() {
+            return null;
+        }
+
+        @Override
+        public TokenStream tokenStream(Analyzer analyzer, TokenStream reuse) throws IOException {
+            return null;
+        }
+
+    }
+
+    public static class CustomLongNumericDocValuesField extends CustomNumericDocValuesField {
+
+        public static final FieldType TYPE = new FieldType();
+        static {
+          TYPE.setDocValueType(FieldInfo.DocValuesType.BINARY);
+          TYPE.freeze();
+        }
+
+        private final LongArrayList values;
+
+        public CustomLongNumericDocValuesField(String  name, long value) {
+            super(name);
+            values = new LongArrayList();
+            add(value);
+        }
+
+        public void add(long value) {
+            values.add(value);
+        }
+
+        @Override
+        public BytesRef binaryValue() {
+            CollectionUtils.sortAndDedup(values);
+
+            // here is the trick:
+            //  - the first value is zig-zag encoded so that eg. -5 would become positive and would be better compressed by vLong
+            //  - for other values, we only encode deltas using vLong
+            final byte[] bytes = new byte[values.size() * ByteUtils.MAX_BYTES_VLONG];
+            final ByteArrayDataOutput out = new ByteArrayDataOutput(bytes);
+            ByteUtils.writeVLong(out, ByteUtils.zigZagEncode(values.get(0)));
+            for (int i = 1; i < values.size(); ++i) {
+                final long delta = values.get(i) - values.get(i - 1);
+                ByteUtils.writeVLong(out, delta);
+            }
+            return new BytesRef(bytes, 0, out.getPosition());
+        }
+
     }
 
     @Override

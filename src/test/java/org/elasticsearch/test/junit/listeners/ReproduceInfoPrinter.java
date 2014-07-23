@@ -69,7 +69,7 @@ public class ReproduceInfoPrinter extends RunListener {
         final Description d = failure.getDescription();
         final StringBuilder b = new StringBuilder();
         b.append("FAILURE  : ").append(d.getDisplayName()).append("\n");
-        b.append("REPRODUCE WITH  : mvn test");
+        b.append("REPRODUCE WITH  : mvn clean test");
         MavenMessageBuilder mavenMessageBuilder = new MavenMessageBuilder(b);
         mavenMessageBuilder.appendAllOpts(failure.getDescription());
 

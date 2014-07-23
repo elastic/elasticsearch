@@ -839,7 +839,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                     for (Tuple<DiscoveryNode, MembershipAction.JoinCallback> task : drainedTasks) {
                         DiscoveryNode node = task.v1();
                         if (currentState.nodes().nodeExists(node.id())) {
-                            logger.info("received a join request for an existing node [{}]", node);
+                            logger.debug("received a join request for an existing node [{}]", node);
                         } else {
                             modified = true;
                             nodesBuilder.put(node);
@@ -854,7 +854,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
                     ClusterState.Builder stateBuilder = ClusterState.builder(currentState);
                     if (modified) {
-                        stateBuilder.nodes(latestDiscoNodes = nodesBuilder.build());
+                        latestDiscoNodes = nodesBuilder.build();
+                        stateBuilder.nodes(latestDiscoNodes);
                     }
                     return stateBuilder.build();
                 }

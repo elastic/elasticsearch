@@ -22,9 +22,7 @@ package org.elasticsearch.action.get;
 import com.google.common.collect.Iterators;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.ValidateActions;
+import org.elasticsearch.action.*;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -44,12 +42,12 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 
-public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements Iterable<MultiGetRequest.Item> {
+public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements Iterable<MultiGetRequest.Item>, CompositeIndicesRequest {
 
     /**
      * A single get item.
      */
-    public static class Item implements Streamable {
+    public static class Item implements Streamable, IndicesRequest {
         private String index;
         private String type;
         private String id;
@@ -78,6 +76,11 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
 
         public String index() {
             return this.index;
+        }
+
+        @Override
+        public String[] indices() {
+            return new String[]{index};
         }
 
         public Item index(String index) {
@@ -275,6 +278,11 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
             }
         }
         return validationException;
+    }
+
+    @Override
+    public List<? extends IndicesRequest> subRequests() {
+        return items;
     }
 
     /**

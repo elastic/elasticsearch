@@ -41,7 +41,6 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericDateAnalyzer;
 import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
@@ -514,7 +513,7 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
                 fields.add(field);
             }
             if (hasDocValues()) {
-                addDocValue(context, value);
+                addDocValue(context, fields, value);
             }
         }
     }

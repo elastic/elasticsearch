@@ -101,9 +101,7 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
         typeMap.put(new FieldDataType("long", ImmutableSettings.builder().put("format", "doc_values")), Type.Long);
         typeMap.put(new FieldDataType("double", ImmutableSettings.builder().put("format", "doc_values")), Type.Double);
         typeMap.put(new FieldDataType("float", ImmutableSettings.builder().put("format", "doc_values")), Type.Float);
-        if (LuceneTestCase.defaultCodecSupportsSortedSet()) {
-            typeMap.put(new FieldDataType("string", ImmutableSettings.builder().put("format", "doc_values")), Type.Bytes);
-        }
+        typeMap.put(new FieldDataType("string", ImmutableSettings.builder().put("format", "doc_values")), Type.Bytes);
         ArrayList<Entry<FieldDataType, Type>> list = new ArrayList<>(typeMap.entrySet());
         Preprocessor pre = new ToDoublePreprocessor();
         while (!list.isEmpty()) {
@@ -149,13 +147,17 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
         final int maxNumValues = randomBoolean() ? 1 : randomIntBetween(2, 40);
         byte[] values = new byte[maxNumValues];
         for (int i = 0; i < atLeast; i++) {
-            final int numValues = randomInt(maxNumValues);
+            int numValues = randomInt(maxNumValues);
+            // FD loses values if they are duplicated, so we must deduplicate for this test
+            Set<Byte> vals = new HashSet<Byte>();
             for (int j = 0; j < numValues; ++j) {
-                if (randomBoolean()) {
-                    values[j] = 1; // test deduplication
-                } else {
-                    values[j] = randomByte();
-                }
+                vals.add(randomByte());
+            }
+            
+            numValues = vals.size();
+            int upto = 0;
+            for (Byte bb : vals) {
+                values[upto++] = bb.byteValue();
             }
 
             XContentBuilder doc = XContentFactory.jsonBuilder().startObject();
@@ -227,14 +229,21 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
         final int maxNumValues = randomBoolean() ? 1 : randomIntBetween(2, 40);
         float[] values = new float[maxNumValues];
         for (int i = 0; i < atLeast; i++) {
-            final int numValues = randomInt(maxNumValues);
+            int numValues = randomInt(maxNumValues);
             float def = randomBoolean() ? randomFloat() : Float.NaN;
+            // FD loses values if they are duplicated, so we must deduplicate for this test
+            Set<Float> vals = new HashSet<Float>();
             for (int j = 0; j < numValues; ++j) {
                 if (randomBoolean()) {
-                    values[j] = def;
+                    vals.add(def);
                 } else {
-                    values[j] = randomFloat();
+                    vals.add(randomFloat());
                 }
+            }
+            numValues = vals.size();
+            int upto = 0;
+            for (Float f : vals) {
+                values[upto++] = f.floatValue();
             }
 
             XContentBuilder doc = XContentFactory.jsonBuilder().startObject().startArray("float");
@@ -302,15 +311,11 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
                 for (int j : numbers) {
                     final String s = English.longToEnglish(j);
                     d.add(new StringField("bytes", s, Field.Store.NO));
-                    if (LuceneTestCase.defaultCodecSupportsSortedSet()) {
-                        d.add(new SortedSetDocValuesField("bytes", new BytesRef(s)));
-                    }
+                    d.add(new SortedSetDocValuesField("bytes", new BytesRef(s)));
                 }
                 if (random.nextInt(10) == 0) {
                     d.add(new StringField("bytes", "", Field.Store.NO));
-                    if (LuceneTestCase.defaultCodecSupportsSortedSet()) {
-                        d.add(new SortedSetDocValuesField("bytes", new BytesRef()));
-                    }
+                    d.add(new SortedSetDocValuesField("bytes", new BytesRef()));
                 }
             }
             writer.addDocument(d);
@@ -322,9 +327,7 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
         Map<FieldDataType, Type> typeMap = new HashMap<>();
         typeMap.put(new FieldDataType("string", ImmutableSettings.builder().put("format", "fst")), Type.Bytes);
         typeMap.put(new FieldDataType("string", ImmutableSettings.builder().put("format", "paged_bytes")), Type.Bytes);
-        if (LuceneTestCase.defaultCodecSupportsSortedSet()) {
-            typeMap.put(new FieldDataType("string", ImmutableSettings.builder().put("format", "doc_values")), Type.Bytes);
-        }
+        typeMap.put(new FieldDataType("string", ImmutableSettings.builder().put("format", "doc_values")), Type.Bytes);
         // TODO add filters
         ArrayList<Entry<FieldDataType, Type>> list = new ArrayList<>(typeMap.entrySet());
         Preprocessor pre = new Preprocessor();
@@ -371,9 +374,7 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
             for (int j = 0; j < numVals; ++j) {
                 final String value = RandomPicks.randomFrom(random, Arrays.asList(values));
                 d.add(new StringField("string", value, Field.Store.NO));
-                if (LuceneTestCase.defaultCodecSupportsSortedSet()) {
-                    d.add(new SortedSetDocValuesField("bytes", new BytesRef(value)));
-                }
+                d.add(new SortedSetDocValuesField("bytes", new BytesRef(value)));
             }
             writer.addDocument(d);
             if (randomInt(10) == 0) {
@@ -385,9 +386,7 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
         Map<FieldDataType, Type> typeMap = new HashMap<FieldDataType, DuelFieldDataTests.Type>();
         typeMap.put(new FieldDataType("string", ImmutableSettings.builder().put("format", "fst")), Type.Bytes);
         typeMap.put(new FieldDataType("string", ImmutableSettings.builder().put("format", "paged_bytes")), Type.Bytes);
-        if (LuceneTestCase.defaultCodecSupportsSortedSet()) {
-            typeMap.put(new FieldDataType("string", ImmutableSettings.builder().put("format", "doc_values")), Type.Bytes);
-        }
+        typeMap.put(new FieldDataType("string", ImmutableSettings.builder().put("format", "doc_values")), Type.Bytes);
 
         for (Map.Entry<FieldDataType, Type> entry : typeMap.entrySet()) {
             ifdService.clear();

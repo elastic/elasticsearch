@@ -25,7 +25,7 @@ Each filter and query can accept a `_name` in its top level definition.
 }
 --------------------------------------------------
 
-The search response will include for each hit the `matched_filters` it matched on. The tagging of queries and filters
+The search response will include for each hit the `matched_queries` it matched on. The tagging of queries and filters
 only make sense for compound queries and filters (such as `bool` query and filter, `or` and `and` filter, `filtered` query etc.).
 
 Note, the query filter had to be enhanced in order to support this. In

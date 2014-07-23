@@ -54,7 +54,6 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
     private final IndexOrdinalsFieldData indexFieldData;
 
     final CacheRecycler cacheRecycler;
-    final BigArrays bigArrays;
     private final TermsFacet.ComparatorType comparatorType;
     private final int size;
     private final int shardSize;
@@ -90,7 +89,6 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
         }
 
         this.cacheRecycler = context.cacheRecycler();
-        this.bigArrays = context.bigArrays();
 
         this.aggregators = new ArrayList<>(context.searcher().getIndexReader().leaves().size());
     }
@@ -260,7 +258,7 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
         public ReaderAggregator(RandomAccessOrds values, int ordinalsCacheLimit, CacheRecycler cacheRecycler) {
             this.values = values;
             this.maxOrd = values.getValueCount();
-            this.counts = bigArrays.newIntArray(maxOrd);
+            this.counts = BigArrays.NON_RECYCLING_INSTANCE.newIntArray(maxOrd);
         }
 
         final void onOrdinal(int docId, long ordinal) {

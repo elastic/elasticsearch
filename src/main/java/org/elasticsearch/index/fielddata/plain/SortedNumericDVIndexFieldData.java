@@ -25,6 +25,7 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.*;
+import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.FloatValuesComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
@@ -47,15 +48,15 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
     }
 
     @Override
-    public org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource comparatorSource(Object missingValue, MultiValueMode sortMode) {
+    public org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource comparatorSource(Object missingValue, MultiValueMode sortMode, Nested nested) {
         switch (numericType) {
             case FLOAT:
-                return new FloatValuesComparatorSource(this, missingValue, sortMode);
+                return new FloatValuesComparatorSource(this, missingValue, sortMode, nested);
             case DOUBLE: 
-                return new DoubleValuesComparatorSource(this, missingValue, sortMode);
+                return new DoubleValuesComparatorSource(this, missingValue, sortMode, nested);
             default:
                 assert !numericType.isFloatingPoint();
-                return new LongValuesComparatorSource(this, missingValue, sortMode);
+                return new LongValuesComparatorSource(this, missingValue, sortMode, nested);
         }
     }
 

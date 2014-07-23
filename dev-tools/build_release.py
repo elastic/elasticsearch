@@ -510,16 +510,19 @@ print_sonartype_notice()
 
 # finds the highest available bwc version to test against
 def find_bwc_version(release_version, bwc_dir='backwards'):
-  log('Lookup bwc version in directory [%s]' % bwc_dir)
+  log('  Lookup bwc version in directory [%s]' % bwc_dir)
   bwc_version = None
-  max_version = [int(x) for x in release_version.split('.')]
-  for dir in os.listdir(bwc_dir):
-    if os.path.isdir(os.path.join(bwc_dir, dir)) and dir.startswith('elasticsearch-'):
-      version = [int(x) for x in dir[len('elasticsearch-'):].split('.')]
-      if version < max_version: # bwc tests only against smaller versions
-        if (not bwc_version) or version > [int(x) for x in bwc_version.split('.')]:
-          bwc_version = dir[len('elasticsearch-'):]
-  log('Using bwc version [%s]' % bwc_version)
+  if os.path.exists(bwc_dir) and os.path.isdir(bwc_dir):
+    max_version = [int(x) for x in release_version.split('.')]
+    for dir in os.listdir(bwc_dir):
+      if os.path.isdir(os.path.join(bwc_dir, dir)) and dir.startswith('elasticsearch-'):
+        version = [int(x) for x in dir[len('elasticsearch-'):].split('.')]
+        if version < max_version: # bwc tests only against smaller versions
+          if (not bwc_version) or version > [int(x) for x in bwc_version.split('.')]:
+            bwc_version = dir[len('elasticsearch-'):]
+    log('  Using bwc version [%s]' % bwc_version)
+  else:
+    log('  bwc directory [%s] does not exists or is not a directory - skipping' % bwc_dir)
   return bwc_version
 
 if __name__ == '__main__':

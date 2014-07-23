@@ -13,7 +13,7 @@ Download and install the Public Signing Key
 
 [source,sh]
 --------------------------------------------------
-wget -O - http://packages.elasticsearch.org/GPG-KEY-elasticsearch | apt-key add -
+wget -qO - http://packages.elasticsearch.org/GPG-KEY-elasticsearch | sudo apt-key add -
 --------------------------------------------------
 
 Add the following to your /etc/apt/sources.list to enable the repository

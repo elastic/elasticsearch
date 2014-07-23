@@ -25,6 +25,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.CoreMatchers;
@@ -228,7 +229,8 @@ public class PythonScriptSearchTests extends ElasticsearchIntegrationTest {
         index("test", "type1", "1", jsonBuilder().startObject().field("myfield", "foo").endObject());
         refresh();
 
-        client().prepareUpdate("test", "type1", "1").setScriptLang("python").setScript("ctx[\"_source\"][\"myfield\"]=\"bar\"")
+        client().prepareUpdate("test", "type1", "1").setScriptLang("python")
+                .setScript("ctx[\"_source\"][\"myfield\"]=\"bar\"", ScriptService.ScriptType.INLINE)
             .execute().actionGet();
         refresh();
 

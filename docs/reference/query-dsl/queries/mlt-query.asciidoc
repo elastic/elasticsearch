@@ -16,7 +16,7 @@ running it against one or more fields.
 }
 --------------------------------------------------
 
-coming[1.3.0,The ability to run the `mlt` query on multiple docs is only available from 1.3.0 onwards]
+added[1.3.0,The ability to run the `mlt` query on multiple docs is only available from 1.3.0 onwards]
 
 Additionally, More Like This can find documents that are "like" a set of
 chosen documents. The syntax to specify one or more documents is similar to
@@ -79,12 +79,12 @@ Defaults to the `_all` field.
 |`like_text` |The text to find documents like it, *required* if `ids` or `docs` are
 not specified.
 
-|`ids` or `docs` | coming[1.3.0] A list of documents following the same syntax as the
+|`ids` or `docs` | added[1.3.0] A list of documents following the same syntax as the
 <<docs-multi-get,Multi GET API>>. This parameter is *required* if
 `like_text` is not specified. The texts are fetched from `fields` unless
 specified in each `doc`, and cannot be set to `_all`.
 
-|`include` | coming[1.3.0] When using `ids` or `docs`, specifies whether the documents should be
+|`include` | added[1.3.0] When using `ids` or `docs`, specifies whether the documents should be
 included from the search. Defaults to `false`.
 
 |`exclude` | deprecated[1.3.0,Replaced by `include`] When using `ids` or `docs`, specifies whether

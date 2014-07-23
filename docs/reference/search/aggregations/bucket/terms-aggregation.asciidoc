@@ -322,7 +322,7 @@ http://docs.oracle.com/javase/7/docs/api/java/util/regex/Pattern.html#UNIX_LINES
 
 ==== Collect mode
 
-coming[1.3.0] Deferring calculation of child aggregations
+added[1.3.0] Deferring calculation of child aggregations
 
 For fields with many unique terms and a small number of required results it can be more efficient to delay the calculation
 of child aggregations until the top parent-level aggs have been pruned. Ordinarily, all branches of the aggregation tree

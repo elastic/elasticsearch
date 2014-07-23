@@ -22,6 +22,7 @@ package org.elasticsearch.action.termvector;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.*;
+import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -49,6 +50,11 @@ public class MultiTermVectorsRequest extends ActionRequest<MultiTermVectorsReque
 
     public MultiTermVectorsRequest add(String index, @Nullable String type, String id) {
         requests.add(new TermVectorRequest(index, type, id));
+        return this;
+    }
+
+    public MultiTermVectorsRequest add(MultiGetRequest.Item item) {
+        requests.add(new TermVectorRequest(item));
         return this;
     }
 

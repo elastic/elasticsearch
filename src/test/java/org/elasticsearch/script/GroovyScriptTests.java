@@ -23,6 +23,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
@@ -30,8 +31,10 @@ import java.util.List;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static org.elasticsearch.index.query.FilterBuilders.scriptFilter;
-import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
+import static org.elasticsearch.index.query.QueryBuilders.*;
+import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertOrderedSearchHits;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -101,5 +104,29 @@ public class GroovyScriptTests extends ElasticsearchIntegrationTest {
             assertThat(ExceptionsHelper.detailedMessage(e) + "should have contained an assert error",
                     ExceptionsHelper.detailedMessage(e).contains("PowerAssertionError[assert false"), equalTo(true));
         }
+    }
+
+    @Test
+    public void testGroovyScriptAccess() {
+        client().prepareIndex("test", "doc", "1").setSource("foo", "quick brow fox jumped over the lazy dog", "bar", 1).get();
+        client().prepareIndex("test", "doc", "2").setSource("foo", "fast jumping spiders", "bar", 2).get();
+        client().prepareIndex("test", "doc", "3").setSource("foo", "dog spiders that can eat a dog", "bar", 3).get();
+        refresh();
+
+        // _score access
+        SearchResponse resp = client().prepareSearch("test").setQuery(functionScoreQuery(matchQuery("foo", "dog"))
+                .add(scriptFunction("_score", "groovy"))
+                .boostMode(CombineFunction.REPLACE)).get();
+
+        assertNoFailures(resp);
+        assertOrderedSearchHits(resp, "3", "1");
+
+        // doc[] access
+        resp = client().prepareSearch("test").setQuery(functionScoreQuery(matchAllQuery())
+                .add(scriptFunction("doc['bar'].value", "groovy"))
+                .boostMode(CombineFunction.REPLACE)).get();
+
+        assertNoFailures(resp);
+        assertOrderedSearchHits(resp, "3", "2", "1");
     }
 }

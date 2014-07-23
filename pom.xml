@@ -1080,9 +1080,6 @@
                                 <exclude>org/elasticsearch/Version.class</exclude>
                                 <exclude>org/elasticsearch/common/lucene/search/Queries$QueryWrapperFilterFactory.class</exclude>
                                 <!-- end excludes for valid system-out -->
-                                <!-- start excludes for Unsafe -->
-                                <exclude>org/elasticsearch/common/util/UnsafeUtils.class</exclude>
-                                <!-- end excludes for Unsafe -->
                                 <!-- start excludes for Math.abs -->
                                 <exclude>org/elasticsearch/common/util/MathUtils.class</exclude>
                                 <exclude>org/elasticsearch/common/math/UnboxedMathUtils.class</exclude>

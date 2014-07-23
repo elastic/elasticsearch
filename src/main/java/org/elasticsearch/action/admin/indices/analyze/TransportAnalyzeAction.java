@@ -41,6 +41,7 @@ import org.elasticsearch.index.analysis.*;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -85,28 +86,32 @@ public class TransportAnalyzeAction extends TransportSingleCustomOperationAction
     }
 
     @Override
-    protected ClusterBlockException checkRequestBlock(ClusterState state, AnalyzeRequest request) {
-        if (request.index() != null) {
-            request.index(state.metaData().concreteSingleIndex(request.index(), request.indicesOptions()));
+    protected boolean resolveIndex(AnalyzeRequest request) {
+        return request.index() != null;
+    }
+
+    @Override
+    protected ClusterBlockException checkRequestBlock(ClusterState state, InternalRequest request) {
+        if (request.concreteIndex() != null) {
             return super.checkRequestBlock(state, request);
         }
         return null;
     }
 
     @Override
-    protected ShardsIterator shards(ClusterState state, AnalyzeRequest request) {
-        if (request.index() == null) {
+    protected ShardsIterator shards(ClusterState state, InternalRequest request) {
+        if (request.concreteIndex() == null) {
             // just execute locally....
             return null;
         }
-        return state.routingTable().index(request.index()).randomAllActiveShardsIt();
+        return state.routingTable().index(request.concreteIndex()).randomAllActiveShardsIt();
     }
 
     @Override
-    protected AnalyzeResponse shardOperation(AnalyzeRequest request, int shardId) throws ElasticsearchException {
+    protected AnalyzeResponse shardOperation(AnalyzeRequest request, ShardId shardId) throws ElasticsearchException {
         IndexService indexService = null;
-        if (request.index() != null) {
-            indexService = indicesService.indexServiceSafe(request.index());
+        if (shardId != null) {
+            indexService = indicesService.indexServiceSafe(shardId.getIndex());
         }
         Analyzer analyzer = null;
         boolean closeAnalyzer = false;

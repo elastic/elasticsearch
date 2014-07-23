@@ -68,16 +68,14 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
                         termVectorRequest.type(), termVectorRequest.id(), "[" + termVectorRequest.index() + "] missing")));
                 continue;
             }
-            termVectorRequest.index(clusterState.metaData().concreteSingleIndex(termVectorRequest.index(), termVectorRequest.indicesOptions()));
-            if (termVectorRequest.routing() == null && clusterState.getMetaData().routingRequired(termVectorRequest.index(), termVectorRequest.type())) {
-                responses.set(i, new MultiTermVectorsItemResponse(null, new MultiTermVectorsResponse.Failure(termVectorRequest.index(), termVectorRequest.type(), termVectorRequest.id(),
-                        "routing is required for [" + termVectorRequest.index() + "]/[" + termVectorRequest.type() + "]/[" + termVectorRequest.id() + "]")));
+            String concreteSingleIndex = clusterState.metaData().concreteSingleIndex(termVectorRequest.index(), termVectorRequest.indicesOptions());
+            if (termVectorRequest.routing() == null && clusterState.getMetaData().routingRequired(concreteSingleIndex, termVectorRequest.type())) {
+                responses.set(i, new MultiTermVectorsItemResponse(null, new MultiTermVectorsResponse.Failure(concreteSingleIndex, termVectorRequest.type(), termVectorRequest.id(),
+                        "routing is required for [" + concreteSingleIndex + "]/[" + termVectorRequest.type() + "]/[" + termVectorRequest.id() + "]")));
                 continue;
             }
-            ShardId shardId = clusterService
-                    .operationRouting()
-                    .getShards(clusterState, termVectorRequest.index(), termVectorRequest.type(), termVectorRequest.id(),
-                            termVectorRequest.routing(), null).shardId();
+            ShardId shardId = clusterService.operationRouting().getShards(clusterState, concreteSingleIndex,
+                    termVectorRequest.type(), termVectorRequest.id(), termVectorRequest.routing(), null).shardId();
             MultiTermVectorsShardRequest shardRequest = shardRequests.get(shardId);
             if (shardRequest == null) {
                 shardRequest = new MultiTermVectorsShardRequest(shardId.index().name(), shardId.id());

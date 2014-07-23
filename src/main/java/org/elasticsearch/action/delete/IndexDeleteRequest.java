@@ -32,8 +32,8 @@ class IndexDeleteRequest extends IndexReplicationOperationRequest<IndexDeleteReq
     private final boolean refresh;
     private final long version;
 
-    IndexDeleteRequest(DeleteRequest request) {
-        super(request.index(), request.timeout(), request.replicationType(), request.consistencyLevel());
+    IndexDeleteRequest(DeleteRequest request, String concreteIndex) {
+        super(concreteIndex, request.timeout(), request.replicationType(), request.consistencyLevel());
         this.type = request.type();
         this.id = request.id();
         this.refresh = request.refresh();

@@ -22,8 +22,7 @@ package org.elasticsearch.get;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.ShardOperationFailedException;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.*;
@@ -42,7 +41,6 @@ import org.junit.Test;
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.client.Requests.clusterHealthRequest;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.*;
@@ -51,152 +49,176 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void simpleGetTests() {
-
-        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1)).execute().actionGet();
-
+        assertAcked(prepareCreate("test")
+                .setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1))
+                .addAlias(new Alias("alias")));
         ensureGreen();
 
-        GetResponse response = client().prepareGet("test", "type1", "1").execute().actionGet();
+        GetResponse response = client().prepareGet(indexOrAlias(), "type1", "1").get();
         assertThat(response.isExists(), equalTo(false));
 
         logger.info("--> index doc 1");
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2").get();
 
         logger.info("--> realtime get 1");
-        response = client().prepareGet("test", "type1", "1").execute().actionGet();
+        response = client().prepareGet(indexOrAlias(), "type1", "1").get();
         assertThat(response.isExists(), equalTo(true));
+        assertThat(response.getIndex(), equalTo("test"));
         assertThat(response.getSourceAsMap().get("field1").toString(), equalTo("value1"));
         assertThat(response.getSourceAsMap().get("field2").toString(), equalTo("value2"));
 
         logger.info("--> realtime get 1 (no source, implicit)");
-        response = client().prepareGet("test", "type1", "1").setFields(Strings.EMPTY_ARRAY).get();
+        response = client().prepareGet(indexOrAlias(), "type1", "1").setFields(Strings.EMPTY_ARRAY).get();
         assertThat(response.isExists(), equalTo(true));
+        assertThat(response.getIndex(), equalTo("test"));
         assertThat(response.getFields().size(), equalTo(0));
         assertThat(response.getSourceAsBytes(), nullValue());
 
         logger.info("--> realtime get 1 (no source, explicit)");
-        response = client().prepareGet("test", "type1", "1").setFetchSource(false).get();
+        response = client().prepareGet(indexOrAlias(), "type1", "1").setFetchSource(false).get();
         assertThat(response.isExists(), equalTo(true));
+        assertThat(response.getIndex(), equalTo("test"));
         assertThat(response.getFields().size(), equalTo(0));
         assertThat(response.getSourceAsBytes(), nullValue());
 
         logger.info("--> realtime get 1 (no type)");
-        response = client().prepareGet("test", null, "1").execute().actionGet();
+        response = client().prepareGet(indexOrAlias(), null, "1").get();
         assertThat(response.isExists(), equalTo(true));
+        assertThat(response.getIndex(), equalTo("test"));
         assertThat(response.getSourceAsMap().get("field1").toString(), equalTo("value1"));
         assertThat(response.getSourceAsMap().get("field2").toString(), equalTo("value2"));
 
         logger.info("--> non realtime get 1");
-        response = client().prepareGet("test", "type1", "1").setRealtime(false).execute().actionGet();
+        response = client().prepareGet(indexOrAlias(), "type1", "1").setRealtime(false).get();
         assertThat(response.isExists(), equalTo(false));
 
         logger.info("--> realtime fetch of field (requires fetching parsing source)");
-        response = client().prepareGet("test", "type1", "1").setFields("field1").execute().actionGet();
+        response = client().prepareGet(indexOrAlias(), "type1", "1").setFields("field1").get();
         assertThat(response.isExists(), equalTo(true));
+        assertThat(response.getIndex(), equalTo("test"));
         assertThat(response.getSourceAsBytes(), nullValue());
         assertThat(response.getField("field1").getValues().get(0).toString(), equalTo("value1"));
         assertThat(response.getField("field2"), nullValue());
 
         logger.info("--> realtime fetch of field & source (requires fetching parsing source)");
-        response = client().prepareGet("test", "type1", "1").setFields("field1").setFetchSource("field1", null).execute().actionGet();
+        response = client().prepareGet(indexOrAlias(), "type1", "1").setFields("field1").setFetchSource("field1", null).get();
         assertThat(response.isExists(), equalTo(true));
+        assertThat(response.getIndex(), equalTo("test"));
         assertThat(response.getSourceAsMap(), hasKey("field1"));
         assertThat(response.getSourceAsMap(), not(hasKey("field2")));
         assertThat(response.getField("field1").getValues().get(0).toString(), equalTo("value1"));
         assertThat(response.getField("field2"), nullValue());
 
         logger.info("--> flush the index, so we load it from it");
-        client().admin().indices().prepareFlush().execute().actionGet();
+        flush();
 
         logger.info("--> realtime get 1 (loaded from index)");
-        response = client().prepareGet("test", "type1", "1").execute().actionGet();
+        response = client().prepareGet(indexOrAlias(), "type1", "1").get();
         assertThat(response.isExists(), equalTo(true));
+        assertThat(response.getIndex(), equalTo("test"));
         assertThat(response.getSourceAsMap().get("field1").toString(), equalTo("value1"));
         assertThat(response.getSourceAsMap().get("field2").toString(), equalTo("value2"));
 
         logger.info("--> non realtime get 1 (loaded from index)");
-        response = client().prepareGet("test", "type1", "1").setRealtime(false).execute().actionGet();
+        response = client().prepareGet(indexOrAlias(), "type1", "1").setRealtime(false).get();
         assertThat(response.isExists(), equalTo(true));
+        assertThat(response.getIndex(), equalTo("test"));
         assertThat(response.getSourceAsMap().get("field1").toString(), equalTo("value1"));
         assertThat(response.getSourceAsMap().get("field2").toString(), equalTo("value2"));
 
         logger.info("--> realtime fetch of field (loaded from index)");
-        response = client().prepareGet("test", "type1", "1").setFields("field1").execute().actionGet();
+        response = client().prepareGet(indexOrAlias(), "type1", "1").setFields("field1").get();
         assertThat(response.isExists(), equalTo(true));
+        assertThat(response.getIndex(), equalTo("test"));
         assertThat(response.getSourceAsBytes(), nullValue());
         assertThat(response.getField("field1").getValues().get(0).toString(), equalTo("value1"));
         assertThat(response.getField("field2"), nullValue());
 
         logger.info("--> realtime fetch of field & source (loaded from index)");
-        response = client().prepareGet("test", "type1", "1").setFields("field1").setFetchSource(true).execute().actionGet();
+        response = client().prepareGet(indexOrAlias(), "type1", "1").setFields("field1").setFetchSource(true).get();
         assertThat(response.isExists(), equalTo(true));
+        assertThat(response.getIndex(), equalTo("test"));
         assertThat(response.getSourceAsBytes(), not(nullValue()));
         assertThat(response.getField("field1").getValues().get(0).toString(), equalTo("value1"));
         assertThat(response.getField("field2"), nullValue());
 
         logger.info("--> update doc 1");
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1_1", "field2", "value2_1").execute().actionGet();
+        client().prepareIndex("test", "type1", "1").setSource("field1", "value1_1", "field2", "value2_1").get();
 
         logger.info("--> realtime get 1");
-        response = client().prepareGet("test", "type1", "1").execute().actionGet();
+        response = client().prepareGet(indexOrAlias(), "type1", "1").get();
         assertThat(response.isExists(), equalTo(true));
+        assertThat(response.getIndex(), equalTo("test"));
         assertThat(response.getSourceAsMap().get("field1").toString(), equalTo("value1_1"));
         assertThat(response.getSourceAsMap().get("field2").toString(), equalTo("value2_1"));
 
         logger.info("--> update doc 1 again");
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1_2", "field2", "value2_2").execute().actionGet();
+        client().prepareIndex("test", "type1", "1").setSource("field1", "value1_2", "field2", "value2_2").get();
 
-        response = client().prepareGet("test", "type1", "1").execute().actionGet();
+        response = client().prepareGet(indexOrAlias(), "type1", "1").get();
         assertThat(response.isExists(), equalTo(true));
+        assertThat(response.getIndex(), equalTo("test"));
         assertThat(response.getSourceAsMap().get("field1").toString(), equalTo("value1_2"));
         assertThat(response.getSourceAsMap().get("field2").toString(), equalTo("value2_2"));
 
-        DeleteResponse deleteResponse = client().prepareDelete("test", "type1", "1").execute().actionGet();
+        DeleteResponse deleteResponse = client().prepareDelete("test", "type1", "1").get();
         assertThat(deleteResponse.isFound(), equalTo(true));
 
-        response = client().prepareGet("test", "type1", "1").execute().actionGet();
+        response = client().prepareGet(indexOrAlias(), "type1", "1").get();
         assertThat(response.isExists(), equalTo(false));
+    }
+
+    private static String indexOrAlias() {
+        return randomBoolean() ? "test" : "alias";
     }
 
     @Test
     public void simpleMultiGetTests() throws Exception {
-        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1)).execute().actionGet();
-
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
+                .setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1)));
         ensureGreen();
 
-        MultiGetResponse response = client().prepareMultiGet().add("test", "type1", "1").execute().actionGet();
+        MultiGetResponse response = client().prepareMultiGet().add(indexOrAlias(), "type1", "1").get();
         assertThat(response.getResponses().length, equalTo(1));
         assertThat(response.getResponses()[0].getResponse().isExists(), equalTo(false));
 
         for (int i = 0; i < 10; i++) {
-            client().prepareIndex("test", "type1", Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
+            client().prepareIndex("test", "type1", Integer.toString(i)).setSource("field", "value" + i).get();
         }
 
         response = client().prepareMultiGet()
-                .add("test", "type1", "1")
-                .add("test", "type1", "15")
-                .add("test", "type1", "3")
-                .add("test", "type1", "9")
-                .add("test", "type1", "11")
-                .execute().actionGet();
+                .add(indexOrAlias(), "type1", "1")
+                .add(indexOrAlias(), "type1", "15")
+                .add(indexOrAlias(), "type1", "3")
+                .add(indexOrAlias(), "type1", "9")
+                .add(indexOrAlias(), "type1", "11").get();
         assertThat(response.getResponses().length, equalTo(5));
         assertThat(response.getResponses()[0].getId(), equalTo("1"));
+        assertThat(response.getResponses()[0].getIndex(), equalTo("test"));
+        assertThat(response.getResponses()[0].getResponse().getIndex(), equalTo("test"));
         assertThat(response.getResponses()[0].getResponse().isExists(), equalTo(true));
         assertThat(response.getResponses()[0].getResponse().getSourceAsMap().get("field").toString(), equalTo("value1"));
         assertThat(response.getResponses()[1].getId(), equalTo("15"));
+        assertThat(response.getResponses()[1].getIndex(), equalTo("test"));
+        assertThat(response.getResponses()[1].getResponse().getIndex(), equalTo("test"));
         assertThat(response.getResponses()[1].getResponse().isExists(), equalTo(false));
         assertThat(response.getResponses()[2].getId(), equalTo("3"));
+        assertThat(response.getResponses()[2].getIndex(), equalTo("test"));
         assertThat(response.getResponses()[2].getResponse().isExists(), equalTo(true));
         assertThat(response.getResponses()[3].getId(), equalTo("9"));
+        assertThat(response.getResponses()[3].getIndex(), equalTo("test"));
+        assertThat(response.getResponses()[3].getResponse().getIndex(), equalTo("test"));
         assertThat(response.getResponses()[3].getResponse().isExists(), equalTo(true));
         assertThat(response.getResponses()[4].getId(), equalTo("11"));
+        assertThat(response.getResponses()[4].getIndex(), equalTo("test"));
+        assertThat(response.getResponses()[4].getResponse().getIndex(), equalTo("test"));
         assertThat(response.getResponses()[4].getResponse().isExists(), equalTo(false));
 
         // multi get with specific field
         response = client().prepareMultiGet()
-                .add(new MultiGetRequest.Item("test", "type1", "1").fields("field"))
-                .add(new MultiGetRequest.Item("test", "type1", "3").fields("field"))
-                .execute().actionGet();
+                .add(new MultiGetRequest.Item(indexOrAlias(), "type1", "1").fields("field"))
+                .add(new MultiGetRequest.Item(indexOrAlias(), "type1", "3").fields("field"))
+                .get();
 
         assertThat(response.getResponses().length, equalTo(2));
         assertThat(response.getResponses()[0].getResponse().getSourceAsBytes(), nullValue());
@@ -205,11 +227,8 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void realtimeGetWithCompress() throws Exception {
-
-        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1))
-                .addMapping("type", jsonBuilder().startObject().startObject("type").startObject("_source").field("compress", true).endObject().endObject().endObject())
-                .execute().actionGet();
-
+        assertAcked(prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1))
+                .addMapping("type", jsonBuilder().startObject().startObject("type").startObject("_source").field("compress", true).endObject().endObject().endObject()));
         ensureGreen();
 
         StringBuilder sb = new StringBuilder();
@@ -217,18 +236,17 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
             sb.append((char) i);
         }
         String fieldValue = sb.toString();
-        client().prepareIndex("test", "type", "1").setSource("field", fieldValue).execute().actionGet();
+        client().prepareIndex("test", "type", "1").setSource("field", fieldValue).get();
 
         // realtime get
-        GetResponse getResponse = client().prepareGet("test", "type", "1").execute().actionGet();
+        GetResponse getResponse = client().prepareGet("test", "type", "1").get();
         assertThat(getResponse.isExists(), equalTo(true));
         assertThat(getResponse.getSourceAsMap().get("field").toString(), equalTo(fieldValue));
     }
 
     @Test
     public void getFieldsWithDifferentTypes() throws Exception {
-
-        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1))
+        assertAcked(prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1))
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("_source").field("enabled", true).endObject().endObject().endObject())
                 .addMapping("type2", jsonBuilder().startObject().startObject("type2")
                         .startObject("_source").field("enabled", false).endObject()
@@ -240,9 +258,7 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
                         .startObject("date").field("type", "date").field("store", "yes").endObject()
                         .startObject("binary").field("type", "binary").field("store", "yes").endObject()
                         .endObject()
-                        .endObject().endObject())
-                .execute().actionGet();
-
+                        .endObject().endObject()));
         ensureGreen();
 
         client().prepareIndex("test", "type1", "1").setSource(
@@ -253,7 +269,7 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
                         .field("ints", new int[]{1, 2, 3, 4})
                         .field("date", "2012-11-13T15:26:14.000Z")
                         .field("binary", Base64.encodeBytes(new byte[]{1, 2, 3}))
-                        .endObject()).execute().actionGet();
+                        .endObject()).get();
 
         client().prepareIndex("test", "type2", "1").setSource(
                 jsonBuilder().startObject()
@@ -263,11 +279,11 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
                         .field("ints", new int[]{1, 2, 3, 4})
                         .field("date", "2012-11-13T15:26:14.000Z")
                         .field("binary", Base64.encodeBytes(new byte[]{1, 2, 3}))
-                        .endObject()).execute().actionGet();
+                        .endObject()).get();
 
         // realtime get with stored source
         logger.info("--> realtime get (from source)");
-        GetResponse getResponse = client().prepareGet("test", "type1", "1").setFields("str", "strs", "int", "ints", "date", "binary").execute().actionGet();
+        GetResponse getResponse = client().prepareGet("test", "type1", "1").setFields("str", "strs", "int", "ints", "date", "binary").get();
         assertThat(getResponse.isExists(), equalTo(true));
         assertThat((String) getResponse.getField("str").getValue(), equalTo("test"));
         assertThat(getResponse.getField("strs").getValues(), contains((Object) "A", "B", "C"));
@@ -277,7 +293,7 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
         assertThat(getResponse.getField("binary").getValue(), instanceOf(String.class)); // its a String..., not binary mapped
 
         logger.info("--> realtime get (from stored fields)");
-        getResponse = client().prepareGet("test", "type2", "1").setFields("str", "strs", "int", "ints", "date", "binary").execute().actionGet();
+        getResponse = client().prepareGet("test", "type2", "1").setFields("str", "strs", "int", "ints", "date", "binary").get();
         assertThat(getResponse.isExists(), equalTo(true));
         assertThat((String) getResponse.getField("str").getValue(), equalTo("test"));
         assertThat(getResponse.getField("strs").getValues(), contains((Object) "A", "B", "C"));
@@ -287,10 +303,10 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
         assertThat((BytesReference) getResponse.getField("binary").getValue(), equalTo((BytesReference) new BytesArray(new byte[]{1, 2, 3})));
 
         logger.info("--> flush the index, so we load it from it");
-        client().admin().indices().prepareFlush().execute().actionGet();
+        flush();
 
         logger.info("--> non realtime get (from source)");
-        getResponse = client().prepareGet("test", "type1", "1").setFields("str", "strs", "int", "ints", "date", "binary").execute().actionGet();
+        getResponse = client().prepareGet("test", "type1", "1").setFields("str", "strs", "int", "ints", "date", "binary").get();
         assertThat(getResponse.isExists(), equalTo(true));
         assertThat((String) getResponse.getField("str").getValue(), equalTo("test"));
         assertThat(getResponse.getField("strs").getValues(), contains((Object) "A", "B", "C"));
@@ -300,7 +316,7 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
         assertThat(getResponse.getField("binary").getValue(), instanceOf(String.class)); // its a String..., not binary mapped
 
         logger.info("--> non realtime get (from stored fields)");
-        getResponse = client().prepareGet("test", "type2", "1").setFields("str", "strs", "int", "ints", "date", "binary").execute().actionGet();
+        getResponse = client().prepareGet("test", "type2", "1").setFields("str", "strs", "int", "ints", "date", "binary").get();
         assertThat(getResponse.isExists(), equalTo(true));
         assertThat((String) getResponse.getField("str").getValue(), equalTo("test"));
         assertThat(getResponse.getField("strs").getValues(), contains((Object) "A", "B", "C"));
@@ -312,11 +328,6 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testGetDocWithMultivaluedFields() throws Exception {
-        try {
-            client().admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // fine
-        }
         String mapping1 = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties")
                 .startObject("field").field("type", "string").field("store", "yes").endObject()
@@ -328,30 +339,24 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
                 .endObject()
                 .startObject("_source").field("enabled", false).endObject()
                 .endObject().endObject().string();
-        client().admin().indices().prepareCreate("test")
+        assertAcked(prepareCreate("test")
                 .addMapping("type1", mapping1)
                 .addMapping("type2", mapping2)
-                .setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1))
-                .execute().actionGet();
-
+                .setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1)));
         ensureGreen();
 
-        GetResponse response = client().prepareGet("test", "type1", "1").execute().actionGet();
+        GetResponse response = client().prepareGet("test", "type1", "1").get();
         assertThat(response.isExists(), equalTo(false));
-        response = client().prepareGet("test", "type2", "1").execute().actionGet();
+        response = client().prepareGet("test", "type2", "1").get();
         assertThat(response.isExists(), equalTo(false));
 
         client().prepareIndex("test", "type1", "1")
-                .setSource(jsonBuilder().startObject().field("field", "1", "2").endObject())
-                .execute().actionGet();
+                .setSource(jsonBuilder().startObject().field("field", "1", "2").endObject()).get();
 
         client().prepareIndex("test", "type2", "1")
-                .setSource(jsonBuilder().startObject().field("field", "1", "2").endObject())
-                .execute().actionGet();
+                .setSource(jsonBuilder().startObject().field("field", "1", "2").endObject()).get();
 
-        response = client().prepareGet("test", "type1", "1")
-                .setFields("field")
-                .execute().actionGet();
+        response = client().prepareGet("test", "type1", "1").setFields("field").get();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
         assertThat(response.getType(), equalTo("type1"));
@@ -361,9 +366,7 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
         assertThat(response.getFields().get("field").getValues().get(1).toString(), equalTo("2"));
 
 
-        response = client().prepareGet("test", "type2", "1")
-                .setFields("field")
-                .execute().actionGet();
+        response = client().prepareGet("test", "type2", "1").setFields("field").get();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getType(), equalTo("type2"));
         assertThat(response.getId(), equalTo("1"));
@@ -373,10 +376,8 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
         assertThat(response.getFields().get("field").getValues().get(1).toString(), equalTo("2"));
 
         // Now test values being fetched from stored fields.
-        client().admin().indices().prepareRefresh("test").execute().actionGet();
-        response = client().prepareGet("test", "type1", "1")
-                .setFields("field")
-                .execute().actionGet();
+        refresh();
+        response = client().prepareGet("test", "type1", "1").setFields("field").get();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
         assertThat(response.getFields().size(), equalTo(1));
@@ -384,10 +385,7 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
         assertThat(response.getFields().get("field").getValues().get(0).toString(), equalTo("1"));
         assertThat(response.getFields().get("field").getValues().get(1).toString(), equalTo("2"));
 
-
-        response = client().prepareGet("test", "type2", "1")
-                .setFields("field")
-                .execute().actionGet();
+        response = client().prepareGet("test", "type2", "1").setFields("field").get();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
         assertThat(response.getFields().size(), equalTo(1));
@@ -411,18 +409,17 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
                 .endObject()
                 .string();
 
-        client().admin().indices().prepareCreate(index)
+        assertAcked(prepareCreate(index)
                 .addMapping(type, mapping)
-                .setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1))
-                .execute().actionGet();
+                .setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1)));
 
         client().prepareIndex(index, type, "1")
                 .setSource(jsonBuilder().startObject().field("field", "1", "2").field("excluded", "should not be seen").endObject())
-                .execute().actionGet();
+                .get();
 
-        GetResponse responseBeforeFlush = client().prepareGet(index, type, "1").execute().actionGet();
-        client().admin().indices().prepareFlush(index).execute().actionGet();
-        GetResponse responseAfterFlush = client().prepareGet(index, type, "1").execute().actionGet();
+        GetResponse responseBeforeFlush = client().prepareGet(index, type, "1").get();
+        client().admin().indices().prepareFlush(index).get();
+        GetResponse responseAfterFlush = client().prepareGet(index, type, "1").get();
 
         assertThat(responseBeforeFlush.isExists(), is(true));
         assertThat(responseAfterFlush.isExists(), is(true));
@@ -446,18 +443,17 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
                 .endObject()
                 .string();
 
-        client().admin().indices().prepareCreate(index)
+        assertAcked(prepareCreate(index)
                 .addMapping(type, mapping)
-                .setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1))
-                .execute().actionGet();
+                .setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1)));
 
         client().prepareIndex(index, type, "1")
                 .setSource(jsonBuilder().startObject().field("field", "1", "2").field("included", "should be seen").endObject())
-                .execute().actionGet();
+                .get();
 
-        GetResponse responseBeforeFlush = client().prepareGet(index, type, "1").execute().actionGet();
-        client().admin().indices().prepareFlush(index).execute().actionGet();
-        GetResponse responseAfterFlush = client().prepareGet(index, type, "1").execute().actionGet();
+        GetResponse responseBeforeFlush = client().prepareGet(index, type, "1").get();
+        flush();
+        GetResponse responseAfterFlush = client().prepareGet(index, type, "1").get();
 
         assertThat(responseBeforeFlush.isExists(), is(true));
         assertThat(responseAfterFlush.isExists(), is(true));
@@ -483,10 +479,9 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
                 .endObject()
                 .string();
 
-        client().admin().indices().prepareCreate(index)
+        assertAcked(prepareCreate(index)
                 .addMapping(type, mapping)
-                .setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1))
-                .execute().actionGet();
+                .setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1)));
 
         client().prepareIndex(index, type, "1")
                 .setSource(jsonBuilder().startObject()
@@ -494,9 +489,9 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
                         .startObject("included").field("field", "should be seen").field("field2", "extra field to remove").endObject()
                         .startObject("excluded").field("field", "should not be seen").field("field2", "should not be seen").endObject()
                         .endObject())
-                .execute().actionGet();
+                .get();
 
-        GetResponse responseBeforeFlush = client().prepareGet(index, type, "1").setFields("_source", "included.field", "excluded.field").execute().actionGet();
+        GetResponse responseBeforeFlush = client().prepareGet(index, type, "1").setFields("_source", "included.field", "excluded.field").get();
         assertThat(responseBeforeFlush.isExists(), is(true));
         assertThat(responseBeforeFlush.getSourceAsMap(), not(hasKey("excluded")));
         assertThat(responseBeforeFlush.getSourceAsMap(), not(hasKey("field")));
@@ -512,8 +507,8 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
         assertThat((Map<String, Object>) responseBeforeFlushWithExtraFilters.getSourceAsMap().get("included"), hasKey("field"));
         assertThat((Map<String, Object>) responseBeforeFlushWithExtraFilters.getSourceAsMap().get("included"), not(hasKey("field2")));
 
-        client().admin().indices().prepareFlush(index).execute().actionGet();
-        GetResponse responseAfterFlush = client().prepareGet(index, type, "1").setFields("_source", "included.field", "excluded.field").execute().actionGet();
+        flush();
+        GetResponse responseAfterFlush = client().prepareGet(index, type, "1").setFields("_source", "included.field", "excluded.field").get();
         GetResponse responseAfterFlushWithExtraFilters = client().prepareGet(index, type, "1").setFields("included.field", "excluded.field")
                 .setFetchSource("*.field", "*.field2").get();
 
@@ -526,133 +521,137 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testGetWithVersion() {
-        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1)).execute().actionGet();
-        ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
-        assertThat(clusterHealth.isTimedOut(), equalTo(false));
-        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
+                .setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1)));
+        ensureGreen();
 
-        GetResponse response = client().prepareGet("test", "type1", "1").execute().actionGet();
+        GetResponse response = client().prepareGet("test", "type1", "1").get();
         assertThat(response.isExists(), equalTo(false));
 
         logger.info("--> index doc 1");
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2").execute().actionGet();
+        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2").get();
 
         // From translog:
 
         // version 0 means ignore version, which is the default
-        response = client().prepareGet("test", "type1", "1").setVersion(0).execute().actionGet();
+        response = client().prepareGet(indexOrAlias(), "type1", "1").setVersion(0).get();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
         assertThat(response.getVersion(), equalTo(1l));
 
-        response = client().prepareGet("test", "type1", "1").setVersion(1).execute().actionGet();
+        response = client().prepareGet(indexOrAlias(), "type1", "1").setVersion(1).get();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
         assertThat(response.getVersion(), equalTo(1l));
 
         try {
-            client().prepareGet("test", "type1", "1").setVersion(2).execute().actionGet();
+            client().prepareGet(indexOrAlias(), "type1", "1").setVersion(2).get();
             fail();
         } catch (VersionConflictEngineException e) {
+            //all good
         }
 
         // From Lucene index:
-        client().admin().indices().prepareRefresh("test").execute().actionGet();
+        refresh();
 
         // version 0 means ignore version, which is the default
-        response = client().prepareGet("test", "type1", "1").setVersion(0).setRealtime(false).execute().actionGet();
+        response = client().prepareGet(indexOrAlias(), "type1", "1").setVersion(0).setRealtime(false).get();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
+        assertThat(response.getIndex(), equalTo("test"));
         assertThat(response.getVersion(), equalTo(1l));
 
-        response = client().prepareGet("test", "type1", "1").setVersion(1).setRealtime(false).execute().actionGet();
+        response = client().prepareGet(indexOrAlias(), "type1", "1").setVersion(1).setRealtime(false).get();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
+        assertThat(response.getIndex(), equalTo("test"));
         assertThat(response.getVersion(), equalTo(1l));
 
         try {
-            client().prepareGet("test", "type1", "1").setVersion(2).setRealtime(false).execute().actionGet();
+            client().prepareGet(indexOrAlias(), "type1", "1").setVersion(2).setRealtime(false).get();
             fail();
         } catch (VersionConflictEngineException e) {
+            //all good
         }
 
         logger.info("--> index doc 1 again, so increasing the version");
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2").execute().actionGet();
+        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2").get();
 
         // From translog:
 
         // version 0 means ignore version, which is the default
-        response = client().prepareGet("test", "type1", "1").setVersion(0).execute().actionGet();
+        response = client().prepareGet(indexOrAlias(), "type1", "1").setVersion(0).get();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
+        assertThat(response.getIndex(), equalTo("test"));
         assertThat(response.getVersion(), equalTo(2l));
 
         try {
-            client().prepareGet("test", "type1", "1").setVersion(1).execute().actionGet();
+            client().prepareGet(indexOrAlias(), "type1", "1").setVersion(1).get();
             fail();
         } catch (VersionConflictEngineException e) {
+            //all good
         }
 
-        response = client().prepareGet("test", "type1", "1").setVersion(2).execute().actionGet();
+        response = client().prepareGet(indexOrAlias(), "type1", "1").setVersion(2).get();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
+        assertThat(response.getIndex(), equalTo("test"));
         assertThat(response.getVersion(), equalTo(2l));
 
         // From Lucene index:
-        client().admin().indices().prepareRefresh("test").execute().actionGet();
+        refresh();
 
         // version 0 means ignore version, which is the default
-        response = client().prepareGet("test", "type1", "1").setVersion(0).setRealtime(false).execute().actionGet();
+        response = client().prepareGet(indexOrAlias(), "type1", "1").setVersion(0).setRealtime(false).get();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
+        assertThat(response.getIndex(), equalTo("test"));
         assertThat(response.getVersion(), equalTo(2l));
 
         try {
-            client().prepareGet("test", "type1", "1").setVersion(1).setRealtime(false).execute().actionGet();
+            client().prepareGet(indexOrAlias(), "type1", "1").setVersion(1).setRealtime(false).get();
             fail();
         } catch (VersionConflictEngineException e) {
+            //all good
         }
 
-        response = client().prepareGet("test", "type1", "1").setVersion(2).setRealtime(false).execute().actionGet();
+        response = client().prepareGet(indexOrAlias(), "type1", "1").setVersion(2).setRealtime(false).get();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
+        assertThat(response.getIndex(), equalTo("test"));
         assertThat(response.getVersion(), equalTo(2l));
     }
 
     @Test
     public void testMultiGetWithVersion() throws Exception {
-        try {
-            client().admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // fine
-        }
-        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1)).execute().actionGet();
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
+                .setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1)));
+        ensureGreen();
 
-        ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
-        assertThat(clusterHealth.isTimedOut(), equalTo(false));
-        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
-
-        MultiGetResponse response = client().prepareMultiGet().add("test", "type1", "1").execute().actionGet();
+        MultiGetResponse response = client().prepareMultiGet().add(indexOrAlias(), "type1", "1").get();
         assertThat(response.getResponses().length, equalTo(1));
         assertThat(response.getResponses()[0].getResponse().isExists(), equalTo(false));
 
         for (int i = 0; i < 3; i++) {
-            client().prepareIndex("test", "type1", Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
+            client().prepareIndex("test", "type1", Integer.toString(i)).setSource("field", "value" + i).get();
         }
 
         // Version from translog
         response = client().prepareMultiGet()
-                .add(new MultiGetRequest.Item("test", "type1", "1").version(0))
-                .add(new MultiGetRequest.Item("test", "type1", "1").version(1))
-                .add(new MultiGetRequest.Item("test", "type1", "1").version(2))
-                .execute().actionGet();
+                .add(new MultiGetRequest.Item(indexOrAlias(), "type1", "1").version(0))
+                .add(new MultiGetRequest.Item(indexOrAlias(), "type1", "1").version(1))
+                .add(new MultiGetRequest.Item(indexOrAlias(), "type1", "1").version(2))
+                .get();
         assertThat(response.getResponses().length, equalTo(3));
         // [0] version doesn't matter, which is the default
         assertThat(response.getResponses()[0].getFailure(), nullValue());
         assertThat(response.getResponses()[0].getId(), equalTo("1"));
+        assertThat(response.getResponses()[0].getIndex(), equalTo("test"));
         assertThat(response.getResponses()[0].getResponse().isExists(), equalTo(true));
         assertThat(response.getResponses()[0].getResponse().getSourceAsMap().get("field").toString(), equalTo("value1"));
         assertThat(response.getResponses()[1].getId(), equalTo("1"));
+        assertThat(response.getResponses()[1].getIndex(), equalTo("test"));
         assertThat(response.getResponses()[1].getFailure(), nullValue());
         assertThat(response.getResponses()[1].getResponse().isExists(), equalTo(true));
         assertThat(response.getResponses()[1].getResponse().getSourceAsMap().get("field").toString(), equalTo("value1"));
@@ -661,13 +660,13 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
         assertThat(response.getResponses()[2].getFailure().getMessage(), startsWith("VersionConflictEngineException"));
 
         //Version from Lucene index
-        client().admin().indices().prepareRefresh("test").execute().actionGet();
+        refresh();
         response = client().prepareMultiGet()
-                .add(new MultiGetRequest.Item("test", "type1", "1").version(0))
-                .add(new MultiGetRequest.Item("test", "type1", "1").version(1))
-                .add(new MultiGetRequest.Item("test", "type1", "1").version(2))
+                .add(new MultiGetRequest.Item(indexOrAlias(), "type1", "1").version(0))
+                .add(new MultiGetRequest.Item(indexOrAlias(), "type1", "1").version(1))
+                .add(new MultiGetRequest.Item(indexOrAlias(), "type1", "1").version(2))
                 .setRealtime(false)
-                .execute().actionGet();
+                .get();
         assertThat(response.getResponses().length, equalTo(3));
         // [0] version doesn't matter, which is the default
         assertThat(response.getResponses()[0].getFailure(), nullValue());
@@ -684,48 +683,54 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
 
 
         for (int i = 0; i < 3; i++) {
-            client().prepareIndex("test", "type1", Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
+            client().prepareIndex("test", "type1", Integer.toString(i)).setSource("field", "value" + i).get();
         }
 
         // Version from translog
         response = client().prepareMultiGet()
-                .add(new MultiGetRequest.Item("test", "type1", "2").version(0))
-                .add(new MultiGetRequest.Item("test", "type1", "2").version(1))
-                .add(new MultiGetRequest.Item("test", "type1", "2").version(2))
-                .execute().actionGet();
+                .add(new MultiGetRequest.Item(indexOrAlias(), "type1", "2").version(0))
+                .add(new MultiGetRequest.Item(indexOrAlias(), "type1", "2").version(1))
+                .add(new MultiGetRequest.Item(indexOrAlias(), "type1", "2").version(2))
+                .get();
         assertThat(response.getResponses().length, equalTo(3));
         // [0] version doesn't matter, which is the default
         assertThat(response.getResponses()[0].getFailure(), nullValue());
         assertThat(response.getResponses()[0].getId(), equalTo("2"));
+        assertThat(response.getResponses()[0].getIndex(), equalTo("test"));
         assertThat(response.getResponses()[0].getResponse().isExists(), equalTo(true));
         assertThat(response.getResponses()[0].getResponse().getSourceAsMap().get("field").toString(), equalTo("value2"));
         assertThat(response.getResponses()[1].getFailure(), notNullValue());
         assertThat(response.getResponses()[1].getFailure().getId(), equalTo("2"));
+        assertThat(response.getResponses()[1].getIndex(), equalTo("test"));
         assertThat(response.getResponses()[1].getFailure().getMessage(), startsWith("VersionConflictEngineException"));
         assertThat(response.getResponses()[2].getId(), equalTo("2"));
+        assertThat(response.getResponses()[2].getIndex(), equalTo("test"));
         assertThat(response.getResponses()[2].getFailure(), nullValue());
         assertThat(response.getResponses()[2].getResponse().isExists(), equalTo(true));
         assertThat(response.getResponses()[2].getResponse().getSourceAsMap().get("field").toString(), equalTo("value2"));
 
 
         //Version from Lucene index
-        client().admin().indices().prepareRefresh("test").execute().actionGet();
+        refresh();
         response = client().prepareMultiGet()
-                .add(new MultiGetRequest.Item("test", "type1", "2").version(0))
-                .add(new MultiGetRequest.Item("test", "type1", "2").version(1))
-                .add(new MultiGetRequest.Item("test", "type1", "2").version(2))
+                .add(new MultiGetRequest.Item(indexOrAlias(), "type1", "2").version(0))
+                .add(new MultiGetRequest.Item(indexOrAlias(), "type1", "2").version(1))
+                .add(new MultiGetRequest.Item(indexOrAlias(), "type1", "2").version(2))
                 .setRealtime(false)
-                .execute().actionGet();
+                .get();
         assertThat(response.getResponses().length, equalTo(3));
         // [0] version doesn't matter, which is the default
         assertThat(response.getResponses()[0].getFailure(), nullValue());
         assertThat(response.getResponses()[0].getId(), equalTo("2"));
+        assertThat(response.getResponses()[0].getIndex(), equalTo("test"));
         assertThat(response.getResponses()[0].getResponse().isExists(), equalTo(true));
         assertThat(response.getResponses()[0].getResponse().getSourceAsMap().get("field").toString(), equalTo("value2"));
         assertThat(response.getResponses()[1].getFailure(), notNullValue());
         assertThat(response.getResponses()[1].getFailure().getId(), equalTo("2"));
+        assertThat(response.getResponses()[1].getIndex(), equalTo("test"));
         assertThat(response.getResponses()[1].getFailure().getMessage(), startsWith("VersionConflictEngineException"));
         assertThat(response.getResponses()[2].getId(), equalTo("2"));
+        assertThat(response.getResponses()[2].getIndex(), equalTo("test"));
         assertThat(response.getResponses()[2].getFailure(), nullValue());
         assertThat(response.getResponses()[2].getResponse().isExists(), equalTo(true));
         assertThat(response.getResponses()[2].getResponse().getSourceAsMap().get("field").toString(), equalTo("value2"));
@@ -733,16 +738,15 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testGetFields_metaData() throws Exception {
-        client().admin().indices().prepareCreate("my-index")
-                .setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1))
-                .get();
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
+                .setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1)));
 
-        client().prepareIndex("my-index", "my-type1", "1")
+        client().prepareIndex("test", "my-type1", "1")
                 .setRouting("1")
                 .setSource(jsonBuilder().startObject().field("field1", "value").endObject())
                 .get();
 
-        GetResponse getResponse = client().prepareGet("my-index", "my-type1", "1")
+        GetResponse getResponse = client().prepareGet(indexOrAlias(), "my-type1", "1")
                 .setRouting("1")
                 .setFields("field1", "_routing")
                 .get();
@@ -752,9 +756,9 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
         assertThat(getResponse.getField("_routing").isMetadataField(), equalTo(true));
         assertThat(getResponse.getField("_routing").getValue().toString(), equalTo("1"));
 
-        client().admin().indices().prepareFlush("my-index").get();
+        flush();
 
-        client().prepareGet("my-index", "my-type1", "1")
+        client().prepareGet(indexOrAlias(), "my-type1", "1")
                 .setFields("field1", "_routing")
                 .setRouting("1")
                 .get();
@@ -767,36 +771,39 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testGetFields_nonLeafField() throws Exception {
-        client().admin().indices().prepareCreate("my-index")
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
                 .addMapping("my-type1", jsonBuilder().startObject().startObject("my-type1").startObject("properties")
                         .startObject("field1").startObject("properties")
                         .startObject("field2").field("type", "string").endObject()
                         .endObject().endObject()
                         .endObject().endObject().endObject())
-                .setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1))
-                .get();
+                .setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1)));
 
-        client().prepareIndex("my-index", "my-type1", "1")
+        client().prepareIndex("test", "my-type1", "1")
                 .setSource(jsonBuilder().startObject().startObject("field1").field("field2", "value1").endObject().endObject())
                 .get();
 
         try {
-            client().prepareGet("my-index", "my-type1", "1").setFields("field1").get();
+            client().prepareGet(indexOrAlias(), "my-type1", "1").setFields("field1").get();
             fail();
-        } catch (ElasticsearchIllegalArgumentException e) {}
+        } catch (ElasticsearchIllegalArgumentException e) {
+            //all well
+        }
 
-        client().admin().indices().prepareFlush("my-index").get();
+        flush();
 
         try {
-            client().prepareGet("my-index", "my-type1", "1").setFields("field1").get();
+            client().prepareGet(indexOrAlias(), "my-type1", "1").setFields("field1").get();
             fail();
-        } catch (ElasticsearchIllegalArgumentException e) {}
+        } catch (ElasticsearchIllegalArgumentException e) {
+            //all well
+        }
     }
 
     @Test
     @TestLogging("index.shard.service:TRACE,cluster.service:TRACE,action.admin.indices.flush:TRACE")
     public void testGetFields_complexField() throws Exception {
-        client().admin().indices().prepareCreate("my-index")
+        assertAcked(prepareCreate("my-index")
                 .setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1))
                 .addMapping("my-type2", jsonBuilder().startObject().startObject("my-type2").startObject("properties")
                         .startObject("field1").field("type", "object")
@@ -806,8 +813,7 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
                                 .endObject()
                             .endObject()
                         .endObject()
-                        .endObject().endObject().endObject())
-                .get();
+                        .endObject().endObject().endObject()));
 
         BytesReference source = jsonBuilder().startObject()
                     .startArray("field1")
@@ -889,7 +895,8 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testGet_allField() throws Exception {
-        prepareCreate("my-index")
+        assertAcked(prepareCreate("test")
+                .addAlias(new Alias("alias"))
                 .addMapping("my-type1", jsonBuilder()
                         .startObject()
                         .startObject("my-type1")
@@ -902,12 +909,11 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
                         .endObject()
                         .endObject()
                         .endObject()
-                        .endObject())
-                .get();
-        index("my-index", "my-type1", "1", "some_field", "some text");
+                        .endObject()));
+        index("test", "my-type1", "1", "some_field", "some text");
         refresh();
 
-        GetResponse getResponse = client().prepareGet("my-index", "my-type1", "1").setFields("_all").get();
+        GetResponse getResponse = client().prepareGet(indexOrAlias(), "my-type1", "1").setFields("_all").get();
         assertNotNull(getResponse.getField("_all").getValue());
         assertThat(getResponse.getField("_all").getValue().toString(), equalTo("some text" + " "));
     }
@@ -932,7 +938,7 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
                 "    }\n" +
                 "  }\n" +
                 "}";
-        assertAcked(prepareCreate("testidx").setSource(createIndexSource));
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setSource(createIndexSource));
         ensureGreen();
         String doc = "{\n" +
                 "  \"suggest\": {\n" +
@@ -944,16 +950,16 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
                 "  }\n" +
                 "}";
 
-        index("testidx", "doc", "1", doc);
+        index("test", "doc", "1", doc);
         String[] fieldsList = {"suggest"};
         // before refresh - document is only in translog
-        assertGetFieldsAlwaysNull("testidx", "doc", "1", fieldsList);
+        assertGetFieldsAlwaysNull(indexOrAlias(), "doc", "1", fieldsList);
         refresh();
         //after refresh - document is in translog and also indexed
-        assertGetFieldsAlwaysNull("testidx", "doc", "1", fieldsList);
+        assertGetFieldsAlwaysNull(indexOrAlias(), "doc", "1", fieldsList);
         flush();
         //after flush - document is in not anymore translog - only indexed
-        assertGetFieldsAlwaysNull("testidx", "doc", "1", fieldsList);
+        assertGetFieldsAlwaysNull(indexOrAlias(), "doc", "1", fieldsList);
     }
 
     @Test
@@ -981,23 +987,23 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
                 "    }\n" +
                 "  }\n" +
                 "}";
-        assertAcked(prepareCreate("testidx").setSource(createIndexSource));
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setSource(createIndexSource));
         ensureGreen();
         String doc = "{\n" +
                 "  \"_ttl\": \"1h\"\n" +
                 "}";
 
-        client().prepareIndex("testidx", "doc").setId("1").setSource(doc).setParent("1").execute().actionGet();
+        client().prepareIndex("test", "doc").setId("1").setSource(doc).setParent("1").get();
 
         String[] fieldsList = {"_ttl", "_parent"};
         // before refresh - document is only in translog
-        assertGetFieldsAlwaysWorks("testidx", "doc", "1", fieldsList, "1");
+        assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", fieldsList, "1");
         refresh();
         //after refresh - document is in translog and also indexed
-        assertGetFieldsAlwaysWorks("testidx", "doc", "1", fieldsList, "1");
+        assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", fieldsList, "1");
         flush();
         //after flush - document is in not anymore translog - only indexed
-        assertGetFieldsAlwaysWorks("testidx", "doc", "1", fieldsList, "1");
+        assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", fieldsList, "1");
     }
 
     @Test
@@ -1005,13 +1011,13 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
         indexSingleDocumentWithUngeneratedFieldsThatArePartOf_source(false, false);
         String[] fieldsList = {"my_boost"};
         // before refresh - document is only in translog
-        assertGetFieldsAlwaysNull("testidx", "doc", "1", fieldsList);
+        assertGetFieldsAlwaysNull(indexOrAlias(), "doc", "1", fieldsList);
         refresh();
         //after refresh - document is in translog and also indexed
-        assertGetFieldsAlwaysNull("testidx", "doc", "1", fieldsList);
+        assertGetFieldsAlwaysNull(indexOrAlias(), "doc", "1", fieldsList);
         flush();
         //after flush - document is in not anymore translog - only indexed
-        assertGetFieldsAlwaysNull("testidx", "doc", "1", fieldsList);
+        assertGetFieldsAlwaysNull(indexOrAlias(), "doc", "1", fieldsList);
     }
 
     @Test
@@ -1024,13 +1030,13 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
         indexSingleDocumentWithUngeneratedFieldsThatArePartOf_source(stored, sourceEnabled);
         String[] fieldsList = {"my_boost"};
         // before refresh - document is only in translog
-        assertGetFieldsAlwaysWorks("testidx", "doc", "1", fieldsList);
+        assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", fieldsList);
         refresh();
         //after refresh - document is in translog and also indexed
-        assertGetFieldsAlwaysWorks("testidx", "doc", "1", fieldsList);
+        assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", fieldsList);
         flush();
         //after flush - document is in not anymore translog - only indexed
-        assertGetFieldsAlwaysWorks("testidx", "doc", "1", fieldsList);
+        assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", fieldsList);
     }
 
     void indexSingleDocumentWithUngeneratedFieldsThatArePartOf_source(boolean stored, boolean sourceEnabled) {
@@ -1053,14 +1059,14 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
                 "    }\n" +
                 "  }\n" +
                 "}";
-        assertAcked(prepareCreate("testidx").setSource(createIndexSource));
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setSource(createIndexSource));
         ensureGreen();
         String doc = "{\n" +
                 "  \"my_boost\": 5.0,\n" +
                 "  \"_ttl\": \"1h\"\n" +
                 "}\n";
 
-        client().prepareIndex("testidx", "doc").setId("1").setSource(doc).setRouting("1").execute().actionGet();
+        client().prepareIndex("test", "doc").setId("1").setSource(doc).setRouting("1").get();
     }
 
 
@@ -1069,13 +1075,13 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
         indexSingleDocumentWithUngeneratedFieldsThatAreNeverPartOf_source(false, randomBoolean());
         String[] fieldsList = {"_timestamp", "_size", "_routing"};
         // before refresh - document is only in translog
-        assertGetFieldsAlwaysNull("testidx", "doc", "1", fieldsList, "1");
+        assertGetFieldsAlwaysNull(indexOrAlias(), "doc", "1", fieldsList, "1");
         refresh();
         //after refresh - document is in translog and also indexed
-        assertGetFieldsAlwaysNull("testidx", "doc", "1", fieldsList, "1");
+        assertGetFieldsAlwaysNull(indexOrAlias(), "doc", "1", fieldsList, "1");
         flush();
         //after flush - document is in not anymore translog - only indexed
-        assertGetFieldsAlwaysNull("testidx", "doc", "1", fieldsList, "1");
+        assertGetFieldsAlwaysNull(indexOrAlias(), "doc", "1", fieldsList, "1");
     }
 
     @Test
@@ -1083,13 +1089,13 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
         indexSingleDocumentWithUngeneratedFieldsThatAreNeverPartOf_source(true, randomBoolean());
         String[] fieldsList = {"_timestamp", "_size", "_routing"};
         // before refresh - document is only in translog
-        assertGetFieldsAlwaysWorks("testidx", "doc", "1", fieldsList, "1");
+        assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", fieldsList, "1");
         refresh();
         //after refresh - document is in translog and also indexed
-        assertGetFieldsAlwaysWorks("testidx", "doc", "1", fieldsList, "1");
+        assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", fieldsList, "1");
         flush();
         //after flush - document is in not anymore translog - only indexed
-        assertGetFieldsAlwaysWorks("testidx", "doc", "1", fieldsList, "1");
+        assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", fieldsList, "1");
     }
 
     void indexSingleDocumentWithUngeneratedFieldsThatAreNeverPartOf_source(boolean stored, boolean sourceEnabled) {
@@ -1117,12 +1123,12 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
                 "  }\n" +
                 "}";
 
-        assertAcked(prepareCreate("testidx").setSource(createIndexSource));
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setSource(createIndexSource));
         ensureGreen();
         String doc = "{\n" +
                 "  \"text\": \"some text.\"\n" +
                 "}\n";
-        client().prepareIndex("testidx", "doc").setId("1").setSource(doc).setRouting("1").execute().actionGet();
+        client().prepareIndex("test", "doc").setId("1").setSource(doc).setRouting("1").get();
     }
 
 
@@ -1131,13 +1137,13 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
         indexSingleDocumentWithStringFieldsGeneratedFromText(false, randomBoolean());
         String[] fieldsList = {"_all", "_field_names"};
         // before refresh - document is only in translog
-        assertGetFieldsAlwaysNull("testidx", "doc", "1", fieldsList);
+        assertGetFieldsAlwaysNull(indexOrAlias(), "doc", "1", fieldsList);
         refresh();
         //after refresh - document is in translog and also indexed
-        assertGetFieldsAlwaysNull("testidx", "doc", "1", fieldsList);
+        assertGetFieldsAlwaysNull(indexOrAlias(), "doc", "1", fieldsList);
         flush();
         //after flush - document is in not anymore translog - only indexed
-        assertGetFieldsAlwaysNull("testidx", "doc", "1", fieldsList);
+        assertGetFieldsAlwaysNull(indexOrAlias(), "doc", "1", fieldsList);
     }
 
     @Test
@@ -1145,14 +1151,14 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
         indexSingleDocumentWithStringFieldsGeneratedFromText(true, randomBoolean());
         String[] fieldsList = {"_all", "_field_names"};
         // before refresh - document is only in translog
-        assertGetFieldsNull("testidx", "doc", "1", fieldsList);
-        assertGetFieldsException("testidx", "doc", "1", fieldsList);
+        assertGetFieldsNull(indexOrAlias(), "doc", "1", fieldsList);
+        assertGetFieldsException(indexOrAlias(), "doc", "1", fieldsList);
         refresh();
         //after refresh - document is in translog and also indexed
-        assertGetFieldsAlwaysWorks("testidx", "doc", "1", fieldsList);
+        assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", fieldsList);
         flush();
         //after flush - document is in not anymore translog - only indexed
-        assertGetFieldsAlwaysWorks("testidx", "doc", "1", fieldsList);
+        assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", fieldsList);
     }
 
     void indexSingleDocumentWithStringFieldsGeneratedFromText(boolean stored, boolean sourceEnabled) {
@@ -1172,13 +1178,13 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
                 "  }\n" +
                 "}";
 
-        assertAcked(prepareCreate("testidx").setSource(createIndexSource));
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setSource(createIndexSource));
         ensureGreen();
         String doc = "{\n" +
                 "  \"text1\": \"some text.\"\n," +
                 "  \"text2\": \"more text.\"\n" +
                 "}\n";
-        index("testidx", "doc", "1", doc);
+        index("test", "doc", "1", doc);
     }
 
 
@@ -1187,13 +1193,13 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
         indexSingleDocumentWithNumericFieldsGeneratedFromText(false, randomBoolean());
         String[] fieldsList = {"token_count", "text.token_count", "murmur", "text.murmur"};
         // before refresh - document is only in translog
-        assertGetFieldsAlwaysNull("testidx", "doc", "1", fieldsList);
+        assertGetFieldsAlwaysNull(indexOrAlias(), "doc", "1", fieldsList);
         refresh();
         //after refresh - document is in translog and also indexed
-        assertGetFieldsAlwaysNull("testidx", "doc", "1", fieldsList);
+        assertGetFieldsAlwaysNull(indexOrAlias(), "doc", "1", fieldsList);
         flush();
         //after flush - document is in not anymore translog - only indexed
-        assertGetFieldsAlwaysNull("testidx", "doc", "1", fieldsList);
+        assertGetFieldsAlwaysNull(indexOrAlias(), "doc", "1", fieldsList);
     }
 
     @Test
@@ -1201,14 +1207,14 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
         indexSingleDocumentWithNumericFieldsGeneratedFromText(true, randomBoolean());
         String[] fieldsList = {"token_count", "text.token_count", "murmur", "text.murmur"};
         // before refresh - document is only in translog
-        assertGetFieldsNull("testidx", "doc", "1", fieldsList);
-        assertGetFieldsException("testidx", "doc", "1", fieldsList);
+        assertGetFieldsNull(indexOrAlias(), "doc", "1", fieldsList);
+        assertGetFieldsException(indexOrAlias(), "doc", "1", fieldsList);
         refresh();
         //after refresh - document is in translog and also indexed
-        assertGetFieldsAlwaysWorks("testidx", "doc", "1", fieldsList);
+        assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", fieldsList);
         flush();
         //after flush - document is in not anymore translog - only indexed
-        assertGetFieldsAlwaysWorks("testidx", "doc", "1", fieldsList);
+        assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", fieldsList);
     }
 
     void indexSingleDocumentWithNumericFieldsGeneratedFromText(boolean stored, boolean sourceEnabled) {
@@ -1250,14 +1256,14 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
                 "  }\n" +
                 "}";
 
-        assertAcked(prepareCreate("testidx").setSource(createIndexSource));
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setSource(createIndexSource));
         ensureGreen();
         String doc = "{\n" +
                 "  \"murmur\": \"Some value that can be hashed\",\n" +
                 "  \"token_count\": \"A text with five words.\",\n" +
                 "  \"text\": \"A text with five words.\"\n" +
                 "}\n";
-        index("testidx", "doc", "1", doc);
+        index("test", "doc", "1", doc);
     }
 
     private void assertGetFieldsAlwaysWorks(String index, String type, String docId, String[] fields) {

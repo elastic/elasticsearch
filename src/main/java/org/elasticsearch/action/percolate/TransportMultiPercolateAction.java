@@ -26,7 +26,6 @@ import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.get.*;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -41,8 +40,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.percolator.PercolatorService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.BaseTransportRequestHandler;
-import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.*;
@@ -195,7 +192,7 @@ public class TransportMultiPercolateAction extends HandledTransportAction<MultiP
                         ShardId shardId = shard.shardId();
                         TransportShardMultiPercolateAction.Request requests = requestsByShard.get(shardId);
                         if (requests == null) {
-                            requestsByShard.put(shardId, requests = new TransportShardMultiPercolateAction.Request(shard.shardId().getIndex(), shardId.id(), percolateRequest.preference()));
+                            requestsByShard.put(shardId, requests = new TransportShardMultiPercolateAction.Request(shardId.getIndex(), shardId.getId(), percolateRequest.preference()));
                         }
                         logger.trace("Adding shard[{}] percolate request for item[{}]", shardId, slot);
                         requests.add(new TransportShardMultiPercolateAction.Request.Item(slot, new PercolateShardRequest(shardId, percolateRequest)));

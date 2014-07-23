@@ -131,7 +131,7 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
         }
         indexRandom(true, builders);
         ensureGreen();
-        assertAllSuccessful(client().admin().indices().prepareFlush().setForce(true).execute().actionGet());
+        assertAllSuccessful(client().admin().indices().prepareFlush().setForce(true).setWaitIfOngoing(true).execute().actionGet());
         // we have to flush at least once here since we don't corrupt the translog
         CountResponse countResponse = client().prepareCount().get();
         assertHitCount(countResponse, numDocs);
@@ -234,7 +234,7 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
         }
         indexRandom(true, builders);
         ensureGreen();
-        assertAllSuccessful(client().admin().indices().prepareFlush().setForce(true).execute().actionGet());
+        assertAllSuccessful(client().admin().indices().prepareFlush().setForce(true).setWaitIfOngoing(true).execute().actionGet());
         // we have to flush at least once here since we don't corrupt the translog
         CountResponse countResponse = client().prepareCount().get();
         assertHitCount(countResponse, numDocs);
@@ -323,7 +323,7 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
         }
         indexRandom(true, builders);
         ensureGreen();
-        assertAllSuccessful(client().admin().indices().prepareFlush().setForce(true).execute().actionGet());
+        assertAllSuccessful(client().admin().indices().prepareFlush().setForce(true).setWaitIfOngoing(true).execute().actionGet());
         // we have to flush at least once here since we don't corrupt the translog
         CountResponse countResponse = client().prepareCount().get();
         assertHitCount(countResponse, numDocs);
@@ -405,7 +405,7 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
         }
         indexRandom(true, builders);
         ensureGreen();
-        assertAllSuccessful(client().admin().indices().prepareFlush().setForce(true).execute().actionGet());
+        assertAllSuccessful(client().admin().indices().prepareFlush().setForce(true).setWaitIfOngoing(true).execute().actionGet());
         // we have to flush at least once here since we don't corrupt the translog
         CountResponse countResponse = client().prepareCount().get();
         assertHitCount(countResponse, numDocs);

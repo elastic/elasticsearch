@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.flush;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -40,6 +41,7 @@ public class FlushRequest extends BroadcastOperationRequest<FlushRequest> {
 
     private boolean force = false;
     private boolean full = false;
+    private boolean waitIfOngoing = false;
 
     FlushRequest() {
 
@@ -69,6 +71,23 @@ public class FlushRequest extends BroadcastOperationRequest<FlushRequest> {
     }
 
     /**
+     * Returns <tt>true</tt> iff a flush should block
+     * if a another flush operation is already running. Otherwise <tt>false</tt>
+     */
+    public boolean waitIfOngoing() {
+        return this.waitIfOngoing;
+    }
+
+    /**
+     * if set to <tt>true</tt> the flush will block
+     * if a another flush operation is already running until the flush can be performed.
+     */
+    public FlushRequest waitIfOngoing(boolean waitIfOngoing) {
+        this.waitIfOngoing = waitIfOngoing;
+        return this;
+    }
+
+    /**
      * Force flushing, even if one is possibly not needed.
      */
     public boolean force() {
@@ -88,6 +107,9 @@ public class FlushRequest extends BroadcastOperationRequest<FlushRequest> {
         super.writeTo(out);
         out.writeBoolean(full);
         out.writeBoolean(force);
+        if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
+            out.writeBoolean(waitIfOngoing);
+        }
     }
 
     @Override
@@ -95,5 +117,11 @@ public class FlushRequest extends BroadcastOperationRequest<FlushRequest> {
         super.readFrom(in);
         full = in.readBoolean();
         force = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
+            waitIfOngoing = in.readBoolean();
+        } else {
+            waitIfOngoing = false;
+        }
     }
+
 }

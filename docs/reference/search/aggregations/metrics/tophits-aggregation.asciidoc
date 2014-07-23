@@ -1,7 +1,7 @@
 [[search-aggregations-metrics-top-hits-aggregation]]
 === Top hits Aggregation
 
-coming[1.3.0]
+added[1.3.0]
 
 A `top_hits` metric aggregator keeps track of the most relevant document being aggregated. This aggregator is intended
 to be used as a sub aggregator, so that the top matching documents can be aggregated per bucket.

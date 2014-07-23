@@ -34,6 +34,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.junit.Test;
@@ -49,7 +50,6 @@ import java.util.concurrent.*;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.*;
 
@@ -107,7 +107,9 @@ public class SimpleThreadPoolTests extends ElasticsearchIntegrationTest {
         logger.info("post node *new* threads are {}", threadNames);
         for (String threadName : threadNames) {
             // ignore some shared threads we know that are created within the same VM, like the shared discovery one
-            if (threadName.contains("[" + MulticastChannel.SHARED_CHANNEL_NAME + "]")) {
+            // or the ones that are occasionally come up from ElasticsearchSingleNodeTest
+            if (threadName.contains("[" + MulticastChannel.SHARED_CHANNEL_NAME + "]")
+                || threadName.contains("[" + ElasticsearchSingleNodeTest.nodeName() + "]")) {
                 continue;
             }
             assertThat(threadName, anyOf(containsString("[" + node + "]"), containsString("[" + InternalTestCluster.TRANSPORT_CLIENT_PREFIX + node + "]")));

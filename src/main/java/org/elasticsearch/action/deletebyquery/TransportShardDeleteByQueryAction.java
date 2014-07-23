@@ -29,8 +29,6 @@ import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
-import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.common.inject.Inject;
@@ -100,20 +98,15 @@ public class TransportShardDeleteByQueryAction extends TransportShardReplication
     }
 
     @Override
-    protected ClusterBlockException checkGlobalBlock(ClusterState state, ShardDeleteByQueryRequest request) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.WRITE);
-    }
-
-    @Override
-    protected ClusterBlockException checkRequestBlock(ClusterState state, ShardDeleteByQueryRequest request) {
-        return state.blocks().indexBlockedException(ClusterBlockLevel.WRITE, request.index());
+    protected boolean resolveIndex() {
+        return false;
     }
 
     @Override
     protected PrimaryResponse<ShardDeleteByQueryResponse, ShardDeleteByQueryRequest> shardOperationOnPrimary(ClusterState clusterState, PrimaryOperationRequest shardRequest) {
         ShardDeleteByQueryRequest request = shardRequest.request;
-        IndexService indexService = indicesService.indexServiceSafe(shardRequest.request.index());
-        IndexShard indexShard = indexService.shardSafe(shardRequest.shardId);
+        IndexService indexService = indicesService.indexServiceSafe(shardRequest.shardId.getIndex());
+        IndexShard indexShard = indexService.shardSafe(shardRequest.shardId.id());
 
         SearchContext.setCurrent(new DefaultSearchContext(0, new ShardSearchRequest().types(request.types()).nowInMillis(request.nowInMillis()), null,
                 indexShard.acquireSearcher(DELETE_BY_QUERY_API), indexService, indexShard, scriptService, cacheRecycler,
@@ -134,8 +127,8 @@ public class TransportShardDeleteByQueryAction extends TransportShardReplication
     @Override
     protected void shardOperationOnReplica(ReplicaOperationRequest shardRequest) {
         ShardDeleteByQueryRequest request = shardRequest.request;
-        IndexService indexService = indicesService.indexServiceSafe(shardRequest.request.index());
-        IndexShard indexShard = indexService.shardSafe(shardRequest.shardId);
+        IndexService indexService = indicesService.indexServiceSafe(shardRequest.shardId.getIndex());
+        IndexShard indexShard = indexService.shardSafe(shardRequest.shardId.id());
 
         SearchContext.setCurrent(new DefaultSearchContext(0, new ShardSearchRequest().types(request.types()).nowInMillis(request.nowInMillis()), null,
                 indexShard.acquireSearcher(DELETE_BY_QUERY_API, IndexShard.Mode.WRITE), indexService, indexShard, scriptService,
@@ -145,20 +138,20 @@ public class TransportShardDeleteByQueryAction extends TransportShardReplication
             SearchContext.current().parsedQuery(new ParsedQuery(deleteByQuery.query(), ImmutableMap.<String, Filter>of()));
             indexShard.deleteByQuery(deleteByQuery);
         } finally {
-            try (SearchContext searchContext = SearchContext.current();) {
+            try (SearchContext searchContext = SearchContext.current()) {
                 SearchContext.removeCurrent();
             }
         }
     }
 
     @Override
-    protected ShardIterator shards(ClusterState clusterState, ShardDeleteByQueryRequest request) {
-        GroupShardsIterator group = clusterService.operationRouting().deleteByQueryShards(clusterService.state(), request.index(), request.routing());
+    protected ShardIterator shards(ClusterState clusterState, InternalRequest request) {
+        GroupShardsIterator group = clusterService.operationRouting().deleteByQueryShards(clusterService.state(), request.concreteIndex(), request.request().routing());
         for (ShardIterator shardIt : group) {
-            if (shardIt.shardId().id() == request.shardId()) {
+            if (shardIt.shardId().id() == request.request().shardId()) {
                 return shardIt;
             }
         }
-        throw new ElasticsearchIllegalStateException("No shards iterator found for shard [" + request.shardId() + "]");
+        throw new ElasticsearchIllegalStateException("No shards iterator found for shard [" + request.request().shardId() + "]");
     }
 }

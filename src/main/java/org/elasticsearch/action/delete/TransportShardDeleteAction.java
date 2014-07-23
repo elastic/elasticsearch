@@ -25,8 +25,6 @@ import org.elasticsearch.action.support.replication.TransportShardReplicationOpe
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
-import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.common.inject.Inject;
@@ -78,19 +76,14 @@ public class TransportShardDeleteAction extends TransportShardReplicationOperati
     }
 
     @Override
-    protected ClusterBlockException checkGlobalBlock(ClusterState state, ShardDeleteRequest request) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.WRITE);
-    }
-
-    @Override
-    protected ClusterBlockException checkRequestBlock(ClusterState state, ShardDeleteRequest request) {
-        return state.blocks().indexBlockedException(ClusterBlockLevel.WRITE, request.index());
+    protected boolean resolveIndex() {
+        return false;
     }
 
     @Override
     protected PrimaryResponse<ShardDeleteResponse, ShardDeleteRequest> shardOperationOnPrimary(ClusterState clusterState, PrimaryOperationRequest shardRequest) {
         ShardDeleteRequest request = shardRequest.request;
-        IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.request.index()).shardSafe(shardRequest.shardId);
+        IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.shardId.getIndex()).shardSafe(shardRequest.shardId.id());
         Engine.Delete delete = indexShard.prepareDelete(request.type(), request.id(), request.version(), VersionType.INTERNAL, Engine.Operation.Origin.PRIMARY);
         indexShard.delete(delete);
         // update the version to happen on the replicas
@@ -112,7 +105,7 @@ public class TransportShardDeleteAction extends TransportShardReplicationOperati
     @Override
     protected void shardOperationOnReplica(ReplicaOperationRequest shardRequest) {
         ShardDeleteRequest request = shardRequest.request;
-        IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.request.index()).shardSafe(shardRequest.shardId);
+        IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.shardId.getIndex()).shardSafe(shardRequest.shardId.id());
         Engine.Delete delete = indexShard.prepareDelete(request.type(), request.id(), request.version(), VersionType.INTERNAL, Engine.Operation.Origin.REPLICA);
 
         // IndexDeleteAction doesn't support version type at the moment. Hard coded for the INTERNAL version
@@ -133,13 +126,13 @@ public class TransportShardDeleteAction extends TransportShardReplicationOperati
     }
 
     @Override
-    protected ShardIterator shards(ClusterState clusterState, ShardDeleteRequest request) {
-        GroupShardsIterator group = clusterService.operationRouting().broadcastDeleteShards(clusterService.state(), request.index());
+    protected ShardIterator shards(ClusterState clusterState, InternalRequest request) {
+        GroupShardsIterator group = clusterService.operationRouting().broadcastDeleteShards(clusterService.state(), request.concreteIndex());
         for (ShardIterator shardIt : group) {
-            if (shardIt.shardId().id() == request.shardId()) {
+            if (shardIt.shardId().id() == request.request().shardId()) {
                 return shardIt;
             }
         }
-        throw new ElasticsearchIllegalStateException("No shards iterator found for shard [" + request.shardId() + "]");
+        throw new ElasticsearchIllegalStateException("No shards iterator found for shard [" + request.request().shardId() + "]");
     }
 }

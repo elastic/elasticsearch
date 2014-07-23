@@ -37,10 +37,10 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.TypeMissingException;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -76,14 +76,21 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleCustomO
     }
 
     @Override
-    protected ShardsIterator shards(ClusterState state, GetFieldMappingsIndexRequest request) {
-        // Will balance requests between shards
-        return state.routingTable().index(request.index()).randomAllActiveShardsIt();
+    protected boolean resolveIndex(GetFieldMappingsIndexRequest request) {
+        //internal action, index already resolved
+        return false;
     }
 
     @Override
-    protected GetFieldMappingsResponse shardOperation(final GetFieldMappingsIndexRequest request, int shardId) throws ElasticsearchException {
-        IndexService indexService = indicesService.indexServiceSafe(request.index());
+    protected ShardsIterator shards(ClusterState state, InternalRequest request) {
+        // Will balance requests between shards
+        return state.routingTable().index(request.concreteIndex()).randomAllActiveShardsIt();
+    }
+
+    @Override
+    protected GetFieldMappingsResponse shardOperation(final GetFieldMappingsIndexRequest request, ShardId shardId) throws ElasticsearchException {
+        assert shardId != null;
+        IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         Collection<String> typeIntersection;
         if (request.types().length == 0) {
             typeIntersection = indexService.mapperService().types();
@@ -98,7 +105,7 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleCustomO
 
             });
             if (typeIntersection.isEmpty()) {
-                throw new TypeMissingException(new Index(request.index()), request.types());
+                throw new TypeMissingException(shardId.index(), request.types());
             }
         }
 
@@ -111,7 +118,7 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleCustomO
             }
         }
 
-        return new GetFieldMappingsResponse(ImmutableMap.of(request.index(), typeMappings.immutableMap()));
+        return new GetFieldMappingsResponse(ImmutableMap.of(shardId.getIndex(), typeMappings.immutableMap()));
     }
 
     @Override

@@ -321,12 +321,16 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
             fields.add(field);
         }
         if (hasDocValues()) {
-            CustomFloatNumericDocValuesField field = (CustomFloatNumericDocValuesField) context.doc().getByKey(names().indexName());
-            if (field != null) {
-                field.add(value);
+            if (useSortedNumericDocValues) {
+                addDocValue(context, fields, NumericUtils.floatToSortableInt(value));
             } else {
-                field = new CustomFloatNumericDocValuesField(names().indexName(), value);
-                context.doc().addWithKey(names().indexName(), field);
+                CustomFloatNumericDocValuesField field = (CustomFloatNumericDocValuesField) context.doc().getByKey(names().indexName());
+                if (field != null) {
+                    field.add(value);
+                } else {
+                    field = new CustomFloatNumericDocValuesField(names().indexName(), value);
+                    context.doc().addWithKey(names().indexName(), field);
+                }
             }
         }
     }

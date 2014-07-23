@@ -18,8 +18,13 @@
  */
 package org.elasticsearch.index.fielddata.fieldcomparator;
 
+import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.search.FieldCache.Longs;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
@@ -28,17 +33,20 @@ import org.elasticsearch.search.MultiValueMode;
 import java.io.IOException;
 
 /**
+ * Comparator source for long values.
  */
 public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorSource {
 
     private final IndexNumericFieldData indexFieldData;
     private final Object missingValue;
     private final MultiValueMode sortMode;
+    private final Nested nested;
 
-    public LongValuesComparatorSource(IndexNumericFieldData indexFieldData, @Nullable Object missingValue, MultiValueMode sortMode) {
+    public LongValuesComparatorSource(IndexNumericFieldData indexFieldData, @Nullable Object missingValue, MultiValueMode sortMode, Nested nested) {
         this.indexFieldData = indexFieldData;
         this.missingValue = missingValue;
         this.sortMode = sortMode;
+        this.nested = nested;
     }
 
     @Override
@@ -48,9 +56,31 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
 
     @Override
     public FieldComparator<?> newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
-        assert fieldname.equals(indexFieldData.getFieldNames().indexName());
+        assert indexFieldData == null || fieldname.equals(indexFieldData.getFieldNames().indexName());
 
-        final long dMissingValue = (Long) missingObject(missingValue, reversed);
-        return new LongValuesComparator(indexFieldData, dMissingValue, numHits, sortMode);
+        final Long dMissingValue = (Long) missingObject(missingValue, reversed);
+        // NOTE: it's important to pass null as a missing value in the constructor so that
+        // the comparator doesn't check docsWithField since we replace missing values in select()
+        return new FieldComparator.LongComparator(numHits, null, null, null) {
+            @Override
+            protected Longs getLongValues(AtomicReaderContext context, String field) throws IOException {
+                final SortedNumericDocValues values = indexFieldData.load(context).getLongValues();
+                final NumericDocValues selectedValues;
+                if (nested == null) {
+                    selectedValues = sortMode.select(values, dMissingValue);
+                } else {
+                    final FixedBitSet rootDocs = nested.rootDocs(context);
+                    final FixedBitSet innerDocs = nested.innerDocs(context);
+                    selectedValues = sortMode.select(values, dMissingValue, rootDocs, innerDocs, context.reader().maxDoc());
+                }
+                return new Longs() {
+                    @Override
+                    public long get(int docID) {
+                        return selectedValues.get(docID);
+                    }
+                };
+            }
+
+        };
     }
 }

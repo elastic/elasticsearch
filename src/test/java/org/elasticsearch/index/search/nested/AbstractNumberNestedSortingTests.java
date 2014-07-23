@@ -33,6 +33,8 @@ import org.elasticsearch.common.lucene.search.NotFilter;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.index.fielddata.AbstractFieldDataTests;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource;
+import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.search.MultiValueMode;
 import org.junit.Test;
 
@@ -206,10 +208,9 @@ public abstract class AbstractNumberNestedSortingTests extends AbstractFieldData
 
         MultiValueMode sortMode = MultiValueMode.SUM;
         IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer, false));
-        IndexFieldData.XFieldComparatorSource innerFieldComparator = createInnerFieldComparator("field2", sortMode, null);
         Filter parentFilter = new TermFilter(new Term("__type", "parent"));
         Filter childFilter = new NotFilter(parentFilter);
-        NestedFieldComparatorSource nestedComparatorSource = new NestedFieldComparatorSource(sortMode, innerFieldComparator, parentFilter, childFilter);
+        XFieldComparatorSource nestedComparatorSource = createFieldComparator("field2", sortMode, null, new Nested(parentFilter, childFilter));
         ToParentBlockJoinQuery query = new ToParentBlockJoinQuery(new XFilteredQuery(new MatchAllDocsQuery(), childFilter), new FixedBitSetCachingWrapperFilter(parentFilter), ScoreMode.None);
 
         Sort sort = new Sort(new SortField("field2", nestedComparatorSource));
@@ -243,7 +244,7 @@ public abstract class AbstractNumberNestedSortingTests extends AbstractFieldData
         assertThat(((Number) ((FieldDoc) topDocs.scoreDocs[4]).fields[0]).intValue(), equalTo(9));
 
         childFilter = new TermFilter(new Term("filter_1", "T"));
-        nestedComparatorSource = new NestedFieldComparatorSource(sortMode, innerFieldComparator, parentFilter, childFilter);
+        nestedComparatorSource = createFieldComparator("field2", sortMode, null, new Nested(parentFilter, childFilter));
         query = new ToParentBlockJoinQuery(
                 new XFilteredQuery(new MatchAllDocsQuery(), childFilter),
                 new FixedBitSetCachingWrapperFilter(parentFilter),
@@ -279,8 +280,7 @@ public abstract class AbstractNumberNestedSortingTests extends AbstractFieldData
         assertThat(topDocs.scoreDocs[4].doc, equalTo(3));
         assertThat(((Number) ((FieldDoc) topDocs.scoreDocs[4]).fields[0]).intValue(), equalTo(9));
 
-        innerFieldComparator = createInnerFieldComparator("field2", sortMode, 127);
-        nestedComparatorSource = new NestedFieldComparatorSource(sortMode, innerFieldComparator, parentFilter, childFilter);
+        nestedComparatorSource = createFieldComparator("field2", sortMode, 127, new Nested(parentFilter, childFilter));
         sort = new Sort(new SortField("field2", nestedComparatorSource, true));
         topDocs = searcher.search(new TermQuery(new Term("__type", "parent")), 5, sort);
         assertThat(topDocs.totalHits, equalTo(8));
@@ -296,8 +296,7 @@ public abstract class AbstractNumberNestedSortingTests extends AbstractFieldData
         assertThat(topDocs.scoreDocs[4].doc, equalTo(7));
         assertThat(((Number) ((FieldDoc) topDocs.scoreDocs[4]).fields[0]).intValue(), equalTo(8));
 
-        innerFieldComparator = createInnerFieldComparator("field2", sortMode, -127);
-        nestedComparatorSource = new NestedFieldComparatorSource(sortMode, innerFieldComparator, parentFilter, childFilter);
+        nestedComparatorSource = createFieldComparator("field2", sortMode, -127, new Nested(parentFilter, childFilter));
         sort = new Sort(new SortField("field2", nestedComparatorSource));
         topDocs = searcher.search(new TermQuery(new Term("__type", "parent")), 5, sort);
         assertThat(topDocs.totalHits, equalTo(8));
@@ -315,33 +314,33 @@ public abstract class AbstractNumberNestedSortingTests extends AbstractFieldData
 
         // Moved to method, because floating point based XFieldComparatorSource have different outcome for SortMode avg,
         // than integral number based implementations...
-        assertAvgScoreMode(parentFilter, searcher, innerFieldComparator);
+        assertAvgScoreMode(parentFilter, searcher);
         searcher.getIndexReader().close();
     }
 
-    protected void assertAvgScoreMode(Filter parentFilter, IndexSearcher searcher, IndexFieldData.XFieldComparatorSource innerFieldComparator) throws IOException {
+    protected void assertAvgScoreMode(Filter parentFilter, IndexSearcher searcher) throws IOException {
         MultiValueMode sortMode = MultiValueMode.AVG;
         Filter childFilter = new NotFilter(parentFilter);
-        NestedFieldComparatorSource nestedComparatorSource = new NestedFieldComparatorSource(sortMode, innerFieldComparator, parentFilter, childFilter);
+        XFieldComparatorSource nestedComparatorSource = createFieldComparator("field2", sortMode, -127, new Nested(parentFilter, childFilter));
         Query query = new ToParentBlockJoinQuery(new XFilteredQuery(new MatchAllDocsQuery(), childFilter), new FixedBitSetCachingWrapperFilter(parentFilter), ScoreMode.None);
         Sort sort = new Sort(new SortField("field2", nestedComparatorSource));
         TopDocs topDocs = searcher.search(query, 5, sort);
         assertThat(topDocs.totalHits, equalTo(7));
         assertThat(topDocs.scoreDocs.length, equalTo(5));
-        assertThat(topDocs.scoreDocs[0].doc, equalTo(7));
+        assertThat(topDocs.scoreDocs[0].doc, equalTo(11));
         assertThat(((Number) ((FieldDoc) topDocs.scoreDocs[0]).fields[0]).intValue(), equalTo(2));
-        assertThat(topDocs.scoreDocs[1].doc, equalTo(11));
-        assertThat(((Number) ((FieldDoc) topDocs.scoreDocs[1]).fields[0]).intValue(), equalTo(2));
-        assertThat(topDocs.scoreDocs[2].doc, equalTo(3));
+        assertThat(topDocs.scoreDocs[1].doc, equalTo(3));
+        assertThat(((Number) ((FieldDoc) topDocs.scoreDocs[1]).fields[0]).intValue(), equalTo(3));
+        assertThat(topDocs.scoreDocs[2].doc, equalTo(7));
         assertThat(((Number) ((FieldDoc) topDocs.scoreDocs[2]).fields[0]).intValue(), equalTo(3));
         assertThat(topDocs.scoreDocs[3].doc, equalTo(15));
         assertThat(((Number) ((FieldDoc) topDocs.scoreDocs[3]).fields[0]).intValue(), equalTo(3));
         assertThat(topDocs.scoreDocs[4].doc, equalTo(19));
-        assertThat(((Number) ((FieldDoc) topDocs.scoreDocs[4]).fields[0]).intValue(), equalTo(3));
+        assertThat(((Number) ((FieldDoc) topDocs.scoreDocs[4]).fields[0]).intValue(), equalTo(4));
     }
 
     protected abstract IndexableField createField(String name, int value, Field.Store store);
 
-    protected abstract IndexFieldData.XFieldComparatorSource createInnerFieldComparator(String fieldName, MultiValueMode sortMode, Object missingValue);
+    protected abstract IndexFieldData.XFieldComparatorSource createFieldComparator(String fieldName, MultiValueMode sortMode, Object missingValue, Nested nested);
 
 }

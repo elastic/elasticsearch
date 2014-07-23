@@ -29,9 +29,11 @@ import org.elasticsearch.common.lucene.search.NotFilter;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource;
+import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.fieldcomparator.FloatValuesComparatorSource;
-import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.index.fielddata.plain.FloatArrayIndexFieldData;
+import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
 
@@ -39,7 +41,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class FloatNestedSortingTests extends AbstractNumberNestedSortingTests {
+public class FloatNestedSortingTests extends DoubleNestedSortingTests {
 
     @Override
     protected FieldDataType getFieldDataType() {
@@ -47,9 +49,9 @@ public class FloatNestedSortingTests extends AbstractNumberNestedSortingTests {
     }
 
     @Override
-    protected IndexFieldData.XFieldComparatorSource createInnerFieldComparator(String fieldName, MultiValueMode sortMode, Object missingValue) {
+    protected IndexFieldData.XFieldComparatorSource createFieldComparator(String fieldName, MultiValueMode sortMode, Object missingValue, Nested nested) {
         FloatArrayIndexFieldData fieldData = getForField(fieldName);
-        return new FloatValuesComparatorSource(fieldData, missingValue, sortMode);
+        return new FloatValuesComparatorSource(fieldData, missingValue, sortMode, nested);
     }
 
     @Override
@@ -60,7 +62,7 @@ public class FloatNestedSortingTests extends AbstractNumberNestedSortingTests {
     protected void assertAvgScoreMode(Filter parentFilter, IndexSearcher searcher, IndexFieldData.XFieldComparatorSource innerFieldComparator) throws IOException {
         MultiValueMode sortMode = MultiValueMode.AVG;
         Filter childFilter = new NotFilter(parentFilter);
-        NestedFieldComparatorSource nestedComparatorSource = new NestedFieldComparatorSource(sortMode, innerFieldComparator, parentFilter, childFilter);
+        XFieldComparatorSource nestedComparatorSource = createFieldComparator("field2", sortMode, -127, new Nested(parentFilter, childFilter));
         Query query = new ToParentBlockJoinQuery(new XFilteredQuery(new MatchAllDocsQuery(), childFilter), new FixedBitSetCachingWrapperFilter(parentFilter), ScoreMode.None);
         Sort sort = new Sort(new SortField("field2", nestedComparatorSource));
         TopDocs topDocs = searcher.search(query, 5, sort);

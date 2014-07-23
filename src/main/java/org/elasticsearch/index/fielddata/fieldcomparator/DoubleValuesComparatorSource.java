@@ -19,27 +19,36 @@
 
 package org.elasticsearch.index.fielddata.fieldcomparator;
 
+import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.search.FieldCache.Doubles;
 import org.apache.lucene.search.FieldComparator;
+import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.NumericDoubleValues;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
 
 /**
+ * Comparator source for double values.
  */
 public class DoubleValuesComparatorSource extends IndexFieldData.XFieldComparatorSource {
 
     private final IndexNumericFieldData indexFieldData;
     private final Object missingValue;
     private final MultiValueMode sortMode;
+    private final Nested nested;
 
-    public DoubleValuesComparatorSource(IndexNumericFieldData indexFieldData, @Nullable Object missingValue, MultiValueMode sortMode) {
+    public DoubleValuesComparatorSource(IndexNumericFieldData indexFieldData, @Nullable Object missingValue, MultiValueMode sortMode, Nested nested) {
         this.indexFieldData = indexFieldData;
         this.missingValue = missingValue;
         this.sortMode = sortMode;
+        this.nested = nested;
     }
 
     @Override
@@ -47,11 +56,42 @@ public class DoubleValuesComparatorSource extends IndexFieldData.XFieldComparato
         return SortField.Type.DOUBLE;
     }
 
+    protected SortedNumericDoubleValues getValues(AtomicReaderContext context) {
+        return indexFieldData.load(context).getDoubleValues();
+    }
+
+    protected void setScorer(Scorer scorer) {}
+
     @Override
     public FieldComparator<?> newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
-        assert fieldname.equals(indexFieldData.getFieldNames().indexName());
+        assert indexFieldData == null || fieldname.equals(indexFieldData.getFieldNames().indexName());
 
         final double dMissingValue = (Double) missingObject(missingValue, reversed);
-        return new DoubleValuesComparator(indexFieldData, dMissingValue, numHits, sortMode);
+        // NOTE: it's important to pass null as a missing value in the constructor so that
+        // the comparator doesn't check docsWithField since we replace missing values in select()
+        return new FieldComparator.DoubleComparator(numHits, null, null, null) {
+            @Override
+            protected Doubles getDoubleValues(AtomicReaderContext context, String field) throws IOException {
+                final SortedNumericDoubleValues values = getValues(context);
+                final NumericDoubleValues selectedValues;
+                if (nested == null) {
+                    selectedValues = sortMode.select(values, dMissingValue);
+                } else {
+                    final FixedBitSet rootDocs = nested.rootDocs(context);
+                    final FixedBitSet innerDocs = nested.innerDocs(context);
+                    selectedValues = sortMode.select(values, dMissingValue, rootDocs, innerDocs, context.reader().maxDoc());
+                }
+                return new Doubles() {
+                    @Override
+                    public double get(int docID) {
+                        return selectedValues.get(docID);
+                    }
+                };
+            }
+            @Override
+            public void setScorer(Scorer scorer) {
+                DoubleValuesComparatorSource.this.setScorer(scorer);
+            }
+        };
     }
 }

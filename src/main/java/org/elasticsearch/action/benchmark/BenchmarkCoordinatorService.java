@@ -406,6 +406,7 @@ public class BenchmarkCoordinatorService extends AbstractBenchmarkService<Benchm
             final BenchmarkAbortResponse response = new BenchmarkAbortResponse(entry.benchmarkId());
 
             for (Map.Entry<String, BenchmarkMetaData.Entry.NodeState> e : entry.nodeStateMap().entrySet()) {
+                assert e.getValue() == BenchmarkMetaData.Entry.NodeState.ABORTED;
                 response.addNodeResponse(e.getKey(), e.getValue());
             }
 
@@ -432,6 +433,7 @@ public class BenchmarkCoordinatorService extends AbstractBenchmarkService<Benchm
             final BenchmarkPauseResponse response = new BenchmarkPauseResponse(entry.benchmarkId());
 
             for (Map.Entry<String, BenchmarkMetaData.Entry.NodeState> e : entry.nodeStateMap().entrySet()) {
+                assert e.getValue() == BenchmarkMetaData.Entry.NodeState.PAUSED;
                 response.addNodeResponse(e.getKey(), e.getValue());
             }
 

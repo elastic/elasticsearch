@@ -19,15 +19,16 @@
 
 package org.elasticsearch.index.search.morelikethis;
 
-import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.get.MultiGetItemResponse;
+import org.apache.lucene.index.Fields;
 import org.elasticsearch.action.get.MultiGetRequest;
-import org.elasticsearch.action.get.MultiGetResponse;
+import org.elasticsearch.action.termvector.MultiTermVectorsItemResponse;
+import org.elasticsearch.action.termvector.MultiTermVectorsRequest;
+import org.elasticsearch.action.termvector.MultiTermVectorsResponse;
+import org.elasticsearch.action.termvector.TermVectorResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.get.GetField;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -38,21 +39,6 @@ import java.util.List;
  */
 public class MoreLikeThisFetchService extends AbstractComponent {
 
-    public static final class LikeText {
-        public final String field;
-        public final String[] text;
-
-        public LikeText(String field, String text) {
-            this.field = field;
-            this.text = new String[]{text};
-        }
-
-        public LikeText(String field, String... text) {
-            this.field = field;
-            this.text = text;
-        }
-    }
-
     private final Client client;
 
     @Inject
@@ -61,30 +47,23 @@ public class MoreLikeThisFetchService extends AbstractComponent {
         this.client = client;
     }
 
-    public List<LikeText> fetch(List<MultiGetRequest.Item> items) throws IOException {
-        MultiGetRequest request = new MultiGetRequest();
+    public Fields[] fetch(List<MultiGetRequest.Item> items) throws IOException {
+        MultiTermVectorsRequest request = new MultiTermVectorsRequest();
         for (MultiGetRequest.Item item : items) {
             request.add(item);
         }
-        MultiGetResponse responses = client.multiGet(request).actionGet();
-        List<LikeText> likeTexts = new ArrayList<>();
-        for (MultiGetItemResponse response : responses) {
+        List<Fields> likeFields = new ArrayList<>();
+        MultiTermVectorsResponse responses = client.multiTermVectors(request).actionGet();
+        for (MultiTermVectorsItemResponse response : responses) {
             if (response.isFailed()) {
                 continue;
             }
-            GetResponse getResponse = response.getResponse();
+            TermVectorResponse getResponse = response.getResponse();
             if (!getResponse.isExists()) {
                 continue;
             }
-
-            for (GetField getField : getResponse.getFields().values()) {
-                String[] text = new String[getField.getValues().size()];
-                for (int i = 0; i < text.length; i++) {
-                    text[i] = getField.getValues().get(i).toString();
-                }
-                likeTexts.add(new LikeText(getField.getName(), text));
-            }
+            likeFields.add(getResponse.getFields());
         }
-        return likeTexts;
+        return likeFields.toArray(Fields.EMPTY_ARRAY);
     }
 }

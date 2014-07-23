@@ -124,7 +124,7 @@ boost factor.
 
 |`boost` |Sets the boost value of the query. Defaults to `1.0`.
 
-|`analyzer` |The analyzer that will be used to analyze the text.
-Defaults to the analyzer associated with the field.
+|`analyzer` |The analyzer that will be used to analyze the `like text`.
+Defaults to the analyzer associated with the first field in `fields`.
 |=======================================================================
 

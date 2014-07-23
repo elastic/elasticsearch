@@ -24,6 +24,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
+import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.support.single.shard.SingleShardOperationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -68,7 +69,7 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
         this.id = id;
         this.type = type;
     }
-    
+
     /**
      * Constructs a new term vector request for a document that will be fetch
      * from the provided index. Use {@link #type(String)} and
@@ -84,6 +85,14 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
         if (other.selectedFields != null) {
             this.selectedFields = new HashSet<>(other.selectedFields);
         }
+    }
+
+    public TermVectorRequest(MultiGetRequest.Item item) {
+        super(item.index());
+        this.id = item.id();
+        this.type = item.type();
+        this.selectedFields(item.fields());
+        this.routing(item.routing());
     }
 
     public EnumSet<Flag> getFlags() {

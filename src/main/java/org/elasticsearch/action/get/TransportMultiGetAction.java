@@ -22,6 +22,7 @@ package org.elasticsearch.action.get;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -39,7 +40,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class TransportMultiGetAction extends TransportAction<MultiGetRequest, MultiGetResponse> {
+public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequest, MultiGetResponse> {
 
     private final ClusterService clusterService;
 
@@ -47,11 +48,14 @@ public class TransportMultiGetAction extends TransportAction<MultiGetRequest, Mu
 
     @Inject
     public TransportMultiGetAction(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterService clusterService, TransportShardMultiGetAction shardAction, ActionFilters actionFilters) {
-        super(settings, MultiGetAction.NAME, threadPool, actionFilters);
+        super(settings, MultiGetAction.NAME, threadPool, transportService, actionFilters);
         this.clusterService = clusterService;
         this.shardAction = shardAction;
+    }
 
-        transportService.registerHandler(MultiGetAction.NAME, new TransportHandler());
+    @Override
+    public MultiGetRequest newRequestInstance(){
+        return new MultiGetRequest();
     }
 
     @Override
@@ -126,44 +130,6 @@ public class TransportMultiGetAction extends TransportAction<MultiGetRequest, Mu
                     listener.onResponse(new MultiGetResponse(responses.toArray(new MultiGetItemResponse[responses.length()])));
                 }
             });
-        }
-    }
-
-    class TransportHandler extends BaseTransportRequestHandler<MultiGetRequest> {
-
-        @Override
-        public MultiGetRequest newInstance() {
-            return new MultiGetRequest();
-        }
-
-        @Override
-        public void messageReceived(final MultiGetRequest request, final TransportChannel channel) throws Exception {
-            // no need to use threaded listener, since we just send a response
-            request.listenerThreaded(false);
-            execute(request, new ActionListener<MultiGetResponse>() {
-                @Override
-                public void onResponse(MultiGetResponse response) {
-                    try {
-                        channel.sendResponse(response);
-                    } catch (Throwable e) {
-                        onFailure(e);
-                    }
-                }
-
-                @Override
-                public void onFailure(Throwable e) {
-                    try {
-                        channel.sendResponse(e);
-                    } catch (Exception e1) {
-                        logger.warn("Failed to send error response for action [" + MultiGetAction.NAME + "] and request [" + request + "]", e1);
-                    }
-                }
-            });
-        }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.SAME;
         }
     }
 }

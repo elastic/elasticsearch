@@ -6,9 +6,9 @@ at startup without any user interaction.
 This can be achieved through `service.bat` script under `bin/` folder which allows one to install,
 remove, manage or configure the service and potentially start and stop the service, all from the command-line.
 
-[source,sh]
+["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-c:\elasticsearch-0.90.5\bin>service
+c:\elasticsearch-{version}\bin>service
 
 Usage: service.bat install|remove|start|stop|manager [SERVICE_ID]
 --------------------------------------------------
@@ -36,9 +36,9 @@ the service is reinstalled.
 Based on the architecture of the available JDK/JRE (set through `JAVA_HOME`), the appropriate 64-bit(x64) or 32-bit(x86)
 service will be installed. This information is made available during install:
 
-[source,sh]
+["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-c:\elasticsearch-0.90.5\bin>service install
+c:\elasticsearch-{version}\bin>service install
 Installing service      :  "elasticsearch-service-x64"
 Using JAVA_HOME (64-bit):  "c:\jvm\jdk1.7"
 The service 'elasticsearch-service-x64' has been installed.

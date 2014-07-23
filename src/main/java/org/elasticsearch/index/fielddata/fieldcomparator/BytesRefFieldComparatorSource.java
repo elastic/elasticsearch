@@ -47,9 +47,9 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
     private final IndexFieldData<?> indexFieldData;
     private final MultiValueMode sortMode;
     private final Object missingValue;
-    private final NestedLayout nested;
+    private final Nested nested;
 
-    public BytesRefFieldComparatorSource(IndexFieldData<?> indexFieldData, Object missingValue, MultiValueMode sortMode, NestedLayout nested) {
+    public BytesRefFieldComparatorSource(IndexFieldData<?> indexFieldData, Object missingValue, MultiValueMode sortMode, Nested nested) {
         this.indexFieldData = indexFieldData;
         this.sortMode = sortMode;
         this.missingValue = missingValue;

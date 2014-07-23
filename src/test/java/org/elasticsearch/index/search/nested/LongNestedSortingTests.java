@@ -23,7 +23,7 @@ import org.apache.lucene.document.LongField;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.NestedLayout;
+import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
 import org.elasticsearch.index.fielddata.plain.PackedArrayIndexFieldData;
 import org.elasticsearch.search.MultiValueMode;
@@ -38,7 +38,7 @@ public class LongNestedSortingTests extends AbstractNumberNestedSortingTests {
     }
 
     @Override
-    protected IndexFieldData.XFieldComparatorSource createFieldComparator(String fieldName, MultiValueMode sortMode, Object missingValue, NestedLayout nested) {
+    protected IndexFieldData.XFieldComparatorSource createFieldComparator(String fieldName, MultiValueMode sortMode, Object missingValue, Nested nested) {
         PackedArrayIndexFieldData fieldData = getForField(fieldName);
         return new LongValuesComparatorSource(fieldData, missingValue, sortMode, nested);
     }

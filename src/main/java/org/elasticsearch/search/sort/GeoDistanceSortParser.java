@@ -33,7 +33,7 @@ import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.*;
-import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.NestedLayout;
+import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.ObjectMappers;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
@@ -140,7 +140,7 @@ public class GeoDistanceSortParser implements SortParser {
         } else {
             objectMapper = context.mapperService().resolveClosestNestedObjectMapper(fieldName);
         }
-        final NestedLayout nested;
+        final Nested nested;
         if (objectMapper != null && objectMapper.nested().isNested()) {
             Filter rootDocumentsFilter = context.filterCache().cache(NonNestedDocsFilter.INSTANCE);
             Filter innerDocumentsFilter;
@@ -149,7 +149,7 @@ public class GeoDistanceSortParser implements SortParser {
             } else {
                 innerDocumentsFilter = context.filterCache().cache(objectMapper.nestedTypeFilter());
             }
-            nested = new NestedLayout(rootDocumentsFilter, innerDocumentsFilter);
+            nested = new Nested(rootDocumentsFilter, innerDocumentsFilter);
         } else {
             nested = null;
         }

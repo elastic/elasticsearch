@@ -32,7 +32,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexComponent;
-import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.NestedLayout;
+import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -99,7 +99,7 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
     /**
      * Comparator used for sorting.
      */
-    XFieldComparatorSource comparatorSource(@Nullable Object missingValue, MultiValueMode sortMode, NestedLayout nested);
+    XFieldComparatorSource comparatorSource(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested);
 
     /**
      * Clears any resources associated with this field data.
@@ -129,11 +129,10 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
          * documents that are contained in the inner set between the previous
          * parent + 1, or 0 if there is no previous parent, and R (excluded).
          */
-        // TODO: better name
-        public static class NestedLayout {
+        public static class Nested {
             private final Filter rootFilter, innerFilter;
 
-            public NestedLayout(Filter rootFilter, Filter innerFilter) {
+            public Nested(Filter rootFilter, Filter innerFilter) {
                 this.rootFilter = rootFilter;
                 this.innerFilter = innerFilter;
             }

@@ -28,7 +28,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.*;
-import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.NestedLayout;
+import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
 import org.elasticsearch.index.mapper.ObjectMappers;
@@ -47,6 +47,9 @@ import java.util.Map;
  *
  */
 public class ScriptSortParser implements SortParser {
+
+    private static final String STRING_SORT_TYPE = "string";
+    private static final String NUMBER_SORT_TYPE = "number";
 
     @Override
     public String[] names() {
@@ -111,7 +114,7 @@ public class ScriptSortParser implements SortParser {
         }
         final SearchScript searchScript = context.scriptService().search(context.lookup(), scriptLang, script, scriptType, params);
 
-        if ("string".equals(type) && (sortMode == MultiValueMode.SUM || sortMode == MultiValueMode.AVG)) {
+        if (STRING_SORT_TYPE.equals(type) && (sortMode == MultiValueMode.SUM || sortMode == MultiValueMode.AVG)) {
             throw new SearchParseException(context, "type [string] doesn't support mode [" + sortMode + "]");
         }
 
@@ -121,7 +124,7 @@ public class ScriptSortParser implements SortParser {
 
         // If nested_path is specified, then wrap the `fieldComparatorSource` in a `NestedFieldComparatorSource`
         ObjectMapper objectMapper;
-        final NestedLayout nested;
+        final Nested nested;
         if (nestedPath != null) {
             ObjectMappers objectMappers = context.mapperService().objectMapper(nestedPath);
             if (objectMappers == null) {
@@ -139,55 +142,58 @@ public class ScriptSortParser implements SortParser {
             } else {
                 innerDocumentsFilter = context.filterCache().cache(objectMapper.nestedTypeFilter());
             }
-            nested = new NestedLayout(rootDocumentsFilter, innerDocumentsFilter);
+            nested = new Nested(rootDocumentsFilter, innerDocumentsFilter);
         } else {
             nested = null;
         }
 
         final IndexFieldData.XFieldComparatorSource fieldComparatorSource;
-        if ("string".equals(type)) {
-            fieldComparatorSource = new BytesRefFieldComparatorSource(null, null, sortMode, nested) {
-                @Override
-                protected SortedBinaryDocValues getValues(AtomicReaderContext context) {
-                    searchScript.setNextReader(context);
-                    final BinaryDocValues values = new BinaryDocValues() {
-                        final BytesRef spare = new BytesRef();
-                        @Override
-                        public BytesRef get(int docID) {
-                            searchScript.setNextDocId(docID);
-                            spare.copyChars(searchScript.run().toString());
-                            return spare;
-                        }
-                    };
-                    return FieldData.singleton(values, null);
-                }
-                @Override
-                protected void setScorer(Scorer scorer) {
-                    searchScript.setScorer(scorer);
-                }
-            };
-        } else if ("number".equals(type)) {
-            // TODO: should we rather sort missing values last?
-            fieldComparatorSource = new DoubleValuesComparatorSource(null, Double.MAX_VALUE, sortMode, nested) {
-                @Override
-                protected SortedNumericDoubleValues getValues(AtomicReaderContext context) {
-                    searchScript.setNextReader(context);
-                    final NumericDoubleValues values = new NumericDoubleValues() {
-                        @Override
-                        public double get(int docID) {
-                            searchScript.setNextDocId(docID);
-                            return searchScript.runAsDouble();
-                        }
-                    };
-                    return FieldData.singleton(values, null);
-                }
-                @Override
-                protected void setScorer(Scorer scorer) {
-                    searchScript.setScorer(scorer);
-                }
-            };
-        } else {
-            throw new SearchParseException(context, "custom script sort type [" + type + "] not supported");
+        switch (type) {
+            case STRING_SORT_TYPE:
+                fieldComparatorSource = new BytesRefFieldComparatorSource(null, null, sortMode, nested) {
+                    @Override
+                    protected SortedBinaryDocValues getValues(AtomicReaderContext context) {
+                        searchScript.setNextReader(context);
+                        final BinaryDocValues values = new BinaryDocValues() {
+                            final BytesRef spare = new BytesRef();
+                            @Override
+                            public BytesRef get(int docID) {
+                                searchScript.setNextDocId(docID);
+                                spare.copyChars(searchScript.run().toString());
+                                return spare;
+                            }
+                        };
+                        return FieldData.singleton(values, null);
+                    }
+                    @Override
+                    protected void setScorer(Scorer scorer) {
+                        searchScript.setScorer(scorer);
+                    }
+                };
+                break;
+            case NUMBER_SORT_TYPE:
+                // TODO: should we rather sort missing values last?
+                fieldComparatorSource = new DoubleValuesComparatorSource(null, Double.MAX_VALUE, sortMode, nested) {
+                    @Override
+                    protected SortedNumericDoubleValues getValues(AtomicReaderContext context) {
+                        searchScript.setNextReader(context);
+                        final NumericDoubleValues values = new NumericDoubleValues() {
+                            @Override
+                            public double get(int docID) {
+                                searchScript.setNextDocId(docID);
+                                return searchScript.runAsDouble();
+                            }
+                        };
+                        return FieldData.singleton(values, null);
+                    }
+                    @Override
+                    protected void setScorer(Scorer scorer) {
+                        searchScript.setScorer(scorer);
+                    }
+                };
+                break;
+            default:
+                throw new SearchParseException(context, "custom script sort type [" + type + "] not supported");
         }
 
         return new SortField("_script", fieldComparatorSource, reverse);

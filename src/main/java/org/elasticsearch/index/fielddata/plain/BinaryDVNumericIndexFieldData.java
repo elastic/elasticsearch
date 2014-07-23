@@ -32,7 +32,7 @@ import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.*;
-import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.NestedLayout;
+import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.FloatValuesComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
@@ -51,7 +51,7 @@ public class BinaryDVNumericIndexFieldData extends DocValuesIndexFieldData imple
         this.numericType = numericType;
     }
 
-    public org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource comparatorSource(final Object missingValue, final MultiValueMode sortMode, NestedLayout nested) {
+    public org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource comparatorSource(final Object missingValue, final MultiValueMode sortMode, Nested nested) {
         switch (numericType) {
         case FLOAT:
             return new FloatValuesComparatorSource(this, missingValue, sortMode, nested);

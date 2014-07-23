@@ -40,9 +40,9 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
     private final IndexNumericFieldData indexFieldData;
     private final Object missingValue;
     private final MultiValueMode sortMode;
-    private final NestedLayout nested;
+    private final Nested nested;
 
-    public LongValuesComparatorSource(IndexNumericFieldData indexFieldData, @Nullable Object missingValue, MultiValueMode sortMode, NestedLayout nested) {
+    public LongValuesComparatorSource(IndexNumericFieldData indexFieldData, @Nullable Object missingValue, MultiValueMode sortMode, Nested nested) {
         this.indexFieldData = indexFieldData;
         this.missingValue = missingValue;
         this.sortMode = sortMode;

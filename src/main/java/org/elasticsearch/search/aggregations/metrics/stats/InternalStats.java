@@ -174,8 +174,7 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(name);
+    public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field(Fields.COUNT, count);
         builder.field(Fields.MIN, count != 0 ? min : null);
         builder.field(Fields.MAX, count != 0 ? max : null);
@@ -188,7 +187,6 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
             builder.field(Fields.SUM_AS_STRING, valueFormatter.format(sum));
         }
         otherStatsToXCotent(builder, params);
-        builder.endObject();
         return builder;
     }
 

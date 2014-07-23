@@ -68,7 +68,7 @@ public class DoubleValuesComparatorSource extends IndexFieldData.XFieldComparato
 
         final double dMissingValue = (Double) missingObject(missingValue, reversed);
         // NOTE: it's important to pass null as a missing value in the constructor so that
-        // the comparator doesn't check docsWithField
+        // the comparator doesn't check docsWithField since we replace missing values in select()
         return new FieldComparator.DoubleComparator(numHits, null, null, null) {
             @Override
             protected Doubles getDoubleValues(AtomicReaderContext context, String field) throws IOException {

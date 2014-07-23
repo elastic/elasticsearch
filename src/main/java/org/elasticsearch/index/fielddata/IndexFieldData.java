@@ -21,10 +21,7 @@ package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.DocIdSet;
-import org.apache.lucene.search.FieldComparatorSource;
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.*;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.UnicodeUtil;
@@ -139,12 +136,16 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
 
             // TODO: nested docs should not be random filters but specialized
             // ones that guarantee that you always get a FixedBitSet
+            @Deprecated
             private static FixedBitSet toFixedBitSet(DocIdSet set, int maxDoc) throws IOException {
                 if (set == null || set instanceof FixedBitSet) {
                     return (FixedBitSet) set;
                 } else {
                     final FixedBitSet fixedBitSet = new FixedBitSet(maxDoc);
-                    fixedBitSet.or(set.iterator());
+                    final DocIdSetIterator it = set.iterator();
+                    if (it != null) {
+                        fixedBitSet.or(it);
+                    }
                     return fixedBitSet;
                 }
             }

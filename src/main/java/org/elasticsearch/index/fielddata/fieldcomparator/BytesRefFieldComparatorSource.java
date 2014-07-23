@@ -76,6 +76,7 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
         if (indexFieldData instanceof IndexOrdinalsFieldData) {
             // The ordinal-based comparator only supports sorting missing values first or last so when
             // a missing value is provided we fall back to the (slow) value-based comparator
+            // TODO: handle arbitrary missing values via a selector
             if (sortMissingFirst(missingValue) || sortMissingLast(missingValue)) {
                 return new FieldComparator.TermOrdValComparator(numHits, null, sortMissingLast) {
 
@@ -171,8 +172,6 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
       private BytesRef bottom;
       private BytesRef topValue;
       private final int missingSortCmp;
-
-      // TODO: add missing first/last support here?
 
       /** Sole constructor. */
       public TermValComparator(int numHits, String field, boolean sortMissingLast) {

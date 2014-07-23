@@ -625,6 +625,8 @@ public enum MultiValueMode {
         }
         return new BinaryDocValues() {
 
+            final BytesRef spare = new BytesRef();
+
             @Override
             public BytesRef get(int rootDoc) {
                 assert rootDocs.get(rootDoc) : "can only sort root documents";
@@ -641,11 +643,14 @@ public enum MultiValueMode {
                     values.setDocument(doc);
                     final BytesRef innerValue = selectedValues.get(doc);
                     if (innerValue.length > 0 || docsWithValue == null || docsWithValue.get(doc)) {
-                        final BytesRef clone = BytesRef.deepCopyOf(innerValue);
                         if (accumulated == null) {
-                            accumulated = clone;
+                            spare.copyBytes(innerValue);
+                            accumulated = spare;
                         } else {
-                            accumulated = apply(accumulated, clone);
+                            final BytesRef applied = apply(accumulated, innerValue);
+                            if (applied == innerValue) {
+                                accumulated.copyBytes(innerValue);
+                            }
                         }
                     }
                 }

@@ -6,7 +6,9 @@
 package org.elasticsearch.shield.ssl;
 
 import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.base.Charsets;
+import com.google.common.io.Files;
 import com.google.common.net.InetAddresses;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.client.Client;
@@ -26,12 +28,11 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportModule;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.*;
 
 import javax.net.ssl.*;
 import java.io.File;
+import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -44,6 +45,19 @@ import static org.hamcrest.Matchers.*;
 
 @ClusterScope(scope = Scope.SUITE, numDataNodes = 1, transportClientRatio = 0.0, numClientNodes = 0)
 public class SslIntegrationTests extends ElasticsearchIntegrationTest {
+
+    private static File ipFilterFile = null;
+
+    @BeforeClass
+    public static void writeAllowAllIpFilterFile() {
+        try {
+            ipFilterFile = File.createTempFile("elasticsearch", "ipfilter");
+            ipFilterFile.deleteOnExit();
+            Files.write("allow: all\n".getBytes(com.google.common.base.Charsets.UTF_8), ipFilterFile);
+        } catch (IOException e) {
+            throw new ElasticsearchException("error creating temp file", e);
+        }
+    }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
@@ -74,6 +88,7 @@ public class SslIntegrationTests extends ElasticsearchIntegrationTest {
                 .put("http.type", NettySSLHttpServerTransportModule.class.getName())
                 .put(TransportModule.TRANSPORT_TYPE_KEY, NettySSLTransportModule.class.getName())
                 .put("plugin.types", SecurityPlugin.class.getName())
+                .put("shield.n2n.file", ipFilterFile.getPath())
                 .build();
     }
 
@@ -215,6 +230,7 @@ public class SslIntegrationTests extends ElasticsearchIntegrationTest {
                 .put("shield.transport.ssl.truststore_password", "testclient")
                 .put("discovery.zen.ping.multicast.ping.enabled", false)
                 .put(TransportModule.TRANSPORT_TYPE_KEY, NettySSLTransportModule.class.getName())
+                .put("shield.n2n.file", ipFilterFile.getPath())
                 //.put("plugin.types", SecurityPlugin.class.getName())
                 .put("cluster.name", internalCluster().getClusterName());
     }

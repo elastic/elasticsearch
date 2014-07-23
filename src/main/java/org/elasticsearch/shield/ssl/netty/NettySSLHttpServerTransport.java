@@ -13,6 +13,7 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.http.netty.NettyHttpServerTransport;
+import org.elasticsearch.shield.n2n.N2NNettyUpstreamHandler;
 import org.elasticsearch.shield.ssl.SSLConfig;
 
 import javax.net.ssl.SSLEngine;
@@ -23,11 +24,14 @@ import javax.net.ssl.SSLEngine;
 public class NettySSLHttpServerTransport extends NettyHttpServerTransport {
 
     private final boolean ssl;
+    private final N2NNettyUpstreamHandler shieldUpstreamHandler;
 
     @Inject
-    public NettySSLHttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays) {
+    public NettySSLHttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays,
+                                       N2NNettyUpstreamHandler shieldUpstreamHandler) {
         super(settings, networkService, bigArrays);
         this.ssl = settings.getAsBoolean("shield.http.ssl", false);
+        this.shieldUpstreamHandler = shieldUpstreamHandler;
     }
 
     @Override
@@ -37,15 +41,24 @@ public class NettySSLHttpServerTransport extends NettyHttpServerTransport {
 
     private class HttpSslChannelPipelineFactory extends HttpChannelPipelineFactory {
 
+        private final SSLConfig sslConfig;
+
         public HttpSslChannelPipelineFactory(NettyHttpServerTransport transport) {
             super(transport);
+            if (ssl) {
+                sslConfig = new SSLConfig(settings.getByPrefix("shield.http.ssl."));
+                // try to create an SSL engine, so that exceptions lead to early exit
+                sslConfig.createSSLEngine();
+            } else {
+                sslConfig = null;
+            }
         }
 
         @Override
         public ChannelPipeline getPipeline() throws Exception {
             ChannelPipeline pipeline = super.getPipeline();
+            pipeline.addFirst("ipfilter", shieldUpstreamHandler);
             if (ssl) {
-                SSLConfig sslConfig = new SSLConfig(settings.getByPrefix("shield.http.ssl."));
                 SSLEngine engine = sslConfig.createSSLEngine();
                 engine.setUseClientMode(false);
                 // TODO MAKE ME CONFIGURABLE

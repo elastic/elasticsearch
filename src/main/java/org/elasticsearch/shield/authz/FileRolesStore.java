@@ -87,7 +87,7 @@ public class FileRolesStore extends AbstractComponent implements RolesStore {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
-                } else if (token == XContentParser.Token.START_OBJECT) {
+                } else if (token == XContentParser.Token.START_OBJECT && currentFieldName != null) {
                     String roleName = currentFieldName;
                     Permission.Compound.Builder builder = null;
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {

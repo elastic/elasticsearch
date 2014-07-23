@@ -21,6 +21,6 @@ public class N2NAuthModule extends AbstractModule {
 
     @Override
     protected void configure() {
-
+        bind(N2NNettyUpstreamHandler.class).asEagerSingleton();
     }
 }

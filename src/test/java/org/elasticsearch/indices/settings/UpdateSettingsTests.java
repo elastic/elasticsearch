@@ -320,13 +320,15 @@ public class UpdateSettingsTests extends ElasticsearchIntegrationTest {
 
             assertFalse(mockAppender.sawUpdateSetting);
 
-            // Now make a live change to reduce allowed merge threads:
+            // Now make a live change to reduce allowed merge threads, and waaay over-throttle merging so they fall behind:
             client()
                 .admin()
                 .indices()
                 .prepareUpdateSettings("test")
                 .setSettings(ImmutableSettings.builder()
-                             .put(ConcurrentMergeSchedulerProvider.MAX_THREAD_COUNT, "1"))
+                             .put(ConcurrentMergeSchedulerProvider.MAX_THREAD_COUNT, "1")
+                             .put(AbstractIndexStore.INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC, "10kb")
+                             )
                 .get();
 
             // Make sure we log the change:

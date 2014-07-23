@@ -18,13 +18,11 @@
  */
 package org.elasticsearch.action.percolate;
 
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.IndicesRelatedRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
@@ -46,7 +44,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  */
-public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> implements IndicesRelatedRequest {
+public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> {
 
     private String[] indices;
     private String documentType;
@@ -352,15 +350,6 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
         }
 
         return validationException;
-    }
-
-    @Override
-    public ImmutableSet<String> requestedIndices() {
-        ImmutableSet.Builder<String> builder = ImmutableSet.builder();
-        for (PercolateRequest percolateRequest : requests()) {
-            builder.addAll(percolateRequest.requestedIndices());
-        }
-        return builder.build();
     }
 
     @Override

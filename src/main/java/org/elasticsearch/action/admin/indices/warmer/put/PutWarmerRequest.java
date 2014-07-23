@@ -19,9 +19,8 @@
 
 package org.elasticsearch.action.admin.indices.warmer.put;
 
-import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.IndicesRelatedRequest;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -35,7 +34,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * A request to put a search warmer.
  */
-public class PutWarmerRequest extends AcknowledgedRequest<PutWarmerRequest> implements IndicesRelatedRequest {
+public class PutWarmerRequest extends AcknowledgedRequest<PutWarmerRequest> implements IndicesRequest {
 
     private String name;
 
@@ -100,11 +99,11 @@ public class PutWarmerRequest extends AcknowledgedRequest<PutWarmerRequest> impl
     }
 
     @Override
-    public ImmutableSet<String> requestedIndices() {
+    public String[] indices() {
         if (searchRequest == null) {
             throw new IllegalStateException("unable to retrieve indices, search request is null");
         }
-        return searchRequest.requestedIndices();
+        return searchRequest.indices();
     }
 
     @Override

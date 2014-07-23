@@ -19,10 +19,9 @@
 
 package org.elasticsearch.action.support.replication;
 
-import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.IndicesRelatedRequest;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -34,7 +33,7 @@ import java.io.IOException;
 /**
  *
  */
-public class IndicesReplicationOperationRequest<T extends IndicesReplicationOperationRequest> extends ActionRequest<T> implements IndicesRelatedRequest {
+public class IndicesReplicationOperationRequest<T extends IndicesReplicationOperationRequest> extends ActionRequest<T> implements IndicesRequest {
 
     protected TimeValue timeout = ShardReplicationOperationRequest.DEFAULT_TIMEOUT;
     protected String[] indices;
@@ -65,6 +64,7 @@ public class IndicesReplicationOperationRequest<T extends IndicesReplicationOper
         return (T) this;
     }
 
+    @Override
     public String[] indices() {
         return this.indices;
     }
@@ -132,11 +132,6 @@ public class IndicesReplicationOperationRequest<T extends IndicesReplicationOper
     @Override
     public ActionRequestValidationException validate() {
         return null;
-    }
-
-    @Override
-    public ImmutableSet<String> requestedIndices() {
-        return Helper.indicesOrAll(indices);
     }
 
     @Override

@@ -19,10 +19,9 @@
 
 package org.elasticsearch.action.admin.indices.settings.put;
 
-import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.IndicesRelatedRequest;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -44,7 +43,7 @@ import static org.elasticsearch.common.settings.ImmutableSettings.writeSettingsT
 /**
  * Request for an update index settings action
  */
-public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsRequest> implements IndicesRelatedRequest {
+public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsRequest> implements IndicesRequest {
 
     private String[] indices;
     private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, true);
@@ -77,6 +76,7 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
         return validationException;
     }
 
+    @Override
     public String[] indices() {
         return indices;
     }
@@ -139,11 +139,6 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
             throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
         return this;
-    }
-
-    @Override
-    public ImmutableSet<String> requestedIndices() {
-        return Helper.indicesOrAll(indices);
     }
 
     @Override

@@ -19,14 +19,13 @@
 
 package org.elasticsearch.cluster.action.index;
 
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.IndicesRelatedRequest;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
@@ -162,7 +161,7 @@ public class MappingUpdatedAction extends TransportMasterNodeOperationAction<Map
         }
     }
 
-    public static class MappingUpdatedRequest extends MasterNodeOperationRequest<MappingUpdatedRequest> implements IndicesRelatedRequest {
+    public static class MappingUpdatedRequest extends MasterNodeOperationRequest<MappingUpdatedRequest> implements IndicesRequest {
 
         private String index;
         private String indexUUID = IndexMetaData.INDEX_UUID_NA_VALUE;
@@ -188,9 +187,8 @@ public class MappingUpdatedAction extends TransportMasterNodeOperationAction<Map
         }
 
         @Override
-        public ImmutableSet<String> requestedIndices() {
-            assert index != null;
-            return ImmutableSet.of(index);
+        public String[] indices() {
+            return new String[]{index};
         }
 
         public String indexUUID() {

@@ -19,13 +19,11 @@
 
 package org.elasticsearch.action.mlt;
 
-import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.IndicesRelatedRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Requests;
@@ -54,7 +52,7 @@ import static org.elasticsearch.search.Scroll.readScroll;
  * @see org.elasticsearch.client.Requests#moreLikeThisRequest(String)
  * @see org.elasticsearch.action.search.SearchResponse
  */
-public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> implements IndicesRelatedRequest {
+public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
 
     private String index;
 
@@ -538,18 +536,6 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> impl
             validationException = ValidateActions.addValidationError("id is missing", validationException);
         }
         return validationException;
-    }
-
-    @Override
-    public ImmutableSet<String> requestedIndices() {
-        if (index == null) {
-            throw new IllegalStateException("index is missing");
-        }
-        if (searchIndices == null) {
-            return ImmutableSet.of(index);
-        }
-        ImmutableSet<String> indices = Helper.indicesOrAll(searchIndices);
-        return ImmutableSet.<String>builder().addAll(indices).add(index).build();
     }
 
     @Override

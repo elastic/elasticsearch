@@ -19,9 +19,8 @@
 
 package org.elasticsearch.cluster.action.index;
 
-import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.IndicesRelatedRequest;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaDataMappingService;
@@ -87,7 +86,7 @@ public class NodeMappingRefreshAction extends AbstractComponent {
         }
     }
 
-    public static class NodeMappingRefreshRequest extends TransportRequest implements IndicesRelatedRequest {
+    public static class NodeMappingRefreshRequest extends TransportRequest implements IndicesRequest {
 
         private String index;
         private String indexUUID = IndexMetaData.INDEX_UUID_NA_VALUE;
@@ -105,9 +104,8 @@ public class NodeMappingRefreshAction extends AbstractComponent {
         }
 
         @Override
-        public ImmutableSet<String> requestedIndices() {
-            assert index != null;
-            return ImmutableSet.of(index);
+        public String[] indices() {
+            return new String[]{index};
         }
 
         public String index() {

@@ -19,11 +19,10 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.create;
 
-import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.IndicesRelatedRequest;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.common.Strings;
@@ -63,7 +62,7 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBo
  * <li>must not contain invalid file name characters {@link org.elasticsearch.common.Strings#INVALID_FILENAME_CHARS} </li>
  * </ul>
  */
-public class CreateSnapshotRequest extends MasterNodeOperationRequest<CreateSnapshotRequest> implements IndicesRelatedRequest {
+public class CreateSnapshotRequest extends MasterNodeOperationRequest<CreateSnapshotRequest> implements IndicesRequest {
 
     private String snapshot;
 
@@ -197,6 +196,7 @@ public class CreateSnapshotRequest extends MasterNodeOperationRequest<CreateSnap
      *
      * @return list of indices
      */
+    @Override
     public String[] indices() {
         return indices;
     }
@@ -461,11 +461,6 @@ public class CreateSnapshotRequest extends MasterNodeOperationRequest<CreateSnap
         } catch (IOException e) {
             throw new ElasticsearchIllegalArgumentException("failed to parse snapshot source", e);
         }
-    }
-
-    @Override
-    public ImmutableSet<String> requestedIndices() {
-        return Helper.indicesOrAll(indices);
     }
 
     @Override

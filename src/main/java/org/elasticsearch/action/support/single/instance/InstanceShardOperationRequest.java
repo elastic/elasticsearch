@@ -19,10 +19,9 @@
 
 package org.elasticsearch.action.support.single.instance;
 
-import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.IndicesRelatedRequest;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -34,7 +33,7 @@ import java.util.concurrent.TimeUnit;
 /**
  *
  */
-public abstract class InstanceShardOperationRequest<T extends InstanceShardOperationRequest> extends ActionRequest<T> implements IndicesRelatedRequest {
+public abstract class InstanceShardOperationRequest<T extends InstanceShardOperationRequest> extends ActionRequest<T> implements IndicesRequest {
 
     public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(1, TimeUnit.MINUTES);
 
@@ -64,16 +63,15 @@ public abstract class InstanceShardOperationRequest<T extends InstanceShardOpera
         return index;
     }
 
+    @Override
+    public String[] indices() {
+        return new String[]{index};
+    }
+
     @SuppressWarnings("unchecked")
     public final T index(String index) {
         this.index = index;
         return (T) this;
-    }
-
-    @Override
-    public ImmutableSet<String> requestedIndices() {
-        assert index != null;
-        return ImmutableSet.of(index);
     }
 
     public TimeValue timeout() {

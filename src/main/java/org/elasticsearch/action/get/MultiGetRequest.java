@@ -19,13 +19,11 @@
 
 package org.elasticsearch.action.get;
 
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterators;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.IndicesRelatedRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -46,7 +44,7 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 
-public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements Iterable<MultiGetRequest.Item>, IndicesRelatedRequest {
+public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements Iterable<MultiGetRequest.Item> {
 
     /**
      * A single get item.
@@ -470,16 +468,6 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
     @Override
     public Iterator<Item> iterator() {
         return Iterators.unmodifiableIterator(items.iterator());
-    }
-
-    @Override
-    public ImmutableSet<String> requestedIndices() {
-        ImmutableSet.Builder<String> builder = ImmutableSet.builder();
-        int i = 0;
-        for (Item item : items) {
-            builder.add(item.index());
-        }
-        return builder.build();
     }
 
     @Override

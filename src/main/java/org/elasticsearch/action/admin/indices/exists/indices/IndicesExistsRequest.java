@@ -19,10 +19,9 @@
 
 package org.elasticsearch.action.admin.indices.exists.indices;
 
-import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.IndicesRelatedRequest;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequest;
 import org.elasticsearch.common.Strings;
@@ -33,7 +32,7 @@ import java.io.IOException;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class IndicesExistsRequest extends MasterNodeReadOperationRequest<IndicesExistsRequest> implements IndicesRelatedRequest {
+public class IndicesExistsRequest extends MasterNodeReadOperationRequest<IndicesExistsRequest> implements IndicesRequest {
 
     private String[] indices = Strings.EMPTY_ARRAY;
     private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, true);
@@ -42,6 +41,7 @@ public class IndicesExistsRequest extends MasterNodeReadOperationRequest<Indices
         this.indices = indices;
     }
 
+    @Override
     public String[] indices() {
         return indices;
     }
@@ -67,11 +67,6 @@ public class IndicesExistsRequest extends MasterNodeReadOperationRequest<Indices
             validationException = addValidationError("index/indices is missing", validationException);
         }
         return validationException;
-    }
-
-    @Override
-    public ImmutableSet<String> requestedIndices() {
-        return Helper.indicesOrAll(indices);
     }
 
     @Override

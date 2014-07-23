@@ -19,9 +19,8 @@
 
 package org.elasticsearch.action.admin.indices.delete;
 
-import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.IndicesRelatedRequest;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
@@ -38,7 +37,7 @@ import static org.elasticsearch.common.unit.TimeValue.readTimeValue;
 /**
  * A request to delete an index. Best created with {@link org.elasticsearch.client.Requests#deleteIndexRequest(String)}.
  */
-public class DeleteIndexRequest extends MasterNodeOperationRequest<DeleteIndexRequest> implements IndicesRelatedRequest {
+public class DeleteIndexRequest extends MasterNodeOperationRequest<DeleteIndexRequest> implements IndicesRequest {
 
     private String[] indices;
     // Delete index should work by default on both open and closed indices.
@@ -92,6 +91,7 @@ public class DeleteIndexRequest extends MasterNodeOperationRequest<DeleteIndexRe
     /**
      * The index to delete.
      */
+    @Override
     public String[] indices() {
         return indices;
     }
@@ -119,14 +119,6 @@ public class DeleteIndexRequest extends MasterNodeOperationRequest<DeleteIndexRe
      */
     public DeleteIndexRequest timeout(String timeout) {
         return timeout(TimeValue.parseTimeValue(timeout, null));
-    }
-
-    @Override
-    public ImmutableSet<String> requestedIndices() {
-        if (CollectionUtils.isEmpty(indices)) {
-            throw new IllegalStateException("indices is empty or missing");
-        }
-        return Helper.indicesOrAll(indices);
     }
 
     @Override

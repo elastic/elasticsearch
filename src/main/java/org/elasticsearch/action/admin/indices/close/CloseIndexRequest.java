@@ -19,9 +19,8 @@
 
 package org.elasticsearch.action.admin.indices.close;
 
-import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.IndicesRelatedRequest;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -35,7 +34,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * A request to close an index.
  */
-public class CloseIndexRequest extends AcknowledgedRequest<CloseIndexRequest> implements IndicesRelatedRequest {
+public class CloseIndexRequest extends AcknowledgedRequest<CloseIndexRequest> implements IndicesRequest {
 
     private String[] indices;
     private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, false);
@@ -63,6 +62,7 @@ public class CloseIndexRequest extends AcknowledgedRequest<CloseIndexRequest> im
      * The indices to be closed
      * @return the indices to be closed
      */
+    @Override
     public String[] indices() {
         return indices;
     }
@@ -97,14 +97,6 @@ public class CloseIndexRequest extends AcknowledgedRequest<CloseIndexRequest> im
     public CloseIndexRequest indicesOptions(IndicesOptions indicesOptions) {
         this.indicesOptions = indicesOptions;
         return this;
-    }
-
-    @Override
-    public ImmutableSet<String> requestedIndices() {
-        if (CollectionUtils.isEmpty(indices)) {
-            throw new IllegalStateException("indices is empty or missing");
-        }
-        return Helper.indicesOrAll(indices);
     }
 
     @Override

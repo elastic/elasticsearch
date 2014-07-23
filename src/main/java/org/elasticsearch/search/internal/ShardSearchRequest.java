@@ -19,9 +19,8 @@
 
 package org.elasticsearch.search.internal;
 
-import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.IndicesRelatedRequest;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.type.ParsedScrollId;
@@ -56,7 +55,7 @@ import static org.elasticsearch.search.Scroll.readScroll;
  * }
  * </pre>
  */
-public class ShardSearchRequest extends TransportRequest implements IndicesRelatedRequest {
+public class ShardSearchRequest extends TransportRequest implements IndicesRequest {
 
     private String index;
 
@@ -114,14 +113,13 @@ public class ShardSearchRequest extends TransportRequest implements IndicesRelat
         this.searchType = searchType;
     }
 
-    @Override
-    public ImmutableSet<String> requestedIndices() {
-        assert index != null;
-        return ImmutableSet.of(index);
-    }
-
     public String index() {
         return index;
+    }
+
+    @Override
+    public String[] indices() {
+        return new String[]{index};
     }
 
     public int shardId() {

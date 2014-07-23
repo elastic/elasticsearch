@@ -19,12 +19,10 @@
 
 package org.elasticsearch.action.bulk;
 
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.IndicesRelatedRequest;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -54,7 +52,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  *
  * @see org.elasticsearch.client.Client#bulk(BulkRequest)
  */
-public class BulkRequest extends ActionRequest<BulkRequest> implements IndicesRelatedRequest {
+public class BulkRequest extends ActionRequest<BulkRequest> {
 
     private static final int REQUEST_OVERHEAD = 50;
 
@@ -462,16 +460,6 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements IndicesRe
         }
 
         return validationException;
-    }
-
-    @Override
-    public ImmutableSet<String> requestedIndices() {
-        ImmutableSet.Builder<String> builder = ImmutableSet.builder();
-        for (ActionRequest request : requests) {
-            assert request instanceof IndicesRelatedRequest;
-            builder.addAll(((IndicesRelatedRequest) request).requestedIndices());
-        }
-        return builder.build();
     }
 
     @Override

@@ -19,8 +19,7 @@
 
 package org.elasticsearch.action.support.broadcast;
 
-import com.google.common.collect.ImmutableSet;
-import org.elasticsearch.action.IndicesRelatedRequest;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.transport.TransportRequest;
@@ -30,7 +29,7 @@ import java.io.IOException;
 /**
  *
  */
-public abstract class BroadcastShardOperationRequest extends TransportRequest implements IndicesRelatedRequest {
+public abstract class BroadcastShardOperationRequest extends TransportRequest implements IndicesRequest {
 
     private String index;
     private int shardId;
@@ -40,6 +39,7 @@ public abstract class BroadcastShardOperationRequest extends TransportRequest im
 
     protected BroadcastShardOperationRequest(String index, int shardId, BroadcastOperationRequest request) {
         super(request);
+        assert index != null;
         this.index = index;
         this.shardId = shardId;
     }
@@ -54,9 +54,8 @@ public abstract class BroadcastShardOperationRequest extends TransportRequest im
     }
 
     @Override
-    public ImmutableSet<String> requestedIndices() {
-        assert index != null;
-        return ImmutableSet.of(index);
+    public String[] indices() {
+        return new String[]{index};
     }
 
     public int shardId() {

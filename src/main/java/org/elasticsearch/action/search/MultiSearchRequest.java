@@ -19,13 +19,11 @@
 
 package org.elasticsearch.action.search;
 
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.IndicesRelatedRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -46,7 +44,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * A multi search API request.
  */
-public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> implements IndicesRelatedRequest {
+public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> {
 
     private List<SearchRequest> requests = Lists.newArrayList();
 
@@ -252,15 +250,6 @@ public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> implem
     public MultiSearchRequest indicesOptions(IndicesOptions indicesOptions) {
         this.indicesOptions = indicesOptions;
         return this;
-    }
-
-    @Override
-    public ImmutableSet<String> requestedIndices() {
-        ImmutableSet.Builder<String> builder = ImmutableSet.builder();
-        for (SearchRequest searchRequest : requests()) {
-            builder.addAll(searchRequest.requestedIndices());
-        }
-        return builder.build();
     }
 
     @Override

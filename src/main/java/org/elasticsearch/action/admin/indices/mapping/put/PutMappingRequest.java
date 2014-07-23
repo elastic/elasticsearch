@@ -20,11 +20,10 @@
 package org.elasticsearch.action.admin.indices.mapping.put;
 
 import com.carrotsearch.hppc.ObjectOpenHashSet;
-import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.IndicesRelatedRequest;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.Strings;
@@ -51,7 +50,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * @see org.elasticsearch.client.IndicesAdminClient#putMapping(PutMappingRequest)
  * @see PutMappingResponse
  */
-public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> implements IndicesRelatedRequest {
+public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> implements IndicesRequest {
 
     private static ObjectOpenHashSet<String> RESERVED_FIELDS = ObjectOpenHashSet.from(
             "_uid", "_id", "_type", "_source",  "_all", "_analyzer", "_boost", "_parent", "_routing", "_index",
@@ -102,6 +101,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
     /**
      * The indices the mappings will be put.
      */
+    @Override
     public String[] indices() {
         return indices;
     }
@@ -251,11 +251,6 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
     public PutMappingRequest ignoreConflicts(boolean ignoreDuplicates) {
         this.ignoreConflicts = ignoreDuplicates;
         return this;
-    }
-
-    @Override
-    public ImmutableSet<String> requestedIndices() {
-        return Helper.indicesOrAll(indices);
     }
 
     @Override

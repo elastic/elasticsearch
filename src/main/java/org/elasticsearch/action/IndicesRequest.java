@@ -17,20 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.validate.query;
+package org.elasticsearch.action;
 
-import com.google.common.collect.ImmutableSet;
-import org.elasticsearch.test.ElasticsearchTestCase;
-import org.junit.Test;
+/**
+ * Needs to be implemented by all {@link org.elasticsearch.action.ActionRequest} subclasses that relate to
+ * one or more indices. Allows to retrieve which indices the action relates to.
+ */
+public interface IndicesRequest {
 
-import static org.hamcrest.CoreMatchers.equalTo;
-
-public class ShardValidateQueryRequestTests extends ElasticsearchTestCase {
-
-    @Test
-    public void testRelatedIndices() {
-        String randomIndex = randomAsciiOfLength(randomInt(30));
-        ShardValidateQueryRequest request = new ShardValidateQueryRequest(randomIndex, 1, null, new ValidateQueryRequest());
-        assertThat(request.requestedIndices(), equalTo(ImmutableSet.of(randomIndex)));
-    }
+    /**
+     * Returns the array of indices that the action relates to
+     */
+    String[] indices();
 }

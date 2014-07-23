@@ -19,10 +19,9 @@
 
 package org.elasticsearch.action.support.single.shard;
 
-import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.IndicesRelatedRequest;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -32,7 +31,7 @@ import java.io.IOException;
 /**
  *
  */
-public abstract class SingleShardOperationRequest<T extends SingleShardOperationRequest> extends ActionRequest<T> implements IndicesRelatedRequest {
+public abstract class SingleShardOperationRequest<T extends SingleShardOperationRequest> extends ActionRequest<T> implements IndicesRequest {
 
     protected String index;
 
@@ -68,9 +67,8 @@ public abstract class SingleShardOperationRequest<T extends SingleShardOperation
     }
 
     @Override
-    public ImmutableSet<String> requestedIndices() {
-        assert index != null;
-        return ImmutableSet.of(index);
+    public String[] indices() {
+        return new String[]{index};
     }
 
     /**

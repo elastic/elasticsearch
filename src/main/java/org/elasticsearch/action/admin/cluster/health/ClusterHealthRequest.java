@@ -19,9 +19,8 @@
 
 package org.elasticsearch.action.admin.cluster.health;
 
-import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.IndicesRelatedRequest;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequest;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -37,7 +36,7 @@ import static org.elasticsearch.common.unit.TimeValue.readTimeValue;
 /**
  *
  */
-public class ClusterHealthRequest extends MasterNodeReadOperationRequest<ClusterHealthRequest> implements IndicesRelatedRequest {
+public class ClusterHealthRequest extends MasterNodeReadOperationRequest<ClusterHealthRequest> implements IndicesRequest {
 
     private String[] indices;
     private TimeValue timeout = new TimeValue(30, TimeUnit.SECONDS);
@@ -54,6 +53,7 @@ public class ClusterHealthRequest extends MasterNodeReadOperationRequest<Cluster
         this.indices = indices;
     }
 
+    @Override
     public String[] indices() {
         return indices;
     }
@@ -138,11 +138,6 @@ public class ClusterHealthRequest extends MasterNodeReadOperationRequest<Cluster
     @Override
     public ActionRequestValidationException validate() {
         return null;
-    }
-
-    @Override
-    public ImmutableSet<String> requestedIndices() {
-        return Helper.indicesOrAll(indices);
     }
 
     @Override

@@ -20,11 +20,10 @@
 package org.elasticsearch.action.indexedscripts.put;
 
 import com.google.common.base.Charsets;
-import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.IndicesRelatedRequest;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -58,7 +57,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  *
  * @see PutIndexedScriptResponse
  */
-public class PutIndexedScriptRequest extends ActionRequest<PutIndexedScriptRequest> implements IndicesRelatedRequest {
+public class PutIndexedScriptRequest extends ActionRequest<PutIndexedScriptRequest> implements IndicesRequest {
 
     private String scriptLang;
     private String id;
@@ -117,8 +116,8 @@ public class PutIndexedScriptRequest extends ActionRequest<PutIndexedScriptReque
     }
 
     @Override
-    public ImmutableSet<String> requestedIndices() {
-        return ImmutableSet.of(ScriptService.SCRIPT_INDEX);
+    public String[] indices() {
+        return new String[]{ScriptService.SCRIPT_INDEX};
     }
 
     /**

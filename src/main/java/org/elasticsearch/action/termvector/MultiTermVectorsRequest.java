@@ -19,12 +19,10 @@
 
 package org.elasticsearch.action.termvector;
 
-import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.IndicesRelatedRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -39,7 +37,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-public class MultiTermVectorsRequest extends ActionRequest<MultiTermVectorsRequest> implements IndicesRelatedRequest {
+public class MultiTermVectorsRequest extends ActionRequest<MultiTermVectorsRequest> {
 
     String preference;
     List<TermVectorRequest> requests = new ArrayList<>();
@@ -54,15 +52,6 @@ public class MultiTermVectorsRequest extends ActionRequest<MultiTermVectorsReque
     public MultiTermVectorsRequest add(String index, @Nullable String type, String id) {
         requests.add(new TermVectorRequest(index, type, id));
         return this;
-    }
-
-    @Override
-    public ImmutableSet<String> requestedIndices() {
-        ImmutableSet.Builder<String> builder = ImmutableSet.builder();
-        for (TermVectorRequest termVectorRequest : requests) {
-            builder.addAll(termVectorRequest.requestedIndices());
-        }
-        return builder.build();
     }
 
     @Override

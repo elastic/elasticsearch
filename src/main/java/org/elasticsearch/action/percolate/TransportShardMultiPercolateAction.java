@@ -19,11 +19,10 @@
 
 package org.elasticsearch.action.percolate;
 
-import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.IndicesRelatedRequest;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.single.shard.SingleShardOperationRequest;
@@ -117,7 +116,7 @@ public class TransportShardMultiPercolateAction extends TransportShardSingleOper
     }
 
 
-    public static class Request extends SingleShardOperationRequest implements IndicesRelatedRequest {
+    public static class Request extends SingleShardOperationRequest implements IndicesRequest {
 
         private int shardId;
         private String preference;
@@ -134,9 +133,8 @@ public class TransportShardMultiPercolateAction extends TransportShardSingleOper
         }
 
         @Override
-        public ImmutableSet<String> requestedIndices() {
-            assert index != null;
-            return ImmutableSet.of(index);
+        public String[] indices() {
+            return new String[]{index};
         }
 
         public int shardId() {

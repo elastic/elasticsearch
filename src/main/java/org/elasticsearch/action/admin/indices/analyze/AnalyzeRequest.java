@@ -18,10 +18,9 @@
  */
 package org.elasticsearch.action.admin.indices.analyze;
 
-import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.IndicesRelatedRequest;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.single.custom.SingleCustomOperationRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -36,7 +35,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * A request to analyze a text associated with a specific index. Allow to provide
  * the actual analyzer name to perform the analysis with.
  */
-public class AnalyzeRequest extends SingleCustomOperationRequest<AnalyzeRequest> implements IndicesRelatedRequest {
+public class AnalyzeRequest extends SingleCustomOperationRequest<AnalyzeRequest> implements IndicesRequest {
 
     private String index;
 
@@ -90,11 +89,11 @@ public class AnalyzeRequest extends SingleCustomOperationRequest<AnalyzeRequest>
     }
 
     @Override
-    public ImmutableSet<String> requestedIndices() {
+    public String[] indices() {
         if (index == null) {
-            return ImmutableSet.of();
+            return Strings.EMPTY_ARRAY;
         }
-        return ImmutableSet.of(index);
+        return new String[]{index};
     }
 
     public AnalyzeRequest analyzer(String analyzer) {

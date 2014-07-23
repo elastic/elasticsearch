@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.indexedscripts.get;
 
-import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.single.shard.SingleShardOperationRequest;
@@ -97,8 +96,8 @@ public class GetIndexedScriptRequest extends SingleShardOperationRequest<GetInde
     }
 
     @Override
-    public ImmutableSet<String> requestedIndices() {
-        return ImmutableSet.of(ScriptService.SCRIPT_INDEX);
+    public String[] indices() {
+        return new String[]{ScriptService.SCRIPT_INDEX};
     }
 
     /**

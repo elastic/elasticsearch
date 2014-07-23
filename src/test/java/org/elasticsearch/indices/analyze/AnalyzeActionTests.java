@@ -20,9 +20,9 @@ package org.elasticsearch.indices.analyze;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequestBuilder;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
@@ -30,9 +30,7 @@ import java.io.IOException;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
@@ -41,11 +39,11 @@ public class AnalyzeActionTests extends ElasticsearchIntegrationTest {
     
     @Test
     public void simpleAnalyzerTests() throws Exception {
-        createIndex("test");
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
         ensureGreen();
 
         for (int i = 0; i < 10; i++) {
-            AnalyzeResponse analyzeResponse = client().admin().indices().prepareAnalyze("test", "this is a test").execute().actionGet();
+            AnalyzeResponse analyzeResponse = client().admin().indices().prepareAnalyze(indexOrAlias(), "this is a test").get();
             assertThat(analyzeResponse.getTokens().size(), equalTo(4));
             AnalyzeResponse.AnalyzeToken token = analyzeResponse.getTokens().get(0);
             assertThat(token.getTerm(), equalTo("this"));
@@ -68,38 +66,34 @@ public class AnalyzeActionTests extends ElasticsearchIntegrationTest {
     
     @Test
     public void analyzeNumericField() throws ElasticsearchException, IOException {
-        createIndex("test");
-        ensureGreen();
-
-        client().prepareIndex("test", "test", "1")
-        .setSource(XContentFactory.jsonBuilder()
-                .startObject()
-                    .field("long", 1l)
-                    .field("double", 1.0d)
-                .endObject())
-        .setRefresh(true).execute().actionGet();
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).addMapping("test", "long", "type=long", "double", "type=double"));
+        ensureGreen("test");
 
         try {
-            client().admin().indices().prepareAnalyze("test", "123").setField("long").execute().actionGet();
+            client().admin().indices().prepareAnalyze(indexOrAlias(), "123").setField("long").get();
+            fail("shouldn't get here");
         } catch (ElasticsearchIllegalArgumentException ex) {
+            //all good
         }
         try {
-            client().admin().indices().prepareAnalyze("test", "123.0").setField("double").execute().actionGet();
+            client().admin().indices().prepareAnalyze(indexOrAlias(), "123.0").setField("double").get();
+            fail("shouldn't get here");
         } catch (ElasticsearchIllegalArgumentException ex) {
+            //all good
         }
     }
 
     @Test
     public void analyzeWithNoIndex() throws Exception {
 
-        AnalyzeResponse analyzeResponse = client().admin().indices().prepareAnalyze("THIS IS A TEST").setAnalyzer("simple").execute().actionGet();
+        AnalyzeResponse analyzeResponse = client().admin().indices().prepareAnalyze("THIS IS A TEST").setAnalyzer("simple").get();
         assertThat(analyzeResponse.getTokens().size(), equalTo(4));
 
-        analyzeResponse = client().admin().indices().prepareAnalyze("THIS IS A TEST").setTokenizer("keyword").setTokenFilters("lowercase").execute().actionGet();
+        analyzeResponse = client().admin().indices().prepareAnalyze("THIS IS A TEST").setTokenizer("keyword").setTokenFilters("lowercase").get();
         assertThat(analyzeResponse.getTokens().size(), equalTo(1));
         assertThat(analyzeResponse.getTokens().get(0).getTerm(), equalTo("this is a test"));
 
-        analyzeResponse = client().admin().indices().prepareAnalyze("THIS IS A TEST").setTokenizer("standard").setTokenFilters("lowercase", "reverse").execute().actionGet();
+        analyzeResponse = client().admin().indices().prepareAnalyze("THIS IS A TEST").setTokenizer("standard").setTokenFilters("lowercase", "reverse").get();
         assertThat(analyzeResponse.getTokens().size(), equalTo(4));
         AnalyzeResponse.AnalyzeToken token = analyzeResponse.getTokens().get(0);
         assertThat(token.getTerm(), equalTo("siht"));
@@ -114,26 +108,26 @@ public class AnalyzeActionTests extends ElasticsearchIntegrationTest {
     @Test
     public void analyzeWithCharFilters() throws Exception {
 
-        assertAcked(prepareCreate("test").setSettings(settingsBuilder()
-                .put(indexSettings())
-                .put("index.analysis.char_filter.custom_mapping.type", "mapping")
-                .putArray("index.analysis.char_filter.custom_mapping.mappings", "ph=>f", "qu=>q")
-                .put("index.analysis.analyzer.custom_with_char_filter.tokenizer", "standard")
-                .putArray("index.analysis.analyzer.custom_with_char_filter.char_filter", "custom_mapping")));
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
+                .setSettings(settingsBuilder().put(indexSettings())
+                        .put("index.analysis.char_filter.custom_mapping.type", "mapping")
+                        .putArray("index.analysis.char_filter.custom_mapping.mappings", "ph=>f", "qu=>q")
+                        .put("index.analysis.analyzer.custom_with_char_filter.tokenizer", "standard")
+                        .putArray("index.analysis.analyzer.custom_with_char_filter.char_filter", "custom_mapping")));
         ensureGreen();
 
-        AnalyzeResponse analyzeResponse = client().admin().indices().prepareAnalyze("<h2><b>THIS</b> IS A</h2> <a href=\"#\">TEST</a>").setTokenizer("standard").setCharFilters("html_strip").execute().actionGet();
+        AnalyzeResponse analyzeResponse = client().admin().indices().prepareAnalyze("<h2><b>THIS</b> IS A</h2> <a href=\"#\">TEST</a>").setTokenizer("standard").setCharFilters("html_strip").get();
         assertThat(analyzeResponse.getTokens().size(), equalTo(4));
 
-        analyzeResponse = client().admin().indices().prepareAnalyze("THIS IS A <b>TEST</b>").setTokenizer("keyword").setTokenFilters("lowercase").setCharFilters("html_strip").execute().actionGet();
+        analyzeResponse = client().admin().indices().prepareAnalyze("THIS IS A <b>TEST</b>").setTokenizer("keyword").setTokenFilters("lowercase").setCharFilters("html_strip").get();
         assertThat(analyzeResponse.getTokens().size(), equalTo(1));
         assertThat(analyzeResponse.getTokens().get(0).getTerm(), equalTo("this is a test"));
 
-        analyzeResponse = client().admin().indices().prepareAnalyze("test", "jeff quit phish").setTokenizer("keyword").setTokenFilters("lowercase").setCharFilters("custom_mapping").execute().actionGet();
+        analyzeResponse = client().admin().indices().prepareAnalyze(indexOrAlias(), "jeff quit phish").setTokenizer("keyword").setTokenFilters("lowercase").setCharFilters("custom_mapping").get();
         assertThat(analyzeResponse.getTokens().size(), equalTo(1));
         assertThat(analyzeResponse.getTokens().get(0).getTerm(), equalTo("jeff qit fish"));
 
-        analyzeResponse = client().admin().indices().prepareAnalyze("test", "<a href=\"#\">jeff quit fish</a>").setTokenizer("standard").setCharFilters("html_strip", "custom_mapping").execute().actionGet();
+        analyzeResponse = client().admin().indices().prepareAnalyze(indexOrAlias(), "<a href=\"#\">jeff quit fish</a>").setTokenizer("standard").setCharFilters("html_strip", "custom_mapping").get();
         assertThat(analyzeResponse.getTokens().size(), equalTo(3));
         AnalyzeResponse.AnalyzeToken token = analyzeResponse.getTokens().get(0);
         assertThat(token.getTerm(), equalTo("jeff"));
@@ -145,8 +139,7 @@ public class AnalyzeActionTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void analyzerWithFieldOrTypeTests() throws Exception {
-
-        createIndex("test");
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
         ensureGreen();
 
         client().admin().indices().preparePutMapping("test")
@@ -161,12 +154,13 @@ public class AnalyzeActionTests extends ElasticsearchIntegrationTest {
                         "        }\n" +
                         "    }\n" +
                         "}"
-        ).execute().actionGet();
+        ).get();
 
         for (int i = 0; i < 10; i++) {
-            final AnalyzeRequestBuilder requestBuilder = client().admin().indices().prepareAnalyze("test", "THIS IS A TEST");
+            final AnalyzeRequestBuilder requestBuilder = client().admin().indices().prepareAnalyze("THIS IS A TEST");
+            requestBuilder.setIndex(indexOrAlias());
             requestBuilder.setField("document.simple");
-            AnalyzeResponse analyzeResponse = requestBuilder.execute().actionGet();
+            AnalyzeResponse analyzeResponse = requestBuilder.get();
             assertThat(analyzeResponse.getTokens().size(), equalTo(4));
             AnalyzeResponse.AnalyzeToken token = analyzeResponse.getTokens().get(3);
             assertThat(token.getTerm(), equalTo("test"));
@@ -192,5 +186,9 @@ public class AnalyzeActionTests extends ElasticsearchIntegrationTest {
         for (int i = 0; i < tokens.length; i++) {
             assertThat(response.getTokens().get(i).getTerm(), is(tokens[i]));
         }
+    }
+
+    private static String indexOrAlias() {
+        return randomBoolean() ? "test" : "alias";
     }
 }

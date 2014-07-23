@@ -26,6 +26,7 @@ import org.apache.lucene.index.*;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -57,16 +58,17 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
                         .endObject()
                 .endObject()
                 .endObject().endObject();
-        assertAcked(prepareCreate("test").addMapping("type1", mapping));
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).addMapping("type1", mapping));
 
         ensureYellow();
 
         client().prepareIndex("test", "type1", "666").setSource("field", "foo bar").execute().actionGet();
         refresh();
         for (int i = 0; i < 20; i++) {
-            ActionFuture<TermVectorResponse> termVector = client().termVector(new TermVectorRequest("test", "type1", "" + i));
+            ActionFuture<TermVectorResponse> termVector = client().termVector(new TermVectorRequest(indexOrAlias(), "type1", "" + i));
             TermVectorResponse actionGet = termVector.actionGet();
             assertThat(actionGet, notNullValue());
+            assertThat(actionGet.getIndex(), equalTo("test"));
             assertThat(actionGet.isExists(), equalTo(false));
         }
     }
@@ -81,7 +83,7 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
                         .endObject()
                 .endObject()
                 .endObject().endObject();
-        assertAcked(prepareCreate("test").addMapping("type1", mapping));
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).addMapping("type1", mapping));
 
         ensureYellow();
 
@@ -89,13 +91,14 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
         // vectors will be null
         client().prepareIndex("test", "type1", "0").setSource("existingfield", "?").execute().actionGet();
         refresh();
-        ActionFuture<TermVectorResponse> termVector = client().termVector(new TermVectorRequest("test", "type1", "0")
+        ActionFuture<TermVectorResponse> termVector = client().termVector(new TermVectorRequest(indexOrAlias(), "type1", "0")
                 .selectedFields(new String[]{"existingfield"}));
 
         // lets see if the null term vectors are caught...
         TermVectorResponse actionGet = termVector.actionGet();
         assertThat(actionGet, notNullValue());
         assertThat(actionGet.isExists(), equalTo(true));
+        assertThat(actionGet.getIndex(), equalTo("test"));
         assertThat(actionGet.getFields().terms("existingfield"), nullValue());
     }
 
@@ -109,7 +112,7 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
                         .endObject()
                 .endObject()
                 .endObject().endObject();
-        assertAcked(prepareCreate("test").addMapping("type1", mapping));
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).addMapping("type1", mapping));
 
         ensureYellow();
 
@@ -117,26 +120,29 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
         // vectors will be null
         client().prepareIndex("test", "type1", "0").setSource("anotherexistingfield", 1).execute().actionGet();
         refresh();
-        ActionFuture<TermVectorResponse> termVector = client().termVector(new TermVectorRequest("test", "type1", "0")
+        ActionFuture<TermVectorResponse> termVector = client().termVector(new TermVectorRequest(indexOrAlias(), "type1", "0")
                 .selectedFields(new String[]{"existingfield"}));
 
         // lets see if the null term vectors are caught...
         TermVectorResponse actionGet = termVector.actionGet();
         assertThat(actionGet, notNullValue());
         assertThat(actionGet.isExists(), equalTo(true));
+        assertThat(actionGet.getIndex(), equalTo("test"));
         assertThat(actionGet.getFields().terms("existingfield"), nullValue());
     }
 
     @Test
     public void testNotIndexedField() throws Exception {
         // must be of type string and indexed.
-        assertAcked(prepareCreate("test").addMapping("type1",
-                "field0", "type=integer,", // no tvs
-                "field1", "type=string,index=no", // no tvs
-                "field2", "type=string,index=no,store=yes",  // no tvs
-                "field3", "type=string,index=no,term_vector=yes", // no tvs
-                "field4", "type=string,index=not_analyzed", // yes tvs
-                "field5", "type=string,index=analyzed")); // yes tvs
+        assertAcked(prepareCreate("test")
+                .addAlias(new Alias("alias"))
+                .addMapping("type1",
+                        "field0", "type=integer,", // no tvs
+                        "field1", "type=string,index=no", // no tvs
+                        "field2", "type=string,index=no,store=yes",  // no tvs
+                        "field3", "type=string,index=no,term_vector=yes", // no tvs
+                        "field4", "type=string,index=not_analyzed", // yes tvs
+                        "field5", "type=string,index=analyzed")); // yes tvs
 
         ensureYellow();
 
@@ -151,18 +157,19 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
         indexRandom(true, indexBuilders);
 
         for (int i = 0; i < 4; i++) {
-            TermVectorResponse resp = client().prepareTermVector("test", "type1", String.valueOf(i))
+            TermVectorResponse resp = client().prepareTermVector(indexOrAlias(), "type1", String.valueOf(i))
                     .setSelectedFields("field" + i)
                     .get();
             assertThat(resp, notNullValue());
             assertThat(resp.isExists(), equalTo(true));
+            assertThat(resp.getIndex(), equalTo("test"));
             assertThat("field" + i + " :", resp.getFields().terms("field" + i), nullValue());
         }
 
         for (int i = 4; i < 6; i++) {
-            TermVectorResponse resp = client().prepareTermVector("test", "type1", String.valueOf(i))
-                    .setSelectedFields("field" + i)
-                    .get();
+            TermVectorResponse resp = client().prepareTermVector(indexOrAlias(), "type1", String.valueOf(i))
+                    .setSelectedFields("field" + i).get();
+            assertThat(resp.getIndex(), equalTo("test"));
             assertThat("field" + i + " :", resp.getFields().terms("field" + i), notNullValue());
         }
     }
@@ -179,6 +186,7 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
                 .endObject()
                 .endObject().endObject();
         assertAcked(prepareCreate("test").addMapping("type1", mapping)
+                .addAlias(new Alias("alias"))
                 .setSettings(settingsBuilder()
                         .put(indexSettings())
                         .put("index.analysis.analyzer.tv_test.tokenizer", "whitespace")
@@ -193,9 +201,10 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
             refresh();
         }
         for (int i = 0; i < 10; i++) {
-            TermVectorRequestBuilder resp = client().prepareTermVector("test", "type1", Integer.toString(i)).setPayloads(true)
+            TermVectorRequestBuilder resp = client().prepareTermVector(indexOrAlias(), "type1", Integer.toString(i)).setPayloads(true)
                     .setOffsets(true).setPositions(true).setSelectedFields();
             TermVectorResponse response = resp.execute().actionGet();
+            assertThat(response.getIndex(), equalTo("test"));
             assertThat("doc id: " + i + " doesn't exists but should", response.isExists(), equalTo(true));
             Fields fields = response.getFields();
             assertThat(fields.size(), equalTo(1));
@@ -367,7 +376,7 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
     @Test
     public void testDuelESLucene() throws Exception {
         TestFieldSetting[] testFieldSettings = getFieldSettings();
-        createIndexBasedOnFieldSettings("test", testFieldSettings);
+        createIndexBasedOnFieldSettings("test", "alias", testFieldSettings);
         //we generate as many docs as many shards we have
         TestDoc[] testDocs = generateTestDocs(getNumShards("test").numPrimaries, testFieldSettings);
 
@@ -764,14 +773,19 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
         source.endObject();
         mapping.endObject().endObject().endObject();
 
-        assertAcked(prepareCreate("test").addMapping("type1", mapping));
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).addMapping("type1", mapping));
         ensureGreen();
 
         client().prepareIndex("test", "type1", "0").setSource(source).get();
         refresh();
 
-        TermVectorResponse response = client().prepareTermVector("test", "type1", "0").setSelectedFields("field*").get();
+        TermVectorResponse response = client().prepareTermVector(indexOrAlias(), "type1", "0").setSelectedFields("field*").get();
         assertThat("Doc doesn't exists but should", response.isExists(), equalTo(true));
+        assertThat(response.getIndex(), equalTo("test"));
         assertThat("All term vectors should have been generated", response.getFields().size(), equalTo(numFields));
+    }
+
+    private static String indexOrAlias() {
+        return randomBoolean() ? "test" : "alias";
     }
 }

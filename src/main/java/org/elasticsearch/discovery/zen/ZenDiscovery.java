@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.inject.Inject;
@@ -127,9 +128,10 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
     private volatile boolean rejoinOnMasterGone;
 
-
     @Nullable
     private NodeService nodeService;
+
+    private final BlockingQueue<Tuple<DiscoveryNode, MembershipAction.JoinCallback>> processJoinRequests = ConcurrentCollections.newBlockingQueue();
 
     @Inject
     public ZenDiscovery(Settings settings, ClusterName clusterName, ThreadPool threadPool,
@@ -820,26 +822,42 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             // validate the join request, will throw a failure if it fails, which will get back to the
             // node calling the join request
             membership.sendValidateJoinRequestBlocking(node, joinTimeout);
-
+            processJoinRequests.add(new Tuple<>(node, callback));
             clusterService.submitStateUpdateTask("zen-disco-receive(join from node[" + node + "])", Priority.IMMEDIATE, new ProcessedClusterStateUpdateTask() {
+
+                private final List<Tuple<DiscoveryNode, MembershipAction.JoinCallback>> drainedTasks = new ArrayList<>();
+
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    if (currentState.nodes().nodeExists(node.id())) {
-                        // the node already exists in the cluster
-                        logger.info("received a join request for an existing node [{}]", node);
-                        // still send a new cluster state, so it will be re published and possibly update the other node
-                        return ClusterState.builder(currentState).build();
+                    processJoinRequests.drainTo(drainedTasks);
+                    if (drainedTasks.isEmpty()) {
+                        return currentState;
                     }
-                    DiscoveryNodes.Builder builder = DiscoveryNodes.builder(currentState.nodes());
-                    for (DiscoveryNode existingNode : currentState.nodes()) {
-                        if (node.address().equals(existingNode.address())) {
-                            builder.remove(existingNode.id());
-                            logger.warn("received join request from node [{}], but found existing node {} with same address, removing existing node", node, existingNode);
+
+                    boolean modified = false;
+                    DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(currentState.nodes());
+                    for (Tuple<DiscoveryNode, MembershipAction.JoinCallback> task : drainedTasks) {
+                        DiscoveryNode node = task.v1();
+                        if (currentState.nodes().nodeExists(node.id())) {
+                            logger.debug("received a join request for an existing node [{}]", node);
+                        } else {
+                            modified = true;
+                            nodesBuilder.put(node);
+                            for (DiscoveryNode existingNode : currentState.nodes()) {
+                                if (node.address().equals(existingNode.address())) {
+                                    nodesBuilder.remove(existingNode.id());
+                                    logger.warn("received join request from node [{}], but found existing node {} with same address, removing existing node", node, existingNode);
+                                }
+                            }
                         }
                     }
-                    latestDiscoNodes = builder.build();
-                    // add the new node now (will update latestDiscoNodes on publish)
-                    return ClusterState.builder(currentState).nodes(latestDiscoNodes.newNode(node)).build();
+
+                    ClusterState.Builder stateBuilder = ClusterState.builder(currentState);
+                    if (modified) {
+                        latestDiscoNodes = nodesBuilder.build();
+                        stateBuilder.nodes(latestDiscoNodes);
+                    }
+                    return stateBuilder.build();
                 }
 
                 @Override
@@ -849,12 +867,16 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                     } else {
                         logger.error("unexpected failure during [{}]", t, source);
                     }
-                    callback.onFailure(t);
+                    for (Tuple<DiscoveryNode, MembershipAction.JoinCallback> drainedTask : drainedTasks) {
+                        drainedTask.v2().onFailure(t);
+                    }
                 }
 
                 @Override
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                    callback.onSuccess();
+                    for (Tuple<DiscoveryNode, MembershipAction.JoinCallback> drainedTask : drainedTasks) {
+                        drainedTask.v2().onSuccess();
+                    }
                 }
             });
         }

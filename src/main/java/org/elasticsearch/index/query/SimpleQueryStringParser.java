@@ -87,6 +87,7 @@ public class SimpleQueryStringParser implements QueryParser {
 
         String currentFieldName = null;
         String queryBody = null;
+        String queryName = null;
         String field = null;
         Map<String, Float> fieldsAndWeights = null;
         BooleanClause.Occur defaultOperator = null;
@@ -177,6 +178,8 @@ public class SimpleQueryStringParser implements QueryParser {
                     sqsSettings.lowercaseExpandedTerms(parser.booleanValue());
                 } else if ("lenient".equals(currentFieldName)) {
                     sqsSettings.lenient(parser.booleanValue());
+                } else if ("_name".equals(currentFieldName)) {
+                    queryName = parser.text();
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[" + NAME + "] unsupported field [" + parser.currentName() + "]");
                 }
@@ -212,6 +215,10 @@ public class SimpleQueryStringParser implements QueryParser {
             sqp.setDefaultOperator(defaultOperator);
         }
 
-        return sqp.parse(queryBody);
+        Query query = sqp.parse(queryBody);
+        if (queryName != null) {
+            parseContext.addNamedQuery(queryName, query);
+        }
+        return query;
     }
 }

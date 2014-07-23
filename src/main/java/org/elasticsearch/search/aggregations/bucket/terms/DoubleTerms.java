@@ -145,8 +145,7 @@ public class DoubleTerms extends InternalTerms {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(name);
+    public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.startArray(CommonFields.BUCKETS);
         for (InternalTerms.Bucket bucket : buckets) {
             builder.startObject();
@@ -159,7 +158,6 @@ public class DoubleTerms extends InternalTerms {
             builder.endObject();
         }
         builder.endArray();
-        builder.endObject();
         return builder;
     }
 

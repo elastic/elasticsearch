@@ -94,8 +94,8 @@ public abstract class TimeZoneRounding extends Rounding {
             return this;
         }
 
-        public TimeZoneRounding build() {
-            TimeZoneRounding timeZoneRounding;
+        public Rounding build() {
+            Rounding timeZoneRounding;
             if (unit != null) {
                 if (preTz.equals(DateTimeZone.UTC) && postTz.equals(DateTimeZone.UTC)) {
                     timeZoneRounding = new UTCTimeZoneRoundingFloor(unit);
@@ -114,10 +114,10 @@ public abstract class TimeZoneRounding extends Rounding {
                 }
             }
             if (preOffset != 0 || postOffset != 0) {
-                timeZoneRounding = new PrePostTimeZoneRounding(timeZoneRounding, preOffset, postOffset);
+                timeZoneRounding = new PrePostRounding(timeZoneRounding, preOffset, postOffset);
             }
             if (factor != 1.0f) {
-                timeZoneRounding = new FactorTimeZoneRounding(timeZoneRounding, factor);
+                timeZoneRounding = new FactorRounding(timeZoneRounding, factor);
             }
             return timeZoneRounding;
         }
@@ -437,108 +437,6 @@ public abstract class TimeZoneRounding extends Rounding {
             out.writeVLong(interval);
             out.writeSharedString(preTz.getID());
             out.writeSharedString(postTz.getID());
-        }
-    }
-
-    static class FactorTimeZoneRounding extends TimeZoneRounding {
-
-        final static byte ID = 7;
-
-        private TimeZoneRounding timeZoneRounding;
-
-        private float factor;
-
-        FactorTimeZoneRounding() { // for serialization
-        }
-
-        FactorTimeZoneRounding(TimeZoneRounding timeZoneRounding, float factor) {
-            this.timeZoneRounding = timeZoneRounding;
-            this.factor = factor;
-        }
-
-        @Override
-        public byte id() {
-            return ID;
-        }
-
-        @Override
-        public long roundKey(long utcMillis) {
-            return timeZoneRounding.roundKey((long) (factor * utcMillis));
-        }
-
-        @Override
-        public long valueForKey(long key) {
-            return timeZoneRounding.valueForKey(key);
-        }
-
-        @Override
-        public long nextRoundingValue(long value) {
-            return timeZoneRounding.nextRoundingValue(value);
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            timeZoneRounding = (TimeZoneRounding) Rounding.Streams.read(in);
-            factor = in.readFloat();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            Rounding.Streams.write(timeZoneRounding, out);
-            out.writeFloat(factor);
-        }
-    }
-
-    static class PrePostTimeZoneRounding extends TimeZoneRounding {
-
-        final static byte ID = 8;
-
-        private TimeZoneRounding timeZoneRounding;
-
-        private long preOffset;
-        private long postOffset;
-
-        PrePostTimeZoneRounding() { // for serialization
-        }
-
-        PrePostTimeZoneRounding(TimeZoneRounding timeZoneRounding, long preOffset, long postOffset) {
-            this.timeZoneRounding = timeZoneRounding;
-            this.preOffset = preOffset;
-            this.postOffset = postOffset;
-        }
-
-        @Override
-        public byte id() {
-            return ID;
-        }
-
-        @Override
-        public long roundKey(long utcMillis) {
-            return timeZoneRounding.roundKey(utcMillis + preOffset);
-        }
-
-        @Override
-        public long valueForKey(long key) {
-            return postOffset + timeZoneRounding.valueForKey(key);
-        }
-
-        @Override
-        public long nextRoundingValue(long value) {
-            return postOffset + timeZoneRounding.nextRoundingValue(value - postOffset);
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            timeZoneRounding = (TimeZoneRounding) Rounding.Streams.read(in);
-            preOffset = in.readVLong();
-            postOffset = in.readVLong();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            Rounding.Streams.write(timeZoneRounding, out);
-            out.writeVLong(preOffset);
-            out.writeVLong(postOffset);
         }
     }
 }

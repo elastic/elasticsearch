@@ -3,23 +3,23 @@
 
 The `nodes` command shows the cluster topology.
 
-[source,shell]
+["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
 % curl 192.168.56.10:9200/_cat/nodes
-SP4H 4727 192.168.56.30 9300 1.0.1 1.6.0_27 72.1gb 35.4 93.9mb 79 239.1mb 0.45 3.4h d m Boneyard
-_uhJ 5134 192.168.56.10 9300 1.0.1 1.6.0_27 72.1gb 33.3 93.9mb 85 239.1mb 0.06 3.4h d * Athena
-HfDp 4562 192.168.56.20 9300 1.0.1 1.6.0_27 72.2gb 74.5 93.9mb 83 239.1mb 0.12 3.4h d m Zarek
+SP4H 4727 192.168.56.30 9300 {version} {jdk} 72.1gb 35.4 93.9mb 79 239.1mb 0.45 3.4h d m Boneyard
+_uhJ 5134 192.168.56.10 9300 {version} {jdk} 72.1gb 33.3 93.9mb 85 239.1mb 0.06 3.4h d * Athena
+HfDp 4562 192.168.56.20 9300 {version} {jdk} 72.2gb 74.5 93.9mb 83 239.1mb 0.12 3.4h d m Zarek
 --------------------------------------------------
 
 The first few columns tell you where your nodes live.  For sanity it
 also tells you what version of ES and the JVM each one runs.
 
-[source,shell]
+["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
 nodeId pid  ip            port version jdk
-u2PZ   4234 192.168.56.30 9300 1.0.1   1.6.0_27
-URzf   5443 192.168.56.10 9300 1.0.1   1.6.0_27
-ActN   3806 192.168.56.20 9300 1.0.1   1.6.0_27
+u2PZ   4234 192.168.56.30 9300 {version}   {jdk}
+URzf   5443 192.168.56.10 9300 {version}   {jdk}
+ActN   3806 192.168.56.20 9300 {version}   {jdk}
 --------------------------------------------------
 
 
@@ -65,20 +65,20 @@ by default.  To have the headers appear in the output, use verbose
 mode (`v`). The header name will match the supplied value (e.g.,
 `pid` versus `p`).  For example:
 
-[source,shell]
+["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
 % curl 192.168.56.10:9200/_cat/nodes?v\&h=id,ip,port,v,m
 id   ip            port version m
-pLSN 192.168.56.30 9300 1.0.1   m
-k0zy 192.168.56.10 9300 1.0.1   m
-6Tyi 192.168.56.20 9300 1.0.1   *
+pLSN 192.168.56.30 9300 {version}   m
+k0zy 192.168.56.10 9300 {version}   m
+6Tyi 192.168.56.20 9300 {version}   *
 % curl 192.168.56.10:9200/_cat/nodes?h=id,ip,port,v,m
-pLSN 192.168.56.30 9300 1.0.1 m
-k0zy 192.168.56.10 9300 1.0.1 m
-6Tyi 192.168.56.20 9300 1.0.1 *
+pLSN 192.168.56.30 9300 {version} m
+k0zy 192.168.56.10 9300 {version} m
+6Tyi 192.168.56.20 9300 {version} *
 --------------------------------------------------
 
-[cols="<,<,<,<,<",options="header",]
+[cols="<,<,<,<,<",options="header",subs="normal"]
 |=======================================================================
 |Header |Alias |Appear by Default |Description |Example
 |`id` |`nodeId` |No |Unique node ID |k0zy
@@ -86,7 +86,7 @@ k0zy 192.168.56.10 9300 1.0.1 m
 |`host` |`h` |Yes |Host name |n1
 |`ip` |`i` |Yes |IP address |127.0.1.1
 |`port` |`po` |No |Bound transport port |9300
-|`version` |`v` |No |Elasticsearch version |1.0.1
+|`version` |`v` |No |Elasticsearch version |{version}
 |`build` |`b` |No |Elasticsearch Build hash |5c03844
 |`jdk` |`j` |No |Running Java version |1.8.0
 |`disk.avail` |`d`, `disk`, `diskAvail` |No |Available disk space |1.8gb

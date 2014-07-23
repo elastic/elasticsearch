@@ -72,12 +72,11 @@ It can also be set on a per-index basis at index creation time:
 
 [source,json]
 ---------------------------------
-curl -XPUT localhost:9200/my_index
-{
+curl -XPUT localhost:9200/my_index -d '{
     "settings": {
         "index.store.type": "niofs"
     }
-}
+}';
 ---------------------------------
 
 The following sections lists all the different storage types supported.

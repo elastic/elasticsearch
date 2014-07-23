@@ -24,6 +24,7 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.rounding.DateTimeUnit;
+import org.elasticsearch.common.rounding.Rounding;
 import org.elasticsearch.common.rounding.TimeZoneRounding;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -179,7 +180,7 @@ public class DateHistogramFacetParser extends AbstractComponent implements Facet
             tzRoundingBuilder = TimeZoneRounding.builder(TimeValue.parseTimeValue(interval, null));
         }
 
-        TimeZoneRounding tzRounding = tzRoundingBuilder
+        Rounding tzRounding = tzRoundingBuilder
                 .preZone(preZone).postZone(postZone)
                 .preZoneAdjustLargeInterval(preZoneAdjustLargeInterval)
                 .preOffset(preOffset).postOffset(postOffset)

@@ -714,7 +714,7 @@ public class MetaData implements Iterable<IndexMetaData> {
     }
 
     public String concreteSingleIndex(String indexOrAlias) throws IndexMissingException, ElasticsearchIllegalArgumentException {
-        String[] indices = concreteIndices(IndicesOptions.strictSingleIndexNoExpand(), indexOrAlias);
+        String[] indices = concreteIndices(IndicesOptions.strictSingleIndexNoExpandForbidClosed(), indexOrAlias);
         assert indices.length == 1 : "expected an exception to be thrown otherwise";
         return indices[0];
     }

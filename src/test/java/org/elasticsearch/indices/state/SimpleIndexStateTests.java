@@ -26,13 +26,13 @@ import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.action.admin.indices.status.IndicesStatusResponse;
-import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.SettingsException;
+import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.indices.IndexPrimaryShardNotAllocatedException;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -83,7 +83,7 @@ public class SimpleIndexStateTests extends ElasticsearchIntegrationTest {
         try {
             client().prepareIndex("test", "type1", "1").setSource("field1", "value1").get();
             fail();
-        } catch (ClusterBlockException e) {
+        } catch (IndexClosedException e) {
             // all is well
         }
 

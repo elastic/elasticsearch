@@ -183,11 +183,6 @@ public class PythonScriptEngineService extends AbstractComponent implements Scri
         }
 
         @Override
-        public void setNextScore(float score) {
-            pyVars.__setitem__("_score", Py.java2py(score));
-        }
-
-        @Override
         public void setNextVar(String name, Object value) {
             pyVars.__setitem__(name, Py.java2py(value));
         }

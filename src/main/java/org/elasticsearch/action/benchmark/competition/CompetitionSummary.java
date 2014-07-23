@@ -31,6 +31,8 @@ import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.apache.lucene.util.CollectionUtil;
 
 import java.io.IOException;
+import java.text.DecimalFormat;
+import java.text.NumberFormat;
 import java.util.*;
 
 /**
@@ -153,6 +155,10 @@ public class CompetitionSummary implements ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
 
+        final NumberFormat nf = NumberFormat.getInstance(Locale.ROOT);
+        final DecimalFormat formatter = (DecimalFormat) nf;
+        formatter.applyPattern("#######0.00");
+
         computeSummaryStatistics();
 
         builder.startObject(Fields.SUMMARY);
@@ -167,20 +173,20 @@ public class CompetitionSummary implements ToXContent {
         builder.field(Fields.TOTAL_QUERIES, totalQueries);
         builder.field(Fields.CONCURRENCY, concurrency);
         builder.field(Fields.MULTIPLIER, multiplier);
-        builder.field(Fields.AVG_WARMUP_TIME, avgWarmupTime);
+        builder.field(Fields.AVG_WARMUP_TIME, Double.valueOf(formatter.format(avgWarmupTime)));
 
         builder.startObject(Fields.STATISTICS);
         builder.field(Fields.MIN, min == Long.MAX_VALUE ? 0 : min);
         builder.field(Fields.MAX, max == Long.MIN_VALUE ? 0 : max);
-        builder.field(Fields.MEAN, mean);
-        builder.field(Fields.QPS, queriesPerSecond);
-        builder.field(Fields.STD_DEV, stdDeviation);
-        builder.field(Fields.MILLIS_PER_HIT, millisPerHit);
+        builder.field(Fields.MEAN, Double.valueOf(formatter.format(mean)));
+        builder.field(Fields.QPS, Double.valueOf(formatter.format(queriesPerSecond)));
+        builder.field(Fields.STD_DEV, Double.valueOf(formatter.format(stdDeviation)));
+        builder.field(Fields.MILLIS_PER_HIT, Double.valueOf(formatter.format(millisPerHit)));
 
         for (Map.Entry<Double, Double> entry : percentileValues.entrySet()) {
             // Change back to integral value for display purposes
             builder.field(new XContentBuilderString("percentile_" + entry.getKey().longValue()),
-                    (entry.getValue().isNaN()) ? 0.0 : entry.getValue());
+                    (entry.getValue().isNaN()) ? 0.0 : Double.valueOf(formatter.format(entry.getValue())));
         }
 
         builder.endObject();

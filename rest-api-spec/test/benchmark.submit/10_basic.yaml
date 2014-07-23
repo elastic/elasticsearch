@@ -39,6 +39,7 @@ setup:
       benchmark.submit:
         body: {
                 name:               test_benchmark,
+                verbose:            false,
                 num_executor_nodes: 1,
                 iterations:         3,
                 multiplier:         5,
@@ -72,8 +73,8 @@ setup:
   - match:  { benchmark.competitors.test_competitor_1.summary.completed_iterations:       3         }
   - match:  { benchmark.competitors.test_competitor_1.summary.multiplier:                 5         }
   - gte:    { benchmark.competitors.test_competitor_1.summary.avg_warmup_time:            0.0       }
-  - gte:    { benchmark.competitors.test_competitor_1.summary.statistics.min:             0.0       }
-  - gte:    { benchmark.competitors.test_competitor_1.summary.statistics.max:             0.0       }
+  - gte:    { benchmark.competitors.test_competitor_1.summary.statistics.min:             0         }
+  - gte:    { benchmark.competitors.test_competitor_1.summary.statistics.max:             0         }
   - gte:    { benchmark.competitors.test_competitor_1.summary.statistics.mean:            0.0       }
   - gte:    { benchmark.competitors.test_competitor_1.summary.statistics.qps:             0.0       }
   - gte:    { benchmark.competitors.test_competitor_1.summary.statistics.millis_per_hit:  0.0       }
@@ -90,8 +91,8 @@ setup:
   - match:  { benchmark.competitors.test_competitor_2.summary.completed_iterations:       3         }
   - match:  { benchmark.competitors.test_competitor_2.summary.multiplier:                 5         }
   - gte:    { benchmark.competitors.test_competitor_2.summary.avg_warmup_time:            0.0       }
-  - gte:    { benchmark.competitors.test_competitor_2.summary.statistics.min:             0.0       }
-  - gte:    { benchmark.competitors.test_competitor_2.summary.statistics.max:             0.0       }
+  - gte:    { benchmark.competitors.test_competitor_2.summary.statistics.min:             0         }
+  - gte:    { benchmark.competitors.test_competitor_2.summary.statistics.max:             0         }
   - gte:    { benchmark.competitors.test_competitor_1.summary.statistics.mean:            0.0       }
   - gte:    { benchmark.competitors.test_competitor_2.summary.statistics.qps:             0.0       }
   - gte:    { benchmark.competitors.test_competitor_2.summary.statistics.millis_per_hit:  0.0       }

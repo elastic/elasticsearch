@@ -73,10 +73,12 @@ public class RestBenchmarkSubmitAction extends BaseRestHandler {
         final BenchmarkStartRequest benchmarkStartRequest;
         try {
             BenchmarkStartRequestBuilder builder = new BenchmarkStartRequestBuilder(client);
-            builder.setVerbose(request.paramAsBoolean("verbose", false));
             benchmarkStartRequest = parse(builder, request.content(), request.contentUnsafe());
             benchmarkStartRequest.cascadeGlobalSettings();                   // Make sure competitors inherit global settings
             benchmarkStartRequest.applyLateBoundSettings(indices, types);    // Some settings cannot be applied until after parsing
+            if (request.hasParam("verbose")) {
+                builder.setVerbose(request.paramAsBoolean("verbose", false));
+            }
             Exception ex = benchmarkStartRequest.validate();
             if (ex != null) {
                 throw ex;
@@ -164,6 +166,8 @@ public class RestBenchmarkSubmitAction extends BaseRestHandler {
                 case VALUE_BOOLEAN:
                     if ("warmup".equals(fieldName)) {
                         builder.setWarmup(p.booleanValue());
+                    } else if ("verbose".equals(fieldName)) {
+                        builder.setVerbose(p.booleanValue());
                     } else if ("clear_caches".equals(fieldName)) {
                         if (p.booleanValue()) {
                             throw new ElasticsearchParseException("Failed parsing field [" + fieldName + "] must specify which caches to clear");

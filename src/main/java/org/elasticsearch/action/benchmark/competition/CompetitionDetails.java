@@ -23,8 +23,11 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
+import java.text.NumberFormat;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.text.DecimalFormat;
 
 /**
  * Detailed statistics for each iteration of a benchmark search competition.
@@ -48,16 +51,21 @@ public class CompetitionDetails implements ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
 
+        final NumberFormat nf = NumberFormat.getInstance(Locale.ROOT);
+        final DecimalFormat formatter = (DecimalFormat) nf;
+        formatter.applyPattern("#######0.00");
+
         final int highestIteration = highestCompletedIteration();
+
         computeAllStatistics();
         CompetitionIteration prototypical = prototypicalIteration();
 
-        builder.startObject(Fields.ITERATIONS);
+        builder.startArray(Fields.ITERATIONS);
 
         for (int i = 0; i < highestIteration; i++) {
 
-            builder.field(Fields.ITERATION, i);
             builder.startObject();
+            builder.field(Fields.ITERATION, i);
 
             builder.startObject(Fields.MIN);
             for (CompetitionNodeResult nodeResult : nodeResults) {
@@ -74,7 +82,7 @@ public class CompetitionDetails implements ToXContent {
             builder.startObject(Fields.MEAN);
             for (CompetitionNodeResult nodeResult : nodeResults) {
                 CompetitionIteration iteration = nodeResult.iterations().get(i);
-                builder.field(nodeResult.nodeName(), iteration == null ? Fields.NULL : iteration.mean());
+                builder.field(nodeResult.nodeName(), iteration == null ? Fields.NULL : Double.valueOf(formatter.format(iteration.mean())));
             }
             builder.endObject();
             builder.startObject(Fields.TOTAL_TIME);
@@ -86,7 +94,7 @@ public class CompetitionDetails implements ToXContent {
             builder.startObject(Fields.QPS);
             for (CompetitionNodeResult nodeResult : nodeResults) {
                 CompetitionIteration iteration = nodeResult.iterations().get(i);
-                builder.field(nodeResult.nodeName(), iteration == null ? Fields.NULL : iteration.queriesPerSecond());
+                builder.field(nodeResult.nodeName(), iteration == null ? Fields.NULL : Double.valueOf(formatter.format(iteration.queriesPerSecond())));
             }
             builder.endObject();
 
@@ -100,7 +108,7 @@ public class CompetitionDetails implements ToXContent {
                         CompetitionIteration iteration = nodeResult.iterations().get(i);
                         if (iteration != null) {
                             Double value = iteration.percentileValues().get(entry.getKey());
-                            builder.field(nodeResult.nodeName(), (value.isNaN()) ? 0.0 : value);
+                            builder.field(nodeResult.nodeName(), (value.isNaN()) ? 0.0 : Double.valueOf(formatter.format(value)));
                         } else {
                             builder.field(nodeResult.nodeName(), Fields.NULL);
                         }
@@ -111,6 +119,7 @@ public class CompetitionDetails implements ToXContent {
 
             builder.endObject();
         }
+        builder.endArray();
         return builder;
     }
 

@@ -127,6 +127,7 @@ will fail.
 [float]
 [[generated-fields]]
 === Generated fields
+added[1.4.0]
 
 If no refresh occurred between indexing and refresh, GET will access the transaction log to fetch the document. However, some fields are generated only when indexing. 
 If you try to access a field that is only generated when indexing, you will get an exception (default). You can choose to ignore field that are generated if the transaction log is accessed by setting `ignore_errors_on_generated_fields=true`.

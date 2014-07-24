@@ -19,91 +19,18 @@
 
 package org.elasticsearch.action.benchmark.pause;
 
-import com.google.common.collect.ImmutableMap;
-import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.benchmark.BatchedResponse;
 import org.elasticsearch.cluster.metadata.BenchmarkMetaData;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
-
-import java.io.IOException;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  *
  */
-public class BenchmarkPauseResponse extends ActionResponse implements ToXContent {
+public class BenchmarkPauseResponse extends BatchedResponse {
 
-    private String benchmarkId;
-    private Map<String, BenchmarkMetaData.Entry.NodeState> nodeResponses;
+    public BenchmarkPauseResponse() { }
 
-    public BenchmarkPauseResponse() {
-        this(null);
-    }
-
-    public BenchmarkPauseResponse(final String benchmarkId) {
-        this.benchmarkId   = benchmarkId;
-        this.nodeResponses = new ConcurrentHashMap<>();
-    }
-
-    public String getBenchmarkId() {
-        return benchmarkId;
-    }
-
-    public void addNodeResponse(final String nodeId, final BenchmarkMetaData.Entry.NodeState nodeResponse) {
-        nodeResponses.put(nodeId, nodeResponse);
-    }
-
-    public Map<String, BenchmarkMetaData.Entry.NodeState> getNodeResponses() {
-        return ImmutableMap.copyOf(nodeResponses);
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        benchmarkId = in.readString();
-        int size = in.readVInt();
-        nodeResponses = new ConcurrentHashMap<>(size);
-        for (int i = 0; i < size; i++) {
-            final String s = in.readString();
-            final BenchmarkMetaData.Entry.NodeState ns = BenchmarkMetaData.Entry.NodeState.fromId(in.readByte());
-            nodeResponses.put(s, ns);
-        }
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(benchmarkId);
-        out.writeVInt(nodeResponses.size());
-        for (Map.Entry<String, BenchmarkMetaData.Entry.NodeState> ns : nodeResponses.entrySet()) {
-            out.writeString(ns.getKey());
-            out.writeByte(ns.getValue().id());
-        }
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(Fields.BENCHMARK);
-        builder.field(Fields.ID, benchmarkId);
-        builder.startArray(Fields.NODES);
-        for (Map.Entry<String, BenchmarkMetaData.Entry.NodeState> ns : nodeResponses.entrySet()) {
-            builder.startObject();
-            builder.field(Fields.NODE, ns.getKey());
-            builder.field(Fields.STATE, ns.getValue());
-            builder.endObject();
-        }
-        builder.endArray();
-        builder.endObject();
-        return builder;
-    }
-
-    static final class Fields {
-        static final XContentBuilderString ID         = new XContentBuilderString("id");
-        static final XContentBuilderString BENCHMARK  = new XContentBuilderString("benchmark");
-        static final XContentBuilderString NODE       = new XContentBuilderString("node");
-        static final XContentBuilderString NODES      = new XContentBuilderString("nodes");
-        static final XContentBuilderString STATE      = new XContentBuilderString("state");
+    public void addNodeResponse(final String benchmarkId, final String nodeId,
+                                final BenchmarkMetaData.Entry.NodeState nodeState) {
+        super.addNodeResponse(benchmarkId, nodeId, nodeState);
     }
 }

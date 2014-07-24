@@ -187,11 +187,12 @@ public class BenchmarkIntegrationTest extends ElasticsearchIntegrationTest {
     @Ignore
     public void testPauseBenchmarksMatchingPattern() throws Exception {
 
-        final int n = 2;
+        final int n = randomIntBetween(2, 4);
         final List<ActionFuture<BenchmarkStartResponse>> futures = new ArrayList<>(n);
         final List<BenchmarkStartRequest> requests =
                 BenchmarkTestUtil.randomRequests(n, client(), indices, numExecutorNodes, competitionSettingsMap);
         final List<String> benchmarkIds = new ArrayList<>();
+        final Map<String, Tuple<CyclicBarrier, List<MockBenchmarkExecutor.FlowControl>>> controls = new HashMap<>();
 
         for (final BenchmarkStartRequest request : requests) {
 
@@ -209,6 +210,7 @@ public class BenchmarkIntegrationTest extends ElasticsearchIntegrationTest {
 
             // Start benchmark
             futures.add(client().startBenchmark(request));
+            controls.put(request.benchmarkId(), tuple);
 
             // Wait for all executors to initialize
             tuple.v1().await();
@@ -221,8 +223,55 @@ public class BenchmarkIntegrationTest extends ElasticsearchIntegrationTest {
         final BenchmarkPauseResponse response =
                 client().preparePauseBenchmark(benchmarkIds.toArray(new String[benchmarkIds.size()])).execute().actionGet();
 
+        // Confirm all benchmarks were paused
         assertNotNull(response);
+        assertThat(response.getResponses().size(), equalTo(n));
+        for (final BenchmarkStartRequest request : requests) {
+            validateStatusPaused(request.benchmarkId(), response);
+        }
 
+        // Check status
+        for (final BenchmarkStartRequest request : requests) {
+            final BenchmarkStatusResponses statusResponses =
+                    client().prepareBenchmarkStatus(request.benchmarkId()).execute().actionGet();
+            assertThat(statusResponses.responses().size(), equalTo(1));
+            final BenchmarkStartResponse statusResponse = statusResponses.responses().get(0);
+            assertThat(statusResponse.benchmarkId(), equalTo(request.benchmarkId()));
+            assertThat(statusResponse.state(), equalTo(BenchmarkStartResponse.State.PAUSED));
+            assertFalse(statusResponse.hasErrors());
+        }
+
+        // Release flow control and let the benchmark complete
+        for (final BenchmarkStartRequest request : requests) {
+            final Tuple<CyclicBarrier, List<MockBenchmarkExecutor.FlowControl>> tuple = controls.get(request.benchmarkId());
+            for (MockBenchmarkExecutor.FlowControl control : tuple.v2()) {
+                control.release();
+            }
+        }
+
+        // Resume benchmarks
+        for (final BenchmarkStartRequest request : requests) {
+            final BenchmarkResumeResponse resume = client().prepareResumeBenchmark(request.benchmarkId()).execute().actionGet();
+            validateStatusResumed(request.benchmarkId(), resume);
+        }
+
+        // Validate results
+        for (final ActionFuture<BenchmarkStartResponse> future : futures) {
+
+            final BenchmarkStartResponse startResponse = future.get();
+
+            assertNotNull(startResponse);
+            assertThat(startResponse.state(), equalTo(BenchmarkStartResponse.State.COMPLETED));
+            assertFalse(startResponse.hasErrors());
+
+            for (final CompetitionResult result : startResponse.competitionResults().values()) {
+                assertThat(result.nodeResults().size(), equalTo(numExecutorNodes));
+                //validateCompetitionResult(result, competitionSettingsMap.get(result.competitionName()), true);
+            }
+
+            // Confirm that cluster metadata went through proper state transitions
+            mockCoordinatorService().validatePausedLifecycle(startResponse.benchmarkId(), numExecutorNodes);
+        }
     }
 
     @Test
@@ -556,9 +605,10 @@ public class BenchmarkIntegrationTest extends ElasticsearchIntegrationTest {
 
     private void validateStatusPaused(final String benchmarkId, final BenchmarkPauseResponse response) {
 
-        assertThat(response.getBenchmarkId(), equalTo(benchmarkId));
+        assertNotNull(response.getResponse(benchmarkId));
 
-        final Map<String, BenchmarkMetaData.Entry.NodeState> nodeResponses = response.getNodeResponses();
+        final BatchedResponse.BenchmarkResponse br = response.getResponse(benchmarkId);
+        final Map<String, BenchmarkMetaData.Entry.NodeState> nodeResponses = br.nodeResponses();
         assertThat(nodeResponses.size(), equalTo(numExecutorNodes));
         for (Map.Entry<String, BenchmarkMetaData.Entry.NodeState> entry : nodeResponses.entrySet()) {
             assertThat(entry.getValue(), equalTo(BenchmarkMetaData.Entry.NodeState.PAUSED));
@@ -567,7 +617,7 @@ public class BenchmarkIntegrationTest extends ElasticsearchIntegrationTest {
 
     private void validateStatusResumed(final String benchmarkId, final BenchmarkResumeResponse response) {
 
-        assertThat(response.getBenchmarkId(), equalTo(BENCHMARK_NAME));
+        assertThat(response.getBenchmarkId(), equalTo(benchmarkId));
 
         final Map<String, BenchmarkMetaData.Entry.NodeState> nodeResponses = response.getNodeResponses();
         assertThat(nodeResponses.size(), equalTo(numExecutorNodes));

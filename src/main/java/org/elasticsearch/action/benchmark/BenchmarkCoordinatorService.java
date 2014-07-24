@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.metadata.*;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
@@ -219,19 +220,21 @@ public class BenchmarkCoordinatorService extends AbstractBenchmarkService<Benchm
         manager.pause(request, new ActionListener<String[]>() {
 
             @Override
-            public void onResponse(String[] benchmarkIds) {
+            public void onResponse(final String[] benchmarkIds) {
                 if (benchmarkIds == null || benchmarkIds.length == 0) {
-                    listener.onFailure(
-                            new BenchmarkMissingException(
-                                    "No benchmarks found matching: [" + Joiner.on(",").join(request.benchmarkIdPatterns()) + "]"));
+                    listener.onFailure(new BenchmarkMissingException(
+                            "No benchmarks found matching: [" + Joiner.on(",").join(request.benchmarkIdPatterns()) + "]"));
                 } else {
+                    final OnPausedStateChangeListener on = new OnPausedStateChangeListener(listener,
+                                                                                           new CountDown(benchmarkIds.length));
+
                     for (final String benchmarkId : benchmarkIds) {
                         final InternalCoordinatorState ics = benchmarks.get(benchmarkId);
                         if (ics == null) {
                             throw new BenchmarkIllegalStateException("benchmark [" + benchmarkId + "]: missing internal state");
                         }
 
-                        ics.onPaused = new OnPausedStateChangeListener(ics, listener);
+                        ics.onPaused = on;
                     }
                 }
             }
@@ -251,7 +254,7 @@ public class BenchmarkCoordinatorService extends AbstractBenchmarkService<Benchm
         manager.resume(request, new ActionListener<String[]>() {
 
             @Override
-            public void onResponse(String[] benchmarkIds) {
+            public void onResponse(final String[] benchmarkIds) {
                 if (benchmarkIds == null || benchmarkIds.length == 0) {
                     listener.onFailure(new BenchmarkMissingException(
                             "No benchmarks found matching: [" + Joiner.on(",").join(request.benchmarkIdPatterns()) + "]"));
@@ -282,7 +285,7 @@ public class BenchmarkCoordinatorService extends AbstractBenchmarkService<Benchm
         manager.abort(request, new ActionListener<String[]>() {
 
             @Override
-            public void onResponse(String[] benchmarkIds) {
+            public void onResponse(final String[] benchmarkIds) {
                 if (benchmarkIds == null || benchmarkIds.length == 0) {
                     listener.onFailure(new BenchmarkMissingException(
                             "No benchmarks found matching: [" + Joiner.on(",").join(request.benchmarkIdPatterns()) + "]"));
@@ -316,7 +319,7 @@ public class BenchmarkCoordinatorService extends AbstractBenchmarkService<Benchm
         }
 
         @Override
-        void onStateChange(final BenchmarkMetaData.Entry entry) {
+        synchronized void onStateChange(final BenchmarkMetaData.Entry entry) {
 
             manager.update(ics.benchmarkId, BenchmarkMetaData.State.RUNNING, BenchmarkMetaData.Entry.NodeState.RUNNING,
                     new ActionListener() {
@@ -340,7 +343,7 @@ public class BenchmarkCoordinatorService extends AbstractBenchmarkService<Benchm
         }
 
         @Override
-        void onStateChange(final BenchmarkMetaData.Entry entry) {
+        synchronized void onStateChange(final BenchmarkMetaData.Entry entry) {
 
             try {
                 ics.response = manager.status(entry);
@@ -372,7 +375,7 @@ public class BenchmarkCoordinatorService extends AbstractBenchmarkService<Benchm
         }
 
         @Override
-        void onStateChange(final BenchmarkMetaData.Entry entry) {
+        synchronized void onStateChange(final BenchmarkMetaData.Entry entry) {
 
              manager.clear(ics.benchmarkId, new ActionListener() {
                 @Override
@@ -401,7 +404,7 @@ public class BenchmarkCoordinatorService extends AbstractBenchmarkService<Benchm
         }
 
         @Override
-        void onStateChange(BenchmarkMetaData.Entry entry) {
+        synchronized void onStateChange(BenchmarkMetaData.Entry entry) {
 
             final BenchmarkAbortResponse response = new BenchmarkAbortResponse(entry.benchmarkId());
 
@@ -419,25 +422,28 @@ public class BenchmarkCoordinatorService extends AbstractBenchmarkService<Benchm
 
     private class OnPausedStateChangeListener extends StateChangeListener {
 
-        final InternalCoordinatorState               ics;
+        final CountDown                              countdown;
         final ActionListener<BenchmarkPauseResponse> listener;
+        final BenchmarkPauseResponse                 response;
 
-        OnPausedStateChangeListener(final InternalCoordinatorState ics, final ActionListener<BenchmarkPauseResponse> listener) {
-            this.ics      = ics;
-            this.listener = listener;
+        OnPausedStateChangeListener(final ActionListener<BenchmarkPauseResponse> listener,
+                                    final CountDown countdown) {
+            this.countdown = countdown;
+            this.listener  = listener;
+            this.response  = new BenchmarkPauseResponse();
         }
 
         @Override
-        void onStateChange(BenchmarkMetaData.Entry entry) {
-
-            final BenchmarkPauseResponse response = new BenchmarkPauseResponse(entry.benchmarkId());
+        synchronized void onStateChange(BenchmarkMetaData.Entry entry) {
 
             for (Map.Entry<String, BenchmarkMetaData.Entry.NodeState> e : entry.nodeStateMap().entrySet()) {
                 assert e.getValue() == BenchmarkMetaData.Entry.NodeState.PAUSED;
-                response.addNodeResponse(e.getKey(), e.getValue());
+                response.addNodeResponse(entry.benchmarkId(), e.getKey(), e.getValue());
             }
 
-            listener.onResponse(response);
+            if (countdown.countDown()) {
+                listener.onResponse(response);
+            }
         }
     }
 
@@ -452,7 +458,7 @@ public class BenchmarkCoordinatorService extends AbstractBenchmarkService<Benchm
         }
 
         @Override
-        void onStateChange(BenchmarkMetaData.Entry entry) {
+        synchronized void onStateChange(BenchmarkMetaData.Entry entry) {
 
             final BenchmarkResumeResponse response = new BenchmarkResumeResponse(entry.benchmarkId());
 

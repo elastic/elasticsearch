@@ -100,7 +100,7 @@ public class TransportActionFilterChainTests extends ElasticsearchTestCase {
         Collections.sort(testFiltersByLastExecution, new Comparator<TestFilter>() {
             @Override
             public int compare(TestFilter o1, TestFilter o2) {
-                return Long.compare(o1.lastExecution, o2.lastExecution);
+                return Integer.compare(o1.executionToken, o2.executionToken);
             }
         });
 
@@ -131,12 +131,7 @@ public class TransportActionFilterChainTests extends ElasticsearchTestCase {
             @Override
             public void execute(final String action, final ActionRequest actionRequest, final ActionListener actionListener, final ActionFilterChain actionFilterChain) {
                 for (int i = 0; i <= additionalContinueCount; i++) {
-                    new Thread() {
-                        @Override
-                        public void run() {
-                            actionFilterChain.continueProcessing(action, actionRequest, actionListener);
-                        }
-                    }.start();
+                    actionFilterChain.continueProcessing(action, actionRequest, actionListener);
                 }
             }
         });
@@ -185,13 +180,15 @@ public class TransportActionFilterChainTests extends ElasticsearchTestCase {
         }
     }
 
-    private static class TestFilter implements ActionFilter {
+    private final AtomicInteger counter = new AtomicInteger();
+
+    private class TestFilter implements ActionFilter {
         private final int order;
         private final Callback callback;
 
         AtomicInteger runs = new AtomicInteger();
         volatile String lastActionName;
-        volatile long lastExecution = Long.MAX_VALUE; //the filters that don't run will go last in the sorted list
+        volatile int executionToken = Integer.MAX_VALUE; //the filters that don't run will go last in the sorted list
 
         TestFilter(int order, Callback callback) {
             this.order = order;
@@ -203,7 +200,7 @@ public class TransportActionFilterChainTests extends ElasticsearchTestCase {
         public void process(String action, ActionRequest actionRequest, ActionListener actionListener, ActionFilterChain actionFilterChain) {
             this.runs.incrementAndGet();
             this.lastActionName = action;
-            this.lastExecution = System.nanoTime();
+            this.executionToken = counter.incrementAndGet();
             this.callback.execute(action, actionRequest, actionListener, actionFilterChain);
         }
 

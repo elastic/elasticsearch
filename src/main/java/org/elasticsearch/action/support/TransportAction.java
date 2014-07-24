@@ -27,6 +27,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.concurrent.atomic.AtomicInteger;
+
 import static org.elasticsearch.action.support.PlainActionFuture.newFuture;
 
 /**
@@ -146,12 +148,12 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
 
     private class TransportActionFilterChain implements ActionFilterChain {
 
-        private volatile int index = 0;
+        private final AtomicInteger index = new AtomicInteger();
 
         @SuppressWarnings("unchecked")
         @Override
         public void continueProcessing(String action, ActionRequest actionRequest, ActionListener actionListener) {
-            int i = index++;
+            int i = index.getAndIncrement();
             try {
                 if (i < filters.length) {
                     filters[i].process(action, actionRequest, actionListener, this);

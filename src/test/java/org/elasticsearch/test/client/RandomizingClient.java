@@ -46,7 +46,7 @@ public class RandomizingClient extends FilterClient {
                 SearchType.DFS_QUERY_THEN_FETCH,
                 SearchType.QUERY_THEN_FETCH));
         if (random.nextInt(10) == 0) {
-            defaultPreference = RandomPicks.randomFrom(random, EnumSet.of(Preference.PRIMARY_FIRST, Preference.PRIMARY, Preference.LOCAL)).type();
+            defaultPreference = RandomPicks.randomFrom(random, EnumSet.of(Preference.PRIMARY_FIRST, Preference.LOCAL)).type();
         } else if (random.nextInt(10) == 0) {
             String s = TestUtil.randomRealisticUnicodeString(random, 1, 10);
             defaultPreference = s.startsWith("_") ? null : s; // '_' is a reserved character

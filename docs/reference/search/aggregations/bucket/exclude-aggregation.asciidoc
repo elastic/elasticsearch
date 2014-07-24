@@ -1,0 +1,139 @@
+[[search-aggregations-bucket-global-aggregation]]
+=== Exclude Aggregation
+
+Defines a single bucket with the documents within a sub set of the search execution context. This context is defined by the indices and the document types you're searching on, and may or may *not* be influenced by the search query itself.
+
+The `exclude` aggregation requires an `and` filter as the top level filter in the query, and names to be assigned to the filters we want to exclude.
+
+NOTE: Like global aggregators, exclude aggregators can only be placed as top level aggregators
+
+[source,js]
+--------------------------------------------------
+{
+    "query" : {
+        "filtered": {
+            "query": {
+                "term": { "description": "extra super special" }
+            },
+            "filter": {
+                "and" : [
+                    {
+                        "term" : {
+                            "gender" : "female",
+                            "_name" : "gender"
+                        }
+                    },
+                    {
+                        "term" : {
+                            "colour" : "darkOrange",
+                            "_name" : "colour"
+                        }
+                    }
+                ]
+            }
+        }
+    },
+    "aggs" : {
+        "all_products" : {
+            "exclude" : {
+                "exclude_query" : true,
+                "exclude_filters" : ["colour", "gender"]
+            },
+            "aggs" : { <1>
+                "count" : {
+                    "cardinality" : {
+                        "field" : "author"
+                    }
+                }
+            }
+        },
+        "result_products" : {
+            "exclude" : {
+                "exclude_query" : false,
+                "exclude_filters" : []
+            },
+            "aggs" : { <1>
+                "count" : {
+                    "cardinality" : {
+                        "field" : "author"
+                    }
+                }
+            }
+        },
+        "result_colours" : {
+            "exclude" : {
+                "exclude_query" : false,
+                "exclude_filters" : ["colour"]
+            },
+            "aggs" : { <1>
+                terms : {
+                    "terms" : { "field" : "colour" }
+                }
+            }
+        },
+        "result_genders" : {
+            "exclude" : {
+                "exclude_query" : false,
+                "exclude_filters" : ["gender"]
+            },
+            "aggs" : { <1>
+                terms : {
+                    "terms" : { "field" : "gender" }
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+<1> The sub-aggregations that are registered for each `exclude` aggregation
+
+The above aggregation demonstrates how one would compute aggregations (`cardinality` and `terms` in this example) on different sub sets of documents in the search context.
+
+The response for the above aggregation:
+
+[source,js]
+--------------------------------------------------
+{
+    ...
+
+    "aggregations" : {
+        "all_products" : {
+            "count" : 215
+        },
+        "result_products" : {
+            "count" : 3
+        },
+        "result_colours" : {
+            "terms" : {
+                "buckets" : [
+                    {
+                        "key" : "darkOrange",
+                        "doc_count" : 3
+                    },
+                    {
+                        "key" : "darkPink",
+                        "doc_count" : 8
+                    },
+
+                    ...
+                ]
+            }
+        },
+        "result_genders" : {
+            "terms" : {
+                "buckets" : [
+                    {
+                        "key" : "male",
+                        "doc_count" : 1
+                    },
+                    {
+                        "key" : "female",
+                        "doc_count" : 3
+                    }
+                ]
+            }
+        }
+    }
+}
+--------------------------------------------------

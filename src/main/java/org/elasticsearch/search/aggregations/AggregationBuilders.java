@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGridBuilder;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalBuilder;
+import org.elasticsearch.search.aggregations.bucket.exclude.ExcludeBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramBuilder;
 import org.elasticsearch.search.aggregations.bucket.missing.MissingBuilder;
@@ -87,6 +88,10 @@ public class AggregationBuilders {
 
     public static GlobalBuilder global(String name) {
         return new GlobalBuilder(name);
+    }
+
+    public static ExcludeBuilder exclude(String name) {
+        return new ExcludeBuilder(name);
     }
 
     public static MissingBuilder missing(String name) {

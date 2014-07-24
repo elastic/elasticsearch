@@ -22,6 +22,7 @@ import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
 import org.elasticsearch.search.aggregations.bucket.geogrid.InternalGeoHashGrid;
 import org.elasticsearch.search.aggregations.bucket.global.InternalGlobal;
+import org.elasticsearch.search.aggregations.bucket.exclude.InternalExclude;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.bucket.missing.InternalMissing;
@@ -73,6 +74,7 @@ public class TransportAggregationModule extends AbstractModule {
 
         // buckets
         InternalGlobal.registerStreams();
+        InternalExclude.registerStreams();
         InternalFilter.registerStreams();
         InternalMissing.registerStreams();
         StringTerms.registerStreams();

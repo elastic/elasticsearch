@@ -2,6 +2,8 @@
 
 include::bucket/global-aggregation.asciidoc[]
 
+include::bucket/exclude-aggregation.asciidoc[]
+
 include::bucket/filter-aggregation.asciidoc[]
 
 include::bucket/missing-aggregation.asciidoc[]

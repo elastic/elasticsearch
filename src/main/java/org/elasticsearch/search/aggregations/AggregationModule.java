@@ -24,6 +24,7 @@ import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterParser;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGridParser;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalParser;
+import org.elasticsearch.search.aggregations.bucket.exclude.ExcludeParser;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramParser;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramParser;
 import org.elasticsearch.search.aggregations.bucket.missing.MissingParser;
@@ -70,6 +71,7 @@ public class AggregationModule extends AbstractModule {
         parsers.add(CardinalityParser.class);
 
         parsers.add(GlobalParser.class);
+        parsers.add(ExcludeParser.class);
         parsers.add(MissingParser.class);
         parsers.add(FilterParser.class);
         parsers.add(TermsParser.class);

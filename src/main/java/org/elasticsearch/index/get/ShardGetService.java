@@ -96,12 +96,12 @@ public class ShardGetService extends AbstractIndexShardComponent {
         return this;
     }
 
-    public GetResult get(String type, String id, String[] gFields, boolean realtime, boolean ignoreErrorsOnGeneratedFields, long version, VersionType versionType, FetchSourceContext fetchSourceContext)
+    public GetResult get(String type, String id, String[] gFields, boolean realtime, long version, VersionType versionType, FetchSourceContext fetchSourceContext, boolean ignoreErrorsOnGeneratedFields)
             throws ElasticsearchException {
         currentMetric.inc();
         try {
             long now = System.nanoTime();
-            GetResult getResult = innerGet(type, id, gFields, realtime, ignoreErrorsOnGeneratedFields, version, versionType, fetchSourceContext);
+            GetResult getResult = innerGet(type, id, gFields, realtime, version, versionType, fetchSourceContext, ignoreErrorsOnGeneratedFields);
 
             if (getResult.isExists()) {
                 existsMetric.inc(System.nanoTime() - now);
@@ -165,7 +165,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
         return FetchSourceContext.DO_NOT_FETCH_SOURCE;
     }
 
-    public GetResult innerGet(String type, String id, String[] gFields, boolean realtime, boolean ignoreErrorsOnGeneratedFields, long version, VersionType versionType, FetchSourceContext fetchSourceContext) throws ElasticsearchException {
+    public GetResult innerGet(String type, String id, String[] gFields, boolean realtime, long version, VersionType versionType, FetchSourceContext fetchSourceContext, boolean ignoreErrorsOnGeneratedFields) throws ElasticsearchException {
         fetchSourceContext = normalizeFetchSourceContent(fetchSourceContext, gFields);
 
         boolean loadSource = (gFields != null && gFields.length > 0) || fetchSourceContext.fetchSource();
@@ -241,17 +241,17 @@ public class ShardGetService extends AbstractIndexShardComponent {
                                 searchLookup.source().setNextSource(source.source);
                             }
 
-                            FieldMapper<?> x = docMapper.mappers().smartNameFieldMapper(field);
-                            if (x == null) {
+                            FieldMapper<?> fieldMapper = docMapper.mappers().smartNameFieldMapper(field);
+                            if (fieldMapper == null) {
                                 if (docMapper.objectMappers().get(field) != null) {
                                     // Only fail if we know it is a object field, missing paths / fields shouldn't fail.
                                     throw new ElasticsearchIllegalArgumentException("field [" + field + "] isn't a leaf field");
                                 }
-                            } else if (shouldGetFromSource(ignoreErrorsOnGeneratedFields, docMapper, x)) {
+                            } else if (shouldGetFromSource(ignoreErrorsOnGeneratedFields, docMapper, fieldMapper)) {
                                 List<Object> values = searchLookup.source().extractRawValues(field);
                                 if (!values.isEmpty()) {
                                     for (int i = 0; i < values.size(); i++) {
-                                        values.set(i, x.valueForSearch(values.get(i)));
+                                        values.set(i, fieldMapper.valueForSearch(values.get(i)));
                                     }
                                     value = values;
                                 }
@@ -313,20 +313,20 @@ public class ShardGetService extends AbstractIndexShardComponent {
         }
     }
 
-    protected boolean shouldGetFromSource(boolean ignoreErrorsOnGeneratedFields, DocumentMapper docMapper, FieldMapper<?> x) {
-        if (!x.isGenerated()) {
+    protected boolean shouldGetFromSource(boolean ignoreErrorsOnGeneratedFields, DocumentMapper docMapper, FieldMapper<?> fieldMapper) {
+        if (!fieldMapper.isGenerated()) {
             //if the field is always there we check if either source mapper is enabled, in which case we get the field
             // from source, or, if the field is stored, in which case we have to get if from source here also (we are in the translog phase, doc not indexed yet, we annot access the stored fields)
-            return docMapper.sourceMapper().enabled() || x.fieldType().stored();
+            return docMapper.sourceMapper().enabled() || fieldMapper.fieldType().stored();
         } else {
-            if (!x.fieldType().stored()) {
+            if (!fieldMapper.fieldType().stored()) {
                 //if it is not stored, user will not get the generated field back
                 return false;
             } else {
                 if (ignoreErrorsOnGeneratedFields) {
                     return false;
                 } else {
-                    throw new ElasticsearchException("Cannot access field " + x.name() + " from transaction log. You can only get this field after refresh() has been called.");
+                    throw new ElasticsearchException("Cannot access field " + fieldMapper.name() + " from transaction log. You can only get this field after refresh() has been called.");
                 }
             }
 
@@ -361,13 +361,13 @@ public class ShardGetService extends AbstractIndexShardComponent {
             SearchLookup searchLookup = null;
             for (String field : gFields) {
                 Object value = null;
-                FieldMappers x = docMapper.mappers().smartName(field);
-                if (x == null) {
+                FieldMappers fieldMapper = docMapper.mappers().smartName(field);
+                if (fieldMapper == null) {
                     if (docMapper.objectMappers().get(field) != null) {
                         // Only fail if we know it is a object field, missing paths / fields shouldn't fail.
                         throw new ElasticsearchIllegalArgumentException("field [" + field + "] isn't a leaf field");
                     }
-                } else if (!x.mapper().fieldType().stored() && !x.mapper().isGenerated()) {
+                } else if (!fieldMapper.mapper().fieldType().stored() && !fieldMapper.mapper().isGenerated()) {
                     if (searchLookup == null) {
                         searchLookup = new SearchLookup(mapperService, fieldDataService, new String[]{type});
                         searchLookup.setNextReader(docIdAndVersion.context);
@@ -378,7 +378,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
                     List<Object> values = searchLookup.source().extractRawValues(field);
                     if (!values.isEmpty()) {
                         for (int i = 0; i < values.size(); i++) {
-                            values.set(i, x.mapper().valueForSearch(values.get(i)));
+                            values.set(i, fieldMapper.mapper().valueForSearch(values.get(i)));
                         }
                         value = values;
                     }

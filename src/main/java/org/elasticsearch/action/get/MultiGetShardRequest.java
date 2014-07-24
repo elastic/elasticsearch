@@ -21,6 +21,7 @@ package org.elasticsearch.action.get;
 
 import com.carrotsearch.hppc.IntArrayList;
 import com.carrotsearch.hppc.LongArrayList;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.single.shard.SingleShardOperationRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -159,7 +160,9 @@ public class MultiGetShardRequest extends SingleShardOperationRequest<MultiGetSh
         } else if (realtime == 1) {
             this.realtime = true;
         }
-        ignoreErrorsOnGeneratedFields = in.readBoolean();
+        if(in.getVersion().onOrAfter(Version.V_1_4_0)) {
+            ignoreErrorsOnGeneratedFields = in.readBoolean();
+        }
     }
 
     @Override
@@ -198,7 +201,9 @@ public class MultiGetShardRequest extends SingleShardOperationRequest<MultiGetSh
         } else {
             out.writeByte((byte) 1);
         }
-        out.writeBoolean(ignoreErrorsOnGeneratedFields);
+        if(out.getVersion().onOrAfter(Version.V_1_4_0)) {
+            out.writeBoolean(ignoreErrorsOnGeneratedFields);
+        }
 
     }
 

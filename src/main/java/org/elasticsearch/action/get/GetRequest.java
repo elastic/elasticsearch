@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.get;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.single.shard.SingleShardOperationRequest;
@@ -275,7 +276,9 @@ public class GetRequest extends SingleShardOperationRequest<GetRequest> {
         } else if (realtime == 1) {
             this.realtime = true;
         }
-        this.ignoreErrorsOnGeneratedFields = in.readBoolean();
+        if(in.getVersion().onOrAfter(Version.V_1_4_0)) {
+            this.ignoreErrorsOnGeneratedFields = in.readBoolean();
+        }
 
         this.versionType = VersionType.fromValue(in.readByte());
         this.version = Versions.readVersionWithVLongForBW(in);
@@ -307,8 +310,9 @@ public class GetRequest extends SingleShardOperationRequest<GetRequest> {
         } else {
             out.writeByte((byte) 1);
         }
-
-        out.writeBoolean(ignoreErrorsOnGeneratedFields);
+        if(out.getVersion().onOrAfter(Version.V_1_4_0)) {
+            out.writeBoolean(ignoreErrorsOnGeneratedFields);
+        }
         out.writeByte(versionType.getValue());
         Versions.writeVersionWithVLongForBW(version, out);
 

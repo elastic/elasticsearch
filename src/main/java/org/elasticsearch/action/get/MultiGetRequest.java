@@ -22,6 +22,7 @@ package org.elasticsearch.action.get;
 import com.google.common.collect.Iterators;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
@@ -488,7 +489,9 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
         } else if (realtime == 1) {
             this.realtime = true;
         }
-        ignoreErrorsOnGeneratedFields = in.readBoolean();
+        if(in.getVersion().onOrAfter(Version.V_1_4_0)) {
+            ignoreErrorsOnGeneratedFields = in.readBoolean();
+        }
 
         int size = in.readVInt();
         items = new ArrayList<>(size);
@@ -509,7 +512,9 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
         } else {
             out.writeByte((byte) 1);
         }
-        out.writeBoolean(ignoreErrorsOnGeneratedFields);
+        if(out.getVersion().onOrAfter(Version.V_1_4_0)) {
+            out.writeBoolean(ignoreErrorsOnGeneratedFields);
+        }
 
         out.writeVInt(items.size());
         for (Item item : items) {

@@ -92,7 +92,7 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
             fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
             LongFieldMapper fieldMapper = new LongFieldMapper(buildNames(context), fieldType.numericPrecisionStep(), boost, fieldType, docValues, nullValue,
                     ignoreMalformed(context), coerce(context), postingsProvider, docValuesProvider, similarity, normsLoading, 
-                    fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo, false);
+                    fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }
@@ -122,10 +122,10 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
                               Long nullValue, Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
                               PostingsFormatProvider postingsProvider, DocValuesFormatProvider docValuesProvider,
                               SimilarityProvider similarity, Loading normsLoading, @Nullable Settings fieldDataSettings, 
-                              Settings indexSettings, MultiFields multiFields, CopyTo copyTo, boolean isGenerated) {
+                              Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(names, precisionStep, boost, fieldType, docValues, ignoreMalformed, coerce,
                 NumericLongAnalyzer.buildNamedAnalyzer(precisionStep), NumericLongAnalyzer.buildNamedAnalyzer(Integer.MAX_VALUE),
-                postingsProvider, docValuesProvider, similarity, normsLoading, fieldDataSettings, indexSettings, multiFields, copyTo, isGenerated);
+                postingsProvider, docValuesProvider, similarity, normsLoading, fieldDataSettings, indexSettings, multiFields, copyTo);
         this.nullValue = nullValue;
         this.nullValueAsString = nullValue == null ? null : nullValue.toString();
     }

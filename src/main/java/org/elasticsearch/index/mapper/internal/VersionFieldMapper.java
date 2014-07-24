@@ -99,7 +99,7 @@ public class VersionFieldMapper extends AbstractFieldMapper<Long> implements Int
     }
 
     VersionFieldMapper(DocValuesFormatProvider docValuesFormat) {
-        super(new Names(NAME, NAME, NAME, NAME), Defaults.BOOST, Defaults.FIELD_TYPE, null, null, null, null, docValuesFormat, null, null, null, ImmutableSettings.EMPTY, false);
+        super(new Names(NAME, NAME, NAME, NAME), Defaults.BOOST, Defaults.FIELD_TYPE, null, null, null, null, docValuesFormat, null, null, null, ImmutableSettings.EMPTY);
     }
 
     @Override

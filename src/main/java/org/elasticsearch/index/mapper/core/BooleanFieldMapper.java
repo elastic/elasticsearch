@@ -98,7 +98,7 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
         @Override
         public BooleanFieldMapper build(BuilderContext context) {
             return new BooleanFieldMapper(buildNames(context), boost, fieldType, nullValue, postingsProvider, 
-                    docValuesProvider, similarity, normsLoading, fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo, false);
+                    docValuesProvider, similarity, normsLoading, fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
         }
     }
 
@@ -122,8 +122,8 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
 
     protected BooleanFieldMapper(Names names, float boost, FieldType fieldType, Boolean nullValue, PostingsFormatProvider postingsProvider,
                                  DocValuesFormatProvider docValuesProvider, SimilarityProvider similarity, Loading normsLoading,
-                                 @Nullable Settings fieldDataSettings, Settings indexSettings, MultiFields multiFields, CopyTo copyTo, boolean isGenerated) {
-        super(names, boost, fieldType, null, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER, postingsProvider, docValuesProvider, similarity, normsLoading, fieldDataSettings, indexSettings, multiFields, copyTo, isGenerated);
+                                 @Nullable Settings fieldDataSettings, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
+        super(names, boost, fieldType, null, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER, postingsProvider, docValuesProvider, similarity, normsLoading, fieldDataSettings, indexSettings, multiFields, copyTo);
         this.nullValue = nullValue;
     }
 

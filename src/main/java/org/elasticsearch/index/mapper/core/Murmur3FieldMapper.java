@@ -83,7 +83,7 @@ public class Murmur3FieldMapper extends LongFieldMapper {
             Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(names, precisionStep, boost, fieldType, docValues, nullValue, ignoreMalformed, coerce,
                 postingsProvider, docValuesProvider, similarity, normsLoading, fieldDataSettings,
-                indexSettings, multiFields, copyTo, true);
+                indexSettings, multiFields, copyTo);
     }
 
     @Override
@@ -106,6 +106,11 @@ public class Murmur3FieldMapper extends LongFieldMapper {
             super.innerParseCreateField(context, fields);
         }
 
+    }
+
+    @Override
+    public boolean isGenerated() {
+        return true;
     }
 
 }

@@ -120,7 +120,7 @@ public class IndexFieldMapper extends AbstractFieldMapper<String> implements Int
     public IndexFieldMapper(String name, String indexName, float boost, FieldType fieldType, Boolean docValues, EnabledAttributeMapper enabledState,
                             PostingsFormatProvider postingsProvider, DocValuesFormatProvider docValuesProvider, @Nullable Settings fieldDataSettings, Settings indexSettings) {
         super(new Names(name, indexName, indexName, name), boost, fieldType, docValues, Lucene.KEYWORD_ANALYZER,
-                Lucene.KEYWORD_ANALYZER, postingsProvider, docValuesProvider, null, null, fieldDataSettings, indexSettings, false);
+                Lucene.KEYWORD_ANALYZER, postingsProvider, docValuesProvider, null, null, fieldDataSettings, indexSettings);
         this.enabledState = enabledState;
     }
 

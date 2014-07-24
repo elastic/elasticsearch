@@ -119,7 +119,7 @@ public class TokenCountFieldMapper extends IntegerFieldMapper {
             SimilarityProvider similarity, Loading normsLoading, Settings fieldDataSettings, Settings indexSettings, NamedAnalyzer analyzer,
             MultiFields multiFields, CopyTo copyTo) {
         super(names, precisionStep, boost, fieldType, docValues, nullValue, ignoreMalformed, coerce, postingsProvider, docValuesProvider, 
-                similarity, normsLoading, fieldDataSettings, indexSettings, multiFields, copyTo, true);
+                similarity, normsLoading, fieldDataSettings, indexSettings, multiFields, copyTo);
 
         this.analyzer = analyzer;
     }
@@ -202,4 +202,5 @@ public class TokenCountFieldMapper extends IntegerFieldMapper {
     public boolean isGenerated() {
         return true;
     }
+
 }

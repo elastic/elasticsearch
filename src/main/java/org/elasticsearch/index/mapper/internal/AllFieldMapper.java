@@ -149,7 +149,7 @@ public class AllFieldMapper extends AbstractFieldMapper<String> implements Inter
                              DocValuesFormatProvider docValuesProvider, SimilarityProvider similarity, Loading normsLoading,
                              @Nullable Settings fieldDataSettings, Settings indexSettings) {
         super(new Names(name, name, name, name), 1.0f, fieldType, null, indexAnalyzer, searchAnalyzer, postingsProvider, docValuesProvider,
-                similarity, normsLoading, fieldDataSettings, indexSettings, true);
+                similarity, normsLoading, fieldDataSettings, indexSettings);
         this.enabled = enabled;
         this.autoBoost = autoBoost;
 
@@ -350,5 +350,10 @@ public class AllFieldMapper extends AbstractFieldMapper<String> implements Inter
     @Override
     public boolean hasDocValues() {
         return false;
+    }
+
+    @Override
+    public boolean isGenerated() {
+        return true;
     }
 }

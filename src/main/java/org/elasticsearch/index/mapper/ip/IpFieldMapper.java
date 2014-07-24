@@ -155,7 +155,7 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
         super(names, precisionStep, boost, fieldType, docValues,
                 ignoreMalformed, coerce, new NamedAnalyzer("_ip/" + precisionStep, new NumericIpAnalyzer(precisionStep)),
                 new NamedAnalyzer("_ip/max", new NumericIpAnalyzer(Integer.MAX_VALUE)), postingsProvider, docValuesProvider,
-                similarity, normsLoading, fieldDataSettings, indexSettings, multiFields, copyTo, false);
+                similarity, normsLoading, fieldDataSettings, indexSettings, multiFields, copyTo);
         this.nullValue = nullValue;
     }
 

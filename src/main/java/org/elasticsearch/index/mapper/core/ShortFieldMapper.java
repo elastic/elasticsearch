@@ -94,7 +94,7 @@ public class ShortFieldMapper extends NumberFieldMapper<Short> {
             fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
             ShortFieldMapper fieldMapper = new ShortFieldMapper(buildNames(context), fieldType.numericPrecisionStep(), boost, fieldType, docValues, nullValue,
                     ignoreMalformed(context), coerce(context),postingsProvider, docValuesProvider, similarity, normsLoading, fieldDataSettings, 
-                    context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo, false);
+                    context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }
@@ -124,10 +124,10 @@ public class ShortFieldMapper extends NumberFieldMapper<Short> {
                                Short nullValue, Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
                                PostingsFormatProvider postingsProvider, DocValuesFormatProvider docValuesProvider,
                                SimilarityProvider similarity, Loading normsLoading, @Nullable Settings fieldDataSettings, 
-                               Settings indexSettings, MultiFields multiFields, CopyTo copyTo, boolean isGenerated) {
+                               Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(names, precisionStep, boost, fieldType, docValues, ignoreMalformed, coerce, new NamedAnalyzer("_short/" + precisionStep,
                 new NumericIntegerAnalyzer(precisionStep)), new NamedAnalyzer("_short/max", new NumericIntegerAnalyzer(Integer.MAX_VALUE)),
-                postingsProvider, docValuesProvider, similarity, normsLoading, fieldDataSettings, indexSettings, multiFields, copyTo, isGenerated);
+                postingsProvider, docValuesProvider, similarity, normsLoading, fieldDataSettings, indexSettings, multiFields, copyTo);
         this.nullValue = nullValue;
         this.nullValueAsString = nullValue == null ? null : nullValue.toString();
     }

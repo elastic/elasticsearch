@@ -275,20 +275,19 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
     protected FieldDataType fieldDataType;
     protected final MultiFields multiFields;
     protected CopyTo copyTo;
-    protected boolean isGenerated;
 
     protected AbstractFieldMapper(Names names, float boost, FieldType fieldType, Boolean docValues, NamedAnalyzer indexAnalyzer,
                                   NamedAnalyzer searchAnalyzer, PostingsFormatProvider postingsFormat,
                                   DocValuesFormatProvider docValuesFormat, SimilarityProvider similarity,
-                                  Loading normsLoading, @Nullable Settings fieldDataSettings, Settings indexSettings, boolean isGenerated) {
+                                  Loading normsLoading, @Nullable Settings fieldDataSettings, Settings indexSettings) {
         this(names, boost, fieldType, docValues, indexAnalyzer, searchAnalyzer, postingsFormat, docValuesFormat, similarity,
-                normsLoading, fieldDataSettings, indexSettings, MultiFields.empty(), null, isGenerated);
+                normsLoading, fieldDataSettings, indexSettings, MultiFields.empty(), null);
     }
 
     protected AbstractFieldMapper(Names names, float boost, FieldType fieldType, Boolean docValues, NamedAnalyzer indexAnalyzer,
                                   NamedAnalyzer searchAnalyzer, PostingsFormatProvider postingsFormat,
                                   DocValuesFormatProvider docValuesFormat, SimilarityProvider similarity,
-                                  Loading normsLoading, @Nullable Settings fieldDataSettings, Settings indexSettings, MultiFields multiFields, CopyTo copyTo, boolean isGenerated) {
+                                  Loading normsLoading, @Nullable Settings fieldDataSettings, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         this.names = names;
         this.boost = boost;
         this.fieldType = fieldType;
@@ -334,7 +333,6 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         }
         this.multiFields = multiFields;
         this.copyTo = copyTo;
-        this.isGenerated = isGenerated;
     }
 
     @Nullable
@@ -1121,7 +1119,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
      * Returns if this field is only generated when indexing. For example, the field of type token_count
      */
     public boolean isGenerated() {
-        return isGenerated;
+        return false;
     }
 
 }

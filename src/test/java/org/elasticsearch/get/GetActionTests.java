@@ -917,8 +917,7 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
         String createIndexSource = "{\n" +
                 "  \"settings\": {\n" +
                 "    \"index.translog.disable_flush\": true,\n" +
-                "    \"index.number_of_shards\": 1,\n" +
-                "    \"refresh_interval\": \"1h\"\n" +
+                "    \"refresh_interval\": \"-1\"\n" +
                 "  },\n" +
                 "  \"mappings\": {\n" +
                 "    \"doc\": {\n" +
@@ -934,6 +933,7 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
                 "  }\n" +
                 "}";
         assertAcked(prepareCreate("testidx").setSource(createIndexSource));
+        ensureGreen();
         String doc = "{\n" +
                 "  \"suggest\": {\n" +
                 "    \"input\": [\n" +
@@ -962,8 +962,7 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
         String createIndexSource = "{\n" +
                 "  \"settings\": {\n" +
                 "    \"index.translog.disable_flush\": true,\n" +
-                "    \"index.number_of_shards\": 1,\n" +
-                "    \"refresh_interval\": \"1h\"\n" +
+                "    \"refresh_interval\": \"-1\"\n" +
                 "  },\n" +
                 "  \"mappings\": {\n" +
                 "    \"parentdoc\": {},\n" +
@@ -983,6 +982,7 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
                 "  }\n" +
                 "}";
         assertAcked(prepareCreate("testidx").setSource(createIndexSource));
+        ensureGreen();
         String doc = "{\n" +
                 "  \"_ttl\": \"1h\"\n" +
                 "}";
@@ -1038,8 +1038,7 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
         String createIndexSource = "{\n" +
                 "  \"settings\": {\n" +
                 "    \"index.translog.disable_flush\": true,\n" +
-                "    \"index.number_of_shards\": 1,\n" +
-                "    \"refresh_interval\": \"1h\"\n" +
+                "    \"refresh_interval\": \"-1\"\n" +
                 "  },\n" +
                 "  \"mappings\": {\n" +
                 "    \"doc\": {\n" +
@@ -1055,6 +1054,7 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
                 "  }\n" +
                 "}";
         assertAcked(prepareCreate("testidx").setSource(createIndexSource));
+        ensureGreen();
         String doc = "{\n" +
                 "  \"my_boost\": 5.0,\n" +
                 "  \"_ttl\": \"1h\"\n" +
@@ -1097,8 +1097,7 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
         String createIndexSource = "{\n" +
                 "  \"settings\": {\n" +
                 "    \"index.translog.disable_flush\": true,\n" +
-                "    \"index.number_of_shards\": 1,\n" +
-                "    \"refresh_interval\": \"1h\"\n" +
+                "    \"refresh_interval\": \"-1\"\n" +
                 "  },\n" +
                 "  \"mappings\": {\n" +
                 "    \"parentdoc\": {},\n" +
@@ -1119,6 +1118,7 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
                 "}";
 
         assertAcked(prepareCreate("testidx").setSource(createIndexSource));
+        ensureGreen();
         String doc = "{\n" +
                 "  \"text\": \"some text.\"\n" +
                 "}\n";
@@ -1161,8 +1161,7 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
         String createIndexSource = "{\n" +
                 "  \"settings\": {\n" +
                 "    \"index.translog.disable_flush\": true,\n" +
-                "    \"index.number_of_shards\": 1,\n" +
-                "    \"refresh_interval\": \"1h\"\n" +
+                "    \"refresh_interval\": \"-1\"\n" +
                 "  },\n" +
                 "  \"mappings\": {\n" +
                 "    \"doc\": {\n" +
@@ -1174,7 +1173,7 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
                 "}";
 
         assertAcked(prepareCreate("testidx").setSource(createIndexSource));
-
+        ensureGreen();
         String doc = "{\n" +
                 "  \"text1\": \"some text.\"\n," +
                 "  \"text2\": \"more text.\"\n" +
@@ -1217,8 +1216,7 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
         String createIndexSource = "{\n" +
                 "  \"settings\": {\n" +
                 "    \"index.translog.disable_flush\": true,\n" +
-                "    \"index.number_of_shards\": 1,\n" +
-                "    \"refresh_interval\": \"1h\"\n" +
+                "    \"refresh_interval\": \"-1\"\n" +
                 "  },\n" +
                 "  \"mappings\": {\n" +
                 "    \"doc\": {\n" +
@@ -1253,7 +1251,7 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
                 "}";
 
         assertAcked(prepareCreate("testidx").setSource(createIndexSource));
-
+        ensureGreen();
         String doc = "{\n" +
                 "  \"murmur\": \"Some value that can be hashed\",\n" +
                 "  \"token_count\": \"A text with five words.\",\n" +

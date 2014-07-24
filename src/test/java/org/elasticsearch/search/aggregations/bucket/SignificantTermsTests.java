@@ -196,7 +196,7 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
                 .setSearchType(SearchType.QUERY_AND_FETCH)
                 .setQuery(new TermQueryBuilder("_all", "terje"))
                 .setFrom(0).setSize(60).setExplain(true)
-                .addAggregation(new SignificantTermsBuilder("mySignificantTerms").field("description").executionHint(randomExecutionHint()).significanceHeuristic(new GND.GNDBuilder())
+                .addAggregation(new SignificantTermsBuilder("mySignificantTerms").field("description").executionHint(randomExecutionHint()).significanceHeuristic(new GND.GNDBuilder(true))
                         .minDocCount(2))
                 .execute()
                 .actionGet();

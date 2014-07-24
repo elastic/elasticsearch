@@ -163,7 +163,7 @@ public class SignificantTermsSignificanceScoreTests extends ElasticsearchIntegra
         }
     }
 
-    public static class SimpleHeuristic implements SignificanceHeuristic {
+    public static class SimpleHeuristic extends SignificanceHeuristic {
 
         protected static final String[] NAMES = {"simple"};
 
@@ -266,6 +266,7 @@ public class SignificantTermsSignificanceScoreTests extends ElasticsearchIntegra
         index01Docs(type, settings);
         testBackgroundVsSeparateSet(new MutualInformation.MutualInformationBuilder(true, true), new MutualInformation.MutualInformationBuilder(true, false));
         testBackgroundVsSeparateSet(new ChiSquare.ChiSquareBuilder(true, true), new ChiSquare.ChiSquareBuilder(true, false));
+        testBackgroundVsSeparateSet(new GND.GNDBuilder(true), new GND.GNDBuilder(false));
     }
 
     // compute significance score by
@@ -308,7 +309,7 @@ public class SignificantTermsSignificanceScoreTests extends ElasticsearchIntegra
         assertThat(sigTerms0.getBuckets().size(), equalTo(2));
         double score00Background = sigTerms0.getBucketByKey("0").getSignificanceScore();
         double score01Background = sigTerms0.getBucketByKey("1").getSignificanceScore();
-        SignificantTerms sigTerms1 = ((SignificantTerms) (((StringTerms) response1.getAggregations().get("class")).getBucketByKey("0").getAggregations().asMap().get("sig_terms")));
+        SignificantTerms sigTerms1 = ((SignificantTerms) (((StringTerms) response1.getAggregations().get("class")).getBucketByKey("1").getAggregations().asMap().get("sig_terms")));
         double score10Background = sigTerms1.getBucketByKey("0").getSignificanceScore();
         double score11Background = sigTerms1.getBucketByKey("1").getSignificanceScore();
 

@@ -20,11 +20,12 @@
 package org.elasticsearch.search.aggregations.bucket.significant.heuristics;
 
 
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-public interface SignificanceHeuristic {
+public abstract class SignificanceHeuristic {
     /**
      * @param subsetFreq   The frequency of the term in the selected sample
      * @param subsetSize   The size of the selected sample (typically number of docs)
@@ -32,7 +33,19 @@ public interface SignificanceHeuristic {
      * @param supersetSize The size of the superset from which the sample was taken  (typically number of docs)
      * @return a "significance" score
      */
-    public double getScore(long subsetFreq, long subsetSize, long supersetFreq, long supersetSize);
+    public abstract double getScore(long subsetFreq, long subsetSize, long supersetFreq, long supersetSize);
 
-    void writeTo(StreamOutput out) throws IOException;
+    abstract public void writeTo(StreamOutput out) throws IOException;
+
+    protected void checkFrequencyValidity(long subsetFreq, long subsetSize, long supersetFreq, long supersetSize, String scoreFunctionName) {
+        if (subsetFreq < 0 || subsetSize < 0 || supersetFreq < 0 || supersetSize < 0) {
+            throw new ElasticsearchIllegalArgumentException("Frequencies of subset and superset must be positive in " + scoreFunctionName + ".getScore()");
+        }
+        if (subsetFreq > subsetSize) {
+            throw new ElasticsearchIllegalArgumentException("subsetFreq > subsetSize, in JLHScore.score(..)");
+        }
+        if (supersetFreq > supersetSize) {
+            throw new ElasticsearchIllegalArgumentException("supersetFreq > supersetSize, in JLHScore.score(..)");
+        }
+    }
 }

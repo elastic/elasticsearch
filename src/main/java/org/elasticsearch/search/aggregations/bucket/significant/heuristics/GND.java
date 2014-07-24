@@ -21,7 +21,6 @@
 package org.elasticsearch.search.aggregations.bucket.significant.heuristics;
 
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -32,27 +31,27 @@ import org.elasticsearch.index.query.QueryParsingException;
 
 import java.io.IOException;
 
-public class GND implements SignificanceHeuristic {
+public class GND extends NXYSignificanceHeuristic {
 
     protected static final ParseField NAMES_FIELD = new ParseField("gnd");
 
-    public static final GND INSTANCE = new GND();
-
-    private GND() {
+    public GND(boolean backgroundIsSuperset) {
+        super(true, backgroundIsSuperset);
     }
+
 
     @Override
     public boolean equals(Object other) {
         if (!(other instanceof GND)) {
             return false;
         }
-        return true;
+        return ((GND) other).backgroundIsSuperset == backgroundIsSuperset;
     }
 
     public static final SignificanceHeuristicStreams.Stream STREAM = new SignificanceHeuristicStreams.Stream() {
         @Override
         public SignificanceHeuristic readResult(StreamInput in) throws IOException {
-            return INSTANCE;
+            return new GND(in.readBoolean());
         }
 
         @Override
@@ -68,23 +67,23 @@ public class GND implements SignificanceHeuristic {
     @Override
     public double getScore(long subsetFreq, long subsetSize, long supersetFreq, long supersetSize) {
 
-        if (subsetFreq < 0 || subsetSize < 0 || supersetFreq < 0 || supersetSize < 0) {
-            throw new ElasticsearchIllegalArgumentException("Frequencies of subset and superset must be positive in GND.getScore()");
+        computeNxys(subsetFreq, subsetSize, supersetFreq, supersetSize, "GND");
+        double fx = frequencies.N1_;
+        double fy = frequencies.N_1;
+        double fxy = frequencies.N11;
+        double N = frequencies.N;
+        if (fxy == 0) {
+            // no co-occurrence
+            return 0.0;
         }
-        if (subsetFreq > subsetSize) {
-            throw new ElasticsearchIllegalArgumentException("subsetFreq > subsetSize, in GND.score(..)");
-        }
-        if (supersetFreq > supersetSize) {
-            throw new ElasticsearchIllegalArgumentException("supersetFreq > supersetSize, in GND.score(..)");
+        if ((fx == fy) && (fx == fxy)) {
+            // perfect co-occurrence
+            return 1.0;
         }
 
-        double fx = subsetSize;
-        double fy = supersetFreq;
-        double fxy = subsetFreq;
-        double N = supersetSize;
-
-        double score = (Math.max(Math.log(fx), Math.log(fy)) - Math.log(fxy))
-                / (Math.log(N) - Math.min(Math.log(fx), Math.log(fy)));
+        double nominator = (Math.log(N) - Math.min(Math.log(fx), Math.log(fy)));
+        double denominator = (Math.max(Math.log(fx), Math.log(fy)) - Math.log(fxy));
+        double score = nominator/denominator;
 
         //we must invert the order of terms because GND scores relevant terms low
         score = Math.exp(-1.0d * score);
@@ -94,35 +93,55 @@ public class GND implements SignificanceHeuristic {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(STREAM.getName());
+        out.writeBoolean(backgroundIsSuperset);
     }
 
-    public static class GNDParser implements SignificanceHeuristicParser {
-
-        @Override
-        public SignificanceHeuristic parse(XContentParser parser) throws IOException, QueryParsingException {
-            NAMES_FIELD.match(parser.currentName(), ParseField.EMPTY_FLAGS);
-            // move to the closing bracket
-            if (!parser.nextToken().equals(XContentParser.Token.END_OBJECT)) {
-                throw new ElasticsearchParseException("expected }, got " + parser.currentName() + " instead in gnd score");
-            }
-            return new GND();
-        }
+    public static class GNDParser extends NXYParser {
 
         @Override
         public String[] getNames() {
             return NAMES_FIELD.getAllNamesIncludedDeprecated();
         }
+
+        protected SignificanceHeuristic newHeuristic(boolean includeNegatives, boolean backgroundIsSuperset) {
+            return new GND(backgroundIsSuperset);
+        }
+
+        @Override
+        protected void checkName(String givenName) {
+            NAMES_FIELD.match(givenName);
+        }
+        @Override
+        public SignificanceHeuristic parse(XContentParser parser) throws IOException, QueryParsingException {
+            String givenName = parser.currentName();
+            checkName(givenName);
+            boolean backgroundIsSuperset = true;
+            XContentParser.Token token = parser.nextToken();
+            while (!token.equals(XContentParser.Token.END_OBJECT)) {
+                if (BACKGROUND_IS_SUPERSET.match(parser.currentName(), ParseField.EMPTY_FLAGS)) {
+                    parser.nextToken();
+                    backgroundIsSuperset = parser.booleanValue();
+                } else {
+                    throw new ElasticsearchParseException("Field " + parser.currentName().toString() + " unknown for " + givenName);
+                }
+                token = parser.nextToken();
+            }
+            return newHeuristic(true, backgroundIsSuperset);
+        }
+
     }
 
-    public static class GNDBuilder implements SignificanceHeuristicBuilder {
+    public static class GNDBuilder extends NXYBuilder {
 
-        public GNDBuilder() {
+        public GNDBuilder(boolean backgroundIsSuperset) {
+            super(true, backgroundIsSuperset);
         }
 
         @Override
         public void toXContent(XContentBuilder builder) throws IOException {
-            builder.startObject(STREAM.getName())
-                    .endObject();
+            builder.startObject(STREAM.getName());
+            builder.field(BACKGROUND_IS_SUPERSET.getPreferredName(), backgroundIsSuperset);
+            builder.endObject();
         }
     }
 }

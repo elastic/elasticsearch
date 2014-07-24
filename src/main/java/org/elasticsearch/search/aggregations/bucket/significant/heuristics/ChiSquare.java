@@ -62,7 +62,7 @@ public class ChiSquare extends NXYSignificanceHeuristic {
      */
     @Override
     public double getScore(long subsetFreq, long subsetSize, long supersetFreq, long supersetSize) {
-        computeNxys(subsetFreq, subsetSize, supersetFreq, supersetSize);
+        computeNxys(subsetFreq, subsetSize, supersetFreq, supersetSize, "ChiSquare");
 
         // here we check if the term appears more often in subset than in background without subset.
         if (!includeNegatives && frequencies.N11 / frequencies.N_1 < frequencies.N10 / frequencies.N_0) {
@@ -97,9 +97,6 @@ public class ChiSquare extends NXYSignificanceHeuristic {
     }
 
     public static class ChiSquareBuilder extends NXYSignificanceHeuristic.NXYBuilder {
-
-        private ChiSquareBuilder() {
-        }
 
         public ChiSquareBuilder(boolean includeNegatives, boolean backgroundIsSuperset) {
             super(includeNegatives, backgroundIsSuperset);

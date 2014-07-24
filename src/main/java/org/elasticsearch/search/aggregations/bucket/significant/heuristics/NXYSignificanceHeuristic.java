@@ -31,7 +31,7 @@ import org.elasticsearch.index.query.QueryParsingException;
 
 import java.io.IOException;
 
-public abstract class NXYSignificanceHeuristic implements SignificanceHeuristic {
+public abstract class NXYSignificanceHeuristic extends SignificanceHeuristic {
 
     protected static final ParseField BACKGROUND_IS_SUPERSET = new ParseField("background_is_superset");
 
@@ -72,8 +72,8 @@ public abstract class NXYSignificanceHeuristic implements SignificanceHeuristic 
         double N00, N01, N10, N11, N0_, N1_, N_0, N_1, N;
     }
 
-    protected void computeNxys(long subsetFreq, long subsetSize, long supersetFreq, long supersetSize) {
-        checkFrequencies(subsetFreq, subsetSize, supersetFreq, supersetSize);
+    protected void computeNxys(long subsetFreq, long subsetSize, long supersetFreq, long supersetSize, String scoreFunctionName) {
+        checkFrequencies(subsetFreq, subsetSize, supersetFreq, supersetSize, scoreFunctionName);
 
         if (backgroundIsSuperset) {
             //documents not in class and do not contain term
@@ -114,18 +114,11 @@ public abstract class NXYSignificanceHeuristic implements SignificanceHeuristic 
             //all docs
             frequencies.N = supersetSize + subsetSize;
         }
+
     }
 
-    protected void checkFrequencies(long subsetFreq, long subsetSize, long supersetFreq, long supersetSize) {
-        if (subsetFreq < 0 || subsetSize < 0 || supersetFreq < 0 || supersetSize < 0) {
-            throw new ElasticsearchIllegalArgumentException("Frequencies of subset and superset must be positive in SignificanceHeuristic.getScore()");
-        }
-        if (subsetFreq > subsetSize) {
-            throw new ElasticsearchIllegalArgumentException("subsetFreq > subsetSize, in SignificanceHeuristic.score(..)");
-        }
-        if (supersetFreq > supersetSize) {
-            throw new ElasticsearchIllegalArgumentException("supersetFreq > supersetSize, in SignificanceHeuristic.score(..)");
-        }
+    protected void checkFrequencies(long subsetFreq, long subsetSize, long supersetFreq, long supersetSize, String scoreFunctionName) {
+        checkFrequencyValidity(subsetFreq, subsetSize, supersetFreq, supersetSize, scoreFunctionName);
         if (backgroundIsSuperset) {
             if (subsetFreq > supersetFreq) {
                 throw new ElasticsearchIllegalArgumentException("subsetFreq > supersetFreq" + SCORE_ERROR_MESSAGE);
@@ -172,9 +165,6 @@ public abstract class NXYSignificanceHeuristic implements SignificanceHeuristic 
     protected abstract static class NXYBuilder implements SignificanceHeuristicBuilder {
         protected boolean includeNegatives = true;
         protected boolean backgroundIsSuperset = true;
-
-        protected NXYBuilder() {
-        }
 
         public NXYBuilder(boolean includeNegatives, boolean backgroundIsSuperset) {
             this.includeNegatives = includeNegatives;

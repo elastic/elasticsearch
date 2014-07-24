@@ -116,7 +116,7 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
         List<SignificanceHeuristic> heuristics = new ArrayList<>();
         heuristics.add(JLHScore.INSTANCE);
         heuristics.add(new MutualInformation(randomBoolean(), randomBoolean()));
-        heuristics.add(GND.INSTANCE);
+        heuristics.add(new GND(randomBoolean()));
         heuristics.add(new ChiSquare(randomBoolean(), randomBoolean()));
         return heuristics.get(randomInt(3));
     }
@@ -147,7 +147,7 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
 
         // test with builders
         assertTrue(parseFromBuilder(heuristicParserMapper, searchContext, new JLHScore.JLHScoreBuilder()) instanceof JLHScore);
-        assertTrue(parseFromBuilder(heuristicParserMapper, searchContext, new GND.GNDBuilder()) instanceof GND);
+        assertTrue(parseFromBuilder(heuristicParserMapper, searchContext, new GND.GNDBuilder(backgroundIsSuperset)) instanceof GND);
         assertThat(parseFromBuilder(heuristicParserMapper, searchContext, new MutualInformation.MutualInformationBuilder(includeNegatives, backgroundIsSuperset)), equalTo((SignificanceHeuristic) new MutualInformation(includeNegatives, backgroundIsSuperset)));
         assertThat(parseFromBuilder(heuristicParserMapper, searchContext, new ChiSquare.ChiSquareBuilder(includeNegatives, backgroundIsSuperset)), equalTo((SignificanceHeuristic) new ChiSquare(includeNegatives, backgroundIsSuperset)));
 
@@ -165,7 +165,7 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
         checkParseException(heuristicParserMapper, searchContext, faultyHeuristicdefinition, expectedError);
 
         faultyHeuristicdefinition = "\"gnd\":{\"unknown_field\": true}";
-        expectedError = "expected }, got ";
+        expectedError = "unknown for gnd";
         checkParseException(heuristicParserMapper, searchContext, faultyHeuristicdefinition, expectedError);
     }
 
@@ -307,14 +307,14 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
     public void testAssertions() throws Exception {
         testBackgroundAssertions(new MutualInformation(true, true), new MutualInformation(true, false));
         testBackgroundAssertions(new ChiSquare(true, true), new ChiSquare(true, false));
+        testBackgroundAssertions(new GND(true), new GND(false));
         testAssertions(JLHScore.INSTANCE);
-        testAssertions(GND.INSTANCE);
     }
 
     @Test
     public void basicScoreProperties() {
         basicScoreProperties(JLHScore.INSTANCE, true);
-        basicScoreProperties(GND.INSTANCE, true);
+        basicScoreProperties(new GND(true), true);
         basicScoreProperties(new MutualInformation(true, true), false);
         basicScoreProperties(new ChiSquare(true, true), false);
     }
@@ -374,5 +374,22 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
         score = heuristic.getScore(1, 3, 4, 4);
         assertThat(score, greaterThanOrEqualTo(0.0));
         assertThat(score, lessThanOrEqualTo(1.0));
+    }
+
+    @Test
+    public void testGNDCornerCases() throws Exception {
+        GND gnd = new GND(true);
+        //term is only in the subset, not at all in the other set but that is because the other set is empty.
+        // this should actually not happen because only terms that are in the subset are considered now,
+        // however, in this case the score should be 0 because a term that does not exist cannot be relevant...
+        assertThat(gnd.getScore(0, randomIntBetween(1, 2), 0, randomIntBetween(2,3)), equalTo(0.0));
+        // the terms do not co-occur at all - should be 0
+        assertThat(gnd.getScore(0, randomIntBetween(1, 2), randomIntBetween(2, 3), randomIntBetween(5,6)), equalTo(0.0));
+        // comparison between two terms that do not exist - probably not relevant
+        assertThat(gnd.getScore(0, 0, 0, randomIntBetween(1,2)), equalTo(0.0));
+        // terms co-occur perfectly - should be 1
+        assertThat(gnd.getScore(1, 1, 1, 1), equalTo(1.0));
+        gnd = new GND(false);
+        assertThat(gnd.getScore(0, 0, 0, 0), equalTo(0.0));
     }
 }

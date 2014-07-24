@@ -34,9 +34,6 @@ public class MutualInformation extends NXYSignificanceHeuristic {
 
     private static final double log2 = Math.log(2.0);
 
-    private MutualInformation() {
-    }
-
     public MutualInformation(boolean includeNegatives, boolean backgroundIsSuperset) {
         super(includeNegatives, backgroundIsSuperset);
     }

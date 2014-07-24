@@ -39,19 +39,16 @@ public abstract class NXYSignificanceHeuristic implements SignificanceHeuristic 
 
     protected static final String SCORE_ERROR_MESSAGE = ", does your background filter not include all documents in the bucket? If so and it is intentional, set \"" + BACKGROUND_IS_SUPERSET.getPreferredName() + "\": false";
 
-    protected boolean backgroundIsSuperset = true;
+    protected final boolean backgroundIsSuperset;
 
     /**
      * Some heuristics do not differentiate between terms that are descriptive for subset or for
      * the background without the subset. We might want to filter out the terms that are appear much less often
      * in the subset than in the background without the subset.
      */
-    protected boolean includeNegatives = false;
+    protected final boolean includeNegatives;
 
     protected Frequencies frequencies = new Frequencies();
-
-    protected NXYSignificanceHeuristic() {
-    }
 
     public NXYSignificanceHeuristic(boolean includeNegatives, boolean backgroundIsSuperset) {
         this.includeNegatives = includeNegatives;

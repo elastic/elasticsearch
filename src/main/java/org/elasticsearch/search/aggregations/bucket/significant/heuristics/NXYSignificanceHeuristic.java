@@ -48,8 +48,6 @@ public abstract class NXYSignificanceHeuristic extends SignificanceHeuristic {
      */
     protected final boolean includeNegatives;
 
-    protected Frequencies frequencies = new Frequencies();
-
     public NXYSignificanceHeuristic(boolean includeNegatives, boolean backgroundIsSuperset) {
         this.includeNegatives = includeNegatives;
         this.backgroundIsSuperset = backgroundIsSuperset;
@@ -72,9 +70,9 @@ public abstract class NXYSignificanceHeuristic extends SignificanceHeuristic {
         double N00, N01, N10, N11, N0_, N1_, N_0, N_1, N;
     }
 
-    protected void computeNxys(long subsetFreq, long subsetSize, long supersetFreq, long supersetSize, String scoreFunctionName) {
+    protected Frequencies computeNxys(long subsetFreq, long subsetSize, long supersetFreq, long supersetSize, String scoreFunctionName) {
         checkFrequencies(subsetFreq, subsetSize, supersetFreq, supersetSize, scoreFunctionName);
-
+        Frequencies frequencies = new Frequencies();
         if (backgroundIsSuperset) {
             //documents not in class and do not contain term
             frequencies.N00 = supersetSize - supersetFreq - (subsetSize - subsetFreq);
@@ -114,7 +112,7 @@ public abstract class NXYSignificanceHeuristic extends SignificanceHeuristic {
             //all docs
             frequencies.N = supersetSize + subsetSize;
         }
-
+        return frequencies;
     }
 
     protected void checkFrequencies(long subsetFreq, long subsetSize, long supersetFreq, long supersetSize, String scoreFunctionName) {

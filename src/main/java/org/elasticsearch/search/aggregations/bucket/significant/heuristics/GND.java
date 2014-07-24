@@ -67,7 +67,7 @@ public class GND extends NXYSignificanceHeuristic {
     @Override
     public double getScore(long subsetFreq, long subsetSize, long supersetFreq, long supersetSize) {
 
-        computeNxys(subsetFreq, subsetSize, supersetFreq, supersetSize, "GND");
+        Frequencies frequencies = computeNxys(subsetFreq, subsetSize, supersetFreq, supersetSize, "GND");
         double fx = frequencies.N1_;
         double fy = frequencies.N_1;
         double fxy = frequencies.N11;

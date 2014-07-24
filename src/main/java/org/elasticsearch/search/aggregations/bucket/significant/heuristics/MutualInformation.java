@@ -64,7 +64,7 @@ public class MutualInformation extends NXYSignificanceHeuristic {
      */
     @Override
     public double getScore(long subsetFreq, long subsetSize, long supersetFreq, long supersetSize) {
-        computeNxys(subsetFreq, subsetSize, supersetFreq, supersetSize, "MutualInformation");
+        Frequencies frequencies = computeNxys(subsetFreq, subsetSize, supersetFreq, supersetSize, "MutualInformation");
 
         double score = (getMITerm(frequencies.N00, frequencies.N0_, frequencies.N_0, frequencies.N) +
                 getMITerm(frequencies.N01, frequencies.N0_, frequencies.N_1, frequencies.N) +

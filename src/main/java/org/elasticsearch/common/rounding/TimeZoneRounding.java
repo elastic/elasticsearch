@@ -162,7 +162,7 @@ public abstract class TimeZoneRounding extends Rounding {
 
         @Override
         public long nextRoundingValue(long value) {
-            return unit.field().roundCeiling(value + 1);
+            return unit.field().getDurationField().add(value, 1);
         }
 
         @Override
@@ -210,7 +210,7 @@ public abstract class TimeZoneRounding extends Rounding {
 
         @Override
         public long nextRoundingValue(long value) {
-            return unit.field().roundCeiling(value + 1);
+            return unit.field().getDurationField().add(value, 1);
         }
 
         @Override
@@ -262,7 +262,7 @@ public abstract class TimeZoneRounding extends Rounding {
 
         @Override
         public long nextRoundingValue(long value) {
-            return unit.field().getDurationField().getUnitMillis() + value;
+            return unit.field().getDurationField().add(value, 1);
         }
 
         @Override

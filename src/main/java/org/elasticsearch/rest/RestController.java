@@ -86,7 +86,7 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
         Arrays.sort(copy, new Comparator<RestFilter>() {
             @Override
             public int compare(RestFilter o1, RestFilter o2) {
-                return o2.order() - o1.order();
+                return Integer.compare(o1.order(), o2.order());
             }
         });
         filters = copy;

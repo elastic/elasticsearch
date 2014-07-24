@@ -110,7 +110,7 @@ public class PutWarmerRequest extends AcknowledgedRequest<PutWarmerRequest> impl
     @Override
     public IndicesOptions indicesOptions() {
         if (searchRequest == null) {
-            throw new IllegalStateException("unable to retrieve indices, search request is null");
+            throw new IllegalStateException("unable to retrieve indices options, search request is null");
         }
         return searchRequest.indicesOptions();
     }

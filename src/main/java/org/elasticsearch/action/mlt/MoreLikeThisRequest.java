@@ -123,6 +123,8 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> impl
 
     @Override
     public List<? extends IndicesRequest> subRequests() {
+        //we create two fake indices subrequests as we don't have the actual ones yet
+        //since they get created later on in TransportMoreLikeThisAction
         List<IndicesRequest> requests = Lists.newArrayList();
         requests.add(new IndicesRequest() {
             @Override
@@ -135,19 +137,20 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> impl
                 return MoreLikeThisRequest.this.indicesOptions();
             }
         });
-        if (searchIndices != null) {
-            requests.add(new IndicesRequest() {
-                @Override
-                public String[] indices() {
+        requests.add(new IndicesRequest() {
+            @Override
+            public String[] indices() {
+                if (searchIndices != null) {
                     return searchIndices;
                 }
+                return new String[]{index};
+            }
 
-                @Override
-                public IndicesOptions indicesOptions() {
-                    return SearchRequest.DEFAULT_INDICES_OPTIONS;
-                }
-            });
-        }
+            @Override
+            public IndicesOptions indicesOptions() {
+                return SearchRequest.DEFAULT_INDICES_OPTIONS;
+            }
+        });
         return requests;
     }
 

@@ -32,9 +32,6 @@ public class ChiSquare extends NXYSignificanceHeuristic {
 
     protected static final ParseField NAMES_FIELD = new ParseField("chi_square");
 
-    private ChiSquare() {
-    }
-
     public ChiSquare(boolean includeNegatives, boolean backgroundIsSuperset) {
         super(includeNegatives, backgroundIsSuperset);
     }

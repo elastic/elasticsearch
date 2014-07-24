@@ -19,8 +19,11 @@
 
 package org.elasticsearch.http.netty;
 
+import org.elasticsearch.rest.support.RestUtils;
 import org.jboss.netty.channel.*;
 import org.jboss.netty.handler.codec.http.HttpRequest;
+
+import java.util.regex.Pattern;
 
 
 /**
@@ -30,9 +33,11 @@ import org.jboss.netty.handler.codec.http.HttpRequest;
 public class HttpRequestHandler extends SimpleChannelUpstreamHandler {
 
     private final NettyHttpServerTransport serverTransport;
+    private final Pattern corsPattern;
 
     public HttpRequestHandler(NettyHttpServerTransport serverTransport) {
         this.serverTransport = serverTransport;
+        this.corsPattern = RestUtils.getCorsSettingRegex(serverTransport.settings());
     }
 
     @Override
@@ -41,7 +46,7 @@ public class HttpRequestHandler extends SimpleChannelUpstreamHandler {
         // the netty HTTP handling always copy over the buffer to its own buffer, either in NioWorker internally
         // when reading, or using a cumalation buffer
         NettyHttpRequest httpRequest = new NettyHttpRequest(request, e.getChannel());
-        serverTransport.dispatchRequest(httpRequest, new NettyHttpChannel(serverTransport, e.getChannel(), httpRequest));
+        serverTransport.dispatchRequest(httpRequest, new NettyHttpChannel(serverTransport, e.getChannel(), httpRequest, corsPattern));
         super.messageReceived(ctx, e);
     }
 

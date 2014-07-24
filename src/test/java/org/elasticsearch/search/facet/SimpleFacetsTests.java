@@ -57,8 +57,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.termFilter;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.search.facet.FacetBuilders.*;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -112,6 +111,7 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
                         "{\"facet1\":{\"terms\":{\"field\":\"tag\"},\"facet_filter\":{ }}}"))
                 .get();
 
+        assertSearchResponse(searchResponse);
         assertHitCount(searchResponse, 1l);
         assertThat(searchResponse.getHits().hits().length, equalTo(0));
         TermsFacet facet = searchResponse.getFacets().facet("facet1");
@@ -150,6 +150,7 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
                             .endObject().bytes())
                     .execute().actionGet();
 
+            assertSearchResponse(searchResponse);
             assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
             assertThat(searchResponse.getHits().hits().length, equalTo(0));
             TermsFacet facet = searchResponse.getFacets().facet("facet1");
@@ -214,6 +215,7 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
 
                     .execute().actionGet();
 
+            assertSearchResponse(searchResponse);
             assertThat(searchResponse.getHits().getTotalHits(), equalTo(110l));
             TermsFacet facet = searchResponse.getFacets().facet("termFacet");
             assertThat(facet.getName(), equalTo("termFacet"));
@@ -392,8 +394,9 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
                                           .addFacet(termsFacet("termFacet").executionHint("map").field("name").size(10));
                               }
 
-                              SearchResponse actionGet = facetRequest.execute().actionGet();
-                              return actionGet.getFacets();
+                              SearchResponse searchResponse = facetRequest.execute().actionGet();
+                              assertSearchResponse(searchResponse);
+                              return searchResponse.getFacets();
                           }
                       }, 5000
             );
@@ -513,7 +516,7 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
                         .startObject("fielddata").field("format", "fst").field("loading", randomBoolean() ? "eager" : "lazy").startObject("filter")
                         .startObject("regex").field("pattern", "\\d{1,2}").endObject().endObject()
                         .endObject()
-                                // only 1 or 2 digits 
+                                // only 1 or 2 digits
                         .endObject()
                         .startObject("filtered_mv")
                         .field("type", "string")
@@ -628,8 +631,9 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
                                               .addFacet(termsFacet("termFacet").executionHint("map").field(field).size(10));
                                       break;
                               }
-                              SearchResponse actionGet = facetRequest.execute().actionGet();
-                              return actionGet.getFacets();
+                              SearchResponse searchResponse = facetRequest.execute().actionGet();
+                              assertSearchResponse(searchResponse);
+                              return searchResponse.getFacets();
                           }
                       }, 2000
             );
@@ -660,6 +664,7 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
                     .addFacet(termsFacet("facet1").field("tag").size(10))
                     .execute().actionGet();
 
+            assertSearchResponse(searchResponse);
             assertThat(searchResponse.getHits().hits().length, equalTo(2));
             TermsFacet facet = searchResponse.getFacets().facet("facet1");
             assertThat(facet.getName(), equalTo("facet1"));
@@ -675,6 +680,7 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
                     .addFacet(termsFacet("facet1").field("tag").size(10))
                     .execute().actionGet();
 
+            assertSearchResponse(searchResponse);
             assertThat(searchResponse.getHits().hits().length, equalTo(1));
             facet = searchResponse.getFacets().facet("facet1");
             assertThat(facet.getName(), equalTo("facet1"));
@@ -715,6 +721,7 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
                     .addFacet(termsFacet("facet1").field("stag").size(10))
                     .execute().actionGet();
 
+            assertSearchResponse(searchResponse);
             assertThat(searchResponse.getHits().hits().length, equalTo(0));
 
             TermsFacet facet = searchResponse.getFacets().facet("facet1");
@@ -731,6 +738,7 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
                     .addFacet(termsFacet("facet2").field("tag").size(10))
                     .execute().actionGet();
 
+            assertSearchResponse(searchResponse);
             assertThat(searchResponse.getHits().hits().length, equalTo(0));
 
             facet = searchResponse.getFacets().facet("facet1");
@@ -768,7 +776,7 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
                     .addFacet(termsFacet("facet1").field("_index").size(10))
                     .execute().actionGet();
 
-
+            assertSearchResponse(searchResponse);
             TermsFacet facet = searchResponse.getFacets().facet("facet1");
             assertThat(facet.getName(), equalTo("facet1"));
             assertThat(facet.getEntries().size(), equalTo(2));
@@ -776,13 +784,6 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
             assertThat(facet.getEntries().get(0).getCount(), equalTo(2));
             assertThat(facet.getEntries().get(1).getTerm().string(), equalTo("test2"));
             assertThat(facet.getEntries().get(1).getCount(), equalTo(1));
-        }
-
-        try {
-            client().admin().indices().prepareDelete("test1").execute().actionGet();
-            client().admin().indices().prepareDelete("test2").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
         }
     }
 
@@ -812,6 +813,8 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
                     .addFacet(filterFacet("facet3").filter(termFilter("tag", "yyy")))
                     .addFacet(filterFacet("facet4").filter(termFilter("tag", "zzz")))
                     .execute().actionGet();
+
+            assertSearchResponse(searchResponse);
 
             FilterFacet facet = searchResponse.getFacets().facet("facet1");
             assertThat(facet.getName(), equalTo("facet1"));
@@ -864,6 +867,7 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
                     .addFacet(termsFacet("facet1").field("stag").size(10))
                     .execute().actionGet();
 
+            assertSearchResponse(searchResponse);
             TermsFacet facet = searchResponse.getFacets().facet("facet1");
             assertThat(facet.getMissingCount(), equalTo(1l));
         }
@@ -927,6 +931,7 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
                     .addFacet(termsFacet("facet2").field("tag").size(10).executionHint(executionHint))
                     .execute().actionGet();
 
+            assertSearchResponse(searchResponse);
             TermsFacet facet = searchResponse.getFacets().facet("facet1");
             assertThat(facet.getName(), equalTo("facet1"));
             assertThat(facet.getTotalCount(), equalTo(2l));
@@ -950,6 +955,7 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
                     .addFacet(termsFacet("facet3").field("ltag").size(10).exclude(3000).executionHint(executionHint))
                     .execute().actionGet();
 
+            assertSearchResponse(searchResponse);
             facet = searchResponse.getFacets().facet("facet1");
             assertThat(facet, instanceOf(InternalLongTermsFacet.class));
             assertThat(facet.getName(), equalTo("facet1"));
@@ -983,6 +989,7 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
                     .addFacet(termsFacet("facet2").field("dtag").size(10).executionHint(executionHint))
                     .execute().actionGet();
 
+            assertSearchResponse(searchResponse);
             facet = searchResponse.getFacets().facet("facet1");
             assertThat(facet, instanceOf(InternalDoubleTermsFacet.class));
             assertThat(facet.getName(), equalTo("facet1"));
@@ -1017,6 +1024,7 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
                     .addFacet(termsFacet("facet1").field("istag").size(10).executionHint(executionHint))
                     .execute().actionGet();
 
+            assertSearchResponse(searchResponse);
             facet = searchResponse.getFacets().facet("facet1");
             assertThat(facet.getName(), equalTo("facet1"));
             assertThat(facet.getEntries().size(), equalTo(1));
@@ -1041,6 +1049,7 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
                     .addFacet(termsFacet("facet1").field("stag").size(10).facetFilter(termFilter("tag", "xxx")).executionHint(executionHint))
                     .execute().actionGet();
 
+            assertSearchResponse(searchResponse);
             facet = searchResponse.getFacets().facet("facet1");
             assertThat(facet.getName(), equalTo("facet1"));
             assertThat(facet.getEntries().size(), equalTo(1));
@@ -1053,6 +1062,7 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
                     .addFacet(termsFacet("facet1").field("stag").size(10).facetFilter(termFilter("tag", "xxx")).global(true).executionHint(executionHint))
                     .execute().actionGet();
 
+            assertSearchResponse(searchResponse);
             facet = searchResponse.getFacets().facet("facet1");
             assertThat(facet.getName(), equalTo("facet1"));
             assertThat(facet.getEntries().size(), equalTo(1));
@@ -1066,6 +1076,7 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
                     .addFacet(termsFacet("facet1").field("type1.stag").size(10).facetFilter(termFilter("tag", "xxx")).executionHint(executionHint))
                     .execute().actionGet();
 
+            assertSearchResponse(searchResponse);
             facet = searchResponse.getFacets().facet("facet1");
             assertThat(facet.getName(), equalTo("facet1"));
             assertThat(facet.getEntries().size(), equalTo(1));
@@ -1094,6 +1105,7 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
                     .addFacet(termsFacet("facet1").field("tag").size(2).executionHint(executionHint))
                     .execute().actionGet();
 
+            assertSearchResponse(searchResponse);
             facet = searchResponse.getFacets().facet("facet1");
             assertThat(facet.getName(), equalTo("facet1"));
             assertThat(facet.getEntries().size(), equalTo(2));
@@ -1109,6 +1121,7 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
                     .addFacet(termsFacet("facet1").field("tag").size(10).exclude("yyy").executionHint(executionHint))
                     .execute().actionGet();
 
+            assertSearchResponse(searchResponse);
             facet = searchResponse.getFacets().facet("facet1");
             assertThat(facet.getName(), equalTo("facet1"));
             assertThat(facet.getEntries().size(), equalTo(2));
@@ -1124,6 +1137,7 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
                     .addFacet(termsFacet("facet1").field("tag").size(10).order(TermsFacet.ComparatorType.TERM).executionHint(executionHint))
                     .execute().actionGet();
 
+            assertSearchResponse(searchResponse);
             facet = searchResponse.getFacets().facet("facet1");
             assertThat(facet.getName(), equalTo("facet1"));
             assertThat(facet.getEntries().size(), equalTo(3));
@@ -1139,6 +1153,7 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
                     .addFacet(termsFacet("facet1").field("tag").size(10).order(TermsFacet.ComparatorType.REVERSE_TERM).executionHint(executionHint))
                     .execute().actionGet();
 
+            assertSearchResponse(searchResponse);
             facet = searchResponse.getFacets().facet("facet1");
             assertThat(facet.getName(), equalTo("facet1"));
             assertThat(facet.getEntries().size(), equalTo(3));
@@ -1171,6 +1186,7 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
                     .addFacet(termsFacet("facet1").field("tag").size(10).script("term == 'xxx' ? false : true").order(TermsFacet.ComparatorType.TERM).executionHint(executionHint))
                     .execute().actionGet();
 
+            assertSearchResponse(searchResponse);
             facet = searchResponse.getFacets().facet("facet1");
             assertThat(facet.getName(), equalTo("facet1"));
             assertThat(facet.getEntries().size(), equalTo(2));
@@ -1186,6 +1202,7 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
                     .addFacet(termsFacet("facet1").fields("stag", "tag").size(10).executionHint(executionHint))
                     .execute().actionGet();
 
+            assertSearchResponse(searchResponse);
             facet = searchResponse.getFacets().facet("facet1");
             assertThat(facet.getName(), equalTo("facet1"));
             assertThat(facet.getEntries().size(), equalTo(4));
@@ -1203,6 +1220,7 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
                     .addFacet(termsFacet("facet1").field("tag").size(10).allTerms(true).executionHint(executionHint))
                     .execute().actionGet();
 
+            assertSearchResponse(searchResponse);
             facet = searchResponse.getFacets().facet("facet1");
             assertThat(facet.getName(), equalTo("facet1"));
             assertThat(facet.getEntries().size(), equalTo(3));
@@ -1218,6 +1236,7 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
                     .addFacet(termsFacet("facet1").fields("tag", "stag").size(10).allTerms(true).executionHint(executionHint))
                     .execute().actionGet();
 
+            assertSearchResponse(searchResponse);
             facet = searchResponse.getFacets().facet("facet1");
             assertThat(facet.getName(), equalTo("facet1"));
             assertThat(facet.getEntries().size(), equalTo(4));
@@ -1235,6 +1254,7 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
                     .addFacet(termsFacet("facet1").field("ltag").size(10).allTerms(true).executionHint(executionHint))
                     .execute().actionGet();
 
+            assertSearchResponse(searchResponse);
             facet = searchResponse.getFacets().facet("facet1");
             assertThat(facet.getName(), equalTo("facet1"));
             assertThat(facet.getEntries().size(), equalTo(3));
@@ -1250,6 +1270,7 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
                     .addFacet(termsFacet("facet1").field("dtag").size(10).allTerms(true).executionHint(executionHint))
                     .execute().actionGet();
 
+            assertSearchResponse(searchResponse);
             facet = searchResponse.getFacets().facet("facet1");
             assertThat(facet.getName(), equalTo("facet1"));
             assertThat(facet.getEntries().size(), equalTo(3));
@@ -1268,6 +1289,7 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
                     .addFacet(termsFacet("facet2").scriptField("_source.tag").size(10).executionHint(executionHint))
                     .execute().actionGet();
 
+            assertSearchResponse(searchResponse);
             facet = searchResponse.getFacets().facet("facet1");
             assertThat(facet.getName(), equalTo("facet1"));
             assertThat(facet.getTotalCount(), equalTo(2l));
@@ -1316,6 +1338,7 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
                     .addFacet(termsFacet("facet1").field("text").size(10))
                     .execute().actionGet();
 
+            assertSearchResponse(searchResponse);
             TermsFacet facet = searchResponse.getFacets().facet("facet1");
             assertThat(facet.getName(), equalTo("facet1"));
             assertThat(facet.getEntries().size(), equalTo(3));
@@ -1358,13 +1381,7 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
                     .addFacet(statisticalScriptFacet("stats3").script("doc['num'].value * 2"))
                     .execute().actionGet();
 
-            if (searchResponse.getFailedShards() > 0) {
-                logger.warn("Failed shards:");
-                for (ShardSearchFailure shardSearchFailure : searchResponse.getShardFailures()) {
-                    logger.warn("-> {}", shardSearchFailure);
-                }
-            }
-            assertThat(searchResponse.getFailedShards(), equalTo(0));
+            assertSearchResponse(searchResponse);
 
             StatisticalFacet facet = searchResponse.getFacets().facet("stats1");
             assertThat(facet.getName(), equalTo(facet.getName()));
@@ -1399,6 +1416,7 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
                     .execute().actionGet();
 
 
+            assertSearchResponse(searchResponse);
             facet = searchResponse.getFacets().facet("stats");
             assertThat(facet.getName(), equalTo(facet.getName()));
             assertThat(facet.getCount(), equalTo(6l));
@@ -1416,6 +1434,7 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
                     .execute().actionGet();
 
 
+            assertSearchResponse(searchResponse);
             facet = searchResponse.getFacets().facet("stats");
             assertThat(facet.getName(), equalTo(facet.getName()));
             assertThat(facet.getCount(), equalTo(6l));
@@ -1459,7 +1478,7 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
                     logger.warn("-> {}", shardSearchFailure);
                 }
             }
-            assertThat(searchResponse.getFailedShards(), equalTo(0));
+            assertSearchResponse(searchResponse);
 
             HistogramFacet facet = searchResponse.getFacets().facet("facet1");
             assertThat(facet.getName(), equalTo("facet1"));
@@ -1518,13 +1537,7 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
                     .addFacet(histogramScriptFacet("stats8").keyField("num").valueScript("doc.score").interval(100))
                     .execute().actionGet();
 
-            if (searchResponse.getFailedShards() > 0) {
-                logger.warn("Failed shards:");
-                for (ShardSearchFailure shardSearchFailure : searchResponse.getShardFailures()) {
-                    logger.warn("-> {}", shardSearchFailure);
-                }
-            }
-            assertThat(searchResponse.getFailedShards(), equalTo(0));
+            assertSearchResponse(searchResponse);
 
             HistogramFacet facet;
 
@@ -1691,13 +1704,7 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
                     .addFacet(rangeFacet("range6").field("date").addUnboundedFrom("1970-01-01T00:00:26").addRange("1970-01-01T00:00:15", "1970-01-01T00:00:53").addUnboundedTo("1970-01-01T00:00:26"))
                     .execute().actionGet();
 
-            if (searchResponse.getFailedShards() > 0) {
-                logger.warn("Failed shards:");
-                for (ShardSearchFailure shardSearchFailure : searchResponse.getShardFailures()) {
-                    logger.warn("-> {}", shardSearchFailure);
-                }
-            }
-            assertThat(searchResponse.getFailedShards(), equalTo(0));
+            assertSearchResponse(searchResponse);
 
             RangeFacet facet = searchResponse.getFacets().facet("range1");
             assertThat(facet.getName(), equalTo("range1"));
@@ -1858,13 +1865,7 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
                     .addFacet(dateHistogramFacet("stats8").field("date_in_seconds").interval("day").factor(1000f).mode(mode))
                     .execute().actionGet();
 
-            if (searchResponse.getFailedShards() > 0) {
-                logger.warn("Failed shards:");
-                for (ShardSearchFailure shardSearchFailure : searchResponse.getShardFailures()) {
-                    logger.warn("-> {}", shardSearchFailure);
-                }
-            }
-            assertThat(searchResponse.getFailedShards(), equalTo(0));
+            assertSearchResponse(searchResponse);
 
             DateHistogramFacet facet = searchResponse.getFacets().facet("stats1");
             assertThat(facet.getName(), equalTo("stats1"));
@@ -1928,7 +1929,7 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
             assertThat(facet.getEntries().size(), equalTo(1));
             assertThat(facet.getEntries().get(0).getTime(), equalTo(utcTimeInMillis("2009-01-01")));
 
-            // check date_histogram on a long field containing date in seconds - we use a factor. 
+            // check date_histogram on a long field containing date in seconds - we use a factor.
             facet = searchResponse.getFacets().facet("stats8");
             assertThat(facet.getName(), equalTo("stats8"));
             assertThat(facet.getEntries().size(), equalTo(2));
@@ -1976,13 +1977,7 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
                     .addFacet(dateHistogramFacet("stats2").field("date").valueField("num").interval("day").preZone("+01:30"))
                     .execute().actionGet();
 
-            if (searchResponse.getFailedShards() > 0) {
-                logger.warn("Failed shards:");
-                for (ShardSearchFailure shardSearchFailure : searchResponse.getShardFailures()) {
-                    logger.warn("-> {}", shardSearchFailure);
-                }
-            }
-            assertThat(searchResponse.getFailedShards(), equalTo(0));
+            assertSearchResponse(searchResponse);
 
             // time zone causes the dates to shift by 2:00
             DateHistogramFacet facet = searchResponse.getFacets().facet("stats1");
@@ -2054,13 +2049,7 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
                     .addFacet(termsStatsFacet("stats13").keyField("field").valueScript("doc['num'].value * 2"))
                     .execute().actionGet();
 
-            if (searchResponse.getFailedShards() > 0) {
-                logger.warn("Failed shards:");
-                for (ShardSearchFailure shardSearchFailure : searchResponse.getShardFailures()) {
-                    logger.warn("-> {}", shardSearchFailure);
-                }
-            }
-            assertThat(searchResponse.getFailedShards(), equalTo(0));
+            assertSearchResponse(searchResponse);
 
             TermsStatsFacet facet = searchResponse.getFacets().facet("stats1");
             assertThat(facet.getEntries().size(), equalTo(2));
@@ -2230,13 +2219,7 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
                     .addFacet(termsStatsFacet("stats2").keyField("dField").valueField("num"))
                     .execute().actionGet();
 
-            if (searchResponse.getFailedShards() > 0) {
-                logger.warn("Failed shards:");
-                for (ShardSearchFailure shardSearchFailure : searchResponse.getShardFailures()) {
-                    logger.warn("-> {}", shardSearchFailure);
-                }
-            }
-            assertThat(searchResponse.getFailedShards(), equalTo(0));
+            assertSearchResponse(searchResponse);
 
             TermsStatsFacet facet = searchResponse.getFacets().facet("stats1");
             assertThat(facet.getEntries().size(), equalTo(2));
@@ -2287,13 +2270,7 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
                     .addFacet(termsStatsFacet("stats2").keyField("num").valueScript("doc.score").order(TermsStatsFacet.ComparatorType.TOTAL))
                     .execute().actionGet();
 
-            if (searchResponse.getFailedShards() > 0) {
-                logger.warn("Failed shards:");
-                for (ShardSearchFailure shardSearchFailure : searchResponse.getShardFailures()) {
-                    logger.warn("-> {}", shardSearchFailure);
-                }
-            }
-            assertThat(searchResponse.getFailedShards(), equalTo(0));
+            assertSearchResponse(searchResponse);
             TermsStatsFacet facet = searchResponse.getFacets().facet("stats1");
             assertThat(facet.getEntries().size(), equalTo(10));
 
@@ -2326,6 +2303,7 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
                     .addFacet(queryFacet("query").query(termQuery("num", 1)).global(true))
                     .execute().actionGet();
 
+            assertSearchResponse(searchResponse);
             facet = searchResponse.getFacets().facet("query");
             assertThat(facet.getCount(), equalTo(2l));
 
@@ -2334,6 +2312,7 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
                     .addFacet(queryFacet("query").query(termsQuery("num", new long[]{1, 2})).facetFilter(termFilter("num", 1)).global(true))
                     .execute().actionGet();
 
+            assertSearchResponse(searchResponse);
             facet = searchResponse.getFacets().facet("query");
             assertThat(facet.getCount(), equalTo(2l));
         }
@@ -2356,7 +2335,7 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
                     )
                     .execute().actionGet();
 
-            assertThat(searchResponse.getFailedShards(), equalTo(0));
+            assertSearchResponse(searchResponse);
             TermsFacet facet = searchResponse.getFacets().facet("facet1");
             assertThat(facet.getName(), equalTo("facet1"));
             assertThat(facet.getEntries().size(), equalTo(0));

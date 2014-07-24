@@ -1299,4 +1299,36 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
         assertThat(bucket, Matchers.notNullValue());
         assertThat(bucket.getDocCount(), equalTo(5l));
     }
+
+    public void testIssue6965() {
+        SearchResponse response = client().prepareSearch("idx")
+                .addAggregation(dateHistogram("histo").field("date").preZone("+01:00").interval(DateHistogram.Interval.MONTH).minDocCount(0))
+                .execute().actionGet();
+
+        assertSearchResponse(response);
+
+
+        DateHistogram histo = response.getAggregations().get("histo");
+        assertThat(histo, notNullValue());
+        assertThat(histo.getName(), equalTo("histo"));
+        assertThat(histo.getBuckets().size(), equalTo(3));
+
+        DateTime key = new DateTime(2012, 1, 1, 0, 0, DateTimeZone.UTC);
+        DateHistogram.Bucket bucket = getBucket(histo, key);
+        assertThat(bucket, notNullValue());
+        assertThat(bucket.getKeyAsNumber().longValue(), equalTo(key.getMillis()));
+        assertThat(bucket.getDocCount(), equalTo(1l));
+
+        key = new DateTime(2012, 2, 1, 0, 0, DateTimeZone.UTC);
+        bucket = getBucket(histo, key);
+        assertThat(bucket, notNullValue());
+        assertThat(bucket.getKeyAsNumber().longValue(), equalTo(key.getMillis()));
+        assertThat(bucket.getDocCount(), equalTo(2l));
+
+        key = new DateTime(2012, 3, 1, 0, 0, DateTimeZone.UTC);
+        bucket = getBucket(histo, key);
+        assertThat(bucket, notNullValue());
+        assertThat(bucket.getKeyAsNumber().longValue(), equalTo(key.getMillis()));
+        assertThat(bucket.getDocCount(), equalTo(3l));
+    }
 }

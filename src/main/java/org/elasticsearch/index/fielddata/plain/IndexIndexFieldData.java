@@ -43,9 +43,19 @@ public class IndexIndexFieldData extends AbstractIndexOrdinalsFieldData {
 
     private static class IndexAtomicFieldData extends AbstractAtomicOrdinalsFieldData {
 
-        private final RandomAccessOrds values;
+        private final String index;
 
         IndexAtomicFieldData(String index) {
+            this.index = index;
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            return 0;
+        }
+
+        @Override
+        public RandomAccessOrds getOrdinalsValues() {
             final BytesRef term = new BytesRef(index);
             final SortedDocValues sortedValues = new SortedDocValues() {
 
@@ -64,17 +74,7 @@ public class IndexIndexFieldData extends AbstractIndexOrdinalsFieldData {
                     return 0;
                 }
             };
-            values = (RandomAccessOrds) DocValues.singleton(sortedValues);
-        }
-
-        @Override
-        public long ramBytesUsed() {
-            return 0;
-        }
-
-        @Override
-        public RandomAccessOrds getOrdinalsValues() {
-            return values;
+            return (RandomAccessOrds) DocValues.singleton(sortedValues);
         }
 
         @Override

@@ -56,6 +56,7 @@ public class IndicesStoreIntegrationTests extends ElasticsearchIntegrationTest {
     private static final Settings SETTINGS = settingsBuilder().put("gateway.type", "local").build();
 
     @Test
+    @TestLogging("indices.store:TRACE")
     public void shardsCleanup() throws Exception {
         final String node_1 = internalCluster().startNode(SETTINGS);
         final String node_2 = internalCluster().startNode(SETTINGS);

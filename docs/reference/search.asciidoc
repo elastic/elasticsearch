@@ -95,6 +95,8 @@ include::search/multi-search.asciidoc[]
 
 include::search/count.asciidoc[]
 
+include::search/exists.asciidoc[]
+
 include::search/validate.asciidoc[]
 
 include::search/explain.asciidoc[]

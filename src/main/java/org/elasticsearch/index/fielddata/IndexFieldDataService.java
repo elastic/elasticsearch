@@ -42,6 +42,7 @@ import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.fielddata.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCacheListener;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -143,7 +144,9 @@ public class IndexFieldDataService extends AbstractIndexComponent {
 
     // public for testing
     public IndexFieldDataService(Index index, CircuitBreakerService circuitBreakerService) {
-        this(index, ImmutableSettings.Builder.EMPTY_SETTINGS, new IndicesFieldDataCache(ImmutableSettings.Builder.EMPTY_SETTINGS, new IndicesFieldDataCacheListener(circuitBreakerService)), circuitBreakerService, new IndicesFieldDataCacheListener(circuitBreakerService));
+        this(index, ImmutableSettings.Builder.EMPTY_SETTINGS,
+                new IndicesFieldDataCache(ImmutableSettings.Builder.EMPTY_SETTINGS, new IndicesFieldDataCacheListener(circuitBreakerService), new ThreadPool("testing-only")),
+                circuitBreakerService, new IndicesFieldDataCacheListener(circuitBreakerService));
     }
 
     // public for testing

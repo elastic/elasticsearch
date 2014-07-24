@@ -20,6 +20,7 @@
 package org.elasticsearch.action.benchmark;
 
 import org.elasticsearch.action.benchmark.competition.CompetitionIteration;
+import org.elasticsearch.action.benchmark.exception.BenchmarkIllegalStateException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterService;
@@ -29,7 +30,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Semaphore;
 
@@ -57,15 +60,22 @@ public class MockBenchmarkExecutorService extends BenchmarkExecutorService {
      */
     static final class MockBenchmarkExecutor extends BenchmarkExecutor {
 
-        FlowControl flow;
-        int         currentIteration = 0;
+        private Map<String, FlowControl> flows = new ConcurrentHashMap<>();
 
         public MockBenchmarkExecutor(final Client client, final ClusterService clusterService) {
             super(client, clusterService);
         }
 
+        public void addFlowControl(final String benchmarkId, final FlowControl flow) {
+            if (flows.containsKey(benchmarkId)) {
+                throw new BenchmarkIllegalStateException("Already have flow control for benchmark: " + benchmarkId);
+            }
+            flows.put(benchmarkId, flow);
+        }
+
         static final class FlowControl {
             String        competitor;
+            int           current;
             int           iteration;
             Semaphore     control;
             CyclicBarrier initialization;
@@ -77,7 +87,7 @@ public class MockBenchmarkExecutorService extends BenchmarkExecutorService {
                 this.initialization = initialization;
             }
 
-            void acquire(final int current) throws InterruptedException {
+            void acquire() throws InterruptedException {
                 if (current == iteration) {
                     control.acquire();
                 }
@@ -100,18 +110,23 @@ public class MockBenchmarkExecutorService extends BenchmarkExecutorService {
         }
 
         public void clearMockState() {
-            if (flow != null) {
-                flow.clear();
+            for (Map.Entry<String, FlowControl> me : flows.entrySet()) {
+                if (me.getValue() != null) {
+                    me.getValue().clear();
+                }
             }
-            currentIteration = 0;
+            flows.clear();
         }
 
-        protected CompetitionIteration iterate(BenchmarkCompetitor competitor, List<SearchRequest> searchRequests,
+        protected CompetitionIteration iterate(final String benchmarkId, final BenchmarkCompetitor competitor,
+                                               final List<SearchRequest> searchRequests,
                                                final long[] timeBuckets, final long[] docBuckets,
-                                               StoppableSemaphore semaphore) throws InterruptedException {
+                                               final StoppableSemaphore semaphore) throws InterruptedException {
+
+            final FlowControl flow = flows.get(benchmarkId);
 
             if (flow != null) {
-                if (currentIteration == 0 && flow.initialization != null) {
+                if (flow.current == 0 && flow.initialization != null) {
                     try {
                         flow.initialization.await();
                     } catch (BrokenBarrierException e) {
@@ -120,12 +135,13 @@ public class MockBenchmarkExecutorService extends BenchmarkExecutorService {
                 }
 
                 if (flow.competitor.equals(competitor.name())) {
-                    flow.acquire(currentIteration);
+                    flow.acquire();
                 }
+
+                flow.current++;
             }
 
-            currentIteration++;
-            return super.iterate(competitor, searchRequests, timeBuckets, docBuckets, semaphore);
+            return super.iterate(benchmarkId, competitor, searchRequests, timeBuckets, docBuckets, semaphore);
         }
     }
 }

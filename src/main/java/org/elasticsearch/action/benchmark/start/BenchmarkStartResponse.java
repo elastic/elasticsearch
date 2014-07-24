@@ -209,7 +209,6 @@ public class BenchmarkStartResponse extends ActionResponse implements Streamable
         builder.startObject(Fields.COMPETITORS);
         if (competitionResults != null) {
             for (Map.Entry<String, CompetitionResult> entry : competitionResults.entrySet()) {
-                entry.getValue().verbose(verbose);
                 entry.getValue().toXContent(builder, params);
             }
         }
@@ -233,10 +232,12 @@ public class BenchmarkStartResponse extends ActionResponse implements Streamable
             }
         }
         size = in.readVInt();
+        competitionResults = new ConcurrentHashMap<>(size);
         for (int i = 0; i < size; i++) {
             String s = in.readString();
             CompetitionResult cr = new CompetitionResult();
             cr.readFrom(in);
+            cr.verbose(verbose());
             competitionResults.put(s, cr);
         }
     }

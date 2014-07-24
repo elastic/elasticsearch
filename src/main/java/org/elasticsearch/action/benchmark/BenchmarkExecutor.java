@@ -210,7 +210,8 @@ public class BenchmarkExecutor {
                     */
                     // Run the iteration
                     CompetitionIteration ci =
-                            iterate(competitor, searchRequests, timeBuckets, docBuckets, state.competitorSemaphore(competitor.name()));
+                            iterate(request.benchmarkId(),competitor, searchRequests, timeBuckets,
+                                    docBuckets, state.competitorSemaphore(competitor.name()));
                     ci.percentiles(request.percentiles());
                     competitionIterations.add(ci);
                     competitionNodeResult.incrementCompletedIterations();
@@ -255,9 +256,10 @@ public class BenchmarkExecutor {
         return errorMessages;
     }
 
-    protected CompetitionIteration iterate(BenchmarkCompetitor competitor, List<SearchRequest> searchRequests,
+    protected CompetitionIteration iterate(final String benchmarkId, final BenchmarkCompetitor competitor,
+                                           final List<SearchRequest> searchRequests,
                                            final long[] timeBuckets, final long[] docBuckets,
-                                           StoppableSemaphore semaphore) throws InterruptedException {
+                                           final StoppableSemaphore semaphore) throws InterruptedException {
 
         assert timeBuckets.length == competitor.settings().multiplier() * searchRequests.size();
         assert docBuckets.length == competitor.settings().multiplier() * searchRequests.size();

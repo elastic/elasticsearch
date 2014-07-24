@@ -169,7 +169,7 @@ public class CompetitionResult implements Streamable, ToXContent {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(competitionName);
         competitionSummary.toXContent(builder, params);
-        if (verbose) {
+        if (verbose && competitionDetails != null) {
             competitionDetails.toXContent(builder, params);
         }
         builder.endObject();
@@ -189,6 +189,7 @@ public class CompetitionResult implements Streamable, ToXContent {
             nodeResults.add(result);
         }
         percentiles = in.readDoubleArray();
+        competitionDetails = new CompetitionDetails(nodeResults);
         competitionSummary = new CompetitionSummary(nodeResults, concurrency, multiplier, percentiles);
     }
 

@@ -35,8 +35,8 @@
 * https://drupal.org/project/elasticsearch_connector[Drupal]:
   Drupal Elasticsearch integration (1.0.0 and later).
 
-* http://drupal.org/project/elasticsearch[Drupal]:
-  Drupal Elasticsearch integration (0.90 and earlier).
+* http://drupal.org/project/search_api_elasticsearch[Drupal]:
+  Drupal Elasticsearch integration via Search API (1.0.0 and earlier).
 
 * https://github.com/refuge/couch_es[couch_es]:
   elasticsearch helper for couchdb based products (apache couchdb, bigcouch & refuge)

@@ -62,12 +62,6 @@ public class ChiSquare extends NXYSignificanceHeuristic {
     /**
      * Calculates Chi^2
      * see "Information Retrieval", Manning et al., Eq. 13.19
-     *
-     * @param subsetFreq   The frequency of the term in the selected sample
-     * @param subsetSize   The size of the selected sample (typically number of docs)
-     * @param supersetFreq The frequency of the term in the superset from which the sample was taken
-     * @param supersetSize The size of the superset from which the sample was taken  (typically number of docs)
-     * @return a "significance" score
      */
     @Override
     public double getScore(long subsetFreq, long subsetSize, long supersetFreq, long supersetSize) {

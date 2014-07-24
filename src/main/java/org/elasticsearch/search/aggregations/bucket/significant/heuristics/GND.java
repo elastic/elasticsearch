@@ -64,12 +64,6 @@ public class GND implements SignificanceHeuristic {
     /**
      * Calculates Google Normalized Distance, as described in "The Google Similarity Distance", Cilibrasi and Vitanyi, 2007
      * link: http://arxiv.org/pdf/cs/0412098v3.pdf
-     *
-     * @param subsetFreq   The frequency of the term in the selected sample
-     * @param subsetSize   The size of the selected sample (typically number of docs)
-     * @param supersetFreq The frequency of the term in the superset from which the sample was taken
-     * @param supersetSize The size of the superset from which the sample was taken  (typically number of docs)
-     * @return a "significance" score
      */
     @Override
     public double getScore(long subsetFreq, long subsetSize, long supersetFreq, long supersetSize) {

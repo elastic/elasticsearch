@@ -1,0 +1,86 @@
+[[search-exists]]
+== Search Exists API
+
+The exists API allows to easily determine if any
+matching documents exist for a provided query. It can be executed across one or more indices
+and across one or more types. The query can either be provided using a
+simple query string as a parameter, or using the
+<<query-dsl,Query DSL>> defined within the request
+body. Here is an example:
+
+[source,js]
+--------------------------------------------------
+$ curl -XGET 'http://localhost:9200/twitter/tweet/_search/exists?q=user:kimchy'
+
+$ curl -XGET 'http://localhost:9200/twitter/tweet/_search/exists' -d '
+{
+    "query" : {
+        "term" : { "user" : "kimchy" }
+    }
+}'
+
+--------------------------------------------------
+
+NOTE: The query being sent in the body must be nested in a `query` key, same as
+how the <<search-search,search api>> works.
+
+Both the examples above do the same thing, which is determine the existence of
+tweets from the twitter index for a certain user. The response body will be of
+the following format:
+
+[source,js]
+--------------------------------------------------
+{
+    "exists" : true
+}
+--------------------------------------------------
+
+[float]
+=== Multi index, Multi type
+
+The exists API can be applied to <<search-multi-index-type,multiple types in multiple indices>>.
+
+[float]
+=== Request Parameters
+
+When executing exists using the query parameter `q`, the query passed is
+a query string using Lucene query parser. There are additional
+parameters that can be passed:
+
+[cols="<,<",options="header",]
+|=======================================================================
+|Name |Description
+|df |The default field to use when no field prefix is defined within the
+query.
+
+|analyzer |The analyzer name to be used when analyzing the query string.
+
+|default_operator |The default operator to be used, can be `AND` or
+`OR`. Defaults to `OR`.
+
+|=======================================================================
+
+[float]
+=== Request Body
+
+The exists API can use the <<query-dsl,Query DSL>> within
+its body in order to express the query that should be executed. The body
+content can also be passed as a REST parameter named `source`.
+
+HTTP GET and HTTP POST can be used to execute exists with body.
+Since not all clients support GET with body, POST is allowed as well.
+
+[float]
+=== Distributed
+
+The exists operation is broadcast across all shards. For each shard id
+group, a replica is chosen and executed against it. This means that
+replicas increase the scalability of exists. The exists operation also
+early terminates shard requests once the first shard reports matched
+document existence.
+
+[float]
+=== Routing
+
+The routing value (a comma separated list of the routing values) can be
+specified to control which shards the exists request will be executed on.

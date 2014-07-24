@@ -20,16 +20,13 @@ package org.elasticsearch.test.rest.client.http;
 
 import com.google.common.base.Joiner;
 import com.google.common.collect.Maps;
-import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.methods.*;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
-import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
 
 import java.io.IOException;
@@ -145,6 +142,11 @@ public class HttpRequestBuilder {
         if (HttpHead.METHOD_NAME.equalsIgnoreCase(method)) {
             checkBodyNotSupported();
             return new HttpHead(buildUri());
+        }
+
+        if (HttpOptions.METHOD_NAME.equalsIgnoreCase(method)) {
+            checkBodyNotSupported();
+            return new HttpOptions(buildUri());
         }
 
         if (HttpDeleteWithEntity.METHOD_NAME.equalsIgnoreCase(method)) {

@@ -2319,6 +2319,7 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
     @Test // #3479: Null pointer exception for POST mode facets if facet_filter accepts no documents
     public void testFilterFacetWithFacetFilterPostMode() throws IOException {
         createIndex("test");
+        ensureYellow("test");
         client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("field", "xxx")
                 .endObject()).execute().actionGet();

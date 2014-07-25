@@ -22,12 +22,14 @@ package org.elasticsearch.index.mapper.multifield;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.core.*;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
+import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
 
@@ -127,9 +129,11 @@ public class MultiFieldTests extends ElasticsearchSingleNodeTest {
 
     @Test
     public void testBuildThenParse() throws Exception {
-        DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
+        IndexService indexService = createIndex("test");
+        Settings settings = indexService.settingsService().getSettings();
+        DocumentMapperParser mapperParser = indexService.mapperService().documentMapperParser();
 
-        DocumentMapper builderDocMapper = doc("test", rootObject("person").add(
+        DocumentMapper builderDocMapper = doc("test", settings, rootObject("person").add(
                 stringField("name").store(true)
                         .addMultiField(stringField("indexed").index(true).tokenized(true))
                         .addMultiField(stringField("not_indexed").index(false).store(true))

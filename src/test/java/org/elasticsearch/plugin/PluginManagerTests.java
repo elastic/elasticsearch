@@ -19,6 +19,8 @@
 package org.elasticsearch.plugin;
 
 import com.google.common.base.Predicate;
+import org.apache.http.impl.client.HttpClients;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
@@ -33,11 +35,11 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.plugins.PluginManager;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.helper.HttpClient;
-import org.elasticsearch.rest.helper.HttpClientResponse;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.junit.annotations.Network;
+import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
+import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -205,31 +207,37 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
         assertThat(pluginFound, is(true));
     }
 
-    private void assertPluginAvailable(String pluginName) throws InterruptedException {
-        HttpServerTransport httpServerTransport = internalCluster().getInstance(HttpServerTransport.class);
-        final HttpClient httpClient = new HttpClient(httpServerTransport.boundAddress().publishAddress());
-        logger.info("--> tested http address [{}]", httpServerTransport.info().getAddress());
+    private void assertPluginAvailable(String pluginName) throws InterruptedException, IOException {
+        final HttpRequestBuilder httpRequestBuilder = getHttpRequestBuilder();
 
         //checking that the http connector is working properly
         // We will try it for some seconds as it could happen that the REST interface is not yet fully started
         assertThat(awaitBusy(new Predicate<Object>() {
             public boolean apply(Object obj) {
-                HttpClientResponse response = httpClient.request("");
-                if (response.errorCode() != RestStatus.OK.getStatus()) {
-                    // We want to trace what's going on here before failing the test
-                    logger.info("--> error caught [{}], headers [{}]", response.errorCode(), response.getHeaders());
-                    logger.info("--> cluster state [{}]", internalCluster().clusterService().state());
-                    return false;
+                try {
+                    HttpResponse response = httpRequestBuilder.method("GET").path("/").execute();
+                    if (response.getStatusCode() != RestStatus.OK.getStatus()) {
+                        // We want to trace what's going on here before failing the test
+                        logger.info("--> error caught [{}], headers [{}]", response.getStatusCode(), response.getHeaders());
+                        logger.info("--> cluster state [{}]", internalCluster().clusterService().state());
+                        return false;
+                    }
+                    return true;
+                } catch (IOException e) {
+                    throw new ElasticsearchException("HTTP problem", e);
                 }
-                return true;
             }
         }, 5, TimeUnit.SECONDS), equalTo(true));
 
 
         //checking now that the plugin is available
-        HttpClientResponse response = httpClient.request("_plugin/" + pluginName + "/");
+        HttpResponse response = getHttpRequestBuilder().method("GET").path("/_plugin/" + pluginName + "/").execute();
         assertThat(response, notNullValue());
-        assertThat(response.errorCode(), equalTo(RestStatus.OK.getStatus()));
+        assertThat(response.getStatusCode(), equalTo(RestStatus.OK.getStatus()));
+    }
+
+    private HttpRequestBuilder getHttpRequestBuilder() {
+        return new HttpRequestBuilder(HttpClients.createDefault()).httpTransport(internalCluster().getDataNodeInstance(HttpServerTransport.class));
     }
 
     @Test
@@ -300,7 +308,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
     @Test
     @Network
     public void testInstallPluginWithElasticsearchDownloadService() throws IOException {
-        assumeTrue(isDownloadServiceWorking("http://download.elasticsearch.org/", "elasticsearch/ci-test.txt"));
+        assumeTrue(isDownloadServiceWorking("download.elasticsearch.org", 80, "/elasticsearch/ci-test.txt"));
         singlePluginInstallAndRemove("elasticsearch/elasticsearch-transport-thrift/1.5.0", null);
     }
 
@@ -313,7 +321,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
     @Test
     @Network
     public void testInstallPluginWithMavenCentral() throws IOException {
-        assumeTrue(isDownloadServiceWorking("http://search.maven.org/", "/"));
+        assumeTrue(isDownloadServiceWorking("search.maven.org", 80, "/"));
         singlePluginInstallAndRemove("org.elasticsearch/elasticsearch-transport-thrift/1.5.0", null);
     }
 
@@ -326,20 +334,21 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
     @Test
     @Network
     public void testInstallPluginWithGithub() throws IOException {
-        assumeTrue(isDownloadServiceWorking("https://github.com/", "/"));
+        assumeTrue(isDownloadServiceWorking("github.com", 443, "/"));
         singlePluginInstallAndRemove("elasticsearch/kibana", null);
     }
 
-    private boolean isDownloadServiceWorking(String url, String resource) {
-        HttpClient client = new HttpClient(url);
+    private boolean isDownloadServiceWorking(String host, int port, String resource) {
         try {
-            if (client.request(resource).errorCode() != 200) {
-                logger.warn("[{}{}] download service is not working. Disabling current test.", url, resource);
+            String protocol = port == 443 ? "https" : "http";
+            HttpResponse response = new HttpRequestBuilder(HttpClients.createDefault()).protocol(protocol).host(host).port(port).path(resource).execute();
+            if (response.getStatusCode() != 200) {
+                logger.warn("[{}{}] download service is not working. Disabling current test.", host, resource);
                 return false;
             }
             return true;
         } catch (Throwable t) {
-            logger.warn("[{}{}] download service is not working. Disabling current test.", url, resource);
+            logger.warn("[{}{}] download service is not working. Disabling current test.", host, resource);
         }
         return false;
     }

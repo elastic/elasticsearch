@@ -18,21 +18,19 @@
  */
 package org.elasticsearch.plugin;
 
-import com.google.common.collect.Maps;
+import org.apache.http.impl.client.HttpClients;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.plugin.responseheader.TestResponseHeaderPlugin;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.helper.HttpClient;
-import org.elasticsearch.rest.helper.HttpClientResponse;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
+import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.junit.Test;
 
-import java.util.Map;
-
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -53,19 +51,16 @@ public class ResponseHeaderPluginTests extends ElasticsearchIntegrationTest {
     @Test
     public void testThatSettingHeadersWorks() throws Exception {
         ensureGreen();
-        HttpClientResponse response = httpClient().request("/_protected");
-        assertThat(response.errorCode(), equalTo(RestStatus.UNAUTHORIZED.getStatus()));
-        assertThat(response.getHeader("Secret"), equalTo("required"));
+        HttpResponse response = httpClient().method("GET").path("/_protected").execute();
+        assertThat(response.getStatusCode(), equalTo(RestStatus.UNAUTHORIZED.getStatus()));
+        assertThat(response.getHeaders().get("Secret"), equalTo("required"));
 
-        Map<String, String> headers = Maps.newHashMap();
-        headers.put("Secret", "password");
-        HttpClientResponse authResponse = httpClient().request("GET", "_protected", headers);
-        assertThat(authResponse.errorCode(), equalTo(RestStatus.OK.getStatus()));
-        assertThat(authResponse.getHeader("Secret"), equalTo("granted"));
+        HttpResponse authResponse = httpClient().method("GET").path("/_protected").addHeader("Secret", "password").execute();
+        assertThat(authResponse.getStatusCode(), equalTo(RestStatus.OK.getStatus()));
+        assertThat(authResponse.getHeaders().get("Secret"), equalTo("granted"));
     }
 
-    private HttpClient httpClient() {
-        HttpServerTransport httpServerTransport = internalCluster().getDataNodeInstance(HttpServerTransport.class);
-        return new HttpClient(httpServerTransport.boundAddress().publishAddress());
+    private HttpRequestBuilder httpClient() {
+        return new HttpRequestBuilder(HttpClients.createDefault()).httpTransport(internalCluster().getDataNodeInstance(HttpServerTransport.class));
     }
 }

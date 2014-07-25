@@ -140,15 +140,14 @@ public abstract class NXYSignificanceHeuristic extends SignificanceHeuristic {
         @Override
         public SignificanceHeuristic parse(XContentParser parser) throws IOException, QueryParsingException {
             String givenName = parser.currentName();
-            checkName(givenName);
             boolean includeNegatives = false;
             boolean backgroundIsSuperset = true;
             XContentParser.Token token = parser.nextToken();
             while (!token.equals(XContentParser.Token.END_OBJECT)) {
-                if (INCLUDE_NEGATIVES_FIELD.match(parser.currentName(), ParseField.EMPTY_FLAGS)) {
+                if (INCLUDE_NEGATIVES_FIELD.match(parser.currentName())) {
                     parser.nextToken();
                     includeNegatives = parser.booleanValue();
-                } else if (BACKGROUND_IS_SUPERSET.match(parser.currentName(), ParseField.EMPTY_FLAGS)) {
+                } else if (BACKGROUND_IS_SUPERSET.match(parser.currentName())) {
                     parser.nextToken();
                     backgroundIsSuperset = parser.booleanValue();
                 } else {
@@ -160,8 +159,6 @@ public abstract class NXYSignificanceHeuristic extends SignificanceHeuristic {
         }
 
         protected abstract SignificanceHeuristic newHeuristic(boolean includeNegatives, boolean backgroundIsSuperset);
-
-        protected abstract void checkName(String givenName);
     }
 
 

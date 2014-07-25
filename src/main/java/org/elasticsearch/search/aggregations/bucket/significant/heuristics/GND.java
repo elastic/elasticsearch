@@ -115,13 +115,8 @@ public class GND extends NXYSignificanceHeuristic {
         }
 
         @Override
-        protected void checkName(String givenName) {
-            NAMES_FIELD.match(givenName);
-        }
-        @Override
         public SignificanceHeuristic parse(XContentParser parser) throws IOException, QueryParsingException {
             String givenName = parser.currentName();
-            checkName(givenName);
             boolean backgroundIsSuperset = true;
             XContentParser.Token token = parser.nextToken();
             while (!token.equals(XContentParser.Token.END_OBJECT)) {

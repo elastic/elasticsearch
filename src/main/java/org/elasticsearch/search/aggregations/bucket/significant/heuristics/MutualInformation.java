@@ -126,11 +126,6 @@ public class MutualInformation extends NXYSignificanceHeuristic {
         }
 
         @Override
-        protected void checkName(String givenName) {
-            NAMES_FIELD.match(givenName, ParseField.EMPTY_FLAGS);
-        }
-
-        @Override
         public String[] getNames() {
             return NAMES_FIELD.getAllNamesIncludedDeprecated();
         }

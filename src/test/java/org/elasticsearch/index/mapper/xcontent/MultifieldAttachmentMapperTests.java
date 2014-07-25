@@ -117,7 +117,7 @@ public class MultifieldAttachmentMapperTests extends ElasticsearchTestCase {
         doc = documentMapper.parse("person", "1", XContentFactory.jsonBuilder()
                 .startObject()
                     .startObject("file")
-                        .field("content", bytes)
+                        .field("_content", bytes)
                         .field("_name", forcedName)
                     .endObject()
                 .endObject()

@@ -72,7 +72,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.index.translog.TranslogStreams;
 import org.elasticsearch.indices.warmer.IndicesWarmer;
 import org.elasticsearch.indices.warmer.InternalIndicesWarmer;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -348,14 +347,13 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                     if (!get.loadSource()) {
                         return new GetResult(true, versionValue.version(), null);
                     }
-                    byte[] data = translog.read(versionValue.translogLocation());
-                    if (data != null) {
-                        try {
-                            Translog.Source source = TranslogStreams.readSource(data);
+                    try {
+                        Translog.Source source = translog.readSource(versionValue.translogLocation());
+                        if (source != null) {
                             return new GetResult(true, versionValue.version(), source);
-                        } catch (IOException e) {
-                            // switched on us, read it from the reader
                         }
+                    } catch (IOException e) {
+                        // switched on us, read it from the reader
                     }
                 }
             }

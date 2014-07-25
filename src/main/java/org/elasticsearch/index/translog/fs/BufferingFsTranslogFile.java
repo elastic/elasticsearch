@@ -22,6 +22,8 @@ package org.elasticsearch.index.translog.fs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.translog.TranslogStream;
+import org.elasticsearch.index.translog.TranslogStreams;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogException;
 
@@ -38,6 +40,8 @@ public class BufferingFsTranslogFile implements FsTranslogFile {
     private final long id;
     private final ShardId shardId;
     private final RafReference raf;
+    private final TranslogStream translogStream;
+    private final int headerSize;
 
     private final ReadWriteLock rwl = new ReentrantReadWriteLock();
     private final AtomicBoolean closed = new AtomicBoolean();
@@ -59,6 +63,11 @@ public class BufferingFsTranslogFile implements FsTranslogFile {
         this.raf = raf;
         this.buffer = new byte[bufferSize];
         raf.raf().setLength(0);
+        this.translogStream = TranslogStreams.translogStreamFor(this.raf.file());
+        this.headerSize = this.translogStream.writeHeader(raf.channel());
+        this.lastPosition += headerSize;
+        this.lastWrittenPosition += headerSize;
+        this.lastSyncPosition += headerSize;
     }
 
     public long id() {
@@ -137,6 +146,7 @@ public class BufferingFsTranslogFile implements FsTranslogFile {
                 try {
                     flushBuffer();
                     FsChannelSnapshot snapshot = new FsChannelSnapshot(this.id, raf, lastWrittenPosition, operationCounter);
+                    snapshot.seekTo(this.headerSize);
                     success = true;
                     return snapshot;
                 } catch (Exception e) {
@@ -156,6 +166,11 @@ public class BufferingFsTranslogFile implements FsTranslogFile {
     @Override
     public boolean syncNeeded() {
         return lastPosition != lastSyncPosition;
+    }
+
+    @Override
+    public TranslogStream getStream() {
+        return this.translogStream;
     }
 
     @Override
@@ -182,6 +197,7 @@ public class BufferingFsTranslogFile implements FsTranslogFile {
             if (!delete) {
                 try {
                     sync();
+                    translogStream.close();
                 } catch (Exception e) {
                     throw new TranslogException(shardId, "failed to sync on close", e);
                 }

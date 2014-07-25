@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.ParseContext.Document;
+import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
 
@@ -41,8 +42,10 @@ public class SimpleMapperTests extends ElasticsearchSingleNodeTest {
 
     @Test
     public void testSimpleMapper() throws Exception {
-        DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
-        DocumentMapper docMapper = doc("test",
+        IndexService indexService = createIndex("test");
+        Settings settings = indexService.settingsService().getSettings();
+        DocumentMapperParser mapperParser = indexService.mapperService().documentMapperParser();
+        DocumentMapper docMapper = doc("test", settings,
                 rootObject("person")
                         .add(object("name").add(stringField("first").store(true).index(false)))
         ).build(mapperParser);
@@ -118,8 +121,10 @@ public class SimpleMapperTests extends ElasticsearchSingleNodeTest {
 
     @Test
     public void testNoDocumentSent() throws Exception {
-        DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
-        DocumentMapper docMapper = doc("test",
+        IndexService indexService = createIndex("test");
+        Settings settings = indexService.settingsService().getSettings();
+        DocumentMapperParser mapperParser = indexService.mapperService().documentMapperParser();
+        DocumentMapper docMapper = doc("test", settings,
                 rootObject("person")
                         .add(object("name").add(stringField("first").store(true).index(false)))
         ).build(mapperParser);

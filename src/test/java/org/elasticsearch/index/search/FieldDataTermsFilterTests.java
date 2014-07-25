@@ -72,24 +72,24 @@ public class FieldDataTermsFilterTests extends ElasticsearchSingleNodeTest {
     public void setup() throws Exception {
         super.setUp();
 
-        // setup field mappers
-        strMapper = new StringFieldMapper.Builder("str_value")
-                .build(new Mapper.BuilderContext(null, new ContentPath(1)));
-
-        lngMapper = new LongFieldMapper.Builder("lng_value")
-                .build(new Mapper.BuilderContext(null, new ContentPath(1)));
-
-        dblMapper = new DoubleFieldMapper.Builder("dbl_value")
-                .build(new Mapper.BuilderContext(null, new ContentPath(1)));
-
         // create index and fielddata service
-        Settings settings = ImmutableSettings.builder().put("index.fielddata.cache", "none").build();
-        IndexService indexService = createIndex("test", settings);
+        IndexService indexService = createIndex("test", ImmutableSettings.builder().put("index.fielddata.cache", "none").build());
+        Settings settings = indexService.settingsService().getSettings();
         ifdService = indexService.injector().getInstance(IndexFieldDataService.class);
         IndexQueryParserService parserService = indexService.queryParserService();
         parseContext = new QueryParseContext(indexService.index(), parserService);
         writer = new IndexWriter(new RAMDirectory(),
                 new IndexWriterConfig(Lucene.VERSION, new StandardAnalyzer(Lucene.VERSION)));
+
+        // setup field mappers
+        strMapper = new StringFieldMapper.Builder("str_value")
+                .build(new Mapper.BuilderContext(settings, new ContentPath(1)));
+
+        lngMapper = new LongFieldMapper.Builder("lng_value")
+                .build(new Mapper.BuilderContext(settings, new ContentPath(1)));
+
+        dblMapper = new DoubleFieldMapper.Builder("dbl_value")
+                .build(new Mapper.BuilderContext(settings, new ContentPath(1)));
 
         int numDocs = 10;
         for (int i = 0; i < numDocs; i++) {

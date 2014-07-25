@@ -35,6 +35,7 @@ import org.elasticsearch.index.mapper.DocumentMapper.MergeResult;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
+import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Before;
 import org.junit.Test;
@@ -49,11 +50,13 @@ public class SimpleStringMappingTests extends ElasticsearchSingleNodeTest {
 
     private static Settings DOC_VALUES_SETTINGS = ImmutableSettings.builder().put(FieldDataType.FORMAT_KEY, FieldDataType.DOC_VALUES_FORMAT_VALUE).build();
 
+    IndexService indexService;
     DocumentMapperParser parser;
 
     @Before
     public void before() {
-        parser = createIndex("test").mapperService().documentMapperParser();
+        indexService = createIndex("test");
+        parser = indexService.mapperService().documentMapperParser();
     }
 
     @Test
@@ -279,7 +282,7 @@ public class SimpleStringMappingTests extends ElasticsearchSingleNodeTest {
 
     public void testDocValues() throws Exception {
         // doc values only work on non-analyzed content
-        final BuilderContext ctx = new BuilderContext(null, new ContentPath(1));
+        final BuilderContext ctx = new BuilderContext(indexService.settingsService().getSettings(), new ContentPath(1));
         try {
             new StringFieldMapper.Builder("anything").fieldDataSettings(DOC_VALUES_SETTINGS).build(ctx);
             fail();

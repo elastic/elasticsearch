@@ -5,12 +5,18 @@
  */
 package org.elasticsearch.shield.authz;
 
+import com.google.common.collect.Sets;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.RegExp;
+import org.elasticsearch.action.CompositeIndicesRequest;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.base.Predicate;
 import org.elasticsearch.shield.support.AutomatonPredicate;
 import org.elasticsearch.transport.TransportRequest;
+
+import java.util.Collections;
+import java.util.Set;
 
 /**
  *
@@ -53,21 +59,53 @@ public abstract class Permission {
                 return false;
             }
 
-            assert request instanceof IndicesRelatedRequest :
-                    "the only requests passing the action matcher should be IndexRelatedRequests";
+            boolean isIndicesRequest = request instanceof CompositeIndicesRequest || request instanceof IndicesRequest;
 
-            // if for some reason we missing an action... just for safety we'll reject
-            if (!(request instanceof IndicesRelatedRequest)) {
+            assert isIndicesRequest : "the only requests passing the action matcher should be IndicesRequests";
+
+            // if for some reason we are missing an action... just for safety we'll reject
+            if (!isIndicesRequest) {
                 return false;
             }
 
-            IndicesRelatedRequest req = (IndicesRelatedRequest) request;
-            for (String index : req.relatedIndices()) {
+            Set<String> indices = Sets.newHashSet();
+            if (request instanceof CompositeIndicesRequest) {
+                CompositeIndicesRequest compositeIndicesRequest = (CompositeIndicesRequest) request;
+                for (IndicesRequest indicesRequest : compositeIndicesRequest.subRequests()) {
+                    Collections.addAll(indices, explodeWildcards(indicesRequest, metaData));
+                }
+            } else {
+                Collections.addAll(indices, explodeWildcards((IndicesRequest) request, metaData));
+            }
+
+            for (String index : indices) {
                 if (!indicesMatcher.apply(index)) {
                     return false;
                 }
             }
             return true;
+        }
+
+        private String[] explodeWildcards(IndicesRequest indicesRequest, MetaData metaData) {
+            if (indicesRequest.indicesOptions().expandWildcardsOpen() || indicesRequest.indicesOptions().expandWildcardsClosed()) {
+                if (MetaData.isAllIndices(indicesRequest.indices())) {
+                    return new String[]{"_all"};
+
+                    /* the following is an alternative to requiring explicit privileges for _all, we just expand it, we could potentially extract
+                    this code fragment to a separate method in MetaData#concreteIndices in the open source and just use it here]
+
+                    if (indicesRequest.indicesOptions().expandWildcardsOpen() && indicesRequest.indicesOptions().expandWildcardsClosed()) {
+                        return metaData.concreteAllIndices();
+                    } else if (indicesRequest.indicesOptions().expandWildcardsOpen()) {
+                        return metaData.concreteAllOpenIndices();
+                    } else {
+                        return metaData.concreteAllClosedIndices();
+                    }*/
+
+                }
+                return metaData.convertFromWildcards(indicesRequest.indices(), indicesRequest.indicesOptions());
+            }
+            return indicesRequest.indices();
         }
     }
 

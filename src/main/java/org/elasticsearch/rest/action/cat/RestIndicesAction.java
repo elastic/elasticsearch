@@ -261,6 +261,9 @@ public class RestIndicesAction extends AbstractCatAction {
         table.addCell("segments.version_map_memory", "sibling:pri;alias:svmm,segmentsVersionMapMemory;default:false;text-align:right;desc:memory used by version map");
         table.addCell("pri.segments.version_map_memory", "default:false;text-align:right;desc:memory used by version map");
 
+        table.addCell("segments.fixed_bitset_memory", "sibling:pri;alias:sfbm,fixedBitsetMemory;default:false;text-align:right;desc:memory used by fixed bit sets for nested object field types and type filters for types referred in _parent fields");
+        table.addCell("pri.segments.fixed_bitset_memory", "default:false;text-align:right;desc:memory used by fixed bit sets for nested object field types and type filters for types referred in _parent fields");
+
         table.addCell("warmer.current", "sibling:pri;alias:wc,warmerCurrent;default:false;text-align:right;desc:current warmer ops");
         table.addCell("pri.warmer.current", "default:false;text-align:right;desc:current warmer ops");
 
@@ -454,6 +457,9 @@ public class RestIndicesAction extends AbstractCatAction {
 
             table.addCell(indexStats == null ? null : indexStats.getTotal().getSegments().getVersionMapMemory());
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getSegments().getVersionMapMemory());
+
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getSegments().getFixedBitSetMemory());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getSegments().getFixedBitSetMemory());
 
             table.addCell(indexStats == null ? null : indexStats.getTotal().getWarmer().current());
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getWarmer().current());

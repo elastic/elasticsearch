@@ -21,11 +21,11 @@ package org.elasticsearch.search.aggregations.bucket.nested;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.join.FixedBitSetCachingWrapperFilter;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.lucene.ReaderContextAware;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
+import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilter;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
@@ -43,8 +43,8 @@ public class NestedAggregator extends SingleBucketAggregator implements ReaderCo
 
     private final String nestedPath;
     private final Aggregator parentAggregator;
-    private Filter parentFilter;
-    private final Filter childFilter;
+    private FixedBitSetFilter parentFilter;
+    private final FixedBitSetFilter childFilter;
 
     private Bits childDocs;
     private FixedBitSet parentDocs;
@@ -65,7 +65,7 @@ public class NestedAggregator extends SingleBucketAggregator implements ReaderCo
             throw new AggregationExecutionException("[nested] nested path [" + nestedPath + "] is not nested");
         }
 
-        childFilter = aggregationContext.searchContext().filterCache().cache(objectMapper.nestedTypeFilter());
+        childFilter = aggregationContext.searchContext().fixedBitSetFilterCache().getFixedBitSetFilter(objectMapper.nestedTypeFilter());
     }
 
     @Override
@@ -79,9 +79,7 @@ public class NestedAggregator extends SingleBucketAggregator implements ReaderCo
             if (parentFilterNotCached == null) {
                 parentFilterNotCached = NonNestedDocsFilter.INSTANCE;
             }
-            parentFilter = SearchContext.current().filterCache().cache(parentFilterNotCached);
-            // if the filter cache is disabled, we still need to produce bit sets
-            parentFilter = new FixedBitSetCachingWrapperFilter(parentFilter);
+            parentFilter = SearchContext.current().fixedBitSetFilterCache().getFixedBitSetFilter(parentFilterNotCached);
         }
 
         try {

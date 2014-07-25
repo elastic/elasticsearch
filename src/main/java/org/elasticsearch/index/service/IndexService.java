@@ -28,6 +28,7 @@ import org.elasticsearch.index.aliases.IndexAliasesService;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.engine.IndexEngine;
+import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.gateway.IndexGateway;
 import org.elasticsearch.index.mapper.MapperService;
@@ -49,6 +50,8 @@ public interface IndexService extends IndexComponent, Iterable<IndexShard> {
     IndexCache cache();
 
     IndexFieldDataService fieldData();
+
+    FixedBitSetFilterCache fixedBitSetFilterCache();
 
     IndexSettingsService settingsService();
 

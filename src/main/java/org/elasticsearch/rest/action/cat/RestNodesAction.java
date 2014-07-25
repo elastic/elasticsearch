@@ -171,6 +171,7 @@ public class RestNodesAction extends AbstractCatAction {
         table.addCell("segments.memory", "alias:sm,segmentsMemory;default:false;text-align:right;desc:memory used by segments");
         table.addCell("segments.index_writer_memory", "alias:siwm,segmentsIndexWriterMemory;default:false;text-align:right;desc:memory used by index writer");
         table.addCell("segments.version_map_memory", "alias:svmm,segmentsVersionMapMemory;default:false;text-align:right;desc:memory used by version map");
+        table.addCell("segments.fixed_bitset_memory", "alias:sfbm,fixedBitsetMemory;default:false;text-align:right;desc:memory used by fixed bit sets for nested object field types and type filters for types referred in _parent fields");
 
         table.addCell("suggest.current", "alias:suc,suggestCurrent;default:false;text-align:right;desc:number of current suggest ops");
         table.addCell("suggest.time", "alias:suti,suggestTime;default:false;text-align:right;desc:time spend in suggest");
@@ -275,6 +276,7 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(stats == null ? null : stats.getIndices().getSegments().getMemory());
             table.addCell(stats == null ? null : stats.getIndices().getSegments().getIndexWriterMemory());
             table.addCell(stats == null ? null : stats.getIndices().getSegments().getVersionMapMemory());
+            table.addCell(stats == null ? null : stats.getIndices().getSegments().getFixedBitSetMemory());
 
             table.addCell(stats == null ? null : stats.getIndices().getSuggest().getCurrent());
             table.addCell(stats == null ? null : stats.getIndices().getSuggest().getTime());

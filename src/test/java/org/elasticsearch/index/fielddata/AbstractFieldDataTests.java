@@ -21,18 +21,25 @@ package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.*;
+import org.apache.lucene.search.Filter;
 import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
+import org.elasticsearch.index.mapper.MapperBuilders;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilterCache;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.After;
 import org.junit.Before;
+
+import static org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 
 // we might wanna cut this over to LuceneTestCase
 @SuppressCodecs({"Lucene3x", "Lucene40", "Lucene41", "Lucene42", "Lucene45", "Lucene46"}) 
@@ -113,6 +120,11 @@ public abstract class AbstractFieldDataTests extends ElasticsearchSingleNodeTest
             readerContext.reader().close();
         }
         writer.close();
+    }
+
+    protected Nested createNested(Filter parentFilter, Filter childFilter) {
+        FixedBitSetFilterCache s = indexService.fixedBitSetFilterCache();
+        return new Nested(s.getFixedBitSetFilter(parentFilter), s.getFixedBitSetFilter(childFilter));
     }
 
 }

@@ -27,6 +27,7 @@ import org.elasticsearch.common.lucene.search.NotFilter;
 import org.elasticsearch.common.lucene.search.XBooleanFilter;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilter;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
@@ -153,17 +154,16 @@ public class HasParentQueryParser implements QueryParser {
         Filter parentFilter;
         if (parentTypes.size() == 1) {
             DocumentMapper documentMapper = parseContext.mapperService().documentMapper(parentTypes.iterator().next());
-            parentFilter = parseContext.cacheFilter(documentMapper.typeFilter(), null);
+            parentFilter = documentMapper.typeFilter();
         } else {
             XBooleanFilter parentsFilter = new XBooleanFilter();
             for (String parentTypeStr : parentTypes) {
                 DocumentMapper documentMapper = parseContext.mapperService().documentMapper(parentTypeStr);
-                Filter filter = parseContext.cacheFilter(documentMapper.typeFilter(), null);
-                parentsFilter.add(filter, BooleanClause.Occur.SHOULD);
+                parentsFilter.add(documentMapper.typeFilter(), BooleanClause.Occur.SHOULD);
             }
             parentFilter = parentsFilter;
         }
-        Filter childrenFilter = parseContext.cacheFilter(new NotFilter(parentFilter), null);
+        FixedBitSetFilter childrenFilter = parseContext.fixedBitSetFilter(new NotFilter(parentFilter));
 
         Query query;
         if (score) {

@@ -19,15 +19,16 @@
 
 package org.elasticsearch.options.jsonp;
 
+import org.apache.http.impl.client.HttpClients;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.rest.RestController;
-import org.elasticsearch.rest.helper.HttpClient;
-import org.elasticsearch.rest.helper.HttpClientResponse;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
+import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
+import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.containsString;
@@ -55,11 +56,12 @@ public class JsonpOptionDisabledTest extends ElasticsearchIntegrationTest {
     @Test
     public void testThatJSONPisDisabled() throws Exception {
         // Make the HTTP request
-        HttpServerTransport httpServerTransport = internalCluster().getDataNodeInstance(HttpServerTransport.class);
-        HttpClient httpClient = new HttpClient(httpServerTransport.boundAddress().publishAddress());
-        HttpClientResponse response = httpClient.request("/?callback=DisabledJSONPCallback");
-        assertThat(response.getHeader("Content-Type"), is("application/javascript"));
-        assertThat(response.response(), containsString("DisabledJSONPCallback("));
-        assertThat(response.response(), containsString("JSONP is disabled"));
+        HttpResponse response = new HttpRequestBuilder(HttpClients.createDefault()).httpTransport(internalCluster().getDataNodeInstance(HttpServerTransport.class))
+                .path("/")
+                .addParam("callback", "DisabledJSONPCallback").execute();
+
+        assertThat(response.getHeaders().get("Content-Type"), is("application/javascript"));
+        assertThat(response.getBody(), containsString("DisabledJSONPCallback("));
+        assertThat(response.getBody(), containsString("JSONP is disabled"));
     }
 }

@@ -15,6 +15,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.http.netty.NettyHttpServerTransport;
 import org.elasticsearch.shield.n2n.N2NNettyUpstreamHandler;
 import org.elasticsearch.shield.ssl.SSLConfig;
+import org.elasticsearch.transport.netty.NettyTransport;
 
 import javax.net.ssl.SSLEngine;
 
@@ -46,7 +47,7 @@ public class NettySSLHttpServerTransport extends NettyHttpServerTransport {
         public HttpSslChannelPipelineFactory(NettyHttpServerTransport transport) {
             super(transport);
             if (ssl) {
-                sslConfig = new SSLConfig(settings.getByPrefix("shield.http.ssl."));
+                sslConfig = new SSLConfig(settings.getByPrefix("shield.http.ssl."), settings.getByPrefix("shield.ssl."));
                 // try to create an SSL engine, so that exceptions lead to early exit
                 sslConfig.createSSLEngine();
             } else {
@@ -61,8 +62,6 @@ public class NettySSLHttpServerTransport extends NettyHttpServerTransport {
             if (ssl) {
                 SSLEngine engine = sslConfig.createSSLEngine();
                 engine.setUseClientMode(false);
-                // TODO MAKE ME CONFIGURABLE
-                engine.setNeedClientAuth(false);
                 pipeline.addFirst("ssl", new SslHandler(engine));
             }
             return pipeline;

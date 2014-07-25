@@ -29,6 +29,7 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportModule;
 import org.junit.*;
+import org.junit.rules.TemporaryFolder;
 
 import javax.net.ssl.*;
 import java.io.File;
@@ -46,17 +47,15 @@ import static org.hamcrest.Matchers.*;
 @ClusterScope(scope = Scope.SUITE, numDataNodes = 1, transportClientRatio = 0.0, numClientNodes = 0)
 public class SslIntegrationTests extends ElasticsearchIntegrationTest {
 
-    private static File ipFilterFile = null;
+    @ClassRule
+    public static TemporaryFolder temporaryFolder = new TemporaryFolder();
+
+    private static File ipFilterFile;
 
     @BeforeClass
-    public static void writeAllowAllIpFilterFile() {
-        try {
-            ipFilterFile = File.createTempFile("elasticsearch", "ipfilter");
-            ipFilterFile.deleteOnExit();
-            Files.write("allow: all\n".getBytes(com.google.common.base.Charsets.UTF_8), ipFilterFile);
-        } catch (IOException e) {
-            throw new ElasticsearchException("error creating temp file", e);
-        }
+    public static void writeAllowAllIpFilterFile() throws Exception {
+        ipFilterFile = temporaryFolder.newFile();
+        Files.write("allow: all\n".getBytes(com.google.common.base.Charsets.UTF_8), ipFilterFile);
     }
 
     @Override
@@ -72,6 +71,8 @@ public class SslIntegrationTests extends ElasticsearchIntegrationTest {
         return ImmutableSettings.settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("discovery.zen.ping.multicast.ping.enabled", false)
+                //
+                .put("shield.authz.file.roles", "not/existing")
                 // needed to ensure that netty transport is started
                 .put("node.mode", "network")
                 .put("shield.transport.ssl", true)
@@ -80,6 +81,7 @@ public class SslIntegrationTests extends ElasticsearchIntegrationTest {
                 .put("shield.transport.ssl.truststore", testnodeStore.getPath())
                 .put("shield.transport.ssl.truststore_password", "testnode")
                 .put("shield.http.ssl", true)
+                .put("shield.http.ssl.require.client.auth", false)
                 .put("shield.http.ssl.keystore", testnodeStore.getPath())
                 .put("shield.http.ssl.keystore_password", "testnode")
                 .put("shield.http.ssl.truststore", testnodeStore.getPath())
@@ -90,16 +92,6 @@ public class SslIntegrationTests extends ElasticsearchIntegrationTest {
                 .put("plugin.types", SecurityPlugin.class.getName())
                 .put("shield.n2n.file", ipFilterFile.getPath())
                 .build();
-    }
-
-    @Before
-    public void setup() {
-        System.setProperty("javax.net.debug", "all");
-    }
-
-    @After
-    public void teardown() {
-        System.clearProperty("javax.net.debug");
     }
 
     @Test

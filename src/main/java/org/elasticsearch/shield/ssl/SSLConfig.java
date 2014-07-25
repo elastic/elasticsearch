@@ -30,19 +30,15 @@ public class SSLConfig {
     private SSLContext sslContext;
     private String[] ciphers;
 
-    public SSLConfig(Settings componentSettings) {
-        this(componentSettings, ImmutableSettings.EMPTY);
-    }
-
-    public SSLConfig(Settings componentSettings, Settings settings) {
-        this.clientAuth = componentSettings.getAsBoolean("client.auth", settings.getAsBoolean("shield.ssl.client.auth", true));
-        String keyStore = componentSettings.get("keystore", settings.get("shield.ssl.keystore", System.getProperty("javax.net.ssl.keyStore")));
-        String keyStorePassword = componentSettings.get("keystore_password", settings.get("shield.ssl.keystore_password", System.getProperty("javax.net.ssl.keyStorePassword")));
-        String keyStoreAlgorithm = componentSettings.get("keystore_algorithm", settings.get("shield.ssl.keystore_algorithm", System.getProperty("ssl.KeyManagerFactory.algorithm")));
-        String trustStore = componentSettings.get("truststore", settings.get("shield.ssl.truststore", System.getProperty("javax.net.ssl.trustStore")));
-        String trustStorePassword = componentSettings.get("truststore_password", settings.get("shield.ssl.truststore_password", System.getProperty("javax.net.ssl.trustStorePassword")));
-        String trustStoreAlgorithm = componentSettings.get("truststore_algorithm", settings.get("shield.ssl.truststore_algorithm", System.getProperty("ssl.TrustManagerFactory.algorithm")));
-        this.ciphers = componentSettings.getAsArray("ciphers", settings.getAsArray("shield.ssl.ciphers", DEFAULT_CIPHERS));
+    public SSLConfig(Settings componentSettings, Settings defaultSettings) {
+        this.clientAuth = componentSettings.getAsBoolean("require.client.auth", defaultSettings.getAsBoolean("require.client.auth", true));
+        String keyStore = componentSettings.get("keystore", defaultSettings.get("keystore", System.getProperty("javax.net.ssl.keyStore")));
+        String keyStorePassword = componentSettings.get("keystore_password", defaultSettings.get("keystore_password", System.getProperty("javax.net.ssl.keyStorePassword")));
+        String keyStoreAlgorithm = componentSettings.get("keystore_algorithm", defaultSettings.get("keystore_algorithm", System.getProperty("ssl.KeyManagerFactory.algorithm")));
+        String trustStore = componentSettings.get("truststore", defaultSettings.get("truststore", System.getProperty("javax.net.ssl.trustStore")));
+        String trustStorePassword = componentSettings.get("truststore_password", defaultSettings.get("truststore_password", System.getProperty("javax.net.ssl.trustStorePassword")));
+        String trustStoreAlgorithm = componentSettings.get("truststore_algorithm", defaultSettings.get("truststore_algorithm", System.getProperty("ssl.TrustManagerFactory.algorithm")));
+        this.ciphers = componentSettings.getAsArray("ciphers", defaultSettings.getAsArray("ciphers", DEFAULT_CIPHERS));
 
         if (keyStore == null) {
             throw new ElasticsearchException("SSL Enabled, but keystore unconfigured");
@@ -101,7 +97,7 @@ public class SSLConfig {
 
         // Initialize sslContext
         try {
-            String algorithm = componentSettings.get("context_algorithm", settings.get("shield.ssl.context_algorithm", "TLS"));
+            String algorithm = componentSettings.get("context_algorithm", defaultSettings.get("shield.ssl.context_algorithm", "TLS"));
             sslContext = SSLContext.getInstance(algorithm);
             sslContext.init(kmf.getKeyManagers(), trustManagers, null);
         } catch (Exception e) {

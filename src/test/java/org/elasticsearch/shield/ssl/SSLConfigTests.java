@@ -33,11 +33,11 @@ public class SSLConfigTests extends ElasticsearchTestCase {
         try {
             new SSLConfig(ImmutableSettings.EMPTY,
                     settingsBuilder()
-                            .put("shield.ssl.context_algorithm", "non-existing")
-                            .put("shield.ssl.keystore", testnodeStore.getPath())
-                            .put("shield.ssl.keystore_password", "testnode")
-                            .put("shield.ssl.truststore", testnodeStore.getPath())
-                            .put("shield.ssl.truststore_password", "testnode")
+                            .put("context_algorithm", "non-existing")
+                            .put("keystore", testnodeStore.getPath())
+                            .put("keystore_password", "testnode")
+                            .put("truststore", testnodeStore.getPath())
+                            .put("truststore_password", "testnode")
                         .build());
         } catch (ElasticsearchSSLException e) {
             assertThat(e.getRootCause(), instanceOf(NoSuchAlgorithmException.class));
@@ -46,6 +46,7 @@ public class SSLConfigTests extends ElasticsearchTestCase {
 
     @Test
     public void testThatExactConfigOverwritesDefaultConfig() throws Exception {
+        //
         Settings concreteSettings = settingsBuilder()
                 .put("ciphers", "TLS_RSA_WITH_AES_128_CBC_SHA")
                 .build();
@@ -58,7 +59,7 @@ public class SSLConfigTests extends ElasticsearchTestCase {
                 .put("shield.ssl.truststore_password", "testnode")
                 .build();
 
-        SSLConfig sslConfig = new SSLConfig(concreteSettings, genericSettings);
+        SSLConfig sslConfig = new SSLConfig(concreteSettings, genericSettings.getByPrefix("shield.ssl."));
         SSLEngine sslEngine = sslConfig.createSSLEngine();
         assertThat(sslEngine.getEnabledCipherSuites().length, is(1));
     }

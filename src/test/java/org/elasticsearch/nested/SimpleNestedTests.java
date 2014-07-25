@@ -21,6 +21,7 @@ package org.elasticsearch.nested;
 
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetResponse;
@@ -29,6 +30,7 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.FilterBuilders;
@@ -1159,6 +1161,64 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
         assertThat(searchResponse.getHits().getHits()[1].sortValues()[0].toString(), equalTo("2"));
         assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("3"));
         assertThat(searchResponse.getHits().getHits()[2].sortValues()[0].toString(), equalTo("3"));
+    }
+
+    @Test
+    public void testCheckFixedBitSetCache() throws Exception {
+        boolean loadFixedBitSeLazily = randomBoolean();
+        ImmutableSettings.Builder settingsBuilder = ImmutableSettings.builder().put(indexSettings())
+                .put("index.refresh_interval", -1);
+        if (loadFixedBitSeLazily) {
+            settingsBuilder.put("index.load_fixed_bitset_filters_eagerly", false);
+        }
+        assertAcked(prepareCreate("test")
+                        .setSettings(settingsBuilder)
+                        .addMapping("type")
+        );
+
+        client().prepareIndex("test", "type", "0").setSource("field", "value").get();
+        client().prepareIndex("test", "type", "1").setSource("field", "value").get();
+        refresh();
+        ensureSearchable("test");
+
+        // No nested mapping yet, there shouldn't be anything in the fixed bit set cache
+        ClusterStatsResponse clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();
+        assertThat(clusterStatsResponse.getIndicesStats().getSegments().getFixedBitSetMemoryInBytes(), equalTo(0l));
+
+        // Now add nested mapping
+        assertAcked(
+                client().admin().indices().preparePutMapping("test").setType("type").setSource("array1", "type=nested")
+        );
+
+        XContentBuilder builder = jsonBuilder().startObject()
+                    .startArray("array1").startObject().field("field1", "value1").endObject().endArray()
+                .endObject();
+        // index simple data
+        client().prepareIndex("test", "type", "2").setSource(builder).get();
+        client().prepareIndex("test", "type", "3").setSource(builder).get();
+        client().prepareIndex("test", "type", "4").setSource(builder).get();
+        client().prepareIndex("test", "type", "5").setSource(builder).get();
+        client().prepareIndex("test", "type", "6").setSource(builder).get();
+        refresh();
+        ensureSearchable("test");
+
+        if (loadFixedBitSeLazily) {
+            clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();
+            assertThat(clusterStatsResponse.getIndicesStats().getSegments().getFixedBitSetMemoryInBytes(), equalTo(0l));
+
+            // only when querying with nested the fixed bitsets are loaded
+            SearchResponse searchResponse = client().prepareSearch("test")
+                    .setQuery(nestedQuery("array1", termQuery("field1", "value1")))
+                    .get();
+            assertNoFailures(searchResponse);
+            assertThat(searchResponse.getHits().totalHits(), equalTo(5l));
+        }
+        clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();
+        assertThat(clusterStatsResponse.getIndicesStats().getSegments().getFixedBitSetMemoryInBytes(), greaterThan(0l));
+
+        assertAcked(client().admin().indices().prepareDelete("test"));
+        clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();
+        assertThat(clusterStatsResponse.getIndicesStats().getSegments().getFixedBitSetMemoryInBytes(), equalTo(0l));
     }
 
     /**

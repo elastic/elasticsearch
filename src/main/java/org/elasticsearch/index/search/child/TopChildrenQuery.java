@@ -30,6 +30,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.search.EmptyScorer;
+import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilter;
 import org.elasticsearch.index.fielddata.IndexParentChildFieldData;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
@@ -66,14 +67,14 @@ public class TopChildrenQuery extends Query {
     private final int factor;
     private final int incrementalFactor;
     private Query originalChildQuery;
-    private final Filter nonNestedDocsFilter;
+    private final FixedBitSetFilter nonNestedDocsFilter;
 
     // This field will hold the rewritten form of originalChildQuery, so that we can reuse it
     private Query rewrittenChildQuery;
     private IndexReader rewriteIndexReader;
 
     // Note, the query is expected to already be filtered to only child type docs
-    public TopChildrenQuery(IndexParentChildFieldData parentChildIndexFieldData, Query childQuery, String childType, String parentType, ScoreType scoreType, int factor, int incrementalFactor, Filter nonNestedDocsFilter) {
+    public TopChildrenQuery(IndexParentChildFieldData parentChildIndexFieldData, Query childQuery, String childType, String parentType, ScoreType scoreType, int factor, int incrementalFactor, FixedBitSetFilter nonNestedDocsFilter) {
         this.parentChildIndexFieldData = parentChildIndexFieldData;
         this.originalChildQuery = childQuery;
         this.childType = childType;

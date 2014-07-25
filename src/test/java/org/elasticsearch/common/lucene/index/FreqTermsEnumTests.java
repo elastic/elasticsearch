@@ -122,6 +122,11 @@ public class FreqTermsEnumTests extends ElasticsearchLuceneTestCase {
             }
         }
 
+        for (String term : terms) {
+            referenceAll.put(term, new FreqHolder());
+            referenceFilter.put(term, new FreqHolder());
+            referenceNotDeleted.put(term, new FreqHolder());
+        }
 
         // now go over each doc, build the relevant references and filter
         reader = DirectoryReader.open(iw, true);
@@ -145,10 +150,6 @@ public class FreqTermsEnumTests extends ElasticsearchLuceneTestCase {
         for (IndexableField field : doc.getFields("field")) {
             String term = field.stringValue();
             FreqHolder freqHolder = reference.get(term);
-            if (freqHolder == null) {
-                freqHolder = new FreqHolder();
-                reference.put(term, freqHolder);
-            }
             if (!addedDocFreq.contains(term)) {
                 freqHolder.docFreq++;
                 addedDocFreq.add(term);

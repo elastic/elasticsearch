@@ -173,12 +173,12 @@ public class TransportRecoveryAction extends
 
     @Override
     protected ClusterBlockException checkGlobalBlock(ClusterState state, RecoveryRequest request) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA);
+        return state.blocks().globalBlockedException(ClusterBlockLevel.READ);
     }
 
     @Override
     protected ClusterBlockException checkRequestBlock(ClusterState state, RecoveryRequest request, String[] concreteIndices) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, concreteIndices);
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.READ, concreteIndices);
     }
 
     static class ShardRecoveryRequest extends BroadcastShardOperationRequest {

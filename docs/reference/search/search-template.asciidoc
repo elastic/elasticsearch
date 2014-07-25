@@ -214,7 +214,7 @@ In order to execute the stored template, reference it by it's name under the `te
 GET /_search/template
 {
     "template": {
-        "file": "storedTemplate" <1>,
+        "file": "storedTemplate" <1>
     },
     "params": {
         "query_string": "search for these words"
@@ -280,7 +280,7 @@ To use an indexed template at search time use:
 GET /_search/template
 {
     "template": {
-        "id": "templateName" <1>,
+        "id": "templateName" <1>
     },
     "params": {
         "query_string": "search for these words"

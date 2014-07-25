@@ -148,7 +148,6 @@ public class DocumentMapper implements ToXContent {
 
         private final String index;
 
-        @Nullable
         private final Settings indexSettings;
 
         private final RootObjectMapper rootObjectMapper;
@@ -157,7 +156,7 @@ public class DocumentMapper implements ToXContent {
 
         private final Mapper.BuilderContext builderContext;
 
-        public Builder(String index, @Nullable Settings indexSettings, RootObjectMapper.Builder builder) {
+        public Builder(String index, Settings indexSettings, RootObjectMapper.Builder builder) {
             this.index = index;
             this.indexSettings = indexSettings;
             this.builderContext = new Mapper.BuilderContext(indexSettings, new ContentPath(1));

@@ -45,7 +45,7 @@ import static org.hamcrest.Matchers.*;
 public class MetadataMapperTest extends ElasticsearchTestCase {
 
     protected void checkMeta(String filename, Settings settings, Long expectedDate, Long expectedLength) throws IOException {
-        DocumentMapperParser mapperParser = new DocumentMapperParser(new Index("test"), settings, new AnalysisService(new Index("test")), null, null, null);
+        DocumentMapperParser mapperParser = new DocumentMapperParser(new Index("test"), settings, new AnalysisService(new Index("test")), null, null, null, null);
         mapperParser.putTypeParser(AttachmentMapper.CONTENT_TYPE, new AttachmentMapper.TypeParser());
 
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/xcontent/test-mapping.json");

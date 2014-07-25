@@ -55,7 +55,7 @@ public class LanguageDetectionAttachmentMapperTests extends ElasticsearchTestCas
     public void setupMapperParser(boolean langDetect) throws IOException {
         DocumentMapperParser mapperParser = new DocumentMapperParser(new Index("test"),
                 ImmutableSettings.settingsBuilder().put("index.mapping.attachment.detect_language", langDetect).build(),
-                new AnalysisService(new Index("test")), null, null, null);
+                new AnalysisService(new Index("test")), null, null, null, null);
         mapperParser.putTypeParser(AttachmentMapper.CONTENT_TYPE, new AttachmentMapper.TypeParser());
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/language/language-mapping.json");
         docMapper = mapperParser.parse(mapping);

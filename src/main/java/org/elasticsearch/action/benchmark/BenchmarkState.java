@@ -36,10 +36,10 @@ public class BenchmarkState {
 
     protected static final ESLogger logger = Loggers.getLogger(BenchmarkState.class);
 
-    private static final long     TIMEOUT  = 60;
+    private static final long TIMEOUT = 60;
     private static final TimeUnit TIMEUNIT = TimeUnit.SECONDS;
 
-    final String                 benchmarkId;
+    final String benchmarkId;
     final BenchmarkStartResponse response;
 
     private final Map<String, StoppableSemaphore> semaphores = new HashMap<>();

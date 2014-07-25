@@ -158,7 +158,7 @@ public class BenchmarkCoordinatorService extends AbstractBenchmarkService<Benchm
 
         preconditions(request.numExecutorNodes());
 
-        manager.init(request, new ActionListener() {
+        manager.start(request, new ActionListener() {
 
             @Override
             public void onResponse(Object o) {
@@ -167,7 +167,7 @@ public class BenchmarkCoordinatorService extends AbstractBenchmarkService<Benchm
 
                 final InternalCoordinatorState ics = new InternalCoordinatorState(request, listener);
 
-                ics.onReady    = new OnReadyStateChangeListener(ics);
+                ics.onReady = new OnReadyStateChangeListener(ics);
                 ics.onFinished = new OnFinishedStateChangeListener(ics);
                 ics.onComplete = new OnCompleteStateChangeListener(ics);
 
@@ -186,7 +186,7 @@ public class BenchmarkCoordinatorService extends AbstractBenchmarkService<Benchm
 
         final BenchmarkMetaData meta = clusterService.state().metaData().custom(BenchmarkMetaData.TYPE);
 
-        if (utility.executors(1).size() == 0 || meta == null || meta.entries().size() == 0) {
+        if (BenchmarkUtility.executors(clusterService.state().nodes(), 1).size() == 0 || meta == null || meta.entries().size() == 0) {
             listener.onResponse(new BenchmarkStatusResponses());
             return;
         }
@@ -563,7 +563,7 @@ public class BenchmarkCoordinatorService extends AbstractBenchmarkService<Benchm
     }
 
     private void preconditions(int num) {
-        final int n = utility.executors(num).size();
+        final int n = BenchmarkUtility.executors(clusterService.state().nodes(), num).size();
         if (n < num) {
             throw new BenchmarkNodeMissingException(
                     "Insufficient executor nodes in cluster: require at least [" + num + "] found [" + n + "]");

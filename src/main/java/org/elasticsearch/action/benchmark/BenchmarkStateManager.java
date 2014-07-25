@@ -61,7 +61,6 @@ public class BenchmarkStateManager {
 
     private final ClusterService   clusterService;
     private final ThreadPool       threadPool;
-    private final BenchmarkUtility utility;
     private final TransportService transportService;
 
     @Inject
@@ -70,17 +69,18 @@ public class BenchmarkStateManager {
         this.clusterService   = clusterService;
         this.threadPool       = threadPool;
         this.transportService = transportService;
-        this.utility          = utility;
     }
 
-    public void init(final BenchmarkStartRequest request, final ActionListener listener) {
+    public void start(final BenchmarkStartRequest request, final ActionListener listener) {
 
         final String cause = "benchmark-start-request (" + request.benchmarkId() + ")";
 
         clusterService.submitStateUpdateTask(cause, new TimeoutClusterStateUpdateTask() {
 
             @Override
-            public TimeValue timeout() { return request.masterNodeTimeout(); }
+            public TimeValue timeout() {
+                return request.masterNodeTimeout();
+            }
 
             @Override
             public void clusterStateProcessed(final String source, final ClusterState oldState, final ClusterState newState) { }
@@ -102,7 +102,7 @@ public class BenchmarkStateManager {
 
                 // Assign nodes on which to execute the benchmark
                 final BenchmarkMetaData.Entry entry = new BenchmarkMetaData.Entry(request.benchmarkId());
-                final List<DiscoveryNode> nodes = utility.executors(request.numExecutorNodes());
+                final List<DiscoveryNode> nodes = BenchmarkUtility.executors(clusterService.state().nodes(), request.numExecutorNodes());
                 for (DiscoveryNode node : nodes) {
                     entry.nodeStateMap().put(node.id(), BenchmarkMetaData.Entry.NodeState.INITIALIZING);
                 }
@@ -130,7 +130,7 @@ public class BenchmarkStateManager {
         boolean eligible(final BenchmarkMetaData.Entry entry);
     }
 
-    private static class BaseUpdateTask implements TimeoutClusterStateUpdateTask {
+    private static class UpdateTask implements TimeoutClusterStateUpdateTask {
 
         final TimeValue                timeValue;
         final ActionListener<String[]> listener;
@@ -139,8 +139,8 @@ public class BenchmarkStateManager {
         final BenchmarkMetaData.State  target;
         final List<String>             found = new ArrayList<>();
 
-        BaseUpdateTask(final String[] patterns, final TimeValue timeValue, final ActionListener<String[]> listener,
-                       final BenchmarkMetaData.State target, final Eligibility eligibility) {
+        UpdateTask(final String[] patterns, final TimeValue timeValue, final ActionListener<String[]> listener,
+                   final BenchmarkMetaData.State target, final Eligibility eligibility) {
             this.timeValue   = timeValue;
             this.patterns    = patterns;
             this.listener    = listener;
@@ -201,7 +201,7 @@ public class BenchmarkStateManager {
         final String cause = "benchmark-pause-request (" + Joiner.on(",").join(request.benchmarkIdPatterns()) + ")";
 
         clusterService.submitStateUpdateTask(cause,
-                new BaseUpdateTask(request.benchmarkIdPatterns(), request.masterNodeTimeout(), listener,
+                new UpdateTask(request.benchmarkIdPatterns(), request.masterNodeTimeout(), listener,
                         BenchmarkMetaData.State.PAUSED,
                         new Eligibility() {
                             @Override
@@ -219,7 +219,7 @@ public class BenchmarkStateManager {
         final String cause = "benchmark-resume-request (" + Joiner.on(",").join(request.benchmarkIdPatterns()) + ")";
 
         clusterService.submitStateUpdateTask(cause,
-                new BaseUpdateTask(request.benchmarkIdPatterns(), request.masterNodeTimeout(), listener,
+                new UpdateTask(request.benchmarkIdPatterns(), request.masterNodeTimeout(), listener,
                         BenchmarkMetaData.State.RESUMING,
                         new Eligibility() {
                             @Override
@@ -234,7 +234,7 @@ public class BenchmarkStateManager {
         final String cause = "benchmark-abort-request (" + Joiner.on(",").join(request.benchmarkIdPatterns()) + ")";
 
         clusterService.submitStateUpdateTask(cause,
-                new BaseUpdateTask(request.benchmarkIdPatterns(), request.masterNodeTimeout(), listener,
+                new UpdateTask(request.benchmarkIdPatterns(), request.masterNodeTimeout(), listener,
                         BenchmarkMetaData.State.ABORTED,
                         new Eligibility() {
                             @Override

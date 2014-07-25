@@ -50,7 +50,6 @@ public abstract class AbstractBenchmarkService<T> extends AbstractLifecycleCompo
     protected final ClusterService   clusterService;
     protected final TransportService transportService;
     protected final ThreadPool       threadPool;
-    protected final BenchmarkUtility utility;
 
     protected AbstractBenchmarkService(Settings settings, ClusterService clusterService, TransportService transportService,
                                        ThreadPool threadPool, BenchmarkUtility utility) {
@@ -60,7 +59,6 @@ public abstract class AbstractBenchmarkService<T> extends AbstractLifecycleCompo
         this.clusterService   = clusterService;
         this.transportService = transportService;
         this.threadPool       = threadPool;
-        this.utility          = utility;
 
         clusterService.add(this);
     }

@@ -20,11 +20,9 @@
 package org.elasticsearch.action.benchmark;
 
 import com.google.common.collect.ImmutableMap;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.BenchmarkMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.inject.Inject;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -32,14 +30,7 @@ import java.util.List;
 /**
  * Various benchmark utility methods
  */
-public class BenchmarkUtility {
-
-    private final ClusterService clusterService;
-
-    @Inject
-    public BenchmarkUtility(final ClusterService clusterService) {
-        this.clusterService = clusterService;
-    }
+public final class BenchmarkUtility {
 
     public static boolean exists(String benchmarkId, BenchmarkMetaData meta) {
         if (meta != null) {
@@ -52,11 +43,9 @@ public class BenchmarkUtility {
         return false;
     }
 
-    public List<DiscoveryNode> executors(int num) {
+    public static List<DiscoveryNode> executors(DiscoveryNodes nodes, int num) {
         assert num >= 1;
         final List<DiscoveryNode> executors = new ArrayList<>();
-        final DiscoveryNodes nodes = clusterService.state().nodes();
-
         for (DiscoveryNode node : nodes) {
             if (executors.size() == num) {
                 break;

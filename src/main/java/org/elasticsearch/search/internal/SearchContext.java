@@ -35,6 +35,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.docset.DocSetCache;
 import org.elasticsearch.index.cache.filter.FilterCache;
+import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
@@ -215,6 +216,8 @@ public abstract class SearchContext implements Releasable {
     public abstract BigArrays bigArrays();
 
     public abstract FilterCache filterCache();
+
+    public abstract FixedBitSetFilterCache fixedBitSetFilterCache();
 
     public abstract DocSetCache docSetCache();
 

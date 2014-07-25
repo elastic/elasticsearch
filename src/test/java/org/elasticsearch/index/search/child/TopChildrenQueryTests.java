@@ -57,7 +57,7 @@ public class TopChildrenQueryTests extends AbstractChildTests {
         ScoreType scoreType = ScoreType.values()[random().nextInt(ScoreType.values().length)];
         ParentFieldMapper parentFieldMapper = SearchContext.current().mapperService().documentMapper("child").parentFieldMapper();
         ParentChildIndexFieldData parentChildIndexFieldData = SearchContext.current().fieldData().getForField(parentFieldMapper);
-        Query query = new TopChildrenQuery(parentChildIndexFieldData, childQuery, "child", "parent", scoreType, 1, 1, SearchContext.current().cacheRecycler(), NonNestedDocsFilter.INSTANCE);
+        Query query = new TopChildrenQuery(parentChildIndexFieldData, childQuery, "child", "parent", scoreType, 1, 1, SearchContext.current().cacheRecycler(), wrap(NonNestedDocsFilter.INSTANCE));
         QueryUtils.check(query);
     }
 

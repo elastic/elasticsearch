@@ -181,7 +181,7 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
         ThreadPool threadPool = indexService.injector().getInstance(ThreadPool.class);
         CacheRecycler cacheRecycler = indexService.injector().getInstance(CacheRecycler.class);
         PageCacheRecycler pageCacheRecycler = indexService.injector().getInstance(PageCacheRecycler.class);
-        return new TestSearchContext(threadPool, cacheRecycler, pageCacheRecycler, bigArrays, indexService, indexService.cache().filter(), indexService.fieldData());
+        return new TestSearchContext(threadPool, cacheRecycler, pageCacheRecycler, bigArrays, indexService);
     }
 
 }

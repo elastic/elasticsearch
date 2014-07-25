@@ -30,6 +30,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.docset.DocSetCache;
 import org.elasticsearch.index.cache.filter.FilterCache;
+import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
@@ -72,6 +73,7 @@ public class TestSearchContext extends SearchContext {
     final IndexService indexService;
     final FilterCache filterCache;
     final IndexFieldDataService indexFieldDataService;
+    final FixedBitSetFilterCache fixedBitSetFilterCache;
     final ThreadPool threadPool;
 
     ContextIndexSearcher searcher;
@@ -79,13 +81,14 @@ public class TestSearchContext extends SearchContext {
     private int terminateAfter = DEFAULT_TERMINATE_AFTER;
     private String[] types;
 
-    public TestSearchContext(ThreadPool threadPool, CacheRecycler cacheRecycler, PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, IndexService indexService, FilterCache filterCache, IndexFieldDataService indexFieldDataService) {
+    public TestSearchContext(ThreadPool threadPool, CacheRecycler cacheRecycler, PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, IndexService indexService) {
         this.cacheRecycler = cacheRecycler;
         this.pageCacheRecycler = pageCacheRecycler;
         this.bigArrays = bigArrays.withCircuitBreaking();
         this.indexService = indexService;
-        this.filterCache = filterCache;
-        this.indexFieldDataService = indexFieldDataService;
+        this.filterCache = indexService.cache().filter();
+        this.indexFieldDataService = indexService.fieldData();
+        this.fixedBitSetFilterCache = indexService.fixedBitSetFilterCache();
         this.threadPool = threadPool;
     }
 
@@ -97,6 +100,7 @@ public class TestSearchContext extends SearchContext {
         this.filterCache = null;
         this.indexFieldDataService = null;
         this.threadPool = null;
+        this.fixedBitSetFilterCache = null;
     }
 
     public void setTypes(String... types) {
@@ -339,6 +343,11 @@ public class TestSearchContext extends SearchContext {
     @Override
     public FilterCache filterCache() {
         return filterCache;
+    }
+
+    @Override
+    public FixedBitSetFilterCache fixedBitSetFilterCache() {
+        return fixedBitSetFilterCache;
     }
 
     @Override

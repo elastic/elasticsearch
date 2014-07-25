@@ -377,7 +377,7 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
         }
         Filter parentFilter = new TermFilter(new Term("type", "parent"));
         Filter childFilter = new NotFilter(parentFilter);
-        Nested nested = new Nested(parentFilter, childFilter);
+        Nested nested = createNested(parentFilter, childFilter);
         BytesRefFieldComparatorSource nestedComparatorSource = new BytesRefFieldComparatorSource(fieldData, missingValue, sortMode, nested);
         ToParentBlockJoinQuery query = new ToParentBlockJoinQuery(new XFilteredQuery(new MatchAllDocsQuery(), childFilter), new FixedBitSetCachingWrapperFilter(parentFilter), ScoreMode.None);
         Sort sort = new Sort(new SortField("text", nestedComparatorSource));

@@ -24,13 +24,11 @@ import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.FilterBuilders;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
-
-import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -48,39 +46,78 @@ public class ExternalValuesMapperIntegrationTests extends ElasticsearchIntegrati
     }
 
     @Test
-    public void testExternalGeoPoint() throws Exception {
-        prepareCreate("test-idx").addMapping("doc", createMapping()).execute().get();
+    public void testExternalValues() throws Exception {
+        prepareCreate("test-idx").addMapping("type",
+                XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties")
+                    .startObject("field").field("type", RegisterExternalTypes.EXTERNAL).endObject()
+                .endObject()
+            .endObject().endObject()).execute().get();
         ensureYellow("test-idx");
 
-        index("test-idx", "doc", "1", "external", "dummy");
+        index("test-idx", "type", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                    .field("field", "1234")
+                .endObject());
         refresh();
 
         SearchResponse response;
 
         response = client().prepareSearch("test-idx")
-                .setPostFilter(FilterBuilders.termFilter("external.bool", "T"))
+                .setPostFilter(FilterBuilders.termFilter("field.bool", "T"))
                 .execute().actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo((long) 1));
 
         response = client().prepareSearch("test-idx")
-                .setPostFilter(FilterBuilders.geoDistanceRangeFilter("external.point").point(42.0, 51.0).to("1km"))
+                .setPostFilter(FilterBuilders.geoDistanceRangeFilter("field.point").point(42.0, 51.0).to("1km"))
                 .execute().actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo((long) 1));
 
         response = client().prepareSearch("test-idx")
-                .setPostFilter(FilterBuilders.geoShapeFilter("external.shape", ShapeBuilder.newPoint(-100, 45), ShapeRelation.WITHIN))
+                .setPostFilter(FilterBuilders.geoShapeFilter("field.shape", ShapeBuilder.newPoint(-100, 45), ShapeRelation.WITHIN))
                         .execute().actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo((long) 1));
+
+        response = client().prepareSearch("test-idx")
+                .setPostFilter(FilterBuilders.termFilter("field.field", "foo"))
+                .execute().actionGet();
+
+        assertThat(response.getHits().totalHits(), equalTo((long) 1));
     }
 
+    @Test
+    public void testExternalValuesWithMultifield() throws Exception {
+        prepareCreate("test-idx").addMapping("doc",
+                XContentFactory.jsonBuilder().startObject().startObject("doc").startObject("properties")
+                .startObject("f")
+                    .field("type", RegisterExternalTypes.EXTERNAL_UPPER)
+                    .startObject("fields")
+                        .startObject("f")
+                            .field("type", "string")
+                            .field("stored", "yes")
+                            .startObject("fields")
+                                .startObject("raw")
+                                    .field("type", "string")
+                                    .field("index", "not_analyzed")
+                                    .field("stored", "yes")
+                                .endObject()
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject()
+                .endObject().endObject().endObject()).execute().get();
+        ensureYellow("test-idx");
 
-    private XContentBuilder createMapping() throws IOException {
-        return XContentFactory.jsonBuilder().startObject().startObject("doc").startObject("properties")
-                .startObject("external").field("type", RegisterExternalTypes.EXTERNAL).endObject()
-                .endObject().endObject().endObject();
+        index("test-idx", "doc", "1", "f", "This is my text");
+        refresh();
+
+        SearchResponse response = client().prepareSearch("test-idx")
+                .setQuery(QueryBuilders.termQuery("f.f.raw", "FOO BAR"))
+                .execute().actionGet();
+
+        assertThat(response.getHits().totalHits(), equalTo((long) 1));
     }
-
 }

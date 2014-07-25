@@ -36,7 +36,12 @@ public class FsSimpleTranslogTests extends AbstractSimpleTranslogTests {
     protected Translog create() {
         return new FsTranslog(shardId,
                 ImmutableSettings.settingsBuilder().put("index.translog.fs.type", FsTranslogFile.Type.SIMPLE.name()).build(),
-                new File("data/fs-simple-translog"));
+                new File(translogFileDirectory()));
+    }
+
+    @Override
+    protected String translogFileDirectory() {
+        return "data/fs-simple-translog";
     }
 
     @AfterClass

@@ -746,10 +746,10 @@ public class InternalEngineTests extends ElasticsearchTestCase {
 
             @Override
             public void phase2(Translog.Snapshot snapshot) throws EngineException {
-                assertThat(snapshot.hasNext(), equalTo(true));
                 Translog.Create create = (Translog.Create) snapshot.next();
+                assertThat("translog snapshot should not read null", create != null, equalTo(true));
                 assertThat(create.source().toBytesArray(), equalTo(B_2));
-                assertThat(snapshot.hasNext(), equalTo(false));
+                assertThat(snapshot.next(), equalTo(null));
             }
 
             @Override
@@ -777,9 +777,9 @@ public class InternalEngineTests extends ElasticsearchTestCase {
 
             @Override
             public void phase2(Translog.Snapshot snapshot) throws EngineException {
-                assertThat(snapshot.hasNext(), equalTo(true));
                 Translog.Create create = (Translog.Create) snapshot.next();
-                assertThat(snapshot.hasNext(), equalTo(false));
+                assertThat(create != null, equalTo(true));
+                assertThat(snapshot.next(), equalTo(null));
                 assertThat(create.source().toBytesArray(), equalTo(B_2));
 
                 // add for phase3
@@ -789,9 +789,9 @@ public class InternalEngineTests extends ElasticsearchTestCase {
 
             @Override
             public void phase3(Translog.Snapshot snapshot) throws EngineException {
-                assertThat(snapshot.hasNext(), equalTo(true));
                 Translog.Create create = (Translog.Create) snapshot.next();
-                assertThat(snapshot.hasNext(), equalTo(false));
+                assertThat(create != null, equalTo(true));
+                assertThat(snapshot.next(), equalTo(null));
                 assertThat(create.source().toBytesArray(), equalTo(B_3));
             }
         });

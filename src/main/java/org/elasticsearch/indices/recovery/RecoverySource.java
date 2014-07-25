@@ -384,11 +384,12 @@ public class RecoverySource extends AbstractComponent {
                 long size = 0;
                 int totalOperations = 0;
                 List<Translog.Operation> operations = Lists.newArrayList();
-                while (snapshot.hasNext()) {
+                Translog.Operation operation = snapshot.next();
+                while (operation != null) {
                     if (shard.state() == IndexShardState.CLOSED) {
                         throw new IndexShardClosedException(request.shardId());
                     }
-                    Translog.Operation operation = snapshot.next();
+
                     operations.add(operation);
                     ops += 1;
                     size += operation.estimateSize();
@@ -409,6 +410,7 @@ public class RecoverySource extends AbstractComponent {
                         size = 0;
                         operations.clear();
                     }
+                    operation = snapshot.next();
                 }
                 // send the leftover
                 if (!operations.isEmpty()) {

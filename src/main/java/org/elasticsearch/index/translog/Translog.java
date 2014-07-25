@@ -23,8 +23,8 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -41,7 +41,6 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShardComponent;
 
 import java.io.IOException;
-import java.io.InputStream;
 
 
 /**
@@ -106,6 +105,8 @@ public interface Translog extends IndexShardComponent, CloseableIndexComponent, 
 
     byte[] read(Location location);
 
+    Translog.Source readSource(Location location) throws IOException;
+
     /**
      * Snapshots the current transaction log allowing to safely iterate over the snapshot.
      */
@@ -165,6 +166,9 @@ public interface Translog extends IndexShardComponent, CloseableIndexComponent, 
          */
         long translogId();
 
+        /**
+         * Returns the current position in the translog stream
+         */
         long position();
 
         /**
@@ -177,11 +181,15 @@ public interface Translog extends IndexShardComponent, CloseableIndexComponent, 
          */
         int estimatedTotalOperations();
 
-        boolean hasNext();
-
+        /**
+         * Returns the next operation, or null when no more operations are found
+         */
         Operation next();
 
-        void seekForward(long length);
+        /**
+         * Seek to the specified position in the translog stream
+         */
+        void seekTo(long position);
 
         /**
          * The length in bytes of this stream.
@@ -221,7 +229,7 @@ public interface Translog extends IndexShardComponent, CloseableIndexComponent, 
                     case 4:
                         return DELETE_BY_QUERY;
                     default:
-                        throw new IllegalArgumentException("No type mapped for [" + id + "]");
+                        throw new ElasticsearchIllegalArgumentException("No type mapped for [" + id + "]");
                 }
             }
         }

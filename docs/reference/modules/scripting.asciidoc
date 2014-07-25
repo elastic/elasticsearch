@@ -6,11 +6,14 @@ expressions. For example, scripts can be used to return "script fields"
 as part of a search request, or can be used to evaluate a custom score
 for a query and so on.
 
-deprecated[1.3.0,Groovy has replaced Mvel as the default scripting language]
+deprecated[1.3.0,Mvel has been deprecated and will be removed in 1.4.0]
+
+added[1.3.0,Groovy scripting support]
 
 The scripting module uses by default http://groovy.codehaus.org/[groovy]
-(previously http://mvel.codehaus.org/[mvel]) as the scripting language with some
-extensions. Groovy is used since it is extremely fast and very simple to use.
+(previously http://mvel.codehaus.org/[mvel] in 1.3.x and earlier) as the
+scripting language with some extensions. Groovy is used since it is extremely
+fast and very simple to use.
 
 Additional `lang` plugins are provided to allow to execute scripts in
 different languages. Currently supported plugins are `lang-javascript`

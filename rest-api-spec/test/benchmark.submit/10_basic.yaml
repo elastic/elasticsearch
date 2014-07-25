@@ -2,7 +2,8 @@
 setup:
 
   - skip:
-      features: gtelte
+      version:  "0 - 2.0.0"
+      reason:   Skip until REST runner can force bench.node=true
 
   - do:
       index:

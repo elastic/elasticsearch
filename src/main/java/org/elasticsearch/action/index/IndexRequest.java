@@ -23,6 +23,7 @@ import com.google.common.base.Charsets;
 import org.elasticsearch.*;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.RoutingMissingException;
+import org.elasticsearch.action.TimestampParsingException;
 import org.elasticsearch.action.support.replication.ShardReplicationOperationRequest;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
@@ -574,7 +575,9 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
                     }
                     if (parseContext.shouldParseTimestamp()) {
                         timestamp = parseContext.timestamp();
-                        timestamp = MappingMetaData.Timestamp.parseStringTimestamp(timestamp, mappingMd.timestamp().dateTimeFormatter());
+                        if (timestamp != null) {
+                            timestamp = MappingMetaData.Timestamp.parseStringTimestamp(timestamp, mappingMd.timestamp().dateTimeFormatter());
+                        }
                     }
                 } catch (MapperParsingException e) {
                     throw e;
@@ -613,7 +616,18 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
 
         // generate timestamp if not provided, we always have one post this stage...
         if (timestamp == null) {
-            timestamp = Long.toString(System.currentTimeMillis());
+            String defaultTimestamp = TimestampFieldMapper.Defaults.DEFAULT_TIMESTAMP;
+            if (mappingMd != null && mappingMd.timestamp() != null) {
+                defaultTimestamp = mappingMd.timestamp().defaultTimestamp();
+            }
+            if (!Strings.hasText(defaultTimestamp)) {
+                throw new TimestampParsingException("timestamp is required by mapping");
+            }
+            if (defaultTimestamp.equals(TimestampFieldMapper.Defaults.DEFAULT_TIMESTAMP)) {
+                timestamp = Long.toString(System.currentTimeMillis());
+            } else {
+                timestamp = MappingMetaData.Timestamp.parseStringTimestamp(defaultTimestamp, mappingMd.timestamp().dateTimeFormatter());
+            }
         }
     }
 

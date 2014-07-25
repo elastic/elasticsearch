@@ -69,6 +69,7 @@ public class TransportClientRetryTests extends ElasticsearchIntegrationTest {
             assertThat(transportClient.connectedNodes().size(), equalTo(internalCluster().size()));
 
             int size = cluster().size();
+            //kill all nodes one by one, leaving a single master/data node at the end of the loop
             for (int j = 1; j < size; j++) {
                 internalCluster().stopRandomNode(new Predicate<Settings>() {
                     @Override

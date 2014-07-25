@@ -217,7 +217,7 @@ public class TransportClientNodesService extends AbstractComponent {
             //ConnectTransportException gets thrown as well by TransportService due to throwConnectException option,
             //which is needed for the correct operation of execute(...).
             //We can ignore it here because it will be passed to the listener interface anyway through the request holder.
-        } catch(Throwable t) {
+        } catch (Throwable t) {
             //this exception can't come from the TransportService as it throws only ConnectTransportException,
             //the listener hasn't been notified then. no need to go ahead with retries though
             listener.onFailure(t);

@@ -175,7 +175,8 @@ public class MappingMetaData {
         }
 
 
-        public static final Timestamp EMPTY = new Timestamp(false, null, TimestampFieldMapper.DEFAULT_DATE_TIME_FORMAT);
+        public static final Timestamp EMPTY = new Timestamp(false, null, TimestampFieldMapper.DEFAULT_DATE_TIME_FORMAT,
+                TimestampFieldMapper.Defaults.DEFAULT_TIMESTAMP);
 
         private final boolean enabled;
 
@@ -187,7 +188,9 @@ public class MappingMetaData {
 
         private final FormatDateTimeFormatter dateTimeFormatter;
 
-        public Timestamp(boolean enabled, String path, String format) {
+        private final String defaultTimestamp;
+
+        public Timestamp(boolean enabled, String path, String format, String defaultTimestamp) {
             this.enabled = enabled;
             this.path = path;
             if (path == null) {
@@ -197,6 +200,7 @@ public class MappingMetaData {
             }
             this.format = format;
             this.dateTimeFormatter = Joda.forPattern(format);
+            this.defaultTimestamp = defaultTimestamp;
         }
 
         public boolean enabled() {
@@ -219,6 +223,10 @@ public class MappingMetaData {
             return this.format;
         }
 
+        public String defaultTimestamp() {
+            return this.defaultTimestamp;
+        }
+
         public FormatDateTimeFormatter dateTimeFormatter() {
             return this.dateTimeFormatter;
         }
@@ -233,6 +241,7 @@ public class MappingMetaData {
             if (enabled != timestamp.enabled) return false;
             if (format != null ? !format.equals(timestamp.format) : timestamp.format != null) return false;
             if (path != null ? !path.equals(timestamp.path) : timestamp.path != null) return false;
+            if (defaultTimestamp != null ? !defaultTimestamp.equals(timestamp.defaultTimestamp) : timestamp.defaultTimestamp != null) return false;
             if (!Arrays.equals(pathElements, timestamp.pathElements)) return false;
 
             return true;
@@ -245,6 +254,7 @@ public class MappingMetaData {
             result = 31 * result + (format != null ? format.hashCode() : 0);
             result = 31 * result + (pathElements != null ? Arrays.hashCode(pathElements) : 0);
             result = 31 * result + (dateTimeFormatter != null ? dateTimeFormatter.hashCode() : 0);
+            result = 31 * result + (defaultTimestamp != null ? defaultTimestamp.hashCode() : 0);
             return result;
         }
     }
@@ -263,7 +273,7 @@ public class MappingMetaData {
         this.source = docMapper.mappingSource();
         this.id = new Id(docMapper.idFieldMapper().path());
         this.routing = new Routing(docMapper.routingFieldMapper().required(), docMapper.routingFieldMapper().path());
-        this.timestamp = new Timestamp(docMapper.timestampFieldMapper().enabled(), docMapper.timestampFieldMapper().path(), docMapper.timestampFieldMapper().dateTimeFormatter().format());
+        this.timestamp = new Timestamp(docMapper.timestampFieldMapper().enabled(), docMapper.timestampFieldMapper().path(), docMapper.timestampFieldMapper().dateTimeFormatter().format(), docMapper.timestampFieldMapper().defaultTimestamp());
         this.hasParentField = docMapper.parentFieldMapper().active();
     }
 
@@ -328,6 +338,7 @@ public class MappingMetaData {
             boolean enabled = false;
             String path = null;
             String format = TimestampFieldMapper.DEFAULT_DATE_TIME_FORMAT;
+            String defaultTimestamp = TimestampFieldMapper.Defaults.DEFAULT_TIMESTAMP;
             Map<String, Object> timestampNode = (Map<String, Object>) withoutType.get("_timestamp");
             for (Map.Entry<String, Object> entry : timestampNode.entrySet()) {
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
@@ -338,9 +349,11 @@ public class MappingMetaData {
                     path = fieldNode.toString();
                 } else if (fieldName.equals("format")) {
                     format = fieldNode.toString();
+                } else if (fieldName.equals("default")) {
+                    defaultTimestamp = fieldNode.toString();
                 }
             }
-            this.timestamp = new Timestamp(enabled, path, format);
+            this.timestamp = new Timestamp(enabled, path, format, defaultTimestamp);
         } else {
             this.timestamp = Timestamp.EMPTY;
         }
@@ -528,6 +541,7 @@ public class MappingMetaData {
             out.writeBoolean(false);
         }
         out.writeString(mappingMd.timestamp().format());
+        out.writeString(mappingMd.timestamp().defaultTimestamp());
         out.writeBoolean(mappingMd.hasParentField());
     }
 
@@ -565,7 +579,7 @@ public class MappingMetaData {
         // routing
         Routing routing = new Routing(in.readBoolean(), in.readBoolean() ? in.readString() : null);
         // timestamp
-        Timestamp timestamp = new Timestamp(in.readBoolean(), in.readBoolean() ? in.readString() : null, in.readString());
+        Timestamp timestamp = new Timestamp(in.readBoolean(), in.readBoolean() ? in.readString() : null, in.readString(), in.readString());
         final boolean hasParentField = in.readBoolean();
         return new MappingMetaData(type, source, id, routing, timestamp, hasParentField);
     }

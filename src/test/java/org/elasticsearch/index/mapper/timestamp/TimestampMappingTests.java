@@ -19,7 +19,12 @@
 
 package org.elasticsearch.index.mapper.timestamp;
 
+import org.elasticsearch.action.TimestampParsingException;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -154,4 +159,207 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
         assertThat(timestampConfiguration, hasKey("index"));
         assertThat(timestampConfiguration.get("index").toString(), is("no"));
     }
+
+    @Test // Issue 4718: was throwing a TimestampParsingException: failed to parse timestamp [null]
+    public void testPathMissingDefaultValue() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("_timestamp")
+                    .field("enabled", "yes")
+                    .field("path", "timestamp")
+                .endObject()
+                .endObject().endObject();
+        XContentBuilder doc = XContentFactory.jsonBuilder()
+                .startObject()
+                    .field("foo", "bar")
+                .endObject();
+
+        MetaData metaData = MetaData.builder().build();
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping.string());
+
+        MappingMetaData mappingMetaData = new MappingMetaData(docMapper);
+
+        IndexRequest request = new IndexRequest("test", "type", "1").source(doc);
+        request.process(metaData, null, mappingMetaData, true);
+        assertThat(request.timestamp(), notNullValue());
+
+        // TODO compute that generated date is closed to current date
+    }
+
+    @Test // Issue 4718: was throwing a TimestampParsingException: failed to parse timestamp [null]
+    public void testTimestampDefaultValue() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("_timestamp")
+                    .field("enabled", "yes")
+                .endObject()
+                .endObject().endObject();
+        XContentBuilder doc = XContentFactory.jsonBuilder()
+                .startObject()
+                    .field("foo", "bar")
+                .endObject();
+
+        MetaData metaData = MetaData.builder().build();
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping.string());
+
+        MappingMetaData mappingMetaData = new MappingMetaData(docMapper);
+
+        IndexRequest request = new IndexRequest("test", "type", "1").source(doc);
+        request.process(metaData, null, mappingMetaData, true);
+        assertThat(request.timestamp(), notNullValue());
+
+        // TODO compute that generated date is closed to current date
+    }
+
+    @Test // Issue 4718: was throwing a TimestampParsingException: failed to parse timestamp [null]
+    public void testPathMissingDefaultToEpochValue() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("_timestamp")
+                    .field("enabled", "yes")
+                    .field("path", "timestamp")
+                    .field("default", "1970-01-01")
+                    .field("format", "YYYY-MM-dd")
+                .endObject()
+                .endObject().endObject();
+        XContentBuilder doc = XContentFactory.jsonBuilder()
+                .startObject()
+                    .field("foo", "bar")
+                .endObject();
+
+        MetaData metaData = MetaData.builder().build();
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping.string());
+
+        MappingMetaData mappingMetaData = new MappingMetaData(docMapper);
+
+        IndexRequest request = new IndexRequest("test", "type", "1").source(doc);
+        request.process(metaData, null, mappingMetaData, true);
+        assertThat(request.timestamp(), notNullValue());
+        assertThat(request.timestamp(), is(MappingMetaData.Timestamp.parseStringTimestamp("1970-01-01", Joda.forPattern("YYYY-MM-dd"))));
+    }
+
+    @Test // Issue 4718: was throwing a TimestampParsingException: failed to parse timestamp [null]
+    public void testTimestampMissingDefaultToEpochValue() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("_timestamp")
+                    .field("enabled", "yes")
+                    .field("default", "1970-01-01")
+                    .field("format", "YYYY-MM-dd")
+                .endObject()
+                .endObject().endObject();
+        XContentBuilder doc = XContentFactory.jsonBuilder()
+                .startObject()
+                    .field("foo", "bar")
+                .endObject();
+
+        MetaData metaData = MetaData.builder().build();
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping.string());
+
+        MappingMetaData mappingMetaData = new MappingMetaData(docMapper);
+
+        IndexRequest request = new IndexRequest("test", "type", "1").source(doc);
+        request.process(metaData, null, mappingMetaData, true);
+        assertThat(request.timestamp(), notNullValue());
+        assertThat(request.timestamp(), is(MappingMetaData.Timestamp.parseStringTimestamp("1970-01-01", Joda.forPattern("YYYY-MM-dd"))));
+    }
+
+    @Test // Issue 4718: was throwing a TimestampParsingException: failed to parse timestamp [null]
+    public void testPathMissingNowDefaultValue() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("_timestamp")
+                    .field("enabled", "yes")
+                    .field("path", "timestamp")
+                    .field("default", "now")
+                    .field("format", "YYYY-MM-dd")
+                .endObject()
+                .endObject().endObject();
+        XContentBuilder doc = XContentFactory.jsonBuilder()
+                .startObject()
+                    .field("foo", "bar")
+                .endObject();
+
+        MetaData metaData = MetaData.builder().build();
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping.string());
+
+        MappingMetaData mappingMetaData = new MappingMetaData(docMapper);
+
+        IndexRequest request = new IndexRequest("test", "type", "1").source(doc);
+        request.process(metaData, null, mappingMetaData, true);
+        assertThat(request.timestamp(), notNullValue());
+
+        // We should have less than one minute (probably some ms)
+        long delay = System.currentTimeMillis() - Long.parseLong(request.timestamp());
+        assertThat(delay, lessThanOrEqualTo(60000L));
+    }
+
+    @Test // Issue 4718: was throwing a TimestampParsingException: failed to parse timestamp [null]
+    public void testTimestampMissingNowDefaultValue() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("_timestamp")
+                    .field("enabled", "yes")
+                    .field("default", "now")
+                    .field("format", "YYYY-MM-dd")
+                .endObject()
+                .endObject().endObject();
+        XContentBuilder doc = XContentFactory.jsonBuilder()
+                .startObject()
+                    .field("foo", "bar")
+                .endObject();
+
+        MetaData metaData = MetaData.builder().build();
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping.string());
+
+        MappingMetaData mappingMetaData = new MappingMetaData(docMapper);
+
+        IndexRequest request = new IndexRequest("test", "type", "1").source(doc);
+        request.process(metaData, null, mappingMetaData, true);
+        assertThat(request.timestamp(), notNullValue());
+
+        // We should have less than one minute (probably some ms)
+        long delay = System.currentTimeMillis() - Long.parseLong(request.timestamp());
+        assertThat(delay, lessThanOrEqualTo(60000L));
+    }
+
+    @Test(expected = TimestampParsingException.class) // Issue 4718: was throwing a TimestampParsingException: failed to parse timestamp [null]
+    public void testPathMissingShouldFail() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("_timestamp")
+                    .field("enabled", "yes")
+                    .field("path", "timestamp")
+                    .field("default", (String) null)
+                .endObject()
+                .endObject().endObject();
+        XContentBuilder doc = XContentFactory.jsonBuilder()
+                .startObject()
+                    .field("foo", "bar")
+                .endObject();
+
+        MetaData metaData = MetaData.builder().build();
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping.string());
+
+        MappingMetaData mappingMetaData = new MappingMetaData(docMapper);
+
+        IndexRequest request = new IndexRequest("test", "type", "1").source(doc);
+        request.process(metaData, null, mappingMetaData, true);
+    }
+
+    @Test(expected = TimestampParsingException.class) // Issue 4718: was throwing a TimestampParsingException: failed to parse timestamp [null]
+    public void testTimestampMissingShouldFail() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("_timestamp")
+                    .field("enabled", "yes")
+                    .field("default", (String) null)
+                .endObject()
+                .endObject().endObject();
+        XContentBuilder doc = XContentFactory.jsonBuilder()
+                .startObject()
+                    .field("foo", "bar")
+                .endObject();
+
+        MetaData metaData = MetaData.builder().build();
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping.string());
+
+        MappingMetaData mappingMetaData = new MappingMetaData(docMapper);
+
+        IndexRequest request = new IndexRequest("test", "type", "1").source(doc);
+        request.process(metaData, null, mappingMetaData, true);
+    }
+
 }

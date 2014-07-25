@@ -60,6 +60,11 @@ public abstract class NXYSignificanceHeuristic extends SignificanceHeuristic {
     }
 
     @Override
+    public boolean equals(Object other) {
+        return ((NXYSignificanceHeuristic) other).includeNegatives == includeNegatives && ((NXYSignificanceHeuristic) other).backgroundIsSuperset == backgroundIsSuperset;
+    }
+
+    @Override
     public int hashCode() {
         int result = (includeNegatives ? 1 : 0);
         result = 31 * result + (backgroundIsSuperset ? 1 : 0);

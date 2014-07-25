@@ -43,7 +43,14 @@ public class MutualInformation extends NXYSignificanceHeuristic {
         if (!(other instanceof MutualInformation)) {
             return false;
         }
-        return ((MutualInformation) other).includeNegatives == includeNegatives && ((MutualInformation) other).backgroundIsSuperset == backgroundIsSuperset;
+        return super.equals(other);
+    }
+
+    @Override
+    public int hashCode() {
+        int result = NAMES_FIELD.getPreferredName().hashCode();
+        result = 31 * result + super.hashCode();
+        return result;
     }
 
     public static final SignificanceHeuristicStreams.Stream STREAM = new SignificanceHeuristicStreams.Stream() {

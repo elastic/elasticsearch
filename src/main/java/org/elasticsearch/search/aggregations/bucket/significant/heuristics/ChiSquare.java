@@ -41,7 +41,14 @@ public class ChiSquare extends NXYSignificanceHeuristic {
         if (!(other instanceof ChiSquare)) {
             return false;
         }
-        return ((ChiSquare) other).backgroundIsSuperset == backgroundIsSuperset && ((ChiSquare) other).includeNegatives == includeNegatives;
+        return super.equals(other);
+    }
+
+    @Override
+    public int hashCode() {
+        int result = NAMES_FIELD.getPreferredName().hashCode();
+        result = 31 * result + super.hashCode();
+        return result;
     }
 
     public static final SignificanceHeuristicStreams.Stream STREAM = new SignificanceHeuristicStreams.Stream() {

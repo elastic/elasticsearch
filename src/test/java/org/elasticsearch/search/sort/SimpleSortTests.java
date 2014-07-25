@@ -37,6 +37,7 @@ import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -55,6 +56,7 @@ import java.util.concurrent.ExecutionException;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
+import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
@@ -1869,6 +1871,43 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
         qPoints.addAll(Arrays.asList(qp));
         String[] qh = {"s02equ04ven0", "s037ms06g7h0", "s065kk0dc540", "s06g7h0dyg00"};
         qHashes.addAll(Arrays.asList(qh));
+    }
+
+    public void testCrossIndexIgnoreUnmapped() throws Exception {
+        assertAcked(prepareCreate("test1").addMapping(
+                "type", "str_field1", "type=string",
+                "long_field", "type=long",
+                "double_field", "type=double").get());
+        assertAcked(prepareCreate("test2").get());
+
+        indexRandom(true,
+                client().prepareIndex("test1", "type").setSource("str_field", "bcd", "long_field", 3, "double_field", 0.65),
+                client().prepareIndex("test2", "type").setSource());
+
+        ensureYellow("test1", "test2");
+
+        SearchResponse resp = client().prepareSearch("test1", "test2")
+                .addSort(fieldSort("str_field").order(SortOrder.ASC).unmappedType("string"))
+                .addSort(fieldSort("str_field2").order(SortOrder.DESC).unmappedType("string")).get();
+
+        final StringAndBytesText maxTerm = new StringAndBytesText(IndexFieldData.XFieldComparatorSource.MAX_TERM.utf8ToString());
+        assertSortValues(resp,
+                new Object[] {new StringAndBytesText("bcd"), null},
+                new Object[] {maxTerm, null});
+
+        resp = client().prepareSearch("test1", "test2")
+                .addSort(fieldSort("long_field").order(SortOrder.ASC).unmappedType("long"))
+                .addSort(fieldSort("long_field2").order(SortOrder.DESC).unmappedType("long")).get();
+        assertSortValues(resp,
+                new Object[] {3L, Long.MIN_VALUE},
+                new Object[] {Long.MAX_VALUE, Long.MIN_VALUE});
+
+        resp = client().prepareSearch("test1", "test2")
+                .addSort(fieldSort("double_field").order(SortOrder.ASC).unmappedType("double"))
+                .addSort(fieldSort("double_field2").order(SortOrder.DESC).unmappedType("double")).get();
+        assertSortValues(resp,
+                new Object[] {0.65, Double.NEGATIVE_INFINITY},
+                new Object[] {Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY});
     }
 
 }

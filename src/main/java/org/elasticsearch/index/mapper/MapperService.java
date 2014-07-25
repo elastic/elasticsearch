@@ -33,6 +33,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
@@ -52,6 +53,7 @@ import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatService;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatService;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
+import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
@@ -124,6 +126,8 @@ public class MapperService extends AbstractIndexComponent  {
     private final SmartIndexNameSearchQuoteAnalyzer searchQuoteAnalyzer;
 
     private final List<DocumentTypeListener> typeListeners = new CopyOnWriteArrayList<>();
+
+    private volatile ImmutableMap<String, FieldMapper<?>> unmappedFieldMappers = ImmutableMap.of();
 
     @Inject
     public MapperService(Index index, @IndexSettings Settings indexSettings, Environment environment, AnalysisService analysisService, IndexFieldDataService fieldDataService,
@@ -861,6 +865,32 @@ public class MapperService extends AbstractIndexComponent  {
             return new SmartNameFieldMappers(this, fieldMappers, null, false);
         }
         return null;
+    }
+
+    /**
+     * Given a type (eg. long, string, ...), return an anonymous field mapper that can be used for search operations.
+     */
+    public FieldMapper<?> unmappedFieldMapper(String type) {
+        final ImmutableMap<String, FieldMapper<?>> unmappedFieldMappers = this.unmappedFieldMappers;
+        FieldMapper<?> mapper = unmappedFieldMappers.get(type);
+        if (mapper == null) {
+            final Mapper.TypeParser.ParserContext parserContext = documentMapperParser().parserContext();
+            Mapper.TypeParser typeParser = parserContext.typeParser(type);
+            if (typeParser == null) {
+                throw new ElasticsearchIllegalArgumentException("No mapper found for type [" + type + "]");
+            }
+            final Mapper.Builder<?, ?> builder = typeParser.parse("__anonymous_" + type, ImmutableMap.<String, Object>of(), parserContext);
+            final BuilderContext builderContext = new BuilderContext(indexSettings, new ContentPath(1));
+            mapper = (FieldMapper<?>) builder.build(builderContext);
+
+            // There is no need to synchronize writes here. In the case of concurrent access, we could just
+            // compute some mappers several times, which is not a big deal
+            this.unmappedFieldMappers = ImmutableMap.<String, FieldMapper<?>>builder()
+                    .putAll(unmappedFieldMappers)
+                    .put(type, mapper)
+                    .build();
+        }
+        return mapper;
     }
 
     public Analyzer searchAnalyzer() {

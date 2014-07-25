@@ -19,22 +19,26 @@
 
 package org.elasticsearch.index.mapper.attachment;
 
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
 import org.apache.tika.language.LanguageIdentifier;
 import org.apache.tika.metadata.Metadata;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.*;
-import org.elasticsearch.index.mapper.core.DateFieldMapper;
-import org.elasticsearch.index.mapper.core.IntegerFieldMapper;
-import org.elasticsearch.index.mapper.core.StringFieldMapper;
+import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.index.mapper.MapperBuilders.*;
+import static org.elasticsearch.index.mapper.core.TypeParsers.parseMultiField;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parsePathType;
 import static org.elasticsearch.plugin.mapper.attachments.tika.TikaInstance.tika;
 
@@ -57,7 +61,7 @@ import static org.elasticsearch.plugin.mapper.attachments.tika.TikaInstance.tika
  * _content_length = Specify the maximum amount of characters to extract from the attachment. If not specified, then the default for
  * tika is 100,000 characters. Caution is required when setting large values as this can cause memory issues.
  */
-public class AttachmentMapper implements Mapper {
+public class AttachmentMapper extends AbstractFieldMapper<Object> {
 
     private static ESLogger logger = ESLoggerFactory.getLogger(AttachmentMapper.class.getName());
 
@@ -67,7 +71,18 @@ public class AttachmentMapper implements Mapper {
         public static final ContentPath.Type PATH_TYPE = ContentPath.Type.FULL;
     }
 
-    public static class Builder extends Mapper.Builder<Builder, AttachmentMapper> {
+    public static class FieldNames {
+        public static final String TITLE = "title";
+        public static final String NAME = "name";
+        public static final String AUTHOR = "author";
+        public static final String KEYWORDS = "keywords";
+        public static final String DATE = "date";
+        public static final String CONTENT_TYPE = "content_type";
+        public static final String CONTENT_LENGTH = "content_length";
+        public static final String LANGUAGE = "language";
+    }
+
+    public static class Builder extends AbstractFieldMapper.Builder<Builder, AttachmentMapper> {
 
         private ContentPath.Type pathType = Defaults.PATH_TYPE;
 
@@ -79,24 +94,24 @@ public class AttachmentMapper implements Mapper {
 
         private Mapper.Builder contentBuilder;
 
-        private Mapper.Builder titleBuilder = stringField("title");
+        private Mapper.Builder titleBuilder = stringField(FieldNames.TITLE);
 
-        private Mapper.Builder nameBuilder = stringField("name");
+        private Mapper.Builder nameBuilder = stringField(FieldNames.NAME);
 
-        private Mapper.Builder authorBuilder = stringField("author");
+        private Mapper.Builder authorBuilder = stringField(FieldNames.AUTHOR);
 
-        private Mapper.Builder keywordsBuilder = stringField("keywords");
+        private Mapper.Builder keywordsBuilder = stringField(FieldNames.KEYWORDS);
 
-        private Mapper.Builder dateBuilder = dateField("date");
+        private Mapper.Builder dateBuilder = dateField(FieldNames.DATE);
 
-        private Mapper.Builder contentTypeBuilder = stringField("content_type");
+        private Mapper.Builder contentTypeBuilder = stringField(FieldNames.CONTENT_TYPE);
 
-        private Mapper.Builder contentLengthBuilder = integerField("content_length");
+        private Mapper.Builder contentLengthBuilder = integerField(FieldNames.CONTENT_LENGTH);
 
-        private Mapper.Builder languageBuilder = stringField("language");
+        private Mapper.Builder languageBuilder = stringField(FieldNames.LANGUAGE);
 
         public Builder(String name) {
-            super(name);
+            super(name, new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE));
             this.builder = this;
             this.contentBuilder = stringField(name);
         }
@@ -194,7 +209,9 @@ public class AttachmentMapper implements Mapper {
                 langDetect = Boolean.FALSE;
             }
 
-            return new AttachmentMapper(name, pathType, defaultIndexedChars, ignoreErrors, langDetect, contentMapper, dateMapper, titleMapper, nameMapper, authorMapper, keywordsMapper, contentTypeMapper, contentLength, language);
+            return new AttachmentMapper(buildNames(context), pathType, defaultIndexedChars, ignoreErrors, langDetect, contentMapper,
+                    dateMapper, titleMapper, nameMapper, authorMapper, keywordsMapper, contentTypeMapper, contentLength,
+                    language, multiFieldsBuilder.build(this, context), copyTo);
         }
     }
 
@@ -221,6 +238,20 @@ public class AttachmentMapper implements Mapper {
      */
     public static class TypeParser implements Mapper.TypeParser {
 
+        private Mapper.Builder<?, ?> findMapperBuilder(Map<String, Object> propNode, String propName, ParserContext parserContext) {
+            String type;
+            Object typeNode = propNode.get("type");
+            if (typeNode != null) {
+                type = typeNode.toString();
+            } else {
+                type = "string";
+            }
+            Mapper.TypeParser typeParser = parserContext.typeParser(type);
+            Mapper.Builder<?, ?> mapperBuilder = typeParser.parse(propName, (Map<String, Object>) propNode, parserContext);
+
+            return mapperBuilder;
+        }
+
         @SuppressWarnings({"unchecked"})
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
@@ -235,36 +266,40 @@ public class AttachmentMapper implements Mapper {
                     Map<String, Object> fieldsNode = (Map<String, Object>) fieldNode;
                     for (Map.Entry<String, Object> entry1 : fieldsNode.entrySet()) {
                         String propName = entry1.getKey();
-                        Object propNode = entry1.getValue();
+                        Map<String, Object> propNode = (Map<String, Object>) entry1.getValue();
 
-                        boolean isString = false;
-                        if (propNode != null && propNode instanceof Map) {
-                            Object oType = ((Map<String, Object>) propNode).get("type");
-                            if (oType != null && oType.equals(StringFieldMapper.CONTENT_TYPE)) {
-                                isString = true;
+                        Mapper.Builder<?, ?> mapperBuilder = findMapperBuilder(propNode, propName, parserContext);
+                        parseMultiField((AbstractFieldMapper.Builder) mapperBuilder, fieldName, (Map<String, Object>) fieldNode, parserContext, propName, propNode);
+
+                        if (propName.equals(name)) {
+                            builder.content(mapperBuilder);
+                        } else {
+                            switch (propName) {
+                                case FieldNames.DATE:
+                                    builder.date(mapperBuilder);
+                                    break;
+                                case FieldNames.AUTHOR:
+                                    builder.author(mapperBuilder);
+                                    break;
+                                case FieldNames.CONTENT_LENGTH:
+                                    builder.contentLength(mapperBuilder);
+                                    break;
+                                case FieldNames.CONTENT_TYPE:
+                                    builder.contentType(mapperBuilder);
+                                    break;
+                                case FieldNames.KEYWORDS:
+                                    builder.keywords(mapperBuilder);
+                                    break;
+                                case FieldNames.LANGUAGE:
+                                    builder.language(mapperBuilder);
+                                    break;
+                                case FieldNames.TITLE:
+                                    builder.title(mapperBuilder);
+                                    break;
+                                case FieldNames.NAME:
+                                    builder.name(mapperBuilder);
+                                    break;
                             }
-                        }
-
-                        if (name.equals(propName)) {
-                            // that is the content
-                            builder.content(parserContext.typeParser(StringFieldMapper.CONTENT_TYPE).parse(name, (Map<String, Object>) propNode, parserContext));
-                        } else if ("date".equals(propName)) {
-                            // If a specific format is already defined here, we should use it
-                            builder.date(parserContext.typeParser(isString ? StringFieldMapper.CONTENT_TYPE : DateFieldMapper.CONTENT_TYPE).parse("date", (Map<String, Object>) propNode, parserContext));
-                        } else if ("title".equals(propName)) {
-                            builder.title(parserContext.typeParser(StringFieldMapper.CONTENT_TYPE).parse("title", (Map<String, Object>) propNode, parserContext));
-                        } else if ("name".equals(propName)) {
-                            builder.name(parserContext.typeParser(StringFieldMapper.CONTENT_TYPE).parse("name", (Map<String, Object>) propNode, parserContext));
-                        } else if ("author".equals(propName)) {
-                            builder.author(parserContext.typeParser(StringFieldMapper.CONTENT_TYPE).parse("author", (Map<String, Object>) propNode, parserContext));
-                        } else if ("keywords".equals(propName)) {
-                            builder.keywords(parserContext.typeParser(StringFieldMapper.CONTENT_TYPE).parse("keywords", (Map<String, Object>) propNode, parserContext));
-                        } else if ("content_type".equals(propName)) {
-                            builder.contentType(parserContext.typeParser(StringFieldMapper.CONTENT_TYPE).parse("content_type", (Map<String, Object>) propNode, parserContext));
-                        } else if ("content_length".equals(propName)) {
-                            builder.contentLength(parserContext.typeParser(IntegerFieldMapper.CONTENT_TYPE).parse("content_length", (Map<String, Object>) propNode, parserContext));
-                        } else if ("language".equals(propName)) {
-                            builder.language(parserContext.typeParser(StringFieldMapper.CONTENT_TYPE).parse("language", (Map<String, Object>) propNode, parserContext));
                         }
                     }
                 }
@@ -273,8 +308,6 @@ public class AttachmentMapper implements Mapper {
             return builder;
         }
     }
-
-    private final String name;
 
     private final ContentPath.Type pathType;
 
@@ -302,10 +335,13 @@ public class AttachmentMapper implements Mapper {
 
     private final Mapper languageMapper;
 
-    public AttachmentMapper(String name, ContentPath.Type pathType, int defaultIndexedChars, Boolean ignoreErrors, Boolean defaultLangDetect, Mapper contentMapper,
+    public AttachmentMapper(Names names, ContentPath.Type pathType, int defaultIndexedChars, Boolean ignoreErrors,
+                            Boolean defaultLangDetect, Mapper contentMapper,
                             Mapper dateMapper, Mapper titleMapper, Mapper nameMapper, Mapper authorMapper,
-                            Mapper keywordsMapper, Mapper contentTypeMapper, Mapper contentLengthMapper, Mapper languageMapper) {
-        this.name = name;
+                            Mapper keywordsMapper, Mapper contentTypeMapper, Mapper contentLengthMapper,
+                            Mapper languageMapper, MultiFields multiFields, CopyTo copyTo) {
+        super(names, 1.0f, AbstractFieldMapper.Defaults.FIELD_TYPE, false, null, null, null, null, null, null, null,
+                ImmutableSettings.EMPTY, multiFields, copyTo);
         this.pathType = pathType;
         this.defaultIndexedChars = defaultIndexedChars;
         this.ignoreErrors = ignoreErrors;
@@ -322,8 +358,18 @@ public class AttachmentMapper implements Mapper {
     }
 
     @Override
-    public String name() {
-        return name;
+    public Object value(Object value) {
+        return null;
+    }
+
+    @Override
+    public FieldType defaultFieldType() {
+        return AbstractFieldMapper.Defaults.FIELD_TYPE;
+    }
+
+    @Override
+    public FieldDataType defaultFieldDataType() {
+        return null;
     }
 
     @Override
@@ -393,7 +439,7 @@ public class AttachmentMapper implements Mapper {
             return;
         }
 
-        context.externalValue(parsedContent);
+        context = context.createExternalValueContext(parsedContent);
         contentMapper.parse(context);
 
         if (langDetect) {
@@ -404,78 +450,99 @@ public class AttachmentMapper implements Mapper {
                     LanguageIdentifier identifier = new LanguageIdentifier(parsedContent);
                     language = identifier.getLanguage();
                 }
-                context.externalValue(language);
+                context = context.createExternalValueContext(language);
                 languageMapper.parse(context);
             } catch(Throwable t) {
                 logger.warn("Cannot detect language: {}", t.getMessage());
             }
         }
 
-        try {
-            context.externalValue(name);
-            nameMapper.parse(context);
-        } catch(MapperParsingException e){
-            if (!ignoreErrors) throw e;
-            if (logger.isDebugEnabled()) logger.debug("Ignoring MapperParsingException catch while parsing name: {}", e.getMessage());
-        }
-
-        try {
-            context.externalValue(metadata.get(Metadata.DATE));
-            dateMapper.parse(context);
-        } catch(MapperParsingException e){
-            if (!ignoreErrors) throw e;
-            if (logger.isDebugEnabled()) logger.debug("Ignoring MapperParsingException catch while parsing date: {}: {}", e.getMessage(), context.externalValue());
-        }
-
-        try {
-            context.externalValue(metadata.get(Metadata.TITLE));
-            titleMapper.parse(context);
-        } catch(MapperParsingException e){
-            if (!ignoreErrors) throw e;
-            if (logger.isDebugEnabled()) logger.debug("Ignoring MapperParsingException catch while parsing title: {}: {}", e.getMessage(), context.externalValue());
-        }
-
-        try {
-            context.externalValue(metadata.get(Metadata.AUTHOR));
-            authorMapper.parse(context);
-        } catch(MapperParsingException e){
-            if (!ignoreErrors) throw e;
-            if (logger.isDebugEnabled()) logger.debug("Ignoring MapperParsingException catch while parsing author: {}: {}", e.getMessage(), context.externalValue());
-        }
-
-        try {
-            context.externalValue(metadata.get(Metadata.KEYWORDS));
-            keywordsMapper.parse(context);
-        } catch(MapperParsingException e){
-            if (!ignoreErrors) throw e;
-            if (logger.isDebugEnabled()) logger.debug("Ignoring MapperParsingException catch while parsing keywords: {}: {}", e.getMessage(), context.externalValue());
-        }
-
-        try {
-            if (contentType != null) {
-                context.externalValue(contentType);
-            } else {
-                context.externalValue(metadata.get(Metadata.CONTENT_TYPE));
+        if (name != null) {
+            try {
+                context = context.createExternalValueContext(name);
+                nameMapper.parse(context);
+            } catch(MapperParsingException e){
+                if (!ignoreErrors) throw e;
+                if (logger.isDebugEnabled()) logger.debug("Ignoring MapperParsingException catch while parsing name: {}", e.getMessage());
             }
-            contentTypeMapper.parse(context);
-        } catch(MapperParsingException e){
-            if (!ignoreErrors) throw e;
-            if (logger.isDebugEnabled()) logger.debug("Ignoring MapperParsingException catch while parsing content_type: {}: {}", e.getMessage(), context.externalValue());
+        }
+
+        if (metadata.get(Metadata.DATE) != null) {
+            try {
+                context = context.createExternalValueContext(metadata.get(Metadata.DATE));
+                dateMapper.parse(context);
+            } catch(MapperParsingException e){
+                if (!ignoreErrors) throw e;
+                if (logger.isDebugEnabled()) logger.debug("Ignoring MapperParsingException catch while parsing date: {}: {}", e.getMessage(), context.externalValue());
+            }
+        }
+
+        if (metadata.get(Metadata.TITLE) != null) {
+            try {
+                context = context.createExternalValueContext(metadata.get(Metadata.TITLE));
+                titleMapper.parse(context);
+            } catch(MapperParsingException e){
+                if (!ignoreErrors) throw e;
+                if (logger.isDebugEnabled()) logger.debug("Ignoring MapperParsingException catch while parsing title: {}: {}", e.getMessage(), context.externalValue());
+            }
+        }
+
+        if (metadata.get(Metadata.AUTHOR) != null) {
+            try {
+                context = context.createExternalValueContext(metadata.get(Metadata.AUTHOR));
+                authorMapper.parse(context);
+            } catch(MapperParsingException e){
+                if (!ignoreErrors) throw e;
+                if (logger.isDebugEnabled()) logger.debug("Ignoring MapperParsingException catch while parsing author: {}: {}", e.getMessage(), context.externalValue());
+            }
+        }
+
+        if (metadata.get(Metadata.KEYWORDS) != null) {
+            try {
+                context = context.createExternalValueContext(metadata.get(Metadata.KEYWORDS));
+                keywordsMapper.parse(context);
+            } catch(MapperParsingException e){
+                if (!ignoreErrors) throw e;
+                if (logger.isDebugEnabled()) logger.debug("Ignoring MapperParsingException catch while parsing keywords: {}: {}", e.getMessage(), context.externalValue());
+            }
+        }
+
+        if (contentType == null) {
+            contentType = metadata.get(Metadata.CONTENT_TYPE);
+        }
+        if (contentType != null) {
+            try {
+                context = context.createExternalValueContext(contentType);
+                contentTypeMapper.parse(context);
+            } catch(MapperParsingException e){
+                if (!ignoreErrors) throw e;
+                if (logger.isDebugEnabled()) logger.debug("Ignoring MapperParsingException catch while parsing content_type: {}: {}", e.getMessage(), context.externalValue());
+            }
+        }
+
+        int length = content.length;
+        // If we have CONTENT_LENGTH from Tika we use it
+        if (metadata.get(Metadata.CONTENT_LENGTH) != null) {
+            length = Integer.parseInt(metadata.get(Metadata.CONTENT_LENGTH));
         }
 
         try {
-            if (metadata.get(Metadata.CONTENT_LENGTH) != null) {
-                // We try to get CONTENT_LENGTH from Tika first
-                context.externalValue(metadata.get(Metadata.CONTENT_LENGTH));
-            } else {
-                // Otherwise, we use our byte[] length
-                context.externalValue(content.length);
-            }
+            context = context.createExternalValueContext(length);
             contentLengthMapper.parse(context);
         } catch(MapperParsingException e){
             if (!ignoreErrors) throw e;
             if (logger.isDebugEnabled()) logger.debug("Ignoring MapperParsingException catch while parsing content_length: {}: {}", e.getMessage(), context.externalValue());
         }
+
+//        multiFields.parse(this, context);
+        if (copyTo != null) {
+            copyTo.parse(context);
+        }
+    }
+
+    @Override
+    protected void parseCreateField(ParseContext parseContext, List<Field> fields) throws IOException {
+
     }
 
     @Override
@@ -515,7 +582,7 @@ public class AttachmentMapper implements Mapper {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(name);
+        builder.startObject(name());
         builder.field("type", CONTENT_TYPE);
         builder.field("path", pathType.name().toLowerCase());
 
@@ -529,9 +596,16 @@ public class AttachmentMapper implements Mapper {
         contentTypeMapper.toXContent(builder, params);
         contentLengthMapper.toXContent(builder, params);
         languageMapper.toXContent(builder, params);
+        multiFields.toXContent(builder, params);
         builder.endObject();
 
+        multiFields.toXContent(builder, params);
         builder.endObject();
         return builder;
+    }
+
+    @Override
+    protected String contentType() {
+        return CONTENT_TYPE;
     }
 }

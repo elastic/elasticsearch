@@ -26,7 +26,10 @@
                     "name": {
                         "type": "string",
                         "fields": {
-                            "suggest": { "type": "string" }
+                            "suggest": {
+                                "type": "string",
+                                "store": true
+                            }
                         }
                     },
                     "author": {

@@ -19,11 +19,15 @@
 
 package org.elasticsearch.index.mapper.xcontent;
 
+import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.attachment.AttachmentMapper;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
@@ -32,7 +36,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
-import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
@@ -73,5 +77,72 @@ public class MultifieldAttachmentMapperTests extends ElasticsearchTestCase {
 
         assertThat(docMapper.mappers().fullName("file.content_type").mapper(), instanceOf(StringFieldMapper.class));
         assertThat(docMapper.mappers().fullName("file.content_type.suggest").mapper(), instanceOf(StringFieldMapper.class));
+    }
+
+    @Test
+    public void testExternalValues() throws Exception {
+        String originalText = "This is an elasticsearch mapper attachment test.";
+        String contentType = "text/plain; charset=ISO-8859-1";
+        String forcedName = "dummyname.txt";
+
+        String bytes = Base64.encodeBytes(originalText.getBytes());
+
+        MapperService mapperService = MapperTestUtils.newMapperService();
+        mapperService.documentMapperParser().putTypeParser(AttachmentMapper.CONTENT_TYPE, new AttachmentMapper.TypeParser());
+
+        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/multifield-mapping.json");
+
+        DocumentMapper documentMapper = mapperService.documentMapperParser().parse(mapping);
+
+        ParsedDocument doc = documentMapper.parse("person", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                    .field("file", bytes)
+                .endObject()
+                .bytes());
+
+        assertThat(doc.rootDoc().getField("file"), notNullValue());
+        assertThat(doc.rootDoc().getField("file").stringValue(), is(originalText + "\n"));
+
+        assertThat(doc.rootDoc().getField("file.content_type"), notNullValue());
+        assertThat(doc.rootDoc().getField("file.content_type").stringValue(), is(contentType));
+        assertThat(doc.rootDoc().getField("file.content_type.suggest"), notNullValue());
+        assertThat(doc.rootDoc().getField("file.content_type.suggest").stringValue(), is(contentType));
+        assertThat(doc.rootDoc().getField("file.content_length"), notNullValue());
+        assertThat(doc.rootDoc().getField("file.content_length").numericValue().intValue(), is(originalText.length()));
+
+        assertThat(doc.rootDoc().getField("file.suggest"), notNullValue());
+        assertThat(doc.rootDoc().getField("file.suggest").stringValue(), is(originalText + "\n"));
+
+        // Let's force some values
+        doc = documentMapper.parse("person", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                    .startObject("file")
+                        .field("content", bytes)
+                        .field("_name", forcedName)
+                    .endObject()
+                .endObject()
+                .bytes());
+
+        assertThat(doc.rootDoc().getField("file"), notNullValue());
+        assertThat(doc.rootDoc().getField("file").stringValue(), is(originalText + "\n"));
+
+        assertThat(doc.rootDoc().getField("file.content_type"), notNullValue());
+        assertThat(doc.rootDoc().getField("file.content_type").stringValue(), is(contentType));
+        assertThat(doc.rootDoc().getField("file.content_type.suggest"), notNullValue());
+        assertThat(doc.rootDoc().getField("file.content_type.suggest").stringValue(), is(contentType));
+        assertThat(doc.rootDoc().getField("file.content_length"), notNullValue());
+        assertThat(doc.rootDoc().getField("file.content_length").numericValue().intValue(), is(originalText.length()));
+
+        assertThat(doc.rootDoc().getField("file.suggest"), notNullValue());
+        assertThat(doc.rootDoc().getField("file.suggest").stringValue(), is(originalText + "\n"));
+
+        assertThat(doc.rootDoc().getField("file.name"), notNullValue());
+        assertThat(doc.rootDoc().getField("file.name").stringValue(), is(forcedName));
+        // In mapping we have default store:false
+        assertThat(doc.rootDoc().getField("file.name").fieldType().stored(), is(false));
+        assertThat(doc.rootDoc().getField("file.name.suggest"), notNullValue());
+        assertThat(doc.rootDoc().getField("file.name.suggest").stringValue(), is(forcedName));
+        // In mapping we set store:true for suggest subfield
+        assertThat(doc.rootDoc().getField("file.name.suggest").fieldType().stored(), is(true));
     }
 }

@@ -25,11 +25,14 @@ Please read documentation relative to the version you are using:
 The `attachment` type allows to index different "attachment" type field (encoded as `base64`), for example,
 microsoft office formats, open document formats, ePub, HTML, and so on (full list can be found [here](http://tika.apache.org/1.5/formats.html)).
 
-The `attachment` type is provided as a plugin extension. The plugin is a simple zip file that can be downloaded and placed under `$ES_HOME/plugins` location. It will be automatically detected and the `attachment` type will be added.
+The `attachment` type is provided as a plugin extension. The plugin is a simple zip file that can be downloaded and 
+placed under `$ES_HOME/plugins/mapper-attachments` location. When the node will start, it will be automatically detected 
+and the `attachment` type will be added.
 
 Using the attachment type is simple, in your mapping JSON, simply set a certain JSON element as attachment, for example:
 
 ```javascript
+PUT /test/person/_mapping
 {
     "person" : {
         "properties" : {
@@ -42,6 +45,7 @@ Using the attachment type is simple, in your mapping JSON, simply set a certain 
 In this case, the JSON to index can be:
 
 ```javascript
+PUT /test/person/1
 {
     "my_attachment" : "... base64 encoded attachment ..."
 }
@@ -49,7 +53,8 @@ In this case, the JSON to index can be:
 
 Or it is possible to use more elaborated JSON if content type, resource name or language need to be set explicitly:
 
-```javascript
+```
+PUT /test/person/1
 {
     "my_attachment" : {
         "_content_type" : "application/pdf",
@@ -60,7 +65,8 @@ Or it is possible to use more elaborated JSON if content type, resource name or 
 }
 ```
 
-The `attachment` type not only indexes the content of the doc, but also automatically adds meta data on the attachment as well (when available).
+The `attachment` type not only indexes the content of the doc, but also automatically adds meta data on the attachment 
+as well (when available).
 
 The metadata supported are:
 
@@ -75,9 +81,11 @@ The metadata supported are:
 
 They can be queried using the "dot notation", for example: `my_attachment.author`.
 
-Both the meta data and the actual content are simple core type mappers (string, date, ...), thus, they can be controlled in the mappings. For example:
+Both the meta data and the actual content are simple core type mappers (string, date, ...), thus, they can be controlled 
+in the mappings. For example:
 
 ```javascript
+PUT /test/person/_mapping
 {
     "person" : {
         "properties" : {
@@ -99,12 +107,98 @@ Both the meta data and the actual content are simple core type mappers (string, 
 }
 ```
 
-In the above example, the actual content indexed is mapped under `fields` name `file`, and we decide not to index it, so it will only be available in the `_all` field. The other fields map to their respective metadata names, but there is no need to specify the `type` (like `string` or `date`) since it is already known.
+In the above example, the actual content indexed is mapped under `fields` name `file`, and we decide not to index it, so 
+it will only be available in the `_all` field. The other fields map to their respective metadata names, but there is no 
+need to specify the `type` (like `string` or `date`) since it is already known.
+
+Querying or accessing metadata
+------------------------------
+
+If you need to query on metadata fields, use the attachment field name dot the metadata field. For example:
+
+```
+DELETE /test
+PUT /test
+PUT /test/person/_mapping
+{
+  "person": {
+    "properties": {
+      "file": {
+        "type": "attachment",
+        "path": "full",
+        "fields": {
+          "content_type": {
+            "type": "string",
+            "store": true
+          }
+        }
+      }
+    }
+  }
+}
+PUT /test/person/1?refresh=true
+{
+  "file": "IkdvZCBTYXZlIHRoZSBRdWVlbiIgKGFsdGVybmF0aXZlbHkgIkdvZCBTYXZlIHRoZSBLaW5nIg=="
+}
+GET /test/person/_search
+{
+  "fields": [ "file.content_type" ], 
+  "query": {
+    "match": {
+      "file.content_type": "text plain"
+    }
+  }
+}
+```
+
+Will give you:
+
+```
+{
+   "took": 2,
+   "timed_out": false,
+   "_shards": {
+      "total": 5,
+      "successful": 5,
+      "failed": 0
+   },
+   "hits": {
+      "total": 1,
+      "max_score": 0.16273327,
+      "hits": [
+         {
+            "_index": "test",
+            "_type": "person",
+            "_id": "1",
+            "_score": 0.16273327,
+            "fields": {
+               "file.content_type": [
+                  "text/plain; charset=ISO-8859-1"
+               ]
+            }
+         }
+      ]
+   }
+}
+```
 
 Indexed Characters
 ------------------
 
-By default, `100000` characters are extracted when indexing the content. This default value can be changed by setting the `index.mapping.attachment.indexed_chars` setting. It can also be provided on a per document indexed using the `_indexed_chars` parameter. `-1` can be set to extract all text, but note that all the text needs to be allowed to be represented in memory.
+By default, `100000` characters are extracted when indexing the content. This default value can be changed by setting 
+the `index.mapping.attachment.indexed_chars` setting. It can also be provided on a per document indexed using the 
+`_indexed_chars` parameter. `-1` can be set to extract all text, but note that all the text needs to be allowed to be 
+represented in memory:
+
+```
+PUT /test/person/1
+{
+    "my_attachment" : {
+        "_indexed_chars" : -1,
+        "_content" : "... base64 encoded attachment ..."
+    }
+}
+```
 
 Metadata parsing error handling
 -------------------------------
@@ -135,22 +229,79 @@ Note that you can force language using `_language` field when sending your actua
 Highlighting attachments
 ------------------------
 
-If you want to highlight your attachment content, you will need to store your file content and set `term_vector` as follow:
+If you want to highlight your attachment content, you will need to set `"store": true` and `"term_vector":"with_positions_offsets"`
+for your attachment field. Here is a full script which does it:
 
 ```
-PUT test/my_type/_mapping
+DELETE /test
+PUT /test
+PUT /test/person/_mapping
 {
-    "my_type" : {
-        "properties" : {
-            "my_html_file" : {
-                "type" : "attachment",
-                "fields" : {
-                    "title" : { "store" : "yes" },
-                    "my_html_file" : { "term_vector":"with_positions_offsets", "store":"yes" }
-                }
-            }
+  "person": {
+    "properties": {
+      "file": {
+        "type": "attachment",
+        "path": "full",
+        "fields": {
+          "file": {
+            "type": "string",
+            "term_vector":"with_positions_offsets",
+            "store": true
+          }
         }
+      }
     }
+  }
+}
+PUT /test/person/1?refresh=true
+{
+  "file": "IkdvZCBTYXZlIHRoZSBRdWVlbiIgKGFsdGVybmF0aXZlbHkgIkdvZCBTYXZlIHRoZSBLaW5nIg=="
+}
+GET /test/person/_search
+{
+  "fields": [], 
+  "query": {
+    "match": {
+      "file": "king queen"
+    }
+  },
+  "highlight": {
+    "fields": {
+      "file": {
+      }
+    }
+  }
+}
+```
+
+It gives back:
+
+```js
+{
+   "took": 9,
+   "timed_out": false,
+   "_shards": {
+      "total": 1,
+      "successful": 1,
+      "failed": 0
+   },
+   "hits": {
+      "total": 1,
+      "max_score": 0.13561106,
+      "hits": [
+         {
+            "_index": "test",
+            "_type": "person",
+            "_id": "1",
+            "_score": 0.13561106,
+            "highlight": {
+               "file": [
+                  "\"God Save the <em>Queen</em>\" (alternatively \"God Save the <em>King</em>\"\n"
+               ]
+            }
+         }
+      ]
+   }
 }
 ```
 

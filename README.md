@@ -54,7 +54,7 @@ Or it is possible to use more elaborated JSON if content type, resource name or 
         "_content_type" : "application/pdf",
         "_name" : "resource/name/of/my.pdf",
         "_language" : "en",
-        "content" : "... base64 encoded attachment ..."
+        "_content" : "... base64 encoded attachment ..."
     }
 }
 ```
@@ -105,13 +105,11 @@ Indexed Characters
 
 By default, `100000` characters are extracted when indexing the content. This default value can be changed by setting the `index.mapping.attachment.indexed_chars` setting. It can also be provided on a per document indexed using the `_indexed_chars` parameter. `-1` can be set to extract all text, but note that all the text needs to be allowed to be represented in memory.
 
-Note, this feature is supported since `1.3.0` version.
-
 Metadata parsing error handling
 -------------------------------
 
 While extracting metadata content, errors could happen for example when parsing dates.
-Since version `1.9.0`, parsing errors are ignored so your document is indexed.
+Parsing errors are ignored so your document is indexed.
 
 You can disable this feature by setting the `index.mapping.attachment.ignore_errors` setting to `false`.
 
@@ -128,7 +126,7 @@ Note that you can force language using `_language` field when sending your actua
 {
     "my_attachment" : {
         "_language" : "en",
-        "content" : "... base64 encoded attachment ..."
+        "_content" : "... base64 encoded attachment ..."
     }
 }
 ```

@@ -90,7 +90,7 @@ public class SimpleAttachmentIntegrationTests extends ElasticsearchIntegrationTe
 
         client().admin().indices().putMapping(putMappingRequest("test").type("person").source(mapping)).actionGet();
 
-        index("test", "person", jsonBuilder().startObject().field("file").startObject().field("content", txt).field("_indexed_chars", CONTENT_LENGTH_LIMIT).endObject());
+        index("test", "person", jsonBuilder().startObject().field("file").startObject().field("_content", txt).field("_indexed_chars", CONTENT_LENGTH_LIMIT).endObject());
         refresh();
 
         CountResponse countResponse = client().prepareCount("test").setQuery(queryString("BeforeLimit").defaultField("file")).execute().get();
@@ -108,7 +108,7 @@ public class SimpleAttachmentIntegrationTests extends ElasticsearchIntegrationTe
 
         client().admin().indices().putMapping(putMappingRequest("test").type("person").source(mapping)).actionGet();
 
-        index("test", "person", jsonBuilder().startObject().field("file").startObject().field("content", txt).field("_indexed_chars", CONTENT_LENGTH_LIMIT).endObject());
+        index("test", "person", jsonBuilder().startObject().field("file").startObject().field("_content", txt).field("_indexed_chars", CONTENT_LENGTH_LIMIT).endObject());
         refresh();
 
         CountResponse countResponse = client().prepareCount("test").setQuery(queryString("Begin").defaultField("file")).execute().get();
@@ -141,7 +141,7 @@ public class SimpleAttachmentIntegrationTests extends ElasticsearchIntegrationTe
 
         client().admin().indices().putMapping(putMappingRequest("test").type("person").source(mapping)).actionGet();
 
-        index("test", "person", jsonBuilder().startObject().field("file").startObject().field("content", txt)
+        index("test", "person", jsonBuilder().startObject().field("file").startObject().field("_content", txt)
                 .field("_content_type", dummyContentType)
                 .field("_name", dummyName)
                 .endObject());

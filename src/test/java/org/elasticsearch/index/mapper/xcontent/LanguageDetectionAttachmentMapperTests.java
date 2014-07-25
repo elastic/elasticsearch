@@ -71,7 +71,7 @@ public class LanguageDetectionAttachmentMapperTests extends ElasticsearchTestCas
                     .field("_id", 1)
                     .startObject("file")
                         .field("_name", filename)
-                        .field("content", html);
+                        .field("_content", html);
 
         if (forcedLanguage.length > 0) {
             xcb.field("_language", forcedLanguage[0]);
@@ -128,7 +128,7 @@ public class LanguageDetectionAttachmentMapperTests extends ElasticsearchTestCas
                 .field("_id", 1)
                 .startObject("file")
                     .field("_name", "text-in-english.txt")
-                    .field("content", html)
+                    .field("_content", html)
                     .field("_detect_language", true)
                 .endObject().endObject();
 

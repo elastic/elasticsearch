@@ -57,7 +57,7 @@ public class MetadataMapperTest extends ElasticsearchTestCase {
                     .field("_id", 1)
                     .startObject("file")
                         .field("_name", filename)
-                        .field("content", html)
+                        .field("_content", html)
                     .endObject()
                 .endObject().bytes();
 

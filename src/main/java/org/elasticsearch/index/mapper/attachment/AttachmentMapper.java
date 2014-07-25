@@ -345,7 +345,11 @@ public class AttachmentMapper implements Mapper {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (token == XContentParser.Token.VALUE_STRING) {
-                    if ("content".equals(currentFieldName)) {
+                    if ("_content".equals(currentFieldName)) {
+                        content = parser.binaryValue();
+                    } else if ("content".equals(currentFieldName)) {
+                        // TODO Remove in 2.4.0. See #75 https://github.com/elasticsearch/elasticsearch-mapper-attachments/issues/75
+                        logger.warn("`content` has been deprecated by _content. Please update your code. Will be removed in a future version.");
                         content = parser.binaryValue();
                     } else if ("_content_type".equals(currentFieldName)) {
                         contentType = parser.text();

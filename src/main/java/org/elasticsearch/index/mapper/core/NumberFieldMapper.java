@@ -199,7 +199,7 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
         }
         this.ignoreMalformed = ignoreMalformed;
         this.coerce = coerce;
-        Version v = indexSettings == null ? Version.CURRENT : Version.indexCreated(indexSettings);
+        Version v = Version.indexCreated(indexSettings);
         this.useSortedNumericDocValues = v.onOrAfter(Version.V_1_4_0);
     }
 

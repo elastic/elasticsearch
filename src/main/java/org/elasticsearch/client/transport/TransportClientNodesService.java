@@ -198,12 +198,8 @@ public class TransportClientNodesService extends AbstractComponent {
             DiscoveryNode node = nodes.get((index + i) % nodes.size());
             try {
                 return callback.doWithNode(node);
-            } catch (ElasticsearchException e) {
-                if (e.unwrapCause() instanceof ConnectTransportException) {
-                    logConnectTransportException((ConnectTransportException) e.unwrapCause());
-                } else {
-                    throw e;
-                }
+            } catch (ConnectTransportException e) {
+                logConnectTransportException(e);
             }
         }
         throw new NoNodeAvailableException("None of the configured nodes were available: " + nodes);
@@ -217,13 +213,14 @@ public class TransportClientNodesService extends AbstractComponent {
         DiscoveryNode node = nodes.get((index) % nodes.size());
         try {
             callback.doWithNode(node, retryListener);
-        } catch (ElasticsearchException e) {
+        } catch (ConnectTransportException e) {
             //ConnectTransportException gets thrown as well by TransportService due to throwConnectException option,
             //which is needed for the correct operation of execute(...).
             //We can ignore it here because it will be passed to the listener interface anyway through the request holder.
-            if (!(e.unwrapCause() instanceof ConnectTransportException)) {
-                throw e;
-            }
+        } catch(Throwable t) {
+            //this exception can't come from the TransportService as it throws only ConnectTransportException,
+            //the listener hasn't been notified then. no need to go ahead with retries though
+            listener.onFailure(t);
         }
     }
 
@@ -256,13 +253,14 @@ public class TransportClientNodesService extends AbstractComponent {
                 } else {
                     try {
                         callback.doWithNode(nodes.get((index + i) % nodes.size()), this);
-                    } catch (Throwable e1) {
+                    } catch (ConnectTransportException e1) {
                         //ConnectTransportException gets thrown as well by TransportService due to throwConnectException option,
                         //which is needed for the correct operation of execute(...).
                         //We can ignore it here because it will be passed to the listener interface anyway through the request holder.
-                        if (!(ExceptionsHelper.unwrapCause(e1) instanceof ConnectTransportException)) {
-                            listener.onFailure(e1);
-                        }
+                    } catch(Throwable t) {
+                        //this exception can't come from the TransportService as it throws only ConnectTransportException,
+                        //the listener hasn't been notified then. no need to go ahead with retries though
+                        listener.onFailure(t);
                     }
                 }
             } else {

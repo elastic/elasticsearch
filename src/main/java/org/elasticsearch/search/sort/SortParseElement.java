@@ -26,11 +26,13 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.ObjectMappers;
+import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.Mapper.BuilderContext;
+import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.query.ParsedFilter;
@@ -79,13 +81,13 @@ public class SortParseElement implements SearchParseElement {
                 if (token == XContentParser.Token.START_OBJECT) {
                     addCompoundSortField(parser, context, sortFields);
                 } else if (token == XContentParser.Token.VALUE_STRING) {
-                    addSortField(context, sortFields, parser.text(), false, false, null, null, null, null);
+                    addSortField(context, sortFields, parser.text(), false, null, null, null, null, null);
                 } else {
                     throw new ElasticsearchIllegalArgumentException("malformed sort format, within the sort array, an object, or an actual string are allowed");
                 }
             }
         } else if (token == XContentParser.Token.VALUE_STRING) {
-            addSortField(context, sortFields, parser.text(), false, false, null, null, null, null);
+            addSortField(context, sortFields, parser.text(), false, null, null, null, null, null);
         } else if (token == XContentParser.Token.START_OBJECT) {
             addCompoundSortField(parser, context, sortFields);
         } else {
@@ -118,7 +120,7 @@ public class SortParseElement implements SearchParseElement {
                 boolean reverse = false;
                 String missing = null;
                 String innerJsonName = null;
-                boolean ignoreUnmapped = false;
+                String ignoreUnmapped = null;
                 MultiValueMode sortMode = null;
                 Filter nestedFilter = null;
                 String nestedPath = null;
@@ -152,7 +154,11 @@ public class SortParseElement implements SearchParseElement {
                                 } else if ("missing".equals(innerJsonName)) {
                                     missing = parser.textOrNull();
                                 } else if ("ignore_unmapped".equals(innerJsonName) || "ignoreUnmapped".equals(innerJsonName)) {
-                                    ignoreUnmapped = parser.booleanValue();
+                                    if (parser.isBooleanValue()) {
+                                        ignoreUnmapped = parser.booleanValue() ? LongFieldMapper.CONTENT_TYPE : null;
+                                    } else {
+                                        ignoreUnmapped = parser.text();
+                                    }
                                 } else if ("mode".equals(innerJsonName)) {
                                     sortMode = MultiValueMode.fromString(parser.text());
                                 } else if ("nested_path".equals(innerJsonName) || "nestedPath".equals(innerJsonName)) {
@@ -176,7 +182,7 @@ public class SortParseElement implements SearchParseElement {
         }
     }
 
-    private void addSortField(SearchContext context, List<SortField> sortFields, String fieldName, boolean reverse, boolean ignoreUnmapped, @Nullable final String missing, MultiValueMode sortMode, String nestedPath, Filter nestedFilter) {
+    private void addSortField(SearchContext context, List<SortField> sortFields, String fieldName, boolean reverse, String ignoreUnmapped, @Nullable final String missing, MultiValueMode sortMode, String nestedPath, Filter nestedFilter) {
         if (SCORE_FIELD_NAME.equals(fieldName)) {
             if (reverse) {
                 sortFields.add(SORT_SCORE_REVERSE);
@@ -192,10 +198,20 @@ public class SortParseElement implements SearchParseElement {
         } else {
             FieldMapper<?> fieldMapper = context.smartNameFieldMapper(fieldName);
             if (fieldMapper == null) {
-                if (ignoreUnmapped) {
-                    return;
+                if (ignoreUnmapped != null) {
+                    // We build a fake field that will have empty values since it doesn't exist
+                    final Mapper.TypeParser.ParserContext parserContext = context.mapperService().documentMapperParser().parserContext();
+                    Mapper.TypeParser typeParser = parserContext.typeParser(ignoreUnmapped);
+                    if (typeParser == null) {
+                        throw new SearchParseException(context, "No mapper found for type [" + ignoreUnmapped + "]");
+                    }
+                    Mapper.Builder<?, ?> builder = typeParser.parse(fieldName, ImmutableMap.<String, Object>of(), parserContext);
+                    Settings indexSettings = context.indexShard().indexService().settingsService().getSettings();
+                    BuilderContext builderContext = new BuilderContext(indexSettings, new ContentPath(1));
+                    fieldMapper = (FieldMapper<?>) builder.build(builderContext);
+                } else {
+                    throw new SearchParseException(context, "No mapping found for [" + fieldName + "] in order to sort on");
                 }
-                throw new SearchParseException(context, "No mapping found for [" + fieldName + "] in order to sort on");
             }
 
             if (!fieldMapper.isSortable()) {

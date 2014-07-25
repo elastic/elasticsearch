@@ -19,9 +19,9 @@
 
 package org.elasticsearch.search.sort;
 
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.FilterBuilder;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 
 import java.io.IOException;
 
@@ -36,7 +36,7 @@ public class FieldSortBuilder extends SortBuilder {
 
     private Object missing;
 
-    private Boolean ignoreUnmapped;
+    private Object ignoreUnmapped;
 
     private String sortMode;
 
@@ -81,6 +81,16 @@ public class FieldSortBuilder extends SortBuilder {
      */
     public FieldSortBuilder ignoreUnmapped(boolean ignoreUnmapped) {
         this.ignoreUnmapped = ignoreUnmapped;
+        return this;
+    }
+
+    /**
+     * Sets if the field does not exists in the index, it should be ignored and not sorted by or not.
+     * Specifying a type tells Elasticsearch what type the sort values should have, which is important
+     * for cross-index search, if there are sort fields that exist on some indices only.
+     */
+    public FieldSortBuilder ignoreUnmapped(String type) {
+        this.ignoreUnmapped = type;
         return this;
     }
 

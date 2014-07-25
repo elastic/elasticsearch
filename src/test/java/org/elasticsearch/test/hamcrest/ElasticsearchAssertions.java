@@ -78,8 +78,7 @@ import static com.google.common.base.Predicates.isNull;
 import static org.elasticsearch.test.ElasticsearchTestCase.*;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
+import static org.junit.Assert.*;
 
 /**
  *
@@ -152,6 +151,17 @@ public class ElasticsearchAssertions {
         }
         assertThat("Expected ids: " + Arrays.toString(idsSet.toArray(new String[idsSet.size()])) + " in the result - result size differs."
                 + shardStatus, idsSet.size(), equalTo(0));
+        assertVersionSerializable(searchResponse);
+    }
+
+    public static void assertSortValues(SearchResponse searchResponse, Object[]... sortValues) {
+        assertSearchResponse(searchResponse);
+        SearchHit[] hits = searchResponse.getHits().getHits();
+        assertEquals(sortValues.length, hits.length);
+        for (int i = 0; i < sortValues.length; ++i) {
+            final Object[] hitsSortValues = hits[i].getSortValues();
+            assertArrayEquals("Offset " + Integer.toString(i) + ", id " + hits[i].getId(), sortValues[i], hitsSortValues);
+        }
         assertVersionSerializable(searchResponse);
     }
 

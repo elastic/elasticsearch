@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.shield.authc.support;
 
-import com.google.common.base.Charsets;
 import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.codec.digest.Crypt;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.codec.digest.Md5Crypt;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.common.base.Charsets;
 import org.elasticsearch.common.os.OsUtils;
 
 import java.nio.ByteBuffer;

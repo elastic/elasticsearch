@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.shield.audit;
 
-import com.google.common.collect.Sets;
+import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.settings.Settings;

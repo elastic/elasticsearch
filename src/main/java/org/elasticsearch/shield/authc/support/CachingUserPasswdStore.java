@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.shield.authc.support;
 
-import com.google.common.cache.CacheBuilder;
-import com.google.common.cache.CacheLoader;
-import com.google.common.cache.LoadingCache;
+import org.elasticsearch.common.cache.CacheBuilder;
+import org.elasticsearch.common.cache.CacheLoader;
+import org.elasticsearch.common.cache.LoadingCache;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;

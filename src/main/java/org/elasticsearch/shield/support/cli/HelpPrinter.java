@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.shield.support.cli;
 
-import com.google.common.base.Charsets;
+import org.elasticsearch.common.base.Charsets;
 
 import java.io.IOException;
 import java.net.URISyntaxException;

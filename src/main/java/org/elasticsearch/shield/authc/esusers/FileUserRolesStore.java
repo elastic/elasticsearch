@@ -5,10 +5,9 @@
  */
 package org.elasticsearch.shield.authc.esusers;
 
-import com.google.common.base.Charsets;
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.collect.Lists;
+import org.elasticsearch.common.base.Charsets;
+import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;

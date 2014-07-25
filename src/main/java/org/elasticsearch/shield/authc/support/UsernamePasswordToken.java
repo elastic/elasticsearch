@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.shield.authc.support;
 
-import com.google.common.base.Charsets;
 import org.apache.commons.codec.binary.Base64;
+import org.elasticsearch.common.base.Charsets;
 import org.elasticsearch.shield.authc.AuthenticationException;
 import org.elasticsearch.shield.authc.AuthenticationToken;
 import org.elasticsearch.transport.TransportRequest;

@@ -7,7 +7,6 @@ package org.elasticsearch.shield.ssl;
 
 import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.base.Charsets;
 import com.google.common.net.InetAddresses;
-import org.elasticsearch.shield.ssl.ElasticsearchSSLException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.client.Client;

@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.shield.n2n;
 
-import com.google.common.base.Charsets;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.base.Charsets;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;

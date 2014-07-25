@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.shield.support;
 
-import com.google.common.base.Predicate;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
+import org.elasticsearch.common.base.Predicate;
 
 /**
 *

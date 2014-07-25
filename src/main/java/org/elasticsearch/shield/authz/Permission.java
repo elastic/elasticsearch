@@ -5,10 +5,10 @@
  */
 package org.elasticsearch.shield.authz;
 
-import com.google.common.base.Predicate;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.base.Predicate;
 import org.elasticsearch.shield.support.AutomatonPredicate;
 import org.elasticsearch.transport.TransportRequest;
 

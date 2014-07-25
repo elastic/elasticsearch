@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.shield;
 
-import com.google.common.collect.ImmutableList;
+import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.Modules;

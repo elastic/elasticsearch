@@ -83,7 +83,7 @@ include::search/request-body.asciidoc[]
 
 include::search/search-template.asciidoc[]
 
-include::request/search-shards.asciidoc[]
+include::search/search-shards.asciidoc[]
 
 include::search/aggregations.asciidoc[]
 

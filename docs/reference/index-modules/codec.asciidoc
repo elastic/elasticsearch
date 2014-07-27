@@ -145,17 +145,17 @@ Type name: `bloom`
 ==================================================
 
 As of 1.4, the bloom filters are no longer loaded at search time by
-default: they consume ~10 bits per unique id value, which can quickly
-add up for indices with many tiny documents, and separate performance
-improvements have made the performance gains with bloom filters very
-small.
+default: they consume RAM in proportion to the number of unique terms,
+which can quickly add up for certain use cases, and separate
+performance improvements have made the performance gains with bloom
+filters very small.
 
 You can enable loading of the bloom filter at search time on a
 per-index basis by updating the index settings:
 
 [source,js]
 --------------------------------------------------
-PUT /old_index/_settings?index.codec.bloom.load=false
+PUT /old_index/_settings?index.codec.bloom.load=true
 --------------------------------------------------
 
 This setting, which defaults to `false`, can be updated on a live index. Note,

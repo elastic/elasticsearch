@@ -14,8 +14,8 @@ query maps to Lucene `SpanNotQuery`. Here is an example:
         "exclude" : {
             "span_near" : { 
                 "clauses" : [
-                    { "span_term" : { "field" : "la" } },
-                    { "span_term" : { "field" : "hoya" } }
+                    { "span_term" : { "field1" : "la" } },
+                    { "span_term" : { "field1" : "hoya" } }
                 ],
                 "slop" : 0,
                 "in_order" : true

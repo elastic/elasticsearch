@@ -71,16 +71,13 @@ public class NestedAggregator extends SingleBucketAggregator implements ReaderCo
     @Override
     public void setNextReader(AtomicReaderContext reader) {
         if (parentFilter == null) {
-            NestedAggregator closestNestedAggregator = findClosestNestedAggregator(parentAggregator);
-            final Filter parentFilterNotCached;
-            if (closestNestedAggregator == null) {
+            // The aggs are instantiated in reverse, first the most inner nested aggs and lastly the top level aggs
+            // So at the time a nested 'nested' aggs is parsed its closest parent nested aggs hasn't been constructed.
+            // So the trick to set at the last moment just before needed and we can use its child filter as the
+            // parent filter.
+            Filter parentFilterNotCached = findClosestNestedPath(parentAggregator);
+            if (parentFilterNotCached == null) {
                 parentFilterNotCached = NonNestedDocsFilter.INSTANCE;
-            } else {
-                // The aggs are instantiated in reverse, first the most inner nested aggs and lastly the top level aggs
-                // So at the time a nested 'nested' aggs is parsed its closest parent nested aggs hasn't been constructed.
-                // So the trick to set at the last moment just before needed and we can use its child filter as the
-                // parent filter.
-                parentFilterNotCached = closestNestedAggregator.childFilter;
             }
             parentFilter = SearchContext.current().filterCache().cache(parentFilterNotCached);
             // if the filter cache is disabled, we still need to produce bit sets
@@ -103,10 +100,8 @@ public class NestedAggregator extends SingleBucketAggregator implements ReaderCo
 
     @Override
     public void collect(int parentDoc, long bucketOrd) throws IOException {
-
         // here we translate the parent doc to a list of its nested docs, and then call super.collect for evey one of them
         // so they'll be collected
-
         if (parentDoc == 0 || parentDocs == null) {
             return;
         }
@@ -135,10 +130,12 @@ public class NestedAggregator extends SingleBucketAggregator implements ReaderCo
         return nestedPath;
     }
 
-    static NestedAggregator findClosestNestedAggregator(Aggregator parent) {
+    private static Filter findClosestNestedPath(Aggregator parent) {
         for (; parent != null; parent = parent.parent()) {
             if (parent instanceof NestedAggregator) {
-                return (NestedAggregator) parent;
+                return ((NestedAggregator) parent).childFilter;
+            } else if (parent instanceof ReverseNestedAggregator) {
+                return ((ReverseNestedAggregator) parent).getParentFilter();
             }
         }
         return null;

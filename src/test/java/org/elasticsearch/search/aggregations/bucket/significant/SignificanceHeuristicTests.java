@@ -323,6 +323,7 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
 
         assertThat(heuristic.getScore(1, 1, 1, 3), greaterThan(0.0));
         assertThat(heuristic.getScore(1, 1, 2, 3), lessThan(heuristic.getScore(1, 1, 1, 3)));
+        assertThat(heuristic.getScore(1, 1, 3, 4), lessThan(heuristic.getScore(1, 1, 2, 4)));
         if (test0) {
             assertThat(heuristic.getScore(0, 1, 2, 3), equalTo(0.0));
         }

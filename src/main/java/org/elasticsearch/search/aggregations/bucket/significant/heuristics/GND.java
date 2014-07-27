@@ -87,10 +87,8 @@ public class GND extends NXYSignificanceHeuristic {
             // perfect co-occurrence
             return 1.0;
         }
-
-        double nominator = (Math.log(N) - Math.min(Math.log(fx), Math.log(fy)));
-        double denominator = (Math.max(Math.log(fx), Math.log(fy)) - Math.log(fxy));
-        double score = nominator/denominator;
+        double score = (Math.max(Math.log(fx), Math.log(fy)) - Math.log(fxy)) /
+                (Math.log(N) - Math.min(Math.log(fx), Math.log(fy)));
 
         //we must invert the order of terms because GND scores relevant terms low
         score = Math.exp(-1.0d * score);

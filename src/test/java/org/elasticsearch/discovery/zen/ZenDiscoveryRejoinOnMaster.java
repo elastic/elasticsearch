@@ -19,7 +19,6 @@
 
 package org.elasticsearch.discovery.zen;
 
-import com.google.common.base.Predicate;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.common.Priority;
@@ -29,8 +28,7 @@ import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.*;
 
 /**
  */
@@ -85,14 +83,14 @@ public class ZenDiscoveryRejoinOnMaster extends ElasticsearchIntegrationTest {
 
         final String oldMaster = internalCluster().getMasterName();
         internalCluster().stopCurrentMasterNode();
-        boolean result = awaitBusy(new Predicate<Object>() {
+        assertBusy(new Runnable() {
             @Override
-            public boolean apply(Object input) {
+            public void run() {
                 String current = internalCluster().getMasterName();
-                return current != null && !current.equals(oldMaster);
+                assertThat(current, notNullValue());
+                assertThat(current, not(equalTo(oldMaster)));
             }
         });
-        assertTrue(result);
         ensureSearchable("test");
 
         r = client().admin().indices().prepareRecoveries("test").get();

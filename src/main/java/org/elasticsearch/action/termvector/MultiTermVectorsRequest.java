@@ -75,9 +75,7 @@ public class MultiTermVectorsRequest extends ActionRequest<MultiTermVectorsReque
         return requests;
     }
 
-    public void add(TermVectorRequest template, BytesReference data)
-            throws Exception {
-
+    public void add(TermVectorRequest template, BytesReference data) throws Exception {
         XContentParser.Token token;
         String currentFieldName = null;
         if (data.length() > 0) {

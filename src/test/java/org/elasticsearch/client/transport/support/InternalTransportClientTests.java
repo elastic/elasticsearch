@@ -21,8 +21,12 @@ package org.elasticsearch.client.transport.support;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.*;
+import org.elasticsearch.action.admin.cluster.ClusterAction;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
+import org.elasticsearch.action.admin.indices.IndicesAction;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.ClusterAdminClient;
+import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.client.transport.FailAndRetryMockTransport;
 import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.client.transport.TransportClientNodesService;
@@ -68,10 +72,15 @@ public class InternalTransportClientTests extends ElasticsearchTestCase {
             transportService.start();
             transportClientNodesService = new TransportClientNodesService(ImmutableSettings.EMPTY, ClusterName.DEFAULT, transportService, threadPool, Version.CURRENT);
             Map<String, GenericAction> actions = new HashMap<>();
-            actions.put(TestAction.NAME, TestAction.INSTANCE);
             actions.put(NodesInfoAction.NAME, NodesInfoAction.INSTANCE);
-            internalTransportClient = new InternalTransportClient(ImmutableSettings.EMPTY, threadPool, transportService,
-                    transportClientNodesService, null, actions);
+            actions.put(TestAction.NAME, TestAction.INSTANCE);
+            actions.put(IndicesAdminTestAction.NAME, IndicesAdminTestAction.INSTANCE);
+            actions.put(ClusterAdminTestAction.NAME, ClusterAdminTestAction.INSTANCE);
+
+            InternalTransportIndicesAdminClient indicesAdminClient = new InternalTransportIndicesAdminClient(ImmutableSettings.EMPTY, transportClientNodesService, transportService, threadPool, actions);
+            InternalTransportClusterAdminClient clusterAdminClient = new InternalTransportClusterAdminClient(ImmutableSettings.EMPTY, transportClientNodesService, threadPool, transportService, actions);
+            InternalTransportAdminClient adminClient = new InternalTransportAdminClient(ImmutableSettings.EMPTY, indicesAdminClient, clusterAdminClient);
+            internalTransportClient = new InternalTransportClient(ImmutableSettings.EMPTY, threadPool, transportService, transportClientNodesService, adminClient, actions);
 
             nodesCount = randomIntBetween(1, 10);
             for (int i = 0; i < nodesCount; i++) {
@@ -120,7 +129,8 @@ public class InternalTransportClientTests extends ElasticsearchTestCase {
 
                 final AtomicInteger preSendFailures = new AtomicInteger();
 
-                iteration.internalTransportClient.execute(TestAction.INSTANCE, new TestRequest(), actionListener);
+                Action action = randomFrom(Action.values());
+                action.execute(iteration, actionListener);
 
                 assertThat(latch.await(1, TimeUnit.SECONDS), equalTo(true));
 
@@ -156,8 +166,9 @@ public class InternalTransportClientTests extends ElasticsearchTestCase {
                 Throwable finalFailure = null;
 
                 try {
-                    ActionFuture<TestResponse> future = iteration.internalTransportClient.execute(TestAction.INSTANCE, new TestRequest());
-                    testResponse = future.get();
+                    Action action = randomFrom(Action.values());
+                    ActionFuture<TestResponse> future = action.execute(iteration);
+                    testResponse = future.actionGet();
                 } catch (Throwable t) {
                     finalFailure = t;
                 }
@@ -180,6 +191,46 @@ public class InternalTransportClientTests extends ElasticsearchTestCase {
                 assertThat(iteration.transport.triedNodes().size(), equalTo(iteration.transport.connectTransportExceptions() + iteration.transport.failures() + iteration.transport.successes()));
             }
         }
+    }
+
+    private static enum Action {
+        TEST {
+            @Override
+            ActionFuture<TestResponse> execute(TestIteration iteration) {
+                return iteration.internalTransportClient.execute(TestAction.INSTANCE, new TestRequest());
+            }
+
+            @Override
+            void execute(TestIteration iteration, ActionListener<TestResponse> listener) {
+                iteration.internalTransportClient.execute(TestAction.INSTANCE, new TestRequest(), listener);
+            }
+        },
+        INDICES_ADMIN {
+            @Override
+            ActionFuture<TestResponse> execute(TestIteration iteration) {
+                return iteration.internalTransportClient.admin().indices().execute(IndicesAdminTestAction.INSTANCE, new TestRequest());
+            }
+
+            @Override
+            void execute(TestIteration iteration, ActionListener<TestResponse> listener) {
+                iteration.internalTransportClient.admin().indices().execute(IndicesAdminTestAction.INSTANCE, new TestRequest(), listener);
+            }
+        },
+        CLUSTER_ADMIN {
+            @Override
+            ActionFuture<TestResponse> execute(TestIteration iteration) {
+                return iteration.internalTransportClient.admin().cluster().execute(ClusterAdminTestAction.INSTANCE, new TestRequest());
+            }
+
+            @Override
+            void execute(TestIteration iteration, ActionListener<TestResponse> listener) {
+                iteration.internalTransportClient.admin().cluster().execute(ClusterAdminTestAction.INSTANCE, new TestRequest(), listener);
+            }
+        };
+
+        abstract ActionFuture<TestResponse> execute(TestIteration iteration);
+
+        abstract void execute(TestIteration iteration, ActionListener<TestResponse> listener);
     }
 
     private static class TestRequest extends ActionRequest {
@@ -216,6 +267,70 @@ public class InternalTransportClientTests extends ElasticsearchTestCase {
     private static class TestRequestBuilder extends ActionRequestBuilder<TestRequest, TestResponse, TestRequestBuilder, Client> {
 
         protected TestRequestBuilder(Client client, TestRequest request) {
+            super(client, request);
+        }
+
+        @Override
+        protected void doExecute(ActionListener<TestResponse> listener) {
+            //not needed
+        }
+    }
+
+    private static class IndicesAdminTestAction extends IndicesAction<TestRequest, TestResponse, IndicesAdminTestRequestBuilder> {
+        static final String NAME = "test-indices-action";
+        static final IndicesAdminTestAction INSTANCE = new IndicesAdminTestAction(NAME);
+
+        private IndicesAdminTestAction(String name) {
+            super(name);
+        }
+
+        @Override
+        public IndicesAdminTestRequestBuilder newRequestBuilder(IndicesAdminClient client) {
+            //not needed
+            return null;
+        }
+
+        @Override
+        public TestResponse newResponse() {
+            return new TestResponse();
+        }
+    }
+
+    private static class IndicesAdminTestRequestBuilder extends ActionRequestBuilder<TestRequest, TestResponse, IndicesAdminTestRequestBuilder, IndicesAdminClient> {
+
+        protected IndicesAdminTestRequestBuilder(IndicesAdminClient client, TestRequest request) {
+            super(client, request);
+        }
+
+        @Override
+        protected void doExecute(ActionListener<TestResponse> listener) {
+            //not needed
+        }
+    }
+
+    private static class ClusterAdminTestAction extends ClusterAction<TestRequest, TestResponse, ClusterAdminTestRequestBuilder> {
+        static final String NAME = "test-cluster-action";
+        static final ClusterAdminTestAction INSTANCE = new ClusterAdminTestAction(NAME);
+
+        private ClusterAdminTestAction(String name) {
+            super(name);
+        }
+
+        @Override
+        public ClusterAdminTestRequestBuilder newRequestBuilder(ClusterAdminClient client) {
+            //not needed
+            return null;
+        }
+
+        @Override
+        public TestResponse newResponse() {
+            return new TestResponse();
+        }
+    }
+
+    private static class ClusterAdminTestRequestBuilder extends ActionRequestBuilder<TestRequest, TestResponse, ClusterAdminTestRequestBuilder, ClusterAdminClient> {
+
+        protected ClusterAdminTestRequestBuilder(ClusterAdminClient client, TestRequest request) {
             super(client, request);
         }
 

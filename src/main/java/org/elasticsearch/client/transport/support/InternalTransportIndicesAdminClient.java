@@ -23,6 +23,7 @@ import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.*;
 import org.elasticsearch.action.admin.indices.IndicesAction;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.client.support.AbstractIndicesAdminClient;
 import org.elasticsearch.client.transport.TransportClientNodesService;
@@ -69,13 +70,9 @@ public class InternalTransportIndicesAdminClient extends AbstractIndicesAdminCli
     @SuppressWarnings("unchecked")
     @Override
     public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, IndicesAdminClient>> ActionFuture<Response> execute(final Action<Request, Response, RequestBuilder, IndicesAdminClient> action, final Request request) {
-        final TransportActionNodeProxy<Request, Response> proxy = actions.get(action);
-        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<Response>>() {
-            @Override
-            public ActionFuture<Response> doWithNode(DiscoveryNode node) throws ElasticsearchException {
-                return proxy.execute(node, request);
-            }
-        });
+        PlainActionFuture<Response> actionFuture = PlainActionFuture.newFuture();
+        execute(action, request, actionFuture);
+        return actionFuture;
     }
 
     @SuppressWarnings("unchecked")

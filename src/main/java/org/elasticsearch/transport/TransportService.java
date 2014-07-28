@@ -69,7 +69,6 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         }
     });
 
-    private boolean throwConnectException = false;
     private final TransportService.Adapter adapter = new Adapter();
 
     public TransportService(Transport transport, ThreadPool threadPool) {
@@ -166,17 +165,6 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         connectionListeners.remove(listener);
     }
 
-    /**
-     * Set to <tt>true</tt> to indicate that a {@link ConnectTransportException} should be thrown when
-     * sending a message (otherwise, it will be passed to the response handler). Defaults to <tt>false</tt>.
-     * <p/>
-     * <p>This is useful when logic based on connect failure is needed without having to wrap the handler,
-     * for example, in case of retries across several nodes.
-     */
-    public void throwConnectException(boolean throwConnectException) {
-        this.throwConnectException = throwConnectException;
-    }
-
     public <T extends TransportResponse> TransportFuture<T> submitRequest(DiscoveryNode node, String action, TransportRequest request,
                                                                           TransportResponseHandler<T> handler) throws TransportException {
         return submitRequest(node, action, request, TransportRequestOptions.EMPTY, handler);
@@ -228,12 +216,6 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
                         holderToNotify.handler().handleException(sendRequestException);
                     }
                 });
-            }
-
-            if (throwConnectException) {
-                if (e instanceof ConnectTransportException) {
-                    throw (ConnectTransportException) e;
-                }
             }
         }
     }

@@ -22,6 +22,7 @@ package org.elasticsearch.client.transport.support;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.*;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.support.AbstractClient;
@@ -89,13 +90,9 @@ public class InternalTransportClient extends AbstractClient {
     @SuppressWarnings("unchecked")
     @Override
     public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, Client>> ActionFuture<Response> execute(final Action<Request, Response, RequestBuilder, Client> action, final Request request) {
-        final TransportActionNodeProxy<Request, Response> proxy = actions.get(action);
-        return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<Response>>() {
-            @Override
-            public ActionFuture<Response> doWithNode(DiscoveryNode node) throws ElasticsearchException {
-                return proxy.execute(node, request);
-            }
-        });
+        PlainActionFuture<Response> actionFuture = PlainActionFuture.newFuture();
+        execute(action, request, actionFuture);
+        return actionFuture;
     }
 
     @SuppressWarnings("unchecked")

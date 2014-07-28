@@ -21,9 +21,7 @@ package org.elasticsearch.client.transport;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -39,7 +37,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.action.support.PlainActionFuture.newFuture;
 import static org.hamcrest.CoreMatchers.*;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -159,80 +156,6 @@ public class TransportClientNodesServiceTests extends ElasticsearchTestCase {
                     assertThat(response.get(), nullValue());
                     if (preSendFailures.get() == 0 && iteration.transport.failures() == 0) {
                         assertThat(finalFailure.get(), instanceOf(NoNodeAvailableException.class));
-                    }
-                }
-
-                assertThat(iteration.transport.triedNodes().size(), lessThanOrEqualTo(iteration.nodesCount));
-                assertThat(iteration.transport.triedNodes().size(), equalTo(iteration.transport.connectTransportExceptions() + iteration.transport.failures() + iteration.transport.successes()));
-            }
-        }
-    }
-
-    @Test
-    public void testSyncFailures() throws InterruptedException {
-
-        int iters = iterations(10, 100);
-        for (int i = 0; i <iters; i++) {
-            try(final TestIteration iteration = new TestIteration()) {
-                final AtomicInteger preSendFailures = new AtomicInteger();
-                Throwable finalFailure = null;
-                TestResponse testResponse = null;
-
-                try {
-                    ActionFuture<TestResponse> actionFuture = iteration.transportClientNodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<TestResponse>>() {
-                        @Override
-                        public ActionFuture<TestResponse> doWithNode(DiscoveryNode node) throws ElasticsearchException {
-
-                            final PlainActionFuture<TestResponse> future = newFuture();
-
-                            if (rarely()) {
-                                preSendFailures.incrementAndGet();
-                                //throw whatever exception that is not a subclass of ConnectTransportException
-                                throw new IllegalArgumentException();
-                            }
-
-                            iteration.transportService.sendRequest(node, "action", new TestRequest(), TransportRequestOptions.EMPTY, new BaseTransportResponseHandler<TestResponse>() {
-                                @Override
-                                public TestResponse newInstance() {
-                                    return new TestResponse();
-                                }
-
-                                @Override
-                                public void handleResponse(TestResponse response) {
-                                    future.onResponse(response);
-                                }
-
-                                @Override
-                                public void handleException(TransportException exp) {
-                                    future.onFailure(exp);
-                                }
-
-                                @Override
-                                public String executor() {
-                                    //listener is never threaded in the blocking case
-                                    return ThreadPool.Names.SAME;
-                                }
-                            });
-
-                            return future;
-                        }
-                    });
-                    testResponse = actionFuture.get();
-                } catch (Throwable t) {
-                    finalFailure = t;
-                }
-
-                //there can be only either one failure that causes the request to fail straightaway or success
-                assertThat(preSendFailures.get() + iteration.transport.failures() + iteration.transport.successes(), lessThanOrEqualTo(1));
-
-                if (iteration.transport.successes() == 1) {
-                    assertThat(finalFailure, nullValue());
-                    assertThat(testResponse, notNullValue());
-                } else {
-                    assertThat(testResponse, nullValue());
-                    assertThat(finalFailure, notNullValue());
-                    if (preSendFailures.get() == 0 && iteration.transport.failures() == 0) {
-                        assertThat(finalFailure, instanceOf(NoNodeAvailableException.class));
                     }
                 }
 

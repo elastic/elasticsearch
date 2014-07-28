@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper.object;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.collect.Iterables;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexableField;
@@ -29,13 +28,12 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.UpdateInPlaceMap;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -159,6 +157,10 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
 
         @Override
         public Y build(BuilderContext context) {
+            if (pathType != ContentPath.Type.FULL && context.indexCreatedVersion().onOrAfter(Version.V_1_4_0)) {
+                throw new MapperParsingException("`path: just_name` is not supported on indices created on or after Elasticsearch 1.4.0");
+            }
+
             ContentPath.Type origPathType = context.path().pathType();
             context.path().pathType(pathType);
             context.path().add(name);

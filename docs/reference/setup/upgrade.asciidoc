@@ -17,6 +17,8 @@ Elasticsearch can usually be upgraded using a rolling upgrade process, resulting
 
 Before upgrading from 0.90.x or any earlier version to 1.x or later, it is a good idea to consult the <<breaking-changes,breaking changes>> docs.
 
+Before upgrading from 1.x to any more recent version of Elasticsearch, it is a good idea to consult the <<breaking-minor-changes,breaking changes on minor versions>> docs.
+
 [float]
 [[backup]]
 === Back Up Your Data!

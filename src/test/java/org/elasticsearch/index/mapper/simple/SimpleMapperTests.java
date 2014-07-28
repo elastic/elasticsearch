@@ -20,6 +20,9 @@
 package org.elasticsearch.index.mapper.simple;
 
 import com.google.common.base.Charsets;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -150,5 +153,27 @@ public class SimpleMapperTests extends ElasticsearchSingleNodeTest {
         Document doc = docMapper.parse(json).rootDoc();
         assertThat(doc.get(docMapper.uidMapper().names().indexName()), equalTo(Uid.createUid("person", "1")));
         assertThat(doc.get(docMapper.mappers().name("first").mapper().names().indexName()), equalTo("shay"));
+    }
+
+    public void testCustomIndexName() {
+        IndexService indexService = createIndex("test");
+        Settings settings = indexService.settingsService().getSettings();
+        DocumentMapperParser mapperParser = indexService.mapperService().documentMapperParser();
+
+        // fails on current version
+        try {
+            doc("test", settings, rootObject("person").add(stringField("first").indexName("last"))).build(mapperParser);
+            fail("custom index_name is not supported anymore");
+        } catch (ElasticsearchIllegalArgumentException e) {
+            // expected
+        }
+
+        // but succeeds if version <= 1.3.0
+        Version v = Version.V_1_4_0;
+        while (v.onOrAfter(Version.V_1_4_0)) {
+            v = randomFrom(randomVersion());
+        }
+        settings = ImmutableSettings.builder().put(settings).put(IndexMetaData.SETTING_VERSION_CREATED, v).build();
+        doc("test", settings, rootObject("person").add(stringField("first").indexName("last"))).build(mapperParser);
     }
 }

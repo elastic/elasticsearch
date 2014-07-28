@@ -11,6 +11,8 @@ include::setup.asciidoc[]
 
 include::migration/migrate_1_0.asciidoc[]
 
+include::migration/migrate_1_x.asciidoc[]
+
 include::api-conventions.asciidoc[]
 
 include::docs.asciidoc[]

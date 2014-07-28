@@ -34,6 +34,7 @@ import org.apache.lucene.queries.TermsFilter;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -247,6 +248,10 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
 
         public String buildIndexName(BuilderContext context) {
             String actualIndexName = indexName == null ? name : indexName;
+            if (context.indexCreatedVersion().onOrAfter(Version.V_1_4_0) && !name.equals(actualIndexName)) {
+                throw new MapperParsingException("Custom `index_name`s are not supported on indices created on or after "
+                        + "Elasticsearch 1.4.0. `name` is [" + name + "] while `index_name` is [" + actualIndexName + "]");
+            }
             return context.path().pathAsText(actualIndexName);
         }
 

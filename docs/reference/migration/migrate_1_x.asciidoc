@@ -1,0 +1,37 @@
+[[breaking-minor-changes]]
+= Breaking changes between 1.x releases
+
+[partintro]
+--
+This section discusses the changes that you need to be aware of when migrating
+your application from Elasticsearch 1.x to Elasticsearch 1.y.
+--
+
+== Facets
+
+Facets are deprecated and will be removed in a future release. You are
+encouraged to migrate to <<search-aggregations, aggregations>> instead.
+
+== 1.4.0
+
+=== Index names
+
+As of Elasticsearch 1.4.0, custom `index_name` are not supported anymore.
+Indices that have been created prior to Elasticsearch 1.4.0 will still be
+allowed to add or modify mappings with custom index names, but indices
+that are created on an Elasticsearch version that is greater than or equal
+to 1.4.0 will not.
+
+When custom `index_name` were used to store the content of several fields
+into a single index field, it is recommended to use the
+<<copy-to,`copy_to`>> feature instead.
+
+See https://github.com/elasticsearch/elasticsearch/issues/6677[#6677] for more
+information.
+
+=== path: just_name
+
+`path: just_name` is deprecated since Elasticsearch 1.0 and will not be
+supported on indices created on or after Elasticsearch 1.4.0.
+
+It is recommended to use the <<copy-to,`copy_to`>> feature instead.

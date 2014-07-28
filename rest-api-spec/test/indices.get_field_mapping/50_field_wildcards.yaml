@@ -12,16 +12,13 @@ setup:
                     t2:
                       type:     string
                     obj:
-                      path:     just_name
                       properties:
                         t1:
                           type:   string
                         i_t1:
                           type:   string
-                          index_name: t1
                         i_t3:
                           type:   string
-                          index_name: t3
 
   - do:
         indices.create:
@@ -35,16 +32,13 @@ setup:
                     t2:
                       type:     string
                     obj:
-                      path:     just_name
                       properties:
                         t1:
                           type:   string
                         i_t1:
                           type:   string
-                          index_name: t1
                         i_t3:
                           type:   string
-                          index_name: t3
 
   - do:
       cluster.health:
@@ -75,8 +69,7 @@ setup:
 # of a field and thus takes precedence.
   - match:  {test_index.mappings.test_type.t1.full_name:     t1       }
   - match:  {test_index.mappings.test_type.t2.full_name:     t2       }
-  - match:  {test_index.mappings.test_type.t3.full_name:     obj.i_t3 }
-  - length: {test_index.mappings.test_type: 3}
+  - length: {test_index.mappings.test_type: 2}
 
 ---
 "Get field mapping with *t1 for fields":

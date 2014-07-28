@@ -33,6 +33,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.ESLogger;
@@ -40,8 +41,10 @@ import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 
-import static org.elasticsearch.common.lucene.search.NoopCollector.NOOP_COLLECTOR;
 import java.io.IOException;
+import java.util.Locale;
+
+import static org.elasticsearch.common.lucene.search.NoopCollector.NOOP_COLLECTOR;
 
 /**
  *
@@ -536,5 +539,28 @@ public class Lucene {
      */
     public static boolean isCorruptionException(Throwable t) {
         return ExceptionsHelper.unwrap(t, CorruptIndexException.class) != null;
+    }
+
+    /**
+     * Parses the version string lenient and returns the the default value if the given string is null or emtpy
+     */
+    public static Version parseVersionLenient(String toParse, Version defaultValue) {
+        return LenientParser.parse(toParse, defaultValue);
+    }
+
+    private static final class LenientParser {
+        public static Version parse(String toParse, Version defaultValue) {
+            if (Strings.hasLength(toParse)) {
+                try {
+                    return Version.parseLeniently(toParse);
+                } catch (IllegalArgumentException e) {
+                    final String parsedMatchVersion = toParse
+                            .toUpperCase(Locale.ROOT)
+                            .replaceFirst("^(\\d+)\\.(\\d+).(\\d+)$", "LUCENE_$1_$2");
+                    return Version.valueOf(parsedMatchVersion);
+                }
+            }
+            return defaultValue;
+        }
     }
 }

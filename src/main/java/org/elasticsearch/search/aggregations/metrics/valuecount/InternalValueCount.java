@@ -30,7 +30,7 @@ import java.io.IOException;
 /**
  * An internal implementation of {@link ValueCount}.
  */
-public class InternalValueCount extends InternalNumericMetricsAggregation implements ValueCount {
+public class InternalValueCount extends InternalNumericMetricsAggregation.SingleValue implements ValueCount {
 
     public static final Type TYPE = new Type("value_count", "vcount");
 
@@ -58,6 +58,11 @@ public class InternalValueCount extends InternalNumericMetricsAggregation implem
 
     @Override
     public long getValue() {
+        return value;
+    }
+
+    @Override
+    public double value() {
         return value;
     }
 

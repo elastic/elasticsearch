@@ -568,12 +568,8 @@ public class PluginsService extends AbstractComponent {
             }
 
             if (luceneVersion != null) {
-                // We only keep the first two parts
-                String parts[] = luceneVersion.split("\\.");
-
                 // Should fail if the running node is too old!
-                org.apache.lucene.util.Version luceneExpectedVersion = Lucene.parseVersionLenient(parts[0] + "." + parts[1], null);
-
+                org.apache.lucene.util.Version luceneExpectedVersion = Lucene.parseVersionLenient(luceneVersion, null);
                 if (Version.CURRENT.luceneVersion.equals(luceneExpectedVersion)) {
                     logger.debug("starting analysis plugin for Lucene [{}].", luceneExpectedVersion);
                     return true;

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.client.transport;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
@@ -110,7 +109,7 @@ public class TransportClientNodesServiceTests extends ElasticsearchTestCase {
 
                 iteration.transportClientNodesService.execute(new TransportClientNodesService.NodeListenerCallback<TestResponse>() {
                     @Override
-                    public void doWithNode(DiscoveryNode node, final ActionListener<TestResponse> retryListener) throws ElasticsearchException {
+                    public void doWithNode(DiscoveryNode node, final ActionListener<TestResponse> retryListener) {
                         if (rarely()) {
                             preSendFailures.incrementAndGet();
                             //throw whatever exception that is not a subclass of ConnectTransportException

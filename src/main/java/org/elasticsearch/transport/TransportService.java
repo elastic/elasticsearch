@@ -178,12 +178,12 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
     }
 
     public <T extends TransportResponse> void sendRequest(final DiscoveryNode node, final String action, final TransportRequest request,
-                                                          final TransportResponseHandler<T> handler) throws TransportException {
+                                                          final TransportResponseHandler<T> handler) {
         sendRequest(node, action, request, TransportRequestOptions.EMPTY, handler);
     }
 
     public <T extends TransportResponse> void sendRequest(final DiscoveryNode node, final String action, final TransportRequest request,
-                                                          final TransportRequestOptions options, TransportResponseHandler<T> handler) throws TransportException {
+                                                          final TransportRequestOptions options, TransportResponseHandler<T> handler) {
         if (node == null) {
             throw new ElasticsearchIllegalStateException("can't send request to a null node");
         }

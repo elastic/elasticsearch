@@ -20,7 +20,6 @@
 package org.elasticsearch.client.transport.support;
 
 import com.google.common.collect.ImmutableMap;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.*;
 import org.elasticsearch.action.admin.indices.IndicesAction;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -81,7 +80,7 @@ public class InternalTransportIndicesAdminClient extends AbstractIndicesAdminCli
         final TransportActionNodeProxy<Request, Response> proxy = actions.get(action);
         nodesService.execute(new TransportClientNodesService.NodeListenerCallback<Response>() {
             @Override
-            public void doWithNode(DiscoveryNode node, ActionListener<Response> listener) throws ElasticsearchException {
+            public void doWithNode(DiscoveryNode node, ActionListener<Response> listener) {
                 proxy.execute(node, request, listener);
             }
         }, listener);

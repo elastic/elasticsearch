@@ -474,13 +474,8 @@ public class TransportClientNodesService extends AbstractComponent {
         }
     }
 
-    public static interface NodeCallback<T> {
-
-        T doWithNode(DiscoveryNode node) throws ElasticsearchException;
-    }
-
     public static interface NodeListenerCallback<Response> {
 
-        void doWithNode(DiscoveryNode node, ActionListener<Response> listener) throws ElasticsearchException;
+        void doWithNode(DiscoveryNode node, ActionListener<Response> listener);
     }
 }

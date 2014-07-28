@@ -20,6 +20,8 @@
 package org.elasticsearch.discovery.zen.fd;
 
 import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -52,6 +54,7 @@ public class NodesFaultDetection extends AbstractComponent {
     private final ThreadPool threadPool;
 
     private final TransportService transportService;
+    private final ClusterName clusterName;
 
 
     private final boolean connectOnNetworkDisconnect;
@@ -76,10 +79,11 @@ public class NodesFaultDetection extends AbstractComponent {
 
     private volatile boolean running = false;
 
-    public NodesFaultDetection(Settings settings, ThreadPool threadPool, TransportService transportService) {
+    public NodesFaultDetection(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterName clusterName) {
         super(settings);
         this.threadPool = threadPool;
         this.transportService = transportService;
+        this.clusterName = clusterName;
 
         this.connectOnNetworkDisconnect = componentSettings.getAsBoolean("connect_on_network_disconnect", false);
         this.pingInterval = componentSettings.getAsTime("ping_interval", timeValueSeconds(1));
@@ -202,8 +206,9 @@ public class NodesFaultDetection extends AbstractComponent {
             if (!running) {
                 return;
             }
-            transportService.sendRequest(node, PingRequestHandler.ACTION, new PingRequest(node.id()), options().withType(TransportRequestOptions.Type.PING).withTimeout(pingRetryTimeout),
-                    new BaseTransportResponseHandler<PingResponse>() {
+            final PingRequest pingRequest = new PingRequest(node.id(), clusterName);
+            final TransportRequestOptions options = options().withType(TransportRequestOptions.Type.PING).withTimeout(pingRetryTimeout);
+            transportService.sendRequest(node, PingRequestHandler.ACTION, pingRequest, options, new BaseTransportResponseHandler<PingResponse>() {
                         @Override
                         public PingResponse newInstance() {
                             return new PingResponse();
@@ -250,8 +255,7 @@ public class NodesFaultDetection extends AbstractComponent {
                                     }
                                 } else {
                                     // resend the request, not reschedule, rely on send timeout
-                                    transportService.sendRequest(node, PingRequestHandler.ACTION, new PingRequest(node.id()),
-                                            options().withType(TransportRequestOptions.Type.PING).withTimeout(pingRetryTimeout), this);
+                                    transportService.sendRequest(node, PingRequestHandler.ACTION, pingRequest, options, this);
                                 }
                             }
                         }
@@ -298,6 +302,10 @@ public class NodesFaultDetection extends AbstractComponent {
             if (!latestNodes.localNodeId().equals(request.nodeId)) {
                 throw new ElasticsearchIllegalStateException("Got pinged as node [" + request.nodeId + "], but I am node [" + latestNodes.localNodeId() + "]");
             }
+            if (request.clusterName != null && !request.clusterName.equals(clusterName)) {
+                // Don't introduce new exception for bwc reasons
+                throw new ElasticsearchIllegalStateException("Got pinged with cluster name [" + request.clusterName + "], but I'm part of cluster [" + clusterName + "]");
+            }
             channel.sendResponse(new PingResponse());
         }
 
@@ -308,28 +316,45 @@ public class NodesFaultDetection extends AbstractComponent {
     }
 
 
-    static class PingRequest extends TransportRequest {
+    public static class PingRequest extends TransportRequest {
 
         // the (assumed) node id we are pinging
         private String nodeId;
 
+        private ClusterName clusterName;
+
         PingRequest() {
         }
 
-        PingRequest(String nodeId) {
+        PingRequest(String nodeId, ClusterName clusterName) {
             this.nodeId = nodeId;
+            this.clusterName = clusterName;
+        }
+
+        public String nodeId() {
+            return nodeId;
+        }
+
+        public ClusterName clusterName() {
+            return clusterName;
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             nodeId = in.readString();
+            if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
+                clusterName = ClusterName.readClusterName(in);
+            }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(nodeId);
+            if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
+                clusterName.writeTo(out);
+            }
         }
     }
 

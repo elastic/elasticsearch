@@ -24,6 +24,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.index.mapper.MapperService;
@@ -40,6 +41,7 @@ import java.io.IOException;
 import static org.hamcrest.Matchers.equalTo;
 
 @Ignore
+@LuceneTestCase.SuppressCodecs(value = {"Lucene40", "Lucene3x"})
 public abstract class AbstractChildTests extends ElasticsearchSingleNodeLuceneTestCase {
 
     static SearchContext createSearchContext(String indexName, String parentType, String childType) throws IOException {

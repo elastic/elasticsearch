@@ -20,6 +20,7 @@ use warnings;
 
 use HTTP::Tiny;
 use IO::Socket::SSL 1.52;
+use utf8;
 
 my $Base_URL  = 'https://api.github.com/repos/';
 my $User_Repo = 'elasticsearch/elasticsearch/';
@@ -85,6 +86,9 @@ sub dump_issues {
             }
             for my $issue (@$header_issues) {
                 my $title = $issue->{title};
+                $title=~s{`([^`]+)`}{<code>$1</code>}g
+                    if $format eq 'html';
+
                 if ( $issue->{state} eq 'open' ) {
                     $title .= " [OPEN]";
                 }

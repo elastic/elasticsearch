@@ -44,6 +44,8 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import java.io.IOException;
 import java.util.Locale;
 
+import static org.elasticsearch.common.lucene.search.NoopCollector.NOOP_COLLECTOR;
+
 /**
  *
  */

@@ -119,6 +119,9 @@ public class VersionTests extends ElasticsearchTestCase {
                     .replaceFirst("^LUCENE_(\\d+)_(\\d+)$", "$1.$2");
             if (randomBoolean()) {
                 string = string + "." + randomIntBetween(0, 100);
+                if (randomBoolean()) {
+                    string = string + "." + randomIntBetween(0, 100);
+                }
             }
             assertThat(luceneVersion, Matchers.equalTo(Lucene.parseVersionLenient(string, null)));
         }

@@ -358,7 +358,6 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
                 currentFieldName = parser.currentName();
             } else if (currentFieldName != null) {
                 if (currentFieldName.equals("fields")) {
-
                     if (token == XContentParser.Token.START_ARRAY) {
                         while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                             fields.add(parser.text());

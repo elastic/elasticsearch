@@ -740,4 +740,31 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
         assertThat(iter0.next(), nullValue());
         assertThat(iter1.next(), nullValue());
     }
+
+    @Test
+    public void testSimpleWildCards() throws ElasticsearchException, IOException {
+        int numFields = 25;
+
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties");
+        XContentBuilder source = XContentFactory.jsonBuilder().startObject();
+        for (int i = 0; i < numFields; i++) {
+            mapping.startObject("field" + i)
+                    .field("type", "string")
+                    .field("term_vector", randomBoolean() ? "yes" : "no")
+                    .endObject();
+            source.field("field" + i, "some text here");
+        }
+        source.endObject();
+        mapping.endObject().endObject().endObject();
+
+        assertAcked(prepareCreate("test").addMapping("type1", mapping));
+        ensureGreen();
+
+        client().prepareIndex("test", "type1", "0").setSource(source).get();
+        refresh();
+
+        TermVectorResponse response = client().prepareTermVector("test", "type1", "0").setSelectedFields("field*").get();
+        assertThat("Doc doesn't exists but should", response.isExists(), equalTo(true));
+        assertThat("All term vectors should have been generated", response.getFields().size(), equalTo(numFields));
+    }
 }

@@ -41,7 +41,7 @@ import static org.elasticsearch.node.NodeBuilder.*;
 
 // on startup
 
-Node node = nodeBuilder().node();
+Node node = NodeBuilder.nodeBuilder().node();
 Client client = node.client();
 
 // on shutdown

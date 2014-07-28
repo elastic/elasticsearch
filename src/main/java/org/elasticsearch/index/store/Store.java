@@ -448,7 +448,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
                 Version maxVersion = Version.LUCENE_3_0; // we don't know which version was used to write so we take the max version.
                 Set<String> added = new HashSet<>();
                 for (SegmentCommitInfo info : segmentCommitInfos) {
-                    final Version version = Version.parseLeniently(info.info.getVersion());
+                    final Version version = Lucene.parseVersionLenient(info.info.getVersion(), Version.LUCENE_3_0);
                     if (version.onOrAfter(maxVersion)) {
                         maxVersion = version;
                     }

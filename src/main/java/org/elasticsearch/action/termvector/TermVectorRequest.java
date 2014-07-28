@@ -240,6 +240,22 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
     }
 
     /**
+     * @returns <code>true</code> if all the possible term vectors should be generated.
+     * Otherwise <code>false</code>
+     */
+    public boolean generateAll() {
+        return flagsEnum.contains(Flag.GenerateAll);
+    }
+
+    /**
+     * Whether all the possible term vectors should be generated.
+     */
+    public TermVectorRequest generateAll(boolean generateAll) {
+        setFlag(Flag.GenerateAll, generateAll);
+        return this;
+    }
+
+    /**
      * Return only term vectors for special selected fields. Returns for term
      * vectors for all fields if selectedFields == null
      */
@@ -339,7 +355,7 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
     public static enum Flag {
         // Do not change the order of these flags we use
         // the ordinal for encoding! Only append to the end!
-        Positions, Offsets, Payloads, FieldStatistics, TermStatistics;
+        Positions, Offsets, Payloads, FieldStatistics, TermStatistics, GenerateAll;
     }
 
     /**
@@ -377,6 +393,8 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
                     termVectorRequest.termStatistics(parser.booleanValue());
                 } else if (currentFieldName.equals("field_statistics") || currentFieldName.equals("fieldStatistics")) {
                     termVectorRequest.fieldStatistics(parser.booleanValue());
+                } else if (currentFieldName.equals("generate_all")) {
+                    termVectorRequest.generateAll(parser.booleanValue());
                 } else if ("_index".equals(currentFieldName)) { // the following is important for multi request parsing.
                     termVectorRequest.index = parser.text();
                 } else if ("_type".equals(currentFieldName)) {

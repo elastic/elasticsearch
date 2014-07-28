@@ -72,6 +72,9 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
             Versions.DocIdAndVersion docIdAndVersion = Versions.loadDocIdAndVersion(topLevelReader, uidTerm);
             if (docIdAndVersion != null) {
                 Fields termVectorsByField = docIdAndVersion.context.reader().getTermVectors(docIdAndVersion.docId);
+                if (request.generateAll()) {
+                    request.selectedFields(getAllFields(docIdAndVersion));
+                }
                 /* generate term vectors if not available */
                 if (request.selectedFields() != null) {
                     termVectorsByField = generateTermVectorsIfNeeded(termVectorsByField, request, uidTerm, false);
@@ -88,6 +91,15 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
             searcher.close();
         }
         return termVectorResponse;
+    }
+
+    private String[] getAllFields(Versions.DocIdAndVersion docIdAndVersion) {
+        List<String> fieldNames = new ArrayList<>();
+        FieldInfos fieldInfos = docIdAndVersion.context.reader().getFieldInfos();
+        for (FieldInfo fieldInfo : fieldInfos) {
+            fieldNames.add(fieldInfo.name);
+        }
+        return fieldNames.toArray(new String[fieldNames.size()]);
     }
 
     private Fields generateTermVectorsIfNeeded(Fields termVectorsByField, TermVectorRequest request, Term uidTerm, boolean realTime) throws IOException {
@@ -187,4 +199,5 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
             return fields.size();
         }
     }
+
 }

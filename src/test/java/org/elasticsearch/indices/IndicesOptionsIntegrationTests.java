@@ -335,6 +335,8 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
     @Test
     public void testWildcardBehaviour_snapshotRestore() throws Exception {
         createIndex("foobar");
+        ensureGreen("foobar");
+        waitForRelocation();
 
         PutRepositoryResponse putRepositoryResponse = client().admin().cluster().preparePutRepository("dummy-repo")
                 .setType("fs").setSettings(ImmutableSettings.settingsBuilder().put("location", newTempDir())).get();
@@ -351,7 +353,7 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
 
         assertAcked(prepareCreate("barbaz"));
         //TODO: temporary work-around for #5531
-        ensureGreen();
+        ensureGreen("barbaz");
         waitForRelocation();
         options = IndicesOptions.fromOptions(false, false, true, false);
         verify(snapshot("snap3", "foo*", "bar*").setIndicesOptions(options), false);

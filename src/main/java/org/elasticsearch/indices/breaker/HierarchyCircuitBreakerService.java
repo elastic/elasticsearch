@@ -44,6 +44,10 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
 
     private volatile ImmutableMap<CircuitBreaker.Name, CircuitBreaker> breakers;
 
+    // Old pre-1.4.0 backwards compatible settings
+    public static final String OLD_CIRCUIT_BREAKER_MAX_BYTES_SETTING = "indices.fielddata.breaker.limit";
+    public static final String OLD_CIRCUIT_BREAKER_OVERHEAD_SETTING = "indices.fielddata.breaker.overhead";
+
     public static final String TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING = "indices.breaker.total.limit";
     public static final String DEFAULT_TOTAL_CIRCUIT_BREAKER_LIMIT = "70%";
 
@@ -60,6 +64,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
     private volatile BreakerSettings fielddataSettings;
     private volatile BreakerSettings requestSettings;
 
+
     // Tripped count for when redistribution was attempted but wasn't successful
     private final AtomicLong parentTripCount = new AtomicLong(0);
 
@@ -68,19 +73,19 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         super(settings);
 
         // This uses the old InternalCircuitBreakerService.CIRCUIT_BREAKER_MAX_BYTES_SETTING
-        // setting to keep backwards compatibility with 1.2, it can be safely
-        // removed when compatibility with 1.2 is no longer needed
+        // setting to keep backwards compatibility with 1.3, it can be safely
+        // removed when compatibility with 1.3 is no longer needed
         String compatibilityFielddataLimitDefault = DEFAULT_FIELDDATA_BREAKER_LIMIT;
-        ByteSizeValue compatibilityFielddataLimit = settings.getAsMemory(InternalCircuitBreakerService.CIRCUIT_BREAKER_MAX_BYTES_SETTING, null);
+        ByteSizeValue compatibilityFielddataLimit = settings.getAsMemory(OLD_CIRCUIT_BREAKER_MAX_BYTES_SETTING, null);
         if (compatibilityFielddataLimit != null) {
             compatibilityFielddataLimitDefault = compatibilityFielddataLimit.toString();
         }
 
         // This uses the old InternalCircuitBreakerService.CIRCUIT_BREAKER_OVERHEAD_SETTING
-        // setting to keep backwards compatibility with 1.2, it can be safely
-        // removed when compatibility with 1.2 is no longer needed
+        // setting to keep backwards compatibility with 1.3, it can be safely
+        // removed when compatibility with 1.3 is no longer needed
         double compatibilityFielddataOverheadDefault = DEFAULT_FIELDDATA_OVERHEAD_CONSTANT;
-        Double compatibilityFielddataOverhead = settings.getAsDouble(InternalCircuitBreakerService.CIRCUIT_BREAKER_OVERHEAD_SETTING, null);
+        Double compatibilityFielddataOverhead = settings.getAsDouble(OLD_CIRCUIT_BREAKER_OVERHEAD_SETTING, null);
         if (compatibilityFielddataOverhead != null) {
             compatibilityFielddataOverheadDefault = compatibilityFielddataOverhead;
         }

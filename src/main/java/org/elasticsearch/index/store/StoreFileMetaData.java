@@ -19,12 +19,12 @@
 
 package org.elasticsearch.index.store;
 
-import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.lucene.Lucene;
 
 import java.io.IOException;
 
@@ -102,7 +102,7 @@ public class StoreFileMetaData implements Streamable {
         checksum = in.readOptionalString();
         if (in.getVersion().onOrAfter(org.elasticsearch.Version.V_1_3_0)) {
             String versionString = in.readOptionalString();
-            writtenBy = versionString == null ? null : Version.parseLeniently(versionString);
+            writtenBy = Lucene.parseVersionLenient(versionString, null);
         }
     }
 

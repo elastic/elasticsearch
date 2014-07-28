@@ -44,8 +44,6 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import java.io.IOException;
 import java.util.Locale;
 
-import static org.elasticsearch.common.lucene.search.NoopCollector.NOOP_COLLECTOR;
-
 /**
  *
  */
@@ -556,7 +554,7 @@ public class Lucene {
                 } catch (IllegalArgumentException e) {
                     final String parsedMatchVersion = toParse
                             .toUpperCase(Locale.ROOT)
-                            .replaceFirst("^(\\d+)\\.(\\d+).(\\d+)$", "LUCENE_$1_$2");
+                            .replaceFirst("^(\\d+)\\.(\\d+)(.(\\d+))+$", "LUCENE_$1_$2");
                     return Version.valueOf(parsedMatchVersion);
                 }
             }

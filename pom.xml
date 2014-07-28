@@ -1169,6 +1169,9 @@
                                 <!-- start exclude for Channels utility class -->
                                 <exclude>org/elasticsearch/common/io/Channels.class</exclude>
                                 <!-- end exclude for Channels -->
+                                <!-- start exclude for Lucene utility class -->
+                                <exclude>org/elasticsearch/common/lucene/Lucene$LenientParser.class</exclude>
+                                <!-- end exclude for Lucene -->
                             </excludes>
                             <bundledSignatures>
                                 <!-- This will automatically choose the right signatures based on 'targetVersion': -->

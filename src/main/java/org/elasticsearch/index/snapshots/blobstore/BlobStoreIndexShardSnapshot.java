@@ -24,6 +24,7 @@ import org.apache.lucene.util.Version;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -255,7 +256,7 @@ public class BlobStoreIndexShardSnapshot {
                             } else if ("part_size".equals(currentFieldName)) {
                                 partSize = new ByteSizeValue(parser.longValue());
                             } else if ("written_by".equals(currentFieldName)) {
-                                writtenBy = Version.parseLeniently(parser.text());
+                                writtenBy = Lucene.parseVersionLenient(parser.text(), null);
                             } else {
                                 throw new ElasticsearchParseException("unknown parameter [" + currentFieldName + "]");
                             }

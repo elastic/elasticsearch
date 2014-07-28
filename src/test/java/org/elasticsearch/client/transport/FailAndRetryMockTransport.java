@@ -127,12 +127,12 @@ public abstract class FailAndRetryMockTransport<Response extends TransportRespon
 
     @Override
     public TransportAddress[] addressesFromString(String address) throws Exception {
-        return new TransportAddress[0];
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public boolean addressSupported(Class<? extends TransportAddress> address) {
-        return false;
+        throw new UnsupportedOperationException();
     }
 
     @Override
@@ -167,12 +167,12 @@ public abstract class FailAndRetryMockTransport<Response extends TransportRespon
 
     @Override
     public void addLifecycleListener(LifecycleListener listener) {
-
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public void removeLifecycleListener(LifecycleListener listener) {
-
+        throw new UnsupportedOperationException();
     }
 
     @Override

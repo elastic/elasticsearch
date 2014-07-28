@@ -254,8 +254,7 @@ public class InternalTransportClientTests extends ElasticsearchTestCase {
 
         @Override
         public TestRequestBuilder newRequestBuilder(Client client) {
-            //not needed
-            return null;
+            throw new UnsupportedOperationException();
         }
 
         @Override
@@ -272,7 +271,7 @@ public class InternalTransportClientTests extends ElasticsearchTestCase {
 
         @Override
         protected void doExecute(ActionListener<TestResponse> listener) {
-            //not needed
+            throw new UnsupportedOperationException();
         }
     }
 
@@ -286,8 +285,7 @@ public class InternalTransportClientTests extends ElasticsearchTestCase {
 
         @Override
         public IndicesAdminTestRequestBuilder newRequestBuilder(IndicesAdminClient client) {
-            //not needed
-            return null;
+            throw new UnsupportedOperationException();
         }
 
         @Override
@@ -304,7 +302,7 @@ public class InternalTransportClientTests extends ElasticsearchTestCase {
 
         @Override
         protected void doExecute(ActionListener<TestResponse> listener) {
-            //not needed
+            throw new UnsupportedOperationException();
         }
     }
 
@@ -318,8 +316,7 @@ public class InternalTransportClientTests extends ElasticsearchTestCase {
 
         @Override
         public ClusterAdminTestRequestBuilder newRequestBuilder(ClusterAdminClient client) {
-            //not needed
-            return null;
+            throw new UnsupportedOperationException();
         }
 
         @Override
@@ -336,7 +333,7 @@ public class InternalTransportClientTests extends ElasticsearchTestCase {
 
         @Override
         protected void doExecute(ActionListener<TestResponse> listener) {
-            //not needed
+            throw new UnsupportedOperationException();
         }
     }
 }

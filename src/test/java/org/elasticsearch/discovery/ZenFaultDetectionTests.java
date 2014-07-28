@@ -21,6 +21,7 @@ package org.elasticsearch.discovery;
 
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -131,7 +132,7 @@ public class ZenFaultDetectionTests extends ElasticsearchTestCase {
         boolean shouldRetry = randomBoolean();
         // make sure we don't ping
         settings.put("discovery.zen.fd.connect_on_network_disconnect", shouldRetry).put("discovery.zen.fd.ping_interval", "5m");
-        NodesFaultDetection nodesFD = new NodesFaultDetection(settings.build(), threadPool, serviceA);
+        NodesFaultDetection nodesFD = new NodesFaultDetection(settings.build(), threadPool, serviceA, new ClusterName("test"));
         nodesFD.start();
         nodesFD.updateNodes(buildNodesForA(true));
         final String[] failureReason = new String[1];
@@ -165,6 +166,7 @@ public class ZenFaultDetectionTests extends ElasticsearchTestCase {
         boolean shouldRetry = randomBoolean();
         // make sure we don't ping
         settings.put("discovery.zen.fd.connect_on_network_disconnect", shouldRetry).put("discovery.zen.fd.ping_interval", "5m");
+        ClusterName clusterName = new ClusterName(randomAsciiOfLengthBetween(3, 20));
         final DiscoveryNodes nodes = buildNodesForA(false);
         MasterFaultDetection masterFD = new MasterFaultDetection(settings.build(), threadPool, serviceA,
                 new DiscoveryNodesProvider() {
@@ -177,7 +179,8 @@ public class ZenFaultDetectionTests extends ElasticsearchTestCase {
                     public NodeService nodeService() {
                         return null;
                     }
-                }
+                },
+                clusterName
         );
         masterFD.start(nodeB, "test");
 

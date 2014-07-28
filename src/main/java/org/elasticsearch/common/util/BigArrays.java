@@ -42,7 +42,6 @@ import java.util.concurrent.atomic.AtomicLong;
 /** Utility class to work with arrays. */
 public class BigArrays extends AbstractComponent {
 
-    public static final String MAX_SIZE_IN_BYTES_SETTING = "requests.memory.breaker.limit";
     public static final BigArrays NON_RECYCLING_INSTANCE = new BigArrays(ImmutableSettings.EMPTY, null, null);
 
     /** Page size in bytes: 16KB */

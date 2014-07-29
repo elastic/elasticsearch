@@ -101,7 +101,7 @@ curl -XPOST localhost:9200/_scripts/groovy/indexedCalculateScore -d '{
 }'
 -----------------------------------
 
-This will create a document with id: `indexedCalculateScore` and type: `mvel` in the
+This will create a document with id: `indexedCalculateScore` and type: `groovy` in the
 `.scripts` index. The type of the document is the language used by the script.
 
 This script can be accessed at query time by appending `_id` to
@@ -138,7 +138,7 @@ for non sandboxed languages at query time.
 The script can be viewed by:
 [source,js]
 -----------------------------------
-curl -XGET localhost:9200/_scripts/mvel/indexedCalculateScore
+curl -XGET localhost:9200/_scripts/groovy/indexedCalculateScore
 -----------------------------------
 
 This is rendered as:
@@ -153,7 +153,7 @@ This is rendered as:
 Indexed scripts can be deleted by:
 [source,js]
 -----------------------------------
-curl -XDELETE localhost:9200/_scripts/mvel/indexedCalculateScore
+curl -XDELETE localhost:9200/_scripts/groovy/indexedCalculateScore
 -----------------------------------
 
 [float]

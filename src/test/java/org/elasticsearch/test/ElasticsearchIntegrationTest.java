@@ -1074,7 +1074,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
 
     private FlushResponse flush(boolean ignoreNotAllowed) {
         waitForRelocation();
-        FlushResponse actionGet = client().admin().indices().prepareFlush().execute().actionGet();
+        FlushResponse actionGet = client().admin().indices().prepareFlush().setWaitIfOngoing(true).execute().actionGet();
         if (ignoreNotAllowed) {
             for (ShardOperationFailedException failure : actionGet.getShardFailures()) {
                 assertThat("unexpected flush failure " + failure.reason(), failure.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));

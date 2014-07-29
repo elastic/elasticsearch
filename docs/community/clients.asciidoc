@@ -90,12 +90,9 @@ See the {client}/javascript-api/current/index.html[official Elasticsearch JavaSc
 
 
 [[community-dotnet]]
-=== .Net
+=== .NET
 
 * https://github.com/Yegoroff/PlainElastic.Net[PlainElastic.Net]:
-  .NET client.
-
-* https://github.com/Mpdreamz/NEST[NEST]:
   .NET client.
 
 * https://github.com/medcl/ElasticSearch.Net[ElasticSearch.NET]:

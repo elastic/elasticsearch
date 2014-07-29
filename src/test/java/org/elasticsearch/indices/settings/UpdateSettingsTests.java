@@ -331,26 +331,44 @@ public class UpdateSettingsTests extends ElasticsearchIntegrationTest {
                              )
                 .get();
 
-            // Make sure we log the change:
-            assertTrue(mockAppender.sawUpdateSetting);
+            try {
 
-            int i = 0;
-            while (true) {
-                // Provoke slowish merging by making many unique terms:
-                StringBuilder sb = new StringBuilder();
-                for(int j=0;j<100;j++) {
-                    sb.append(' ');
-                    sb.append(termUpto++);
+                // Make sure we log the change:
+                assertTrue(mockAppender.sawUpdateSetting);
+
+                int i = 0;
+                while (true) {
+                    // Provoke slowish merging by making many unique terms:
+                    StringBuilder sb = new StringBuilder();
+                    for(int j=0;j<100;j++) {
+                        sb.append(' ');
+                        sb.append(termUpto++);
+                    }
+                    client().prepareIndex("test", "type", ""+termUpto).setSource("field" + (i%10), sb.toString()).get();
+                    if (i % 2 == 0) {
+                        refresh();
+                    }
+                    // This time we should see some merges were in fact paused:
+                    if (mockAppender.sawMergeThreadPaused) {
+                        break;
+                    }
+                    i++;
                 }
-                client().prepareIndex("test", "type", ""+termUpto).setSource("field" + (i%10), sb.toString()).get();
-                if (i % 2 == 0) {
-                    refresh();
-                }
-                // This time we should see some merges were in fact paused:
-                if (mockAppender.sawMergeThreadPaused) {
-                    break;
-                }
-                i++;
+            } finally {
+                // Make merges fast again & finish merges before we try to close; else we sometimes get a "Delete Index failed - not acked"
+                // when ElasticsearchIntegrationTest.after tries to remove indices created by the test:
+                client()
+                    .admin()
+                    .indices()
+                    .prepareUpdateSettings("test")
+                    .setSettings(ImmutableSettings.builder()
+                                 .put(ConcurrentMergeSchedulerProvider.MAX_THREAD_COUNT, "3")
+                                 .put(AbstractIndexStore.INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC, "20mb")
+                                 )
+                    .get();
+
+                // Wait for merges to finish
+                client().admin().indices().prepareOptimize("test").setWaitForMerge(true).get();
             }
 
 

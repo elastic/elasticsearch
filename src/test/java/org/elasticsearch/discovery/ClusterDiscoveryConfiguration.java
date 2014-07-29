@@ -115,7 +115,8 @@ public class ClusterDiscoveryConfiguration extends NodeSettingsSource {
                     .put("discovery.zen.ping.multicast.enabled", false);
 
             String[] unicastHosts = new String[unicastHostOrdinals.length];
-            if (InternalTestCluster.NODE_MODE.equals("local")) {
+            String mode = baseSettings.get("node.mode", InternalTestCluster.NODE_MODE);
+            if (mode.equals("local")) {
                 builder.put(LocalTransport.TRANSPORT_LOCAL_ADDRESS, "node_" + nodeOrdinal);
                 for (int i = 0; i < unicastHosts.length; i++) {
                     unicastHosts[i] = "node_" + unicastHostOrdinals[i];

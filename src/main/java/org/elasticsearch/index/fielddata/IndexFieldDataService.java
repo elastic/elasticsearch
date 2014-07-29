@@ -39,7 +39,6 @@ import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
-import org.elasticsearch.indices.fielddata.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCacheListener;
 
@@ -256,43 +255,6 @@ public class IndexFieldDataService extends AbstractIndexComponent {
             }
         }
         return (IFD) fieldData;
-    }
-
-    public <IFD extends IndexFieldData<?>> IFD getForFieldDirect(FieldMapper<?> mapper) {
-        final FieldMapper.Names fieldNames = mapper.names();
-        final FieldDataType type = mapper.fieldDataType();
-        if (type == null) {
-            throw new ElasticsearchIllegalArgumentException("found no fielddata type for field [" + fieldNames.fullName() + "]");
-        }
-        final boolean docValues = mapper.hasDocValues();
-
-        IndexFieldData.Builder builder = null;
-        String format = type.getFormat(indexSettings);
-        if (format != null && FieldDataType.DOC_VALUES_FORMAT_VALUE.equals(format) && !docValues) {
-            logger.warn("field [" + fieldNames.fullName() + "] has no doc values, will use default field data format");
-            format = null;
-        }
-        if (format != null) {
-            builder = buildersByTypeAndFormat.get(Tuple.tuple(type.getType(), format));
-            if (builder == null) {
-                logger.warn("failed to find format [" + format + "] for field [" + fieldNames.fullName() + "], will use default");
-            }
-        }
-        if (builder == null && docValues) {
-            builder = docValuesBuildersByType.get(type.getType());
-        }
-        if (builder == null) {
-            builder = buildersByType.get(type.getType());
-        }
-        if (builder == null) {
-            throw new ElasticsearchIllegalArgumentException("failed to find field data builder for field " + fieldNames.fullName() + ", and type " + type.getType());
-        }
-
-        CircuitBreakerService circuitBreakerService = new NoneCircuitBreakerService();
-        GlobalOrdinalsBuilder globalOrdinalBuilder = new InternalGlobalOrdinalsBuilder(index(), indexSettings);
-        @SuppressWarnings("unchecked")
-        IFD ifd = (IFD) builder.build(index, indexSettings, mapper, new IndexFieldDataCache.None(), circuitBreakerService, indexService.mapperService(), globalOrdinalBuilder);
-        return ifd;
     }
 
 }

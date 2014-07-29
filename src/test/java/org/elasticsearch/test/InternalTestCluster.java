@@ -97,10 +97,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.frequently;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.systemPropertyAsBoolean;
+import static junit.framework.Assert.fail;
 import static org.apache.lucene.util.LuceneTestCase.rarely;
 import static org.apache.lucene.util.LuceneTestCase.usually;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
+import static org.elasticsearch.test.ElasticsearchTestCase.assertBusy;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertThat;
@@ -1514,12 +1516,29 @@ public final class InternalTestCluster extends TestCluster {
             // network request, because a network request can increment one
             // of the breakers
             for (NodeAndClient nodeAndClient : nodes.values()) {
-                String name = nodeAndClient.name;
-                CircuitBreakerService breakerService = getInstanceFromNode(CircuitBreakerService.class, nodeAndClient.node);
+                final String name = nodeAndClient.name;
+                final CircuitBreakerService breakerService = getInstanceFromNode(CircuitBreakerService.class, nodeAndClient.node);
                 CircuitBreaker fdBreaker = breakerService.getBreaker(CircuitBreaker.Name.FIELDDATA);
-                CircuitBreaker reqBreaker = breakerService.getBreaker(CircuitBreaker.Name.REQUEST);
                 assertThat("Fielddata breaker not reset to 0 on node: " + name, fdBreaker.getUsed(), equalTo(0L));
-                assertThat("Request breaker not reset to 0 on node: " + name, reqBreaker.getUsed(), equalTo(0L));
+                // Anything that uses transport or HTTP can increase the
+                // request breaker (because they use bigarrays), because of
+                // that the breaker can sometimes be incremented from ping
+                // requests from other clusters because Jenkins is running
+                // multiple ES testing jobs in parallel on the same machine.
+                // To combat this we check whether the breaker has reached 0
+                // in an assertBusy loop, so it will try for 10 seconds and
+                // fail if it never reached 0
+                try {
+                    assertBusy(new Runnable() {
+                        @Override
+                        public void run() {
+                            CircuitBreaker reqBreaker = breakerService.getBreaker(CircuitBreaker.Name.REQUEST);
+                            assertThat("Request breaker not reset to 0 on node: " + name, reqBreaker.getUsed(), equalTo(0L));
+                        }
+                    });
+                } catch (Exception e) {
+                    fail("Exception during check for request breaker reset to 0: " + e);
+                }
             }
         }
     }

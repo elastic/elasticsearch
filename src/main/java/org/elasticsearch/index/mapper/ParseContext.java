@@ -53,11 +53,15 @@ public abstract class ParseContext {
         private final List<IndexableField> fields;
         private ObjectObjectMap<Object, IndexableField> keyedFields;
 
-        public Document(String path, Document parent) {
+        private Document(String path, Document parent) {
             fields = Lists.newArrayList();
             this.path = path;
             this.prefix = path.isEmpty() ? "" : path + ".";
             this.parent = parent;
+        }
+
+        public Document() {
+            this("", null);
         }
 
         /**

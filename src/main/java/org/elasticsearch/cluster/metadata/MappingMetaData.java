@@ -228,6 +228,10 @@ public class MappingMetaData {
             return this.defaultTimestamp;
         }
 
+        public boolean hasDefaultTimestamp() {
+            return this.defaultTimestamp != null;
+        }
+
         public FormatDateTimeFormatter dateTimeFormatter() {
             return this.dateTimeFormatter;
         }
@@ -543,7 +547,12 @@ public class MappingMetaData {
         }
         out.writeString(mappingMd.timestamp().format());
         if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
-            out.writeString(mappingMd.timestamp().defaultTimestamp());
+            if (mappingMd.timestamp().hasDefaultTimestamp()) {
+                out.writeBoolean(true);
+                out.writeString(mappingMd.timestamp().defaultTimestamp());
+            } else {
+                out.writeBoolean(false);
+            }
         }
         out.writeBoolean(mappingMd.hasParentField());
     }
@@ -583,7 +592,7 @@ public class MappingMetaData {
         Routing routing = new Routing(in.readBoolean(), in.readBoolean() ? in.readString() : null);
         // timestamp
         Timestamp timestamp = new Timestamp(in.readBoolean(), in.readBoolean() ? in.readString() : null, in.readString(),
-                in.getVersion().onOrAfter(Version.V_1_4_0) ? in.readString() : TimestampFieldMapper.Defaults.DEFAULT_TIMESTAMP);
+                in.getVersion().onOrAfter(Version.V_1_4_0) ? (in.readBoolean() ? in.readString() : null) : TimestampFieldMapper.Defaults.DEFAULT_TIMESTAMP);
         final boolean hasParentField = in.readBoolean();
         return new MappingMetaData(type, source, id, routing, timestamp, hasParentField);
     }

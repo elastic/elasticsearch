@@ -20,10 +20,10 @@
 package org.elasticsearch.common.util;
 
 import com.carrotsearch.hppc.DoubleObjectOpenHashMap;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
 
-public class DoubleObjectHashMapTests extends ElasticsearchTestCase {
+public class DoubleObjectHashMapTests extends ElasticsearchSingleNodeTest {
 
     @Test
     public void duel() {

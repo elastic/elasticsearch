@@ -27,20 +27,18 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.node.settings.NodeSettingsService;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.elasticsearch.test.cache.recycler.MockBigArrays;
-import org.elasticsearch.test.cache.recycler.MockPageCacheRecycler;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 
-public class BigArraysTests extends ElasticsearchTestCase {
+public class BigArraysTests extends ElasticsearchSingleNodeTest {
 
     public static BigArrays randombigArrays() {
-        final PageCacheRecycler recycler = randomBoolean() ? null : new MockPageCacheRecycler(ImmutableSettings.EMPTY, new ThreadPool("BigArraysTests"));
+        final PageCacheRecycler recycler = randomBoolean() ? null : ElasticsearchSingleNodeTest.getInstanceFromNode(PageCacheRecycler.class);
         return new MockBigArrays(ImmutableSettings.EMPTY, recycler, new NoneCircuitBreakerService());
     }
 

@@ -20,7 +20,6 @@ package org.elasticsearch.search.aggregations.bucket.significant;
 
 import com.google.common.collect.Maps;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -90,7 +89,7 @@ public abstract class InternalSignificantTerms extends InternalAggregation imple
             return aggregations;
         }
 
-        public Bucket reduce(List<? extends Bucket> buckets, BigArrays bigArrays) {
+        public Bucket reduce(List<? extends Bucket> buckets, ReduceContext context) {
             long subsetDf = 0;
             long supersetDf = 0;
             List<InternalAggregations> aggregationsList = new ArrayList<>(buckets.size());
@@ -99,7 +98,7 @@ public abstract class InternalSignificantTerms extends InternalAggregation imple
                 supersetDf += bucket.supersetDf;
                 aggregationsList.add(bucket.aggregations);
             }
-            InternalAggregations aggs = InternalAggregations.reduce(aggregationsList, bigArrays);
+            InternalAggregations aggs = InternalAggregations.reduce(aggregationsList, context);
             return newBucket(subsetDf, subsetSize, supersetDf, supersetSize, aggs);
         }
 
@@ -176,7 +175,7 @@ public abstract class InternalSignificantTerms extends InternalAggregation imple
         BucketSignificancePriorityQueue ordered = new BucketSignificancePriorityQueue(size);
         for (Map.Entry<String, List<Bucket>> entry : buckets.entrySet()) {
             List<Bucket> sameTermBuckets = entry.getValue();
-            final Bucket b = sameTermBuckets.get(0).reduce(sameTermBuckets, reduceContext.bigArrays());
+            final Bucket b = sameTermBuckets.get(0).reduce(sameTermBuckets, reduceContext);
             b.updateScore(significanceHeuristic);
             if ((b.score > 0) && (b.subsetDf >= minDocCount)) {
                 ordered.insertWithOverflow(b);

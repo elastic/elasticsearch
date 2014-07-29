@@ -33,6 +33,8 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.dfs.DfsSearchResult;
@@ -73,11 +75,14 @@ public class SearchPhaseController extends AbstractComponent {
     private final BigArrays bigArrays;
     private final boolean optimizeSingleShard;
 
+    private ScriptService scriptService;
+
     @Inject
-    public SearchPhaseController(Settings settings, CacheRecycler cacheRecycler, BigArrays bigArrays) {
+    public SearchPhaseController(Settings settings, CacheRecycler cacheRecycler, BigArrays bigArrays, ScriptService scriptService) {
         super(settings);
         this.cacheRecycler = cacheRecycler;
         this.bigArrays = bigArrays;
+        this.scriptService = scriptService;
         this.optimizeSingleShard = componentSettings.getAsBoolean("optimize_single_shard", true);
     }
 
@@ -399,7 +404,7 @@ public class SearchPhaseController extends AbstractComponent {
                 for (AtomicArray.Entry<? extends QuerySearchResultProvider> entry : queryResults) {
                     aggregationsList.add((InternalAggregations) entry.value.queryResult().aggregations());
                 }
-                aggregations = InternalAggregations.reduce(aggregationsList, bigArrays);
+                aggregations = InternalAggregations.reduce(aggregationsList, new ReduceContext(null, bigArrays, scriptService));
             }
         }
 

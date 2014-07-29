@@ -25,7 +25,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongObjectPagedHashMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationStreams;
@@ -105,14 +104,14 @@ public class InternalGeoHashGrid extends InternalAggregation implements GeoHashG
             return 0;
         }
 
-        public Bucket reduce(List<? extends Bucket> buckets, BigArrays bigArrays) {
+        public Bucket reduce(List<? extends Bucket> buckets, ReduceContext context) {
             List<InternalAggregations> aggregationsList = new ArrayList<>(buckets.size());
             long docCount = 0;
             for (Bucket bucket : buckets) {
                 docCount += bucket.docCount;
                 aggregationsList.add(bucket.aggregations);
             }
-            final InternalAggregations aggs = InternalAggregations.reduce(aggregationsList, bigArrays);
+            final InternalAggregations aggs = InternalAggregations.reduce(aggregationsList, context);
             return new Bucket(geohashAsLong, docCount, aggs);
         }
 
@@ -192,7 +191,7 @@ public class InternalGeoHashGrid extends InternalAggregation implements GeoHashG
         BucketPriorityQueue ordered = new BucketPriorityQueue(size);
         for (LongObjectPagedHashMap.Cursor<List<Bucket>> cursor : buckets) {
             List<Bucket> sameCellBuckets = cursor.value;
-            ordered.insertWithOverflow(sameCellBuckets.get(0).reduce(sameCellBuckets, reduceContext.bigArrays()));
+            ordered.insertWithOverflow(sameCellBuckets.get(0).reduce(sameCellBuckets, reduceContext));
         }
         buckets.close();
         Bucket[] list = new Bucket[ordered.size()];

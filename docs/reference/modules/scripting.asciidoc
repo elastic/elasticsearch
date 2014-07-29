@@ -138,7 +138,7 @@ for non sandboxed languages at query time.
 The script can be viewed by:
 [source,js]
 -----------------------------------
-curl -XGET localhost:9200/_scripts/mvel/indexedCalculateScore
+curl -XGET localhost:9200/_scripts/groovy/indexedCalculateScore
 -----------------------------------
 
 This is rendered as:
@@ -153,7 +153,7 @@ This is rendered as:
 Indexed scripts can be deleted by:
 [source,js]
 -----------------------------------
-curl -XDELETE localhost:9200/_scripts/mvel/indexedCalculateScore
+curl -XDELETE localhost:9200/_scripts/groovy/indexedCalculateScore
 -----------------------------------
 
 [float]

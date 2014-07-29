@@ -23,6 +23,7 @@ import time
 import argparse
 import logging
 import sys
+import re
 
 from datetime import datetime
 try:
@@ -159,6 +160,41 @@ def run_basic_asserts(es, index_name, type, num_docs):
                     ]
                   }))
 
+
+# picks a random version or and entire random version tuple from the directory
+# to run the backwards tests against.
+def pick_random_upgrade_version(directory, lower_version=None, upper_version=None):
+  if lower_version and upper_version:
+    return lower_version, upper_version
+  assert os.path.isdir(directory), 'No such directory %s' % directory
+  versions = []
+  for version in map(lambda x : x[len('elasticsearch-'):], filter(lambda x : re.match(r'^elasticsearch-\d+[.]\d+[.]\d+$', x), os.listdir(directory))):
+    if not version in BLACK_LIST:
+      versions.append(build_tuple(version))
+  versions.sort()
+
+  if lower_version: # lower version is set - picking a higher one
+    versions = filter(lambda x : x > build_tuple(lower_version), versions)
+    assert len(versions) >= 1, 'Expected at least 1 higher version than %s version in %s ' % (lower_version, directory)
+    random.shuffle(versions)
+    return lower_version, build_version(versions[0])
+  if upper_version:
+    versions = filter(lambda x : x < build_tuple(upper_version), versions)
+    assert len(versions) >= 1, 'Expected at least 1 lower version than %s version in %s ' % (upper_version, directory)
+    random.shuffle(versions)
+    return build_version(versions[0]), upper_version
+  assert len(versions) >= 2, 'Expected at least 2 different version in %s but found %s' % (directory, len(versions))
+  random.shuffle(versions)
+  versions = versions[0:2]
+  versions.sort()
+  return build_version(versions[0]), build_version(versions[1])
+
+def build_version(version_tuple):
+  return '.'.join([str(x) for x in version_tuple])
+
+def build_tuple(version_string):
+  return [int(x) for x in version_string.split('.')]
+
 # returns a new elasticsearch client and ensures the all nodes have joined the cluster
 # this method waits at most 30 seconds for all nodes to join
 def new_es_instance(num_nodes, http_port, timeout = 30):
@@ -187,9 +223,8 @@ def assert_versions(bwc_version, current_version, node_dir):
     dir = os.path.join(node_dir, 'elasticsearch-%s' % current_version)
     assert os.path.isdir(dir), 'Expected elasticsearch-%s install directory does not exists: %s' % (version, dir)
 
-def full_cluster_restart(node_dir, current_version, bwc_version, seed, tcp_port, http_port):
+def full_cluster_restart(node_dir, current_version, bwc_version, tcp_port, http_port):
   assert_versions(bwc_version, current_version, node_dir)
-  random.seed(seed)
   num_nodes = random.randint(2, 3)
   nodes = []
   data_dir = tempfile.mkdtemp()
@@ -240,7 +275,7 @@ def full_cluster_restart(node_dir, current_version, bwc_version, seed, tcp_port,
     # by running the indexing again we try to catch possible mapping problems after the upgrade
     index_documents(es, 'test_index', 'test_type', num_docs)
     run_basic_asserts(es, 'test_index', 'test_type', num_docs)
-    logging.info("[SUCCESSS] - all test passed upgrading from version [%s] to version [%s]" % (bwc_version, current_version))
+    logging.info("[SUCCESS] - all test passed upgrading from version [%s] to version [%s]" % (bwc_version, current_version))
   finally:
     for node in nodes:
       node.terminate()
@@ -254,9 +289,9 @@ if __name__ == '__main__':
   logging.getLogger('urllib3').setLevel(logging.WARN)
   parser = argparse.ArgumentParser(description='Tests Full Cluster Restarts across major version')
   parser.add_argument('--version.backwards', '-b', dest='backwards_version', metavar='V',
-                      help='The elasticsearch version to upgrade from', required=True)
+                      help='The elasticsearch version to upgrade from')
   parser.add_argument('--version.current', '-c', dest='current_version', metavar='V',
-                      help='The elasticsearch version to upgrade to', required=True)
+                      help='The elasticsearch version to upgrade to')
   parser.add_argument('--seed', '-s', dest='seed', metavar='N', type=int,
                       help='The random seed to use')
   parser.add_argument('--backwards.dir', '-d', dest='bwc_directory', default='backwards', metavar='dir',
@@ -274,10 +309,12 @@ if __name__ == '__main__':
   current_version = args.current_version
   bwc_version = args.backwards_version
   seed = args.seed
+  random.seed(seed)
+  bwc_version, current_version = pick_random_upgrade_version(node_dir, bwc_version, current_version)
   tcp_port = args.tcp_port
   http_port = args.http_port
   try:
-    full_cluster_restart(node_dir, current_version, bwc_version, seed, tcp_port, http_port)
+    full_cluster_restart(node_dir, current_version, bwc_version, tcp_port, http_port)
   except:
     logging.warn('REPRODUCE WITH: \n\t`python %s --version.backwards %s --version.current %s --seed %s --tcp.port %s --http.port %s`'
                    % (sys.argv[0], bwc_version, current_version, seed, tcp_port, http_port))

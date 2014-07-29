@@ -92,6 +92,8 @@ See the {client}/javascript-api/current/index.html[official Elasticsearch JavaSc
 [[community-dotnet]]
 === .NET
 
+See the {client}/net-api/current/index.html[official Elasticsearch .NET client].
+
 * https://github.com/Yegoroff/PlainElastic.Net[PlainElastic.Net]:
   .NET client.
 

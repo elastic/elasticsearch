@@ -22,12 +22,11 @@ package org.elasticsearch.common.util;
 import com.carrotsearch.hppc.LongLongMap;
 import com.carrotsearch.hppc.LongLongOpenHashMap;
 import com.carrotsearch.hppc.cursors.LongLongCursor;
-import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.util.*;
 
-public class LongHashTests extends ElasticsearchTestCase {
+public class LongHashTests extends AbstractBigArraysTest {
 
     LongHash hash;
 
@@ -38,7 +37,7 @@ public class LongHashTests extends ElasticsearchTestCase {
 
         // Test high load factors to make sure that collision resolution works fine
         final float maxLoadFactor = 0.6f + randomFloat() * 0.39f;
-        hash = new LongHash(randomIntBetween(0, 100), maxLoadFactor, BigArraysTests.randombigArrays());
+        hash = new LongHash(randomIntBetween(0, 100), maxLoadFactor, randombigArrays());
     }
 
     @Override

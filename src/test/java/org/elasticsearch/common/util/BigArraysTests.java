@@ -21,24 +21,14 @@ package org.elasticsearch.common.util;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchIllegalStateException;
-import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.test.ElasticsearchTestCase;
-import org.elasticsearch.test.cache.recycler.MockBigArrays;
-import org.elasticsearch.test.cache.recycler.MockPageCacheRecycler;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 
-public class BigArraysTests extends ElasticsearchTestCase {
-
-    public static BigArrays randombigArrays() {
-        final PageCacheRecycler recycler = randomBoolean() ? null : new MockPageCacheRecycler(ImmutableSettings.EMPTY, new ThreadPool("BigArraysTests"));
-        return new MockBigArrays(ImmutableSettings.EMPTY, recycler);
-    }
+public class BigArraysTests extends AbstractBigArraysTest {
 
     private BigArrays bigArrays;
 

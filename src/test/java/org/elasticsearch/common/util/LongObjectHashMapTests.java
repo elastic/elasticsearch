@@ -20,15 +20,14 @@
 package org.elasticsearch.common.util;
 
 import com.carrotsearch.hppc.LongObjectOpenHashMap;
-import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
-public class LongObjectHashMapTests extends ElasticsearchTestCase {
+public class LongObjectHashMapTests extends AbstractBigArraysTest {
 
     @Test
     public void duel() {
         final LongObjectOpenHashMap<Object> map1 = new LongObjectOpenHashMap<>();
-        final LongObjectPagedHashMap<Object> map2 = new LongObjectPagedHashMap<>(randomInt(42), 0.6f + randomFloat() * 0.39f, BigArraysTests.randombigArrays());
+        final LongObjectPagedHashMap<Object> map2 = new LongObjectPagedHashMap<>(randomInt(42), 0.6f + randomFloat() * 0.39f, randombigArrays());
         final int maxKey = randomIntBetween(1, 10000);
         final int iters = scaledRandomIntBetween(10000, 100000);
         for (int i = 0; i < iters; ++i) {

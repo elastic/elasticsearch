@@ -24,13 +24,12 @@ import com.carrotsearch.hppc.ObjectLongOpenHashMap;
 import com.carrotsearch.hppc.cursors.ObjectLongCursor;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.TestUtil;
-import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.util.*;
 import java.util.Map.Entry;
 
-public class BytesRefHashTests extends ElasticsearchTestCase {
+public class BytesRefHashTests extends AbstractBigArraysTest {
 
     BytesRefHash hash;
 
@@ -40,7 +39,7 @@ public class BytesRefHashTests extends ElasticsearchTestCase {
         }
         // Test high load factors to make sure that collision resolution works fine
         final float maxLoadFactor = 0.6f + randomFloat() * 0.39f;
-        hash = new BytesRefHash(randomIntBetween(0, 100), maxLoadFactor, BigArraysTests.randombigArrays());
+        hash = new BytesRefHash(randomIntBetween(0, 100), maxLoadFactor, randombigArrays());
     }
 
     @Override

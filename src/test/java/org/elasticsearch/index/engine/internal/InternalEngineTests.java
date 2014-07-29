@@ -156,7 +156,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
     }
 
     private Document testDocument() {
-        return new Document();
+        return new Document("", null);
     }
 
 

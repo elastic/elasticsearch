@@ -498,7 +498,7 @@ public class DocumentMapper implements ToXContent {
             if (sourceTransforms != null) {
                 parser = transform(parser);
             }
-            context.reset(parser, new ParseContext.Document(), source, listener);
+            context.reset(parser, new ParseContext.Document("", null), source, listener);
 
             // will result in START_OBJECT
             int countDownTokens = 0;

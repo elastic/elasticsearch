@@ -47,11 +47,38 @@ public abstract class ParseContext {
     /** Fork of {@link org.apache.lucene.document.Document} with additional functionality. */
     public static class Document implements Iterable<IndexableField> {
 
+        private final Document parent;
+        private final String path;
+        private final String prefix;
         private final List<IndexableField> fields;
         private ObjectObjectMap<Object, IndexableField> keyedFields;
 
-        public Document() {
+        public Document(String path, Document parent) {
             fields = Lists.newArrayList();
+            this.path = path;
+            this.prefix = path.isEmpty() ? "" : path + ".";
+            this.parent = parent;
+        }
+
+        /**
+         * Return the path associated with this document.
+         */
+        public String getPath() {
+            return path;
+        }
+
+        /**
+         * Return a prefix that all fields in this document should have.
+         */
+        public String getPrefix() {
+            return prefix;
+        }
+
+        /**
+         * Return the parent document, or null if this is the root document.
+         */
+        public Document getParent() {
+            return parent;
         }
 
         @Override
@@ -64,6 +91,8 @@ public abstract class ParseContext {
         }
 
         public void add(IndexableField field) {
+            // either a meta fields or starts with the prefix
+            assert field.name().startsWith("_") || field.name().startsWith(prefix) : field.name() + " " + prefix;
             fields.add(field);
         }
 
@@ -238,11 +267,6 @@ public abstract class ParseContext {
         @Override
         public void addDoc(Document doc) {
             in.addDoc(doc);
-        }
-
-        @Override
-        public Document switchDoc(Document doc) {
-            return in.switchDoc(doc);
         }
 
         @Override
@@ -497,12 +521,6 @@ public abstract class ParseContext {
             this.documents.add(doc);
         }
 
-        public Document switchDoc(Document doc) {
-            Document prev = this.document;
-            this.document = doc;
-            return prev;
-        }
-
         public RootObjectMapper root() {
             return docMapper.root();
         }
@@ -625,6 +643,39 @@ public abstract class ParseContext {
         };
     }
 
+    /**
+     * Return a new context that will be used within a nested document.
+     */
+    public final ParseContext createNestedContext(String fullPath) {
+        final Document doc = new Document(fullPath, doc());
+        addDoc(doc);
+        return switchDoc(doc);
+    }
+
+    /**
+     * Return a new context that has the provided document as the current document.
+     */
+    public final ParseContext switchDoc(final Document document) {
+        return new FilterParseContext(this) {
+            @Override
+            public Document doc() {
+                return document;
+            }
+        };
+    }
+
+    /**
+     * Return a new context that will have the provided path.
+     */
+    public final ParseContext overridePath(final ContentPath path) {
+        return new FilterParseContext(this) {
+            @Override
+            public ContentPath path() {
+                return path;
+            }
+        };
+    }
+
     public boolean isWithinMultiFields() {
         return false;
     }
@@ -656,8 +707,6 @@ public abstract class ParseContext {
     public abstract Document doc();
 
     public abstract void addDoc(Document doc);
-
-    public abstract Document switchDoc(Document doc);
 
     public abstract RootObjectMapper root();
 

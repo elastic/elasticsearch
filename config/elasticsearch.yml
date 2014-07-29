@@ -378,8 +378,8 @@
 
 ################################## Security ################################
 
-# Uncomment if you want to disable JSONP as a valid return transport on the
+# Uncomment if you want to enable JSONP as a valid return transport on the
 # http server. With this enabled, it may pose a security risk, so disabling
-# it unless you need it is recommended.
+# it unless you need it is recommended (it is disabled by default).
 #
-#http.jsonp.enable: false
+#http.jsonp.enable: true

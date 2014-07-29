@@ -1218,6 +1218,11 @@
                                 <bundledSignature>jdk-unsafe</bundledSignature>
                                 <bundledSignature>jdk-deprecated</bundledSignature>
                             </bundledSignatures>
+                            <excludes>
+                                <!-- start exclude for test GC simulation using Thread.suspend -->
+                                <exclude>org/elasticsearch/test/disruption/LongGCDisruption.class</exclude>
+                                <!-- end exclude for Channels -->
+                            </excludes>
                             <signaturesFiles>
                                 <signaturesFile>test-signatures.txt</signaturesFile>
                                 <signaturesFile>all-signatures.txt</signaturesFile>

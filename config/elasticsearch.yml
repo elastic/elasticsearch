@@ -219,6 +219,11 @@
 #
 #transport.tcp.compress: true
 
+# Default is allowing HTTP for on-site IPs only (localhost, private network IPs).
+# Public access for HTTP must be explicitly enabled (disabled by default):
+#
+#http.public_access: true
+
 # Set a custom port to listen for HTTP traffic:
 #
 #http.port: 9200

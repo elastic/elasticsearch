@@ -88,6 +88,8 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
 
     private final String publishHost;
 
+    private final Boolean publicAccess;
+
     private final Boolean tcpNoDelay;
 
     private final Boolean tcpKeepAlive;
@@ -121,6 +123,16 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
             System.setProperty("org.jboss.netty.epollBugWorkaround", "true");
         }
 
+        String hostname;
+        try {
+            // doing a reverse lookup on the server's IP address using the naming service (DNS) configured in the OS
+            hostname = InetAddress.getLocalHost().getHostName();
+            logger.debug("detected host name by reverse IP lookup: {}", hostname);
+        } catch (Exception e) {
+            hostname = "localhost";
+            logger.warn("unable to look up this machine's host name, assuming localhost. Check your DNS for correct setup");
+        }
+
         ByteSizeValue maxContentLength = componentSettings.getAsBytesSize("max_content_length", settings.getAsBytesSize("http.max_content_length", new ByteSizeValue(100, ByteSizeUnit.MB)));
         this.maxChunkSize = componentSettings.getAsBytesSize("max_chunk_size", settings.getAsBytesSize("http.max_chunk_size", new ByteSizeValue(8, ByteSizeUnit.KB)));
         this.maxHeaderSize = componentSettings.getAsBytesSize("max_header_size", settings.getAsBytesSize("http.max_header_size", new ByteSizeValue(8, ByteSizeUnit.KB)));
@@ -133,8 +145,9 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
         this.workerCount = componentSettings.getAsInt("worker_count", EsExecutors.boundedNumberOfProcessors(settings) * 2);
         this.blockingServer = settings.getAsBoolean("http.blocking_server", settings.getAsBoolean(TCP_BLOCKING_SERVER, settings.getAsBoolean(TCP_BLOCKING, false)));
         this.port = componentSettings.get("port", settings.get("http.port", "9200-9300"));
-        this.bindHost = componentSettings.get("bind_host", settings.get("http.bind_host", settings.get("http.host")));
-        this.publishHost = componentSettings.get("publish_host", settings.get("http.publish_host", settings.get("http.host")));
+        this.bindHost = componentSettings.get("bind_host", settings.get("http.bind_host", settings.get("http.host", hostname)));
+        this.publishHost = componentSettings.get("publish_host", settings.get("http.publish_host", settings.get("http.host", hostname)));
+        this.publicAccess = componentSettings.getAsBoolean("public_access", settings.getAsBoolean("http.public_access", false));
         this.tcpNoDelay = componentSettings.getAsBoolean("tcp_no_delay", settings.getAsBoolean(TCP_NO_DELAY, true));
         this.tcpKeepAlive = componentSettings.getAsBoolean("tcp_keep_alive", settings.getAsBoolean(TCP_KEEP_ALIVE, true));
         this.reuseAddress = componentSettings.getAsBoolean("reuse_address", settings.getAsBoolean(TCP_REUSE_ADDRESS, NetworkUtils.defaultReuseAddress()));
@@ -224,6 +237,16 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
             throw new BindHttpException("Failed to resolve host [" + bindHost + "]", e);
         }
         final InetAddress hostAddress = hostAddressX;
+
+        // Fail if host address is a public IP, but only on-site networking is allowed.
+        if (!publicAccess) {
+            if (hostAddress == null ||
+                    (!hostAddress.isLoopbackAddress() && !hostAddress.isLinkLocalAddress() && !hostAddress.isSiteLocalAddress())) {
+                throw new ElasticsearchException("Bind host " + bindHost
+                        + (hostAddress != null ? "(address " + hostAddress + ") " : "")
+                        + "has a public IP which is not permitted by default. Check 'http.publicaccess' setting in configuration.");
+            }
+        }
 
         PortsRange portsRange = new PortsRange(port);
         final AtomicReference<Exception> lastException = new AtomicReference<>();

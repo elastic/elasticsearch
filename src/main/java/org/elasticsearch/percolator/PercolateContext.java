@@ -36,7 +36,6 @@ import org.elasticsearch.index.cache.filter.FilterCache;
 import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilterCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
-import org.elasticsearch.index.fieldvisitor.JustSourceFieldsVisitor;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.MapperService;
@@ -145,7 +144,7 @@ public class PercolateContext extends SearchContext {
         }
         hitContext().reset(
                 new InternalSearchHit(0, "unknown", new StringText(parsedDocument.type()), fields),
-                atomicReaderContext, 0, indexReader, 0, new JustSourceFieldsVisitor()
+                atomicReaderContext, 0, indexReader
         );
     }
 

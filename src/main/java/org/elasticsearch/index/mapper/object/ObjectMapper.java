@@ -1037,4 +1037,5 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
 
     }
+
 }

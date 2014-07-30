@@ -22,8 +22,11 @@ package org.elasticsearch.test;
 import com.google.common.collect.Lists;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -33,6 +36,9 @@ import org.elasticsearch.common.transport.TransportAddress;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.Iterator;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.junit.Assert.assertThat;
 
 /**
  * External cluster to run the tests against.
@@ -51,7 +57,9 @@ public final class ExternalTestCluster extends TestCluster {
     private final int numBenchNodes;
 
     public ExternalTestCluster(TransportAddress... transportAddresses) {
-        this.client = new TransportClient(ImmutableSettings.settingsBuilder().put("client.transport.ignore_cluster_name", true))
+        this.client = new TransportClient(ImmutableSettings.settingsBuilder()
+                .put("client.transport.ignore_cluster_name", true)
+                .put("node.mode", "network")) // we require network here!
                 .addTransportAddresses(transportAddresses);
 
         NodesInfoResponse nodeInfos = this.client.admin().cluster().prepareNodesInfo().clear().setSettings(true).setHttp(true).get();
@@ -106,6 +114,21 @@ public final class ExternalTestCluster extends TestCluster {
     @Override
     public void close() throws IOException {
         client.close();
+    }
+
+    @Override
+    public void ensureEstimatedStats() {
+        if (size() > 0) {
+            NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats()
+                    .clear().setBreaker(true).execute().actionGet();
+            for (NodeStats stats : nodeStats.getNodes()) {
+                assertThat("Fielddata breaker not reset to 0 on node: " + stats.getNode(),
+                        stats.getBreaker().getStats(CircuitBreaker.Name.FIELDDATA).getEstimated(), equalTo(0L));
+                // ExternalTestCluster does not check the request breaker,
+                // because checking it requires a network request, which in
+                // turn increments the breaker, making it non-0
+            }
+        }
     }
 
     @Override

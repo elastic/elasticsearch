@@ -131,14 +131,21 @@ public class DiskThresholdDecider extends AllocationDecider {
     }
 
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+
+        // Always allow allocation if the decider is disabled
         if (!enabled) {
             return allocation.decision(Decision.YES, NAME, "disk threshold decider disabled");
         }
+
         // Allow allocation regardless if only a single node is available
         if (allocation.nodes().size() <= 1) {
+            if (logger.isTraceEnabled()) {
+                logger.trace("Only a single node is present, allowing allocation");
+            }
             return allocation.decision(Decision.YES, NAME, "only a single node is present");
         }
 
+        // Fail open there is no info available
         ClusterInfo clusterInfo = allocation.clusterInfo();
         if (clusterInfo == null) {
             if (logger.isTraceEnabled()) {
@@ -147,6 +154,7 @@ public class DiskThresholdDecider extends AllocationDecider {
             return allocation.decision(Decision.YES, NAME, "cluster info unavailable");
         }
 
+        // Fail open if there are no disk usages available
         Map<String, DiskUsage> usages = clusterInfo.getNodeDiskUsages();
         Map<String, Long> shardSizes = clusterInfo.getShardSizes();
         if (usages.isEmpty()) {
@@ -173,21 +181,72 @@ public class DiskThresholdDecider extends AllocationDecider {
         if (logger.isDebugEnabled()) {
             logger.debug("Node [{}] has {}% free disk", node.nodeId(), freeDiskPercentage);
         }
+
+        // a flag for whether the primary shard has been previously allocated
+        boolean primaryHasBeenAllocated = allocation.routingTable().index(shardRouting.index()).shard(shardRouting.id()).primaryAllocatedPostApi();
+
+        // checks for exact byte comparisons
         if (freeBytes < freeBytesThresholdLow.bytes()) {
-            if (logger.isDebugEnabled()) {
-                logger.debug("Less than the required {} free bytes threshold ({} bytes free) on node {}, preventing allocation",
-                        freeBytesThresholdLow, freeBytes, node.nodeId());
+            // If the shard is a replica or has a primary that has already been allocated before, check the low threshold
+            if (!shardRouting.primary() || (shardRouting.primary() && primaryHasBeenAllocated)) {
+                if (logger.isDebugEnabled()) {
+                    logger.debug("Less than the required {} free bytes threshold ({} bytes free) on node {}, preventing allocation",
+                            freeBytesThresholdLow, freeBytes, node.nodeId());
+                }
+                return allocation.decision(Decision.NO, NAME, "less than required [%s] free on node, free: [%s]",
+                        freeBytesThresholdLow, new ByteSizeValue(freeBytes));
+            } else if (freeBytes > freeBytesThresholdHigh.bytes()) {
+                // Allow the shard to be allocated because it is primary that
+                // has never been allocated if it's under the high watermark
+                if (logger.isDebugEnabled()) {
+                    logger.debug("Less than the required {} free bytes threshold ({} bytes free) on node {}, " +
+                                    "but allowing allocation because primary has never been allocated",
+                            freeBytesThresholdLow, freeBytes, node.nodeId());
+                }
+                return allocation.decision(Decision.YES, NAME, "primary has never been allocated before");
+            } else {
+                // Even though the primary has never been allocated, the node is
+                // above the high watermark, so don't allow allocating the shard
+                if (logger.isDebugEnabled()) {
+                    logger.debug("Less than the required {} free bytes threshold ({} bytes free) on node {}, " +
+                                    "preventing allocation even though primary has never been allocated",
+                            freeBytesThresholdHigh, freeBytes, node.nodeId());
+                }
+                return allocation.decision(Decision.NO, NAME, "less than required [%s] free on node, free: [%s]",
+                        freeBytesThresholdHigh, new ByteSizeValue(freeBytes));
             }
-            return allocation.decision(Decision.NO, NAME, "less than required [%s] free on node, free: [%s]",
-                    freeBytesThresholdLow, new ByteSizeValue(freeBytes));
         }
+
+        // checks for percentage comparisons
         if (freeDiskPercentage < freeDiskThresholdLow) {
-            if (logger.isDebugEnabled()) {
-                logger.debug("Less than the required {}% free disk threshold ({}% free) on node [{}], preventing allocation",
-                        freeDiskThresholdLow, freeDiskPercentage, node.nodeId());
+            // If the shard is a replica or has a primary that has already been allocated before, check the low threshold
+            if (!shardRouting.primary() || (shardRouting.primary() && primaryHasBeenAllocated)) {
+                if (logger.isDebugEnabled()) {
+                    logger.debug("Less than the required {}% free disk threshold ({}% free) on node [{}], preventing allocation",
+                            freeDiskThresholdLow, freeDiskPercentage, node.nodeId());
+                }
+                return allocation.decision(Decision.NO, NAME, "less than required [%s%%] free disk on node, free: [%s%%]",
+                        freeDiskThresholdLow, freeDiskThresholdLow);
+            } else if (freeDiskPercentage > freeDiskThresholdHigh) {
+                // Allow the shard to be allocated because it is primary that
+                // has never been allocated if it's under the high watermark
+                if (logger.isDebugEnabled()) {
+                    logger.debug("Less than the required {}% free disk threshold ({}% free) on node [{}], " +
+                                    "but allowing allocation because primary has never been allocated",
+                            freeDiskThresholdLow, freeDiskPercentage, node.nodeId());
+                }
+                return allocation.decision(Decision.YES, NAME, "primary has never been allocated before");
+            } else {
+                // Even though the primary has never been allocated, the node is
+                // above the high watermark, so don't allow allocating the shard
+                if (logger.isDebugEnabled()) {
+                    logger.debug("Less than the required {} free bytes threshold ({} bytes free) on node {}, " +
+                                    "preventing allocation even though primary has never been allocated",
+                            freeDiskThresholdHigh, freeDiskPercentage, node.nodeId());
+                }
+                return allocation.decision(Decision.NO, NAME, "less than required [%s%%] free disk on node, free: [%s%%]",
+                        freeDiskThresholdLow, freeDiskThresholdLow);
             }
-            return allocation.decision(Decision.NO, NAME, "less than required [%s%%] free disk on node, free: [%s%%]",
-                    freeDiskThresholdLow, freeDiskThresholdLow);
         }
 
         // Secondly, check that allocating the shard to this node doesn't put it above the high watermark

@@ -20,120 +20,62 @@
 package org.elasticsearch.index.fielddata.plain;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.SortedDocValues;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.index.fielddata.AtomicFieldData;
-import org.elasticsearch.index.fielddata.BytesValues;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
+import org.elasticsearch.search.MultiValueMode;
+
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  */
-public class ParentChildAtomicFieldData implements AtomicFieldData {
+public class ParentChildAtomicFieldData extends AbstractAtomicParentChildFieldData {
 
-    private final ImmutableOpenMap<String, PagedBytesAtomicFieldData> typeToIds;
-    private final long numberUniqueValues;
+    private final ImmutableOpenMap<String, AtomicOrdinalsFieldData> typeToIds;
     private final long memorySizeInBytes;
 
-    public ParentChildAtomicFieldData(ImmutableOpenMap<String, PagedBytesAtomicFieldData> typeToIds) {
+    public ParentChildAtomicFieldData(ImmutableOpenMap<String, AtomicOrdinalsFieldData> typeToIds) {
         this.typeToIds = typeToIds;
-        long numValues = 0;
-        for (ObjectCursor<PagedBytesAtomicFieldData> cursor : typeToIds.values()) {
-            numValues += cursor.value.getNumberUniqueValues();
-        }
-        this.numberUniqueValues = numValues;
         long size = 0;
-        for (ObjectCursor<PagedBytesAtomicFieldData> cursor : typeToIds.values()) {
-            size += cursor.value.getMemorySizeInBytes();
+        for (ObjectCursor<AtomicOrdinalsFieldData> cursor : typeToIds.values()) {
+            size += cursor.value.ramBytesUsed();
         }
         this.memorySizeInBytes = size;
     }
 
     @Override
-    public boolean isMultiValued() {
-        return true;
-    }
-
-    @Override
-    public long getNumberUniqueValues() {
-        return numberUniqueValues;
-    }
-
-    @Override
-    public long getMemorySizeInBytes() {
+    public long ramBytesUsed() {
         return memorySizeInBytes;
     }
 
     @Override
-    public BytesValues getBytesValues() {
-        final BytesValues[] bytesValues = new BytesValues[typeToIds.size()];
-        int index = 0;
-        for (ObjectCursor<PagedBytesAtomicFieldData> cursor : typeToIds.values()) {
-            bytesValues[index++] = cursor.value.getBytesValues();
+    public Set<String> types() {
+        final Set<String> types = new HashSet<>();
+        for (ObjectCursor<String> cursor : typeToIds.keys()) {
+            types.add(cursor.value);
         }
-        return new BytesValues(true) {
-
-            private final BytesRef[] terms = new BytesRef[2];
-            private int index;
-
-            @Override
-            public int setDocument(int docId) {
-                index = 0;
-                int counter = 0;
-                for (final BytesValues values : bytesValues) {
-                    int numValues = values.setDocument(docId);
-                    assert numValues <= 1 : "Per doc/type combination only a single value is allowed";
-                    if (numValues == 1) {
-                        values.nextValue();
-                        terms[counter++] = values.copyShared();
-                    }
-                }
-                assert counter <= 2 : "A single doc can potentially be both parent and child, so the maximum allowed values is 2";
-                if (counter > 1) {
-                    int cmp = terms[0].compareTo(terms[1]);
-                    if (cmp > 0) {
-                        BytesRef temp = terms[0];
-                        terms[0] = terms[1];
-                        terms[1] = temp;
-                    } else if (cmp == 0) {
-                        // If the id is the same between types the only omit one. For example: a doc has parent#1 in _uid field and has grand_parent#1 in _parent field.
-                        return 1;
-                    }
-                }
-                return counter;
-            }
-
-            @Override
-            public BytesRef nextValue() {
-                BytesRef current = terms[index++];
-                scratch.bytes = current.bytes;
-                scratch.offset = current.offset;
-                scratch.length = current.length;
-                return scratch;
-            }
-        };
+        return types;
     }
 
-    public BytesValues.WithOrdinals getBytesValues(String type) {
-        WithOrdinals atomicFieldData = typeToIds.get(type);
+    @Override
+    public SortedDocValues getOrdinalsValues(String type) {
+        AtomicOrdinalsFieldData atomicFieldData = typeToIds.get(type);
         if (atomicFieldData != null) {
-            return atomicFieldData.getBytesValues();
+            return MultiValueMode.MIN.select(atomicFieldData.getOrdinalsValues());
         } else {
-            return null;
+            return DocValues.emptySorted();
         }
     }
 
-    public WithOrdinals getAtomicFieldData(String type) {
+    public AtomicOrdinalsFieldData getAtomicFieldData(String type) {
         return typeToIds.get(type);
     }
 
     @Override
-    public ScriptDocValues getScriptValues() {
-        return new ScriptDocValues.Strings(getBytesValues());
-    }
-
-    @Override
     public void close() {
-        for (ObjectCursor<PagedBytesAtomicFieldData> cursor : typeToIds.values()) {
+        for (ObjectCursor<AtomicOrdinalsFieldData> cursor : typeToIds.values()) {
             cursor.value.close();
         }
     }

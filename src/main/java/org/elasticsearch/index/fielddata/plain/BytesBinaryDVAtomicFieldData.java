@@ -20,63 +20,72 @@
 package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.BinaryDocValues;
-import org.apache.lucene.index.DocValues;
 import org.apache.lucene.store.ByteArrayDataInput;
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
-import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 
-final class BytesBinaryDVAtomicFieldData implements AtomicFieldData<ScriptDocValues> {
+import java.util.Arrays;
+
+final class BytesBinaryDVAtomicFieldData implements AtomicFieldData {
 
     private final BinaryDocValues values;
 
     BytesBinaryDVAtomicFieldData(BinaryDocValues values) {
         super();
-        this.values = values == null ? DocValues.EMPTY_BINARY : values;
+        this.values = values;
     }
 
     @Override
-    public boolean isMultiValued() {
-        return true;
-    }
-
-    @Override
-    public long getNumberUniqueValues() {
-        return Long.MAX_VALUE;
-    }
-
-    @Override
-    public long getMemorySizeInBytes() {
+    public long ramBytesUsed() {
         return -1; // not exposed by Lucene
     }
 
     @Override
-    public BytesValues getBytesValues() {
-        return new BytesValues(true) {
+    public SortedBinaryDocValues getBytesValues() {
+        return new SortedBinaryDocValues() {
 
-            final BytesRef bytes = new BytesRef();
+            int count;
+            BytesRef[] refs = new BytesRef[0];
             final ByteArrayDataInput in = new ByteArrayDataInput();
 
             @Override
-            public int setDocument(int docId) {
-                values.get(docId, bytes);
+            public void setDocument(int docId) {
+                final BytesRef bytes = values.get(docId);
                 in.reset(bytes.bytes, bytes.offset, bytes.length);
                 if (bytes.length == 0) {
-                    return 0;
+                    count = 0;
                 } else {
-                    return in.readVInt();
+                    count = in.readVInt();
+                    if (count > refs.length) {
+                        final int previousLength = refs.length;
+                        refs = Arrays.copyOf(refs, ArrayUtil.oversize(count, RamUsageEstimator.NUM_BYTES_OBJECT_REF));
+                        for (int i = previousLength; i < refs.length; ++i) {
+                            refs[i] = new BytesRef();
+                        }
+                    }
+                    for (int i = 0; i < count; ++i) {
+                        final int length = in.readVInt();
+                        final BytesRef scratch = refs[i];
+                        scratch.grow(length);
+                        in.readBytes(scratch.bytes, 0, length);
+                        scratch.length = length;
+                        scratch.offset = 0;
+                    }
                 }
             }
 
             @Override
-            public BytesRef nextValue() {
-                final int length = in.readVInt();
-                scratch.grow(length);
-                in.readBytes(scratch.bytes, 0, length);
-                scratch.length = length;
-                scratch.offset = 0;
-                return scratch;
+            public int count() {
+                return count;
+            }
+
+            @Override
+            public BytesRef valueAt(int index) {
+                return refs[index];
             }
 
         };

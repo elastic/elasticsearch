@@ -197,23 +197,23 @@ final class TermVectorWriter {
 
     private void writeTermStatistics(TermsEnum topLevelIterator) throws IOException {
         int docFreq = topLevelIterator.docFreq();
-        assert (docFreq >= 0);
+        assert (docFreq >= -1);
         writePotentiallyNegativeVInt(docFreq);
         long ttf = topLevelIterator.totalTermFreq();
-        assert (ttf >= 0);
+        assert (ttf >= -1);
         writePotentiallyNegativeVLong(ttf);
 
     }
 
     private void writeFieldStatistics(Terms topLevelTerms) throws IOException {
         long sttf = topLevelTerms.getSumTotalTermFreq();
-        assert (sttf >= 0);
+        assert (sttf >= -1);
         writePotentiallyNegativeVLong(sttf);
         long sdf = topLevelTerms.getSumDocFreq();
-        assert (sdf >= 0);
+        assert (sdf >= -1);
         writePotentiallyNegativeVLong(sdf);
         int dc = topLevelTerms.getDocCount();
-        assert (dc >= 0);
+        assert (dc >= -1);
         writePotentiallyNegativeVInt(dc);
 
     }

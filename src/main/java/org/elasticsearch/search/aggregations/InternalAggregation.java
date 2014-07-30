@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
@@ -150,6 +151,16 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
         }
         out.writeVInt(size);
     }
+    
+    @Override
+    public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject(name);
+        doXContentBody(builder, params);
+        builder.endObject();
+        return builder;
+    }
+
+    public abstract XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException;
 
     /**
      * Common xcontent fields that are shared among addAggregation

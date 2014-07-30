@@ -20,6 +20,7 @@
 package org.elasticsearch.client.support;
 
 import org.elasticsearch.action.*;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.bench.*;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -46,6 +47,18 @@ import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.indexedscripts.delete.DeleteIndexedScriptAction;
+import org.elasticsearch.action.indexedscripts.delete.DeleteIndexedScriptRequest;
+import org.elasticsearch.action.indexedscripts.delete.DeleteIndexedScriptRequestBuilder;
+import org.elasticsearch.action.indexedscripts.delete.DeleteIndexedScriptResponse;
+import org.elasticsearch.action.indexedscripts.get.GetIndexedScriptAction;
+import org.elasticsearch.action.indexedscripts.get.GetIndexedScriptRequest;
+import org.elasticsearch.action.indexedscripts.get.GetIndexedScriptRequestBuilder;
+import org.elasticsearch.action.indexedscripts.get.GetIndexedScriptResponse;
+import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptAction;
+import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptRequest;
+import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptRequestBuilder;
+import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptResponse;
 import org.elasticsearch.action.mlt.MoreLikeThisAction;
 import org.elasticsearch.action.mlt.MoreLikeThisRequest;
 import org.elasticsearch.action.mlt.MoreLikeThisRequestBuilder;
@@ -187,6 +200,112 @@ public abstract class AbstractClient implements Client {
     public GetRequestBuilder prepareGet(String index, String type, String id) {
         return prepareGet().setIndex(index).setType(type).setId(id);
     }
+
+
+    @Override
+    public ActionFuture<GetIndexedScriptResponse> getIndexedScript(final GetIndexedScriptRequest request) {
+        return execute(GetIndexedScriptAction.INSTANCE, request);
+    }
+
+    @Override
+    public void getIndexedScript(final GetIndexedScriptRequest request, final ActionListener<GetIndexedScriptResponse> listener) {
+        execute(GetIndexedScriptAction.INSTANCE, request, listener);
+    }
+
+    @Override
+    public GetIndexedScriptRequestBuilder prepareGetIndexedScript() {
+        return new GetIndexedScriptRequestBuilder(this);
+    }
+
+    @Override
+    public GetIndexedScriptRequestBuilder prepareGetIndexedScript(String scriptLang, String id) {
+        return prepareGetIndexedScript().setScriptLang(scriptLang).setId(id);
+    }
+
+
+    /**
+     * Put an indexed script
+     */
+    @Override
+    public PutIndexedScriptRequestBuilder preparePutIndexedScript() {
+        return new PutIndexedScriptRequestBuilder(this);
+    }
+
+    /**
+     * Put the indexed script
+     * @param scriptLang
+     * @param id
+     * @param source
+     * @return
+     */
+    @Override
+    public PutIndexedScriptRequestBuilder preparePutIndexedScript(@Nullable String scriptLang, String id, String source){
+        return PutIndexedScriptAction.INSTANCE.newRequestBuilder(this).setScriptLang(scriptLang).setId(id).setSource(source);
+    }
+
+    /**
+     * Put an indexed script
+     *
+     * @param request
+     * @param listener
+     */
+    @Override
+    public void putIndexedScript(final PutIndexedScriptRequest request, ActionListener<PutIndexedScriptResponse> listener){
+        execute(PutIndexedScriptAction.INSTANCE, request, listener);
+
+    }
+
+    /**
+     * Put an indexed script
+     *
+     * @param request The put request
+     * @return The result future
+     */
+    @Override
+    public ActionFuture<PutIndexedScriptResponse> putIndexedScript(final PutIndexedScriptRequest request){
+        return execute(PutIndexedScriptAction.INSTANCE, request);
+    }
+
+    /**
+     * delete an indexed script
+     *
+     * @param request
+     * @param listener
+     */
+    @Override
+    public void deleteIndexedScript(DeleteIndexedScriptRequest request, ActionListener<DeleteIndexedScriptResponse> listener){
+        execute(DeleteIndexedScriptAction.INSTANCE, request, listener);
+    }
+
+    /**
+     * Delete an indexed script
+     *
+     * @param request The put request
+     * @return The result future
+     */
+    public ActionFuture<DeleteIndexedScriptResponse> deleteIndexedScript(DeleteIndexedScriptRequest request){
+        return execute(DeleteIndexedScriptAction.INSTANCE, request);
+    }
+
+
+    /**
+     * Delete an indexed script
+     */
+    public DeleteIndexedScriptRequestBuilder prepareDeleteIndexedScript(){
+        return DeleteIndexedScriptAction.INSTANCE.newRequestBuilder(this);
+    }
+
+    /**
+     * Delete an indexed script
+     * @param scriptLang
+     * @param id
+     * @return
+     */
+    public DeleteIndexedScriptRequestBuilder prepareDeleteIndexedScript(@Nullable String scriptLang, String id){
+        return prepareDeleteIndexedScript().setScriptLang(scriptLang).setId(id);
+    }
+
+
 
     @Override
     public ActionFuture<MultiGetResponse> multiGet(final MultiGetRequest request) {

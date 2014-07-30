@@ -1,43 +1,43 @@
 ---
-  setup:
+setup:
 
-    - do:
-        indices.create:
-            index:  test1
-            body:
-                mappings:
-                    bar:
-                        properties:
-                            bar:
-                                type: string
-                                fields:
-                                    completion:
-                                        type: completion
-                            baz:
-                                type: string
-                                fields:
-                                    completion:
-                                        type: completion
-    - do:
-        index:
-            index: test1
-            type:  bar
-            id:    1
-            body:  { "bar": "bar", "baz": "baz" }
+  - do:
+      indices.create:
+          index:  test1
+          body:
+              mappings:
+                  bar:
+                      properties:
+                          bar:
+                              type: string
+                              fields:
+                                  completion:
+                                      type: completion
+                          baz:
+                              type: string
+                              fields:
+                                  completion:
+                                      type: completion
+  - do:
+      index:
+          index: test1
+          type:  bar
+          id:    1
+          body:  { "bar": "bar", "baz": "baz" }
 
-    - do:
-        index:
-            index: test2
-            type:  baz
-            id:    1
-            body:  { "bar": "bar", "baz": "baz" }
+  - do:
+      index:
+          index: test2
+          type:  baz
+          id:    1
+          body:  { "bar": "bar", "baz": "baz" }
 
-    - do:
-        indices.refresh: {}
+  - do:
+      indices.refresh: {}
 
-    - do:
-        search:
-            sort: bar,baz
+  - do:
+      search:
+          sort: bar,baz
 
 ---
 "Fields - blank":

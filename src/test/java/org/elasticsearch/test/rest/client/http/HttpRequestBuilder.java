@@ -23,10 +23,11 @@ import com.google.common.collect.Maps;
 import org.apache.http.client.methods.*;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.transport.InetSocketTransportAddress;
+import org.elasticsearch.http.HttpServerTransport;
 
 import java.io.IOException;
 import java.net.URI;
@@ -46,6 +47,8 @@ public class HttpRequestBuilder {
 
     private final CloseableHttpClient httpClient;
 
+    private String protocol = "http";
+
     private String host;
 
     private int port;
@@ -53,6 +56,8 @@ public class HttpRequestBuilder {
     private String path = "";
 
     private final Map<String, String> params = Maps.newHashMap();
+
+    private final Map<String, String> headers = Maps.newHashMap();
 
     private String method = HttpGetWithEntity.METHOD_NAME;
 
@@ -65,6 +70,11 @@ public class HttpRequestBuilder {
     public HttpRequestBuilder host(String host) {
         this.host = host;
         return this;
+    }
+
+    public HttpRequestBuilder httpTransport(HttpServerTransport httpServerTransport) {
+        InetSocketTransportAddress transportAddress = (InetSocketTransportAddress) httpServerTransport.boundAddress().publishAddress();
+        return host(transportAddress.address().getHostName()).port(transportAddress.address().getPort());
     }
 
     public HttpRequestBuilder port(int port) {
@@ -82,6 +92,16 @@ public class HttpRequestBuilder {
         return this;
     }
 
+    public HttpRequestBuilder addHeader(String name, String value) {
+        this.headers.put(name, value);
+        return this;
+    }
+
+    public HttpRequestBuilder protocol(String protocol) {
+        this.protocol = protocol;
+        return this;
+    }
+
     public HttpRequestBuilder method(String method) {
         this.method = method;
         return this;
@@ -95,26 +115,21 @@ public class HttpRequestBuilder {
     }
 
     public HttpResponse execute() throws IOException {
-        CloseableHttpResponse closeableHttpResponse = null;
-        try {
-            HttpUriRequest httpUriRequest = buildRequest();
-            if (logger.isTraceEnabled()) {
-                StringBuilder stringBuilder = new StringBuilder(httpUriRequest.getMethod()).append(" ").append(httpUriRequest.getURI());
-                if (Strings.hasLength(body)) {
-                    stringBuilder.append("\n").append(body);
-                }
-                logger.trace("sending request \n{}", stringBuilder.toString());
+        HttpUriRequest httpUriRequest = buildRequest();
+        if (logger.isTraceEnabled()) {
+            StringBuilder stringBuilder = new StringBuilder(httpUriRequest.getMethod()).append(" ").append(httpUriRequest.getURI());
+            if (Strings.hasLength(body)) {
+                stringBuilder.append("\n").append(body);
             }
-            closeableHttpResponse = httpClient.execute(httpUriRequest);
+            logger.trace("sending request \n{}", stringBuilder.toString());
+        }
+        for (Map.Entry<String, String> entry : this.headers.entrySet()) {
+            httpUriRequest.addHeader(entry.getKey(), entry.getValue());
+        }
+        try (CloseableHttpResponse closeableHttpResponse = httpClient.execute(httpUriRequest)) {
             HttpResponse httpResponse = new HttpResponse(httpUriRequest, closeableHttpResponse);
             logger.trace("got response \n{}\n{}", closeableHttpResponse, httpResponse.hasBody() ? httpResponse.getBody() : "");
             return httpResponse;
-        } finally {
-            try {
-                IOUtils.close(closeableHttpResponse);
-            } catch (IOException e) {
-                logger.error("error closing http response", e);
-            }
         }
     }
 
@@ -127,6 +142,11 @@ public class HttpRequestBuilder {
         if (HttpHead.METHOD_NAME.equalsIgnoreCase(method)) {
             checkBodyNotSupported();
             return new HttpHead(buildUri());
+        }
+
+        if (HttpOptions.METHOD_NAME.equalsIgnoreCase(method)) {
+            checkBodyNotSupported();
+            return new HttpOptions(buildUri());
         }
 
         if (HttpDeleteWithEntity.METHOD_NAME.equalsIgnoreCase(method)) {
@@ -152,7 +172,7 @@ public class HttpRequestBuilder {
             query = Joiner.on('&').withKeyValueSeparator("=").join(params);
         }
         try {
-            return new URI("http", null, host, port, path, query, null);
+            return new URI(protocol, null, host, port, path, query, null);
         } catch (URISyntaxException e) {
             throw new IllegalArgumentException(e);
         }

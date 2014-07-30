@@ -24,24 +24,24 @@ import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.*;
-import org.elasticsearch.search.MultiValueMode;
-import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsBuilder;
+import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMapper.Names;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
+import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 
 /**
  * A field data implementation that forbids loading and will throw an {@link org.elasticsearch.ElasticsearchIllegalStateException} if you try to load
  * {@link AtomicFieldData} instances.
  */
-public final class DisabledIndexFieldData extends AbstractIndexFieldData<AtomicFieldData<?>> {
+public final class DisabledIndexFieldData extends AbstractIndexFieldData<AtomicFieldData> {
 
     public static class Builder implements IndexFieldData.Builder {
         @Override
-        public IndexFieldData<AtomicFieldData<?>> build(Index index, @IndexSettings Settings indexSettings, FieldMapper<?> mapper,
-                                                        IndexFieldDataCache cache, CircuitBreakerService breakerService, MapperService mapperService, GlobalOrdinalsBuilder globalOrdinalBuilder) {
+        public IndexFieldData<AtomicFieldData> build(Index index, @IndexSettings Settings indexSettings, FieldMapper<?> mapper,
+                                                        IndexFieldDataCache cache, CircuitBreakerService breakerService, MapperService mapperService) {
             // Ignore Circuit Breaker
             return new DisabledIndexFieldData(index, indexSettings, mapper.names(), mapper.fieldDataType(), cache);
         }
@@ -52,17 +52,12 @@ public final class DisabledIndexFieldData extends AbstractIndexFieldData<AtomicF
     }
 
     @Override
-    public boolean valuesOrdered() {
-        return false;
-    }
-
-    @Override
-    public AtomicFieldData<?> loadDirect(AtomicReaderContext context) throws Exception {
+    public AtomicFieldData loadDirect(AtomicReaderContext context) throws Exception {
         throw fail();
     }
 
     @Override
-    public IndexFieldData.XFieldComparatorSource comparatorSource(Object missingValue, MultiValueMode sortMode) {
+    public IndexFieldData.XFieldComparatorSource comparatorSource(Object missingValue, MultiValueMode sortMode, Nested nested) {
         throw fail();
     }
 

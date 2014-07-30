@@ -22,6 +22,7 @@ import com.google.common.base.Strings;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.internal.IndexFieldMapper;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
@@ -132,7 +133,7 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
                 .execute().actionGet();
 
-        assertSearchResponse(response);
+        assertSearchResponse(response);System.out.println(response);
 
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -983,6 +984,130 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
         assertThat(stats.getMax(), equalTo(asc ? 4.0 : 2.0));
     }
 
+    @Test
+    public void singleValuedField_OrderedBySubAggregationAsc_MultiHierarchyLevels_specialChars() throws Exception {
+        StringBuilder filter2NameBuilder = new StringBuilder("filt.er2");
+        filter2NameBuilder.append(randomAsciiOfLengthBetween(3, 10).replace("[", "").replace("]", "").replace(">", ""));
+        String filter2Name = filter2NameBuilder.toString();
+        StringBuilder statsNameBuilder = new StringBuilder("st.ats");
+        statsNameBuilder.append(randomAsciiOfLengthBetween(3, 10).replace("[", "").replace("]", "").replace(">", ""));
+        String statsName = statsNameBuilder.toString();
+        boolean asc = randomBoolean();
+        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+                .addAggregation(terms("tags")
+                        .executionHint(randomExecutionHint())
+                        .field("tag")
+                        .collectMode(randomFrom(SubAggCollectionMode.values()))
+                        .order(Terms.Order.aggregation("filter1>" + filter2Name + ">" + statsName + ".max", asc))
+                        .subAggregation(filter("filter1").filter(FilterBuilders.matchAllFilter())
+                                .subAggregation(filter(filter2Name).filter(FilterBuilders.matchAllFilter())
+                                        .subAggregation(stats(statsName).field("i"))))
+                ).execute().actionGet();
+
+
+        assertSearchResponse(response);
+
+        Terms tags = response.getAggregations().get("tags");
+        assertThat(tags, notNullValue());
+        assertThat(tags.getName(), equalTo("tags"));
+        assertThat(tags.getBuckets().size(), equalTo(2));
+
+        Iterator<Terms.Bucket> iters = tags.getBuckets().iterator();
+
+        // the max for "more" is 2
+        // the max for "less" is 4
+
+        Terms.Bucket tag = iters.next();
+        assertThat(tag, notNullValue());
+        assertThat(key(tag), equalTo(asc ? "more" : "less"));
+        assertThat(tag.getDocCount(), equalTo(asc ? 3l : 2l));
+        Filter filter1 = tag.getAggregations().get("filter1");
+        assertThat(filter1, notNullValue());
+        assertThat(filter1.getDocCount(), equalTo(asc ? 3l : 2l));
+        Filter filter2 = filter1.getAggregations().get(filter2Name);
+        assertThat(filter2, notNullValue());
+        assertThat(filter2.getDocCount(), equalTo(asc ? 3l : 2l));
+        Stats stats = filter2.getAggregations().get(statsName);
+        assertThat(stats, notNullValue());
+        assertThat(stats.getMax(), equalTo(asc ? 2.0 : 4.0));
+
+        tag = iters.next();
+        assertThat(tag, notNullValue());
+        assertThat(key(tag), equalTo(asc ? "less" : "more"));
+        assertThat(tag.getDocCount(), equalTo(asc ? 2l : 3l));
+        filter1 = tag.getAggregations().get("filter1");
+        assertThat(filter1, notNullValue());
+        assertThat(filter1.getDocCount(), equalTo(asc ? 2l : 3l));
+        filter2 = filter1.getAggregations().get(filter2Name);
+        assertThat(filter2, notNullValue());
+        assertThat(filter2.getDocCount(), equalTo(asc ? 2l : 3l));
+        stats = filter2.getAggregations().get(statsName);
+        assertThat(stats, notNullValue());
+        assertThat(stats.getMax(), equalTo(asc ? 4.0 : 2.0));
+    }
+
+    @Test
+    public void singleValuedField_OrderedBySubAggregationAsc_MultiHierarchyLevels_specialCharsNoDotNotation() throws Exception {
+        StringBuilder filter2NameBuilder = new StringBuilder("filt.er2");
+        filter2NameBuilder.append(randomAsciiOfLengthBetween(3, 10).replace("[", "").replace("]", "").replace(">", ""));
+        String filter2Name = filter2NameBuilder.toString();
+        StringBuilder statsNameBuilder = new StringBuilder("st.ats");
+        statsNameBuilder.append(randomAsciiOfLengthBetween(3, 10).replace("[", "").replace("]", "").replace(">", ""));
+        String statsName = statsNameBuilder.toString();
+        boolean asc = randomBoolean();
+        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+                .addAggregation(terms("tags")
+                        .executionHint(randomExecutionHint())
+                        .field("tag")
+                        .collectMode(randomFrom(SubAggCollectionMode.values()))
+                        .order(Terms.Order.aggregation("filter1>" + filter2Name + ">" + statsName + "[max]", asc))
+                        .subAggregation(filter("filter1").filter(FilterBuilders.matchAllFilter())
+                                .subAggregation(filter(filter2Name).filter(FilterBuilders.matchAllFilter())
+                                        .subAggregation(stats(statsName).field("i"))))
+                ).execute().actionGet();
+
+
+        assertSearchResponse(response);
+
+        Terms tags = response.getAggregations().get("tags");
+        assertThat(tags, notNullValue());
+        assertThat(tags.getName(), equalTo("tags"));
+        assertThat(tags.getBuckets().size(), equalTo(2));
+
+        Iterator<Terms.Bucket> iters = tags.getBuckets().iterator();
+
+        // the max for "more" is 2
+        // the max for "less" is 4
+
+        Terms.Bucket tag = iters.next();
+        assertThat(tag, notNullValue());
+        assertThat(key(tag), equalTo(asc ? "more" : "less"));
+        assertThat(tag.getDocCount(), equalTo(asc ? 3l : 2l));
+        Filter filter1 = tag.getAggregations().get("filter1");
+        assertThat(filter1, notNullValue());
+        assertThat(filter1.getDocCount(), equalTo(asc ? 3l : 2l));
+        Filter filter2 = filter1.getAggregations().get(filter2Name);
+        assertThat(filter2, notNullValue());
+        assertThat(filter2.getDocCount(), equalTo(asc ? 3l : 2l));
+        Stats stats = filter2.getAggregations().get(statsName);
+        assertThat(stats, notNullValue());
+        assertThat(stats.getMax(), equalTo(asc ? 2.0 : 4.0));
+
+        tag = iters.next();
+        assertThat(tag, notNullValue());
+        assertThat(key(tag), equalTo(asc ? "less" : "more"));
+        assertThat(tag.getDocCount(), equalTo(asc ? 2l : 3l));
+        filter1 = tag.getAggregations().get("filter1");
+        assertThat(filter1, notNullValue());
+        assertThat(filter1.getDocCount(), equalTo(asc ? 2l : 3l));
+        filter2 = filter1.getAggregations().get(filter2Name);
+        assertThat(filter2, notNullValue());
+        assertThat(filter2.getDocCount(), equalTo(asc ? 2l : 3l));
+        stats = filter2.getAggregations().get(statsName);
+        assertThat(stats, notNullValue());
+        assertThat(stats.getMax(), equalTo(asc ? 4.0 : 2.0));
+    }
+
 
     @Test
     public void singleValuedField_OrderedByMissingSubAggregation() throws Exception {
@@ -1197,7 +1322,7 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
         }
 
     }
-    
+
     @Test
     public void singleValuedField_OrderedByStatsAggAscWithTermsSubAgg() throws Exception {
         boolean asc = true;
@@ -1227,7 +1352,7 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
             ExtendedStats stats = bucket.getAggregations().get("stats");
             assertThat(stats, notNullValue());
             assertThat(stats.getMax(), equalTo((double) i));
-            
+
             Terms subTermsAgg = bucket.getAggregations().get("subTerms");
             assertThat(subTermsAgg, notNullValue());
             assertThat(subTermsAgg.getBuckets().size(), equalTo(2));
@@ -1265,5 +1390,14 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
             assertThat(bucket.getDocCount(), equalTo(i == 0 ? 5L : 2L));
             i++;
         }
+
+        response = client().prepareSearch("idx", "empty_bucket_idx").setTypes("type")
+                .addAggregation(terms("terms")
+                        .executionHint(randomExecutionHint())
+                        .field(FieldNamesFieldMapper.NAME)
+                ).execute().actionGet();
+        assertSearchResponse(response);
+        terms = response.getAggregations().get("terms");
+        assertEquals(5L, terms.getBucketByKey("i").getDocCount());
     }
 }

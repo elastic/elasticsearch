@@ -23,6 +23,7 @@ import com.google.common.cache.*;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.SegmentReader;
+import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
@@ -32,12 +33,12 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.*;
-import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
 import org.elasticsearch.index.shard.service.IndexShard;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -46,14 +47,20 @@ import java.util.concurrent.TimeUnit;
 
 /**
  */
-public class IndicesFieldDataCache extends AbstractComponent implements RemovalListener<IndicesFieldDataCache.Key, RamUsage> {
+public class IndicesFieldDataCache extends AbstractComponent implements RemovalListener<IndicesFieldDataCache.Key, Accountable> {
+
+    public static final String FIELDDATA_CLEAN_INTERVAL_SETTING = "indices.fielddata.cache.cleanup_interval";
 
     private final IndicesFieldDataCacheListener indicesFieldDataCacheListener;
-    private final Cache<Key, RamUsage> cache;
+    private final Cache<Key, Accountable> cache;
+    private final TimeValue cleanInterval;
+    private final ThreadPool threadPool;
+    private volatile boolean closed = false;
 
     @Inject
-    public IndicesFieldDataCache(Settings settings, IndicesFieldDataCacheListener indicesFieldDataCacheListener) {
+    public IndicesFieldDataCache(Settings settings, IndicesFieldDataCacheListener indicesFieldDataCacheListener, ThreadPool threadPool) {
         super(settings);
+        this.threadPool = threadPool;
         this.indicesFieldDataCacheListener = indicesFieldDataCacheListener;
         String size = componentSettings.get("size", "-1");
         long sizeInBytes = componentSettings.getAsMemory("size", "-1").bytes();
@@ -64,7 +71,7 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
             size = ByteSizeValue.MAX_GUAVA_CACHE_SIZE.toString();
         }
         final TimeValue expire = componentSettings.getAsTime("expire", null);
-        CacheBuilder<Key, RamUsage> cacheBuilder = CacheBuilder.newBuilder()
+        CacheBuilder<Key, Accountable> cacheBuilder = CacheBuilder.newBuilder()
                 .removalListener(this);
         if (sizeInBytes > 0) {
             cacheBuilder.maximumWeight(sizeInBytes).weigher(new FieldDataWeigher());
@@ -76,30 +83,36 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
         }
         logger.debug("using size [{}] [{}], expire [{}]", size, new ByteSizeValue(sizeInBytes), expire);
         cache = cacheBuilder.build();
+
+        this.cleanInterval = settings.getAsTime(FIELDDATA_CLEAN_INTERVAL_SETTING, TimeValue.timeValueMinutes(1));
+        // Start thread that will manage cleaning the field data cache periodically
+        threadPool.schedule(this.cleanInterval, ThreadPool.Names.SAME,
+                new FieldDataCacheCleaner(this.cache, this.logger, this.threadPool, this.cleanInterval));
     }
 
     public void close() {
         cache.invalidateAll();
+        this.closed = true;
     }
 
     public IndexFieldDataCache buildIndexFieldDataCache(IndexService indexService, Index index, FieldMapper.Names fieldNames, FieldDataType fieldDataType) {
         return new IndexFieldCache(logger, cache, indicesFieldDataCacheListener, indexService, index, fieldNames, fieldDataType);
     }
 
-    public Cache<Key, RamUsage> getCache() {
+    public Cache<Key, Accountable> getCache() {
         return cache;
     }
 
     @Override
-    public void onRemoval(RemovalNotification<Key, RamUsage> notification) {
+    public void onRemoval(RemovalNotification<Key, Accountable> notification) {
         Key key = notification.getKey();
         assert key != null && key.listeners != null;
         IndexFieldCache indexCache = key.indexCache;
         long sizeInBytes = key.sizeInBytes;
-        final RamUsage value = notification.getValue();
+        final Accountable value = notification.getValue();
         assert sizeInBytes >= 0 || value != null : "Expected size [" + sizeInBytes + "] to be positive or value [" + value + "] to be non-null";
         if (sizeInBytes == -1 && value != null) {
-            sizeInBytes = value.getMemorySizeInBytes();
+            sizeInBytes = value.ramBytesUsed();
         }
         for (IndexFieldDataCache.Listener listener : key.listeners) {
             try {
@@ -111,11 +124,11 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
         }
     }
 
-    public static class FieldDataWeigher implements Weigher<Key, RamUsage> {
+    public static class FieldDataWeigher implements Weigher<Key, Accountable> {
 
         @Override
-        public int weigh(Key key, RamUsage ramUsage) {
-            int weight = (int) Math.min(ramUsage.getMemorySizeInBytes(), Integer.MAX_VALUE);
+        public int weigh(Key key, Accountable ramUsage) {
+            int weight = (int) Math.min(ramUsage.ramBytesUsed(), Integer.MAX_VALUE);
             return weight == 0 ? 1 : weight;
         }
     }
@@ -129,10 +142,10 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
         final Index index;
         final FieldMapper.Names fieldNames;
         final FieldDataType fieldDataType;
-        private final Cache<Key, RamUsage> cache;
+        private final Cache<Key, Accountable> cache;
         private final IndicesFieldDataCacheListener indicesFieldDataCacheListener;
 
-        IndexFieldCache(ESLogger logger,final Cache<Key, RamUsage> cache, IndicesFieldDataCacheListener indicesFieldDataCacheListener, IndexService indexService, Index index, FieldMapper.Names fieldNames, FieldDataType fieldDataType) {
+        IndexFieldCache(ESLogger logger,final Cache<Key, Accountable> cache, IndicesFieldDataCacheListener indicesFieldDataCacheListener, IndexService indexService, Index index, FieldMapper.Names fieldNames, FieldDataType fieldDataType) {
             this.logger = logger;
             this.indexService = indexService;
             this.index = index;
@@ -143,11 +156,18 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
             assert indexService != null;
         }
 
+        /**
+         * Clean up the internal Guava cache
+         */
+        public void cleanUp() {
+            cache.cleanUp();
+        }
+
         @Override
         public <FD extends AtomicFieldData, IFD extends IndexFieldData<FD>> FD load(final AtomicReaderContext context, final IFD indexFieldData) throws Exception {
             final Key key = new Key(this, context.reader().getCoreCacheKey());
             //noinspection unchecked
-            return (FD) cache.get(key, new Callable<AtomicFieldData>() {
+            final Accountable accountable = cache.get(key, new Callable<AtomicFieldData>() {
                 @Override
                 public AtomicFieldData call() throws Exception {
                     SegmentReaderUtils.registerCoreListener(context.reader(), IndexFieldCache.this);
@@ -169,19 +189,20 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
                             logger.error("Failed to call listener on atomic field data loading", e);
                         }
                     }
-                    key.sizeInBytes = fieldData.getMemorySizeInBytes();
+                    key.sizeInBytes = fieldData.ramBytesUsed();
                     return fieldData;
                 }
             });
+            return (FD) accountable;
         }
 
-        public <IFD extends IndexFieldData.WithOrdinals<?>> IFD load(final IndexReader indexReader, final IFD indexFieldData) throws Exception {
+        public <FD extends AtomicFieldData, IFD extends IndexFieldData.Global<FD>> IFD load(final IndexReader indexReader, final IFD indexFieldData) throws Exception {
             final Key key = new Key(this, indexReader.getCoreCacheKey());
 
             //noinspection unchecked
-            return (IFD) cache.get(key, new Callable<RamUsage>() {
+            final Accountable accountable = cache.get(key, new Callable<Accountable>() {
                 @Override
-                public RamUsage call() throws Exception {
+                public Accountable call() throws Exception {
                     indexReader.addReaderClosedListener(IndexFieldCache.this);
                     key.listeners.add(indicesFieldDataCacheListener);
                     final ShardId shardId = ShardUtils.extractShardId(indexReader);
@@ -191,7 +212,7 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
                             key.listeners.add(shard.fieldData());
                         }
                     }
-                    final GlobalOrdinalsIndexFieldData ifd = (GlobalOrdinalsIndexFieldData) indexFieldData.localGlobalDirect(indexReader);
+                    final Accountable ifd = (Accountable) indexFieldData.localGlobalDirect(indexReader);
                     for (Listener listener : key.listeners) {
                         try {
                             listener.onLoad(fieldNames, fieldDataType, ifd);
@@ -203,6 +224,7 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
                     return ifd;
                 }
             });
+            return (IFD) accountable;
         }
 
         @Override
@@ -281,6 +303,47 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
             int result = indexCache.hashCode();
             result = 31 * result + readerKey.hashCode();
             return result;
+        }
+    }
+
+    /**
+     * FieldDataCacheCleaner is a scheduled Runnable used to clean a Guava cache
+     * periodically. In this case it is the field data cache, because a cache that
+     * has an entry invalidated may not clean up the entry if it is not read from
+     * or written to after invalidation.
+     */
+    public class FieldDataCacheCleaner implements Runnable {
+
+        private final Cache<Key, Accountable> cache;
+        private final ESLogger logger;
+        private final ThreadPool threadPool;
+        private final TimeValue interval;
+
+        public FieldDataCacheCleaner(Cache cache, ESLogger logger, ThreadPool threadPool, TimeValue interval) {
+            this.cache = cache;
+            this.logger = logger;
+            this.threadPool = threadPool;
+            this.interval = interval;
+        }
+
+        @Override
+        public void run() {
+            long startTime = System.currentTimeMillis();
+            if (logger.isTraceEnabled()) {
+                logger.trace("running periodic field data cache cleanup");
+            }
+            try {
+                this.cache.cleanUp();
+            } catch (Exception e) {
+                logger.warn("Exception during periodic field data cache cleanup:", e);
+            }
+            if (logger.isTraceEnabled()) {
+                logger.trace("periodic field data cache cleanup finished in {} milliseconds", System.currentTimeMillis() - startTime);
+            }
+            // Reschedule itself to run again if not closed
+            if (closed == false) {
+                threadPool.schedule(interval, ThreadPool.Names.SAME, this);
+            }
         }
     }
 }

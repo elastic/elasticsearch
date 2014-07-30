@@ -34,10 +34,10 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.RestStatusToXContentListener;
-import org.elasticsearch.rest.action.support.RestToXContentListener;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.SortOrder;
 
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
@@ -68,7 +68,7 @@ public class RestSearchAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         SearchRequest searchRequest;
         searchRequest = RestSearchAction.parseSearchRequest(request);
         searchRequest.listenerThreaded(false);
@@ -172,6 +172,18 @@ public class RestSearchAction extends BaseRestHandler {
                 searchSourceBuilder = new SearchSourceBuilder();
             }
             searchSourceBuilder.timeout(request.paramAsTime("timeout", null));
+        }
+        if (request.hasParam("terminate_after")) {
+            if (searchSourceBuilder == null) {
+                searchSourceBuilder = new SearchSourceBuilder();
+            }
+            int terminateAfter = request.paramAsInt("terminate_after",
+                    SearchContext.DEFAULT_TERMINATE_AFTER);
+            if (terminateAfter < 0) {
+                throw new ElasticsearchIllegalArgumentException("terminateAfter must be > 0");
+            } else if (terminateAfter > 0) {
+                searchSourceBuilder.terminateAfter(terminateAfter);
+            }
         }
 
         String sField = request.param("fields");

@@ -66,7 +66,9 @@ public class HunspellService extends AbstractComponent {
 
     private final static DictionaryFileFilter DIC_FILE_FILTER = new DictionaryFileFilter();
     private final static AffixFileFilter AFFIX_FILE_FILTER = new AffixFileFilter();
-
+    public final static String HUNSPELL_LAZY_LOAD = "indices.analysis.hunspell.dictionary.lazy";
+    public final static String HUNSPELL_IGNORE_CASE = "indices.analysis.hunspell.dictionary.ignore_case";
+    public final static String HUNSPELL_LOCATION = "indices.analysis.hunspell.dictionary.location";
     private final LoadingCache<String, Dictionary> dictionaries;
     private final Map<String, Dictionary> knownDictionaries;
 
@@ -82,7 +84,7 @@ public class HunspellService extends AbstractComponent {
         super(settings);
         this.knownDictionaries = knownDictionaries;
         this.hunspellDir = resolveHunspellDirectory(settings, env);
-        this.defaultIgnoreCase = settings.getAsBoolean("indices.analysis.hunspell.dictionary.ignore_case", false);
+        this.defaultIgnoreCase = settings.getAsBoolean(HUNSPELL_IGNORE_CASE, false);
         dictionaries = CacheBuilder.newBuilder().build(new CacheLoader<String, Dictionary>() {
             @Override
             public Dictionary load(String locale) throws Exception {
@@ -93,7 +95,9 @@ public class HunspellService extends AbstractComponent {
                 return dictionary;
             }
         });
-        scanAndLoadDictionaries();
+        if (!settings.getAsBoolean(HUNSPELL_LAZY_LOAD, false)) {
+            scanAndLoadDictionaries();
+        }
     }
 
     /**
@@ -101,12 +105,12 @@ public class HunspellService extends AbstractComponent {
      *
      * @param locale The name of the locale
      */
-    public Dictionary getDictionary(String locale) {
+    public Dictionary getDictionary(String locale)  {
         return dictionaries.getUnchecked(locale);
     }
 
     private File resolveHunspellDirectory(Settings settings, Environment env) {
-        String location = settings.get("indices.analysis.hunspell.dictionary.location", null);
+        String location = settings.get(HUNSPELL_LOCATION, null);
         if (location != null) {
             return new File(location);
         }
@@ -120,7 +124,7 @@ public class HunspellService extends AbstractComponent {
         if (hunspellDir.exists() && hunspellDir.isDirectory()) {
             for (File file : hunspellDir.listFiles()) {
                 if (file.isDirectory()) {
-                    if (file.list(AFFIX_FILE_FILTER).length > 0) { // just making sure it's indeed a dictionary dir
+                    if (file.list(DIC_FILE_FILTER).length > 0) { // just making sure it's indeed a dictionary dir
                         dictionaries.getUnchecked(file.getName());
                     }
                 }
@@ -140,7 +144,7 @@ public class HunspellService extends AbstractComponent {
      */
     private Dictionary loadDictionary(String locale, Settings nodeSettings, Environment env) throws Exception {
         if (logger.isDebugEnabled()) {
-            logger.debug("Loading huspell dictionary [{}]...", locale);
+            logger.debug("Loading hunspell dictionary [{}]...", locale);
         }
         File dicDir = new File(hunspellDir, locale);
         if (!dicDir.exists() || !dicDir.isDirectory()) {
@@ -153,8 +157,11 @@ public class HunspellService extends AbstractComponent {
         boolean ignoreCase = nodeSettings.getAsBoolean("ignore_case", defaultIgnoreCase);
 
         File[] affixFiles = dicDir.listFiles(AFFIX_FILE_FILTER);
-        if (affixFiles.length != 1) {
+        if (affixFiles.length == 0) {
             throw new ElasticsearchException(String.format(Locale.ROOT, "Missing affix file for hunspell dictionary [%s]", locale));
+        }
+        if (affixFiles.length != 1) {
+            throw new ElasticsearchException(String.format(Locale.ROOT, "Too many affix files exist for hunspell dictionary [%s]", locale));
         }
         InputStream affixStream = null;
 

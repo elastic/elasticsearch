@@ -19,11 +19,14 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.store.StoreFileMetaData;
 
 import java.io.IOException;
 import java.util.Map.Entry;
@@ -39,10 +42,12 @@ public class RecoveryStatus {
     final long recoveryId;
     final InternalIndexShard indexShard;
     final RecoveryState recoveryState;
+    final DiscoveryNode sourceNode;
 
-    public RecoveryStatus(long recoveryId, InternalIndexShard indexShard) {
+    public RecoveryStatus(long recoveryId, InternalIndexShard indexShard, DiscoveryNode sourceNode) {
         this.recoveryId = recoveryId;
         this.indexShard = indexShard;
+        this.sourceNode = sourceNode;
         this.shardId = indexShard.shardId();
         this.recoveryState = new RecoveryState(shardId);
         recoveryState.getTimer().startTime(System.currentTimeMillis());
@@ -53,7 +58,11 @@ public class RecoveryStatus {
     volatile boolean sentCanceledToSource;
 
     private volatile ConcurrentMap<String, IndexOutput> openIndexOutputs = ConcurrentCollections.newConcurrentMap();
-    ConcurrentMap<String, String> checksums = ConcurrentCollections.newConcurrentMap();
+    public final Store.LegacyChecksums legacyChecksums = new Store.LegacyChecksums();
+
+    public DiscoveryNode sourceNode() {
+        return this.sourceNode;
+    }
 
     public RecoveryState recoveryState() {
         return recoveryState;
@@ -103,12 +112,12 @@ public class RecoveryStatus {
         return outputs.remove(name);
     }
 
-    public synchronized IndexOutput openAndPutIndexOutput(String key, String name, Store store) throws IOException {
+    public synchronized IndexOutput openAndPutIndexOutput(String key, String fileName, StoreFileMetaData metaData, Store store) throws IOException {
         if (isCanceled()) {
             return null;
         }
         final ConcurrentMap<String, IndexOutput> outputs = openIndexOutputs;
-        IndexOutput indexOutput = store.createOutputRaw(name);
+        IndexOutput indexOutput = store.createVerifyingOutput(fileName, IOContext.DEFAULT, metaData);
         outputs.put(key, indexOutput);
         return indexOutput;
     }

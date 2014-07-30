@@ -30,7 +30,6 @@ import org.junit.Test;
 
 import java.util.Map;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
 public class NativeScriptTests extends ElasticsearchTestCase {
@@ -39,6 +38,7 @@ public class NativeScriptTests extends ElasticsearchTestCase {
     public void testNativeScript() {
         Settings settings = ImmutableSettings.settingsBuilder()
                 .put("script.native.my.type", MyNativeScriptFactory.class.getName())
+                .put("name", "testNativeScript")
                 .build();
         Injector injector = new ModulesBuilder().add(
                 new SettingsModule(settings),
@@ -46,7 +46,7 @@ public class NativeScriptTests extends ElasticsearchTestCase {
 
         ScriptService scriptService = injector.getInstance(ScriptService.class);
 
-        ExecutableScript executable = scriptService.executable("native", "my", null);
+        ExecutableScript executable = scriptService.executable("native", "my", ScriptService.ScriptType.INLINE, null);
         assertThat(executable.run().toString(), equalTo("test"));
     }
 

@@ -20,14 +20,14 @@
 package org.elasticsearch.index.search;
 
 import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.lucene.docset.MatchDocIdSet;
-import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.fielddata.LongValues;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 
 import java.io.IOException;
 
@@ -35,6 +35,7 @@ import java.io.IOException;
  * A numeric filter that can be much faster than {@link org.apache.lucene.search.NumericRangeFilter} at the
  * expense of loading numeric values of the field to memory using {@link org.elasticsearch.index.cache.field.data.FieldDataCache}.
  */
+// TODO: these filters should not iterate over all values but be more selective like Lucene's DocTermOrdsRangeFilter
 public abstract class NumericRangeFieldDataFilter<T> extends Filter {
     final IndexNumericFieldData indexFieldData;
     final T lowerVal;
@@ -133,7 +134,7 @@ public abstract class NumericRangeFieldDataFilter<T> extends Filter {
                 if (inclusiveLowerPoint > inclusiveUpperPoint)
                     return null;
 
-                final LongValues values = indexFieldData.load(ctx).getLongValues();
+                final SortedNumericDocValues values = indexFieldData.load(ctx).getLongValues();
                 return new LongRangeMatchDocIdSet(ctx.reader().maxDoc(), acceptedDocs, values, inclusiveLowerPoint, inclusiveUpperPoint);
             }
         };
@@ -165,7 +166,7 @@ public abstract class NumericRangeFieldDataFilter<T> extends Filter {
                 if (inclusiveLowerPoint > inclusiveUpperPoint)
                     return null;
 
-                final LongValues values = indexFieldData.load(ctx).getLongValues();
+                final SortedNumericDocValues values = indexFieldData.load(ctx).getLongValues();
                 return new LongRangeMatchDocIdSet(ctx.reader().maxDoc(), acceptedDocs, values, inclusiveLowerPoint, inclusiveUpperPoint);
             }
         };
@@ -196,7 +197,7 @@ public abstract class NumericRangeFieldDataFilter<T> extends Filter {
                 if (inclusiveLowerPoint > inclusiveUpperPoint)
                     return null;
 
-                final LongValues values = indexFieldData.load(ctx).getLongValues();
+                final SortedNumericDocValues values = indexFieldData.load(ctx).getLongValues();
                 return new LongRangeMatchDocIdSet(ctx.reader().maxDoc(), acceptedDocs, values, inclusiveLowerPoint, inclusiveUpperPoint);
             }
         };
@@ -227,7 +228,7 @@ public abstract class NumericRangeFieldDataFilter<T> extends Filter {
                 if (inclusiveLowerPoint > inclusiveUpperPoint)
                     return null;
 
-                final LongValues values = indexFieldData.load(ctx).getLongValues();
+                final SortedNumericDocValues values = indexFieldData.load(ctx).getLongValues();
                 return new LongRangeMatchDocIdSet(ctx.reader().maxDoc(), acceptedDocs, values, inclusiveLowerPoint, inclusiveUpperPoint);
 
             }
@@ -263,7 +264,7 @@ public abstract class NumericRangeFieldDataFilter<T> extends Filter {
                 if (inclusiveLowerPoint > inclusiveUpperPoint)
                     return null;
 
-                final DoubleValues values = indexFieldData.load(ctx).getDoubleValues();
+                final SortedNumericDoubleValues values = indexFieldData.load(ctx).getDoubleValues();
                 return new DoubleRangeMatchDocIdSet(ctx.reader().maxDoc(), acceptedDocs, values, inclusiveLowerPoint, inclusiveUpperPoint);
             }
         };
@@ -298,34 +299,30 @@ public abstract class NumericRangeFieldDataFilter<T> extends Filter {
                 if (inclusiveLowerPoint > inclusiveUpperPoint)
                     return null;
 
-                final DoubleValues values = indexFieldData.load(ctx).getDoubleValues();
+                final SortedNumericDoubleValues values = indexFieldData.load(ctx).getDoubleValues();
                 return new DoubleRangeMatchDocIdSet(ctx.reader().maxDoc(), acceptedDocs, values, inclusiveLowerPoint, inclusiveUpperPoint);
             }
         };
     }
     
     private static final class DoubleRangeMatchDocIdSet extends MatchDocIdSet {
-        private final DoubleValues values;
+        private final SortedNumericDoubleValues values;
         private final double inclusiveLowerPoint;
         private final double inclusiveUpperPoint;
 
-        protected DoubleRangeMatchDocIdSet(int maxDoc, Bits acceptDocs, final DoubleValues values,final double inclusiveLowerPoint, final double inclusiveUpperPoint ) {
+        protected DoubleRangeMatchDocIdSet(int maxDoc, Bits acceptDocs, final SortedNumericDoubleValues values,final double inclusiveLowerPoint, final double inclusiveUpperPoint ) {
             super(maxDoc, acceptDocs);
             this.inclusiveLowerPoint = inclusiveLowerPoint;
             this.inclusiveUpperPoint = inclusiveUpperPoint; 
             this.values = values;
         }
-        
-        @Override
-        public boolean isCacheable() {
-            return true;
-        }
 
         @Override
         protected boolean matchDoc(int doc) {
-            int numValues = values.setDocument(doc);
+            values.setDocument(doc);
+            int numValues = values.count();
             for (int i = 0; i < numValues; i++) {
-                double value = values.nextValue();
+                double value = values.valueAt(i);
                 if (value >= inclusiveLowerPoint && value <= inclusiveUpperPoint) {
                     return true;
                 }
@@ -336,27 +333,23 @@ public abstract class NumericRangeFieldDataFilter<T> extends Filter {
     }
     
     private static final class LongRangeMatchDocIdSet extends MatchDocIdSet {
-        private final LongValues values;
+        private final SortedNumericDocValues values;
         private final long inclusiveLowerPoint;
         private final long inclusiveUpperPoint;
 
-        protected LongRangeMatchDocIdSet(int maxDoc, Bits acceptDocs, final LongValues values,final long inclusiveLowerPoint, final long inclusiveUpperPoint ) {
+        protected LongRangeMatchDocIdSet(int maxDoc, Bits acceptDocs, final SortedNumericDocValues values,final long inclusiveLowerPoint, final long inclusiveUpperPoint ) {
             super(maxDoc, acceptDocs);
             this.inclusiveLowerPoint = inclusiveLowerPoint;
             this.inclusiveUpperPoint = inclusiveUpperPoint; 
             this.values = values;
         }
-        
-        @Override
-        public boolean isCacheable() {
-            return true;
-        }
 
         @Override
         protected boolean matchDoc(int doc) {
-            int numValues = values.setDocument(doc);
+            values.setDocument(doc);
+            int numValues = values.count();
             for (int i = 0; i < numValues; i++) {
-                long value = values.nextValue();
+                long value = values.valueAt(i);
                 if (value >= inclusiveLowerPoint && value <= inclusiveUpperPoint) {
                     return true;
                 }

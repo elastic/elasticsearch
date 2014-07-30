@@ -21,6 +21,7 @@ package org.elasticsearch.action.get;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.RoutingMissingException;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportShardSingleOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -49,8 +50,8 @@ public class TransportGetAction extends TransportShardSingleOperationAction<GetR
 
     @Inject
     public TransportGetAction(Settings settings, ClusterService clusterService, TransportService transportService,
-                              IndicesService indicesService, ThreadPool threadPool) {
-        super(settings, threadPool, clusterService, transportService);
+                              IndicesService indicesService, ThreadPool threadPool, ActionFilters actionFilters) {
+        super(settings, GetAction.NAME, threadPool, clusterService, transportService, actionFilters);
         this.indicesService = indicesService;
 
         this.realtime = settings.getAsBoolean("action.get.realtime", true);
@@ -59,11 +60,6 @@ public class TransportGetAction extends TransportShardSingleOperationAction<GetR
     @Override
     protected String executor() {
         return ThreadPool.Names.GET;
-    }
-
-    @Override
-    protected String transportAction() {
-        return GetAction.NAME;
     }
 
     @Override
@@ -89,7 +85,7 @@ public class TransportGetAction extends TransportShardSingleOperationAction<GetR
         }
         // update the routing (request#index here is possibly an alias)
         request.routing(state.metaData().resolveIndexRouting(request.routing(), request.index()));
-        request.index(state.metaData().concreteSingleIndex(request.index()));
+        request.index(state.metaData().concreteSingleIndex(request.index(), request.indicesOptions()));
 
         // Fail fast on the node that received the request.
         if (request.routing() == null && state.getMetaData().routingRequired(request.index(), request.type())) {

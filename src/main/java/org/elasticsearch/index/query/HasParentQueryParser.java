@@ -135,10 +135,10 @@ public class HasParentQueryParser implements QueryParser {
         ParentChildIndexFieldData parentChildIndexFieldData = null;
         Set<String> parentTypes = new HashSet<>(5);
         parentTypes.add(parentType);
-        for (DocumentMapper documentMapper : parseContext.mapperService()) {
+        for (DocumentMapper documentMapper : parseContext.mapperService().docMappers(false)) {
             ParentFieldMapper parentFieldMapper = documentMapper.parentFieldMapper();
             if (parentFieldMapper.active()) {
-                parentChildIndexFieldData = parseContext.fieldData().getForField(parentFieldMapper);
+                parentChildIndexFieldData = parseContext.getForField(parentFieldMapper);
                 DocumentMapper parentTypeDocumentMapper = parseContext.mapperService().documentMapper(parentFieldMapper.type());
                 if (parentTypeDocumentMapper == null) {
                     // Only add this, if this parentFieldMapper (also a parent)  isn't a child of another parent.

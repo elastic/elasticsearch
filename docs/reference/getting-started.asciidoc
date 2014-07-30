@@ -66,7 +66,7 @@ Within an index/type, you can store as many documents as you want. Note that alt
 
 An index can potentially store a large amount of data that can exceed the hardware limits of a single node. For example, a single index of a billion documents taking up 1TB of disk space may not fit on the disk of a single node or may be too slow to serve search requests from a single node alone.
 
-To solve this problem, Elasticsearch provides the ability to subdivide your index into multiple pieces called shards. When you create an index, you can simply define the number of shards that you want. Each shard is in itself a fully-functional and independent "index" that can be hosted on any node in the cluster. 
+To solve this problem, Elasticsearch provides the ability to subdivide your index into multiple pieces called shards. When you create an index, you can simply define the number of shards that you want. Each shard is in itself a fully-functional and independent "index" that can be hosted on any node in the cluster.
 
 Sharding is important for two primary reasons:
 
@@ -76,7 +76,7 @@ Sharding is important for two primary reasons:
 
 The mechanics of how a shard is distributed and also how its documents are aggregated back into search requests are completely managed by Elasticsearch and is transparent to you as the user.
 
-In a network/cloud environment where failures can be expected anytime, it is very useful and highly recommended to have a failover mechanism in case a shard/node somehow goes offline or disappears for whatever reason. To this end, Elasticsearch allows you to make one or more copies of your index's shards into what are called replica shards, or replicas for short. 
+In a network/cloud environment where failures can be expected anytime, it is very useful and highly recommended to have a failover mechanism in case a shard/node somehow goes offline or disappears for whatever reason. To this end, Elasticsearch allows you to make one or more copies of your index's shards into what are called replica shards, or replicas for short.
 
 Replication is important for two primary reasons:
 
@@ -93,7 +93,7 @@ With that out of the way, let's get started with the fun part...
 
 == Installation
 
-Elasticsearch requires Java 7. Specifically as of this writing, it is recommended that you use the Oracle JDK version 1.7.0_55. Java installation varies from platform to platform so we won't go into those details here. Suffice to say, before you install Elasticsearch, please check your Java version first by running (and then install/upgrade accordingly if needed):
+Elasticsearch requires Java 7. Specifically as of this writing, it is recommended that you use the Oracle JDK version {jdk}. Java installation varies from platform to platform so we won't go into those details here. Suffice to say, before you install Elasticsearch, please check your Java version first by running (and then install/upgrade accordingly if needed):
 
 [source,sh]
 --------------------------------------------------
@@ -103,25 +103,25 @@ echo $JAVA_HOME
 
 Once we have Java set up, we can then download and run Elasticsearch. The binaries are available from http://www.elasticsearch.org/download[`www.elasticsearch.org/download`] along with all the releases that have been made in the past. For each release, you have a choice among a zip, tar, DEB, or RPM package. For simplicity, let's use the tar package.
 
-Let's download the Elasticsearch 1.1.1 tar as follows (Windows users should download the zip package):
+Let's download the Elasticsearch {version} tar as follows (Windows users should download the zip package):
 
-[source,sh]
+["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-curl -L -O https://download.elasticsearch.org/elasticsearch/elasticsearch/elasticsearch-1.1.1.tar.gz
+curl -L -O https://download.elasticsearch.org/elasticsearch/elasticsearch/elasticsearch-{version}.tar.gz
 --------------------------------------------------
 
 Then extract it as follows (Windows users should unzip the zip package):
 
-[source,sh]
+["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-tar -xvf elasticsearch-1.1.1.tar.gz
+tar -xvf elasticsearch-{version}.tar.gz
 --------------------------------------------------
 
 It will then create a bunch of files and folders in your current directory. We then go into the bin directory as follows:
 
-[source,sh]
+["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-cd elasticsearch-1.1.1/bin
+cd elasticsearch-{version}/bin
 --------------------------------------------------
 
 And now we are ready to start our node and single cluster (Windows users should run the elasticsearch.bat file):
@@ -133,10 +133,10 @@ And now we are ready to start our node and single cluster (Windows users should 
 
 If everything goes well, you should see a bunch of messages that look like below:
 
-[source,sh]
+["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
 ./elasticsearch
-[2014-03-13 13:42:17,218][INFO ][node           ] [New Goblin] version[1.1.1], pid[2085], build[5c03844/2014-02-25T15:52:53Z]
+[2014-03-13 13:42:17,218][INFO ][node           ] [New Goblin] version[{version}], pid[2085], build[5c03844/2014-02-25T15:52:53Z]
 [2014-03-13 13:42:17,219][INFO ][node           ] [New Goblin] initializing ...
 [2014-03-13 13:42:17,223][INFO ][plugins        ] [New Goblin] loaded [], sites []
 [2014-03-13 13:42:19,831][INFO ][node           ] [New Goblin] initialized
@@ -166,7 +166,7 @@ Also note the line marked http with information about the HTTP address (`192.168
 === The REST API
 
 Now that we have our node (and cluster) up and running, the next step is to understand how to communicate with it. Fortunately, Elasticsearch provides a very comprehensive and powerful REST API that you can use to interact with your cluster. Among the few things that can be done with the API are as follows:
- 
+
 * Check your cluster, node, and index health, status, and statistics
 * Administer your cluster, node, and index data and metadata
 * Perform CRUD (Create, Read, Update, and Delete) and search operations against your indexes
@@ -174,15 +174,15 @@ Now that we have our node (and cluster) up and running, the next step is to unde
 
 === Cluster Health
 
-Let's start with a basic health check, which we can use to see how our cluster is doing. We'll be using curl to do this but you can use any tool that allows you to make HTTP/REST calls. Let's assume that we are still on the same node where we started Elasticsearch on and open another command shell window. 
+Let's start with a basic health check, which we can use to see how our cluster is doing. We'll be using curl to do this but you can use any tool that allows you to make HTTP/REST calls. Let's assume that we are still on the same node where we started Elasticsearch on and open another command shell window.
 
 To check the cluster health, we will be using the http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/cat.html[`_cat` API]. Remember previously that our node HTTP endpoint is available at port `9200`:
- 
+
 [source,sh]
 --------------------------------------------------
 curl 'localhost:9200/_cat/health?v'
 --------------------------------------------------
- 
+
 And the response:
 
 [source,sh]
@@ -191,19 +191,19 @@ epoch      timestamp cluster       status node.total node.data shards pri relo i
 1394735289 14:28:09  elasticsearch green           1         1      0   0    0    0        0
 --------------------------------------------------
 
-We can see that our cluster named "elasticsearch" is up with a green status. 
+We can see that our cluster named "elasticsearch" is up with a green status.
 
 Whenever we ask for the cluster health, we either get green, yellow, or red. Green means everything is good (cluster is fully functional), yellow means all data is available but some replicas are not yet allocated (cluster is fully functional), and red means some data is not available for whatever reason. Note that even if a cluster is red, it still is partially functional (i.e. it will continue to serve search requests from the available shards) but you will likely need to fix it ASAP since you have missing data.
- 
+
 Also from the above response, we can see and total of 1 node and that we have 0 shards since we have no data in it yet. Note that since we we are using the default cluster name (elasticsearch) and since Elasticsearch uses multicast network discovery by default to find other nodes, it is possible that you could accidentally start up more than one node in your network and have them all join a single cluster. In this scenario, you may see more than 1 node in the above response.
- 
+
 We can also get a list of nodes in our cluster as follows:
- 
+
 [source,sh]
 --------------------------------------------------
 curl 'localhost:9200/_cat/nodes?v'
 --------------------------------------------------
- 
+
 And the response:
 
 [source,sh]
@@ -214,16 +214,16 @@ mwubuntu1    127.0.1.1            8           4 0.00 d         *      New Goblin
 --------------------------------------------------
 
 Here, we can see our one node named "New Goblin", which is the single node that is currently in our cluster.
- 
+
 === List All Indexes
 
 Now let's take a peek at our indexes:
- 
+
 [source,sh]
 --------------------------------------------------
 curl 'localhost:9200/_cat/indices?v'
 --------------------------------------------------
- 
+
 And the response:
 
 [source,sh]
@@ -237,15 +237,15 @@ Which simply means we have no indexes yet in the cluster.
 === Create an Index
 
 Now let's create an index named "customer" and then list all the indexes again:
- 
+
 [source,sh]
 --------------------------------------------------
 curl -XPUT 'localhost:9200/customer?pretty'
 curl 'localhost:9200/_cat/indices?v'
 --------------------------------------------------
- 
+
 The first command creates the index named "customer" using the PUT verb. We simply append `pretty` to the end of the call to tell it to pretty-print the JSON response (if any).
- 
+
 And the response:
 
 [source,sh]
@@ -261,7 +261,7 @@ yellow customer   5   1          0            0       495b           495b
 --------------------------------------------------
 
 The results of the second command tells us that we now have 1 index named customer and it has 5 primary shards and 1 replica (the defaults) and it contains 0 documents in it.
- 
+
 You might also notice that the customer index has a yellow health tagged to it. Recall from our previous discussion that yellow means that some replicas are not (yet) allocated. The reason this happens for this index is because Elasticsearch by default created one replica for this index. Since we only have one node running at the moment, that one replica cannot yet be allocated (for high availability) until a later point in time when another node joins the cluster. Once that replica gets allocated onto a second node, the health status for this index will turn to green.
 
 === Index and Query a Document
@@ -275,8 +275,8 @@ Our JSON document: { "name": "John Doe" }
 [source,sh]
 --------------------------------------------------
 curl -XPUT 'localhost:9200/customer/external/1?pretty' -d '
-{ 
-  "name": "John Doe" 
+{
+  "name": "John Doe"
 }'
 --------------------------------------------------
 
@@ -285,8 +285,8 @@ And the response:
 [source,sh]
 --------------------------------------------------
 curl -XPUT 'localhost:9200/customer/external/1?pretty' -d '
-{ 
-  "name": "John Doe" 
+{
+  "name": "John Doe"
 }'
 {
   "_index" : "customer",
@@ -300,14 +300,14 @@ curl -XPUT 'localhost:9200/customer/external/1?pretty' -d '
 From the above, we can see that a new customer document was successfully created inside the customer index and the external type. The document also has an internal id of 1 which we specified at index time.
 
 It is important to note that Elasticsearch does not require you to explicitly create an index first before you can index documents into it. In the previous example, Elasticsearch will automatically create the customer index if it didn't already exist beforehand.
- 
+
 Let's now retrieve that document that we just indexed:
- 
+
 [source,sh]
 --------------------------------------------------
 curl -XGET 'localhost:9200/customer/external/1?pretty'
 --------------------------------------------------
- 
+
 And the response:
 
 [source,sh]
@@ -323,17 +323,17 @@ curl -XGET 'localhost:9200/customer/external/1?pretty'
 --------------------------------------------------
 
 Nothing out of the ordinary here other than a field, `found`, stating that we found a document with the requested ID 1 and another field, `_source`, which returns the full JSON document that we indexed from the previous step.
- 
+
 === Delete an Index
 
 Now let's delete the index that we just created and then list all the indexes again:
- 
+
 [source,sh]
 --------------------------------------------------
 curl -XDELETE 'localhost:9200/customer?pretty'
 curl 'localhost:9200/_cat/indices?v'
 --------------------------------------------------
- 
+
 And the response:
 
 [source,sh]
@@ -354,20 +354,20 @@ Before we move on, let's take a closer look again at some of the API commands th
 --------------------------------------------------
 curl -XPUT 'localhost:9200/customer'
 curl -XPUT 'localhost:9200/customer/external/1' -d '
-{ 
-  "name": "John Doe" 
+{
+  "name": "John Doe"
 }'
 curl 'localhost:9200/customer/external/1'
 curl -XDELETE 'localhost:9200/customer'
 --------------------------------------------------
- 
+
 If we study the above commands carefully, we can actually see a pattern of how we access data in Elasticsearch. That pattern can be summarized as follows:
- 
+
 [source,sh]
 --------------------------------------------------
 curl -<REST Verb> <Node>:<Port>/<Index>/<Type>/<ID>
 --------------------------------------------------
- 
+
 This REST access pattern is pervasive throughout all the API commands that if you can simply remember it, you will have a good head start at mastering Elasticsearch.
 
 == Modifying Your Data
@@ -382,8 +382,8 @@ We've previously seen how we can index a single document. Let's recall that comm
 [source,sh]
 --------------------------------------------------
 curl -XPUT 'localhost:9200/customer/external/1?pretty' -d '
-{ 
-  "name": "John Doe" 
+{
+  "name": "John Doe"
 }'
 --------------------------------------------------
 
@@ -392,8 +392,8 @@ Again, the above will index the specified document into the customer index, exte
 [source,sh]
 --------------------------------------------------
 curl -XPUT 'localhost:9200/customer/external/1?pretty' -d '
-{ 
-  "name": "Jane Doe" 
+{
+  "name": "Jane Doe"
 }'
 --------------------------------------------------
 
@@ -402,8 +402,8 @@ The above changes the name of the document with the ID of 1 from "John Doe" to "
 [source,sh]
 --------------------------------------------------
 curl -XPUT 'localhost:9200/customer/external/2?pretty' -d '
-{ 
-  "name": "Jane Doe" 
+{
+  "name": "Jane Doe"
 }'
 --------------------------------------------------
 
@@ -416,8 +416,8 @@ This example shows how to index a document without an explicit ID:
 [source,sh]
 --------------------------------------------------
 curl -XPOST 'localhost:9200/customer/external?pretty' -d '
-{ 
-  "name": "Jane Doe" 
+{
+  "name": "Jane Doe"
 }'
 --------------------------------------------------
 

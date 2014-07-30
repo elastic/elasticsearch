@@ -29,6 +29,8 @@ import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms.Bucket;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsAggregatorFactory.ExecutionMode;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsBuilder;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.JLHScore;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.MutualInformation;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsBuilder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -215,6 +217,7 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
         assertTrue(hasMissingBackgroundTerms);
     }       
     
+    
     @Test
     public void filteredAnalysis() throws Exception {
         SearchResponse response = client().prepareSearch("test")
@@ -270,7 +273,7 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void partiallyUnmapped() throws Exception {
-        SearchResponse response = client().prepareSearch("idx_unmapped","test")
+        SearchResponse response = client().prepareSearch("idx_unmapped", "test")
                 .setSearchType(SearchType.QUERY_AND_FETCH)
                 .setQuery(new TermQueryBuilder("_all", "terje"))
                 .setFrom(0).setSize(60).setExplain(true)
@@ -300,4 +303,38 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
         assertEquals(4, kellyTerm.getSupersetDf());
     }
 
+    public void testDefaultSignificanceHeuristic() throws Exception {
+        SearchResponse response = client().prepareSearch("test")
+                .setSearchType(SearchType.QUERY_AND_FETCH)
+                .setQuery(new TermQueryBuilder("_all", "terje"))
+                .setFrom(0).setSize(60).setExplain(true)
+                .addAggregation(new SignificantTermsBuilder("mySignificantTerms")
+                        .field("description")
+                        .executionHint(randomExecutionHint())
+                        .significanceHeuristic(new JLHScore.JLHScoreBuilder())
+                        .minDocCount(2))
+                .execute()
+                .actionGet();
+        assertSearchResponse(response);
+        SignificantTerms topTerms = response.getAggregations().get("mySignificantTerms");
+        checkExpectedStringTermsFound(topTerms);
+    }
+
+    @Test
+    public void testMutualInformation() throws Exception {
+        SearchResponse response = client().prepareSearch("test")
+                .setSearchType(SearchType.QUERY_AND_FETCH)
+                .setQuery(new TermQueryBuilder("_all", "terje"))
+                .setFrom(0).setSize(60).setExplain(true)
+                .addAggregation(new SignificantTermsBuilder("mySignificantTerms")
+                        .field("description")
+                        .executionHint(randomExecutionHint())
+                        .significanceHeuristic(new MutualInformation.MutualInformationBuilder(false, true))
+                        .minDocCount(1))
+                .execute()
+                .actionGet();
+        assertSearchResponse(response);
+        SignificantTerms topTerms = response.getAggregations().get("mySignificantTerms");
+        checkExpectedStringTermsFound(topTerms);
+    }
 }

@@ -32,33 +32,33 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.elasticsearch.common.lucene.search;
-
-import java.io.*;
-import java.util.*;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.document.Document;
-import org.apache.lucene.index.Fields;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.index.MultiFields;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.index.Terms;
-import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.search.*;
+import org.apache.lucene.index.*;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.similarities.DefaultSimilarity;
 import org.apache.lucene.search.similarities.TFIDFSimilarity;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRef;
-import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.PriorityQueue;
 import org.apache.lucene.util.UnicodeUtil;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.FastStringReader;
+
+import java.io.IOException;
+import java.io.Reader;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
+
 
 /**
  * Generate "more like this" similarity queries.
@@ -156,12 +156,11 @@ import org.elasticsearch.common.io.FastStringReader;
  * - optimise: when no termvector support available - used maxNumTermsParsed to limit amount of tokenization
  * </pre>
  */
-
 public final class XMoreLikeThis {
 
-    static {
-        assert Version.CURRENT.luceneVersion == org.apache.lucene.util.Version.LUCENE_48: "Remove this class once we upgrade to Lucene 4.9";
-    }
+//    static {
+//        assert Version.CURRENT.luceneVersion == org.apache.lucene.util.Version.LUCENE_4_9: "Remove this class once we upgrade to Lucene 5.0";
+//    }
 
     /**
      * Default maximum number of tokens to parse in each example doc field that is not stored with TermVector support.
@@ -606,16 +605,6 @@ public final class XMoreLikeThis {
     }
 
     /**
-     * Return a query that will return docs like the passed Reader.
-     *
-     * @return a query that will return docs like the passed Reader.
-     */
-    @Deprecated
-    public Query like(Reader r, String fieldName) throws IOException {
-        return like(fieldName, r);
-    }
-
-    /**
      * Return a query that will return docs like the passed Readers.
      * This was added in order to treat multi-value fields.
      *
@@ -632,22 +621,19 @@ public final class XMoreLikeThis {
     /**
      * Create the More like query from a PriorityQueue
      */
-    private Query createQuery(PriorityQueue<Object[]> q) {
+    private Query createQuery(PriorityQueue<ScoreTerm> q) {
         BooleanQuery query = new BooleanQuery();
-        Object cur;
-        int qterms = 0;
-        float bestScore = 0;
+        ScoreTerm scoreTerm;
+        float bestScore = -1;
 
-        while ((cur = q.pop()) != null) {
-            Object[] ar = (Object[]) cur;
-            TermQuery tq = new TermQuery(new Term((String) ar[1], (String) ar[0]));
+        while ((scoreTerm = q.pop()) != null) {
+            TermQuery tq = new TermQuery(new Term(scoreTerm.topField, scoreTerm.word));
 
             if (boost) {
-                if (qterms == 0) {
-                    bestScore = ((Float) ar[2]);
+                if (bestScore == -1) {
+                    bestScore = (scoreTerm.score);
                 }
-                float myScore = ((Float) ar[2]);
-
+                float myScore = (scoreTerm.score);
                 tq.setBoost(boostFactor * myScore / bestScore);
             }
 
@@ -657,13 +643,7 @@ public final class XMoreLikeThis {
             catch (BooleanQuery.TooManyClauses ignore) {
                 break;
             }
-
-            qterms++;
-            if (maxQueryTerms > 0 && qterms >= maxQueryTerms) {
-                break;
-            }
         }
-
         return query;
     }
 
@@ -672,10 +652,11 @@ public final class XMoreLikeThis {
      *
      * @param words a map of words keyed on the word(String) with Int objects as the values.
      */
-    private PriorityQueue<Object[]> createQueue(Map<String, Int> words) throws IOException {
+    private PriorityQueue<ScoreTerm> createQueue(Map<String, Int> words) throws IOException {
         // have collected all words in doc and their freqs
         int numDocs = ir.numDocs();
-        FreqQ res = new FreqQ(words.size()); // will order words by score
+        final int limit = Math.min(maxQueryTerms, words.size());
+        FreqQ queue = new FreqQ(limit); // will order words by score
 
         for (String word : words.keySet()) { // for every word
             int tf = words.get(word).x; // term freq in the source doc
@@ -707,16 +688,18 @@ public final class XMoreLikeThis {
             float idf = similarity.idf(docFreq, numDocs);
             float score = tf * idf;
 
-            // only really need 1st 3 entries, other ones are for troubleshooting
-            res.insertWithOverflow(new Object[]{word,                   // the word
-                    topField,               // the top field
-                    score,       // overall score
-                    idf,         // idf
-                    docFreq,   // freq in all docs
-                    tf
-            });
+            if (queue.size() < limit) {
+                // there is still space in the queue
+                queue.add(new ScoreTerm(word, topField, score, idf, docFreq, tf));
+            } else {
+                ScoreTerm term = queue.top();
+                if (term.score < score) { // update the smallest in the queue in place and update the queue.
+                    term.update(word, topField, score, idf, docFreq, tf);
+                    queue.updateTop();
+                }
+            }
         }
-        return res;
+        return queue;
     }
 
     /**
@@ -745,7 +728,7 @@ public final class XMoreLikeThis {
      *
      * @param docNum the id of the lucene document from which to find terms
      */
-    public PriorityQueue<Object[]> retrieveTerms(int docNum) throws IOException {
+    private PriorityQueue<ScoreTerm> retrieveTerms(int docNum) throws IOException {
         Map<String, Int> termFreqMap = new HashMap<>();
         for (String fieldName : fieldNames) {
             final Fields vectors = ir.getTermVectors(docNum);
@@ -817,8 +800,7 @@ public final class XMoreLikeThis {
             throw new UnsupportedOperationException("To use MoreLikeThis without " +
                     "term vectors, you must provide an Analyzer");
         }
-        TokenStream ts = analyzer.tokenStream(fieldName, r);
-        try {
+        try (TokenStream ts = analyzer.tokenStream(fieldName, r)) {
             int tokenCount = 0;
             // for every token
             CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);
@@ -842,8 +824,6 @@ public final class XMoreLikeThis {
                 }
             }
             ts.end();
-        } finally {
-            IOUtils.closeWhileHandlingException(ts);
         }
     }
 
@@ -888,7 +868,7 @@ public final class XMoreLikeThis {
      * @return the most interesting words in the document ordered by score, with the highest scoring, or best entry, first
      * @see #retrieveInterestingTerms
      */
-    public PriorityQueue<Object[]> retrieveTerms(Reader r, String fieldName) throws IOException {
+    private PriorityQueue<ScoreTerm> retrieveTerms(Reader r, String fieldName) throws IOException {
         Map<String, Int> words = new HashMap<>();
         addTermFrequencies(r, words, fieldName);
         return createQueue(words);
@@ -899,13 +879,12 @@ public final class XMoreLikeThis {
      */
     public String[] retrieveInterestingTerms(int docNum) throws IOException {
         ArrayList<Object> al = new ArrayList<>(maxQueryTerms);
-        PriorityQueue<Object[]> pq = retrieveTerms(docNum);
-        Object cur;
+        PriorityQueue<ScoreTerm> pq = retrieveTerms(docNum);
+        ScoreTerm scoreTerm;
         int lim = maxQueryTerms; // have to be careful, retrieveTerms returns all words but that's probably not useful to our caller...
         // we just want to return the top words
-        while (((cur = pq.pop()) != null) && lim-- > 0) {
-            Object[] ar = (Object[]) cur;
-            al.add(ar[0]); // the 1st entry is the interesting word
+        while (((scoreTerm = pq.pop()) != null) && lim-- > 0) {
+            al.add(scoreTerm.word); // the 1st entry is the interesting word
         }
         String[] res = new String[al.size()];
         return al.toArray(res);
@@ -923,13 +902,12 @@ public final class XMoreLikeThis {
      */
     public String[] retrieveInterestingTerms(Reader r, String fieldName) throws IOException {
         ArrayList<Object> al = new ArrayList<>(maxQueryTerms);
-        PriorityQueue<Object[]> pq = retrieveTerms(r, fieldName);
-        Object cur;
+        PriorityQueue<ScoreTerm> pq = retrieveTerms(r, fieldName);
+        ScoreTerm scoreTerm;
         int lim = maxQueryTerms; // have to be careful, retrieveTerms returns all words but that's probably not useful to our caller...
         // we just want to return the top words
-        while (((cur = pq.pop()) != null) && lim-- > 0) {
-            Object[] ar = (Object[]) cur;
-            al.add(ar[0]); // the 1st entry is the interesting word
+        while (((scoreTerm = pq.pop()) != null) && lim-- > 0) {
+            al.add(scoreTerm.word); // the 1st entry is the interesting word
         }
         String[] res = new String[al.size()];
         return al.toArray(res);
@@ -938,16 +916,42 @@ public final class XMoreLikeThis {
     /**
      * PriorityQueue that orders words by score.
      */
-    private static class FreqQ extends PriorityQueue<Object[]> {
-        FreqQ(int s) {
-            super(s);
+    private static class FreqQ extends PriorityQueue<ScoreTerm> {
+        FreqQ(int maxSize) {
+            super(maxSize);
         }
 
         @Override
-        protected boolean lessThan(Object[] aa, Object[] bb) {
-            Float fa = (Float) aa[2];
-            Float fb = (Float) bb[2];
-            return fa > fb;
+        protected boolean lessThan(ScoreTerm a, ScoreTerm b) {
+            return a.score < b.score;
+        }
+    }
+
+    private static class ScoreTerm {
+        // only really need 1st 3 entries, other ones are for troubleshooting
+        String word;
+        String topField;
+        float score;
+        float idf;
+        int docFreq;
+        int tf;
+
+        ScoreTerm(String word, String topField, float score, float idf, int docFreq, int tf) {
+            this.word = word;
+            this.topField = topField;
+            this.score = score;
+            this.idf = idf;
+            this.docFreq = docFreq;
+            this.tf = tf;
+        }
+
+        void update(String word, String topField, float score, float idf, int docFreq, int tf) {
+            this.word = word;
+            this.topField = topField;
+            this.score = score;
+            this.idf = idf;
+            this.docFreq = docFreq;
+            this.tf = tf;
         }
     }
 

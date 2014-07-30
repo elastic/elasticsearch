@@ -29,6 +29,7 @@ import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.*;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.test.ElasticsearchTestCase;
 
 import java.util.*;
@@ -68,29 +69,23 @@ public class MockBigArrays extends BigArrays {
                 }
             }
         }
-        for (final BigArrays bigArrays : INSTANCES) {
-            // BigArrays are used on the network layer and the cluster is shared across tests so nodes might still be talking to
-            // each other a bit after the test finished, wait a bit for things to stabilize if so
-            final boolean sizeIsZero = ElasticsearchTestCase.awaitBusy(new Predicate<Object>() {
-                @Override
-                public boolean apply(Object input) {
-                    return bigArrays.sizeInBytes() == 0;
-                }
-            });
-            if (!sizeIsZero) {
-                final long sizeInBytes = bigArrays.sizeInBytes();
-                if (sizeInBytes != 0) {
-                    throw new AssertionError("Expected 0 bytes, got " + sizeInBytes);
-                }
-            }
-        }
     }
 
     private final Random random;
+    private final Settings settings;
+    private final PageCacheRecycler recycler;
+    private final CircuitBreakerService breakerService;
 
     @Inject
-    public MockBigArrays(Settings settings, PageCacheRecycler recycler) {
-        super(settings, recycler);
+    public MockBigArrays(Settings settings, PageCacheRecycler recycler, CircuitBreakerService breakerService) {
+        this(settings, recycler, breakerService, false);
+    }
+
+    public MockBigArrays(Settings settings, PageCacheRecycler recycler, CircuitBreakerService breakerService, boolean checkBreaker) {
+        super(settings, recycler, breakerService, checkBreaker);
+        this.settings = settings;
+        this.recycler = recycler;
+        this.breakerService = breakerService;
         long seed;
         try {
             seed = SeedUtils.parseSeed(RandomizedContext.current().getRunnerSeedAsString());
@@ -99,6 +94,12 @@ public class MockBigArrays extends BigArrays {
         }
         random = new Random(seed);
         INSTANCES.add(this);
+    }
+
+
+    @Override
+    public BigArrays withCircuitBreaking() {
+        return new MockBigArrays(this.settings, this.recycler, this.breakerService, true);
     }
 
     @Override
@@ -270,8 +271,8 @@ public class MockBigArrays extends BigArrays {
             return getDelegate().size();
         }
 
-        public long sizeInBytes() {
-            return in.sizeInBytes();
+        public long ramBytesUsed() {
+            return in.ramBytesUsed();
         }
 
         public void close() {

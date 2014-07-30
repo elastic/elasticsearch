@@ -24,18 +24,17 @@ import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MapperTestUtils;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
 
 import java.io.IOException;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class GeoShapeFieldMapperTests extends ElasticsearchTestCase {
+public class GeoShapeFieldMapperTests extends ElasticsearchSingleNodeTest {
 
     @Test
     public void testDefaultConfiguration() throws IOException {
@@ -45,7 +44,7 @@ public class GeoShapeFieldMapperTests extends ElasticsearchTestCase {
                 .endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
         FieldMapper fieldMapper = defaultMapper.mappers().name("location").mapper();
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
@@ -68,7 +67,7 @@ public class GeoShapeFieldMapperTests extends ElasticsearchTestCase {
                 .endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
         FieldMapper fieldMapper = defaultMapper.mappers().name("location").mapper();
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
@@ -91,7 +90,7 @@ public class GeoShapeFieldMapperTests extends ElasticsearchTestCase {
                 .endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
         FieldMapper fieldMapper = defaultMapper.mappers().name("location").mapper();
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
@@ -105,6 +104,8 @@ public class GeoShapeFieldMapperTests extends ElasticsearchTestCase {
     
     @Test
     public void testLevelPrecisionConfiguration() throws IOException {
+        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+
         {
             String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                     .startObject("properties").startObject("location")
@@ -116,7 +117,8 @@ public class GeoShapeFieldMapperTests extends ElasticsearchTestCase {
                     .endObject().endObject()
                     .endObject().endObject().string();
 
-            DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
+            
+            DocumentMapper defaultMapper = parser.parse(mapping);
             FieldMapper fieldMapper = defaultMapper.mappers().name("location").mapper();
             assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
@@ -140,7 +142,7 @@ public class GeoShapeFieldMapperTests extends ElasticsearchTestCase {
                     .endObject().endObject()
                     .endObject().endObject().string();
 
-            DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
+            DocumentMapper defaultMapper = parser.parse(mapping);
             FieldMapper fieldMapper = defaultMapper.mappers().name("location").mapper();
             assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
@@ -164,7 +166,7 @@ public class GeoShapeFieldMapperTests extends ElasticsearchTestCase {
                     .endObject().endObject()
                     .endObject().endObject().string();
 
-            DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
+            DocumentMapper defaultMapper = parser.parse(mapping);
             FieldMapper fieldMapper = defaultMapper.mappers().name("location").mapper();
             assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
@@ -187,7 +189,7 @@ public class GeoShapeFieldMapperTests extends ElasticsearchTestCase {
                     .endObject().endObject()
                     .endObject().endObject().string();
 
-            DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
+            DocumentMapper defaultMapper = parser.parse(mapping);
             FieldMapper fieldMapper = defaultMapper.mappers().name("location").mapper();
             assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
@@ -202,6 +204,7 @@ public class GeoShapeFieldMapperTests extends ElasticsearchTestCase {
     
     @Test
     public void testLevelDefaults() throws IOException {
+        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
         {
             String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                     .startObject("properties").startObject("location")
@@ -211,7 +214,8 @@ public class GeoShapeFieldMapperTests extends ElasticsearchTestCase {
                     .endObject().endObject()
                     .endObject().endObject().string();
 
-            DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
+            
+            DocumentMapper defaultMapper = parser.parse(mapping);
             FieldMapper fieldMapper = defaultMapper.mappers().name("location").mapper();
             assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
@@ -233,7 +237,7 @@ public class GeoShapeFieldMapperTests extends ElasticsearchTestCase {
                     .endObject().endObject()
                     .endObject().endObject().string();
 
-            DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
+            DocumentMapper defaultMapper = parser.parse(mapping);
             FieldMapper fieldMapper = defaultMapper.mappers().name("location").mapper();
             assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 

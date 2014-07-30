@@ -19,15 +19,18 @@
 
 package org.elasticsearch.rest.util;
 
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.rest.support.RestUtils;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
+import java.util.Locale;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 import static com.google.common.collect.Maps.newHashMap;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
@@ -122,4 +125,34 @@ public class RestUtilsTests extends ElasticsearchTestCase {
         assertThat(params.get("p1"), equalTo("v1"));
     }
 
+    @Test
+    public void testCorsSettingIsARegex() {
+        assertCorsSettingRegex("/foo/", Pattern.compile("foo"));
+        assertCorsSettingRegex("/.*/", Pattern.compile(".*"));
+        assertCorsSettingRegex("/https?:\\/\\/localhost(:[0-9]+)?/", Pattern.compile("https?:\\/\\/localhost(:[0-9]+)?"));
+        assertCorsSettingRegexMatches("/https?:\\/\\/localhost(:[0-9]+)?/", true, "http://localhost:9200", "http://localhost:9215", "https://localhost:9200", "https://localhost");
+        assertCorsSettingRegexMatches("/https?:\\/\\/localhost(:[0-9]+)?/", false, "htt://localhost:9200", "http://localhost:9215/foo", "localhost:9215");
+        assertCorsSettingRegexIsNull("//");
+        assertCorsSettingRegexIsNull("/");
+        assertCorsSettingRegexIsNull("/foo");
+        assertCorsSettingRegexIsNull("foo");
+        assertCorsSettingRegexIsNull("");
+        assertThat(RestUtils.getCorsSettingRegex(ImmutableSettings.EMPTY), is(nullValue()));
+    }
+
+    private void assertCorsSettingRegexIsNull(String settingsValue) {
+        assertThat(RestUtils.getCorsSettingRegex(settingsBuilder().put("http.cors.allow-origin", settingsValue).build()), is(nullValue()));
+    }
+
+    private void assertCorsSettingRegex(String settingsValue, Pattern pattern) {
+        assertThat(RestUtils.getCorsSettingRegex(settingsBuilder().put("http.cors.allow-origin", settingsValue).build()).toString(), is(pattern.toString()));
+    }
+
+    private void assertCorsSettingRegexMatches(String settingsValue, boolean expectMatch, String ... candidates) {
+        Pattern pattern = RestUtils.getCorsSettingRegex(settingsBuilder().put("http.cors.allow-origin", settingsValue).build());
+        for (String candidate : candidates) {
+            assertThat(String.format(Locale.ROOT, "Expected pattern %s to match against %s: %s", settingsValue, candidate, expectMatch),
+                    pattern.matcher(candidate).matches(), is(expectMatch));
+        }
+    }
 }

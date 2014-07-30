@@ -117,6 +117,9 @@ public class DefaultSearchContext extends SearchContext {
     // timeout in millis
     private long timeoutInMillis = -1;
 
+    // terminate after count
+    private int terminateAfter = DEFAULT_TERMINATE_AFTER;
+
 
     private List<String> groupStats;
 
@@ -190,7 +193,8 @@ public class DefaultSearchContext extends SearchContext {
         this.scriptService = scriptService;
         this.cacheRecycler = cacheRecycler;
         this.pageCacheRecycler = pageCacheRecycler;
-        this.bigArrays = bigArrays;
+        // SearchContexts use a BigArrays that can circuit break
+        this.bigArrays = bigArrays.withCircuitBreaking();
         this.dfsResult = new DfsSearchResult(id, shardTarget);
         this.queryResult = new QuerySearchResult(id, shardTarget);
         this.fetchResult = new FetchSearchResult(id, shardTarget);
@@ -469,6 +473,16 @@ public class DefaultSearchContext extends SearchContext {
 
     public void timeoutInMillis(long timeoutInMillis) {
         this.timeoutInMillis = timeoutInMillis;
+    }
+
+    @Override
+    public int terminateAfter() {
+        return terminateAfter;
+    }
+
+    @Override
+    public void terminateAfter(int terminateAfter) {
+        this.terminateAfter = terminateAfter;
     }
 
     public SearchContext minimumScore(float minimumScore) {

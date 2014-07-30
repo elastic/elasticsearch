@@ -33,7 +33,7 @@ abstract class AbstractArray implements BigArray {
 
     @Override
     public final void close() {
-        bigArrays.ramBytesUsed.addAndGet(-sizeInBytes());
+        bigArrays.adjustBreaker(-ramBytesUsed());
         assert !released : "double release";
         released = true;
         doClose();

@@ -33,8 +33,8 @@ import org.elasticsearch.index.settings.IndexSettings;
  */
 public class DelimitedPayloadTokenFilterFactory extends AbstractTokenFilterFactory {
 
-    static final char DEFAULT_DELIMITER = '|';
-    static final PayloadEncoder DEFAULT_ENCODER = new FloatEncoder();
+    public static final char DEFAULT_DELIMITER = '|';
+    public static final PayloadEncoder DEFAULT_ENCODER = new FloatEncoder();
     
     static final String ENCODING = "encoding";
     static final String DELIMITER = "delimiter";

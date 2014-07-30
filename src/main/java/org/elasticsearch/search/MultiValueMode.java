@@ -20,12 +20,15 @@
 
 package org.elasticsearch.search;
 
+import org.apache.lucene.index.*;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.index.fielddata.AtomicFieldData;
-import org.elasticsearch.index.fielddata.BytesValues;
-import org.elasticsearch.index.fielddata.DoubleValues;
-import org.elasticsearch.index.fielddata.LongValues;
+import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.fielddata.NumericDoubleValues;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 
 import java.util.Locale;
 
@@ -89,7 +92,13 @@ public enum MultiValueMode {
          */
         @Override
         public long reduce(long a, int numValues) {
-            return Math.round(a / Math.max(1.0, numValues));
+            if (numValues <= 1) {
+                // without this the average might be different from the original
+                // values on a single-valued field due to the precision loss of the double
+                return a;
+            } else {
+                return Math.round(a / Math.max(1.0, numValues));
+            }
         }
     },
 
@@ -113,6 +122,16 @@ public enum MultiValueMode {
             return Math.min(a, b);
         }
 
+        @Override
+        public int applyOrd(int ord1, int ord2) {
+            return Math.min(ord1, ord2);
+        }
+
+        @Override
+        public BytesRef apply(BytesRef a, BytesRef b) {
+            return a.compareTo(b) <= 0 ? a : b;
+        }
+
         /**
          * Returns {@link Double#POSITIVE_INFINITY}
          */
@@ -129,43 +148,40 @@ public enum MultiValueMode {
             return Long.MAX_VALUE;
         }
 
-        /**
-         * Returns the first value returned for the given <tt>docId</tt> or the <tt>defaultValue</tt> if the document
-         * has no values.
-         */
         @Override
-        public double getRelevantValue(DoubleValues values, int docId, double defaultValue) {
-            assert values.getOrder() != AtomicFieldData.Order.NONE;
-            if (values.setDocument(docId) > 0) {
-                return values.nextValue();
+        protected long pick(SortedNumericDocValues values, long missingValue) {
+            if (values.count() > 0) {
+                return values.valueAt(0);
+            } else {
+                return missingValue;
             }
-            return defaultValue;
         }
 
-        /**
-         * Returns the first value returned for the given <tt>docId</tt> or the <tt>defaultValue</tt> if the document
-         * has no values.
-         */
         @Override
-        public long getRelevantValue(LongValues values, int docId, long defaultValue) {
-            assert values.getOrder() != AtomicFieldData.Order.NONE;
-            if (values.setDocument(docId) > 0) {
-                return values.nextValue();
+        protected double pick(SortedNumericDoubleValues values, double missingValue) {
+            if (values.count() > 0) {
+                return values.valueAt(0);
+            } else {
+                return missingValue;
             }
-            return defaultValue;
         }
 
-        /**
-         * Returns the first value returned for the given <tt>docId</tt> or the <tt>defaultValue</tt> if the document
-         * has no values.
-         */
         @Override
-        public BytesRef getRelevantValue(BytesValues values, int docId, BytesRef defaultValue) {
-            assert values.getOrder() != AtomicFieldData.Order.NONE;
-            if (values.setDocument(docId) > 0) {
-                return values.nextValue();
+        protected BytesRef pick(SortedBinaryDocValues values, BytesRef missingValue) {
+            if (values.count() > 0) {
+                return values.valueAt(0);
+            } else {
+                return missingValue;
             }
-            return defaultValue;
+        }
+
+        @Override
+        protected int pick(RandomAccessOrds values) {
+            if (values.cardinality() > 0) {
+                return (int) values.ordAt(0);
+            } else {
+                return -1;
+            }
         }
     },
 
@@ -189,6 +205,16 @@ public enum MultiValueMode {
             return Math.max(a, b);
         }
 
+        @Override
+        public int applyOrd(int ord1, int ord2) {
+            return Math.max(ord1, ord2);
+        }
+
+        @Override
+        public BytesRef apply(BytesRef a, BytesRef b) {
+            return a.compareTo(b) > 0 ? a : b;
+        }
+
         /**
          * Returns {@link Double#NEGATIVE_INFINITY}
          */
@@ -206,49 +232,44 @@ public enum MultiValueMode {
             return Long.MIN_VALUE;
         }
 
-        /**
-         * Returns the last value returned for the given <tt>docId</tt> or the <tt>defaultValue</tt> if the document
-         * has no values.
-         */
         @Override
-        public double getRelevantValue(DoubleValues values, int docId, double defaultValue) {
-            assert values.getOrder() != AtomicFieldData.Order.NONE;
-            final int numValues = values.setDocument(docId);
-            double retVal = defaultValue;
-            for (int i = 0; i < numValues; i++) {
-                retVal = values.nextValue();
+        protected long pick(SortedNumericDocValues values, long missingValue) {
+            final int count = values.count();
+            if (count > 0) {
+                return values.valueAt(count - 1);
+            } else {
+                return missingValue;
             }
-            return retVal;
         }
 
-        /**
-         * Returns the last value returned for the given <tt>docId</tt> or the <tt>defaultValue</tt> if the document
-         * has no values.
-         */
         @Override
-        public long getRelevantValue(LongValues values, int docId, long defaultValue) {
-            assert values.getOrder() != AtomicFieldData.Order.NONE;
-            final int numValues = values.setDocument(docId);
-            long retVal = defaultValue;
-            for (int i = 0; i < numValues; i++) {
-                retVal = values.nextValue();
+        protected double pick(SortedNumericDoubleValues values, double missingValue) {
+            final int count = values.count();
+            if (count > 0) {
+                return values.valueAt(count - 1);
+            } else {
+                return missingValue;
             }
-            return retVal;
         }
 
-        /**
-         * Returns the last value returned for the given <tt>docId</tt> or the <tt>defaultValue</tt> if the document
-         * has no values.
-         */
         @Override
-        public BytesRef getRelevantValue(BytesValues values, int docId, BytesRef defaultValue) {
-            assert values.getOrder() != AtomicFieldData.Order.NONE;
-            final int numValues = values.setDocument(docId);
-            BytesRef currentVal = defaultValue;
-            for (int i = 0; i < numValues; i++) {
-                currentVal = values.nextValue();
+        protected BytesRef pick(SortedBinaryDocValues values, BytesRef missingValue) {
+            final int count = values.count();
+            if (count > 0) {
+                return values.valueAt(count - 1);
+            } else {
+                return missingValue;
             }
-            return currentVal;
+        }
+
+        @Override
+        protected int pick(RandomAccessOrds values) {
+            final int count = values.cardinality();
+            if (count > 0) {
+                return (int) values.ordAt(count - 1);
+            } else {
+                return -1;
+            }
         }
     };
 
@@ -279,6 +300,14 @@ public enum MultiValueMode {
      * @return the result of the function.
      */
     public abstract long apply(long a, long b);
+
+    public int applyOrd(int ord1, int ord2) {
+        throw new UnsupportedOperationException();
+    }
+
+    public BytesRef apply(BytesRef a, BytesRef b) {
+        throw new UnsupportedOperationException();
+    }
 
     /**
      * Returns an initial value for the sort mode that is guaranteed to have no impact if passed
@@ -352,60 +381,371 @@ public enum MultiValueMode {
         }
     }
 
-    /**
-     * Returns the relevant value for the given document based on the {@link MultiValueMode}. This
-     * method will apply each value for the given document to {@link #apply(double, double)} and returns
-     * the reduced value from {@link #reduce(double, int)} if the document has at least one value. Otherwise it will
-     * return the given default value.
-     * @param values the values to fetch the relevant value from.
-     * @param docId the doc id to fetch the relevant value for.
-     * @param defaultValue the default value if the document has no value
-     * @return the relevant value or the default value passed to the method.
-     */
-    public double getRelevantValue(DoubleValues values, int docId, double defaultValue) {
-        final int numValues = values.setDocument(docId);
-        double relevantVal = startDouble();
-        double result = defaultValue;
-        for (int i = 0; i < numValues; i++) {
-            result = relevantVal = apply(relevantVal, values.nextValue());
+    protected long pick(SortedNumericDocValues values, long missingValue) {
+        final int count = values.count();
+        if (count == 0) {
+            return missingValue;
+        } else {
+            long aggregate = startLong();
+            for (int i = 0; i < count; ++i) {
+                aggregate = apply(aggregate, values.valueAt(i));
+            }
+            return reduce(aggregate, count);
         }
-        return reduce(result, numValues);
     }
 
     /**
-     * Returns the relevant value for the given document based on the {@link MultiValueMode}. This
-     * method will apply each value for the given document to {@link #apply(long, long)} and returns
-     * the reduced value from {@link #reduce(long, int)} if the document has at least one value. Otherwise it will
-     * return the given default value.
-     * @param values the values to fetch the relevant value from.
-     * @param docId the doc id to fetch the relevant value for.
-     * @param defaultValue the default value if the document has no value
-     * @return the relevant value or the default value passed to the method.
+     * Return a {@link NumericDocValues} instance that can be used to sort documents
+     * with this mode and the provided values. When a document has no value,
+     * <code>missingValue</code> is returned.
      */
-    public long getRelevantValue(LongValues values, int docId, long defaultValue) {
-        final int numValues = values.setDocument(docId);
-        long relevantVal = startLong();
-        long result = defaultValue;
-        for (int i = 0; i < numValues; i++) {
-            result = relevantVal = apply(relevantVal, values.nextValue());
+    public NumericDocValues select(final SortedNumericDocValues values, final long missingValue) {
+        final NumericDocValues singleton = DocValues.unwrapSingleton(values);
+        if (singleton != null) {
+            final Bits docsWithField = DocValues.unwrapSingletonBits(values);
+            if (docsWithField == null || missingValue == 0) {
+                return singleton;
+            } else {
+                return new NumericDocValues() {
+                    @Override
+                    public long get(int docID) {
+                        final long value = singleton.get(docID);
+                        if (value == 0 && docsWithField.get(docID) == false) {
+                            return missingValue;
+                        }
+                        return value;
+                    }
+                };
+            }
+        } else {
+            return new NumericDocValues() {
+                @Override
+                public long get(int docID) {
+                    values.setDocument(docID);
+                    return pick(values, missingValue);
+                }
+            };
         }
-        return reduce(result, numValues);
     }
 
-
     /**
-     * Returns the relevant value for the given document based on the {@link MultiValueMode}
-     * if the document has at least one value. Otherwise it will return same object given as the default value.
-     * Note: This method is optional and will throw {@link UnsupportedOperationException} if the sort mode doesn't
-     * allow a relevant value.
+     * Return a {@link NumericDocValues} instance that can be used to sort root documents
+     * with this mode, the provided values and filters for root/inner documents.
      *
-     * @param values the values to fetch the relevant value from.
-     * @param docId the doc id to fetch the relevant value for.
-     * @param defaultValue the default value if the document has no value. This object will never be modified.
-     * @return the relevant value or the default value passed to the method.
+     * For every root document, the values of its inner documents will be aggregated.
+     * If none of the inner documents has a value, then <code>missingValue</code> is returned.
+     *
+     * NOTE: Calling the returned instance on docs that are not root docs is illegal
      */
-    public BytesRef getRelevantValue(BytesValues values, int docId, BytesRef defaultValue) {
-        throw new UnsupportedOperationException("no relevant bytes value for sort mode: " + this.name());
+    public NumericDocValues select(final SortedNumericDocValues values, final long missingValue, final FixedBitSet rootDocs, final FixedBitSet innerDocs, int maxDoc) {
+        if (rootDocs == null || innerDocs == null) {
+            return select(FieldData.emptySortedNumeric(maxDoc), missingValue);
+        }
+        return new NumericDocValues() {
+
+            @Override
+            public long get(int rootDoc) {
+                assert rootDocs.get(rootDoc) : "can only sort root documents";
+                if (rootDoc == 0) {
+                    return missingValue;
+                }
+
+                final int prevRootDoc = rootDocs.prevSetBit(rootDoc - 1);
+                final int firstNestedDoc = innerDocs.nextSetBit(prevRootDoc + 1);
+
+                long accumulated = startLong();
+                int numValues = 0;
+
+                for (int doc = firstNestedDoc; doc != -1 && doc < rootDoc; doc = innerDocs.nextSetBit(doc + 1)) {
+                    values.setDocument(doc);
+                    final int count = values.count();
+                    for (int i = 0; i < count; ++i) {
+                        final long value = values.valueAt(i);
+                        accumulated = apply(accumulated, value);
+                    }
+                    numValues += count;
+                }
+
+                return numValues == 0
+                        ? missingValue
+                        : reduce(accumulated, numValues);
+            }
+        };
     }
 
+    protected double pick(SortedNumericDoubleValues values, double missingValue) {
+        final int count = values.count();
+        if (count == 0) {
+            return missingValue;
+        } else {
+            double aggregate = startDouble();
+            for (int i = 0; i < count; ++i) {
+                aggregate = apply(aggregate, values.valueAt(i));
+            }
+            return reduce(aggregate, count);
+        }
+    }
+
+    /**
+     * Return a {@link NumericDoubleValues} instance that can be used to sort documents
+     * with this mode and the provided values. When a document has no value,
+     * <code>missingValue</code> is returned.
+     */
+    public NumericDoubleValues select(final SortedNumericDoubleValues values, final double missingValue) {
+        final NumericDoubleValues singleton = FieldData.unwrapSingleton(values);
+        if (singleton != null) {
+            final Bits docsWithField = FieldData.unwrapSingletonBits(values);
+            if (docsWithField == null || missingValue == 0) {
+                return singleton;
+            } else {
+                return new NumericDoubleValues() {
+                    @Override
+                    public double get(int docID) {
+                        final double value = singleton.get(docID);
+                        if (value == 0 && docsWithField.get(docID) == false) {
+                            return missingValue;
+                        }
+                        return value;
+                    }
+                };
+            }
+        } else {
+            return new NumericDoubleValues() {
+                @Override
+                public double get(int docID) {
+                    values.setDocument(docID);
+                    return pick(values, missingValue);
+                }
+            };
+        }
+    }
+
+    /**
+     * Return a {@link NumericDoubleValues} instance that can be used to sort root documents
+     * with this mode, the provided values and filters for root/inner documents.
+     *
+     * For every root document, the values of its inner documents will be aggregated.
+     * If none of the inner documents has a value, then <code>missingValue</code> is returned.
+     *
+     * NOTE: Calling the returned instance on docs that are not root docs is illegal
+     */
+    public NumericDoubleValues select(final SortedNumericDoubleValues values, final double missingValue, final FixedBitSet rootDocs, final FixedBitSet innerDocs, int maxDoc) {
+        if (rootDocs == null || innerDocs == null) {
+            return select(FieldData.emptySortedNumericDoubles(maxDoc), missingValue);
+        }
+        return new NumericDoubleValues() {
+
+            @Override
+            public double get(int rootDoc) {
+                assert rootDocs.get(rootDoc) : "can only sort root documents";
+                if (rootDoc == 0) {
+                    return missingValue;
+                }
+
+                final int prevRootDoc = rootDocs.prevSetBit(rootDoc - 1);
+                final int firstNestedDoc = innerDocs.nextSetBit(prevRootDoc + 1);
+
+                double accumulated = startDouble();
+                int numValues = 0;
+
+                for (int doc = firstNestedDoc; doc != -1 && doc < rootDoc; doc = innerDocs.nextSetBit(doc + 1)) {
+                    values.setDocument(doc);
+                    final int count = values.count();
+                    for (int i = 0; i < count; ++i) {
+                        final double value = values.valueAt(i);
+                        accumulated = apply(accumulated, value);
+                    }
+                    numValues += count;
+                }
+
+                return numValues == 0
+                        ? missingValue
+                        : reduce(accumulated, numValues);
+            }
+        };
+    }
+
+    protected BytesRef pick(SortedBinaryDocValues values, BytesRef missingValue) {
+        throw new ElasticsearchIllegalArgumentException("Unsupported sort mode: " + this);
+    }
+
+    /**
+     * Return a {@link BinaryDocValues} instance that can be used to sort documents
+     * with this mode and the provided values. When a document has no value,
+     * <code>missingValue</code> is returned.
+     */
+    public BinaryDocValues select(final SortedBinaryDocValues values, final BytesRef missingValue) {
+        final BinaryDocValues singleton = FieldData.unwrapSingleton(values);
+        if (singleton != null) {
+            final Bits docsWithField = FieldData.unwrapSingletonBits(values);
+            if (docsWithField == null) {
+                return singleton;
+            } else {
+                return new BinaryDocValues() {
+                    @Override
+                    public BytesRef get(int docID) {
+                        final BytesRef value = singleton.get(docID);
+                        if (value.length == 0 && docsWithField.get(docID) == false) {
+                            return missingValue;
+                        }
+                        return value;
+                    }
+                };
+            }
+        } else {
+            return new BinaryDocValues() {
+                @Override
+                public BytesRef get(int docID) {
+                    values.setDocument(docID);
+                    return pick(values, missingValue);
+                }
+            };
+        }
+    }
+
+    /**
+     * Return a {@link BinaryDocValues} instance that can be used to sort root documents
+     * with this mode, the provided values and filters for root/inner documents.
+     *
+     * For every root document, the values of its inner documents will be aggregated.
+     * If none of the inner documents has a value, then <code>missingValue</code> is returned.
+     *
+     * NOTE: Calling the returned instance on docs that are not root docs is illegal
+     */
+    public BinaryDocValues select(final SortedBinaryDocValues values, final BytesRef missingValue, final FixedBitSet rootDocs, final FixedBitSet innerDocs, int maxDoc) {
+        if (rootDocs == null || innerDocs == null) {
+            return select(FieldData.emptySortedBinary(maxDoc), missingValue);
+        }
+        final BinaryDocValues selectedValues = select(values, new BytesRef());
+        final Bits docsWithValue;
+        if (FieldData.unwrapSingleton(values) != null) {
+            docsWithValue = FieldData.unwrapSingletonBits(values);
+        } else {
+            docsWithValue = FieldData.docsWithValue(values, maxDoc);
+        }
+        return new BinaryDocValues() {
+
+            final BytesRef spare = new BytesRef();
+
+            @Override
+            public BytesRef get(int rootDoc) {
+                assert rootDocs.get(rootDoc) : "can only sort root documents";
+                if (rootDoc == 0) {
+                    return missingValue;
+                }
+
+                final int prevRootDoc = rootDocs.prevSetBit(rootDoc - 1);
+                final int firstNestedDoc = innerDocs.nextSetBit(prevRootDoc + 1);
+
+                BytesRef accumulated = null;
+
+                for (int doc = firstNestedDoc; doc != -1 && doc < rootDoc; doc = innerDocs.nextSetBit(doc + 1)) {
+                    values.setDocument(doc);
+                    final BytesRef innerValue = selectedValues.get(doc);
+                    if (innerValue.length > 0 || docsWithValue == null || docsWithValue.get(doc)) {
+                        if (accumulated == null) {
+                            spare.copyBytes(innerValue);
+                            accumulated = spare;
+                        } else {
+                            final BytesRef applied = apply(accumulated, innerValue);
+                            if (applied == innerValue) {
+                                accumulated.copyBytes(innerValue);
+                            }
+                        }
+                    }
+                }
+
+                return accumulated == null ? missingValue : accumulated;
+            }
+        };
+    }
+
+    protected int pick(RandomAccessOrds values) {
+        throw new ElasticsearchIllegalArgumentException("Unsupported sort mode: " + this);
+    }
+
+    /**
+     * Return a {@link SortedDocValues} instance that can be used to sort documents
+     * with this mode and the provided values.
+     */
+    public SortedDocValues select(final RandomAccessOrds values) {
+        if (values.getValueCount() >= Integer.MAX_VALUE) {
+            throw new UnsupportedOperationException("fields containing more than " + (Integer.MAX_VALUE-1) + " unique terms are unsupported");
+        }
+
+        final SortedDocValues singleton = DocValues.unwrapSingleton(values);
+        if (singleton != null) {
+            return singleton;
+        } else {
+            return new SortedDocValues() {
+                @Override
+                public int getOrd(int docID) {
+                    values.setDocument(docID);
+                    return pick(values);
+                }
+
+                @Override
+                public BytesRef lookupOrd(int ord) {
+                    return values.lookupOrd(ord);
+                }
+
+                @Override
+                public int getValueCount() {
+                    return (int) values.getValueCount();
+                }
+            };
+        }
+    }
+
+    /**
+     * Return a {@link SortedDocValues} instance that can be used to sort root documents
+     * with this mode, the provided values and filters for root/inner documents.
+     *
+     * For every root document, the values of its inner documents will be aggregated.
+     *
+     * NOTE: Calling the returned instance on docs that are not root docs is illegal
+     */
+    public SortedDocValues select(final RandomAccessOrds values, final FixedBitSet rootDocs, final FixedBitSet innerDocs) {
+        if (rootDocs == null || innerDocs == null) {
+            return select((RandomAccessOrds) DocValues.emptySortedSet());
+        }
+        final SortedDocValues selectedValues = select(values);
+        return new SortedDocValues() {
+
+            @Override
+            public BytesRef lookupOrd(int ord) {
+                return selectedValues.lookupOrd(ord);
+            }
+
+            @Override
+            public int getValueCount() {
+                return selectedValues.getValueCount();
+            }
+
+            @Override
+            public int getOrd(int rootDoc) {
+                assert rootDocs.get(rootDoc) : "can only sort root documents";
+                if (rootDoc == 0) {
+                    return -1;
+                }
+
+                final int prevRootDoc = rootDocs.prevSetBit(rootDoc - 1);
+                final int firstNestedDoc = innerDocs.nextSetBit(prevRootDoc + 1);
+                int ord = -1;
+
+                for (int doc = firstNestedDoc; doc != -1 && doc < rootDoc; doc = innerDocs.nextSetBit(doc + 1)) {
+                    final int innerOrd = selectedValues.getOrd(doc);
+                    if (innerOrd != -1) {
+                        if (ord == -1) {
+                            ord = innerOrd;
+                        } else {
+                            ord = applyOrd(ord, innerOrd);
+                        }
+                    }
+                }
+
+                return ord;
+            }
+        };
+    }
 }

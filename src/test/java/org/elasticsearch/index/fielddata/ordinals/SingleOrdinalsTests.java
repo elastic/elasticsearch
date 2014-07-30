@@ -18,6 +18,9 @@
  */
 package org.elasticsearch.index.fielddata.ordinals;
 
+import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.RandomAccessOrds;
+import org.apache.lucene.index.SortedDocValues;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
@@ -26,7 +29,6 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -39,7 +41,7 @@ public class SingleOrdinalsTests extends ElasticsearchTestCase {
         int numOrdinals = numDocs / 4;
         Map<Integer, Long> controlDocToOrdinal = new HashMap<>();
         OrdinalsBuilder builder = new OrdinalsBuilder(numDocs);
-        long ordinal = builder.nextOrdinal();
+        long ordinal = builder.currentOrdinal();
         for (int doc = 0; doc < numDocs; doc++) {
             if (doc % numOrdinals == 0) {
                 ordinal = builder.nextOrdinal();
@@ -50,12 +52,13 @@ public class SingleOrdinalsTests extends ElasticsearchTestCase {
 
         Ordinals ords = builder.build(ImmutableSettings.EMPTY);
         assertThat(ords, instanceOf(SinglePackedOrdinals.class));
-        Ordinals.Docs docs = ords.ordinals();
+        RandomAccessOrds docs = ords.ordinals();
+        final SortedDocValues singleOrds = DocValues.unwrapSingleton(docs);
+        assertNotNull(singleOrds);
 
         for (Map.Entry<Integer, Long> entry : controlDocToOrdinal.entrySet()) {
-            assertThat(entry.getValue(), equalTo(docs.getOrd(entry.getKey())));
+            assertThat(entry.getValue(), equalTo((long) singleOrds.getOrd(entry.getKey())));
         }
-
     }
 
     @Test

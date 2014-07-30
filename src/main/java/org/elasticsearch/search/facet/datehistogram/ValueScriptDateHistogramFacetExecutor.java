@@ -21,12 +21,12 @@ package org.elasticsearch.search.facet.datehistogram;
 
 import com.carrotsearch.hppc.LongObjectOpenHashMap;
 import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.common.recycler.Recycler;
-import org.elasticsearch.common.rounding.TimeZoneRounding;
+import org.elasticsearch.common.rounding.Rounding;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.fielddata.LongValues;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.InternalFacet;
@@ -44,11 +44,11 @@ public class ValueScriptDateHistogramFacetExecutor extends FacetExecutor {
     private final IndexNumericFieldData keyIndexFieldData;
     private final DateHistogramFacet.ComparatorType comparatorType;
     final SearchScript valueScript;
-    final TimeZoneRounding tzRounding;
+    final Rounding tzRounding;
 
     final Recycler.V<LongObjectOpenHashMap<InternalFullDateHistogramFacet.FullEntry>> entries;
 
-    public ValueScriptDateHistogramFacetExecutor(IndexNumericFieldData keyIndexFieldData, SearchScript valueScript, TimeZoneRounding tzRounding, DateHistogramFacet.ComparatorType comparatorType, CacheRecycler cacheRecycler) {
+    public ValueScriptDateHistogramFacetExecutor(IndexNumericFieldData keyIndexFieldData, SearchScript valueScript, Rounding tzRounding, DateHistogramFacet.ComparatorType comparatorType, CacheRecycler cacheRecycler) {
         this.comparatorType = comparatorType;
         this.keyIndexFieldData = keyIndexFieldData;
         this.valueScript = valueScript;
@@ -81,7 +81,7 @@ public class ValueScriptDateHistogramFacetExecutor extends FacetExecutor {
     class Collector extends FacetExecutor.Collector {
 
         private final DateHistogramProc histoProc;
-        private LongValues keyValues;
+        private SortedNumericDocValues keyValues;
 
         public Collector() {
             histoProc = new DateHistogramProc(tzRounding, valueScript, entries.v());
@@ -110,12 +110,12 @@ public class ValueScriptDateHistogramFacetExecutor extends FacetExecutor {
 
     public static class DateHistogramProc extends LongFacetAggregatorBase {
 
-        private final TimeZoneRounding tzRounding;
+        private final Rounding tzRounding;
         protected final SearchScript valueScript;
 
         final LongObjectOpenHashMap<InternalFullDateHistogramFacet.FullEntry> entries;
 
-        public DateHistogramProc(TimeZoneRounding tzRounding, SearchScript valueScript, final LongObjectOpenHashMap<InternalFullDateHistogramFacet.FullEntry> entries) {
+        public DateHistogramProc(Rounding tzRounding, SearchScript valueScript, final LongObjectOpenHashMap<InternalFullDateHistogramFacet.FullEntry> entries) {
             this.tzRounding = tzRounding;
             this.valueScript = valueScript;
             this.entries = entries;

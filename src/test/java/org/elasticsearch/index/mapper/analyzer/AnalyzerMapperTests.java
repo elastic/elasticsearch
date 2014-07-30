@@ -23,22 +23,23 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.analysis.FieldNameAnalyzer;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.MapperTestUtils;
+import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
  *
  */
-public class AnalyzerMapperTests extends ElasticsearchTestCase {
+public class AnalyzerMapperTests extends ElasticsearchSingleNodeTest {
 
     @Test
     public void testAnalyzerMapping() throws Exception {
+        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_analyzer").field("path", "field_analyzer").endObject()
                 .startObject("properties")
@@ -47,7 +48,7 @@ public class AnalyzerMapperTests extends ElasticsearchTestCase {
                 .endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper documentMapper = MapperTestUtils.newParser().parse(mapping);
+        DocumentMapper documentMapper = parser.parse(mapping);
 
         ParsedDocument doc = documentMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
                 .field("field_analyzer", "whitespace")
@@ -62,7 +63,7 @@ public class AnalyzerMapperTests extends ElasticsearchTestCase {
 
         // check that it serializes and de-serializes correctly
 
-        DocumentMapper reparsedMapper = MapperTestUtils.newParser().parse(documentMapper.mappingSource().string());
+        DocumentMapper reparsedMapper = parser.parse(documentMapper.mappingSource().string());
 
         doc = reparsedMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
                 .field("field_analyzer", "whitespace")
@@ -79,6 +80,8 @@ public class AnalyzerMapperTests extends ElasticsearchTestCase {
 
     @Test
     public void testAnalyzerMappingExplicit() throws Exception {
+        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_analyzer").field("path", "field_analyzer").endObject()
                 .startObject("properties")
@@ -88,7 +91,7 @@ public class AnalyzerMapperTests extends ElasticsearchTestCase {
                 .endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper documentMapper = MapperTestUtils.newParser().parse(mapping);
+        DocumentMapper documentMapper = parser.parse(mapping);
 
         ParsedDocument doc = documentMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
                 .field("field_analyzer", "whitespace")
@@ -103,7 +106,7 @@ public class AnalyzerMapperTests extends ElasticsearchTestCase {
 
         // check that it serializes and de-serializes correctly
 
-        DocumentMapper reparsedMapper = MapperTestUtils.newParser().parse(documentMapper.mappingSource().string());
+        DocumentMapper reparsedMapper = parser.parse(documentMapper.mappingSource().string());
 
         doc = reparsedMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
                 .field("field_analyzer", "whitespace")
@@ -119,6 +122,8 @@ public class AnalyzerMapperTests extends ElasticsearchTestCase {
 
     @Test
     public void testAnalyzerMappingNotIndexedNorStored() throws Exception {
+        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_analyzer").field("path", "field_analyzer").endObject()
                 .startObject("properties")
@@ -128,7 +133,7 @@ public class AnalyzerMapperTests extends ElasticsearchTestCase {
                 .endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper documentMapper = MapperTestUtils.newParser().parse(mapping);
+        DocumentMapper documentMapper = parser.parse(mapping);
 
         ParsedDocument doc = documentMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
                 .field("field_analyzer", "whitespace")
@@ -143,7 +148,7 @@ public class AnalyzerMapperTests extends ElasticsearchTestCase {
 
         // check that it serializes and de-serializes correctly
 
-        DocumentMapper reparsedMapper = MapperTestUtils.newParser().parse(documentMapper.mappingSource().string());
+        DocumentMapper reparsedMapper = parser.parse(documentMapper.mappingSource().string());
 
         doc = reparsedMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
                 .field("field_analyzer", "whitespace")

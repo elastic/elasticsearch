@@ -195,6 +195,9 @@ public class FunctionScoreQueryParser implements QueryParser {
             if (filter == null) {
                 filter = Queries.MATCH_ALL_FILTER;
             }
+            if (scoreFunction == null) {
+                throw new ElasticsearchParseException("function_score: One entry in functions list is missing a function.");
+            }
             filterFunctions.add(new FiltersFunctionScoreQuery.FilterFunction(filter, scoreFunction));
 
         }

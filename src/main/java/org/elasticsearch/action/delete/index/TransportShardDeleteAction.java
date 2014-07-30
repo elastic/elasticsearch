@@ -20,6 +20,7 @@
 package org.elasticsearch.action.delete.index;
 
 import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.TransportShardReplicationOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -42,11 +43,13 @@ import org.elasticsearch.transport.TransportService;
  */
 public class TransportShardDeleteAction extends TransportShardReplicationOperationAction<ShardDeleteRequest, ShardDeleteRequest, ShardDeleteResponse> {
 
+    private static final String ACTION_NAME = "indices/index/b_shard/delete";
+
     @Inject
     public TransportShardDeleteAction(Settings settings, TransportService transportService,
                                       ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool,
-                                      ShardStateAction shardStateAction) {
-        super(settings, transportService, clusterService, indicesService, threadPool, shardStateAction);
+                                      ShardStateAction shardStateAction, ActionFilters actionFilters) {
+        super(settings, ACTION_NAME, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters);
     }
 
     @Override
@@ -67,11 +70,6 @@ public class TransportShardDeleteAction extends TransportShardReplicationOperati
     @Override
     protected ShardDeleteResponse newResponseInstance() {
         return new ShardDeleteResponse();
-    }
-
-    @Override
-    protected String transportAction() {
-        return "indices/index/b_shard/delete";
     }
 
     @Override

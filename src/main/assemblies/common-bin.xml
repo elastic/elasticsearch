@@ -9,6 +9,7 @@
                 <include>net.java.dev.jna:jna</include>
                 <include>com.spatial4j:spatial4j</include>
                 <include>com.vividsolutions:jts</include>
+                <include>org.codehaus.groovy:groovy-all</include>
             </includes>
         </dependencySet>
         <dependencySet>

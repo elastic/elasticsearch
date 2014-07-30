@@ -22,23 +22,22 @@ package org.elasticsearch.index.mapper.size;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.MapperTestUtils;
+import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
-public class SizeMappingTests extends ElasticsearchTestCase {
+public class SizeMappingTests extends ElasticsearchSingleNodeTest {
 
     @Test
     public void testSizeEnabled() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_size").field("enabled", true).endObject()
                 .endObject().endObject().string();
-        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
 
         BytesReference source = XContentFactory.jsonBuilder()
                 .startObject()
@@ -48,7 +47,7 @@ public class SizeMappingTests extends ElasticsearchTestCase {
         ParsedDocument doc = docMapper.parse(SourceToParse.source(source).type("type").id("1"));
 
         assertThat(doc.rootDoc().getField("_size").fieldType().stored(), equalTo(false));
-        assertThat(doc.rootDoc().getField("_size").tokenStream(docMapper.indexAnalyzer()), notNullValue());
+        assertThat(doc.rootDoc().getField("_size").tokenStream(docMapper.indexAnalyzer(), null), notNullValue());
     }
 
     @Test
@@ -56,7 +55,7 @@ public class SizeMappingTests extends ElasticsearchTestCase {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_size").field("enabled", true).field("store", "yes").endObject()
                 .endObject().endObject().string();
-        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
 
         BytesReference source = XContentFactory.jsonBuilder()
                 .startObject()
@@ -66,7 +65,7 @@ public class SizeMappingTests extends ElasticsearchTestCase {
         ParsedDocument doc = docMapper.parse(SourceToParse.source(source).type("type").id("1"));
 
         assertThat(doc.rootDoc().getField("_size").fieldType().stored(), equalTo(true));
-        assertThat(doc.rootDoc().getField("_size").tokenStream(docMapper.indexAnalyzer()), notNullValue());
+        assertThat(doc.rootDoc().getField("_size").tokenStream(docMapper.indexAnalyzer(), null), notNullValue());
     }
 
     @Test
@@ -74,7 +73,7 @@ public class SizeMappingTests extends ElasticsearchTestCase {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_size").field("enabled", false).endObject()
                 .endObject().endObject().string();
-        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
 
         BytesReference source = XContentFactory.jsonBuilder()
                 .startObject()
@@ -90,7 +89,7 @@ public class SizeMappingTests extends ElasticsearchTestCase {
     public void testSizeNotSet() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .endObject().endObject().string();
-        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
 
         BytesReference source = XContentFactory.jsonBuilder()
                 .startObject()
@@ -107,12 +106,13 @@ public class SizeMappingTests extends ElasticsearchTestCase {
         String enabledMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_size").field("enabled", true).endObject()
                 .endObject().endObject().string();
-        DocumentMapper enabledMapper = MapperTestUtils.newParser().parse(enabledMapping);
+        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+        DocumentMapper enabledMapper = parser.parse(enabledMapping);
 
         String disabledMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_size").field("enabled", false).endObject()
                 .endObject().endObject().string();
-        DocumentMapper disabledMapper = MapperTestUtils.newParser().parse(disabledMapping);
+        DocumentMapper disabledMapper = parser.parse(disabledMapping);
 
         enabledMapper.merge(disabledMapper, DocumentMapper.MergeFlags.mergeFlags().simulate(false));
         assertThat(enabledMapper.SizeFieldMapper().enabled(), is(false));

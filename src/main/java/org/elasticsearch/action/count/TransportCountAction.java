@@ -22,6 +22,7 @@ package org.elasticsearch.action.count;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.TransportBroadcastOperationAction;
@@ -57,6 +58,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 import static com.google.common.collect.Lists.newArrayList;
+import static org.elasticsearch.search.internal.SearchContext.DEFAULT_TERMINATE_AFTER;
 
 /**
  *
@@ -76,8 +78,8 @@ public class TransportCountAction extends TransportBroadcastOperationAction<Coun
     @Inject
     public TransportCountAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
                                 IndicesService indicesService, ScriptService scriptService, CacheRecycler cacheRecycler,
-                                PageCacheRecycler pageCacheRecycler, BigArrays bigArrays) {
-        super(settings, threadPool, clusterService, transportService);
+                                PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, ActionFilters actionFilters) {
+        super(settings, CountAction.NAME, threadPool, clusterService, transportService, actionFilters);
         this.indicesService = indicesService;
         this.scriptService = scriptService;
         this.cacheRecycler = cacheRecycler;
@@ -94,11 +96,6 @@ public class TransportCountAction extends TransportBroadcastOperationAction<Coun
     @Override
     protected String executor() {
         return ThreadPool.Names.SEARCH;
-    }
-
-    @Override
-    protected String transportAction() {
-        return CountAction.NAME;
     }
 
     @Override
@@ -143,6 +140,7 @@ public class TransportCountAction extends TransportBroadcastOperationAction<Coun
         int successfulShards = 0;
         int failedShards = 0;
         long count = 0;
+        boolean terminatedEarly = false;
         List<ShardOperationFailedException> shardFailures = null;
         for (int i = 0; i < shardsResponses.length(); i++) {
             Object shardResponse = shardsResponses.get(i);
@@ -156,10 +154,13 @@ public class TransportCountAction extends TransportBroadcastOperationAction<Coun
                 shardFailures.add(new DefaultShardOperationFailedException((BroadcastShardOperationFailedException) shardResponse));
             } else {
                 count += ((ShardCountResponse) shardResponse).getCount();
+                if (((ShardCountResponse) shardResponse).terminatedEarly()) {
+                    terminatedEarly = true;
+                }
                 successfulShards++;
             }
         }
-        return new CountResponse(count, shardsResponses.length(), successfulShards, failedShards, shardFailures);
+        return new CountResponse(count, terminatedEarly, shardsResponses.length(), successfulShards, failedShards, shardFailures);
     }
 
     @Override
@@ -190,10 +191,20 @@ public class TransportCountAction extends TransportBroadcastOperationAction<Coun
                     QueryParseContext.removeTypes();
                 }
             }
+            final boolean hasTerminateAfterCount = request.terminateAfter() != DEFAULT_TERMINATE_AFTER;
+            boolean terminatedEarly = false;
             context.preProcess();
             try {
-                long count = Lucene.count(context.searcher(), context.query());
-                return new ShardCountResponse(request.index(), request.shardId(), count);
+                long count;
+                if (hasTerminateAfterCount) {
+                    final Lucene.EarlyTerminatingCollector countCollector =
+                            Lucene.createCountBasedEarlyTerminatingCollector(request.terminateAfter());
+                    terminatedEarly = Lucene.countWithEarlyTermination(context.searcher(), context.query(), countCollector);
+                    count = countCollector.count();
+                } else {
+                    count = Lucene.count(context.searcher(), context.query());
+                }
+                return new ShardCountResponse(request.index(), request.shardId(), count, terminatedEarly);
             } catch (Exception e) {
                 throw new QueryPhaseExecutionException(context, "failed to execute count", e);
             }

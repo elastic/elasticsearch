@@ -318,10 +318,18 @@ public class SearchPhaseController extends AbstractComponent {
         long totalHits = 0;
         float maxScore = Float.NEGATIVE_INFINITY;
         boolean timedOut = false;
+        Boolean terminatedEarly = null;
         for (AtomicArray.Entry<? extends QuerySearchResultProvider> entry : queryResults) {
             QuerySearchResult result = entry.value.queryResult();
             if (result.searchTimedOut()) {
                 timedOut = true;
+            }
+            if (result.terminatedEarly() != null) {
+                if (terminatedEarly == null) {
+                    terminatedEarly = result.terminatedEarly();
+                } else if (result.terminatedEarly()) {
+                    terminatedEarly = true;
+                }
             }
             totalHits += result.topDocs().totalHits;
             if (!Float.isNaN(result.topDocs().getMaxScore())) {
@@ -397,7 +405,7 @@ public class SearchPhaseController extends AbstractComponent {
 
         InternalSearchHits searchHits = new InternalSearchHits(hits.toArray(new InternalSearchHit[hits.size()]), totalHits, maxScore);
 
-        return new InternalSearchResponse(searchHits, facets, aggregations, suggest, timedOut);
+        return new InternalSearchResponse(searchHits, facets, aggregations, suggest, timedOut, terminatedEarly);
     }
 
 }

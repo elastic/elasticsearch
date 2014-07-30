@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 
 import java.util.List;
@@ -129,6 +130,24 @@ public class ParsedDocument {
      */
     public boolean mappingsModified() {
         return mappingsModified;
+    }
+
+    /**
+     * latches the mapping to be marked as modified.
+     */
+    public void setMappingsModified() {
+        this.mappingsModified = true;
+    }
+
+    /**
+     * Uses the value of get document or create to automatically set if mapping is
+     * modified or not.
+     */
+    public ParsedDocument setMappingsModified(Tuple<DocumentMapper, Boolean> docMapper) {
+        if (docMapper.v2()) {
+            setMappingsModified();
+        }
+        return this;
     }
 
     @Override

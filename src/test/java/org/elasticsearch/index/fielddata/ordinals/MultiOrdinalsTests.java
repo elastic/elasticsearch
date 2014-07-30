@@ -18,8 +18,12 @@
  */
 package org.elasticsearch.index.fielddata.ordinals;
 
+import org.apache.lucene.index.RandomAccessOrds;
+import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
@@ -103,7 +107,8 @@ public class MultiOrdinalsTests extends ElasticsearchTestCase {
             }
         });
         Ordinals ords = creationMultiOrdinals(builder);
-        Ordinals.Docs docs = ords.ordinals();
+        RandomAccessOrds docs = ords.ordinals();
+        final SortedDocValues singleOrds = MultiValueMode.MIN.select(docs);
         int docId = ordsAndIds.get(0).id;
         List<Long> docOrds = new ArrayList<>();
         for (OrdAndId ordAndId : ordsAndIds) {
@@ -111,9 +116,10 @@ public class MultiOrdinalsTests extends ElasticsearchTestCase {
                 docOrds.add(ordAndId.ord);
             } else {
                 if (!docOrds.isEmpty()) {
-                    assertThat(docs.getOrd(docId), equalTo(docOrds.get(0)));
+                    assertThat((long) singleOrds.getOrd(docId), equalTo(docOrds.get(0)));
 
-                    final int numOrds = docs.setDocument(docId);
+                    docs.setDocument(docId);
+                    final int numOrds = docs.cardinality();
                     assertThat(numOrds, equalTo(docOrds.size()));
                     for (int i = 0; i < numOrds; i++) {
                         assertThat(docs.nextOrd(), equalTo(docOrds.get(i)));
@@ -125,7 +131,7 @@ public class MultiOrdinalsTests extends ElasticsearchTestCase {
                     assertIter(docs, docId, array);
                 }
                 for (int i = docId + 1; i < ordAndId.id; i++) {
-                    assertThat(docs.getOrd(i), equalTo(Ordinals.MISSING_ORDINAL));
+                    assertThat((long) singleOrds.getOrd(i), equalTo(RandomAccessOrds.NO_MORE_ORDS));
                 }
                 docId = ordAndId.id;
                 docOrds.clear();
@@ -193,7 +199,7 @@ public class MultiOrdinalsTests extends ElasticsearchTestCase {
         builder.addDoc(4).addDoc(5).addDoc(6);
         builder.nextOrdinal(); // 5
         builder.addDoc(4).addDoc(5).addDoc(6);
-        while (builder.getMaxOrd() < maxOrds) {
+        while (builder.getValueCount() < maxOrds) {
             builder.nextOrdinal();
             builder.addDoc(5).addDoc(6);
         }
@@ -209,12 +215,13 @@ public class MultiOrdinalsTests extends ElasticsearchTestCase {
         };
 
         Ordinals ordinals = creationMultiOrdinals(builder);
-        Ordinals.Docs docs = ordinals.ordinals();
+        RandomAccessOrds docs = ordinals.ordinals();
         assertEquals(docs, ordinalPlan);
     }
 
-    protected static void assertIter(Ordinals.Docs docs, int docId, long... expectedOrdinals) {
-        assertThat(docs.setDocument(docId), equalTo(expectedOrdinals.length));
+    protected static void assertIter(RandomAccessOrds docs, int docId, long... expectedOrdinals) {
+        docs.setDocument(docId);
+        assertThat(docs.cardinality(), equalTo(expectedOrdinals.length));
         for (long expectedOrdinal : expectedOrdinals) {
             assertThat(docs.nextOrd(), equalTo(expectedOrdinal));
         }
@@ -261,24 +268,25 @@ public class MultiOrdinalsTests extends ElasticsearchTestCase {
         };
 
         Ordinals ordinals = new MultiOrdinals(builder, PackedInts.FASTEST);
-        Ordinals.Docs docs = ordinals.ordinals();
+        RandomAccessOrds docs = ordinals.ordinals();
         assertEquals(docs, ordinalPlan);
     }
 
-    private void assertEquals(Ordinals.Docs docs, long[][] ordinalPlan) {
+    private void assertEquals(RandomAccessOrds docs, long[][] ordinalPlan) {
         long maxOrd = 0;
         for (int doc = 0; doc < ordinalPlan.length; ++doc) {
             if (ordinalPlan[doc].length > 0) {
                 maxOrd = Math.max(maxOrd, 1 + ordinalPlan[doc][ordinalPlan[doc].length - 1]);
             }
         }
-        assertThat(docs.getMaxOrd(), equalTo(maxOrd));
-        assertThat(docs.isMultiValued(), equalTo(true));
+        assertThat(docs.getValueCount(), equalTo(maxOrd));
+        assertThat(FieldData.isMultiValued(docs), equalTo(true));
         for (int doc = 0; doc < ordinalPlan.length; ++doc) {
             long[] ords = ordinalPlan[doc];
-            assertThat(docs.setDocument(doc), equalTo(ords.length));
+            docs.setDocument(doc);
+            assertThat(docs.cardinality(), equalTo(ords.length));
             for (int i = 0; i < ords.length; ++i) {
-                assertThat(docs.nextOrd(), equalTo(ords[i]));
+                assertThat(docs.ordAt(i), equalTo(ords[i]));
             }
         }
     }

@@ -156,18 +156,18 @@ public class ConcurrentMergeSchedulerProvider extends MergeSchedulerProvider {
     class ApplySettings implements IndexSettingsService.Listener {
         @Override
         public void onRefreshSettings(Settings settings) {
-            int maxThreadCount = settings.getAsInt("index.merge.scheduler.max_thread_count", ConcurrentMergeSchedulerProvider.this.maxThreadCount);
+            int maxThreadCount = settings.getAsInt(MAX_THREAD_COUNT, ConcurrentMergeSchedulerProvider.this.maxThreadCount);
             if (maxThreadCount != ConcurrentMergeSchedulerProvider.this.maxThreadCount) {
-                logger.info("updating [max_thread_count] from [{}] to [{}]", ConcurrentMergeSchedulerProvider.this.maxThreadCount, maxThreadCount);
+                logger.info("updating [{}] from [{}] to [{}]", MAX_THREAD_COUNT_KEY, ConcurrentMergeSchedulerProvider.this.maxThreadCount, maxThreadCount);
                 ConcurrentMergeSchedulerProvider.this.maxThreadCount = maxThreadCount;
                 for (CustomConcurrentMergeScheduler scheduler : schedulers) {
                     scheduler.setMaxMergesAndThreads(ConcurrentMergeSchedulerProvider.this.maxMergeCount, maxThreadCount);
                 }
             }
 
-            int maxMergeCount = settings.getAsInt("index.merge.scheduler.max_merge_count", ConcurrentMergeSchedulerProvider.this.maxMergeCount);
+            int maxMergeCount = settings.getAsInt(MAX_MERGE_COUNT, ConcurrentMergeSchedulerProvider.this.maxMergeCount);
             if (maxMergeCount != ConcurrentMergeSchedulerProvider.this.maxMergeCount) {
-                logger.info("updating [max_merge_count] from [{}] to [{}]", ConcurrentMergeSchedulerProvider.this.maxMergeCount, maxMergeCount);
+                logger.info("updating [{}] from [{}] to [{}]", MAX_MERGE_COUNT_KEY, ConcurrentMergeSchedulerProvider.this.maxMergeCount, maxMergeCount);
                 ConcurrentMergeSchedulerProvider.this.maxMergeCount = maxMergeCount;
                 for (CustomConcurrentMergeScheduler scheduler : schedulers) {
                     scheduler.setMaxMergesAndThreads(maxMergeCount, ConcurrentMergeSchedulerProvider.this.maxThreadCount);

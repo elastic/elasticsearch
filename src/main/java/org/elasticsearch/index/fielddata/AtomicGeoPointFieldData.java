@@ -18,35 +18,15 @@
  */
 package org.elasticsearch.index.fielddata;
 
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.geo.GeoHashUtils;
-import org.elasticsearch.common.geo.GeoPoint;
 
 /**
+ * {@link AtomicFieldData} specialization for geo points.
  */
-public abstract class AtomicGeoPointFieldData<Script extends ScriptDocValues> implements AtomicFieldData<Script> {
+public interface AtomicGeoPointFieldData extends AtomicFieldData {
 
-    public abstract GeoPointValues getGeoPointValues();
-
-    @Override
-    public BytesValues getBytesValues() {
-        final GeoPointValues values = getGeoPointValues();
-        return new BytesValues(values.isMultiValued()) {
-
-            @Override
-            public int setDocument(int docId) {
-                this.docId = docId;
-                return values.setDocument(docId);
-            }
-
-            @Override
-            public BytesRef nextValue() {
-                GeoPoint value = values.nextValue();
-                scratch.copyChars(GeoHashUtils.encode(value.lat(), value.lon()));
-                return scratch;
-            }
-
-        };
-    }
+    /**
+     * Return geo-point values.
+     */
+    MultiGeoPointValues getGeoPointValues();
 
 }

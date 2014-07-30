@@ -19,9 +19,9 @@
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
 import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.LongHash;
-import org.elasticsearch.index.fielddata.LongValues;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -46,7 +46,7 @@ public class GeoHashGridAggregator extends BucketsAggregator {
     private final int shardSize;
     private final ValuesSource.Numeric valuesSource;
     private final LongHash bucketOrds;
-    private LongValues values;
+    private SortedNumericDocValues values;
 
     public GeoHashGridAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource,
                               int requiredSize, int shardSize, AggregationContext aggregationContext, Aggregator parent) {
@@ -70,10 +70,11 @@ public class GeoHashGridAggregator extends BucketsAggregator {
     @Override
     public void collect(int doc, long owningBucketOrdinal) throws IOException {
         assert owningBucketOrdinal == 0;
-        final int valuesCount = values.setDocument(doc);
+        values.setDocument(doc);
+        final int valuesCount = values.count();
 
         for (int i = 0; i < valuesCount; ++i) {
-            final long val = values.nextValue();
+            final long val = values.valueAt(i);
             long bucketOrdinal = bucketOrds.add(val);
             if (bucketOrdinal < 0) { // already seen
                 bucketOrdinal = - 1 - bucketOrdinal;

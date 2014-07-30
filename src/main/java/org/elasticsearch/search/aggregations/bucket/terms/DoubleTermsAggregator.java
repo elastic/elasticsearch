@@ -22,7 +22,7 @@ import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.LongHash;
-import org.elasticsearch.index.fielddata.DoubleValues;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.terms.support.BucketPriorityQueue;
@@ -43,12 +43,14 @@ public class DoubleTermsAggregator extends TermsAggregator {
     private final ValuesSource.Numeric valuesSource;
     private final ValueFormatter formatter;
     private final LongHash bucketOrds;
-    private DoubleValues values;
+    private final boolean showTermDocCountError;
+    private SortedNumericDoubleValues values;
 
     public DoubleTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, @Nullable ValueFormat format, long estimatedBucketCount,
-                               InternalOrder order, BucketCountThresholds bucketCountThresholds, AggregationContext aggregationContext, Aggregator parent, SubAggCollectionMode collectionMode) {
+                               InternalOrder order, BucketCountThresholds bucketCountThresholds, AggregationContext aggregationContext, Aggregator parent, SubAggCollectionMode collectionMode, boolean showTermDocCountError) {
         super(name, BucketAggregationMode.PER_BUCKET, factories, estimatedBucketCount, aggregationContext, parent, bucketCountThresholds, order, collectionMode);
         this.valuesSource = valuesSource;
+        this.showTermDocCountError = showTermDocCountError;
         this.formatter = format != null ? format.formatter() : null;
         bucketOrds = new LongHash(estimatedBucketCount, aggregationContext.bigArrays());
     }
@@ -66,17 +68,22 @@ public class DoubleTermsAggregator extends TermsAggregator {
     @Override
     public void collect(int doc, long owningBucketOrdinal) throws IOException {
         assert owningBucketOrdinal == 0;
-        final int valuesCount = values.setDocument(doc);
+        values.setDocument(doc);
+        final int valuesCount = values.count();
 
+        double previous = Double.NaN;
         for (int i = 0; i < valuesCount; ++i) {
-            final double val = values.nextValue();
-            final long bits = Double.doubleToRawLongBits(val);
-            long bucketOrdinal = bucketOrds.add(bits);
-            if (bucketOrdinal < 0) { // already seen
-                bucketOrdinal = - 1 - bucketOrdinal;
-                collectExistingBucket(doc, bucketOrdinal);
-            } else {
-                collectBucket(doc, bucketOrdinal);
+            final double val = values.valueAt(i);
+            if (val != previous) {
+                final long bits = Double.doubleToRawLongBits(val);
+                long bucketOrdinal = bucketOrds.add(bits);
+                if (bucketOrdinal < 0) { // already seen
+                    bucketOrdinal = - 1 - bucketOrdinal;
+                    collectExistingBucket(doc, bucketOrdinal);
+                } else {
+                    collectBucket(doc, bucketOrdinal);
+                }
+                previous = val;
             }
         }
     }
@@ -89,11 +96,12 @@ public class DoubleTermsAggregator extends TermsAggregator {
             // we need to fill-in the blanks
             for (AtomicReaderContext ctx : context.searchContext().searcher().getTopReaderContext().leaves()) {
                 context.setNextReader(ctx);
-                final DoubleValues values = valuesSource.doubleValues();
+                final SortedNumericDoubleValues values = valuesSource.doubleValues();
                 for (int docId = 0; docId < ctx.reader().maxDoc(); ++docId) {
-                    final int valueCount = values.setDocument(docId);
+                    values.setDocument(docId);
+                    final int valueCount = values.count();
                     for (int i = 0; i < valueCount; ++i) {
-                        bucketOrds.add(Double.doubleToLongBits(values.nextValue()));
+                        bucketOrds.add(Double.doubleToLongBits(values.valueAt(i)));
                     }
                 }
             }
@@ -105,7 +113,7 @@ public class DoubleTermsAggregator extends TermsAggregator {
         DoubleTerms.Bucket spare = null;
         for (long i = 0; i < bucketOrds.size(); i++) {
             if (spare == null) {
-                spare = new DoubleTerms.Bucket(0, 0, null);
+                spare = new DoubleTerms.Bucket(0, 0, null, showTermDocCountError, 0);
             }
             spare.term = Double.longBitsToDouble(bucketOrds.get(i));
             spare.docCount = bucketDocCount(i);
@@ -124,19 +132,20 @@ public class DoubleTermsAggregator extends TermsAggregator {
             list[i] = bucket;
         }
         // replay any deferred collections
-        runDeferredCollections(survivingBucketOrds);    
+        runDeferredCollections(survivingBucketOrds);
+
         // Now build the aggs
         for (int i = 0; i < list.length; i++) {
           list[i].aggregations = bucketAggregations(list[i].bucketOrd);
-        }        
+          list[i].docCountError = 0;
+        }
         
-        
-        return new DoubleTerms(name, order, formatter, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), Arrays.asList(list));
+        return new DoubleTerms(name, order, formatter, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getShardSize(), bucketCountThresholds.getMinDocCount(), Arrays.asList(list), showTermDocCountError,  0);
     }
 
     @Override
     public DoubleTerms buildEmptyAggregation() {
-        return new DoubleTerms(name, order, formatter, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), Collections.<InternalTerms.Bucket>emptyList());
+        return new DoubleTerms(name, order, formatter, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getShardSize(), bucketCountThresholds.getMinDocCount(), Collections.<InternalTerms.Bucket>emptyList(), showTermDocCountError, 0);
     }
 
     @Override

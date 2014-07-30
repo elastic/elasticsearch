@@ -20,9 +20,11 @@
 package org.elasticsearch.index.snapshots.blobstore;
 
 import com.google.common.collect.ImmutableList;
+import org.apache.lucene.util.Version;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -45,34 +47,28 @@ public class BlobStoreIndexShardSnapshot {
      */
     public static class FileInfo {
         private final String name;
-        private final String physicalName;
-        private final long length;
-        private final String checksum;
         private final ByteSizeValue partSize;
         private final long partBytes;
         private final long numberOfParts;
+        private final StoreFileMetaData metadata;
 
         /**
          * Constructs a new instance of file info
          *
          * @param name         file name as stored in the blob store
-         * @param physicalName original file name
-         * @param length       total length of the file
+         * @param metaData  the files meta data
          * @param partSize     size of the single chunk
-         * @param checksum     checksum for the file
          */
-        public FileInfo(String name, String physicalName, long length, ByteSizeValue partSize, String checksum) {
+        public FileInfo(String name, StoreFileMetaData metaData, ByteSizeValue partSize) {
             this.name = name;
-            this.physicalName = physicalName;
-            this.length = length;
-            this.checksum = checksum;
+            this.metadata = metaData;
 
             long partBytes = Long.MAX_VALUE;
             if (partSize != null) {
                 partBytes = partSize.bytes();
             }
 
-            long totalLength = length;
+            long totalLength = metaData.length();
             long numberOfParts = totalLength / partBytes;
             if (totalLength % partBytes > 0) {
                 numberOfParts++;
@@ -127,7 +123,7 @@ public class BlobStoreIndexShardSnapshot {
          * @return original file name
          */
         public String physicalName() {
-            return this.physicalName;
+            return metadata.name();
         }
 
         /**
@@ -136,7 +132,7 @@ public class BlobStoreIndexShardSnapshot {
          * @return file length
          */
         public long length() {
-            return length;
+            return metadata.length();
         }
 
         /**
@@ -173,7 +169,14 @@ public class BlobStoreIndexShardSnapshot {
          */
         @Nullable
         public String checksum() {
-            return checksum;
+            return metadata.checksum();
+        }
+
+        /**
+         * Returns the StoreFileMetaData for this file info.
+         */
+        public StoreFileMetaData metadata() {
+            return metadata;
         }
 
         /**
@@ -183,10 +186,7 @@ public class BlobStoreIndexShardSnapshot {
          * @return true if file in a store this this file have the same checksum and length
          */
         public boolean isSame(StoreFileMetaData md) {
-            if (checksum == null || md.checksum() == null) {
-                return false;
-            }
-            return length == md.length() && checksum.equals(md.checksum());
+            return metadata.isSame(md);
         }
 
         static final class Fields {
@@ -195,6 +195,7 @@ public class BlobStoreIndexShardSnapshot {
             static final XContentBuilderString LENGTH = new XContentBuilderString("length");
             static final XContentBuilderString CHECKSUM = new XContentBuilderString("checksum");
             static final XContentBuilderString PART_SIZE = new XContentBuilderString("part_size");
+            static final XContentBuilderString WRITTEN_BY = new XContentBuilderString("written_by");
         }
 
         /**
@@ -208,13 +209,17 @@ public class BlobStoreIndexShardSnapshot {
         public static void toXContent(FileInfo file, XContentBuilder builder, ToXContent.Params params) throws IOException {
             builder.startObject();
             builder.field(Fields.NAME, file.name);
-            builder.field(Fields.PHYSICAL_NAME, file.physicalName);
-            builder.field(Fields.LENGTH, file.length);
-            if (file.checksum != null) {
-                builder.field(Fields.CHECKSUM, file.checksum);
+            builder.field(Fields.PHYSICAL_NAME, file.metadata.name());
+            builder.field(Fields.LENGTH, file.metadata.length());
+            if (file.metadata.checksum() != null) {
+                builder.field(Fields.CHECKSUM, file.metadata.checksum());
             }
             if (file.partSize != null) {
                 builder.field(Fields.PART_SIZE, file.partSize.bytes());
+            }
+
+            if (file.metadata.writtenBy() != null) {
+                builder.field(Fields.WRITTEN_BY, file.metadata.writtenBy());
             }
             builder.endObject();
         }
@@ -233,6 +238,7 @@ public class BlobStoreIndexShardSnapshot {
             long length = -1;
             String checksum = null;
             ByteSizeValue partSize = null;
+            Version writtenBy = null;
             if (token == XContentParser.Token.START_OBJECT) {
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
@@ -249,6 +255,8 @@ public class BlobStoreIndexShardSnapshot {
                                 checksum = parser.text();
                             } else if ("part_size".equals(currentFieldName)) {
                                 partSize = new ByteSizeValue(parser.longValue());
+                            } else if ("written_by".equals(currentFieldName)) {
+                                writtenBy = Lucene.parseVersionLenient(parser.text(), null);
                             } else {
                                 throw new ElasticsearchParseException("unknown parameter [" + currentFieldName + "]");
                             }
@@ -261,7 +269,7 @@ public class BlobStoreIndexShardSnapshot {
                 }
             }
             // TODO: Verify???
-            return new FileInfo(name, physicalName, length, partSize, checksum);
+            return new FileInfo(name, new StoreFileMetaData(physicalName, length, checksum, writtenBy), partSize);
         }
 
     }

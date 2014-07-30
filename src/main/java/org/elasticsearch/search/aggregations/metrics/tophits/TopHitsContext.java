@@ -368,6 +368,16 @@ public class TopHitsContext extends SearchContext {
     }
 
     @Override
+    public int terminateAfter() {
+        return context.terminateAfter();
+    }
+
+    @Override
+    public void terminateAfter(int terminateAfter) {
+        throw new UnsupportedOperationException("Not supported");
+    }
+
+    @Override
     public SearchContext minimumScore(float minimumScore) {
         throw new UnsupportedOperationException("Not supported");
     }

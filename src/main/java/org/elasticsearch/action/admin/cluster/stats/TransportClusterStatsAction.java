@@ -26,6 +26,7 @@ import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.NodeOperationRequest;
 import org.elasticsearch.action.support.nodes.TransportNodesOperationAction;
 import org.elasticsearch.cluster.ClusterName;
@@ -65,8 +66,8 @@ public class TransportClusterStatsAction extends TransportNodesOperationAction<C
     @Inject
     public TransportClusterStatsAction(Settings settings, ClusterName clusterName, ThreadPool threadPool,
                                        ClusterService clusterService, TransportService transportService,
-                                       NodeService nodeService, IndicesService indicesService) {
-        super(settings, clusterName, threadPool, clusterService, transportService);
+                                       NodeService nodeService, IndicesService indicesService, ActionFilters actionFilters) {
+        super(settings, ClusterStatsAction.NAME, clusterName, threadPool, clusterService, transportService, actionFilters);
         this.nodeService = nodeService;
         this.indicesService = indicesService;
     }
@@ -74,11 +75,6 @@ public class TransportClusterStatsAction extends TransportNodesOperationAction<C
     @Override
     protected String executor() {
         return ThreadPool.Names.MANAGEMENT;
-    }
-
-    @Override
-    protected String transportAction() {
-        return ClusterStatsAction.NAME;
     }
 
     @Override

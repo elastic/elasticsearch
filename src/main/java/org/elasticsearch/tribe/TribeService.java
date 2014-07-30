@@ -167,36 +167,6 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
 
     @Override
     protected void doStart() throws ElasticsearchException {
-        final CountDownLatch latch = new CountDownLatch(1);
-        clusterService.submitStateUpdateTask("updating local node id", new ProcessedClusterStateUpdateTask() {
-            @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
-                // add our local node to the mix...
-                return ClusterState.builder(currentState)
-                        .nodes(DiscoveryNodes.builder(currentState.nodes()).put(clusterService.localNode()).localNodeId(clusterService.localNode().id()))
-                        .build();
-            }
-
-            @Override
-            public void onFailure(String source, Throwable t) {
-                try {
-                    logger.error("{}", t, source);
-                } finally {
-                    latch.countDown();
-                }
-            }
-
-            @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                latch.countDown();
-            }
-        });
-        try {
-            latch.await();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new ElasticsearchIllegalStateException("Interrupted while starting [" + this.getClass().getSimpleName() + "]", e);
-        }
         for (InternalNode node : nodes) {
             try {
                 node.start();

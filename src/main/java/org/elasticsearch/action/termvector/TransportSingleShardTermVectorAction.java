@@ -21,6 +21,7 @@ package org.elasticsearch.action.termvector;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.RoutingMissingException;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportShardSingleOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -44,8 +45,8 @@ public class TransportSingleShardTermVectorAction extends TransportShardSingleOp
 
     @Inject
     public TransportSingleShardTermVectorAction(Settings settings, ClusterService clusterService, TransportService transportService,
-                                                IndicesService indicesService, ThreadPool threadPool) {
-        super(settings, threadPool, clusterService, transportService);
+                                                IndicesService indicesService, ThreadPool threadPool, ActionFilters actionFilters) {
+        super(settings, TermVectorAction.NAME, threadPool, clusterService, transportService, actionFilters);
         this.indicesService = indicesService;
     }
 
@@ -53,11 +54,6 @@ public class TransportSingleShardTermVectorAction extends TransportShardSingleOp
     protected String executor() {
         // TODO: Is this the right pool to execute this on?
         return ThreadPool.Names.GET;
-    }
-
-    @Override
-    protected String transportAction() {
-        return TermVectorAction.NAME;
     }
 
     @Override
@@ -80,7 +76,7 @@ public class TransportSingleShardTermVectorAction extends TransportShardSingleOp
     protected void resolveRequest(ClusterState state, TermVectorRequest request) {
         // update the routing (request#index here is possibly an alias)
         request.routing(state.metaData().resolveIndexRouting(request.routing(), request.index()));
-        request.index(state.metaData().concreteSingleIndex(request.index()));
+        request.index(state.metaData().concreteSingleIndex(request.index(), request.indicesOptions()));
 
         // Fail fast on the node that received the request.
         if (request.routing() == null && state.getMetaData().routingRequired(request.index(), request.type())) {

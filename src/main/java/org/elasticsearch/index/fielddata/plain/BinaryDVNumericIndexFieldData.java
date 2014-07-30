@@ -21,10 +21,18 @@ package org.elasticsearch.index.fielddata.plain;
 
 import com.google.common.base.Preconditions;
 import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.store.ByteArrayDataInput;
+import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.fielddata.FieldDataType;
-import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.*;
+import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.FloatValuesComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
@@ -33,7 +41,7 @@ import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
 
-public class BinaryDVNumericIndexFieldData extends DocValuesIndexFieldData implements IndexNumericFieldData<BinaryDVNumericAtomicFieldData> {
+public class BinaryDVNumericIndexFieldData extends DocValuesIndexFieldData implements IndexNumericFieldData {
 
     private final NumericType numericType;
 
@@ -43,34 +51,55 @@ public class BinaryDVNumericIndexFieldData extends DocValuesIndexFieldData imple
         this.numericType = numericType;
     }
 
-    @Override
-    public boolean valuesOrdered() {
-        return false;
-    }
-
-    public org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource comparatorSource(final Object missingValue, final MultiValueMode sortMode) {
+    public org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource comparatorSource(final Object missingValue, final MultiValueMode sortMode, Nested nested) {
         switch (numericType) {
         case FLOAT:
-            return new FloatValuesComparatorSource(this, missingValue, sortMode);
+            return new FloatValuesComparatorSource(this, missingValue, sortMode, nested);
         case DOUBLE:
-            return new DoubleValuesComparatorSource(this, missingValue, sortMode);
+            return new DoubleValuesComparatorSource(this, missingValue, sortMode, nested);
         default:
             assert !numericType.isFloatingPoint();
-            return new LongValuesComparatorSource(this, missingValue, sortMode);
+            return new LongValuesComparatorSource(this, missingValue, sortMode, nested);
         }
     }
 
     @Override
-    public BinaryDVNumericAtomicFieldData load(AtomicReaderContext context) {
+    public AtomicNumericFieldData load(AtomicReaderContext context) {
         try {
-            return new BinaryDVNumericAtomicFieldData(context.reader().getBinaryDocValues(fieldNames.indexName()), numericType);
+            final BinaryDocValues values = DocValues.getBinary(context.reader(), fieldNames.indexName());
+            if (numericType.isFloatingPoint()) {
+                return new AtomicDoubleFieldData(-1) {
+
+                    @Override
+                    public SortedNumericDoubleValues getDoubleValues() {
+                        switch (numericType) {
+                        case FLOAT:
+                            return new BinaryAsSortedNumericFloatValues(values);
+                        case DOUBLE:
+                            return new BinaryAsSortedNumericDoubleValues(values);
+                        default:
+                            throw new ElasticsearchIllegalArgumentException("" + numericType);
+                        }
+                    }
+
+                };
+            } else {
+                return new AtomicLongFieldData(-1) {
+
+                    @Override
+                    public SortedNumericDocValues getLongValues() {
+                        return new BinaryAsSortedNumericDocValues(values);
+                    }
+
+                };
+            }
         } catch (IOException e) {
             throw new ElasticsearchIllegalStateException("Cannot load doc values", e);
         }
     }
 
     @Override
-    public BinaryDVNumericAtomicFieldData loadDirect(AtomicReaderContext context) throws Exception {
+    public AtomicNumericFieldData loadDirect(AtomicReaderContext context) throws Exception {
         return load(context);
     }
 
@@ -79,4 +108,102 @@ public class BinaryDVNumericIndexFieldData extends DocValuesIndexFieldData imple
         return numericType;
     }
 
+    private static class BinaryAsSortedNumericDocValues extends SortedNumericDocValues {
+
+        private final BinaryDocValues values;
+        private BytesRef bytes;
+        private final ByteArrayDataInput in = new ByteArrayDataInput();
+        private long[] longs = new long[1];
+        private int count = 0;
+
+        BinaryAsSortedNumericDocValues(BinaryDocValues values) {
+            this.values = values;
+        }
+
+        @Override
+        public void setDocument(int docId) {
+            bytes = values.get(docId);
+            in.reset(bytes.bytes, bytes.offset, bytes.length);
+            if (!in.eof()) {
+                // first value uses vLong on top of zig-zag encoding, then deltas are encoded using vLong
+                long previousValue = longs[0] = ByteUtils.zigZagDecode(ByteUtils.readVLong(in));
+                count = 1;
+                while (!in.eof()) {
+                    longs = ArrayUtil.grow(longs, count + 1);
+                    previousValue = longs[count++] = previousValue + ByteUtils.readVLong(in);
+                }
+            } else {
+                count = 0;
+            }
+        }
+
+        @Override
+        public int count() {
+            return count;
+        }
+
+        @Override
+        public long valueAt(int index) {
+            return longs[index];
+        }
+
+    }
+
+    private static class BinaryAsSortedNumericDoubleValues extends SortedNumericDoubleValues {
+
+        private final BinaryDocValues values;
+        private BytesRef bytes;
+        private int valueCount = 0;
+
+        BinaryAsSortedNumericDoubleValues(BinaryDocValues values) {
+            this.values = values;
+        }
+
+        @Override
+        public void setDocument(int docId) {
+            bytes = values.get(docId);
+            assert bytes.length % 8 == 0;
+            valueCount = bytes.length / 8;
+        }
+
+        @Override
+        public int count() {
+            return valueCount;
+        }
+
+        @Override
+        public double valueAt(int index) {
+            return ByteUtils.readDoubleLE(bytes.bytes, bytes.offset + index * 8);
+        }
+
+    }
+
+    private static class BinaryAsSortedNumericFloatValues extends SortedNumericDoubleValues {
+
+        private final BinaryDocValues values;
+        private BytesRef bytes;
+        private int valueCount = 0;
+
+        BinaryAsSortedNumericFloatValues(BinaryDocValues values) {
+            this.values = values;
+        }
+
+        @Override
+        public void setDocument(int docId) {
+            bytes = values.get(docId);
+            assert bytes.length % 4 == 0;
+            valueCount = bytes.length / 4;
+        }
+
+        @Override
+        public int count() {
+            return valueCount;
+        }
+
+        @Override
+        public double valueAt(int index) {
+            return ByteUtils.readFloatLE(bytes.bytes, bytes.offset + index * 4);
+        }
+
+    }
 }

@@ -25,6 +25,7 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.util.List;
 
 /**
  *
@@ -119,5 +120,68 @@ public final class ExceptionsHelper {
         PrintWriter printWriter = new PrintWriter(stackTraceStringWriter);
         e.printStackTrace(printWriter);
         return stackTraceStringWriter.toString();
+    }
+
+    /**
+     * Rethrows the first exception in the list and adds all remaining to the suppressed list.
+     * If the given list is empty no exception is thrown
+     *
+     */
+    public static <T extends Throwable> void rethrowAndSuppress(List<T> exceptions) throws T {
+        T main = null;
+        for (T ex : exceptions) {
+            main = useOrSupress(main, ex);
+        }
+        if (main != null) {
+            throw main;
+        }
+    }
+
+    /**
+     * Throws a runtime exception with all given exceptions added as suppressed.
+     * If the given list is empty no exception is thrown
+     */
+    public static <T extends Throwable> void maybeThrowRuntimeAndSuppress(List<T> exceptions) {
+        T main = null;
+        for (T ex : exceptions) {
+            main = useOrSupress(main, ex);
+        }
+        if (main != null) {
+            throw new ElasticsearchException(main.getMessage(), main);
+        }
+    }
+
+    public static <T extends Throwable> T useOrSupress(T first, T second) {
+        if (first == null) {
+            return second;
+        } else {
+            first.addSuppressed(second);
+        }
+        return first;
+    }
+
+
+    public static <T extends Throwable> T unwrap(Throwable t, Class<T> clazz) {
+        if (t != null) {
+            do {
+                if (clazz.isInstance(t)) {
+                    return clazz.cast(t);
+                }
+            } while ((t = t.getCause()) != null);
+        }
+        return null;
+    }
+
+    /**
+     * Returns <code>true</code> iff the given throwable is and OutOfMemoryException, otherwise <code>false</code>
+     */
+    public static boolean isOOM(Throwable t) {
+        return t != null
+                && (t instanceof OutOfMemoryError
+                    || (t instanceof IllegalStateException
+                        && t.getMessage() != null
+                        && t.getMessage().contains("OutOfMemoryError")
+                        )
+                    );
     }
 }

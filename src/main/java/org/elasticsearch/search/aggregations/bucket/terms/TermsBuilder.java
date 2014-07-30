@@ -42,6 +42,7 @@ public class TermsBuilder extends ValuesSourceAggregationBuilder<TermsBuilder> {
     private int excludeFlags;
     private String executionHint;
     private SubAggCollectionMode collectionMode;
+    private Boolean showTermDocCountError;
 
     public TermsBuilder(String name) {
         super(name, "terms");
@@ -149,12 +150,20 @@ public class TermsBuilder extends ValuesSourceAggregationBuilder<TermsBuilder> {
         this.collectionMode = mode;
         return this;
     }
+    
+    public TermsBuilder showTermDocCountError(boolean showTermDocCountError) {
+        this.showTermDocCountError = showTermDocCountError;
+        return this;
+    }
 
     @Override
     protected XContentBuilder doInternalXContent(XContentBuilder builder, Params params) throws IOException {
 
         bucketCountThresholds.toXContent(builder);
 
+        if (showTermDocCountError != null) {
+            builder.field(AbstractTermsParametersParser.SHOW_TERM_DOC_COUNT_ERROR.getPreferredName(), showTermDocCountError);
+        }
         if (executionHint != null) {
             builder.field(AbstractTermsParametersParser.EXECUTION_HINT_FIELD_NAME.getPreferredName(), executionHint);
         }

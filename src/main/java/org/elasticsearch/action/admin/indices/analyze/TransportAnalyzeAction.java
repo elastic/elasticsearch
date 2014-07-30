@@ -27,6 +27,7 @@ import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.analysis.tokenattributes.TypeAttribute;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.custom.TransportSingleCustomOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -59,8 +60,8 @@ public class TransportAnalyzeAction extends TransportSingleCustomOperationAction
 
     @Inject
     public TransportAnalyzeAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
-                                  IndicesService indicesService, IndicesAnalysisService indicesAnalysisService) {
-        super(settings, threadPool, clusterService, transportService);
+                                  IndicesService indicesService, IndicesAnalysisService indicesAnalysisService, ActionFilters actionFilters) {
+        super(settings, AnalyzeAction.NAME, threadPool, clusterService, transportService, actionFilters);
         this.indicesService = indicesService;
         this.indicesAnalysisService = indicesAnalysisService;
     }
@@ -81,11 +82,6 @@ public class TransportAnalyzeAction extends TransportSingleCustomOperationAction
     }
 
     @Override
-    protected String transportAction() {
-        return AnalyzeAction.NAME;
-    }
-
-    @Override
     protected ClusterBlockException checkGlobalBlock(ClusterState state, AnalyzeRequest request) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.READ);
     }
@@ -93,7 +89,7 @@ public class TransportAnalyzeAction extends TransportSingleCustomOperationAction
     @Override
     protected ClusterBlockException checkRequestBlock(ClusterState state, AnalyzeRequest request) {
         if (request.index() != null) {
-            request.index(state.metaData().concreteSingleIndex(request.index()));
+            request.index(state.metaData().concreteSingleIndex(request.index(), request.indicesOptions()));
             return state.blocks().indexBlockedException(ClusterBlockLevel.READ, request.index());
         }
         return null;

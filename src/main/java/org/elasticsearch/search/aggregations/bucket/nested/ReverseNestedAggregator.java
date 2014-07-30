@@ -38,8 +38,6 @@ import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 
-import static org.elasticsearch.search.aggregations.bucket.nested.NestedAggregator.findClosestNestedAggregator;
-
 /**
  *
  */
@@ -128,6 +126,14 @@ public class ReverseNestedAggregator extends SingleBucketAggregator implements R
         collectBucket(parentDoc, bucketOrd);
     }
 
+    private static NestedAggregator findClosestNestedAggregator(Aggregator parent) {
+        for (; parent != null; parent = parent.parent()) {
+            if (parent instanceof NestedAggregator) {
+                return (NestedAggregator) parent;
+            }
+        }
+        return null;
+    }
 
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) {
@@ -137,6 +143,10 @@ public class ReverseNestedAggregator extends SingleBucketAggregator implements R
     @Override
     public InternalAggregation buildEmptyAggregation() {
         return new InternalReverseNested(name, 0, buildEmptySubAggregations());
+    }
+
+    Filter getParentFilter() {
+        return parentFilter;
     }
 
     @Override

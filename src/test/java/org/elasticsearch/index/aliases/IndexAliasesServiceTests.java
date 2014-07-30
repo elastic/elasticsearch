@@ -19,77 +19,33 @@
 
 package org.elasticsearch.index.aliases;
 
-import org.elasticsearch.cache.recycler.CacheRecyclerModule;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.compress.CompressedString;
-import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.Injector;
-import org.elasticsearch.common.inject.ModulesBuilder;
-import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexNameModule;
-import org.elasticsearch.index.analysis.AnalysisModule;
-import org.elasticsearch.index.cache.IndexCacheModule;
-import org.elasticsearch.index.codec.CodecModule;
-import org.elasticsearch.index.engine.IndexEngineModule;
 import org.elasticsearch.index.query.FilterBuilder;
-import org.elasticsearch.index.query.IndexQueryParserModule;
-import org.elasticsearch.index.query.IndexQueryParserService;
-import org.elasticsearch.index.query.functionscore.FunctionScoreModule;
-import org.elasticsearch.index.settings.IndexSettingsModule;
-import org.elasticsearch.index.similarity.SimilarityModule;
+import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.indices.InvalidAliasNameException;
-import org.elasticsearch.indices.query.IndicesQueriesModule;
-import org.elasticsearch.script.ScriptModule;
-import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
-import org.elasticsearch.indices.fielddata.breaker.DummyCircuitBreakerService;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
 
 import java.io.IOException;
 
 import static org.elasticsearch.index.query.FilterBuilders.termFilter;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
  *
  */
-public class IndexAliasesServiceTests extends ElasticsearchTestCase {
-    public static IndexAliasesService newIndexAliasesService() {
-        return new IndexAliasesService(new Index("test"), ImmutableSettings.Builder.EMPTY_SETTINGS, newIndexQueryParserService());
-    }
+public class IndexAliasesServiceTests extends ElasticsearchSingleNodeTest {
 
-    public static IndexQueryParserService newIndexQueryParserService() {
-        Injector injector = new ModulesBuilder().add(
-                new IndicesQueriesModule(),
-                new CacheRecyclerModule(ImmutableSettings.Builder.EMPTY_SETTINGS),
-                new CodecModule(ImmutableSettings.Builder.EMPTY_SETTINGS),
-                new IndexSettingsModule(new Index("test"), ImmutableSettings.Builder.EMPTY_SETTINGS),
-                new IndexNameModule(new Index("test")),
-                new IndexQueryParserModule(ImmutableSettings.Builder.EMPTY_SETTINGS),
-                new AnalysisModule(ImmutableSettings.Builder.EMPTY_SETTINGS),
-                new SimilarityModule(ImmutableSettings.Builder.EMPTY_SETTINGS),
-                new ScriptModule(ImmutableSettings.Builder.EMPTY_SETTINGS),
-                new SettingsModule(ImmutableSettings.Builder.EMPTY_SETTINGS),
-                new IndexEngineModule(ImmutableSettings.Builder.EMPTY_SETTINGS),
-                new IndexCacheModule(ImmutableSettings.Builder.EMPTY_SETTINGS),
-                new FunctionScoreModule(),
-                new AbstractModule() {
-                    @Override
-                    protected void configure() {
-                        bind(ClusterService.class).toProvider(Providers.of((ClusterService) null));
-                        bind(CircuitBreakerService.class).to(DummyCircuitBreakerService.class);
-                    }
-                }
-        ).createInjector();
-        return injector.getInstance(IndexQueryParserService.class);
+    public IndexAliasesService newIndexAliasesService() {
+        Settings settings = ImmutableSettings.builder().put("name", "IndexAliasesServiceTests").build();
+        IndexService indexService = createIndex("test", settings);
+        return indexService.aliasesService();
     }
 
     public static CompressedString filter(FilterBuilder filterBuilder) throws IOException {

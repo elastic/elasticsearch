@@ -50,9 +50,9 @@ public abstract class InternalNumericMetricsAggregation extends InternalMetricsA
 
     }
 
-    protected InternalNumericMetricsAggregation() {} // for serialization
+    private InternalNumericMetricsAggregation() {} // for serialization
 
-    protected InternalNumericMetricsAggregation(String name) {
+    private InternalNumericMetricsAggregation(String name) {
         super(name);
     }
 

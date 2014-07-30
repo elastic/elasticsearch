@@ -29,6 +29,7 @@ import org.elasticsearch.action.delete.index.IndexDeleteRequest;
 import org.elasticsearch.action.delete.index.IndexDeleteResponse;
 import org.elasticsearch.action.delete.index.ShardDeleteResponse;
 import org.elasticsearch.action.delete.index.TransportIndexDeleteAction;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.replication.TransportShardReplicationOperationAction;
 import org.elasticsearch.cluster.ClusterService;
@@ -63,8 +64,8 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
     @Inject
     public TransportDeleteAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                  IndicesService indicesService, ThreadPool threadPool, ShardStateAction shardStateAction,
-                                 TransportCreateIndexAction createIndexAction, TransportIndexDeleteAction indexDeleteAction) {
-        super(settings, transportService, clusterService, indicesService, threadPool, shardStateAction);
+                                 TransportCreateIndexAction createIndexAction, TransportIndexDeleteAction indexDeleteAction, ActionFilters actionFilters) {
+        super(settings, DeleteAction.NAME, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters);
         this.createIndexAction = createIndexAction;
         this.indexDeleteAction = indexDeleteAction;
         this.autoCreateIndex = new AutoCreateIndex(settings);
@@ -103,7 +104,7 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
     @Override
     protected boolean resolveRequest(final ClusterState state, final DeleteRequest request, final ActionListener<DeleteResponse> listener) {
         request.routing(state.metaData().resolveIndexRouting(request.routing(), request.index()));
-        request.index(state.metaData().concreteSingleIndex(request.index()));
+        request.index(state.metaData().concreteSingleIndex(request.index(), request.indicesOptions()));
         if (state.metaData().hasIndex(request.index())) {
             // check if routing is required, if so, do a broadcast delete
             MappingMetaData mappingMd = state.metaData().index(request.index()).mappingOrDefault(request.type());
@@ -164,11 +165,6 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
     @Override
     protected DeleteResponse newResponseInstance() {
         return new DeleteResponse();
-    }
-
-    @Override
-    protected String transportAction() {
-        return DeleteAction.NAME;
     }
 
     @Override

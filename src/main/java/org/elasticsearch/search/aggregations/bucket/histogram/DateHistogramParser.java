@@ -22,6 +22,7 @@ import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.rounding.DateTimeUnit;
+import org.elasticsearch.common.rounding.Rounding;
 import org.elasticsearch.common.rounding.TimeZoneRounding;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -192,7 +193,7 @@ public class DateHistogramParser implements Aggregator.Parser {
             tzRoundingBuilder = TimeZoneRounding.builder(TimeValue.parseTimeValue(interval, null));
         }
 
-        TimeZoneRounding rounding = tzRoundingBuilder
+        Rounding rounding = tzRoundingBuilder
                 .preZone(preZone).postZone(postZone)
                 .preZoneAdjustLargeInterval(preZoneAdjustLargeInterval)
                 .preOffset(preOffset).postOffset(postOffset)

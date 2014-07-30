@@ -43,7 +43,7 @@ import java.util.Map;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 
 /**
- *
+ * Mapping configuration for a type.
  */
 public class MappingMetaData {
 
@@ -231,8 +231,6 @@ public class MappingMetaData {
             Timestamp timestamp = (Timestamp) o;
 
             if (enabled != timestamp.enabled) return false;
-            if (dateTimeFormatter != null ? !dateTimeFormatter.equals(timestamp.dateTimeFormatter) : timestamp.dateTimeFormatter != null)
-                return false;
             if (format != null ? !format.equals(timestamp.format) : timestamp.format != null) return false;
             if (path != null ? !path.equals(timestamp.path) : timestamp.path != null) return false;
             if (!Arrays.equals(pathElements, timestamp.pathElements)) return false;

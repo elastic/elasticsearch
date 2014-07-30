@@ -21,14 +21,13 @@ package org.elasticsearch.index.mapper.boost;
 
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.MapperTestUtils;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class CustomBoostMappingTests extends ElasticsearchTestCase {
+public class CustomBoostMappingTests extends ElasticsearchSingleNodeTest {
 
     @Test
     public void testCustomBoostValues() throws Exception {
@@ -43,7 +42,7 @@ public class CustomBoostMappingTests extends ElasticsearchTestCase {
                 .startObject("date_field").field("type", "date").startObject("norms").field("enabled", true).endObject().endObject()
                 .endObject().endObject().endObject().string();
 
-        DocumentMapper mapper = MapperTestUtils.newParser().parse(mapping);
+        DocumentMapper mapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
 
         ParsedDocument doc = mapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
                 .startObject("s_field").field("value", "s_value").field("boost", 2.0f).endObject()

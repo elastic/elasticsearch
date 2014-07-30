@@ -23,6 +23,8 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.CompositeIndicesRequest;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
@@ -44,11 +46,11 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  */
-public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> {
+public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> implements CompositeIndicesRequest {
 
     private String[] indices;
     private String documentType;
-    private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
+    private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosed();
     private List<PercolateRequest> requests = Lists.newArrayList();
 
     public MultiPercolateRequest add(PercolateRequestBuilder requestBuilder) {
@@ -62,7 +64,7 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
         if (request.documentType() == null && documentType != null) {
             request.documentType(documentType);
         }
-        if (request.indicesOptions() == IndicesOptions.strictExpandOpen() && indicesOptions != IndicesOptions.strictExpandOpen()) {
+        if (request.indicesOptions() == IndicesOptions.strictExpandOpenAndForbidClosed() && indicesOptions != IndicesOptions.strictExpandOpenAndForbidClosed()) {
             request.indicesOptions(indicesOptions);
         }
         requests.add(request);
@@ -96,7 +98,7 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
             if (documentType != null) {
                 percolateRequest.documentType(documentType);
             }
-            if (indicesOptions != IndicesOptions.strictExpandOpen()) {
+            if (indicesOptions != IndicesOptions.strictExpandOpenAndForbidClosed()) {
                 percolateRequest.indicesOptions(indicesOptions);
             }
 
@@ -148,6 +150,15 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
         return this;
     }
 
+    @Override
+    public List<? extends IndicesRequest> subRequests() {
+        List<IndicesRequest> indicesRequests = Lists.newArrayList();
+        for (PercolateRequest percolateRequest : this.requests) {
+            indicesRequests.addAll(percolateRequest.subRequests());
+        }
+        return indicesRequests;
+    }
+
     private void parsePercolateAction(XContentParser parser, PercolateRequest percolateRequest, boolean allowExplicitIndex) throws IOException {
         String globalIndex = indices != null && indices.length > 0 ? indices[0] : null;
 
@@ -165,10 +176,11 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
             }
         }
 
-        boolean ignoreUnavailable = IndicesOptions.strictExpandOpen().ignoreUnavailable();
-        boolean allowNoIndices = IndicesOptions.strictExpandOpen().allowNoIndices();
-        boolean expandWildcardsOpen = IndicesOptions.strictExpandOpen().expandWildcardsOpen();
-        boolean expandWildcardsClosed = IndicesOptions.strictExpandOpen().expandWildcardsClosed();
+        IndicesOptions defaultOptions = indicesOptions;
+        boolean ignoreUnavailable = defaultOptions.ignoreUnavailable();
+        boolean allowNoIndices = defaultOptions.allowNoIndices();
+        boolean expandWildcardsOpen = defaultOptions.expandWildcardsOpen();
+        boolean expandWildcardsClosed = defaultOptions.expandWildcardsClosed();
 
         if (header.containsKey("id")) {
             GetRequest getRequest = new GetRequest(globalIndex);
@@ -280,7 +292,7 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
                 }
             }
         }
-        percolateRequest.indicesOptions(IndicesOptions.fromOptions(ignoreUnavailable, allowNoIndices, expandWildcardsOpen, expandWildcardsClosed));
+        percolateRequest.indicesOptions(IndicesOptions.fromOptions(ignoreUnavailable, allowNoIndices, expandWildcardsOpen, expandWildcardsClosed, defaultOptions));
     }
 
     private String[] parseArray(XContentParser parser) throws IOException {

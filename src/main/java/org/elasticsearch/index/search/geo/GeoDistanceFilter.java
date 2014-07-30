@@ -31,8 +31,8 @@ import org.elasticsearch.common.lucene.docset.AndDocIdSet;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.common.lucene.docset.MatchDocIdSet;
 import org.elasticsearch.common.unit.DistanceUnit;
-import org.elasticsearch.index.fielddata.GeoPointValues;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
+import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 
 import java.io.IOException;
@@ -111,7 +111,7 @@ public class GeoDistanceFilter extends Filter {
                 return null;
             }
         }
-        final GeoPointValues values = indexFieldData.load(context).getGeoPointValues();
+        final MultiGeoPointValues values = indexFieldData.load(context).getGeoPointValues();
         GeoDistanceDocSet distDocSet = new GeoDistanceDocSet(context.reader().maxDoc(), acceptedDocs, values, fixedSourceDistance, distanceBoundingCheck, distance);
         if (boundingBoxDocSet == null) {
             return distDocSet;
@@ -159,11 +159,11 @@ public class GeoDistanceFilter extends Filter {
 
     public static class GeoDistanceDocSet extends MatchDocIdSet {
         private final double distance; // in miles
-        private final GeoPointValues values;
+        private final MultiGeoPointValues values;
         private final GeoDistance.FixedSourceDistance fixedSourceDistance;
         private final GeoDistance.DistanceBoundingCheck distanceBoundingCheck;
 
-        public GeoDistanceDocSet(int maxDoc, @Nullable Bits acceptDocs, GeoPointValues values, GeoDistance.FixedSourceDistance fixedSourceDistance, GeoDistance.DistanceBoundingCheck distanceBoundingCheck,
+        public GeoDistanceDocSet(int maxDoc, @Nullable Bits acceptDocs, MultiGeoPointValues values, GeoDistance.FixedSourceDistance fixedSourceDistance, GeoDistance.DistanceBoundingCheck distanceBoundingCheck,
                                  double distance) {
             super(maxDoc, acceptDocs);
             this.values = values;
@@ -173,16 +173,12 @@ public class GeoDistanceFilter extends Filter {
         }
 
         @Override
-        public boolean isCacheable() {
-            return true;
-        }
-
-        @Override
         protected boolean matchDoc(int doc) {
 
-            final int length = values.setDocument(doc);
+            values.setDocument(doc);
+            final int length = values.count();
             for (int i = 0; i < length; i++) {
-                GeoPoint point = values.nextValue();
+                GeoPoint point = values.valueAt(i);
                 if (distanceBoundingCheck.isWithin(point.lat(), point.lon())) {
                     double d = fixedSourceDistance.calculate(point.lat(), point.lon());
                     if (d < distance) {

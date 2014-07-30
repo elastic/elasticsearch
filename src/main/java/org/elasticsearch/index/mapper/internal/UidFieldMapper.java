@@ -22,7 +22,6 @@ package org.elasticsearch.index.mapper.internal;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
-import org.apache.lucene.document.XStringField;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
@@ -154,7 +153,7 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
                 // we need to go over the docs and add it...
                 for (int i = 1; i < context.docs().size(); i++) {
                     final Document doc = context.docs().get(i);
-                    doc.add(new XStringField(UidFieldMapper.NAME, uidField.stringValue(), Defaults.NESTED_FIELD_TYPE));
+                    doc.add(new Field(UidFieldMapper.NAME, uidField.stringValue(), Defaults.NESTED_FIELD_TYPE));
                 }
             }
         }
@@ -172,7 +171,7 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
 
     @Override
     protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
-        Field uid = new XStringField(NAME, Uid.createUid(context.stringBuilder(), context.type(), context.id()), Defaults.FIELD_TYPE);
+        Field uid = new Field(NAME, Uid.createUid(context.stringBuilder(), context.type(), context.id()), Defaults.FIELD_TYPE);
         context.uid(uid);
         fields.add(uid);
         if (hasDocValues()) {

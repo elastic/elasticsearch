@@ -18,59 +18,55 @@
  */
 package org.elasticsearch.index.fielddata.plain;
 
-import org.apache.lucene.codecs.BlockTreeTermsReader;
+import org.apache.lucene.codecs.blocktree.FieldReader;
+import org.apache.lucene.codecs.blocktree.Stats;
 import org.apache.lucene.index.*;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PagedBytes;
 import org.apache.lucene.util.packed.MonotonicAppendingLongBuffer;
-import org.elasticsearch.common.breaker.MemoryCircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.fielddata.FieldDataType;
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.IndexFieldDataCache;
-import org.elasticsearch.index.fielddata.RamAccountingTermsEnum;
-import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsBuilder;
+import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 
 import java.io.IOException;
 
 /**
  */
-public class PagedBytesIndexFieldData extends AbstractBytesIndexFieldData<PagedBytesAtomicFieldData> {
+public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
 
 
     public static class Builder implements IndexFieldData.Builder {
 
         @Override
-        public IndexFieldData<PagedBytesAtomicFieldData> build(Index index, @IndexSettings Settings indexSettings, FieldMapper<?> mapper,
-                                                               IndexFieldDataCache cache, CircuitBreakerService breakerService, MapperService mapperService,
-                                                               GlobalOrdinalsBuilder globalOrdinalBuilder) {
-            return new PagedBytesIndexFieldData(index, indexSettings, mapper.names(), mapper.fieldDataType(), cache, breakerService, globalOrdinalBuilder);
+        public IndexOrdinalsFieldData build(Index index, @IndexSettings Settings indexSettings, FieldMapper<?> mapper,
+                                                               IndexFieldDataCache cache, CircuitBreakerService breakerService, MapperService mapperService) {
+            return new PagedBytesIndexFieldData(index, indexSettings, mapper.names(), mapper.fieldDataType(), cache, breakerService);
         }
     }
 
     public PagedBytesIndexFieldData(Index index, @IndexSettings Settings indexSettings, FieldMapper.Names fieldNames,
-                                    FieldDataType fieldDataType, IndexFieldDataCache cache, CircuitBreakerService breakerService,
-                                    GlobalOrdinalsBuilder globalOrdinalsBuilder) {
-        super(index, indexSettings, fieldNames, fieldDataType, cache, globalOrdinalsBuilder, breakerService);
+                                    FieldDataType fieldDataType, IndexFieldDataCache cache, CircuitBreakerService breakerService) {
+        super(index, indexSettings, fieldNames, fieldDataType, cache, breakerService);
     }
 
     @Override
-    public PagedBytesAtomicFieldData loadDirect(AtomicReaderContext context) throws Exception {
+    public AtomicOrdinalsFieldData loadDirect(AtomicReaderContext context) throws Exception {
         AtomicReader reader = context.reader();
+        AtomicOrdinalsFieldData data = null;
 
-        PagedBytesEstimator estimator = new PagedBytesEstimator(context, breakerService.getBreaker(), getFieldNames().fullName());
+        PagedBytesEstimator estimator = new PagedBytesEstimator(context, breakerService.getBreaker(CircuitBreaker.Name.FIELDDATA), getFieldNames().fullName());
         Terms terms = reader.terms(getFieldNames().indexName());
         if (terms == null) {
-            PagedBytesAtomicFieldData emptyData = PagedBytesAtomicFieldData.empty();
-            estimator.adjustForNoTerms(emptyData.getMemorySizeInBytes());
-            return emptyData;
+            data = AbstractAtomicOrdinalsFieldData.empty();
+            estimator.afterLoad(null, data.ramBytesUsed());
+            return data;
         }
 
         final PagedBytes bytes = new PagedBytes(15);
@@ -88,14 +84,11 @@ public class PagedBytesIndexFieldData extends AbstractBytesIndexFieldData<PagedB
         // Wrap the context in an estimator and use it to either estimate
         // the entire set, or wrap the TermsEnum so it can be calculated
         // per-term
-        PagedBytesAtomicFieldData data = null;
+
         TermsEnum termsEnum = estimator.beforeLoad(terms);
         boolean success = false;
 
         try (OrdinalsBuilder builder = new OrdinalsBuilder(numTerms, reader.maxDoc(), acceptableTransientOverheadRatio)) {
-            // 0 is reserved for "unset"
-            bytes.copyUsingLengthPrefix(new BytesRef());
-
             DocsEnum docsEnum = null;
             for (BytesRef term = termsEnum.next(); term != null; term = termsEnum.next()) {
                 final long termOrd = builder.nextOrdinal();
@@ -106,11 +99,10 @@ public class PagedBytesIndexFieldData extends AbstractBytesIndexFieldData<PagedB
                     builder.addDoc(docId);
                 }
             }
-            final long sizePointer = bytes.getPointer();
             PagedBytes.Reader bytesReader = bytes.freeze(true);
             final Ordinals ordinals = builder.build(fieldDataType.getSettings());
 
-            data = new PagedBytesAtomicFieldData(bytesReader, sizePointer, termOrdToBytesOffset, ordinals);
+            data = new PagedBytesAtomicFieldData(bytesReader, termOrdToBytesOffset, ordinals);
             success = true;
             return data;
         } finally {
@@ -119,7 +111,7 @@ public class PagedBytesIndexFieldData extends AbstractBytesIndexFieldData<PagedB
                 estimator.afterLoad(termsEnum, 0);
             } else {
                 // Call .afterLoad() to adjust the breaker now that we have an exact size
-                estimator.afterLoad(termsEnum, data.getMemorySizeInBytes());
+                estimator.afterLoad(termsEnum, data.ramBytesUsed());
             }
 
         }
@@ -133,11 +125,11 @@ public class PagedBytesIndexFieldData extends AbstractBytesIndexFieldData<PagedB
     public class PagedBytesEstimator implements PerValueEstimator {
 
         private final AtomicReaderContext context;
-        private final MemoryCircuitBreaker breaker;
+        private final CircuitBreaker breaker;
         private final String fieldName;
         private long estimatedBytes;
 
-        PagedBytesEstimator(AtomicReaderContext context, MemoryCircuitBreaker breaker, String fieldName) {
+        PagedBytesEstimator(AtomicReaderContext context, CircuitBreaker breaker, String fieldName) {
             this.breaker = breaker;
             this.context = context;
             this.fieldName = fieldName;
@@ -169,8 +161,8 @@ public class PagedBytesIndexFieldData extends AbstractBytesIndexFieldData<PagedB
                 Fields fields = reader.fields();
                 final Terms fieldTerms = fields.terms(getFieldNames().indexName());
 
-                if (fieldTerms instanceof BlockTreeTermsReader.FieldReader) {
-                    final BlockTreeTermsReader.Stats stats = ((BlockTreeTermsReader.FieldReader) fieldTerms).computeStats();
+                if (fieldTerms instanceof FieldReader) {
+                    final Stats stats = ((FieldReader) fieldTerms).computeStats();
                     long totalTermBytes = stats.totalTermBytes;
                     if (logger.isTraceEnabled()) {
                         logger.trace("totalTermBytes: {}, terms.size(): {}, terms.getSumDocFreq(): {}",

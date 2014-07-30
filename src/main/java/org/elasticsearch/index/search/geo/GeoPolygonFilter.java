@@ -26,8 +26,8 @@ import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.docset.MatchDocIdSet;
-import org.elasticsearch.index.fielddata.GeoPointValues;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
+import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -56,7 +56,7 @@ public class GeoPolygonFilter extends Filter {
 
     @Override
     public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptedDocs) throws IOException {
-        final GeoPointValues values = indexFieldData.load(context).getGeoPointValues();
+        final MultiGeoPointValues values = indexFieldData.load(context).getGeoPointValues();
         return new GeoPolygonDocIdSet(context.reader().maxDoc(), acceptedDocs, values, points);
     }
 
@@ -69,25 +69,21 @@ public class GeoPolygonFilter extends Filter {
     }
 
     public static class GeoPolygonDocIdSet extends MatchDocIdSet {
-        private final GeoPointValues values;
+        private final MultiGeoPointValues values;
         private final GeoPoint[] points;
 
-        public GeoPolygonDocIdSet(int maxDoc, @Nullable Bits acceptDocs, GeoPointValues values, GeoPoint[] points) {
+        public GeoPolygonDocIdSet(int maxDoc, @Nullable Bits acceptDocs, MultiGeoPointValues values, GeoPoint[] points) {
             super(maxDoc, acceptDocs);
             this.values = values;
             this.points = points;
         }
 
         @Override
-        public boolean isCacheable() {
-            return true;
-        }
-
-        @Override
         protected boolean matchDoc(int doc) {
-            final int length = values.setDocument(doc);
+            values.setDocument(doc);
+            final int length = values.count();
             for (int i = 0; i < length; i++) {
-                GeoPoint point = values.nextValue();
+                GeoPoint point = values.valueAt(i);
                 if (pointInPolygon(points, point.lat(), point.lon())) {
                     return true;
                 }

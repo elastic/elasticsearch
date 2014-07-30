@@ -1,33 +1,33 @@
 ---
-  setup:
-    - do:
-        indices.create:
-            index: test1
-            body:
-                settings:
-                    number_of_shards: 5
-                    number_of_replicas: 1
+setup:
+  - do:
+      indices.create:
+          index: test1
+          body:
+              settings:
+                  number_of_shards: 5
+                  number_of_replicas: 1
 
-    - do:
-        indices.create:
-            index: test2
-            body:
-                settings:
-                    number_of_shards: 4
-                    number_of_replicas: 1
-    - do:
-        index:
-            index: test1
-            type:  bar
-            id:    1
-            body:  { "foo": "bar" }
+  - do:
+      indices.create:
+          index: test2
+          body:
+              settings:
+                  number_of_shards: 4
+                  number_of_replicas: 1
+  - do:
+      index:
+          index: test1
+          type:  bar
+          id:    1
+          body:  { "foo": "bar" }
 
-    - do:
-        index:
-            index: test2
-            type:  baz
-            id:    1
-            body:  { "foo": "baz" }
+  - do:
+      index:
+          index: test2
+          type:  baz
+          id:    1
+          body:  { "foo": "baz" }
 
 ---
 "Index - blank":

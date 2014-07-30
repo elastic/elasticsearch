@@ -21,6 +21,8 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -37,19 +39,17 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  */
-public class TransportMultiSearchAction extends TransportAction<MultiSearchRequest, MultiSearchResponse> {
+public class TransportMultiSearchAction extends HandledTransportAction<MultiSearchRequest, MultiSearchResponse> {
 
     private final ClusterService clusterService;
 
     private final TransportSearchAction searchAction;
 
     @Inject
-    public TransportMultiSearchAction(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterService clusterService, TransportSearchAction searchAction) {
-        super(settings, threadPool);
+    public TransportMultiSearchAction(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterService clusterService, TransportSearchAction searchAction, ActionFilters actionFilters) {
+        super(settings, MultiSearchAction.NAME, threadPool, transportService, actionFilters);
         this.clusterService = clusterService;
         this.searchAction = searchAction;
-
-        transportService.registerHandler(MultiSearchAction.NAME, new TransportHandler());
     }
 
     @Override
@@ -85,41 +85,8 @@ public class TransportMultiSearchAction extends TransportAction<MultiSearchReque
         }
     }
 
-    class TransportHandler extends BaseTransportRequestHandler<MultiSearchRequest> {
-
-        @Override
-        public MultiSearchRequest newInstance() {
-            return new MultiSearchRequest();
-        }
-
-        @Override
-        public void messageReceived(final MultiSearchRequest request, final TransportChannel channel) throws Exception {
-            // no need to use threaded listener, since we just send a response
-            request.listenerThreaded(false);
-            execute(request, new ActionListener<MultiSearchResponse>() {
-                @Override
-                public void onResponse(MultiSearchResponse response) {
-                    try {
-                        channel.sendResponse(response);
-                    } catch (Throwable e) {
-                        onFailure(e);
-                    }
-                }
-
-                @Override
-                public void onFailure(Throwable e) {
-                    try {
-                        channel.sendResponse(e);
-                    } catch (Exception e1) {
-                        logger.warn("Failed to send error response for action [msearch] and request [" + request + "]", e1);
-                    }
-                }
-            });
-        }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.SAME;
-        }
+    @Override
+    public MultiSearchRequest newRequestInstance() {
+        return new MultiSearchRequest();
     }
 }

@@ -64,7 +64,7 @@ public class MulticastZenPingTests extends ElasticsearchTestCase {
         Settings settings = ImmutableSettings.EMPTY;
         settings = buildRandomMulticast(settings);
 
-        ThreadPool threadPool = new ThreadPool();
+        ThreadPool threadPool = new ThreadPool("testSimplePings");
         ClusterName clusterName = new ClusterName("test");
         final TransportService transportServiceA = new TransportService(new LocalTransport(settings, threadPool, Version.CURRENT), threadPool).start();
         final DiscoveryNode nodeA = new DiscoveryNode("A", transportServiceA.boundAddress().publishAddress(), Version.CURRENT);
@@ -118,7 +118,7 @@ public class MulticastZenPingTests extends ElasticsearchTestCase {
         Settings settings = ImmutableSettings.EMPTY;
         settings = buildRandomMulticast(settings);
 
-        ThreadPool threadPool = new ThreadPool();
+        ThreadPool threadPool = new ThreadPool("testExternalPing");
         ClusterName clusterName = new ClusterName("test");
         final TransportService transportServiceA = new TransportService(new LocalTransport(settings, threadPool, Version.CURRENT), threadPool).start();
         final DiscoveryNode nodeA = new DiscoveryNode("A", transportServiceA.boundAddress().publishAddress(), Version.CURRENT);

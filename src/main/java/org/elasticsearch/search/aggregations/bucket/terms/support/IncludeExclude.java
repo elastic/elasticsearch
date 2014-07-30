@@ -18,12 +18,15 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms.support;
 
+import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.util.*;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.CharsRef;
+import org.apache.lucene.util.LongBitSet;
+import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
@@ -75,9 +78,9 @@ public class IncludeExclude {
     /**
      * Computes which global ordinals are accepted by this IncludeExclude instance.
      */
-    public LongBitSet acceptedGlobalOrdinals(Ordinals.Docs globalOrdinals, ValuesSource.Bytes.WithOrdinals valueSource) {
-        TermsEnum globalTermsEnum = valueSource.getGlobalTermsEnum();
-        LongBitSet acceptedGlobalOrdinals = new LongBitSet(globalOrdinals.getMaxOrd());
+    public LongBitSet acceptedGlobalOrdinals(RandomAccessOrds globalOrdinals, ValuesSource.Bytes.WithOrdinals valueSource) {
+        TermsEnum globalTermsEnum = valueSource.globalOrdinalsValues().termsEnum();
+        LongBitSet acceptedGlobalOrdinals = new LongBitSet(globalOrdinals.getValueCount());
         try {
             for (BytesRef term = globalTermsEnum.next(); term != null; term = globalTermsEnum.next()) {
                 if (accept(term)) {

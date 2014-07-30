@@ -42,6 +42,7 @@ public class CborXContent implements XContent {
 
     static {
         cborFactory = new CBORFactory();
+        cborFactory.configure(CBORFactory.Feature.FAIL_ON_SYMBOL_HASH_OVERFLOW, false); // this trips on many mappings now...
         cborXContent = new CborXContent();
     }
 

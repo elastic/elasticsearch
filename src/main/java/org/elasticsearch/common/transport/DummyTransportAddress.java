@@ -40,6 +40,11 @@ public class DummyTransportAddress implements TransportAddress {
     }
 
     @Override
+    public boolean sameHost(TransportAddress other) {
+        return other == INSTANCE;
+    }
+
+    @Override
     public void readFrom(StreamInput in) throws IOException {
     }
 

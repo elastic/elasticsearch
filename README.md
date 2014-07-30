@@ -209,11 +209,15 @@ ssh azure-elasticsearch-cluster.cloudapp.net
 Once connected, install Elasticsearch:
 
 ```sh
-# Install Latest OpenJDK
-# If you would like to use Oracle JDK instead, read the following:
-# http://www.webupd8.org/2012/01/install-oracle-java-jdk-7-in-ubuntu-via.html
+# Install Latest Java version
+# Read http://www.webupd8.org/2012/01/install-oracle-java-jdk-7-in-ubuntu-via.html for details
+sudo add-apt-repository ppa:webupd8team/java
 sudo apt-get update
-sudo apt-get install openjdk-7-jre-headless
+sudo apt-get install oracle-java7-installer
+
+# If you want to install OpenJDK instead
+# sudo apt-get update
+# sudo apt-get install openjdk-7-jre-headless
 
 # Download Elasticsearch
 curl -s https://download.elasticsearch.org/elasticsearch/elasticsearch/elasticsearch-1.0.0.deb -o elasticsearch-1.0.0.deb

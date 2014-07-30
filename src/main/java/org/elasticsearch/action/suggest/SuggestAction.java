@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.suggest;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ClientAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.search.suggest.Suggest;

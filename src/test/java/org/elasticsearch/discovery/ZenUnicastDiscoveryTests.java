@@ -19,7 +19,6 @@
 
 package org.elasticsearch.discovery;
 
-import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -27,34 +26,86 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
+import org.elasticsearch.transport.local.LocalTransport;
+import org.junit.Before;
 import org.junit.Test;
+
+import java.util.List;
+import java.util.concurrent.ExecutionException;
 
 import static org.hamcrest.Matchers.equalTo;
 
-@ClusterScope(scope=Scope.TEST, numDataNodes =2)
+@ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class ZenUnicastDiscoveryTests extends ElasticsearchIntegrationTest {
+
+    private static int currentNumNodes = -1;
+
+    static int currentBaseHttpPort = -1;
+    static int currentNumOfUnicastHosts = -1;
+
+    @Before
+    public void setUP() throws Exception {
+        ElasticsearchIntegrationTest.beforeClass();
+        currentNumNodes = randomIntBetween(3, 5);
+        currentNumOfUnicastHosts = randomIntBetween(1, currentNumNodes);
+        currentBaseHttpPort = 25000 + randomInt(100);
+    }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.settingsBuilder()
+        ImmutableSettings.Builder builder = ImmutableSettings.settingsBuilder()
+                .put("discovery.type", "zen")
                 .put("discovery.zen.ping.multicast.enabled", false)
-                .put("discovery.zen.ping.unicast.hosts", "localhost")
-                .put("transport.tcp.port", "25300-25400") // Need to use custom tcp port range otherwise we collide with the shared cluster
-                .put(super.nodeSettings(nodeOrdinal)).build();
-    }
-    
-    @Test
-    public void testUnicastDiscovery() {
-        for (Client client : clients()) {
-            ClusterState state = client.admin().cluster().prepareState().execute().actionGet().getState();
-            //client nodes might be added randomly
-            int dataNodes = 0;
-            for (DiscoveryNode discoveryNode : state.nodes()) {
-                if (discoveryNode.isDataNode()) {
-                    dataNodes++;
-                }
+                .put("http.enabled", false) // just to make test quicker
+                .put(super.nodeSettings(nodeOrdinal));
+
+        String[] unicastHosts = new String[currentNumOfUnicastHosts];
+        if (internalCluster().getDefaultSettings().get("node.mode").equals("local")) {
+            builder.put(LocalTransport.TRANSPORT_LOCAL_ADDRESS, "unicast_test_" + nodeOrdinal);
+            for (int i = 0; i < unicastHosts.length; i++) {
+                unicastHosts[i] = "unicast_test_" + i;
             }
-            assertThat(dataNodes, equalTo(2));
+        } else {
+            // we need to pin the node ports so we'd know where to point things
+            builder.put("transport.tcp.port", currentBaseHttpPort + nodeOrdinal);
+            for (int i = 0; i < unicastHosts.length; i++) {
+                unicastHosts[i] = "localhost:" + (currentBaseHttpPort + i);
+            }
+        }
+        builder.putArray("discovery.zen.ping.unicast.hosts", unicastHosts);
+        return builder.build();
+    }
+
+    @Test
+    public void testNormalClusterForming() throws ExecutionException, InterruptedException {
+        internalCluster().startNodesAsync(currentNumNodes).get();
+
+        if (client().admin().cluster().prepareHealth().setWaitForNodes("" + currentNumNodes).get().isTimedOut()) {
+            logger.info("cluster forming timed out, cluster state:\n{}", client().admin().cluster().prepareState().get().getState().prettyPrint());
+            fail("timed out waiting for cluster to form with [" + currentNumNodes + "] nodes");
+        }
+    }
+
+    @Test
+    // Without the 'include temporalResponses responses to nodesToConnect' improvement in UnicastZenPing#sendPings this
+    // test fails, because 2 nodes elect themselves as master and the health request times out b/c waiting_for_nodes=N
+    // can't be satisfied.
+    public void testMinimumMasterNodes() throws Exception {
+        final Settings settings = ImmutableSettings.settingsBuilder().put("discovery.zen.minimum_master_nodes", currentNumNodes / 2 + 1).build();
+
+        List<String> nodes = internalCluster().startNodesAsync(currentNumNodes, settings).get();
+
+        ensureGreen();
+
+        DiscoveryNode masterDiscoNode = null;
+        for (String node : nodes) {
+            ClusterState state = internalCluster().client(node).admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
+            assertThat(state.nodes().size(), equalTo(currentNumNodes));
+            if (masterDiscoNode == null) {
+                masterDiscoNode = state.nodes().masterNode();
+            } else {
+                assertThat(masterDiscoNode.equals(state.nodes().masterNode()), equalTo(true));
+            }
         }
     }
 }

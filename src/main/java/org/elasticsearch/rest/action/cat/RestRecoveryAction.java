@@ -64,7 +64,7 @@ public class RestRecoveryAction extends AbstractCatAction {
     }
 
     @Override
-    public void doRequest(final RestRequest request, final RestChannel channel) {
+    public void doRequest(final RestRequest request, final RestChannel channel, final Client client) {
         final RecoveryRequest recoveryRequest = new RecoveryRequest(Strings.splitStringByCommaToArray(request.param("index")));
         recoveryRequest.detailed(request.paramAsBoolean("detailed", false));
         recoveryRequest.activeOnly(request.paramAsBoolean("active_only", false));
@@ -138,10 +138,6 @@ public class RestRecoveryAction extends AbstractCatAction {
             for (ShardRecoveryResponse shardResponse : shardRecoveryResponses) {
 
                 RecoveryState state = shardResponse.recoveryState();
-
-                int filesRecovered = state.getIndex().recoveredFileCount();
-                long bytesRecovered = state.getIndex().recoveredByteCount();
-
                 t.startRow();
                 t.addCell(index);
                 t.addCell(shardResponse.getShardId());
@@ -153,9 +149,9 @@ public class RestRecoveryAction extends AbstractCatAction {
                 t.addCell(state.getRestoreSource() == null ? "n/a" : state.getRestoreSource().snapshotId().getRepository());
                 t.addCell(state.getRestoreSource() == null ? "n/a" : state.getRestoreSource().snapshotId().getSnapshot());
                 t.addCell(state.getIndex().totalFileCount());
-                t.addCell(String.format(Locale.ROOT, "%1.1f%%", state.getIndex().percentFilesRecovered(filesRecovered)));
+                t.addCell(String.format(Locale.ROOT, "%1.1f%%", state.getIndex().percentFilesRecovered()));
                 t.addCell(state.getIndex().totalByteCount());
-                t.addCell(String.format(Locale.ROOT, "%1.1f%%", state.getIndex().percentBytesRecovered(bytesRecovered)));
+                t.addCell(String.format(Locale.ROOT, "%1.1f%%", state.getIndex().percentBytesRecovered()));
                 t.endRow();
             }
         }

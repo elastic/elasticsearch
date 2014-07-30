@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.indexing;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -46,17 +47,20 @@ public class IndexingStats implements Streamable, ToXContent {
         private long deleteTimeInMillis;
         private long deleteCurrent;
 
+        private long noopUpdateCount;
+
         Stats() {
 
         }
 
-        public Stats(long indexCount, long indexTimeInMillis, long indexCurrent, long deleteCount, long deleteTimeInMillis, long deleteCurrent) {
+        public Stats(long indexCount, long indexTimeInMillis, long indexCurrent, long deleteCount, long deleteTimeInMillis, long deleteCurrent, long noopUpdateCount) {
             this.indexCount = indexCount;
             this.indexTimeInMillis = indexTimeInMillis;
             this.indexCurrent = indexCurrent;
             this.deleteCount = deleteCount;
             this.deleteTimeInMillis = deleteTimeInMillis;
             this.deleteCurrent = deleteCurrent;
+            this.noopUpdateCount = noopUpdateCount;
         }
 
         public void add(Stats stats) {
@@ -67,6 +71,8 @@ public class IndexingStats implements Streamable, ToXContent {
             deleteCount += stats.deleteCount;
             deleteTimeInMillis += stats.deleteTimeInMillis;
             deleteCurrent += stats.deleteCurrent;
+
+            noopUpdateCount += stats.noopUpdateCount;
         }
 
         public long getIndexCount() {
@@ -101,6 +107,10 @@ public class IndexingStats implements Streamable, ToXContent {
             return deleteCurrent;
         }
 
+        public long getNoopUpdateCount() {
+            return noopUpdateCount;
+        }
+
         public static Stats readStats(StreamInput in) throws IOException {
             Stats stats = new Stats();
             stats.readFrom(in);
@@ -116,6 +126,10 @@ public class IndexingStats implements Streamable, ToXContent {
             deleteCount = in.readVLong();
             deleteTimeInMillis = in.readVLong();
             deleteCurrent = in.readVLong();
+
+            if (in.getVersion().onOrAfter(Version.V_1_3_0)) {
+                noopUpdateCount = in.readVLong();
+            }
         }
 
         @Override
@@ -127,6 +141,10 @@ public class IndexingStats implements Streamable, ToXContent {
             out.writeVLong(deleteCount);
             out.writeVLong(deleteTimeInMillis);
             out.writeVLong(deleteCurrent);
+
+            if (out.getVersion().onOrAfter(Version.V_1_3_0)) {
+                out.writeVLong(noopUpdateCount);
+            }
         }
 
         @Override
@@ -138,6 +156,8 @@ public class IndexingStats implements Streamable, ToXContent {
             builder.field(Fields.DELETE_TOTAL, deleteCount);
             builder.timeValueField(Fields.DELETE_TIME_IN_MILLIS, Fields.DELETE_TIME, deleteTimeInMillis);
             builder.field(Fields.DELETE_CURRENT, deleteCurrent);
+
+            builder.field(Fields.NOOP_UPDATE_TOTAL, noopUpdateCount);
 
             return builder;
         }
@@ -218,6 +238,7 @@ public class IndexingStats implements Streamable, ToXContent {
         static final XContentBuilderString DELETE_TIME = new XContentBuilderString("delete_time");
         static final XContentBuilderString DELETE_TIME_IN_MILLIS = new XContentBuilderString("delete_time_in_millis");
         static final XContentBuilderString DELETE_CURRENT = new XContentBuilderString("delete_current");
+        static final XContentBuilderString NOOP_UPDATE_TOTAL = new XContentBuilderString("noop_update_total");
     }
 
     public static IndexingStats readIndexingStats(StreamInput in) throws IOException {

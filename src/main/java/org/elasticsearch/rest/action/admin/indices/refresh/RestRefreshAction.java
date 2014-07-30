@@ -51,7 +51,7 @@ public class RestRefreshAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         RefreshRequest refreshRequest = new RefreshRequest(Strings.splitStringByCommaToArray(request.param("index")));
         refreshRequest.listenerThreaded(false);
         refreshRequest.force(request.paramAsBoolean("force", refreshRequest.force()));

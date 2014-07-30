@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.cache;
 
-import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
@@ -82,11 +81,6 @@ public class IndexCache extends AbstractIndexComponent implements CloseableCompo
         if (clusterService != null) {
             clusterService.remove(this);
         }
-    }
-
-    public void clear(IndexReader reader) {
-        filterCache.clear(reader);
-        docSetCache.clear(reader);
     }
 
     public void clear(String reason) {

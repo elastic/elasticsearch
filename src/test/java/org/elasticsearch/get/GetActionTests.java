@@ -19,13 +19,11 @@
 
 package org.elasticsearch.get;
 
-import com.google.common.base.Predicate;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
-import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
-import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetRequest;
@@ -38,11 +36,10 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
-import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.client.Requests.clusterHealthRequest;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -795,12 +792,13 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    @TestLogging("index.shard.service:TRACE,cluster.service:TRACE,action.admin.indices.flush:TRACE")
     public void testGetFields_complexField() throws Exception {
         client().admin().indices().prepareCreate("my-index")
                 .setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1))
                 .addMapping("my-type2", jsonBuilder().startObject().startObject("my-type2").startObject("properties")
                         .startObject("field1").field("type", "object")
-                            .startObject("field2").field("type", "object")
+                        .startObject("field2").field("type", "object")
                                 .startObject("field3").field("type", "object")
                                     .startObject("field4").field("type", "string").field("store", "yes")
                                 .endObject()
@@ -832,9 +830,12 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
                     .endArray()
                 .endObject().bytes();
 
+        logger.info("indexing documents");
+
         client().prepareIndex("my-index", "my-type1", "1").setSource(source).get();
         client().prepareIndex("my-index", "my-type2", "1").setSource(source).get();
 
+        logger.info("checking real time retrieval");
 
         String field = "field1.field2.field3.field4";
         GetResponse getResponse = client().prepareGet("my-index", "my-type1", "1").setFields(field).get();
@@ -851,23 +852,23 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
         assertThat(getResponse.getField(field).getValues().get(0).toString(), equalTo("value1"));
         assertThat(getResponse.getField(field).getValues().get(1).toString(), equalTo("value2"));
 
-        // Flush fails if shard has ongoing recoveries
-        awaitBusy(new Predicate<Object>() {
-            @Override
-            public boolean apply(Object input) {
-                RecoveryResponse response = client().admin().indices().prepareRecoveries("my-index").setActiveOnly(true).get();
-                for (Map.Entry<String, List<ShardRecoveryResponse>> entry : response.shardResponses().entrySet()) {
-                    if (!entry.getValue().isEmpty()) {
-                        return false;
-                    }
-                }
-                return true;
-            }
-        }, 1 , TimeUnit.MINUTES);
+        logger.info("waiting for recoveries to complete");
 
+        // Flush fails if shard has ongoing recoveries, make sure the cluster is settled down
+        ensureGreen();
+
+        logger.info("flushing");
         FlushResponse flushResponse = client().admin().indices().prepareFlush("my-index").setForce(true).get();
-        // the flush must at least succeed on one shard and not all shards, because we don't wait for yellow/green
-        assertThat(flushResponse.getSuccessfulShards(), greaterThanOrEqualTo(1));
+        if (flushResponse.getSuccessfulShards() == 0) {
+            StringBuilder sb = new StringBuilder("failed to flush at least one shard. total shards [")
+                    .append(flushResponse.getTotalShards()).append("], failed shards: [").append(flushResponse.getFailedShards()).append("]");
+            for (ShardOperationFailedException failure: flushResponse.getShardFailures()) {
+                sb.append("\nShard failure: ").append(failure);
+            }
+            fail(sb.toString());
+        }
+
+        logger.info("checking post-flush retrieval");
 
         getResponse = client().prepareGet("my-index", "my-type1", "1").setFields(field).get();
         assertThat(getResponse.isExists(), equalTo(true));
@@ -884,4 +885,28 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
         assertThat(getResponse.getField(field).getValues().get(1).toString(), equalTo("value2"));
     }
 
+    @Test
+    public void testGet_allField() throws Exception {
+        prepareCreate("my-index")
+                .addMapping("my-type1", jsonBuilder()
+                        .startObject()
+                        .startObject("my-type1")
+                        .startObject("_all")
+                        .field("store", true)
+                        .endObject()
+                        .startObject("properties")
+                        .startObject("some_field")
+                        .field("type", "string")
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject())
+                .get();
+        index("my-index", "my-type1", "1", "some_field", "some text");
+        refresh();
+
+        GetResponse getResponse = client().prepareGet("my-index", "my-type1", "1").setFields("_all").get();
+        assertNotNull(getResponse.getField("_all").getValue());
+        assertThat(getResponse.getField("_all").getValue().toString(), equalTo("some text" + " "));
+    }
 }

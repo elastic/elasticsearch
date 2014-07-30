@@ -28,7 +28,6 @@ import org.elasticsearch.action.percolate.PercolateShardRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
-import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.util.BigArrays;
@@ -123,7 +122,7 @@ public class PercolateContext extends SearchContext {
         this.types = new String[]{request.documentType()};
         this.cacheRecycler = cacheRecycler;
         this.pageCacheRecycler = pageCacheRecycler;
-        this.bigArrays = bigArrays;
+        this.bigArrays = bigArrays.withCircuitBreaking();
         this.querySearchResult = new QuerySearchResult(0, searchShardTarget);
         this.engineSearcher = indexShard.acquireSearcher("percolate");
         this.searcher = new ContextIndexSearcher(this, engineSearcher);
@@ -210,13 +209,7 @@ public class PercolateContext extends SearchContext {
 
     @Override
     protected void doClose() {
-        try (Releasable releasable = Releasables.wrap(engineSearcher, docSearcher)) {
-            if (docSearcher != null) {
-                IndexReader indexReader = docSearcher.reader();
-                fieldDataService.clear(indexReader);
-                indexService.cache().clear(indexReader);
-            }
-        }
+        Releasables.close(engineSearcher, docSearcher);
     }
 
     @Override
@@ -489,6 +482,16 @@ public class PercolateContext extends SearchContext {
 
     @Override
     public void timeoutInMillis(long timeoutInMillis) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public int terminateAfter() {
+        return DEFAULT_TERMINATE_AFTER;
+    }
+
+    @Override
+    public void terminateAfter(int terminateAfter) {
         throw new UnsupportedOperationException();
     }
 

@@ -28,6 +28,7 @@ import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.distributor.LeastUsedDistributor;
 import org.elasticsearch.index.store.ram.RamDirectoryService;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -35,8 +36,9 @@ import java.io.IOException;
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
-public class MergePolicySettingsTest {
+public class MergePolicySettingsTest extends ElasticsearchTestCase {
 
     protected final ShardId shardId = new ShardId(new Index("index"), 1);
 
@@ -87,19 +89,19 @@ public class MergePolicySettingsTest {
         IndexSettingsService service = new IndexSettingsService(new Index("test"), EMPTY_SETTINGS);
         try {
             new LogDocMergePolicyProvider(createStore(build(-0.1)), service).newMergePolicy().getNoCFSRatio();
-            assertThat("exception expected", false);
+            fail("exception expected");
         } catch (ElasticsearchIllegalArgumentException ex) {
 
         }
         try {
             new LogDocMergePolicyProvider(createStore(build(1.1)), service).newMergePolicy().getNoCFSRatio();
-            assertThat("exception expected", false);
+            fail("exception expected");
         } catch (ElasticsearchIllegalArgumentException ex) {
 
         }
         try {
             new LogDocMergePolicyProvider(createStore(build("Falsch")), service).newMergePolicy().getNoCFSRatio();
-            assertThat("exception expected", false);
+            fail("exception expected");
         } catch (ElasticsearchIllegalArgumentException ex) {
 
         }

@@ -57,10 +57,22 @@ public class ImmutableSettings implements Settings {
     public static final Settings EMPTY = new Builder().build();
 
     private ImmutableMap<String, String> settings;
+    private final ImmutableMap<String, String> forcedUnderscoreSettings;
     private transient ClassLoader classLoader;
 
     ImmutableSettings(Map<String, String> settings, ClassLoader classLoader) {
         this.settings = ImmutableMap.copyOf(settings);
+        Map<String, String> forcedUnderscoreSettings = null;
+        for (Map.Entry<String, String> entry : settings.entrySet()) {
+            String toUnderscoreCase = Strings.toUnderscoreCase(entry.getKey());
+            if (!toUnderscoreCase.equals(entry.getKey())) {
+                if (forcedUnderscoreSettings == null) {
+                    forcedUnderscoreSettings = new HashMap<>();
+                }
+                forcedUnderscoreSettings.put(toUnderscoreCase, entry.getValue());
+            }
+        }
+        this.forcedUnderscoreSettings = forcedUnderscoreSettings == null ? ImmutableMap.<String, String>of() : ImmutableMap.copyOf(forcedUnderscoreSettings);
         this.classLoader = classLoader;
     }
 
@@ -207,23 +219,23 @@ public class ImmutableSettings implements Settings {
     }
 
     @Override
+    public Settings getAsSettings(String setting) {
+        return getByPrefix(setting + ".");
+    }
+
+    @Override
     public String get(String setting) {
         String retVal = settings.get(setting);
         if (retVal != null) {
             return retVal;
         }
-        // try camel case version
-        return settings.get(toCamelCase(setting));
+        return forcedUnderscoreSettings.get(setting);
     }
 
     @Override
     public String get(String[] settings) {
         for (String setting : settings) {
-            String retVal = this.settings.get(setting);
-            if (retVal != null) {
-                return retVal;
-            }
-            retVal = this.settings.get(toCamelCase(setting));
+            String retVal = get(setting);
             if (retVal != null) {
                 return retVal;
             }
@@ -554,6 +566,20 @@ public class ImmutableSettings implements Settings {
         } catch (Exception e) {
             throw new SettingsException("Failed to parse version setting [" + setting + "] with value [" + sValue + "]", e);
         }
+    }
+
+    @Override
+    public Set<String> names() {
+        Set<String> names = new HashSet<>();
+        for (String key : settings.keySet()) {
+            int i = key.indexOf(".");
+            if (i < 0) {
+                names.add(key);
+            } else {
+                names.add(key.substring(0, i));
+            }
+        }
+        return names;
     }
 
     @Override

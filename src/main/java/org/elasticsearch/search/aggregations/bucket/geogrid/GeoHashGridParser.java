@@ -18,13 +18,14 @@
  */
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.fielddata.BytesValues;
-import org.elasticsearch.index.fielddata.DoubleValues;
-import org.elasticsearch.index.fielddata.GeoPointValues;
-import org.elasticsearch.index.fielddata.LongValues;
+import org.elasticsearch.index.fielddata.MultiGeoPointValues;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.fielddata.SortingNumericDocValues;
 import org.elasticsearch.index.query.GeoBoundingBoxFilterBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -128,45 +129,40 @@ public class GeoHashGridParser implements Aggregator.Parser {
         protected Aggregator create(final ValuesSource.GeoPoint valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent) {
             final CellValues cellIdValues = new CellValues(valuesSource, precision);
             ValuesSource.Numeric cellIdSource = new CellIdSource(cellIdValues, valuesSource.metaData());
-            if (cellIdSource.metaData().multiValued()) {
-                // we need to wrap to ensure uniqueness
-                cellIdSource = new ValuesSource.Numeric.SortedAndUnique(cellIdSource);
-            }
             return new GeoHashGridAggregator(name, factories, cellIdSource, requiredSize, shardSize, aggregationContext, parent);
 
         }
 
-        private static class CellValues extends LongValues {
+        private static class CellValues extends SortingNumericDocValues {
 
             private ValuesSource.GeoPoint geoPointValues;
-            private GeoPointValues geoValues;
+            private MultiGeoPointValues geoValues;
             private int precision;
 
             protected CellValues(ValuesSource.GeoPoint geoPointValues, int precision) {
-                super(true);
                 this.geoPointValues = geoPointValues;
                 this.precision = precision;
             }
 
             @Override
-            public int setDocument(int docId) {
+            public void setDocument(int docId) {
                 geoValues = geoPointValues.geoPointValues();
-                return geoValues.setDocument(docId);
-            }
-
-            @Override
-            public long nextValue() {
-                GeoPoint target = geoValues.nextValue();
-                return GeoHashUtils.encodeAsLong(target.getLat(), target.getLon(), precision);
+                geoValues.setDocument(docId);
+                count = geoValues.count();
+                for (int i = 0; i < count; ++i) {
+                    GeoPoint target = geoValues.valueAt(i);
+                    values[i] = GeoHashUtils.encodeAsLong(target.getLat(), target.getLon(), precision);
+                }
+                sort();
             }
 
         }
 
         private static class CellIdSource extends ValuesSource.Numeric {
-            private final LongValues values;
+            private final SortedNumericDocValues values;
             private MetaData metaData;
 
-            public CellIdSource(LongValues values, MetaData delegate) {
+            public CellIdSource(SortedNumericDocValues values, MetaData delegate) {
                 this.values = values;
                 //different GeoPoints could map to the same or different geohash cells.
                 this.metaData = MetaData.builder(delegate).uniqueness(MetaData.Uniqueness.UNKNOWN).build();
@@ -178,17 +174,17 @@ public class GeoHashGridParser implements Aggregator.Parser {
             }
 
             @Override
-            public LongValues longValues() {
+            public SortedNumericDocValues longValues() {
                 return values;
             }
 
             @Override
-            public DoubleValues doubleValues() {
+            public SortedNumericDoubleValues doubleValues() {
                 throw new UnsupportedOperationException();
             }
 
             @Override
-            public BytesValues bytesValues() {
+            public SortedBinaryDocValues bytesValues() {
                 throw new UnsupportedOperationException();
             }
 

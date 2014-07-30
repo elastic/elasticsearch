@@ -23,6 +23,7 @@ import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.*;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
@@ -47,11 +48,14 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
  */
 public class TransportNodesListGatewayStartedShards extends TransportNodesOperationAction<TransportNodesListGatewayStartedShards.Request, TransportNodesListGatewayStartedShards.NodesLocalGatewayStartedShards, TransportNodesListGatewayStartedShards.NodeRequest, TransportNodesListGatewayStartedShards.NodeLocalGatewayStartedShards> {
 
+    private static final String ACTION_NAME = "/gateway/local/started-shards";
+
+
     private LocalGatewayShardsState shardsState;
 
     @Inject
-    public TransportNodesListGatewayStartedShards(Settings settings, ClusterName clusterName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService) {
-        super(settings, clusterName, threadPool, clusterService, transportService);
+    public TransportNodesListGatewayStartedShards(Settings settings, ClusterName clusterName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, ActionFilters actionFilters) {
+        super(settings, ACTION_NAME, clusterName, threadPool, clusterService, transportService, actionFilters);
     }
 
     TransportNodesListGatewayStartedShards initGateway(LocalGatewayShardsState shardsState) {
@@ -66,11 +70,6 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesOperat
     @Override
     protected String executor() {
         return ThreadPool.Names.GENERIC;
-    }
-
-    @Override
-    protected String transportAction() {
-        return "/gateway/local/started-shards";
     }
 
     @Override
@@ -145,6 +144,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesOperat
             super(nodesIds.toArray(new String[nodesIds.size()]));
             this.shardId = shardId;
         }
+
         public Request(ShardId shardId, String... nodesIds) {
             super(nodesIds);
             this.shardId = shardId;

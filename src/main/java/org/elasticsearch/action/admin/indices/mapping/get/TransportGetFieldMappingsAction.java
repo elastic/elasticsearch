@@ -21,6 +21,8 @@ package org.elasticsearch.action.admin.indices.mapping.get;
 
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -37,19 +39,16 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
  */
-public class TransportGetFieldMappingsAction extends TransportAction<GetFieldMappingsRequest, GetFieldMappingsResponse> {
+public class TransportGetFieldMappingsAction extends HandledTransportAction<GetFieldMappingsRequest, GetFieldMappingsResponse> {
 
     private final ClusterService clusterService;
     private final TransportGetFieldMappingsIndexAction shardAction;
-    private final String transportAction;
 
     @Inject
-    public TransportGetFieldMappingsAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool, TransportGetFieldMappingsIndexAction shardAction) {
-        super(settings, threadPool);
+    public TransportGetFieldMappingsAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool, TransportGetFieldMappingsIndexAction shardAction, ActionFilters actionFilters) {
+        super(settings, GetFieldMappingsAction.NAME, threadPool, transportService, actionFilters);
         this.clusterService = clusterService;
         this.shardAction = shardAction;
-        this.transportAction = GetFieldMappingsAction.NAME;
-        transportService.registerHandler(transportAction, new TransportHandler());
     }
 
     @Override
@@ -60,7 +59,7 @@ public class TransportGetFieldMappingsAction extends TransportAction<GetFieldMap
         final AtomicInteger completionCounter = new AtomicInteger(concreteIndices.length);
         final AtomicReferenceArray<Object> indexResponses = new AtomicReferenceArray<>(concreteIndices.length);
 
-        if (concreteIndices == null || concreteIndices.length == 0) {
+        if (concreteIndices.length == 0) {
             listener.onResponse(new GetFieldMappingsResponse());
         } else {
             boolean probablySingleFieldRequest = concreteIndices.length == 1 && request.types().length == 1 && request.fields().length == 1;
@@ -102,41 +101,8 @@ public class TransportGetFieldMappingsAction extends TransportAction<GetFieldMap
         return new GetFieldMappingsResponse(mergedResponses.immutableMap());
     }
 
-    private class TransportHandler extends BaseTransportRequestHandler<GetFieldMappingsRequest> {
-
-        @Override
-        public GetFieldMappingsRequest newInstance() {
-            return new GetFieldMappingsRequest();
-        }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.SAME;
-        }
-
-        @Override
-        public void messageReceived(final GetFieldMappingsRequest request, final TransportChannel channel) throws Exception {
-            // no need for a threaded listener, since we just send a response
-            request.listenerThreaded(false);
-            execute(request, new ActionListener<GetFieldMappingsResponse>() {
-                @Override
-                public void onResponse(GetFieldMappingsResponse result) {
-                    try {
-                        channel.sendResponse(result);
-                    } catch (Throwable e) {
-                        onFailure(e);
-                    }
-                }
-
-                @Override
-                public void onFailure(Throwable e) {
-                    try {
-                        channel.sendResponse(e);
-                    } catch (Exception e1) {
-                        logger.warn("Failed to send error response for action [" + transportAction + "] and request [" + request + "]", e1);
-                    }
-                }
-            });
-        }
+    @Override
+    public GetFieldMappingsRequest newRequestInstance() {
+        return new GetFieldMappingsRequest();
     }
 }

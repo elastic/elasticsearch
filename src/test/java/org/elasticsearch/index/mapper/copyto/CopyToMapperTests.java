@@ -25,10 +25,9 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.*;
-import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
 
 import java.util.Arrays;
@@ -42,7 +41,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class CopyToMapperTests extends ElasticsearchTestCase {
+public class CopyToMapperTests extends ElasticsearchSingleNodeTest {
 
     @SuppressWarnings("unchecked")
     @Test
@@ -68,7 +67,7 @@ public class CopyToMapperTests extends ElasticsearchTestCase {
                 .endObject()
                 .endObject().endObject().endObject().string();
 
-        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
         FieldMapper fieldMapper = docMapper.mappers().name("copy_test").mapper();
         assertThat(fieldMapper, instanceOf(StringFieldMapper.class));
 
@@ -136,7 +135,7 @@ public class CopyToMapperTests extends ElasticsearchTestCase {
 
                 .endObject().endObject().endObject().string();
 
-        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
 
         BytesReference json = jsonBuilder().startObject()
                 .field("copy_test", "foo")
@@ -164,7 +163,7 @@ public class CopyToMapperTests extends ElasticsearchTestCase {
 
                 .endObject().endObject().endObject().string();
 
-        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
 
         BytesReference json = jsonBuilder().startObject()
                 .field("copy_test", "foo")
@@ -199,7 +198,8 @@ public class CopyToMapperTests extends ElasticsearchTestCase {
 
                 .endObject().endObject().endObject().string();
 
-        DocumentMapper docMapperBefore = MapperTestUtils.newParser().parse(mappingBefore);
+        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+        DocumentMapper docMapperBefore = parser.parse(mappingBefore);
 
         ImmutableList<String> fields = docMapperBefore.mappers().name("copy_test").mapper().copyTo().copyToFields();
 
@@ -208,7 +208,7 @@ public class CopyToMapperTests extends ElasticsearchTestCase {
         assertThat(fields.get(1), equalTo("bar"));
 
 
-        DocumentMapper docMapperAfter = MapperTestUtils.newParser().parse(mappingAfter);
+        DocumentMapper docMapperAfter = parser.parse(mappingAfter);
 
         DocumentMapper.MergeResult mergeResult = docMapperBefore.merge(docMapperAfter, mergeFlags().simulate(true));
 

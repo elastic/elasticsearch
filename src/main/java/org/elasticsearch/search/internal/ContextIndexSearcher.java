@@ -23,6 +23,7 @@ import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.*;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.MinimumScoreCollector;
 import org.elasticsearch.common.lucene.MultiCollector;
 import org.elasticsearch.common.lucene.search.FilteredCollector;
@@ -138,9 +139,17 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     public void search(List<AtomicReaderContext> leaves, Weight weight, Collector collector) throws IOException {
-        if (searchContext.timeoutInMillis() != -1) {
+        final boolean timeoutSet = searchContext.timeoutInMillis() != -1;
+        final boolean terminateAfterSet = searchContext.terminateAfter() != SearchContext.DEFAULT_TERMINATE_AFTER;
+
+        if (timeoutSet) {
             // TODO: change to use our own counter that uses the scheduler in ThreadPool
-            collector = new TimeLimitingCollector(collector, TimeLimitingCollector.getGlobalCounter(), searchContext.timeoutInMillis());
+            // throws TimeLimitingCollector.TimeExceededException when timeout has reached
+            collector = Lucene.wrapTimeLimitingCollector(collector, searchContext.timeoutInMillis());
+        }
+        if (terminateAfterSet) {
+            // throws Lucene.EarlyTerminationException when given count is reached
+            collector = Lucene.wrapCountBasedEarlyTerminatingCollector(collector, searchContext.terminateAfter());
         }
         if (currentState == Stage.MAIN_QUERY) {
             if (enableMainDocIdSetCollector) {
@@ -165,11 +174,18 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
         // we only compute the doc id set once since within a context, we execute the same query always...
         try {
-            if (searchContext.timeoutInMillis() != -1) {
+            if (timeoutSet || terminateAfterSet) {
                 try {
                     super.search(leaves, weight, collector);
                 } catch (TimeLimitingCollector.TimeExceededException e) {
+                    assert timeoutSet : "TimeExceededException thrown even though timeout wasn't set";
                     searchContext.queryResult().searchTimedOut(true);
+                } catch (Lucene.EarlyTerminationException e) {
+                    assert terminateAfterSet : "EarlyTerminationException thrown even though terminateAfter wasn't set";
+                    searchContext.queryResult().terminatedEarly(true);
+                }
+                if (terminateAfterSet && searchContext.queryResult().terminatedEarly() == null) {
+                    searchContext.queryResult().terminatedEarly(false);
                 }
             } else {
                 super.search(leaves, weight, collector);

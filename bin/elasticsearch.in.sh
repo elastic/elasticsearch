@@ -62,3 +62,6 @@ JAVA_OPTS="$JAVA_OPTS -XX:+HeapDumpOnOutOfMemoryError"
 # The path to the heap dump location, note directory must exists and have enough
 # space for a full heap dump.
 #JAVA_OPTS="$JAVA_OPTS -XX:HeapDumpPath=$ES_HOME/logs/heapdump.hprof"
+
+# Disables explicit GC
+JAVA_OPTS="$JAVA_OPTS -XX:+DisableExplicitGC"

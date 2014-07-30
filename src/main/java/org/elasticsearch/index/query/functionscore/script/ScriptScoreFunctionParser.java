@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.SearchScript;
 
 import java.io.IOException;
@@ -55,7 +56,7 @@ public class ScriptScoreFunctionParser implements ScoreFunctionParser {
         String script = null;
         String scriptLang = null;
         Map<String, Object> vars = null;
-
+        ScriptService.ScriptType scriptType = null;
         String currentFieldName = null;
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -70,6 +71,12 @@ public class ScriptScoreFunctionParser implements ScoreFunctionParser {
             } else if (token.isValue()) {
                 if ("script".equals(currentFieldName)) {
                     script = parser.text();
+                } else if ("script_id".equals(currentFieldName)) {
+                    script = parser.text();
+                    scriptType = ScriptService.ScriptType.INDEXED;
+                } else if ("file".equals(currentFieldName)) {
+                    script = parser.text();
+                    scriptType = ScriptService.ScriptType.FILE;
                 } else if ("lang".equals(currentFieldName)) {
                     scriptLang = parser.text();
                 } else {
@@ -84,7 +91,7 @@ public class ScriptScoreFunctionParser implements ScoreFunctionParser {
 
         SearchScript searchScript;
         try {
-            searchScript = parseContext.scriptService().search(parseContext.lookup(), scriptLang, script, vars);
+            searchScript = parseContext.scriptService().search(parseContext.lookup(), scriptLang, script, scriptType, vars);
             return new ScriptScoreFunction(script, vars, searchScript);
         } catch (Exception e) {
             throw new QueryParsingException(parseContext.index(), NAMES[0] + " the script could not be loaded", e);

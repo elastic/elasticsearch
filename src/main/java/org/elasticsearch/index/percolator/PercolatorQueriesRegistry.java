@@ -23,6 +23,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.TermFilter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
@@ -80,6 +81,13 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
     private final RealTimePercolatorOperationListener realTimePercolatorOperationListener = new RealTimePercolatorOperationListener();
     private final PercolateTypeListener percolateTypeListener = new PercolateTypeListener();
     private final AtomicBoolean realTimePercolatorEnabled = new AtomicBoolean(false);
+
+    private CloseableThreadLocal<QueryParseContext> cache = new CloseableThreadLocal<QueryParseContext>() {
+        @Override
+        protected QueryParseContext initialValue() {
+            return new QueryParseContext(shardId.index(), queryParserService, true);
+        }
+    };
 
     @Inject
     public PercolatorQueriesRegistry(ShardId shardId, @IndexSettings Settings indexSettings, IndexQueryParserService queryParserService,
@@ -187,23 +195,20 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
     }
 
     private Query parseQuery(String type, BytesReference querySource, XContentParser parser) {
-        if (type == null) {
-            if (parser != null) {
-                return queryParserService.parse(parser).query();
-            } else {
-                return queryParserService.parse(querySource).query();
-            }
+        String[] previousTypes = null;
+        if (type != null) {
+            QueryParseContext.setTypesWithPrevious(new String[]{type});
         }
-
-        String[] previousTypes = QueryParseContext.setTypesWithPrevious(new String[]{type});
         try {
             if (parser != null) {
-                return queryParserService.parse(parser).query();
+                return queryParserService.parse(cache.get(), parser).query();
             } else {
-                return queryParserService.parse(querySource).query();
+                return queryParserService.parse(cache.get(), querySource).query();
             }
         } finally {
-            QueryParseContext.setTypes(previousTypes);
+            if (type != null) {
+                QueryParseContext.setTypes(previousTypes);
+            }
         }
     }
 
@@ -240,9 +245,9 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
             if (hasPercolatorType(indexShard)) {
                 // percolator index has started, fetch what we can from it and initialize the indices
                 // we have
-                logger.debug("loading percolator queries for index [{}] and shard[{}]...", shardId.index(), shardId.id());
-                loadQueries(indexShard);
-                logger.trace("done loading percolator queries for index [{}] and shard[{}]", shardId.index(), shardId.id());
+                logger.trace("loading percolator queries for [{}]...", shardId);
+                int loadedQueries = loadQueries(indexShard);
+                logger.debug("done loading [{}] percolator queries for [{}]", loadedQueries, shardId);
             }
         }
 
@@ -251,27 +256,23 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
             return shardId.equals(otherShardId) && mapperService.hasMapping(PercolatorService.TYPE_NAME);
         }
 
-        private void loadQueries(IndexShard shard) {
-            try {
-                shard.refresh(new Engine.Refresh("percolator_load_queries").force(true));
-                // Maybe add a mode load? This isn't really a write. We need write b/c state=post_recovery
-                Engine.Searcher searcher = shard.acquireSearcher("percolator_load_queries", IndexShard.Mode.WRITE);
-                try {
-                    Query query = new XConstantScoreQuery(
-                            indexCache.filter().cache(
-                                    new TermFilter(new Term(TypeFieldMapper.NAME, PercolatorService.TYPE_NAME))
-                            )
-                    );
-                    QueriesLoaderCollector queryCollector = new QueriesLoaderCollector(PercolatorQueriesRegistry.this, logger, mapperService, indexFieldDataService);
-                    searcher.searcher().search(query, queryCollector);
-                    Map<BytesRef, Query> queries = queryCollector.queries();
-                    for (Map.Entry<BytesRef, Query> entry : queries.entrySet()) {
-                        Query previousQuery = percolateQueries.put(entry.getKey(), entry.getValue());
-                        shardPercolateService.addedQuery(entry.getKey(), previousQuery, entry.getValue());
-                    }
-                } finally {
-                    searcher.close();
+        private int loadQueries(IndexShard shard) {
+            shard.refresh(new Engine.Refresh("percolator_load_queries").force(true));
+            // Maybe add a mode load? This isn't really a write. We need write b/c state=post_recovery
+            try (Engine.Searcher searcher = shard.acquireSearcher("percolator_load_queries", IndexShard.Mode.WRITE)) {
+                Query query = new XConstantScoreQuery(
+                        indexCache.filter().cache(
+                                new TermFilter(new Term(TypeFieldMapper.NAME, PercolatorService.TYPE_NAME))
+                        )
+                );
+                QueriesLoaderCollector queryCollector = new QueriesLoaderCollector(PercolatorQueriesRegistry.this, logger, mapperService, indexFieldDataService);
+                searcher.searcher().search(query, queryCollector);
+                Map<BytesRef, Query> queries = queryCollector.queries();
+                for (Map.Entry<BytesRef, Query> entry : queries.entrySet()) {
+                    Query previousQuery = percolateQueries.put(entry.getKey(), entry.getValue());
+                    shardPercolateService.addedQuery(entry.getKey(), previousQuery, entry.getValue());
                 }
+                return queries.size();
             } catch (Exception e) {
                 throw new PercolatorException(shardId.index(), "failed to load queries from percolator index", e);
             }

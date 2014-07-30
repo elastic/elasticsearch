@@ -69,7 +69,6 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         }
     });
 
-    private boolean throwConnectException = false;
     private final TransportService.Adapter adapter = new Adapter();
 
     public TransportService(Transport transport, ThreadPool threadPool) {
@@ -127,7 +126,11 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
     }
 
     public TransportInfo info() {
-        return new TransportInfo(boundAddress());
+        BoundTransportAddress boundTransportAddress = boundAddress();
+        if (boundTransportAddress == null) {
+            return null;
+        }
+        return new TransportInfo(boundTransportAddress);
     }
 
     public TransportStats stats() {
@@ -162,17 +165,6 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         connectionListeners.remove(listener);
     }
 
-    /**
-     * Set to <tt>true</tt> to indicate that a {@link ConnectTransportException} should be thrown when
-     * sending a message (otherwise, it will be passed to the response handler). Defaults to <tt>false</tt>.
-     * <p/>
-     * <p>This is useful when logic based on connect failure is needed without having to wrap the handler,
-     * for example, in case of retries across several nodes.
-     */
-    public void throwConnectException(boolean throwConnectException) {
-        this.throwConnectException = throwConnectException;
-    }
-
     public <T extends TransportResponse> TransportFuture<T> submitRequest(DiscoveryNode node, String action, TransportRequest request,
                                                                           TransportResponseHandler<T> handler) throws TransportException {
         return submitRequest(node, action, request, TransportRequestOptions.EMPTY, handler);
@@ -186,12 +178,12 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
     }
 
     public <T extends TransportResponse> void sendRequest(final DiscoveryNode node, final String action, final TransportRequest request,
-                                                          final TransportResponseHandler<T> handler) throws TransportException {
+                                                          final TransportResponseHandler<T> handler) {
         sendRequest(node, action, request, TransportRequestOptions.EMPTY, handler);
     }
 
     public <T extends TransportResponse> void sendRequest(final DiscoveryNode node, final String action, final TransportRequest request,
-                                                          final TransportRequestOptions options, TransportResponseHandler<T> handler) throws TransportException {
+                                                          final TransportRequestOptions options, TransportResponseHandler<T> handler) {
         if (node == null) {
             throw new ElasticsearchIllegalStateException("can't send request to a null node");
         }
@@ -208,7 +200,8 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
             // usually happen either because we failed to connect to the node
             // or because we failed serializing the message
             final RequestHolder holderToNotify = clientHandlers.remove(requestId);
-            if (timeoutHandler != null) {
+            // if the scheduler raise a EsRejectedExecutionException (due to shutdown), we may have a timeout handler, but no future
+            if (timeoutHandler != null && timeoutHandler.future != null) {
                 timeoutHandler.future.cancel(false);
             }
 
@@ -223,12 +216,6 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
                         holderToNotify.handler().handleException(sendRequestException);
                     }
                 });
-            }
-
-            if (throwConnectException) {
-                if (e instanceof ConnectTransportException) {
-                    throw (ConnectTransportException) e;
-                }
             }
         }
     }

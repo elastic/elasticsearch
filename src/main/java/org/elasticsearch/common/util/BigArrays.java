@@ -23,8 +23,10 @@ import com.google.common.base.Preconditions;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lease.Releasable;
@@ -32,6 +34,7 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicLong;
@@ -39,9 +42,7 @@ import java.util.concurrent.atomic.AtomicLong;
 /** Utility class to work with arrays. */
 public class BigArrays extends AbstractComponent {
 
-    // TODO: switch to a circuit breaker that is shared not only on big arrays level, and applies to other request level data structures
-    public static final String MAX_SIZE_IN_BYTES_SETTING = "requests.memory.breaker.limit";
-    public static final BigArrays NON_RECYCLING_INSTANCE = new BigArrays(ImmutableSettings.EMPTY, null, Long.MAX_VALUE);
+    public static final BigArrays NON_RECYCLING_INSTANCE = new BigArrays(ImmutableSettings.EMPTY, null, null);
 
     /** Page size in bytes: 16KB */
     public static final int PAGE_SIZE_IN_BYTES = 1 << 14;
@@ -118,7 +119,7 @@ public class BigArrays extends AbstractComponent {
         }
 
         @Override
-        public long sizeInBytes() {
+        public long ramBytesUsed() {
             return SHALLOW_SIZE + RamUsageEstimator.sizeOf(array);
         }
 
@@ -169,7 +170,7 @@ public class BigArrays extends AbstractComponent {
         }
 
         @Override
-        public long sizeInBytes() {
+        public long ramBytesUsed() {
             return SHALLOW_SIZE + RamUsageEstimator.sizeOf(array);
         }
 
@@ -212,7 +213,7 @@ public class BigArrays extends AbstractComponent {
         }
 
         @Override
-        public long sizeInBytes() {
+        public long ramBytesUsed() {
             return SHALLOW_SIZE + RamUsageEstimator.sizeOf(array);
         }
 
@@ -254,7 +255,7 @@ public class BigArrays extends AbstractComponent {
         }
 
         @Override
-        public long sizeInBytes() {
+        public long ramBytesUsed() {
             return SHALLOW_SIZE + RamUsageEstimator.sizeOf(array);
         }
 
@@ -297,7 +298,7 @@ public class BigArrays extends AbstractComponent {
         }
 
         @Override
-        public long sizeInBytes() {
+        public long ramBytesUsed() {
             return SHALLOW_SIZE + RamUsageEstimator.sizeOf(array);
         }
 
@@ -340,7 +341,7 @@ public class BigArrays extends AbstractComponent {
         }
 
         @Override
-        public long sizeInBytes() {
+        public long ramBytesUsed() {
             return SHALLOW_SIZE + RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + RamUsageEstimator.NUM_BYTES_OBJECT_REF * size());
         }
 
@@ -363,39 +364,73 @@ public class BigArrays extends AbstractComponent {
     }
 
     final PageCacheRecycler recycler;
-    final AtomicLong ramBytesUsed;
-    final long maxSizeInBytes;
+    final CircuitBreakerService breakerService;
+    final boolean checkBreaker;
 
     @Inject
-    public BigArrays(Settings settings, PageCacheRecycler recycler) {
-        this(settings, recycler, settings.getAsMemory(MAX_SIZE_IN_BYTES_SETTING, Long.toString(Long.MAX_VALUE)).bytes());
+    public BigArrays(Settings settings, PageCacheRecycler recycler, @Nullable final CircuitBreakerService breakerService) {
+        // Checking the breaker is disabled if not specified
+        this(settings, recycler, breakerService, false);
     }
 
-    private BigArrays(Settings settings, PageCacheRecycler recycler, final long maxSizeInBytes) {
+    public BigArrays(Settings settings, PageCacheRecycler recycler, @Nullable final CircuitBreakerService breakerService, boolean checkBreaker) {
         super(settings);
-        this.maxSizeInBytes = maxSizeInBytes;
+        this.checkBreaker = checkBreaker;
         this.recycler = recycler;
-        ramBytesUsed = new AtomicLong();
+        this.breakerService = breakerService;
     }
 
-    private void validate(long delta) {
-        final long totalSizeInBytes = ramBytesUsed.addAndGet(delta);
-        if (totalSizeInBytes > maxSizeInBytes) {
-            throw new ElasticsearchIllegalStateException("Maximum number of bytes allocated exceeded: [" + totalSizeInBytes + "] (> " + maxSizeInBytes + ")");
+    /**
+     * Adjust the circuit breaker with the given delta, if the delta is
+     * negative, or checkBreaker is false, the breaker will be adjusted
+     * without tripping
+     */
+    void adjustBreaker(long delta) {
+        if (this.breakerService != null) {
+            CircuitBreaker breaker = this.breakerService.getBreaker(CircuitBreaker.Name.REQUEST);
+            if (this.checkBreaker == true) {
+                // checking breaker means potentially tripping, but it doesn't
+                // have to if the delta is negative
+                if (delta > 0) {
+                    try {
+                        breaker.addEstimateBytesAndMaybeBreak(delta, "<reused_arrays>");
+                    } catch (CircuitBreakingException e) {
+                        // since we've already created the data, we need to
+                        // add it so closing the stream re-adjusts properly
+                        breaker.addWithoutBreaking(delta);
+                        // re-throw the original exception
+                        throw e;
+                    }
+                } else {
+                    breaker.addWithoutBreaking(delta);
+                }
+            } else {
+                // even if we are not checking the breaker, we need to adjust
+                // its' totals, so add without breaking
+                breaker.addWithoutBreaking(delta);
+            }
         }
     }
 
+    /**
+     * Return a new instance of this BigArrays class with circuit breaking
+     * explicitly enabled, instead of only accounting enabled
+     */
+    public BigArrays withCircuitBreaking() {
+        return new BigArrays(this.settings, this.recycler, this.breakerService, true);
+    }
+
     private <T extends AbstractBigArray> T resizeInPlace(T array, long newSize) {
-        final long oldMemSize = array.sizeInBytes();
+        final long oldMemSize = array.ramBytesUsed();
         array.resize(newSize);
-        validate(array.sizeInBytes() - oldMemSize);
+        adjustBreaker(array.ramBytesUsed() - oldMemSize);
         return array;
     }
 
     private <T extends BigArray> T validate(T array) {
         boolean success = false;
         try {
-            validate(array.sizeInBytes());
+            adjustBreaker(array.ramBytesUsed());
             success = true;
         } finally {
             if (!success) {
@@ -719,12 +754,5 @@ public class BigArrays extends AbstractComponent {
         }
         final long newSize = overSize(minSize, OBJECT_PAGE_SIZE, RamUsageEstimator.NUM_BYTES_OBJECT_REF);
         return resize(array, newSize);
-    }
-
-    /**
-     * Return an approximate number of bytes that have been allocated but not released yet.
-     */
-    public long sizeInBytes() {
-        return ramBytesUsed.get();
     }
 }

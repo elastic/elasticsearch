@@ -21,11 +21,11 @@ package org.elasticsearch.action.admin.indices.open;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateListener;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -46,8 +46,8 @@ public class TransportOpenIndexAction extends TransportMasterNodeOperationAction
 
     @Inject
     public TransportOpenIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                    ThreadPool threadPool, MetaDataIndexStateService indexStateService, NodeSettingsService nodeSettingsService) {
-        super(settings, transportService, clusterService, threadPool);
+                                    ThreadPool threadPool, MetaDataIndexStateService indexStateService, NodeSettingsService nodeSettingsService, ActionFilters actionFilters) {
+        super(settings, OpenIndexAction.NAME, transportService, clusterService, threadPool, actionFilters);
         this.indexStateService = indexStateService;
         this.destructiveOperations = new DestructiveOperations(logger, settings, nodeSettingsService);
     }
@@ -56,11 +56,6 @@ public class TransportOpenIndexAction extends TransportMasterNodeOperationAction
     protected String executor() {
         // we go async right away...
         return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected String transportAction() {
-        return OpenIndexAction.NAME;
     }
 
     @Override
@@ -81,17 +76,17 @@ public class TransportOpenIndexAction extends TransportMasterNodeOperationAction
 
     @Override
     protected ClusterBlockException checkBlock(OpenIndexRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, request.indices());
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, state.metaData().concreteIndices(request.indicesOptions(), request.indices()));
     }
 
     @Override
     protected void masterOperation(final OpenIndexRequest request, final ClusterState state, final ActionListener<OpenIndexResponse> listener) throws ElasticsearchException {
-        request.indices(state.metaData().concreteIndices(request.indicesOptions(), request.indices()));
+        final String[] concreteIndices = state.metaData().concreteIndices(request.indicesOptions(), request.indices());
         OpenIndexClusterStateUpdateRequest updateRequest = new OpenIndexClusterStateUpdateRequest()
                 .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
-                .indices(request.indices());
+                .indices(concreteIndices);
 
-        indexStateService.openIndex(updateRequest, new ClusterStateUpdateListener() {
+        indexStateService.openIndex(updateRequest, new ActionListener<ClusterStateUpdateResponse>() {
 
             @Override
             public void onResponse(ClusterStateUpdateResponse response) {
@@ -100,7 +95,7 @@ public class TransportOpenIndexAction extends TransportMasterNodeOperationAction
 
             @Override
             public void onFailure(Throwable t) {
-                logger.debug("failed to open indices [{}]", t, request.indices());
+                logger.debug("failed to open indices [{}]", t, concreteIndices);
                 listener.onFailure(t);
             }
         });

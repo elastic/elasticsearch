@@ -50,7 +50,6 @@ import org.elasticsearch.index.codec.postingsformat.PostingFormats;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatService;
 import org.elasticsearch.index.fielddata.FieldDataType;
-import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
@@ -491,7 +490,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
      * A terms filter based on the field data cache
      */
     @Override
-    public Filter termsFilter(IndexFieldDataService fieldDataService, List values, @Nullable QueryParseContext context) {
+    public Filter fieldDataTermsFilter(List values, @Nullable QueryParseContext context) {
         // create with initial size large enough to avoid rehashing
         ObjectOpenHashSet<BytesRef> terms =
                 new ObjectOpenHashSet<>((int) (values.size() * (1 + ObjectOpenHashSet.DEFAULT_LOAD_FACTOR)));
@@ -499,7 +498,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
             terms.add(indexedValueForSearch(values.get(i)));
         }
 
-        return FieldDataTermsFilter.newBytes(fieldDataService.getForField(this), terms);
+        return FieldDataTermsFilter.newBytes(context.getForField(this), terms);
     }
 
     @Override
@@ -762,7 +761,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         if (similarity() != null) {
             builder.field("similarity", similarity().name());
         } else if (includeDefaults) {
-            builder.field("similariry", SimilarityLookupService.DEFAULT_SIMILARITY);
+            builder.field("similarity", SimilarityLookupService.DEFAULT_SIMILARITY);
         }
 
         if (customFieldDataSettings != null) {
@@ -917,7 +916,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
                 return;
             }
 
-            context.setWithinMultiFields();
+            context = context.createMultiFieldContext();
 
             ContentPath.Type origPathType = context.path().pathType();
             context.path().pathType(pathType);
@@ -928,8 +927,6 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
             }
             context.path().remove();
             context.path().pathType(origPathType);
-
-            context.clearWithinMultiFields();
         }
 
         // No need for locking, because locking is taken care of in ObjectMapper#merge and DocumentMapper#merge
@@ -1056,7 +1053,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
          * Creates an copy of the current field with given field name and boost
          */
         public void parse(String field, ParseContext context) throws IOException {
-            context.setWithinCopyTo();
+            context = context.createCopyToContext();
             FieldMappers mappers = context.docMapper().mappers().indexName(field);
             if (mappers != null && !mappers.isEmpty()) {
                 mappers.mapper().parse(context);
@@ -1110,7 +1107,6 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
 
                 }
             }
-            context.clearWithinCopyTo();
         }
 
 

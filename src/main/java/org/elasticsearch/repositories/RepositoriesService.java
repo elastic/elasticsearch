@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Injector;
@@ -37,7 +36,6 @@ import org.elasticsearch.common.inject.Injectors;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.snapshots.IndexShardRepository;
 import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.snapshots.SnapshotsService;
@@ -84,10 +82,15 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
      * @param request  register repository request
      * @param listener register repository listener
      */
-    public void registerRepository(final RegisterRepositoryRequest request, final ActionListener<RegisterRepositoryResponse> listener) {
+    public void registerRepository(final RegisterRepositoryRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
         final RepositoryMetaData newRepositoryMetaData = new RepositoryMetaData(request.name, request.type, request.settings);
 
-        clusterService.submitStateUpdateTask(request.cause, new AckedClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask(request.cause, new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(request, listener) {
+            @Override
+            protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
+                return new ClusterStateUpdateResponse(acknowledged);
+            }
+
             @Override
             public ClusterState execute(ClusterState currentState) {
                 ensureRepositoryNotInUse(currentState, request.name);
@@ -129,37 +132,12 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
             @Override
             public void onFailure(String source, Throwable t) {
                 logger.warn("failed to create repository [{}]", t, request.name);
-                listener.onFailure(t);
-            }
-
-            @Override
-            public TimeValue timeout() {
-                return request.masterNodeTimeout();
-            }
-
-            @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-
+                super.onFailure(source, t);
             }
 
             @Override
             public boolean mustAck(DiscoveryNode discoveryNode) {
                 return discoveryNode.masterNode();
-            }
-
-            @Override
-            public void onAllNodesAcked(@Nullable Throwable t) {
-                listener.onResponse(new RegisterRepositoryResponse(true));
-            }
-
-            @Override
-            public void onAckTimeout() {
-                listener.onResponse(new RegisterRepositoryResponse(false));
-            }
-
-            @Override
-            public TimeValue ackTimeout() {
-                return request.ackTimeout();
             }
         });
     }
@@ -172,8 +150,13 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
      * @param request  unregister repository request
      * @param listener unregister repository listener
      */
-    public void unregisterRepository(final UnregisterRepositoryRequest request, final ActionListener<UnregisterRepositoryResponse> listener) {
-        clusterService.submitStateUpdateTask(request.cause, new AckedClusterStateUpdateTask() {
+    public void unregisterRepository(final UnregisterRepositoryRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
+        clusterService.submitStateUpdateTask(request.cause, new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(request, listener) {
+            @Override
+            protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
+                return new ClusterStateUpdateResponse(acknowledged);
+            }
+
             @Override
             public ClusterState execute(ClusterState currentState) {
                 ensureRepositoryNotInUse(currentState, request.name);
@@ -201,38 +184,9 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
             }
 
             @Override
-            public void onFailure(String source, Throwable t) {
-                listener.onFailure(t);
-            }
-
-            @Override
-            public TimeValue timeout() {
-                return request.masterNodeTimeout();
-            }
-
-            @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-            }
-
-            @Override
             public boolean mustAck(DiscoveryNode discoveryNode) {
                 // Since operation occurs only on masters, it's enough that only master-eligible nodes acked
                 return discoveryNode.masterNode();
-            }
-
-            @Override
-            public void onAllNodesAcked(@Nullable Throwable t) {
-                listener.onResponse(new UnregisterRepositoryResponse(true));
-            }
-
-            @Override
-            public void onAckTimeout() {
-                listener.onResponse(new UnregisterRepositoryResponse(false));
-            }
-
-            @Override
-            public TimeValue ackTimeout() {
-                return request.ackTimeout();
             }
         });
     }
@@ -465,17 +419,6 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
     }
 
     /**
-     * Register repository response
-     */
-    public static class RegisterRepositoryResponse extends ClusterStateUpdateResponse {
-
-        RegisterRepositoryResponse(boolean acknowledged) {
-            super(acknowledged);
-        }
-
-    }
-
-    /**
      * Unregister repository request
      */
     public static class UnregisterRepositoryRequest extends ClusterStateUpdateRequest<UnregisterRepositoryRequest> {
@@ -495,14 +438,5 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
             this.name = name;
         }
 
-    }
-
-    /**
-     * Unregister repository response
-     */
-    public static class UnregisterRepositoryResponse extends ClusterStateUpdateResponse {
-        UnregisterRepositoryResponse(boolean acknowledged) {
-            super(acknowledged);
-        }
     }
 }

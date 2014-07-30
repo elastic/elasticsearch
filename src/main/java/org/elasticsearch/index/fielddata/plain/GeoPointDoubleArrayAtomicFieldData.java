@@ -18,89 +18,83 @@
  */
 package org.elasticsearch.index.fielddata.plain;
 
+import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.RandomAccessOrds;
+import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.util.DoubleArray;
-import org.elasticsearch.index.fielddata.AtomicGeoPointFieldData;
+import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.GeoPointValues;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 
 /**
  */
-public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointFieldData<ScriptDocValues> {
-
-    protected long size = -1;
+public abstract class GeoPointDoubleArrayAtomicFieldData extends AbstractAtomicGeoPointFieldData {
 
     @Override
     public void close() {
-    }
-
-    @Override
-    public ScriptDocValues getScriptValues() {
-        return new ScriptDocValues.GeoPoints(getGeoPointValues());
     }
 
     static class WithOrdinals extends GeoPointDoubleArrayAtomicFieldData {
 
         private final DoubleArray lon, lat;
         private final Ordinals ordinals;
+        private final int maxDoc;
 
-        public WithOrdinals(DoubleArray lon, DoubleArray lat, Ordinals ordinals) {
+        public WithOrdinals(DoubleArray lon, DoubleArray lat, Ordinals ordinals, int maxDoc) {
             super();
             this.lon = lon;
             this.lat = lat;
             this.ordinals = ordinals;
+            this.maxDoc = maxDoc;
         }
 
         @Override
-        public boolean isMultiValued() {
-            return ordinals.isMultiValued();
+        public long ramBytesUsed() {
+            return RamUsageEstimator.NUM_BYTES_INT/*size*/ + lon.ramBytesUsed() + lat.ramBytesUsed();
         }
 
         @Override
-        public long getNumberUniqueValues() {
-            return ordinals.getMaxOrd() - Ordinals.MIN_ORDINAL;
-        }
+        public MultiGeoPointValues getGeoPointValues() {
+            final RandomAccessOrds ords = ordinals.ordinals();
+            final SortedDocValues singleOrds = DocValues.unwrapSingleton(ords);
+            if (singleOrds != null) {
+                final GeoPoint point = new GeoPoint();
+                final GeoPointValues values = new GeoPointValues() {
+                    @Override
+                    public GeoPoint get(int docID) {
+                        final int ord = singleOrds.getOrd(docID);
+                        if (ord >= 0) {
+                            point.reset(lat.get(ord), lon.get(ord));
+                        }
+                        return point;
+                    }
+                };
+                return FieldData.singleton(values, DocValues.docsWithValue(singleOrds, maxDoc));
+            } else {
+                final GeoPoint point = new GeoPoint();
+                return new MultiGeoPointValues() {
 
-        @Override
-        public long getMemorySizeInBytes() {
-            if (size == -1) {
-                size = RamUsageEstimator.NUM_BYTES_INT/*size*/ + lon.sizeInBytes() + lat.sizeInBytes();
-            }
-            return size;
-        }
+                    @Override
+                    public GeoPoint valueAt(int index) {
+                        final long ord = ords.ordAt(index);
+                        point.reset(lat.get(ord), lon.get(ord));
+                        return point;
+                    }
 
-        @Override
-        public GeoPointValues getGeoPointValues() {
-            return new GeoPointValuesWithOrdinals(lon, lat, ordinals.ordinals());
-        }
+                    @Override
+                    public void setDocument(int docId) {
+                        ords.setDocument(docId);
+                    }
 
-        public static class GeoPointValuesWithOrdinals extends GeoPointValues {
-
-            private final DoubleArray lon, lat;
-            private final Ordinals.Docs ordinals;
-
-            private final GeoPoint scratch = new GeoPoint();
-
-            GeoPointValuesWithOrdinals(DoubleArray lon, DoubleArray lat, Ordinals.Docs ordinals) {
-                super(ordinals.isMultiValued());
-                this.lon = lon;
-                this.lat = lat;
-                this.ordinals = ordinals;
-            }
-
-            @Override
-            public GeoPoint nextValue() {
-                final long ord = ordinals.nextOrd();
-                return scratch.reset(lat.get(ord), lon.get(ord));
-            }
-
-            @Override
-            public int setDocument(int docId) {
-                this.docId = docId;
-                return ordinals.setDocument(docId);
+                    @Override
+                    public int count() {
+                        return ords.cardinality();
+                    }
+                };
             }
         }
     }
@@ -108,135 +102,34 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointF
     /**
      * Assumes unset values are marked in bitset, and docId is used as the index to the value array.
      */
-    public static class SingleFixedSet extends GeoPointDoubleArrayAtomicFieldData {
-
-        private final DoubleArray lon, lat;
-        private final FixedBitSet set;
-        private final long numOrds;
-
-        public SingleFixedSet(DoubleArray lon, DoubleArray lat, FixedBitSet set, long numOrds) {
-            super();
-            this.lon = lon;
-            this.lat = lat;
-            this.set = set;
-            this.numOrds = numOrds;
-        }
-
-        @Override
-        public boolean isMultiValued() {
-            return false;
-        }
-
-        @Override
-        public long getNumberUniqueValues() {
-            return numOrds;
-        }
-
-        @Override
-        public long getMemorySizeInBytes() {
-            if (size == -1) {
-                size = RamUsageEstimator.NUM_BYTES_INT/*size*/ + lon.sizeInBytes() + lat.sizeInBytes() + RamUsageEstimator.sizeOf(set.getBits());
-            }
-            return size;
-        }
-
-        @Override
-        public GeoPointValues getGeoPointValues() {
-            return new GeoPointValuesSingleFixedSet(lon, lat, set);
-        }
-
-
-        static class GeoPointValuesSingleFixedSet extends GeoPointValues {
-
-            private final DoubleArray lon;
-            private final DoubleArray lat;
-            private final FixedBitSet set;
-            private final GeoPoint scratch = new GeoPoint();
-
-
-            GeoPointValuesSingleFixedSet(DoubleArray lon, DoubleArray lat, FixedBitSet set) {
-                super(false);
-                this.lon = lon;
-                this.lat = lat;
-                this.set = set;
-            }
-
-            @Override
-            public int setDocument(int docId) {
-                this.docId = docId;
-                return set.get(docId) ? 1 : 0;
-            }
-
-            @Override
-            public GeoPoint nextValue() {
-                return scratch.reset(lat.get(docId), lon.get(docId));
-            }
-        }
-    }
-
-    /**
-     * Assumes all the values are "set", and docId is used as the index to the value array.
-     */
     public static class Single extends GeoPointDoubleArrayAtomicFieldData {
 
         private final DoubleArray lon, lat;
-        private final long numOrds;
+        private final FixedBitSet set;
 
-        public Single(DoubleArray lon, DoubleArray lat, long numOrds) {
-            super();
+        public Single(DoubleArray lon, DoubleArray lat, FixedBitSet set) {
             this.lon = lon;
             this.lat = lat;
-            this.numOrds = numOrds;
+            this.set = set;
         }
 
         @Override
-        public boolean isMultiValued() {
-            return false;
+        public long ramBytesUsed() {
+            return RamUsageEstimator.NUM_BYTES_INT/*size*/ + lon.ramBytesUsed() + lat.ramBytesUsed() + (set == null ? 0 : set.ramBytesUsed());
         }
 
         @Override
-        public long getNumberUniqueValues() {
-            return numOrds;
-        }
-
-        @Override
-        public long getMemorySizeInBytes() {
-            if (size == -1) {
-                size = RamUsageEstimator.NUM_BYTES_INT/*size*/ + RamUsageEstimator.NUM_BYTES_INT/*numDocs*/ + (lon.sizeInBytes() + lat.sizeInBytes());
-            }
-            return size;
-        }
-
-
-        @Override
-        public GeoPointValues getGeoPointValues() {
-            return new GeoPointValuesSingle(lon, lat);
-        }
-
-        static class GeoPointValuesSingle extends GeoPointValues {
-
-            private final DoubleArray lon;
-            private final DoubleArray lat;
-
-            private final GeoPoint scratch = new GeoPoint();
-
-
-            GeoPointValuesSingle(DoubleArray lon, DoubleArray lat) {
-                super(false);
-                this.lon = lon;
-                this.lat = lat;
-            }
-
-            @Override
-            public int setDocument(int docId) {
-                this.docId = docId;
-                return 1;
-            }
-
-            @Override
-            public GeoPoint nextValue() {
-                return scratch.reset(lat.get(docId), lon.get(docId));
-            }
+        public MultiGeoPointValues getGeoPointValues() {
+            final GeoPoint point = new GeoPoint();
+            final GeoPointValues values = new GeoPointValues() {
+                @Override
+                public GeoPoint get(int docID) {
+                    point.reset(lat.get(docID), lon.get(docID));
+                    return point;
+                }
+            };
+            return FieldData.singleton(values, set);
         }
     }
+
 }

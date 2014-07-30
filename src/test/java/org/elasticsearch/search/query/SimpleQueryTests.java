@@ -47,10 +47,7 @@ import org.joda.time.format.ISODateTimeFormat;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.HashSet;
-import java.util.Locale;
-import java.util.Random;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
@@ -321,7 +318,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
 
         searchResponse = client().prepareSearch().setQuery(commonTerms("field1", "the quick brown").cutoffFrequency(3).analyzer("stop")).get();
         assertHitCount(searchResponse, 3l);
-        // standard drops "the" since its a stopword
+        // stop drops "the" since its a stopword
         assertFirstHit(searchResponse, hasId("1"));
         assertSecondHit(searchResponse, hasId("3"));
         assertThirdHit(searchResponse, hasId("2"));
@@ -340,7 +337,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
 
         searchResponse = client().prepareSearch().setQuery(matchQuery("field1", "the quick brown").cutoffFrequency(3).operator(MatchQueryBuilder.Operator.AND).analyzer("stop")).get();
         assertHitCount(searchResponse, 3l);
-        // standard drops "the" since its a stopword
+        // stop drops "the" since its a stopword
         assertFirstHit(searchResponse, hasId("1"));
         assertSecondHit(searchResponse, hasId("3"));
         assertThirdHit(searchResponse, hasId("2"));
@@ -354,7 +351,107 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    public void testCommonTermsQueryStackedTokens() throws Exception {
+        assertAcked(prepareCreate("test")
+                .setSettings(settingsBuilder()
+                        .put(indexSettings())
+                        .put(SETTING_NUMBER_OF_SHARDS,1)
+                        .put("index.analysis.filter.syns.type","synonym")
+                        .putArray("index.analysis.filter.syns.synonyms","quick,fast")
+                        .put("index.analysis.analyzer.syns.tokenizer","whitespace")
+                        .put("index.analysis.analyzer.syns.filter","syns")
+                        )
+                .addMapping("type1", "field1", "type=string,analyzer=syns", "field2", "type=string,analyzer=syns"));
+        ensureGreen();
+
+        indexRandom(true, client().prepareIndex("test", "type1", "3").setSource("field1", "quick lazy huge brown pidgin", "field2", "the quick lazy huge brown fox jumps over the tree"),
+                client().prepareIndex("test", "type1", "1").setSource("field1", "the quick brown fox"),
+                client().prepareIndex("test", "type1", "2").setSource("field1", "the quick lazy huge brown fox jumps over the tree") );
+
+        SearchResponse searchResponse = client().prepareSearch().setQuery(commonTerms("field1", "the fast brown").cutoffFrequency(3).lowFreqOperator(Operator.OR)).get();
+        assertHitCount(searchResponse, 3l);
+        assertFirstHit(searchResponse, hasId("1"));
+        assertSecondHit(searchResponse, hasId("2"));
+        assertThirdHit(searchResponse, hasId("3"));
+
+        searchResponse = client().prepareSearch().setQuery(commonTerms("field1", "the fast brown").cutoffFrequency(3).lowFreqOperator(Operator.AND)).get();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
+        assertFirstHit(searchResponse, hasId("1"));
+        assertSecondHit(searchResponse, hasId("2"));
+
+        // Default
+        searchResponse = client().prepareSearch().setQuery(commonTerms("field1", "the fast brown").cutoffFrequency(3)).get();
+        assertHitCount(searchResponse, 3l);
+        assertFirstHit(searchResponse, hasId("1"));
+        assertSecondHit(searchResponse, hasId("2"));
+        assertThirdHit(searchResponse, hasId("3"));
+
+
+        searchResponse = client().prepareSearch().setQuery(commonTerms("field1", "the fast huge fox").lowFreqMinimumShouldMatch("3")).get();
+        assertHitCount(searchResponse, 1l);
+        assertFirstHit(searchResponse, hasId("2"));
+
+        searchResponse = client().prepareSearch().setQuery(commonTerms("field1", "the fast lazy fox brown").cutoffFrequency(1).highFreqMinimumShouldMatch("5")).get();
+        assertHitCount(searchResponse, 2l);
+        assertFirstHit(searchResponse, hasId("1"));
+        assertSecondHit(searchResponse, hasId("2"));
+
+        searchResponse = client().prepareSearch().setQuery(commonTerms("field1", "the fast lazy fox brown").cutoffFrequency(1).highFreqMinimumShouldMatch("6")).get();
+        assertHitCount(searchResponse, 1l);
+        assertFirstHit(searchResponse, hasId("2"));
+
+        searchResponse = client().prepareSearch().setQuery("{ \"common\" : { \"field1\" : { \"query\" : \"the fast lazy fox brown\", \"cutoff_frequency\" : 1, \"minimum_should_match\" : { \"high_freq\" : 6 } } } }").get();
+        assertHitCount(searchResponse, 1l);
+        assertFirstHit(searchResponse, hasId("2"));
+
+        // Default
+        searchResponse = client().prepareSearch().setQuery(commonTerms("field1", "the fast lazy fox brown").cutoffFrequency(1)).get();
+        assertHitCount(searchResponse, 1l);
+        assertFirstHit(searchResponse, hasId("2"));
+
+        searchResponse = client().prepareSearch().setQuery(commonTerms("field1", "the quick brown").cutoffFrequency(3).analyzer("stop")).get();
+        assertHitCount(searchResponse, 3l);
+        // stop drops "the" since its a stopword
+        assertFirstHit(searchResponse, hasId("1"));
+        assertSecondHit(searchResponse, hasId("3"));
+        assertThirdHit(searchResponse, hasId("2"));
+
+        // try the same with match query
+        searchResponse = client().prepareSearch().setQuery(matchQuery("field1", "the fast brown").cutoffFrequency(3).operator(MatchQueryBuilder.Operator.AND)).get();
+        assertHitCount(searchResponse, 2l);
+        assertFirstHit(searchResponse, hasId("1"));
+        assertSecondHit(searchResponse, hasId("2"));
+
+        searchResponse = client().prepareSearch().setQuery(matchQuery("field1", "the fast brown").cutoffFrequency(3).operator(MatchQueryBuilder.Operator.OR)).get();
+        assertHitCount(searchResponse, 3l);
+        assertFirstHit(searchResponse, hasId("1"));
+        assertSecondHit(searchResponse, hasId("2"));
+        assertThirdHit(searchResponse, hasId("3"));
+
+        searchResponse = client().prepareSearch().setQuery(matchQuery("field1", "the fast brown").cutoffFrequency(3).operator(MatchQueryBuilder.Operator.AND).analyzer("stop")).get();
+        assertHitCount(searchResponse, 3l);
+        // stop drops "the" since its a stopword
+        assertFirstHit(searchResponse, hasId("1"));
+        assertSecondHit(searchResponse, hasId("3"));
+        assertThirdHit(searchResponse, hasId("2"));
+
+        searchResponse = client().prepareSearch().setQuery(matchQuery("field1", "the fast brown").cutoffFrequency(3).minimumShouldMatch("3")).get();
+        assertHitCount(searchResponse, 2l);
+        assertFirstHit(searchResponse, hasId("1"));
+        assertSecondHit(searchResponse, hasId("2"));
+
+        // try the same with multi match query
+        searchResponse = client().prepareSearch().setQuery(multiMatchQuery("the fast brown", "field1", "field2").cutoffFrequency(3).operator(MatchQueryBuilder.Operator.AND)).get();
+        assertHitCount(searchResponse, 3l);
+        assertFirstHit(searchResponse, hasId("3")); // better score due to different query stats
+        assertSecondHit(searchResponse, hasId("1"));
+        assertThirdHit(searchResponse, hasId("2"));
+    }
+
+    @Test
     public void testOmitTermFreqsAndPositions() throws Exception {
+        cluster().wipeTemplates(); // no randomized template for this test -- we are testing bwc compat and set version explicitly this might cause failures if an unsupported feature
+                                   // is added randomly via an index template.
         Version version = Version.CURRENT;
         int iters = scaledRandomIntBetween(10, 20);
         for (int i = 0; i < iters; i++) {
@@ -1988,10 +2085,11 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         assertFirstHit(searchResponse, hasId("4"));
 
         searchResponse = client().prepareSearch().setQuery(
-                simpleQueryString("spaghetti").field("body", 10.0f).field("otherbody", 2.0f)).get();
+                simpleQueryString("spaghetti").field("body", 10.0f).field("otherbody", 2.0f).queryName("myquery")).get();
         assertHitCount(searchResponse, 2l);
         assertFirstHit(searchResponse, hasId("5"));
         assertSearchHits(searchResponse, "5", "6");
+        assertThat(searchResponse.getHits().getAt(0).getMatchedQueries()[0], equalTo("myquery"));
     }
 
     @Test
@@ -2354,6 +2452,32 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
             for (String id : oneIds) {
                 assertThat(otherIds.contains(id), is(true));
             }
+        }
+    }
+
+    @Test
+    public void testQueryStringParserCache() throws Exception {
+        createIndex("test");
+        indexRandom(true, false, client().prepareIndex("test", "type", "1").setSource("nameTokens", "xyz"));
+
+        SearchResponse response = client().prepareSearch("test")
+                .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
+                .setQuery(QueryBuilders.queryString("xyz").boost(100))
+                .get();
+        assertThat(response.getHits().totalHits(), equalTo(1l));
+        assertThat(response.getHits().getAt(0).id(), equalTo("1"));
+
+        float first = response.getHits().getAt(0).getScore();
+        for (int i = 0; i < 100; i++) {
+            response = client().prepareSearch("test")
+                    .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
+                    .setQuery(QueryBuilders.queryString("xyz").boost(100))
+                    .get();
+
+            assertThat(response.getHits().totalHits(), equalTo(1l));
+            assertThat(response.getHits().getAt(0).id(), equalTo("1"));
+            float actual = response.getHits().getAt(0).getScore();
+            assertThat(i + " expected: " + first + " actual: " + actual, Float.compare(first, actual), equalTo(0));
         }
     }
 

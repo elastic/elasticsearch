@@ -21,6 +21,7 @@ package org.elasticsearch.search.suggest;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -521,17 +522,24 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                     static final XContentBuilderString TEXT = new XContentBuilderString("text");
                     static final XContentBuilderString HIGHLIGHTED = new XContentBuilderString("highlighted");
                     static final XContentBuilderString SCORE = new XContentBuilderString("score");
+                    static final XContentBuilderString COLLATE_MATCH = new XContentBuilderString("collate_match");
 
                 }
 
                 private Text text;
                 private Text highlighted;
                 private float score;
+                private Boolean collateMatch;
 
-                public Option(Text text, Text highlighted, float score) {
+                public Option(Text text, Text highlighted, float score, Boolean collateMatch) {
                     this.text = text;
                     this.highlighted = highlighted;
                     this.score = score;
+                    this.collateMatch = collateMatch;
+                }
+
+                public Option(Text text, Text highlighted, float score) {
+                    this(text, highlighted, score, null);
                 }
 
                 public Option(Text text, float score) {
@@ -562,6 +570,14 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                 public float getScore() {
                     return score;
                 }
+
+                /**
+                 * @return true if collation has found a match for the entry.
+                 * if collate was not set, the value defaults to <code>true</code>
+                 */
+                public boolean collateMatch() {
+                    return (collateMatch != null) ? collateMatch : true;
+                }
                 
                 protected void setScore(float score) {
                     this.score = score;
@@ -572,6 +588,10 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                     text = in.readText();
                     score = in.readFloat();
                     highlighted = in.readOptionalText();
+
+                    if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
+                        collateMatch = in.readOptionalBoolean();
+                    }
                 }
 
                 @Override
@@ -579,6 +599,10 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                     out.writeText(text);
                     out.writeFloat(score);
                     out.writeOptionalText(highlighted);
+
+                    if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
+                        out.writeOptionalBoolean(collateMatch);
+                    }
                 }
 
                 @Override
@@ -595,6 +619,9 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                         builder.field(Fields.HIGHLIGHTED, highlighted);
                     }
                     builder.field(Fields.SCORE, score);
+                    if (collateMatch != null) {
+                        builder.field(Fields.COLLATE_MATCH, collateMatch.booleanValue());
+                    }
                     return builder;
                 }
                 

@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.indices.validate.query;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.TransportBroadcastOperationAction;
@@ -72,8 +73,8 @@ public class TransportValidateQueryAction extends TransportBroadcastOperationAct
     private final BigArrays bigArrays;
 
     @Inject
-    public TransportValidateQueryAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, IndicesService indicesService, ScriptService scriptService, CacheRecycler cacheRecycler, PageCacheRecycler pageCacheRecycler, BigArrays bigArrays) {
-        super(settings, threadPool, clusterService, transportService);
+    public TransportValidateQueryAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, IndicesService indicesService, ScriptService scriptService, CacheRecycler cacheRecycler, PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, ActionFilters actionFilters) {
+        super(settings, ValidateQueryAction.NAME, threadPool, clusterService, transportService, actionFilters);
         this.indicesService = indicesService;
         this.scriptService = scriptService;
         this.cacheRecycler = cacheRecycler;
@@ -90,11 +91,6 @@ public class TransportValidateQueryAction extends TransportBroadcastOperationAct
     @Override
     protected String executor() {
         return ThreadPool.Names.SEARCH;
-    }
-
-    @Override
-    protected String transportAction() {
-        return ValidateQueryAction.NAME;
     }
 
     @Override

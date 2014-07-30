@@ -20,41 +20,30 @@
 package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.BinaryDocValues;
-import org.apache.lucene.index.DocValues;
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.util.ByteUtils;
-import org.elasticsearch.index.fielddata.AtomicGeoPointFieldData;
-import org.elasticsearch.index.fielddata.GeoPointValues;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 
-final class GeoPointBinaryDVAtomicFieldData extends AtomicGeoPointFieldData<ScriptDocValues> {
+import java.util.Arrays;
+
+final class GeoPointBinaryDVAtomicFieldData extends AbstractAtomicGeoPointFieldData {
+
+    private static final int COORDINATE_SIZE = 8; // number of bytes per coordinate
+    private static final int GEOPOINT_SIZE = COORDINATE_SIZE * 2; // lat + lon
 
     private final BinaryDocValues values;
 
     GeoPointBinaryDVAtomicFieldData(BinaryDocValues values) {
         super();
-        this.values = values == null ? DocValues.EMPTY_BINARY : values;
+        this.values = values;
     }
 
     @Override
-    public boolean isMultiValued() {
-        return false;
-    }
-
-    @Override
-    public long getNumberUniqueValues() {
-        return Long.MAX_VALUE;
-    }
-
-    @Override
-    public long getMemorySizeInBytes() {
+    public long ramBytesUsed() {
         return -1; // not exposed by Lucene
-    }
-
-    @Override
-    public ScriptDocValues getScriptValues() {
-        return new ScriptDocValues.GeoPoints(getGeoPointValues());
     }
 
     @Override
@@ -63,28 +52,39 @@ final class GeoPointBinaryDVAtomicFieldData extends AtomicGeoPointFieldData<Scri
     }
 
     @Override
-    public GeoPointValues getGeoPointValues() {
-        return new GeoPointValues(true) {
+    public MultiGeoPointValues getGeoPointValues() {
+        return new MultiGeoPointValues() {
 
-            final BytesRef bytes = new BytesRef();
-            int i = Integer.MAX_VALUE;
-            int valueCount = 0;
-            final GeoPoint point = new GeoPoint();
+            int count;
+            GeoPoint[] points = new GeoPoint[0];
 
             @Override
-            public int setDocument(int docId) {
-                values.get(docId, bytes);
-                assert bytes.length % 16 == 0;
-                i = 0;
-                return valueCount = (bytes.length >>> 4);
+            public void setDocument(int docId) {
+                final BytesRef bytes = values.get(docId);
+                assert bytes.length % GEOPOINT_SIZE == 0;
+                count = (bytes.length >>> 4);
+                if (count > points.length) {
+                    final int previousLength = points.length;
+                    points = Arrays.copyOf(points, ArrayUtil.oversize(count, RamUsageEstimator.NUM_BYTES_OBJECT_REF));
+                    for (int i = previousLength; i < points.length; ++i) {
+                        points[i] = new GeoPoint();
+                    }
+                }
+                for (int i = 0; i < count; ++i) {
+                    final double lat = ByteUtils.readDoubleLE(bytes.bytes, bytes.offset + i * GEOPOINT_SIZE);
+                    final double lon = ByteUtils.readDoubleLE(bytes.bytes, bytes.offset + i * GEOPOINT_SIZE + COORDINATE_SIZE);
+                    points[i].reset(lat, lon);
+                }
             }
 
             @Override
-            public GeoPoint nextValue() {
-                assert i < 2 * valueCount;
-                final double lat = ByteUtils.readDoubleLE(bytes.bytes, bytes.offset + i++ * 8);
-                final double lon = ByteUtils.readDoubleLE(bytes.bytes, bytes.offset + i++ * 8);
-                return point.reset(lat, lon);
+            public int count() {
+                return count;
+            }
+
+            @Override
+            public GeoPoint valueAt(int index) {
+                return points[index];
             }
 
         };

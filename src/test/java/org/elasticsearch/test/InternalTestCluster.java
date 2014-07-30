@@ -40,9 +40,12 @@ import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.ESLogger;
@@ -63,7 +66,8 @@ import org.elasticsearch.index.cache.filter.FilterCacheModule;
 import org.elasticsearch.index.cache.filter.none.NoneFilterCache;
 import org.elasticsearch.index.cache.filter.weighted.WeightedFilterCache;
 import org.elasticsearch.index.engine.IndexEngineModule;
-import org.elasticsearch.index.fielddata.ordinals.InternalGlobalOrdinalsBuilder;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.plugins.PluginsService;
@@ -78,6 +82,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportModule;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.netty.NettyTransport;
 import org.junit.Assert;
 
 import java.io.Closeable;
@@ -92,11 +97,15 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.frequently;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.systemPropertyAsBoolean;
+import static junit.framework.Assert.fail;
 import static org.apache.lucene.util.LuceneTestCase.rarely;
 import static org.apache.lucene.util.LuceneTestCase.usually;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
+import static org.elasticsearch.test.ElasticsearchTestCase.assertBusy;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
+import static org.hamcrest.Matchers.equalTo;
+import static org.junit.Assert.assertThat;
 
 /**
  * InternalTestCluster manages a set of JVM private nodes and allows convenient access to them.
@@ -139,6 +148,8 @@ public final class InternalTestCluster extends TestCluster {
     static final int DEFAULT_MAX_NUM_CLIENT_NODES = 1;
 
     static final boolean DEFAULT_ENABLE_RANDOM_BENCH_NODES = true;
+
+    static final String NODE_MODE = nodeMode();
 
     /* sorted map to make traverse order reproducible, concurrent since we do checks on it not within a sync block */
     private final NavigableMap<String, NodeAndClient> nodes = new TreeMap<>();
@@ -234,11 +245,38 @@ public final class InternalTestCluster extends TestCluster {
                 builder.put("path.data", dataPath.toString());
             }
         }
+        builder.put("config.ignore_system_properties", true);
+        builder.put("node.mode", NODE_MODE);
         builder.put("script.disable_dynamic", false);
         builder.put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false);
+        if (Strings.hasLength(System.getProperty("es.logger.level"))) {
+            builder.put("logger.level", System.getProperty("es.logger.level"));
+        }
+        if (Strings.hasLength(System.getProperty("es.logger.prefix"))) {
+            builder.put("logger.prefix", System.getProperty("es.logger.level"));
+        }
         defaultSettings = builder.build();
         executor = EsExecutors.newCached(1, TimeUnit.MINUTES, EsExecutors.daemonThreadFactory("test_" + clusterName));
         this.hasFilterCache = random.nextBoolean();
+    }
+
+
+    public static String nodeMode() {
+        Builder builder = ImmutableSettings.builder();
+        if (Strings.isEmpty(System.getProperty("es.node.mode"))&& Strings.isEmpty(System.getProperty("es.node.local"))) {
+            return "local"; // default if nothing is specified
+        }
+        if (Strings.hasLength(System.getProperty("es.node.mode"))) {
+            builder.put("node.mode", System.getProperty("es.node.mode"));
+        }
+        if (Strings.hasLength(System.getProperty("es.node.local"))) {
+            builder.put("node.local", System.getProperty("es.node.local"));
+        }
+        if (DiscoveryNode.localNode(builder.build())) {
+            return "local";
+        } else {
+            return "network";
+        }
     }
 
     public String getClusterName() {
@@ -317,7 +355,6 @@ public final class InternalTestCluster extends TestCluster {
             }
         }
         builder.put("plugins.isolation", random.nextBoolean());
-        builder.put(InternalGlobalOrdinalsBuilder.ORDINAL_MAPPING_THRESHOLD_INDEX_SETTING_KEY, 1 + random.nextInt(InternalGlobalOrdinalsBuilder.ORDINAL_MAPPING_THRESHOLD_DEFAULT));
         if (random.nextInt(10) == 0) {
             builder.put(EsExecutors.PROCESSORS, 1 + random.nextInt(AbstractRandomizedTest.TESTS_PROCESSORS));
         } else {
@@ -332,6 +369,22 @@ public final class InternalTestCluster extends TestCluster {
                 builder.put("indices.fielddata.cache.expire", TimeValue.timeValueMillis(1 + random.nextInt(10000)));
             }
         }
+
+        // randomize netty settings
+        if (random.nextBoolean()) {
+            builder.put(NettyTransport.WORKER_COUNT, random.nextInt(3) + 1);
+            builder.put(NettyTransport.CONNECTIONS_PER_NODE_RECOVERY, random.nextInt(2) + 1);
+            builder.put(NettyTransport.CONNECTIONS_PER_NODE_BULK, random.nextInt(3) + 1);
+            builder.put(NettyTransport.CONNECTIONS_PER_NODE_REG, random.nextInt(6) + 1);
+        }
+
+        if (random.nextBoolean()) {
+            builder.put(MappingUpdatedAction.INDICES_MAPPING_ADDITIONAL_MAPPING_CHANGE_TIME, RandomInts.randomIntBetween(random, 0, 500) /*milliseconds*/);
+        }
+        if (random.nextBoolean()) {
+            builder.put(MapperService.DEFAULT_FIELD_MAPPERS_COLLECTION_SWITCH, RandomInts.randomIntBetween(random, 0, 5));
+        }
+
         return builder.build();
     }
 
@@ -721,10 +774,18 @@ public final class InternalTestCluster extends TestCluster {
         @Override
         public Client client(Node node, String clusterName, Random random) {
             TransportAddress addr = ((InternalNode) node).injector().getInstance(TransportService.class).boundAddress().publishAddress();
-            TransportClient client = new TransportClient(settingsBuilder().put("client.transport.nodes_sampler_interval", "1s")
+            Settings nodeSettings = node.settings();
+            Builder builder = settingsBuilder().put("client.transport.nodes_sampler_interval", "1s")
                     .put("name", TRANSPORT_CLIENT_PREFIX + node.settings().get("name"))
                     .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false)
-                    .put(ClusterName.SETTING, clusterName).put("client.transport.sniff", sniff).build());
+                    .put(ClusterName.SETTING, clusterName).put("client.transport.sniff", sniff);
+            builder.put("node.mode", nodeSettings.get("node.mode", NODE_MODE));
+            builder.put("node.local", nodeSettings.get("node.local", ""));
+            builder.put("logger.prefix", nodeSettings.get("logger.prefix", ""));
+            builder.put("logger.level", nodeSettings.get("logger.level", "INFO"));
+            builder.put("config.ignore_system_properties", true);
+
+            TransportClient client = new TransportClient(builder.build());
             client.addTransportAddress(addr);
             return client;
         }
@@ -1446,6 +1507,40 @@ public final class InternalTestCluster extends TestCluster {
 
     public Settings getDefaultSettings() {
         return defaultSettings;
+    }
+
+    @Override
+    public void ensureEstimatedStats() {
+        if (size() > 0) {
+            // Checks that the breakers have been reset without incurring a
+            // network request, because a network request can increment one
+            // of the breakers
+            for (NodeAndClient nodeAndClient : nodes.values()) {
+                final String name = nodeAndClient.name;
+                final CircuitBreakerService breakerService = getInstanceFromNode(CircuitBreakerService.class, nodeAndClient.node);
+                CircuitBreaker fdBreaker = breakerService.getBreaker(CircuitBreaker.Name.FIELDDATA);
+                assertThat("Fielddata breaker not reset to 0 on node: " + name, fdBreaker.getUsed(), equalTo(0L));
+                // Anything that uses transport or HTTP can increase the
+                // request breaker (because they use bigarrays), because of
+                // that the breaker can sometimes be incremented from ping
+                // requests from other clusters because Jenkins is running
+                // multiple ES testing jobs in parallel on the same machine.
+                // To combat this we check whether the breaker has reached 0
+                // in an assertBusy loop, so it will try for 10 seconds and
+                // fail if it never reached 0
+                try {
+                    assertBusy(new Runnable() {
+                        @Override
+                        public void run() {
+                            CircuitBreaker reqBreaker = breakerService.getBreaker(CircuitBreaker.Name.REQUEST);
+                            assertThat("Request breaker not reset to 0 on node: " + name, reqBreaker.getUsed(), equalTo(0L));
+                        }
+                    });
+                } catch (Exception e) {
+                    fail("Exception during check for request breaker reset to 0: " + e);
+                }
+            }
+        }
     }
 
 }

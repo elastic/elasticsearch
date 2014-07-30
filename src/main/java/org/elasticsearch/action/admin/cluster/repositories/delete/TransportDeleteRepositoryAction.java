@@ -21,9 +21,11 @@ package org.elasticsearch.action.admin.cluster.repositories.delete;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.common.inject.Inject;
@@ -41,19 +43,14 @@ public class TransportDeleteRepositoryAction extends TransportMasterNodeOperatio
 
     @Inject
     public TransportDeleteRepositoryAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                           RepositoriesService repositoriesService, ThreadPool threadPool) {
-        super(settings, transportService, clusterService, threadPool);
+                                           RepositoriesService repositoriesService, ThreadPool threadPool, ActionFilters actionFilters) {
+        super(settings, DeleteRepositoryAction.NAME, transportService, clusterService, threadPool, actionFilters);
         this.repositoriesService = repositoriesService;
     }
 
     @Override
     protected String executor() {
         return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected String transportAction() {
-        return DeleteRepositoryAction.NAME;
     }
 
     @Override
@@ -76,10 +73,9 @@ public class TransportDeleteRepositoryAction extends TransportMasterNodeOperatio
         repositoriesService.unregisterRepository(
                 new RepositoriesService.UnregisterRepositoryRequest("delete_repository [" + request.name() + "]", request.name())
                         .masterNodeTimeout(request.masterNodeTimeout()).ackTimeout(request.timeout()),
-                new ActionListener<RepositoriesService.UnregisterRepositoryResponse>() {
-
+                new ActionListener<ClusterStateUpdateResponse>() {
                     @Override
-                    public void onResponse(RepositoriesService.UnregisterRepositoryResponse unregisterRepositoryResponse) {
+                    public void onResponse(ClusterStateUpdateResponse unregisterRepositoryResponse) {
                         listener.onResponse(new DeleteRepositoryResponse(unregisterRepositoryResponse.isAcknowledged()));
                     }
 

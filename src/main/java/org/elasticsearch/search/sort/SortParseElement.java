@@ -28,14 +28,14 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.ObjectMappers;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.query.ParsedFilter;
-import org.elasticsearch.index.search.nested.NestedFieldComparatorSource;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
+import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.internal.SearchContext;
@@ -190,7 +190,7 @@ public class SortParseElement implements SearchParseElement {
                 sortFields.add(SORT_DOC);
             }
         } else {
-            FieldMapper fieldMapper = context.smartNameFieldMapper(fieldName);
+            FieldMapper<?> fieldMapper = context.smartNameFieldMapper(fieldName);
             if (fieldMapper == null) {
                 if (ignoreUnmapped) {
                     return;
@@ -219,8 +219,7 @@ public class SortParseElement implements SearchParseElement {
                 sortMode = resolveDefaultSortMode(reverse);
             }
 
-            IndexFieldData.XFieldComparatorSource fieldComparatorSource = context.fieldData().getForField(fieldMapper)
-                    .comparatorSource(missing, sortMode);
+
             ObjectMapper objectMapper;
             if (nestedPath != null) {
                 ObjectMappers objectMappers = context.mapperService().objectMapper(nestedPath);
@@ -234,6 +233,7 @@ public class SortParseElement implements SearchParseElement {
             } else {
                 objectMapper = context.mapperService().resolveClosestNestedObjectMapper(fieldName);
             }
+            final Nested nested;
             if (objectMapper != null && objectMapper.nested().isNested()) {
                 Filter rootDocumentsFilter = context.filterCache().cache(NonNestedDocsFilter.INSTANCE);
                 Filter innerDocumentsFilter;
@@ -242,8 +242,13 @@ public class SortParseElement implements SearchParseElement {
                 } else {
                     innerDocumentsFilter = context.filterCache().cache(objectMapper.nestedTypeFilter());
                 }
-                fieldComparatorSource = new NestedFieldComparatorSource(sortMode, fieldComparatorSource, rootDocumentsFilter, innerDocumentsFilter);
+                nested = new Nested(rootDocumentsFilter, innerDocumentsFilter);
+            } else {
+                nested = null;
             }
+
+            IndexFieldData.XFieldComparatorSource fieldComparatorSource = context.fieldData().getForField(fieldMapper)
+                    .comparatorSource(missing, sortMode, nested);
             sortFields.add(new SortField(fieldMapper.names().indexName(), fieldComparatorSource, reverse));
         }
     }

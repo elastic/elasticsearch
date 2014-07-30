@@ -28,11 +28,15 @@ import org.elasticsearch.index.settings.IndexSettings;
 
 public class RegisterExternalTypes extends AbstractIndexComponent {
     public static final String EXTERNAL = "external";
+    public static final String EXTERNAL_BIS = "external_bis";
+    public static final String EXTERNAL_UPPER = "external_upper";
 
     @Inject
     public RegisterExternalTypes(Index index, @IndexSettings Settings indexSettings, MapperService mapperService) {
         super(index, indexSettings);
 
-        mapperService.documentMapperParser().putTypeParser(EXTERNAL, new ExternalMapper.TypeParser());
+        mapperService.documentMapperParser().putTypeParser(EXTERNAL, new ExternalMapper.TypeParser(EXTERNAL, "foo"));
+        mapperService.documentMapperParser().putTypeParser(EXTERNAL_BIS, new ExternalMapper.TypeParser(EXTERNAL_BIS, "bar"));
+        mapperService.documentMapperParser().putTypeParser(EXTERNAL_UPPER, new ExternalMapper.TypeParser(EXTERNAL_UPPER, "FOO BAR"));
     }
 }

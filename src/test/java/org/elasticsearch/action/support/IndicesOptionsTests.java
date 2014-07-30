@@ -33,7 +33,7 @@ public class IndicesOptionsTests extends ElasticsearchTestCase {
     public void testSerialization() throws Exception {
         int iterations = randomIntBetween(5, 20);
         for (int i = 0; i < iterations; i++) {
-            IndicesOptions indicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
+            IndicesOptions indicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
 
             BytesStreamOutput output = new BytesStreamOutput();
             Version outputVersion = randomVersion();
@@ -49,11 +49,16 @@ public class IndicesOptionsTests extends ElasticsearchTestCase {
             assertThat(indicesOptions2.expandWildcardsOpen(), equalTo(indicesOptions.expandWildcardsOpen()));
             assertThat(indicesOptions2.expandWildcardsClosed(), equalTo(indicesOptions.expandWildcardsClosed()));
 
-            if (outputVersion.onOrAfter(Version.V_1_2_0)) {
+            if (outputVersion.onOrAfter(Version.V_1_2_2)) {
+                assertThat(indicesOptions2.forbidClosedIndices(), equalTo(indicesOptions.forbidClosedIndices()));
                 assertThat(indicesOptions2.allowAliasesToMultipleIndices(), equalTo(indicesOptions.allowAliasesToMultipleIndices()));
+            } else if (outputVersion.onOrAfter(Version.V_1_2_0)) {
+                assertThat(indicesOptions2.allowAliasesToMultipleIndices(), equalTo(indicesOptions.allowAliasesToMultipleIndices()));
+                assertThat(indicesOptions2.forbidClosedIndices(), equalTo(false));
             } else {
                 //default value (true) if the node version doesn't support the allowAliasesToMultipleIndices flag
                 assertThat(indicesOptions2.allowAliasesToMultipleIndices(), equalTo(true));
+                assertThat(indicesOptions2.forbidClosedIndices(), equalTo(false));
             }
         }
     }
@@ -67,13 +72,19 @@ public class IndicesOptionsTests extends ElasticsearchTestCase {
             boolean expandToOpenIndices = randomBoolean();
             boolean expandToClosedIndices = randomBoolean();
             boolean allowAliasesToMultipleIndices = randomBoolean();
-            IndicesOptions indicesOptions = IndicesOptions.fromOptions(ignoreUnavailable, allowNoIndices, expandToOpenIndices, expandToClosedIndices, allowAliasesToMultipleIndices);
+            boolean forbidClosedIndices = randomBoolean();
+            IndicesOptions indicesOptions = IndicesOptions.fromOptions(
+                    ignoreUnavailable, allowNoIndices,expandToOpenIndices, expandToClosedIndices,
+                    allowAliasesToMultipleIndices, forbidClosedIndices
+            );
 
             assertThat(indicesOptions.ignoreUnavailable(), equalTo(ignoreUnavailable));
             assertThat(indicesOptions.allowNoIndices(), equalTo(allowNoIndices));
             assertThat(indicesOptions.expandWildcardsOpen(), equalTo(expandToOpenIndices));
             assertThat(indicesOptions.expandWildcardsClosed(), equalTo(expandToClosedIndices));
             assertThat(indicesOptions.allowAliasesToMultipleIndices(), equalTo(allowAliasesToMultipleIndices));
+            assertThat(indicesOptions.allowAliasesToMultipleIndices(), equalTo(allowAliasesToMultipleIndices));
+            assertThat(indicesOptions.forbidClosedIndices(), equalTo(forbidClosedIndices));
         }
     }
 }

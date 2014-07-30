@@ -56,7 +56,7 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
 /**
  *
  */
-public class AllFieldMapper extends AbstractFieldMapper<Void> implements InternalMapper, RootMapper {
+public class AllFieldMapper extends AbstractFieldMapper<String> implements InternalMapper, RootMapper {
 
     public interface IncludeInAll extends Mapper {
 
@@ -237,15 +237,13 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
         }
         return analyzer;
     }
-
+    
     @Override
-    public Void value(Object value) {
-        return null;
-    }
-
-    @Override
-    public Object valueForSearch(Object value) {
-        return null;
+    public String value(Object value) {
+        if (value == null) {
+            return null;
+        }
+        return value.toString();
     }
 
     @Override

@@ -32,7 +32,7 @@ public class TestResponseHeaderRestAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(RestRequest request, RestChannel channel) {
+    public void handleRequest(RestRequest request, RestChannel channel, Client client) {
         if ("password".equals(request.header("Secret"))) {
             RestResponse response = new BytesRestResponse(RestStatus.OK, "Access granted");
             response.addHeader("Secret", "granted");

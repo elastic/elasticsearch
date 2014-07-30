@@ -25,52 +25,49 @@ import org.apache.lucene.util.fst.FST;
 import org.apache.lucene.util.fst.FST.INPUT_TYPE;
 import org.apache.lucene.util.fst.PositiveIntOutputs;
 import org.apache.lucene.util.fst.Util;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.fielddata.FieldDataType;
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.IndexFieldDataCache;
-import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsBuilder;
+import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 
 /**
  */
-public class FSTBytesIndexFieldData extends AbstractBytesIndexFieldData<FSTBytesAtomicFieldData> {
+public class FSTBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
 
     private final CircuitBreakerService breakerService;
 
     public static class Builder implements IndexFieldData.Builder {
 
         @Override
-        public IndexFieldData<FSTBytesAtomicFieldData> build(Index index, @IndexSettings Settings indexSettings, FieldMapper<?> mapper,
-                                                             IndexFieldDataCache cache, CircuitBreakerService breakerService, MapperService mapperService,
-                                                             GlobalOrdinalsBuilder globalOrdinalBuilder) {
-            return new FSTBytesIndexFieldData(index, indexSettings, mapper.names(), mapper.fieldDataType(), cache, breakerService, globalOrdinalBuilder);
+        public IndexOrdinalsFieldData build(Index index, @IndexSettings Settings indexSettings, FieldMapper<?> mapper,
+                                                             IndexFieldDataCache cache, CircuitBreakerService breakerService, MapperService mapperService) {
+            return new FSTBytesIndexFieldData(index, indexSettings, mapper.names(), mapper.fieldDataType(), cache, breakerService);
         }
     }
 
     FSTBytesIndexFieldData(Index index, @IndexSettings Settings indexSettings, FieldMapper.Names fieldNames, FieldDataType fieldDataType,
-                           IndexFieldDataCache cache, CircuitBreakerService breakerService, GlobalOrdinalsBuilder globalOrdinalsBuilder) {
-        super(index, indexSettings, fieldNames, fieldDataType, cache, globalOrdinalsBuilder, breakerService);
+                           IndexFieldDataCache cache, CircuitBreakerService breakerService) {
+        super(index, indexSettings, fieldNames, fieldDataType, cache, breakerService);
         this.breakerService = breakerService;
     }
 
     @Override
-    public FSTBytesAtomicFieldData loadDirect(AtomicReaderContext context) throws Exception {
+    public AtomicOrdinalsFieldData loadDirect(AtomicReaderContext context) throws Exception {
         AtomicReader reader = context.reader();
 
         Terms terms = reader.terms(getFieldNames().indexName());
-        FSTBytesAtomicFieldData data = null;
+        AtomicOrdinalsFieldData data = null;
         // TODO: Use an actual estimator to estimate before loading.
-        NonEstimatingEstimator estimator = new NonEstimatingEstimator(breakerService.getBreaker());
+        NonEstimatingEstimator estimator = new NonEstimatingEstimator(breakerService.getBreaker(CircuitBreaker.Name.FIELDDATA));
         if (terms == null) {
-            data = FSTBytesAtomicFieldData.empty();
-            estimator.afterLoad(null, data.getMemorySizeInBytes());
+            data = AbstractAtomicOrdinalsFieldData.empty();
+            estimator.afterLoad(null, data.ramBytesUsed());
             return data;
         }
         PositiveIntOutputs outputs = PositiveIntOutputs.getSingleton();
@@ -109,7 +106,7 @@ public class FSTBytesIndexFieldData extends AbstractBytesIndexFieldData<FSTBytes
             return data;
         } finally {
             if (success) {
-                estimator.afterLoad(null, data.getMemorySizeInBytes());
+                estimator.afterLoad(null, data.ramBytesUsed());
             }
 
         }

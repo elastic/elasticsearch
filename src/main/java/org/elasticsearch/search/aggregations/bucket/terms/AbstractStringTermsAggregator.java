@@ -29,10 +29,13 @@ import java.util.Collections;
 abstract class AbstractStringTermsAggregator extends TermsAggregator {
 
 
+    protected final boolean showTermDocCountError;
+
     public AbstractStringTermsAggregator(String name, AggregatorFactories factories,
             long estimatedBucketsCount, AggregationContext context, Aggregator parent,
-            InternalOrder order, BucketCountThresholds bucketCountThresholds, SubAggCollectionMode subAggCollectMode) {
+            InternalOrder order, BucketCountThresholds bucketCountThresholds, SubAggCollectionMode subAggCollectMode, boolean showTermDocCountError) {
         super(name, BucketAggregationMode.PER_BUCKET, factories, estimatedBucketsCount, context, parent, bucketCountThresholds, order, subAggCollectMode);
+        this.showTermDocCountError = showTermDocCountError;
     }
 
     @Override
@@ -42,7 +45,7 @@ abstract class AbstractStringTermsAggregator extends TermsAggregator {
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new StringTerms(name, order, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), Collections.<InternalTerms.Bucket>emptyList());
+        return new StringTerms(name, order, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getShardSize(), bucketCountThresholds.getMinDocCount(), Collections.<InternalTerms.Bucket>emptyList(), showTermDocCountError, 0);
     }
 
 }

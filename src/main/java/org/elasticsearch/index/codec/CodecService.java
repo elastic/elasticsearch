@@ -45,7 +45,7 @@ import org.elasticsearch.index.settings.IndexSettings;
 public class CodecService extends AbstractIndexComponent {
 
     public static final String INDEX_CODEC_BLOOM_LOAD = "index.codec.bloom.load";
-    public static final boolean INDEX_CODEC_BLOOM_LOAD_DEFAULT = true;
+    public static final boolean INDEX_CODEC_BLOOM_LOAD_DEFAULT = false;
 
     private final PostingsFormatService postingsFormatService;
     private final DocValuesFormatService docValuesFormatService;

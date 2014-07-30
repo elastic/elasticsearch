@@ -32,6 +32,7 @@ import org.apache.lucene.search.*;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.LuceneTestCase;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.search.NotFilter;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.index.engine.Engine;
@@ -43,7 +44,7 @@ import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.test.ElasticsearchLuceneTestCase;
+import org.elasticsearch.test.TestSearchContext;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -54,11 +55,7 @@ import java.util.NavigableMap;
 import java.util.Random;
 import java.util.TreeMap;
 
-import static org.elasticsearch.index.search.child.ChildrenConstantScoreQueryTests.assertBitSet;
-import static org.elasticsearch.index.search.child.ChildrenConstantScoreQueryTests.createSearchContext;
-import static org.hamcrest.Matchers.equalTo;
-
-public class ChildrenQueryTests extends ElasticsearchLuceneTestCase {
+public class ChildrenQueryTests extends AbstractChildTests {
 
     @BeforeClass
     public static void before() throws IOException {
@@ -68,7 +65,9 @@ public class ChildrenQueryTests extends ElasticsearchLuceneTestCase {
 
     @AfterClass
     public static void after() throws IOException {
+        SearchContext current = SearchContext.current();
         SearchContext.removeCurrent();
+        Releasables.close(current);
     }
 
     @Test
@@ -271,18 +270,6 @@ public class ChildrenQueryTests extends ElasticsearchLuceneTestCase {
         indexWriter.close();
         indexReader.close();
         directory.close();
-    }
-
-    static void assertTopDocs(TopDocs actual, TopDocs expected) {
-        assertThat("actual.totalHits != expected.totalHits", actual.totalHits, equalTo(expected.totalHits));
-        assertThat("actual.getMaxScore() != expected.getMaxScore()", actual.getMaxScore(), equalTo(expected.getMaxScore()));
-        assertThat("actual.scoreDocs.length != expected.scoreDocs.length", actual.scoreDocs.length, equalTo(actual.scoreDocs.length));
-        for (int i = 0; i < actual.scoreDocs.length; i++) {
-            ScoreDoc actualHit = actual.scoreDocs[i];
-            ScoreDoc expectedHit = expected.scoreDocs[i];
-            assertThat("actualHit.doc != expectedHit.doc", actualHit.doc, equalTo(expectedHit.doc));
-            assertThat("actualHit.score != expectedHit.score", actualHit.score, equalTo(expectedHit.score));
-        }
     }
 
 }

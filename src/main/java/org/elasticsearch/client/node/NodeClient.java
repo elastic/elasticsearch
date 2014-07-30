@@ -42,17 +42,17 @@ public class NodeClient extends AbstractClient {
 
     private final NodeAdminClient admin;
 
-    private final ImmutableMap<Action, TransportAction> actions;
+    private final ImmutableMap<ClientAction, TransportAction> actions;
 
     @Inject
     public NodeClient(Settings settings, ThreadPool threadPool, NodeAdminClient admin, Map<GenericAction, TransportAction> actions) {
         this.settings = settings;
         this.threadPool = threadPool;
         this.admin = admin;
-        MapBuilder<Action, TransportAction> actionsBuilder = new MapBuilder<>();
+        MapBuilder<ClientAction, TransportAction> actionsBuilder = new MapBuilder<>();
         for (Map.Entry<GenericAction, TransportAction> entry : actions.entrySet()) {
-            if (entry.getKey() instanceof Action) {
-                actionsBuilder.put((Action) entry.getKey(), entry.getValue());
+            if (entry.getKey() instanceof ClientAction) {
+                actionsBuilder.put((ClientAction) entry.getKey(), entry.getValue());
             }
         }
         this.actions = actionsBuilder.immutableMap();
@@ -81,14 +81,14 @@ public class NodeClient extends AbstractClient {
     @SuppressWarnings("unchecked")
     @Override
     public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, Client>> ActionFuture<Response> execute(Action<Request, Response, RequestBuilder, Client> action, Request request) {
-        TransportAction<Request, Response> transportAction = actions.get(action);
+        TransportAction<Request, Response> transportAction = actions.get((ClientAction)action);
         return transportAction.execute(request);
     }
 
     @SuppressWarnings("unchecked")
     @Override
     public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, Client>> void execute(Action<Request, Response, RequestBuilder, Client> action, Request request, ActionListener<Response> listener) {
-        TransportAction<Request, Response> transportAction = actions.get(action);
+        TransportAction<Request, Response> transportAction = actions.get((ClientAction)action);
         transportAction.execute(request, listener);
     }
 }

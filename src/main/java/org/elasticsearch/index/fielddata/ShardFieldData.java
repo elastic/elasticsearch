@@ -20,6 +20,7 @@
 package org.elasticsearch.index.fielddata;
 
 import com.carrotsearch.hppc.ObjectLongOpenHashMap;
+import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.regex.Regex;
@@ -69,18 +70,18 @@ public class ShardFieldData extends AbstractIndexShardComponent implements Index
     }
 
     @Override
-    public void onLoad(FieldMapper.Names fieldNames, FieldDataType fieldDataType, RamUsage ramUsage) {
-        totalMetric.inc(ramUsage.getMemorySizeInBytes());
+    public void onLoad(FieldMapper.Names fieldNames, FieldDataType fieldDataType, Accountable ramUsage) {
+        totalMetric.inc(ramUsage.ramBytesUsed());
         String keyFieldName = fieldNames.indexName();
         CounterMetric total = perFieldTotals.get(keyFieldName);
         if (total != null) {
-            total.inc(ramUsage.getMemorySizeInBytes());
+            total.inc(ramUsage.ramBytesUsed());
         } else {
             total = new CounterMetric();
-            total.inc(ramUsage.getMemorySizeInBytes());
+            total.inc(ramUsage.ramBytesUsed());
             CounterMetric prev = perFieldTotals.putIfAbsent(keyFieldName, total);
             if (prev != null) {
-                prev.inc(ramUsage.getMemorySizeInBytes());
+                prev.inc(ramUsage.ramBytesUsed());
             }
         }
     }

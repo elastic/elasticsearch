@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.store.fs;
 
-import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.LockFactory;
 import org.apache.lucene.store.SimpleFSDirectory;
 import org.elasticsearch.common.inject.Inject;
@@ -41,7 +41,7 @@ public class SimpleFsDirectoryService extends FsDirectoryService {
     }
 
     @Override
-    protected FSDirectory newFSDirectory(File location, LockFactory lockFactory) throws IOException {
+    protected Directory newFSDirectory(File location, LockFactory lockFactory) throws IOException {
         return new SimpleFSDirectory(location, lockFactory);
     }
 }

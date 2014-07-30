@@ -241,8 +241,19 @@ document indexed.
 [float]
 === JSONP
 
-All REST APIs accept a `callback` parameter resulting in a
-http://en.wikipedia.org/wiki/JSONP[JSONP] result.
+By default JSONP responses are disabled by default. coming[1.3,Previously JSONP was enabled by default]
+
+When enabled, all REST APIs accept a `callback` parameter
+resulting in a http://en.wikipedia.org/wiki/JSONP[JSONP] result. You can enable
+this behavior by adding the following to `config.yaml`:
+
+    http.jsonp.enable: true
+
+Please note, when enabled, due to the architecture of Elasticsearch, this may pose
+a security risk. Under some circumstances, an attacker may be able to exfiltrate
+data in your Elasticsearch server if they're able to force your browser to make a
+JSONP request on your behalf (e.g. by including a <script> tag on an untrusted site
+with a legitimate query against a local Elasticsearch server).
 
 [float]
 === Request body in query string

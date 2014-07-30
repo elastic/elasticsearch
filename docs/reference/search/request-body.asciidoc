@@ -51,7 +51,7 @@ And here is a sample response:
 |Name |Description
 |`timeout` |A search timeout, bounding the search request to be executed
 within the specified time value and bail with the hits accumulated up to
-that point when expired. Defaults to no timeout.
+that point when expired. Defaults to no timeout. See <<time-units>>.
 
 |`from` |The starting from index of the hits to return. Defaults to `0`.
 
@@ -62,6 +62,12 @@ that point when expired. Defaults to no timeout.
 `query_and_fetch`. Defaults to `query_then_fetch`. See
 <<search-request-search-type,_Search Type_>> for
 more details on the different types of search that can be performed.
+
+|coming[1.4.0] `terminate_after` |The maximum number of documents to collect for
+each shard, upon reaching which the query execution will terminate early.
+If set, the response will have a boolean field `terminated_early` to
+indicate whether the query execution has actually terminated_early.
+Defaults to no terminate_after.
 |=======================================================================
 
 Out of the above, the `search_type` is the one that can not be passed
@@ -102,8 +108,6 @@ include::request/scroll.asciidoc[]
 include::request/preference.asciidoc[]
 
 include::request/explain.asciidoc[]
-
-include::request/search-shards.asciidoc[]
 
 include::request/version.asciidoc[]
 

@@ -45,7 +45,6 @@ import org.elasticsearch.index.analysis.NumericDoubleAnalyzer;
 import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
-import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -218,8 +217,8 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
     }
 
     @Override
-    public Filter rangeFilter(IndexFieldDataService fieldData, Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
-        return NumericRangeFieldDataFilter.newDoubleRange((IndexNumericFieldData) fieldData.getForField(this),
+    public Filter rangeFilter(QueryParseContext parseContext, Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
+        return NumericRangeFieldDataFilter.newDoubleRange((IndexNumericFieldData) parseContext.getForField(this),
                 lowerTerm == null ? null : parseDoubleValue(lowerTerm),
                 upperTerm == null ? null : parseDoubleValue(upperTerm),
                 includeLower, includeUpper);
@@ -317,12 +316,16 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
             fields.add(field);
         }
         if (hasDocValues()) {
-            CustomDoubleNumericDocValuesField field = (CustomDoubleNumericDocValuesField) context.doc().getByKey(names().indexName());
-            if (field != null) {
-                field.add(value);
+            if (useSortedNumericDocValues) {
+                addDocValue(context, fields, NumericUtils.doubleToSortableLong(value));
             } else {
-                field = new CustomDoubleNumericDocValuesField(names().indexName(), value);
-                context.doc().addWithKey(names().indexName(), field);
+                CustomDoubleNumericDocValuesField field = (CustomDoubleNumericDocValuesField) context.doc().getByKey(names().indexName());
+                if (field != null) {
+                    field.add(value);
+                } else {
+                    field = new CustomDoubleNumericDocValuesField(names().indexName(), value);
+                    context.doc().addWithKey(names().indexName(), field);
+                }
             }
         }
     }
@@ -375,7 +378,7 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
         }
 
         @Override
-        public TokenStream tokenStream(Analyzer analyzer) throws IOException {
+        public TokenStream tokenStream(Analyzer analyzer, TokenStream previous) throws IOException {
             if (fieldType().indexed()) {
                 return mapper.popCachedStream().setDoubleValue(number);
             }

@@ -154,7 +154,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
         this.publishClusterState = new PublishClusterStateAction(settings, transportService, this, new NewClusterStateListener(), discoverySettings);
         this.pingService.setNodesProvider(this);
-        this.membership = new MembershipAction(settings, transportService, this, new MembershipListener());
+        this.membership = new MembershipAction(settings, clusterService, transportService, this, new MembershipListener());
 
         transportService.registerHandler(RejoinClusterRequestHandler.ACTION, new RejoinClusterRequestHandler());
     }
@@ -554,7 +554,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             return;
         }
         if (master) {
-            logger.debug("received cluster state from [{}] which is also master but with cluster name [{}]",  newClusterState.nodes().masterNode(), incomingClusterName);
+            logger.debug("received cluster state from [{}] which is also master with cluster name [{}]", newClusterState.nodes().masterNode(), incomingClusterName);
             final ClusterState newState = newClusterState;
             clusterService.submitStateUpdateTask("zen-disco-master_receive_cluster_state_from_another_master [" + newState.nodes().masterNode() + "]", Priority.URGENT, new ProcessedClusterStateUpdateTask() {
                 @Override
@@ -564,12 +564,22 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                         return rejoin(currentState, "zen-disco-master_receive_cluster_state_from_another_master [" + newState.nodes().masterNode() + "]");
                     } else {
                         logger.warn("received cluster state from [{}] which is also master but with an older cluster_state, telling [{}] to rejoin the cluster", newState.nodes().masterNode(), newState.nodes().masterNode());
-                        transportService.sendRequest(newState.nodes().masterNode(), RejoinClusterRequestHandler.ACTION, new RejoinClusterRequest(currentState.nodes().localNodeId()), new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
-                            @Override
-                            public void handleException(TransportException exp) {
-                                logger.warn("failed to send rejoin request to [{}]", exp, newState.nodes().masterNode());
-                            }
-                        });
+
+                        try {
+                            // make sure we're connected to this node (connect to node does nothing if we're already connected)
+                            // since the network connections are asymmetric, it may be that we received a state but have disconnected from the node
+                            // in the past (after a master failure, for example)
+                            transportService.connectToNode(newState.nodes().masterNode());
+                            transportService.sendRequest(newState.nodes().masterNode(), RejoinClusterRequestHandler.ACTION, new RejoinClusterRequest(currentState.nodes().localNodeId()), new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
+                                @Override
+                                public void handleException(TransportException exp) {
+                                    logger.warn("failed to send rejoin request to [{}]", exp, newState.nodes().masterNode());
+                                }
+                            });
+                        } catch (Exception e) {
+                            logger.warn("failed to send rejoin request to [{}]", e, newState.nodes().masterNode());
+                        }
+
                         return currentState;
                     }
                 }
@@ -710,11 +720,10 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         } else {
             // try and connect to the node, if it fails, we can raise an exception back to the client...
             transportService.connectToNode(node);
-            ClusterState state = clusterService.state();
 
             // validate the join request, will throw a failure if it fails, which will get back to the
             // node calling the join request
-            membership.sendValidateJoinRequestBlocking(node, state, joinTimeout);
+            membership.sendValidateJoinRequestBlocking(node, joinTimeout);
 
             clusterService.submitStateUpdateTask("zen-disco-receive(join from node[" + node + "])", Priority.IMMEDIATE, new ProcessedClusterStateUpdateTask() {
                 @Override
@@ -745,7 +754,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
                 @Override
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                    callback.onSuccess(newState);
+                    callback.onSuccess();
                 }
             });
         }
@@ -808,6 +817,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         // if we don't have enough master nodes, we bail, even if we get a response that indicates
         // there is a master by other node, we don't see enough...
         if (!electMaster.hasEnoughMasterNodes(possibleMasterNodes)) {
+            logger.trace("not enough master nodes [{}]", possibleMasterNodes);
             return null;
         }
 

@@ -43,7 +43,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.*;
@@ -61,7 +61,7 @@ public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTes
 
     @Test
     @Slow
-    public void testX() throws Exception {
+    public void testOneNodeRecoverFromGateway() throws Exception {
 
         internalCluster().startNode(settingsBuilder().build());
 
@@ -69,6 +69,7 @@ public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTes
                 .startObject("properties").startObject("appAccountIds").field("type", "string").endObject().endObject()
                 .endObject().endObject().string();
         assertAcked(prepareCreate("test").addMapping("type1", mapping));
+
 
         client().prepareIndex("test", "type1", "10990239").setSource(jsonBuilder().startObject()
                 .field("_id", "10990239")
@@ -88,6 +89,8 @@ public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTes
 
         refresh();
         assertHitCount(client().prepareCount().setQuery(termQuery("appAccountIds", 179)).execute().actionGet(), 2);
+        ensureYellow("test"); // wait for primary allocations here otherwise if we have a lot of shards we might have a
+        // shard that is still in post recovery when we restart and the ensureYellow() below will timeout
         internalCluster().fullRestart();
 
         logger.info("Running Cluster Health (wait for the shards to startup)");
@@ -204,6 +207,9 @@ public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTes
         refresh();
 
         assertHitCount(client().prepareCount().setQuery(matchAllQuery()).execute().actionGet(), 2);
+
+        ensureYellow("test"); // wait for primary allocations here otherwise if we have a lot of shards we might have a
+        // shard that is still in post recovery when we restart and the ensureYellow() below will timeout
 
         internalCluster().fullRestart();
 
@@ -376,13 +382,21 @@ public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTes
         ensureGreen();
 
         RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries("test").get();
+
         for (ShardRecoveryResponse response : recoveryResponse.shardResponses().get("test")) {
             RecoveryState recoveryState = response.recoveryState();
             if (!recoveryState.getPrimary()) {
                 logger.info("--> shard {}, recovered {}, reuse {}", response.getShardId(), recoveryState.getIndex().recoveredTotalSize(), recoveryState.getIndex().reusedByteCount());
-                assertThat(recoveryState.getIndex().recoveredByteCount(), greaterThan(0l));
+                assertThat(recoveryState.getIndex().recoveredByteCount(), equalTo(0l));
                 assertThat(recoveryState.getIndex().reusedByteCount(), greaterThan(0l));
+                assertThat(recoveryState.getIndex().reusedByteCount(), equalTo(recoveryState.getIndex().totalByteCount()));
+                assertThat(recoveryState.getIndex().recoveredFileCount(), equalTo(0));
+                assertThat(recoveryState.getIndex().reusedFileCount(), equalTo(recoveryState.getIndex().totalFileCount()));
+                assertThat(recoveryState.getIndex().reusedFileCount(), greaterThan(0));
                 assertThat(recoveryState.getIndex().reusedByteCount(), greaterThan(recoveryState.getIndex().numberOfRecoveredBytes()));
+            } else {
+                assertThat(recoveryState.getIndex().recoveredByteCount(), equalTo(recoveryState.getIndex().reusedByteCount()));
+                assertThat(recoveryState.getIndex().recoveredFileCount(), equalTo(recoveryState.getIndex().reusedFileCount()));
             }
         }
 

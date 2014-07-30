@@ -23,17 +23,14 @@ import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchIllegalStateException;
-import org.elasticsearch.index.fielddata.AtomicFieldData;
-import org.elasticsearch.index.fielddata.BytesValues;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.ScriptDocValues.Strings;
 
 import java.io.IOException;
 
 /** {@link AtomicFieldData} impl on top of Lucene's binary doc values. */
-public class BinaryDVAtomicFieldData implements AtomicFieldData<ScriptDocValues.Strings> {
+public class BinaryDVAtomicFieldData implements AtomicFieldData {
 
     private final AtomicReader reader;
     private final String field;
@@ -44,55 +41,14 @@ public class BinaryDVAtomicFieldData implements AtomicFieldData<ScriptDocValues.
     }
 
     @Override
-    public boolean isMultiValued() {
-        return false;
-    }
-
-    @Override
-    public long getNumberUniqueValues() {
-        // probably not accurate, but a good upper limit
-        return reader.maxDoc();
-    }
-
-    @Override
-    public long getMemorySizeInBytes() {
-        // TODO: Lucene doesn't expose it right now
-        return -1;
-    }
-
-    @Override
-    public BytesValues getBytesValues() {
-        final BinaryDocValues values;
-        final Bits docsWithField;
+    public SortedBinaryDocValues getBytesValues() {
         try {
-            final BinaryDocValues v = reader.getBinaryDocValues(field);
-            if (v == null) {
-                // segment has no value
-                values = DocValues.EMPTY_BINARY;
-                docsWithField = new Bits.MatchNoBits(reader.maxDoc());
-            } else {
-                values = v;
-                final Bits b = reader.getDocsWithField(field);
-                docsWithField = b == null ? new Bits.MatchAllBits(reader.maxDoc()) : b;
-            }
+            final BinaryDocValues values = DocValues.getBinary(reader, field);
+            final Bits docsWithField = DocValues.getDocsWithField(reader, field);
+            return FieldData.singleton(values, docsWithField);
         } catch (IOException e) {
             throw new ElasticsearchIllegalStateException("Cannot load doc values", e);
         }
-
-        return new BytesValues(false) {
-
-            @Override
-            public int setDocument(int docId) {
-                this.docId = docId;
-                return docsWithField.get(docId) ? 1 : 0;
-            }
-
-            @Override
-            public BytesRef nextValue() {
-                values.get(docId, scratch);
-                return scratch;
-            }
-        };
     }
 
     @Override
@@ -103,6 +59,11 @@ public class BinaryDVAtomicFieldData implements AtomicFieldData<ScriptDocValues.
     @Override
     public void close() {
         // no-op
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return -1; // unknown
     }
 
 }

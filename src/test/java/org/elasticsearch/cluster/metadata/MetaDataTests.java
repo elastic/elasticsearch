@@ -24,6 +24,7 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
@@ -393,34 +394,41 @@ public class MetaDataTests extends ElasticsearchTestCase {
         //error on both unavailable and no indices + every alias needs to expand to a single index
 
         try {
-            md.concreteIndices(IndicesOptions.strictSingleIndexNoExpand(), "baz*");
+            md.concreteIndices(IndicesOptions.strictSingleIndexNoExpandForbidClosed(), "baz*");
             fail();
         } catch (IndexMissingException e) {
             assertThat(e.index().name(), equalTo("baz*"));
         }
 
         try {
-            md.concreteIndices(IndicesOptions.strictSingleIndexNoExpand(), "foo", "baz*");
+            md.concreteIndices(IndicesOptions.strictSingleIndexNoExpandForbidClosed(), "foo", "baz*");
             fail();
         } catch (IndexMissingException e) {
             assertThat(e.index().name(), equalTo("baz*"));
         }
 
         try {
-            md.concreteIndices(IndicesOptions.strictSingleIndexNoExpand(), "foofoobar");
+            md.concreteIndices(IndicesOptions.strictSingleIndexNoExpandForbidClosed(), "foofoobar");
             fail();
         } catch(ElasticsearchIllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("Alias [foofoobar] has more than one indices associated with it"));
         }
 
         try {
-            md.concreteIndices(IndicesOptions.strictSingleIndexNoExpand(), "foo", "foofoobar");
+            md.concreteIndices(IndicesOptions.strictSingleIndexNoExpandForbidClosed(), "foo", "foofoobar");
             fail();
         } catch(ElasticsearchIllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("Alias [foofoobar] has more than one indices associated with it"));
         }
 
-        String[] results = md.concreteIndices(IndicesOptions.strictSingleIndexNoExpand(), "foo", "barbaz");
+        try {
+            md.concreteIndices(IndicesOptions.strictSingleIndexNoExpandForbidClosed(), "foofoo-closed", "foofoobar");
+            fail();
+        } catch(IndexClosedException e) {
+            assertThat(e.getMessage(), containsString("[foofoo-closed] closed"));
+        }
+
+        String[] results = md.concreteIndices(IndicesOptions.strictSingleIndexNoExpandForbidClosed(), "foo", "barbaz");
         assertEquals(2, results.length);
         assertThat(results, arrayContainingInAnyOrder("foo", "foofoo"));
     }

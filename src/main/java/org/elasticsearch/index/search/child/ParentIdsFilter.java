@@ -23,14 +23,16 @@ import org.apache.lucene.queries.TermFilter;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.util.*;
+import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.LongBitSet;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.search.AndFilter;
+import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.LongHash;
-import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -46,11 +48,10 @@ import java.util.List;
 final class ParentIdsFilter extends Filter {
 
     static Filter createShortCircuitFilter(Filter nonNestedDocsFilter, SearchContext searchContext,
-                                           String parentType, BytesValues.WithOrdinals globalValues,
+                                           String parentType, SortedDocValues globalValues,
                                            LongBitSet parentOrds, long numFoundParents) {
         if (numFoundParents == 1) {
-            globalValues.getValueByOrd(parentOrds.nextSetBit(0));
-            BytesRef id = globalValues.copyShared();
+            BytesRef id = globalValues.lookupOrd((int) parentOrds.nextSetBit(0));
             if (nonNestedDocsFilter != null) {
                 List<Filter> filters = Arrays.asList(
                         new TermFilter(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(parentType, id))),
@@ -65,8 +66,8 @@ final class ParentIdsFilter extends Filter {
             boolean constructed = false;
             try {
                 parentIds = new BytesRefHash(numFoundParents, searchContext.bigArrays());
-                for (long parentOrd = parentOrds.nextSetBit(0l); parentOrd != -1; parentOrd = parentOrds.nextSetBit(parentOrd + 1)) {
-                    parentIds.add(globalValues.getValueByOrd(parentOrd));
+                for (long parentOrd = parentOrds.nextSetBit(0); parentOrd != -1; parentOrd = parentOrds.nextSetBit(parentOrd + 1)) {
+                    parentIds.add(globalValues.lookupOrd((int) parentOrd));
                 }
                 constructed = true;
             } finally {
@@ -80,11 +81,10 @@ final class ParentIdsFilter extends Filter {
     }
 
     static Filter createShortCircuitFilter(Filter nonNestedDocsFilter, SearchContext searchContext,
-                                           String parentType, BytesValues.WithOrdinals globalValues,
+                                           String parentType, SortedDocValues globalValues,
                                            LongHash parentIdxs, long numFoundParents) {
         if (numFoundParents == 1) {
-            globalValues.getValueByOrd(parentIdxs.get(0));
-            BytesRef id = globalValues.copyShared();
+            BytesRef id = globalValues.lookupOrd((int) parentIdxs.get(0));
             if (nonNestedDocsFilter != null) {
                 List<Filter> filters = Arrays.asList(
                         new TermFilter(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(parentType, id))),
@@ -100,7 +100,7 @@ final class ParentIdsFilter extends Filter {
             try {
                 parentIds = new BytesRefHash(numFoundParents, searchContext.bigArrays());
                 for (int id = 0; id < parentIdxs.size(); id++) {
-                    parentIds.add(globalValues.getValueByOrd(parentIdxs.get(id)));
+                    parentIds.add(globalValues.lookupOrd((int) parentIdxs.get(id)));
                 }
                 constructed = true;
             } finally {

@@ -20,6 +20,9 @@
 package org.elasticsearch.search.timeout;
 
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.script.groovy.GroovyScriptEngineService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
@@ -30,16 +33,17 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
+@ElasticsearchIntegrationTest.ClusterScope(scope=ElasticsearchIntegrationTest.Scope.SUITE)
 public class SearchTimeoutTests extends ElasticsearchIntegrationTest {
-    
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return ImmutableSettings.settingsBuilder().put(super.nodeSettings(nodeOrdinal)).put(GroovyScriptEngineService.GROOVY_SCRIPT_SANDBOX_ENABLED, false).build();
+    }
+
     @Test
     public void simpleTimeoutTest() throws Exception {
-        createIndex("test");
-
-        for (int i = 0; i < 10; i++) {
-            client().prepareIndex("test", "type", Integer.toString(i)).setSource("field", "value").execute().actionGet();
-        }
-        refresh();
+        client().prepareIndex("test", "type", "1").setSource("field", "value").setRefresh(true).execute().actionGet();
 
         SearchResponse searchResponse = client().prepareSearch("test")
                 .setTimeout("10ms")

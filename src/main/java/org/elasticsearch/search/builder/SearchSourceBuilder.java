@@ -24,6 +24,7 @@ import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -40,6 +41,7 @@ import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.facet.FacetBuilder;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.HighlightBuilder;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rescore.RescoreBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
@@ -97,6 +99,7 @@ public class SearchSourceBuilder implements ToXContent {
     private Float minScore;
 
     private long timeoutInMillis = -1;
+    private int terminateAfter = SearchContext.DEFAULT_TERMINATE_AFTER;
 
     private List<String> fieldNames;
     private List<String> fieldDataFields;
@@ -308,6 +311,17 @@ public class SearchSourceBuilder implements ToXContent {
         return this;
     }
 
+    /**
+     * An optional terminate_after to terminate the search after
+     * collecting <code>terminateAfter</code> documents
+     */
+    public  SearchSourceBuilder terminateAfter(int terminateAfter) {
+        if (terminateAfter <= 0) {
+            throw new ElasticsearchIllegalArgumentException("terminateAfter must be > 0");
+        }
+        this.terminateAfter = terminateAfter;
+        return this;
+    }
     /**
      * Adds a sort against the given field name and the sort ordering.
      *
@@ -521,7 +535,7 @@ public class SearchSourceBuilder implements ToXContent {
      * @param exclude An optional exclude (optionally wildcarded) pattern to filter the returned _source
      */
     public SearchSourceBuilder fetchSource(@Nullable String include, @Nullable String exclude) {
-        return fetchSource(include == null ? Strings.EMPTY_ARRAY : new String[]{include}, include == null ? Strings.EMPTY_ARRAY : new String[]{exclude});
+        return fetchSource(include == null ? Strings.EMPTY_ARRAY : new String[]{include}, exclude == null ? Strings.EMPTY_ARRAY : new String[]{exclude});
     }
 
     /**
@@ -736,6 +750,10 @@ public class SearchSourceBuilder implements ToXContent {
 
         if (timeoutInMillis != -1) {
             builder.field("timeout", timeoutInMillis);
+        }
+
+        if (terminateAfter != SearchContext.DEFAULT_TERMINATE_AFTER) {
+            builder.field("terminate_after", terminateAfter);
         }
 
         if (queryBuilder != null) {

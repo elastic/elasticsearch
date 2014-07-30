@@ -22,7 +22,7 @@ package org.elasticsearch.http.netty;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.netty.NettyStaticSetup;
+import org.elasticsearch.common.netty.NettyUtils;
 import org.elasticsearch.common.netty.OpenChannelsHandler;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.NetworkUtils;
@@ -61,7 +61,7 @@ import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadF
 public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpServerTransport> implements HttpServerTransport {
 
     static {
-        NettyStaticSetup.setup();
+        NettyUtils.setup();
     }
 
     private final NetworkService networkService;
@@ -195,7 +195,7 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
                     workerCount));
         }
 
-        serverBootstrap.setPipelineFactory(new MyChannelPipelineFactory(this));
+        serverBootstrap.setPipelineFactory(configureServerChannelPipelineFactory());
 
         if (tcpNoDelay != null) {
             serverBootstrap.setOption("child.tcpNoDelay", tcpNoDelay);
@@ -281,7 +281,11 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
 
     @Override
     public HttpInfo info() {
-        return new HttpInfo(boundAddress(), maxContentLength.bytes());
+        BoundTransportAddress boundTransportAddress = boundAddress();
+        if (boundTransportAddress == null) {
+            return null;
+        }
+        return new HttpInfo(boundTransportAddress, maxContentLength.bytes());
     }
 
     @Override
@@ -315,13 +319,16 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
         }
     }
 
-    static class MyChannelPipelineFactory implements ChannelPipelineFactory {
+    public ChannelPipelineFactory configureServerChannelPipelineFactory() {
+        return new HttpChannelPipelineFactory(this);
+    }
 
-        private final NettyHttpServerTransport transport;
+    protected static class HttpChannelPipelineFactory implements ChannelPipelineFactory {
 
-        private final HttpRequestHandler requestHandler;
+        protected final NettyHttpServerTransport transport;
+        protected final HttpRequestHandler requestHandler;
 
-        MyChannelPipelineFactory(NettyHttpServerTransport transport) {
+        public HttpChannelPipelineFactory(NettyHttpServerTransport transport) {
             this.transport = transport;
             this.requestHandler = new HttpRequestHandler(transport);
         }

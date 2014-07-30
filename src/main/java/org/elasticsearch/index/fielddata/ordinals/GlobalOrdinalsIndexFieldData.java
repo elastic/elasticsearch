@@ -20,21 +20,20 @@ package org.elasticsearch.index.fielddata.ordinals;
 
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.fielddata.AtomicFieldData;
-import org.elasticsearch.index.fielddata.FieldDataType;
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.RamUsage;
+import org.elasticsearch.index.fielddata.*;
+import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.MultiValueMode;
 
 /**
  * {@link IndexFieldData} base class for concrete global ordinals implementations.
  */
-public abstract class GlobalOrdinalsIndexFieldData extends AbstractIndexComponent implements IndexFieldData.WithOrdinals, RamUsage {
+public abstract class GlobalOrdinalsIndexFieldData extends AbstractIndexComponent implements IndexOrdinalsFieldData, Accountable {
 
     private final FieldMapper.Names fieldNames;
     private final FieldDataType fieldDataType;
@@ -48,17 +47,17 @@ public abstract class GlobalOrdinalsIndexFieldData extends AbstractIndexComponen
     }
 
     @Override
-    public AtomicFieldData.WithOrdinals loadDirect(AtomicReaderContext context) throws Exception {
+    public AtomicOrdinalsFieldData loadDirect(AtomicReaderContext context) throws Exception {
         return load(context);
     }
 
     @Override
-    public WithOrdinals loadGlobal(IndexReader indexReader) {
+    public IndexOrdinalsFieldData loadGlobal(IndexReader indexReader) {
         return this;
     }
 
     @Override
-    public WithOrdinals localGlobalDirect(IndexReader indexReader) throws Exception {
+    public IndexOrdinalsFieldData localGlobalDirect(IndexReader indexReader) throws Exception {
         return this;
     }
 
@@ -73,12 +72,7 @@ public abstract class GlobalOrdinalsIndexFieldData extends AbstractIndexComponen
     }
 
     @Override
-    public boolean valuesOrdered() {
-        return false;
-    }
-
-    @Override
-    public XFieldComparatorSource comparatorSource(@Nullable Object missingValue, MultiValueMode sortMode) {
+    public XFieldComparatorSource comparatorSource(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested) {
         throw new UnsupportedOperationException("no global ordinals sorting yet");
     }
 
@@ -93,7 +87,7 @@ public abstract class GlobalOrdinalsIndexFieldData extends AbstractIndexComponen
     }
 
     @Override
-    public long getMemorySizeInBytes() {
+    public long ramBytesUsed() {
         return memorySizeInBytes;
     }
 

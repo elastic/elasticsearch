@@ -50,12 +50,12 @@ public abstract class FsDirectoryService extends AbstractIndexShardComponent imp
     }
 
     @Override
-    public final long throttleTimeInNanos() {
+    public long throttleTimeInNanos() {
         return rateLimitingTimeInNanos.count();
     }
 
     @Override
-    public final StoreRateLimiting rateLimiting() {
+    public StoreRateLimiting rateLimiting() {
         return indexStore.rateLimiting();
     }
 
@@ -63,8 +63,7 @@ public abstract class FsDirectoryService extends AbstractIndexShardComponent imp
         String fsLock = componentSettings.get("lock", componentSettings.get("fs_lock", "native"));
         LockFactory lockFactory = NoLockFactory.getNoLockFactory();
         if (fsLock.equals("native")) {
-            // TODO LUCENE MONITOR: this is not needed in next Lucene version
-            lockFactory = new XNativeFSLockFactory();
+            lockFactory = new NativeFSLockFactory();
         } else if (fsLock.equals("simple")) {
             lockFactory = new SimpleFSLockFactory();
         } else if (fsLock.equals("none")) {
@@ -127,16 +126,16 @@ public abstract class FsDirectoryService extends AbstractIndexShardComponent imp
         Directory[] dirs = new Directory[locations.length];
         for (int i = 0; i < dirs.length; i++) {
             FileSystemUtils.mkdirs(locations[i]);
-            FSDirectory wrapped = newFSDirectory(locations[i], buildLockFactory());
+            Directory wrapped = newFSDirectory(locations[i], buildLockFactory());
             dirs[i] = new RateLimitedFSDirectory(wrapped, this, this) ;
         }
         return dirs;
     }
     
-    protected abstract FSDirectory newFSDirectory(File location, LockFactory lockFactory) throws IOException;
+    protected abstract Directory newFSDirectory(File location, LockFactory lockFactory) throws IOException;
 
     @Override
-    public final void onPause(long nanos) {
+    public void onPause(long nanos) {
         rateLimitingTimeInNanos.inc(nanos);
     }
 }

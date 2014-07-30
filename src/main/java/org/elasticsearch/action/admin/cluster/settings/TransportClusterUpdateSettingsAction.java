@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.cluster.settings;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterService;
@@ -37,7 +38,6 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -56,8 +56,8 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeOpe
 
     @Inject
     public TransportClusterUpdateSettingsAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                                AllocationService allocationService, @ClusterDynamicSettings DynamicSettings dynamicSettings) {
-        super(settings, transportService, clusterService, threadPool);
+                                                AllocationService allocationService, @ClusterDynamicSettings DynamicSettings dynamicSettings, ActionFilters actionFilters) {
+        super(settings, ClusterUpdateSettingsAction.NAME, transportService, clusterService, threadPool, actionFilters);
         this.allocationService = allocationService;
         this.dynamicSettings = dynamicSettings;
     }
@@ -65,11 +65,6 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeOpe
     @Override
     protected String executor() {
         return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected String transportAction() {
-        return ClusterUpdateSettingsAction.NAME;
     }
 
     @Override
@@ -87,13 +82,13 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeOpe
         final ImmutableSettings.Builder transientUpdates = ImmutableSettings.settingsBuilder();
         final ImmutableSettings.Builder persistentUpdates = ImmutableSettings.settingsBuilder();
 
-        clusterService.submitStateUpdateTask("cluster_update_settings", Priority.IMMEDIATE, new AckedClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("cluster_update_settings", Priority.IMMEDIATE, new AckedClusterStateUpdateTask<ClusterUpdateSettingsResponse>(request, listener) {
 
             private volatile boolean changed = false;
 
             @Override
-            public boolean mustAck(DiscoveryNode discoveryNode) {
-                return true;
+            protected ClusterUpdateSettingsResponse newResponse(boolean acknowledged) {
+                return new ClusterUpdateSettingsResponse(acknowledged, transientUpdates.build(), persistentUpdates.build());
             }
 
             @Override
@@ -101,9 +96,8 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeOpe
                 if (changed) {
                     reroute(true);
                 } else {
-                    listener.onResponse(new ClusterUpdateSettingsResponse(true, transientUpdates.build(), persistentUpdates.build()));
+                    super.onAllNodesAcked(t);
                 }
-
             }
 
             @Override
@@ -111,7 +105,7 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeOpe
                 if (changed) {
                     reroute(false);
                 } else {
-                    listener.onResponse(new ClusterUpdateSettingsResponse(false, transientUpdates.build(), persistentUpdates.build()));
+                    super.onAckTimeout();
                 }
             }
 
@@ -129,7 +123,7 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeOpe
                 // in the components (e.g. FilterAllocationDecider), so the changes made by the first call aren't visible
                 // to the components until the ClusterStateListener instances have been invoked, but are visible after
                 // the first update task has been completed.
-                clusterService.submitStateUpdateTask("reroute_after_cluster_update_settings", Priority.URGENT, new AckedClusterStateUpdateTask() {
+                clusterService.submitStateUpdateTask("reroute_after_cluster_update_settings", Priority.URGENT, new AckedClusterStateUpdateTask<ClusterUpdateSettingsResponse>(request, listener) {
 
                     @Override
                     public boolean mustAck(DiscoveryNode discoveryNode) {
@@ -138,25 +132,9 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeOpe
                     }
 
                     @Override
-                    public void onAllNodesAcked(@Nullable Throwable t) {
-                        //we return when the cluster reroute is acked (the acknowledged flag depends on whether the update settings was acknowledged)
-                        listener.onResponse(new ClusterUpdateSettingsResponse(updateSettingsAcked, transientUpdates.build(), persistentUpdates.build()));
-                    }
-
-                    @Override
-                    public void onAckTimeout() {
-                        //we return when the cluster reroute ack times out (acknowledged false)
-                        listener.onResponse(new ClusterUpdateSettingsResponse(false, transientUpdates.build(), persistentUpdates.build()));
-                    }
-
-                    @Override
-                    public TimeValue ackTimeout() {
-                        return request.timeout();
-                    }
-
-                    @Override
-                    public TimeValue timeout() {
-                        return request.masterNodeTimeout();
+                    //we return when the cluster reroute is acked or it times out but the acknowledged flag depends on whether the update settings was acknowledged
+                    protected ClusterUpdateSettingsResponse newResponse(boolean acknowledged) {
+                        return new ClusterUpdateSettingsResponse(updateSettingsAcked && acknowledged, transientUpdates.build(), persistentUpdates.build());
                     }
 
                     @Override
@@ -175,27 +153,13 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeOpe
                         }
                         return ClusterState.builder(currentState).routingResult(routingResult).build();
                     }
-
-                    @Override
-                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                    }
                 });
-            }
-
-            @Override
-            public TimeValue ackTimeout() {
-                return request.timeout();
-            }
-
-            @Override
-            public TimeValue timeout() {
-                return request.masterNodeTimeout();
             }
 
             @Override
             public void onFailure(String source, Throwable t) {
                 logger.debug("failed to perform [{}]", t, source);
-                listener.onFailure(t);
+                super.onFailure(source, t);
             }
 
             @Override
@@ -251,11 +215,6 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeOpe
                 }
 
                 return builder(currentState).metaData(metaData).blocks(blocks).build();
-            }
-
-            @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-
             }
         });
     }

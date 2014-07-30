@@ -23,8 +23,10 @@ search terms, but it is possible to specify other fields in the query syntax:
 
     status:active
 
-* where the `title` field contains `quick` or `brown`
+* where the `title` field contains `quick` or `brown`.
+  If you omit the OR operator the default operator will be used
 
+    title:(quick OR brown)
     title:(quick brown)
 
 * where the `author` field contains the exact phrase `"john smith"`
@@ -133,7 +135,7 @@ curly brackets `{min TO max}`.
 
 * All days in 2012:
 
-    date:[2012/01/01 TO 2012/12/31]
+    date:[2012-01-01 TO 2012-12-31]
 
 * Numbers 1..5
 
@@ -149,7 +151,7 @@ curly brackets `{min TO max}`.
 
 * Dates before 2012
 
-    date:{* TO 2012/01/01}
+    date:{* TO 2012-01-01}
 
 Curly and square brackets can be combined:
 

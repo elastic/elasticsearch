@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.engine.internal;
 
-import org.apache.log4j.Appender;
 import org.apache.log4j.AppenderSkeleton;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
@@ -28,9 +27,11 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.TextField;
+import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexDeletionPolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -107,15 +108,15 @@ public class InternalEngineTests extends ElasticsearchTestCase {
 
     private Settings defaultSettings;
 
-
     @Before
     public void setUp() throws Exception {
         super.setUp();
         defaultSettings = ImmutableSettings.builder()
                 .put(InternalEngine.INDEX_COMPOUND_ON_FLUSH, getRandom().nextBoolean())
                 .put(InternalEngine.INDEX_GC_DELETES, "1h") // make sure this doesn't kick in on us
+                .put(InternalEngine.INDEX_FAIL_ON_CORRUPTION, randomBoolean())
                 .build(); // TODO randomize more settings
-        threadPool = new ThreadPool();
+        threadPool = new ThreadPool(getClass().getName());
         store = createStore();
         store.deleteContent();
         storeReplica = createStoreReplica();
@@ -599,6 +600,60 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(1));
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 1));
         searchResult.close();
+    }
+    
+    @Test
+    public void testFailEngineOnCorruption() {
+        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), Lucene.STANDARD_ANALYZER, B_1, false);
+        engine.create(new Engine.Create(null, newUid("1"), doc));
+        engine.flush(new Engine.Flush());
+        final boolean failEngine = defaultSettings.getAsBoolean(InternalEngine.INDEX_FAIL_ON_CORRUPTION, false);
+        final int failInPhase = randomIntBetween(1,3);
+        try {
+            engine.recover(new Engine.RecoveryHandler() {
+                @Override
+                public void phase1(SnapshotIndexCommit snapshot) throws EngineException {
+                   if (failInPhase == 1) {
+                       throw new RuntimeException("bar", new CorruptIndexException("Foo"));
+                   }
+                }
+
+                @Override
+                public void phase2(Translog.Snapshot snapshot) throws EngineException {
+                    if (failInPhase == 2) {
+                        throw new RuntimeException("bar", new CorruptIndexException("Foo"));
+                    }
+                }
+
+                @Override
+                public void phase3(Translog.Snapshot snapshot) throws EngineException {
+                    if (failInPhase == 3) {
+                        throw new RuntimeException("bar", new CorruptIndexException("Foo"));
+                    }
+                }
+            });
+            fail("exception expected");
+        } catch (RuntimeException ex) {
+
+        }
+        try {
+            Engine.Searcher searchResult = engine.acquireSearcher("test");
+            MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(1));
+            MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 1));
+            searchResult.close();
+
+            ParsedDocument doc2 = testParsedDocument("2", "2", "test", null, -1, -1, testDocumentWithTextField(), Lucene.STANDARD_ANALYZER, B_2, false);
+            engine.create(new Engine.Create(null, newUid("2"), doc2));
+            engine.refresh(new Engine.Refresh("foo"));
+
+            searchResult = engine.acquireSearcher("test");
+            MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 2));
+            MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(2));
+            searchResult.close();
+            assertThat(failEngine, is(false));
+        } catch (EngineClosedException ex) {
+            assertThat(failEngine, is(true));
+        }
     }
 
 
@@ -1181,6 +1236,77 @@ public class InternalEngineTests extends ElasticsearchTestCase {
             rootLogger.removeAppender(mockAppender);
             rootLogger.setLevel(savedLevel);
         }
+    }
+
+    @Slow
+    @Test
+    public void testEnableGcDeletes() throws Exception {
+
+        // Make sure enableGCDeletes == false works:
+        Settings settings = ImmutableSettings.builder()
+                .put(InternalEngine.INDEX_GC_DELETES, "0ms")
+                .build();
+
+        Engine engine = new InternalEngine(shardId, settings, threadPool,
+                                           engineSettingsService,
+                                           new ShardIndexingService(shardId, settings,
+                                                                    new ShardSlowLogIndexingService(shardId, EMPTY_SETTINGS, engineSettingsService)),
+                                           null, store, createSnapshotDeletionPolicy(), createTranslog(), createMergePolicy(), createMergeScheduler(engineSettingsService),
+                                           new AnalysisService(shardId.index()), new SimilarityService(shardId.index()), new CodecService(shardId.index()));
+        engine.start();
+        engine.enableGcDeletes(false);
+
+        // Add document
+        Document document = testDocument();
+        document.add(new TextField("value", "test1", Field.Store.YES));
+
+        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, document, Lucene.STANDARD_ANALYZER, B_2, false);
+        engine.index(new Engine.Index(null, newUid("1"), doc, 1, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime(), false));
+
+        // Delete document we just added:
+        engine.delete(new Engine.Delete("test", "1", newUid("1"), 10, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime(), false));
+        
+        // Get should not find the document
+        Engine.GetResult getResult = engine.get(new Engine.Get(true, newUid("1")));
+        assertThat(getResult.exists(), equalTo(false));
+
+        // Give the gc pruning logic a chance to kick in
+        Thread.sleep(1000);
+
+        if (randomBoolean()) {
+            engine.refresh(new Engine.Refresh("test"));
+        }
+
+        // Delete non-existent document
+        engine.delete(new Engine.Delete("test", "2", newUid("2"), 10, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime(), false));
+
+        // Get should not find the document (we never indexed uid=2):
+        getResult = engine.get(new Engine.Get(true, newUid("2")));
+        assertThat(getResult.exists(), equalTo(false));
+
+        // Try to index uid=1 with a too-old version, should fail:
+        try {
+            engine.index(new Engine.Index(null, newUid("1"), doc, 2, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime()));
+            fail("did not hit expected exception");
+        } catch (VersionConflictEngineException vcee) {
+            // expected
+        }
+
+        // Get should still not find the document
+        getResult = engine.get(new Engine.Get(true, newUid("1")));        
+        assertThat(getResult.exists(), equalTo(false));
+
+        // Try to index uid=2 with a too-old version, should fail:
+        try {
+            engine.index(new Engine.Index(null, newUid("2"), doc, 2, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime()));
+            fail("did not hit expected exception");
+        } catch (VersionConflictEngineException vcee) {
+            // expected
+        }
+
+        // Get should not find the document
+        getResult = engine.get(new Engine.Get(true, newUid("2")));
+        assertThat(getResult.exists(), equalTo(false));
     }
 
     protected Term newUid(String id) {

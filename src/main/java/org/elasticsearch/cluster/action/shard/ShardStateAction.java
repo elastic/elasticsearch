@@ -78,18 +78,28 @@ public class ShardStateAction extends AbstractComponent {
     public void shardFailed(final ShardRouting shardRouting, final String indexUUID, final String reason) throws ElasticsearchException {
         DiscoveryNode masterNode = clusterService.state().nodes().masterNode();
         if (masterNode == null) {
-            logger.debug("can't send shard failed for {}. no master known.", shardRouting);
+            logger.warn("can't send shard failed for {}. no master known.", shardRouting);
+            return;
         }
         shardFailed(shardRouting, indexUUID, reason, masterNode);
     }
 
     public void shardFailed(final ShardRouting shardRouting, final String indexUUID, final String reason, final DiscoveryNode masterNode) throws ElasticsearchException {
+        logger.warn("{} sending failed shard for {}, indexUUID [{}], reason [{}]", shardRouting.shardId(), shardRouting, indexUUID, reason);
+        innerShardFailed(shardRouting, indexUUID, reason, masterNode);
+    }
+
+    public void resendShardFailed(final ShardRouting shardRouting, final String indexUUID, final String reason, final DiscoveryNode masterNode) throws ElasticsearchException {
+        logger.trace("{} re-sending failed shard for {}, indexUUID [{}], reason [{}]", shardRouting.shardId(), shardRouting, indexUUID, reason);
+        innerShardFailed(shardRouting, indexUUID, reason, masterNode);
+    }
+
+    private void innerShardFailed(final ShardRouting shardRouting, final String indexUUID, final String reason, final DiscoveryNode masterNode) {
         ShardRoutingEntry shardRoutingEntry = new ShardRoutingEntry(shardRouting, indexUUID, reason);
-        logger.warn("{} sending failed shard for {}", shardRouting.shardId(), shardRoutingEntry);
         if (clusterService.localNode().equals(masterNode)) {
             innerShardFailed(shardRoutingEntry);
         } else {
-            transportService.sendRequest(clusterService.state().nodes().masterNode(),
+            transportService.sendRequest(masterNode,
                     ShardFailedTransportHandler.ACTION, shardRoutingEntry, new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
                 @Override
                 public void handleException(TransportException exp) {
@@ -102,7 +112,8 @@ public class ShardStateAction extends AbstractComponent {
     public void shardStarted(final ShardRouting shardRouting, String indexUUID, final String reason) throws ElasticsearchException {
         DiscoveryNode masterNode = clusterService.state().nodes().masterNode();
         if (masterNode == null) {
-            logger.debug("can't send shard started for {}. no master known.", shardRouting);
+            logger.warn("can't send shard started for {}. no master known.", shardRouting);
+            return;
         }
         shardStarted(shardRouting, indexUUID, reason, masterNode);
     }

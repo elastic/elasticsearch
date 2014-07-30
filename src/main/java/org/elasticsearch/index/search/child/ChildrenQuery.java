@@ -20,6 +20,7 @@ package org.elasticsearch.index.search.child;
 
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.Bits;
@@ -35,9 +36,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.FloatArray;
 import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.common.util.LongHash;
-import org.elasticsearch.index.fielddata.BytesValues;
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.ordinals.Ordinals;
+import org.elasticsearch.index.fielddata.IndexParentChildFieldData;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
@@ -162,7 +161,7 @@ public class ChildrenQuery extends Query {
                 + " searcher.getIndexReader()=" + searcher.getIndexReader();
         final Query childQuery = rewrittenChildQuery;
 
-        IndexFieldData.WithOrdinals globalIfd = ifd.getGlobalParentChild(parentType, searcher.getIndexReader());
+        IndexParentChildFieldData globalIfd = ifd.loadGlobal(searcher.getIndexReader());
         if (globalIfd == null) {
             // No docs of the specified type exist on this shard
             return Queries.newMatchNoDocsQuery().createWeight(searcher);
@@ -177,24 +176,24 @@ public class ChildrenQuery extends Query {
             if (minChildren == 0 && maxChildren == 0 && scoreType != ScoreType.NONE) {
                 switch (scoreType) {
                 case MAX:
-                    collector = new MaxCollector(globalIfd, sc);
+                    collector = new MaxCollector(globalIfd, sc, parentType);
                     break;
                 case SUM:
-                    collector = new SumCollector(globalIfd, sc);
+                    collector = new SumCollector(globalIfd, sc, parentType);
                     break;
                 }
             }
             if (collector == null) {
                 switch (scoreType) {
                 case MAX:
-                    collector = new MaxCountCollector(globalIfd, sc);
+                    collector = new MaxCountCollector(globalIfd, sc, parentType);
                     break;
                 case SUM:
                 case AVG:
-                    collector = new SumCountAndAvgCollector(globalIfd, sc);
+                    collector = new SumCountAndAvgCollector(globalIfd, sc, parentType);
                     break;
                 case NONE:
-                    collector = new CountCollector(globalIfd, sc);
+                    collector = new CountCollector(globalIfd, sc, parentType);
                     break;
                 default:
                     throw new RuntimeException("Are we missing a score type here? -- " + scoreType);
@@ -284,30 +283,28 @@ public class ChildrenQuery extends Query {
             DocIdSetIterator parents = BitsFilteredDocIdSet.wrap(parentsSet, context.reader().getLiveDocs()).iterator();
 
             if (parents != null) {
-                BytesValues.WithOrdinals bytesValues = collector.globalIfd.load(context).getBytesValues();
+                SortedDocValues bytesValues = collector.globalIfd.load(context).getOrdinalsValues(parentType);
                 if (bytesValues == null) {
                     return null;
                 }
 
-                Ordinals.Docs globalOrdinals = bytesValues.ordinals();
-
                 if (minChildren > 0 || maxChildren != 0 || scoreType == ScoreType.NONE) {
                     switch (scoreType) {
                     case NONE:
-                        DocIdSetIterator parentIdIterator = new CountParentOrdIterator(this, parents, collector, globalOrdinals,
+                        DocIdSetIterator parentIdIterator = new CountParentOrdIterator(this, parents, collector, bytesValues,
                                 minChildren, maxChildren);
                         return ConstantScorer.create(parentIdIterator, this, queryWeight);
                     case AVG:
-                        return new AvgParentCountScorer(this, parents, collector, globalOrdinals, minChildren, maxChildren);
+                        return new AvgParentCountScorer(this, parents, collector, bytesValues, minChildren, maxChildren);
                     default:
-                        return new ParentCountScorer(this, parents, collector, globalOrdinals, minChildren, maxChildren);
+                        return new ParentCountScorer(this, parents, collector, bytesValues, minChildren, maxChildren);
                     }
                 }
                 switch (scoreType) {
                 case AVG:
-                    return new AvgParentScorer(this, parents, collector, globalOrdinals);
+                    return new AvgParentScorer(this, parents, collector, bytesValues);
                 default:
-                    return new ParentScorer(this, parents, collector, globalOrdinals);
+                    return new ParentScorer(this, parents, collector, bytesValues);
                 }
             }
             return null;
@@ -316,27 +313,28 @@ public class ChildrenQuery extends Query {
 
     protected abstract static class ParentCollector extends NoopCollector implements Releasable {
 
-        protected final IndexFieldData.WithOrdinals globalIfd;
+        protected final IndexParentChildFieldData globalIfd;
         protected final LongHash parentIdxs;
         protected final BigArrays bigArrays;
         protected final SearchContext searchContext;
+        protected final String parentType;
 
-        protected Ordinals.Docs globalOrdinals;
-        protected BytesValues.WithOrdinals values;
+        protected SortedDocValues values;
         protected Scorer scorer;
 
-        protected ParentCollector(IndexFieldData.WithOrdinals globalIfd, SearchContext searchContext) {
+        protected ParentCollector(IndexParentChildFieldData globalIfd, SearchContext searchContext, String parentType) {
             this.globalIfd = globalIfd;
             this.searchContext = searchContext;
             this.bigArrays = searchContext.bigArrays();
             this.parentIdxs = new LongHash(512, bigArrays);
+            this.parentType = parentType;
         }
 
         @Override
         public final void collect(int doc) throws IOException {
-            if (globalOrdinals != null) {
-                final long globalOrdinal = globalOrdinals.getOrd(doc);
-                if (globalOrdinal != Ordinals.MISSING_ORDINAL) {
+            if (values != null) {
+                final long globalOrdinal = values.getOrd(doc);
+                if (globalOrdinal >= 0) {
                     long parentIdx = parentIdxs.add(globalOrdinal);
                     if (parentIdx >= 0) {
                         newParent(parentIdx);
@@ -360,10 +358,7 @@ public class ChildrenQuery extends Query {
 
         @Override
         public void setNextReader(AtomicReaderContext context) throws IOException {
-            values = globalIfd.load(context).getBytesValues();
-            if (values != null) {
-                globalOrdinals = values.ordinals();
-            }
+            values = globalIfd.load(context).getOrdinalsValues(parentType);
         }
 
         @Override
@@ -381,8 +376,8 @@ public class ChildrenQuery extends Query {
 
         protected FloatArray scores;
 
-        protected ParentScoreCollector(IndexFieldData.WithOrdinals globalIfd, SearchContext searchContext) {
-            super(globalIfd, searchContext);
+        protected ParentScoreCollector(IndexParentChildFieldData globalIfd, SearchContext searchContext, String parentType) {
+            super(globalIfd, searchContext, parentType);
             this.scores = this.bigArrays.newFloatArray(512, false);
         }
 
@@ -401,8 +396,8 @@ public class ChildrenQuery extends Query {
 
         protected IntArray occurrences;
 
-        protected ParentScoreCountCollector(IndexFieldData.WithOrdinals globalIfd, SearchContext searchContext) {
-            super(globalIfd, searchContext);
+        protected ParentScoreCountCollector(IndexParentChildFieldData globalIfd, SearchContext searchContext, String parentType) {
+            super(globalIfd, searchContext, parentType);
             this.occurrences = bigArrays.newIntArray(512, false);
         }
 
@@ -423,8 +418,8 @@ public class ChildrenQuery extends Query {
 
         protected IntArray occurrences;
 
-        protected CountCollector(IndexFieldData.WithOrdinals globalIfd, SearchContext searchContext) {
-            super(globalIfd, searchContext);
+        protected CountCollector(IndexParentChildFieldData globalIfd, SearchContext searchContext, String parentType) {
+            super(globalIfd, searchContext, parentType);
             this.occurrences = bigArrays.newIntArray(512, false);
         }
 
@@ -447,8 +442,8 @@ public class ChildrenQuery extends Query {
 
     private final static class SumCollector extends ParentScoreCollector {
 
-        private SumCollector(IndexFieldData.WithOrdinals globalIfd, SearchContext searchContext) {
-            super(globalIfd, searchContext);
+        private SumCollector(IndexParentChildFieldData globalIfd, SearchContext searchContext, String parentType) {
+            super(globalIfd, searchContext, parentType);
         }
 
         @Override
@@ -459,8 +454,8 @@ public class ChildrenQuery extends Query {
 
     private final static class MaxCollector extends ParentScoreCollector {
 
-        private MaxCollector(IndexFieldData.WithOrdinals globalIfd, SearchContext searchContext) {
-            super(globalIfd, searchContext);
+        private MaxCollector(IndexParentChildFieldData globalIfd, SearchContext searchContext, String parentType) {
+            super(globalIfd, searchContext, parentType);
         }
 
         @Override
@@ -474,8 +469,8 @@ public class ChildrenQuery extends Query {
 
     private final static class MaxCountCollector extends ParentScoreCountCollector {
 
-        private MaxCountCollector(IndexFieldData.WithOrdinals globalIfd, SearchContext searchContext) {
-            super(globalIfd, searchContext);
+        private MaxCountCollector(IndexParentChildFieldData globalIfd, SearchContext searchContext, String parentType) {
+            super(globalIfd, searchContext, parentType);
         }
 
         @Override
@@ -490,8 +485,8 @@ public class ChildrenQuery extends Query {
 
     private final static class SumCountAndAvgCollector extends ParentScoreCountCollector {
 
-        SumCountAndAvgCollector(IndexFieldData.WithOrdinals globalIfd, SearchContext searchContext) {
-            super(globalIfd, searchContext);
+        SumCountAndAvgCollector(IndexParentChildFieldData globalIfd, SearchContext searchContext, String parentType) {
+            super(globalIfd, searchContext, parentType);
         }
 
         @Override
@@ -507,13 +502,13 @@ public class ChildrenQuery extends Query {
         final LongHash parentIds;
         final FloatArray scores;
 
-        final Ordinals.Docs globalOrdinals;
+        final SortedDocValues globalOrdinals;
         final DocIdSetIterator parentsIterator;
 
         int currentDocId = -1;
         float currentScore;
 
-        ParentScorer(ParentWeight parentWeight, DocIdSetIterator parentsIterator, ParentCollector collector, Ordinals.Docs globalOrdinals) {
+        ParentScorer(ParentWeight parentWeight, DocIdSetIterator parentsIterator, ParentCollector collector, SortedDocValues globalOrdinals) {
             super(parentWeight);
             this.parentWeight = parentWeight;
             this.globalOrdinals = globalOrdinals;
@@ -556,8 +551,8 @@ public class ChildrenQuery extends Query {
                     return currentDocId;
                 }
 
-                final long globalOrdinal = globalOrdinals.getOrd(currentDocId);
-                if (globalOrdinal == Ordinals.MISSING_ORDINAL) {
+                final int globalOrdinal = globalOrdinals.getOrd(currentDocId);
+                if (globalOrdinal < 0) {
                     continue;
                 }
 
@@ -583,7 +578,7 @@ public class ChildrenQuery extends Query {
             }
 
             final long globalOrdinal = globalOrdinals.getOrd(currentDocId);
-            if (globalOrdinal == Ordinals.MISSING_ORDINAL) {
+            if (globalOrdinal < 0) {
                 return nextDoc();
             }
 
@@ -609,7 +604,7 @@ public class ChildrenQuery extends Query {
         protected final int minChildren;
         protected final int maxChildren;
 
-        ParentCountScorer(ParentWeight parentWeight, DocIdSetIterator parentsIterator, ParentCollector collector, Ordinals.Docs globalOrdinals, int minChildren, int maxChildren) {
+        ParentCountScorer(ParentWeight parentWeight, DocIdSetIterator parentsIterator, ParentCollector collector, SortedDocValues globalOrdinals, int minChildren, int maxChildren) {
             super(parentWeight, parentsIterator, (ParentScoreCollector) collector, globalOrdinals);
             this.minChildren = minChildren;
             this.maxChildren = maxChildren == 0 ? Integer.MAX_VALUE : maxChildren;
@@ -627,7 +622,7 @@ public class ChildrenQuery extends Query {
 
     private static final class AvgParentScorer extends ParentCountScorer {
 
-        AvgParentScorer(ParentWeight weight, DocIdSetIterator parentsIterator, ParentCollector collector, Ordinals.Docs globalOrdinals) {
+        AvgParentScorer(ParentWeight weight, DocIdSetIterator parentsIterator, ParentCollector collector, SortedDocValues globalOrdinals) {
             super(weight, parentsIterator, collector, globalOrdinals, 0, 0);
         }
 
@@ -642,7 +637,7 @@ public class ChildrenQuery extends Query {
 
     private static final class AvgParentCountScorer extends ParentCountScorer {
 
-        AvgParentCountScorer(ParentWeight weight, DocIdSetIterator parentsIterator, ParentCollector collector, Ordinals.Docs globalOrdinals, int minChildren, int maxChildren) {
+        AvgParentCountScorer(ParentWeight weight, DocIdSetIterator parentsIterator, ParentCollector collector, SortedDocValues globalOrdinals, int minChildren, int maxChildren) {
             super(weight, parentsIterator, collector, globalOrdinals, minChildren, maxChildren);
         }
 
@@ -664,10 +659,10 @@ public class ChildrenQuery extends Query {
         protected final IntArray occurrences;
         private final int minChildren;
         private final int maxChildren;
-        private final Ordinals.Docs ordinals;
+        private final SortedDocValues ordinals;
         private final ParentWeight parentWeight;
 
-        private CountParentOrdIterator(ParentWeight parentWeight, DocIdSetIterator innerIterator, ParentCollector collector, Ordinals.Docs ordinals, int minChildren, int maxChildren) {
+        private CountParentOrdIterator(ParentWeight parentWeight, DocIdSetIterator innerIterator, ParentCollector collector, SortedDocValues ordinals, int minChildren, int maxChildren) {
             super(innerIterator);
             this.parentIds = ((CountCollector) collector).parentIdxs;
             this.occurrences = ((CountCollector) collector).occurrences;
@@ -689,7 +684,7 @@ public class ChildrenQuery extends Query {
             }
 
             final long parentOrd = ordinals.getOrd(doc);
-            if (parentOrd != Ordinals.MISSING_ORDINAL) {
+            if (parentOrd >= 0) {
                 final long parentIdx = parentIds.find(parentOrd);
                 if (parentIdx != -1) {
                     parentWeight.remaining--;

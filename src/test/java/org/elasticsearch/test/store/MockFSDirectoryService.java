@@ -22,11 +22,12 @@ package org.elasticsearch.test.store;
 import com.google.common.base.Charsets;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.LockFactory;
+import org.apache.lucene.store.StoreRateLimiting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -82,12 +83,12 @@ public class MockFSDirectoryService extends FsDirectoryService {
     }
     
     @Override
-    protected synchronized FSDirectory newFSDirectory(File location, LockFactory lockFactory) throws IOException {
+    protected synchronized Directory newFSDirectory(File location, LockFactory lockFactory) throws IOException {
         throw new UnsupportedOperationException();
     }
 
 
-    private void checkIndex(Store store) throws IndexShardException {
+    public  void checkIndex(Store store) throws IndexShardException {
         try {
             if (!Lucene.indexExists(store.directory())) {
                 return;
@@ -109,5 +110,20 @@ public class MockFSDirectoryService extends FsDirectoryService {
         } catch (Exception e) {
             logger.warn("failed to check index", e);
         }
+    }
+
+    @Override
+    public void onPause(long nanos) {
+        delegateService.onPause(nanos);
+    }
+
+    @Override
+    public StoreRateLimiting rateLimiting() {
+        return delegateService.rateLimiting();
+    }
+
+    @Override
+    public long throttleTimeInNanos() {
+        return delegateService.throttleTimeInNanos();
     }
 }

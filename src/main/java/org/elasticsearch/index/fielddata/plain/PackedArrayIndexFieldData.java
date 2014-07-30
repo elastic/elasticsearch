@@ -20,30 +20,26 @@
 package org.elasticsearch.index.fielddata.plain;
 
 import com.google.common.base.Preconditions;
-import org.apache.lucene.index.AtomicReader;
-import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.index.Terms;
-import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.index.*;
 import org.apache.lucene.util.*;
 import org.apache.lucene.util.packed.AppendingDeltaPackedLongBuffer;
 import org.apache.lucene.util.packed.MonotonicAppendingLongBuffer;
 import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.breaker.MemoryCircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.*;
+import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
-import org.elasticsearch.search.MultiValueMode;
-import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsBuilder;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
-import org.elasticsearch.index.fielddata.ordinals.Ordinals.Docs;
 import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
 import java.util.EnumSet;
@@ -51,7 +47,7 @@ import java.util.EnumSet;
 /**
  * Stores numeric data into bit-packed arrays for better memory efficiency.
  */
-public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNumericFieldData> implements IndexNumericFieldData<AtomicNumericFieldData> {
+public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNumericFieldData> implements IndexNumericFieldData {
 
     public static class Builder implements IndexFieldData.Builder {
 
@@ -64,7 +60,7 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
 
         @Override
         public IndexFieldData<AtomicNumericFieldData> build(Index index, @IndexSettings Settings indexSettings, FieldMapper<?> mapper,
-                                                            IndexFieldDataCache cache, CircuitBreakerService breakerService, MapperService mapperService, GlobalOrdinalsBuilder globalOrdinalBuilder) {
+                                                            IndexFieldDataCache cache, CircuitBreakerService breakerService, MapperService mapperService) {
             return new PackedArrayIndexFieldData(index, indexSettings, mapper.names(), mapper.fieldDataType(), cache, numericType, breakerService);
         }
     }
@@ -88,21 +84,14 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
     }
 
     @Override
-    public boolean valuesOrdered() {
-        // because we might have single values? we can dynamically update a flag to reflect that
-        // based on the atomic field data loaded
-        return false;
-    }
-
-    @Override
     public AtomicNumericFieldData loadDirect(AtomicReaderContext context) throws Exception {
-        AtomicReader reader = context.reader();
+        final AtomicReader reader = context.reader();
         Terms terms = reader.terms(getFieldNames().indexName());
-        PackedArrayAtomicFieldData data = null;
-        PackedArrayEstimator estimator = new PackedArrayEstimator(breakerService.getBreaker(), getNumericType(), getFieldNames().fullName());
+        AtomicNumericFieldData data = null;
+        PackedArrayEstimator estimator = new PackedArrayEstimator(breakerService.getBreaker(CircuitBreaker.Name.FIELDDATA), getNumericType(), getFieldNames().fullName());
         if (terms == null) {
-            data = PackedArrayAtomicFieldData.empty();
-            estimator.adjustForNoTerms(data.getMemorySizeInBytes());
+            data = AtomicLongFieldData.empty(reader.maxDoc());
+            estimator.adjustForNoTerms(data.ramBytesUsed());
             return data;
         }
         // TODO: how can we guess the number of terms? numerics end up creating more terms per value...
@@ -125,20 +114,28 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
                 assert values.size() == 0 || value > values.get(values.size() - 1);
                 values.add(value);
             }
-            Ordinals build = builder.build(fieldDataType.getSettings());
+            final Ordinals build = builder.build(fieldDataType.getSettings());
             CommonSettings.MemoryStorageFormat formatHint = CommonSettings.getMemoryStorageHint(fieldDataType);
 
-            if (build.isMultiValued() || formatHint == CommonSettings.MemoryStorageFormat.ORDINALS) {
-                data = new PackedArrayAtomicFieldData.WithOrdinals(values, build);
+            RandomAccessOrds ordinals = build.ordinals();
+            if (FieldData.isMultiValued(ordinals) || formatHint == CommonSettings.MemoryStorageFormat.ORDINALS) {
+                final long ramBytesUsed = build.ramBytesUsed() + values.ramBytesUsed();
+                data = new AtomicLongFieldData(ramBytesUsed) {
+
+                    @Override
+                    public SortedNumericDocValues getLongValues() {
+                        return withOrdinals(build, values, reader.maxDoc());
+                    }
+
+                };
             } else {
-                Docs ordinals = build.ordinals();
                 final FixedBitSet docsWithValues = builder.buildDocsWithValuesSet();
 
-                long minValue, maxValue;
-                minValue = maxValue = 0;
+                long minV, maxV;
+                minV = maxV = 0;
                 if (values.size() > 0) {
-                    minValue = values.get(0);
-                    maxValue = values.get(values.size() - 1);
+                    minV = values.get(0);
+                    maxV = values.get(values.size() - 1);
                 }
 
 
@@ -146,7 +143,7 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
                 final int pageSize = fieldDataType.getSettings().getAsInt("single_value_page_size", 1024);
 
                 if (formatHint == null) {
-                    formatHint = chooseStorageFormat(reader, values, build, ordinals, minValue, maxValue, acceptableOverheadRatio, pageSize);
+                    formatHint = chooseStorageFormat(reader, values, build, ordinals, minV, maxV, acceptableOverheadRatio, pageSize);
                 }
 
                 logger.trace("single value format for field [{}] set to [{}]", getFieldNames().fullName(), formatHint);
@@ -154,69 +151,93 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
                 switch (formatHint) {
                     case PACKED:
                         // Encode document without a value with a special value
-                        long missingValue = 0;
+                        long missingV = 0;
                         if (docsWithValues != null) {
-                            if ((maxValue - minValue + 1) == values.size()) {
+                            if ((maxV - minV + 1) == values.size()) {
                                 // values are dense
-                                if (minValue > Long.MIN_VALUE) {
-                                    missingValue = --minValue;
+                                if (minV > Long.MIN_VALUE) {
+                                    missingV = --minV;
                                 } else {
-                                    assert maxValue != Long.MAX_VALUE;
-                                    missingValue = ++maxValue;
+                                    assert maxV != Long.MAX_VALUE;
+                                    missingV = ++maxV;
                                 }
                             } else {
                                 for (long i = 1; i < values.size(); ++i) {
                                     if (values.get(i) > values.get(i - 1) + 1) {
-                                        missingValue = values.get(i - 1) + 1;
+                                        missingV = values.get(i - 1) + 1;
                                         break;
                                     }
                                 }
                             }
-                            missingValue -= minValue;
+                            missingV -= minV;
                         }
+                        final long missingValue = missingV;
+                        final long minValue = minV;
+                        final long maxValue = maxV;
 
                         final long valuesDelta = maxValue - minValue;
                         int bitsRequired = valuesDelta < 0 ? 64 : PackedInts.bitsRequired(valuesDelta);
                         final PackedInts.Mutable sValues = PackedInts.getMutable(reader.maxDoc(), bitsRequired, acceptableOverheadRatio);
 
                         if (docsWithValues != null) {
-                            sValues.fill(0, sValues.size(), missingValue);
+                            sValues.fill(0, sValues.size(), missingV);
                         }
 
                         for (int i = 0; i < reader.maxDoc(); i++) {
-                            final long ord = ordinals.getOrd(i);
-                            if (ord != Ordinals.MISSING_ORDINAL) {
+                            ordinals.setDocument(i);
+                            if (ordinals.cardinality() > 0) {
+                                final long ord = ordinals.ordAt(0);
                                 long value = values.get(ord);
                                 sValues.set(i, value - minValue);
                             }
                         }
-                        if (docsWithValues == null) {
-                            data = new PackedArrayAtomicFieldData.Single(sValues, minValue, ordinals.getMaxOrd() - Ordinals.MIN_ORDINAL);
-                        } else {
-                            data = new PackedArrayAtomicFieldData.SingleSparse(sValues, minValue, missingValue, ordinals.getMaxOrd() - Ordinals.MIN_ORDINAL);
-                        }
+                        long ramBytesUsed = values.ramBytesUsed() + (docsWithValues == null ? 0 : docsWithValues.ramBytesUsed());
+                        data = new AtomicLongFieldData(ramBytesUsed) {
+
+                            @Override
+                            public SortedNumericDocValues getLongValues() {
+                                if (docsWithValues == null) {
+                                    return singles(sValues, minValue);
+                                } else {
+                                    return sparseSingles(sValues, minValue, missingValue, reader.maxDoc());
+                                }
+                            }
+
+                        };
                         break;
                     case PAGED:
-
                         final AppendingDeltaPackedLongBuffer dpValues = new AppendingDeltaPackedLongBuffer(reader.maxDoc() / pageSize + 1, pageSize, acceptableOverheadRatio);
 
                         long lastValue = 0;
                         for (int i = 0; i < reader.maxDoc(); i++) {
-                            final long ord = ordinals.getOrd(i);
-                            if (ord != Ordinals.MISSING_ORDINAL) {
+                            ordinals.setDocument(i);
+                            if (ordinals.cardinality() > 0) {
+                                final long ord = ordinals.ordAt(i);
                                 lastValue = values.get(ord);
                             }
                             dpValues.add(lastValue);
                         }
                         dpValues.freeze();
-                        if (docsWithValues == null) {
-                            data = new PackedArrayAtomicFieldData.PagedSingle(dpValues, ordinals.getMaxOrd() - Ordinals.MIN_ORDINAL);
-                        } else {
-                            data = new PackedArrayAtomicFieldData.PagedSingleSparse(dpValues, docsWithValues, ordinals.getMaxOrd() - Ordinals.MIN_ORDINAL);
-                        }
+                        ramBytesUsed = dpValues.ramBytesUsed();
+                        data = new AtomicLongFieldData(ramBytesUsed) {
+
+                            @Override
+                            public SortedNumericDocValues getLongValues() {
+                                return pagedSingles(dpValues, docsWithValues);
+                            }
+
+                        };
                         break;
                     case ORDINALS:
-                        data = new PackedArrayAtomicFieldData.WithOrdinals(values, build);
+                        ramBytesUsed = build.ramBytesUsed() + values.ramBytesUsed();
+                        data = new AtomicLongFieldData(ramBytesUsed) {
+
+                            @Override
+                            public SortedNumericDocValues getLongValues() {
+                                return withOrdinals(build, values, reader.maxDoc());
+                            }
+
+                        };
                         break;
                     default:
                         throw new ElasticsearchException("unknown memory format: " + formatHint);
@@ -232,14 +253,14 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
                 estimator.afterLoad(termsEnum, 0);
             } else {
                 // Adjust as usual, based on the actual size of the field data
-                estimator.afterLoad(termsEnum, data.getMemorySizeInBytes());
+                estimator.afterLoad(termsEnum, data.ramBytesUsed());
             }
 
         }
 
     }
 
-    protected CommonSettings.MemoryStorageFormat chooseStorageFormat(AtomicReader reader, MonotonicAppendingLongBuffer values, Ordinals build, Docs ordinals,
+    protected CommonSettings.MemoryStorageFormat chooseStorageFormat(AtomicReader reader, MonotonicAppendingLongBuffer values, Ordinals build, RandomAccessOrds ordinals,
                                                                      long minValue, long maxValue, float acceptableOverheadRatio, int pageSize) {
 
         CommonSettings.MemoryStorageFormat format;
@@ -252,7 +273,7 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
         final long singleValuesSize = formatAndBits.format.longCount(PackedInts.VERSION_CURRENT, reader.maxDoc(), formatAndBits.bitsPerValue) * 8L;
 
         // ordinal memory usage
-        final long ordinalsSize = build.getMemorySizeInBytes() + values.ramBytesUsed();
+        final long ordinalsSize = build.ramBytesUsed() + values.ramBytesUsed();
 
         // estimate the memory signature of paged packing
         long pagedSingleValuesSize = (reader.maxDoc() / pageSize + 1) * RamUsageEstimator.NUM_BYTES_OBJECT_REF; // array of pages
@@ -260,8 +281,9 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
         long pageMinOrdinal = Long.MAX_VALUE;
         long pageMaxOrdinal = Long.MIN_VALUE;
         for (int i = 1; i < reader.maxDoc(); ++i, pageIndex = (pageIndex + 1) % pageSize) {
-            long ordinal = ordinals.getOrd(i);
-            if (ordinal != Ordinals.MISSING_ORDINAL) {
+            ordinals.setDocument(i);
+            if (ordinals.cardinality() > 0) {
+                long ordinal = ordinals.ordAt(0);
                 pageMaxOrdinal = Math.max(ordinal, pageMaxOrdinal);
                 pageMinOrdinal = Math.min(ordinal, pageMinOrdinal);
             }
@@ -322,8 +344,8 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
     }
 
     @Override
-    public XFieldComparatorSource comparatorSource(@Nullable Object missingValue, MultiValueMode sortMode) {
-        return new LongValuesComparatorSource(this, missingValue, sortMode);
+    public XFieldComparatorSource comparatorSource(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested) {
+        return new LongValuesComparatorSource(this, missingValue, sortMode, nested);
     }
 
     /**
@@ -333,11 +355,11 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
      */
     public class PackedArrayEstimator implements PerValueEstimator {
 
-        private final MemoryCircuitBreaker breaker;
+        private final CircuitBreaker breaker;
         private final NumericType type;
         private final String fieldName;
 
-        public PackedArrayEstimator(MemoryCircuitBreaker breaker, NumericType type, String fieldName) {
+        public PackedArrayEstimator(CircuitBreaker breaker, NumericType type, String fieldName) {
             this.breaker = breaker;
             this.type = type;
             this.fieldName = fieldName;
@@ -385,5 +407,94 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
         public void adjustForNoTerms(long actualUsed) {
             breaker.addWithoutBreaking(actualUsed);
         }
+    }
+
+    private static SortedNumericDocValues withOrdinals(Ordinals ordinals, final LongValues values, int maxDoc) {
+        final RandomAccessOrds ords = ordinals.ordinals();
+        final SortedDocValues singleOrds = DocValues.unwrapSingleton(ords);
+        if (singleOrds != null) {
+            final NumericDocValues singleValues = new NumericDocValues() {
+                @Override
+                public long get(int docID) {
+                    final int ord = singleOrds.getOrd(docID);
+                    if (ord >= 0) {
+                        return values.get(singleOrds.getOrd(docID));
+                    } else {
+                        return 0;
+                    }
+                }
+            };
+            return DocValues.singleton(singleValues, DocValues.docsWithValue(ords, maxDoc));
+        } else {
+            return new SortedNumericDocValues() {
+                @Override
+                public long valueAt(int index) {
+                    return values.get(ords.ordAt(index));
+                }
+
+                @Override
+                public void setDocument(int doc) {
+                    ords.setDocument(doc);
+                }
+
+                @Override
+                public int count() {
+                    return ords.cardinality();
+                }
+            };
+        }
+    }
+
+    private static SortedNumericDocValues singles(final NumericDocValues deltas, final long minValue) {
+        final NumericDocValues values;
+        if (minValue == 0) {
+            values = deltas;
+        } else {
+            values = new NumericDocValues() {
+                @Override
+                public long get(int docID) {
+                    return minValue + deltas.get(docID);
+                }
+            };
+        }
+        return DocValues.singleton(values, null);
+    }
+
+    private static SortedNumericDocValues sparseSingles(final NumericDocValues deltas, final long minValue,  final long missingValue, final int maxDoc) {
+        final NumericDocValues values = new NumericDocValues() {
+            @Override
+            public long get(int docID) {
+                final long delta = deltas.get(docID);
+                if (delta == missingValue) {
+                    return 0;
+                }
+                return minValue + delta;
+            }
+        };
+        final Bits docsWithFields = new Bits() {
+            @Override
+            public boolean get(int index) {
+                return deltas.get(index) != missingValue;
+            }
+            @Override
+            public int length() {
+                return maxDoc;
+            }
+        };
+        return DocValues.singleton(values, docsWithFields);
+    }
+
+    private static SortedNumericDocValues pagedSingles(final AppendingDeltaPackedLongBuffer values, final FixedBitSet docsWithValue) {
+        return DocValues.singleton(new NumericDocValues() {
+            // we need to wrap since NumericDocValues must return 0 when a doc has no value
+            @Override
+            public long get(int docID) {
+                if (docsWithValue == null || docsWithValue.get(docID)) {
+                    return values.get(docID);
+                } else {
+                    return 0;
+                }
+            }
+        }, docsWithValue);
     }
 }

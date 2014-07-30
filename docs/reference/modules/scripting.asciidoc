@@ -6,28 +6,32 @@ expressions. For example, scripts can be used to return "script fields"
 as part of a search request, or can be used to evaluate a custom score
 for a query and so on.
 
-The scripting module uses by default http://mvel.codehaus.org/[mvel] as
-the scripting language with some extensions. mvel is used since it is
-extremely fast and very simple to use, and in most cases, simple
-expressions are needed (for example, mathematical equations).
+deprecated[1.3.0,Mvel has been deprecated and will be removed in 1.4.0]
+
+added[1.3.0,Groovy scripting support]
+
+The scripting module uses by default http://groovy.codehaus.org/[groovy]
+(previously http://mvel.codehaus.org/[mvel] in 1.3.x and earlier) as the
+scripting language with some extensions. Groovy is used since it is extremely
+fast and very simple to use.
 
 Additional `lang` plugins are provided to allow to execute scripts in
 different languages. Currently supported plugins are `lang-javascript`
-for JavaScript, `lang-groovy` for Groovy, and `lang-python` for Python.
+for JavaScript, `lang-mvel` for Mvel, and `lang-python` for Python.
 All places where a `script` parameter can be used, a `lang` parameter
 (on the same level) can be provided to define the language of the
-script. The `lang` options are `mvel`, `js`, `groovy`, `python`, and
-`native`.
+script. The `lang` options are `groovy`, `js`, `mvel`, `python`,
+`expression` and `native`.
 
-added[1.2.0, Dynamic scripting is disabled by default since version 1.2.0]
+added[1.2.0, Dynamic scripting is disabled for non-sandboxed languages by default since version 1.2.0]
 
-To increase security, Elasticsearch does not allow you to specify scripts with a
-request. Instead, scripts must be placed in the `scripts` directory inside the
-configuration directory (the directory where elasticsearch.yml is). Scripts
-placed into this directory will automatically be picked up and be available to
-be used. Once a script has been placed in this directory, it can be referenced
-by name. For example, a script called `calculate-score.mvel` can be referenced
-in a request like this:
+To increase security, Elasticsearch does not allow you to specify scripts for
+non-sandboxed languages with a request. Instead, scripts must be placed in the
+`scripts` directory inside the configuration directory (the directory where
+elasticsearch.yml is). Scripts placed into this directory will automatically be
+picked up and be available to be used. Once a script has been placed in this
+directory, it can be referenced by name. For example, a script called
+`calculate-score.groovy` can be referenced in a request like this:
 
 [source,sh]
 --------------------------------------------------
@@ -36,13 +40,13 @@ config
 ├── elasticsearch.yml
 ├── logging.yml
 └── scripts
-    └── calculate-score.mvel
+    └── calculate-score.groovy
 --------------------------------------------------
 
 [source,sh]
 --------------------------------------------------
-$ cat config/scripts/calculate-score.mvel
-Math.log(_score * 2) + my_modifier
+$ cat config/scripts/calculate-score.groovy
+log(_score * 2) + my_modifier
 --------------------------------------------------
 
 [source,js]
@@ -76,20 +80,92 @@ a script placed under `config/scripts/group1/group2/test.py` will be
 named `group1_group2_test`.
 
 [float]
-=== Default Scripting Language
+=== Indexed Scripts
+If dynamic scripting is enabled, Elasticsearch allows you to store scripts
+in an internal index known as `.scripts` and reference them by id. There are
+REST endpoints to manage indexed scripts as follows:
 
-The default scripting language (assuming no `lang` parameter is
-provided) is `mvel`. In order to change it set the `script.default_lang`
-to the appropriate language.
+Requests to the scripts endpoint look like :
+[source,js]
+-----------------------------------
+/_scripts/{lang}/{id}
+-----------------------------------
+Where the `lang` part is the language the script is in and the `id` part is the id
+of the script. In the `.scripts` index the type of the document will be set to the `lang`.
+
+
+[source,js]
+-----------------------------------
+curl -XPOST localhost:9200/_scripts/groovy/indexedCalculateScore -d '{
+     "script": "log(_score * 2) + my_modifier"
+}'
+-----------------------------------
+
+This will create a document with id: `indexedCalculateScore` and type: `groovy` in the
+`.scripts` index. The type of the document is the language used by the script.
+
+This script can be accessed at query time by appending `_id` to
+the script parameter and passing the script id. So `script` becomes `script_id`.:
+
+[source,js]
+--------------------------------------------------
+curl -XPOST localhost:9200/_search -d '{
+  "query": {
+    "function_score": {
+      "query": {
+        "match": {
+          "body": "foo"
+        }
+      },
+      "functions": [
+        {
+          "script_score": {
+            "script_id": "indexedCalculateScore",
+            "lang" : "groovy",
+            "params": {
+              "my_modifier": 8
+            }
+          }
+        }
+      ]
+    }
+  }
+}'
+--------------------------------------------------
+Note that you must have dynamic scripting enabled to use indexed scripts
+at query time.
+
+The script can be viewed by:
+[source,js]
+-----------------------------------
+curl -XGET localhost:9200/_scripts/groovy/indexedCalculateScore
+-----------------------------------
+
+This is rendered as:
+
+[source,js]
+-----------------------------------
+'{
+     "script": "log(_score * 2) + my_modifier"
+}'
+-----------------------------------
+
+Indexed scripts can be deleted by:
+[source,js]
+-----------------------------------
+curl -XDELETE localhost:9200/_scripts/groovy/indexedCalculateScore
+-----------------------------------
+
+
 
 [float]
 === Enabling dynamic scripting
 
-We recommend running Elasticsearch behind an application or proxy,
-which protects Elasticsearch from the outside world. If users are
-allowed to run dynamic scripts (even in a search request), then they
-have the same access to your box as the user that Elasticsearch is
-running as. For this reason dynamic scripting is disabled by default.
+We recommend running Elasticsearch behind an application or proxy, which
+protects Elasticsearch from the outside world. If users are allowed to run
+dynamic scripts (even in a search request), then they have the same access to
+your box as the user that Elasticsearch is running as. For this reason dynamic
+scripting is allowed only for sandboxed languages by default.
 
 First, you should not run Elasticsearch as the `root` user, as this would allow
 a script to access or do *anything* on your server, without limitations. Second,
@@ -109,6 +185,54 @@ _native_ Java scripts registered through plugins, it also allows users to run
 arbitrary scripts via the API. Instead of sending the name of the file as the
 script, the body of the script can be sent instead.
 
+There are three possible configuration values for the `script.disable_dynamic`
+setting, the default value is `sandbox`:
+
+[cols="<,<",options="header",]
+|=======================================================================
+|Value |Description
+| `true` |all dynamic scripting is disabled, scripts must be placed in the `config/scripts` directory.
+| `false` |all dynamic scripting is enabled, scripts may be sent as strings in requests.
+| `sandbox` |scripts may be sent as strings for languages that are sandboxed.
+|=======================================================================
+
+[float]
+=== Default Scripting Language
+
+The default scripting language (assuming no `lang` parameter is provided) is
+`groovy`. In order to change it, set the `script.default_lang` to the
+appropriate language.
+
+[float]
+=== Groovy Sandboxing
+
+Elasticsearch sandboxes Groovy scripts that are compiled and executed in order
+to ensure they don't perform unwanted actions. There are a number of options
+that can be used for configuring this sandbox:
+
+`script.groovy.sandbox.receiver_whitelist`::
+
+    Comma-separated list of string classes for objects that may have methods
+    invoked.
+
+`script.groovy.sandbox.package_whitelist`::
+
+    Comma-separated list of packages under which new objects may be constructed.
+
+`script.groovy.sandbox.class_whitelist`::
+
+    Comma-separated list of classes that are allowed to be constructed.
+
+`script.groovy.sandbox.method_blacklist`::
+
+    Comma-separated list of methods that are never allowed to be invoked,
+    regardless of target object.
+
+`script.groovy.sandbox.enabled`::
+
+    Flag to disable the sandbox (defaults to `true` meaning the sandbox is
+    enabled).
+
 [float]
 === Automatic Script Reloading
 
@@ -119,10 +243,11 @@ using `watcher.interval` setting, which defaults to `60s`.
 To disable script reloading completely set `script.auto_reload_enabled`
 to `false`.
 
+[[native-java-scripts]]
 [float]
 === Native (Java) Scripts
 
-Even though `mvel` is pretty fast, this allows to register native Java based
+Even though `groovy` is pretty fast, this allows to register native Java based
 scripts for faster execution.
 
 In order to allow for scripts, the `NativeScriptFactory` needs to be
@@ -142,14 +267,43 @@ the name of the script as the `script`.
 
 Note, the scripts need to be in the classpath of elasticsearch. One
 simple way to do it is to create a directory under plugins (choose a
-descriptive name), and place the jar / classes files there, they will be
+descriptive name), and place the jar / classes files there. They will be
 automatically loaded.
+
+[float]
+=== Lucene Expressions Scripts
+
+[WARNING]
+========================
+This feature is *experimental* and subject to change in future versions.
+========================
+
+Lucene's expressions module provides a mechanism to compile a
+`javascript` expression to bytecode.  This allows very fast execution,
+as if you had written a `native` script.  Expression scripts can be
+used in `script_score`, `script_fields`, sort scripts and numeric aggregation scripts.
+
+See the link:http://lucene.apache.org/core/4_9_0/expressions/index.html?org/apache/lucene/expressions/js/package-summary.html[expressions module documentation]
+for details on what operators and functions are available.
+
+Variables in `expression` scripts are available to access:
+
+* Single valued document fields, e.g. `doc['myfield'].value`
+* Parameters passed into the script, e.g. `mymodifier`
+* The current document's score, `_score` (only available when used in a `script_score`)
+
+There are a few limitations relative to other script languages:
+
+* Only numeric fields may be accessed
+* Stored fields are not available
+* If a field is sparse (only some documents contain a value), documents missing the field will have a value of `0`
 
 [float]
 === Score
 
-In all scripts that can be used in facets, allow to access the current
-doc score using `doc.score`.
+In all scripts that can be used in facets, the current
+document's score is accessible in `doc.score`.  When using a `script_score`,
+the current score is available in `_score`.
 
 [float]
 === Computing scores based on terms in scripts
@@ -267,7 +421,7 @@ loaded for other purposes.
 
 
 [float]
-=== mvel Built In Functions
+=== Groovy Built In Functions
 
 There are several built in functions that can be used within scripts.
 They include:
@@ -275,8 +429,6 @@ They include:
 [cols="<,<",options="header",]
 |=======================================================================
 |Function |Description
-|`time()` |The current time in milliseconds.
-
 |`sin(a)` |Returns the trigonometric sine of an angle.
 
 |`cos(a)` |Returns the trigonometric cosine of an angle.
@@ -362,3 +514,4 @@ integer with the value of `8`, the result is `0` even though you were
 expecting it to be `0.125`. You may need to enforce precision by
 explicitly using a double like `1.0/num` in order to get the expected
 result.
+

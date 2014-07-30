@@ -14,6 +14,30 @@ $ curl -XPOST 'http://localhost:9200/twitter/_flush'
 --------------------------------------------------
 
 [float]
+[[flush-parameters]]
+=== Request Parameters
+
+The flush API accepts the following request parameters:
+
+[horizontal]
+`wait_if_ongoing`::  If set to `true` the flush operation will block until the
+flush can be executed if another flush operation is already executing.
+The default is `false` and will cause an exception to be thrown on 
+the shard level if another flush operation is already running. coming[1.4.0]
+
+`full`:: If set to `true` a new index writer is created and settings that have
+been changed related to the index writer will be refreshed. Note: if a full flush
+is required for a setting to take effect this will be part of the settings update
+process and it not required to be executed by the user.
+(This setting can be considered as internal)
+
+`force`:: Whether a flush should be forced even if it is not necessarily needed ie.
+if no changes will be committed to the index. This is useful if transaction log IDs
+should be incremented even if no uncommitted changes are present.
+(This setting can be considered as internal)
+
+[float]
+[[flush-multi-index]]
 === Multi Index
 
 The flush API can be applied to more than one index with a single call,

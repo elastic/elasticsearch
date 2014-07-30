@@ -18,30 +18,28 @@
  */
 package org.elasticsearch.index.fielddata.plain;
 
-import org.apache.lucene.index.AtomicReader;
-import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.*;
 import org.apache.lucene.util.*;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.FloatArray;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.*;
+import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.fieldcomparator.FloatValuesComparatorSource;
-import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsBuilder;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
-import org.elasticsearch.index.fielddata.ordinals.Ordinals.Docs;
 import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.MultiValueMode;
 
 /**
  */
-public class FloatArrayIndexFieldData extends AbstractIndexFieldData<FloatArrayAtomicFieldData> implements IndexNumericFieldData<FloatArrayAtomicFieldData> {
+public class FloatArrayIndexFieldData extends AbstractIndexFieldData<AtomicNumericFieldData> implements IndexNumericFieldData {
 
     private final CircuitBreakerService breakerService;
 
@@ -49,7 +47,7 @@ public class FloatArrayIndexFieldData extends AbstractIndexFieldData<FloatArrayA
 
         @Override
         public IndexFieldData<?> build(Index index, @IndexSettings Settings indexSettings, FieldMapper<?> mapper, IndexFieldDataCache cache,
-                                       CircuitBreakerService breakerService, MapperService mapperService, GlobalOrdinalsBuilder globalOrdinalBuilder) {
+                                       CircuitBreakerService breakerService, MapperService mapperService) {
             return new FloatArrayIndexFieldData(index, indexSettings, mapper.names(), mapper.fieldDataType(), cache, breakerService);
         }
     }
@@ -66,22 +64,15 @@ public class FloatArrayIndexFieldData extends AbstractIndexFieldData<FloatArrayA
     }
 
     @Override
-    public boolean valuesOrdered() {
-        // because we might have single values? we can dynamically update a flag to reflect that
-        // based on the atomic field data loaded
-        return false;
-    }
-
-    @Override
-    public FloatArrayAtomicFieldData loadDirect(AtomicReaderContext context) throws Exception {
-        AtomicReader reader = context.reader();
+    public AtomicNumericFieldData loadDirect(AtomicReaderContext context) throws Exception {
+        final AtomicReader reader = context.reader();
         Terms terms = reader.terms(getFieldNames().indexName());
-        FloatArrayAtomicFieldData data = null;
+        AtomicNumericFieldData data = null;
         // TODO: Use an actual estimator to estimate before loading.
-        NonEstimatingEstimator estimator = new NonEstimatingEstimator(breakerService.getBreaker());
+        NonEstimatingEstimator estimator = new NonEstimatingEstimator(breakerService.getBreaker(CircuitBreaker.Name.FIELDDATA));
         if (terms == null) {
-            data = FloatArrayAtomicFieldData.empty();
-            estimator.afterLoad(null, data.getMemorySizeInBytes());
+            data = AtomicDoubleFieldData.empty(reader.maxDoc());
+            estimator.afterLoad(null, data.ramBytesUsed());
             return data;
         }
         // TODO: how can we guess the number of terms? numerics end up creating more terms per value...
@@ -98,43 +89,65 @@ public class FloatArrayIndexFieldData extends AbstractIndexFieldData<FloatArrayA
                 values.set(numTerms++, NumericUtils.sortableIntToFloat(NumericUtils.prefixCodedToInt(term)));
             }
             values = BigArrays.NON_RECYCLING_INSTANCE.resize(values, numTerms);
-            Ordinals build = builder.build(fieldDataType.getSettings());
-            if (build.isMultiValued() || CommonSettings.getMemoryStorageHint(fieldDataType) == CommonSettings.MemoryStorageFormat.ORDINALS) {
-                data = new FloatArrayAtomicFieldData.WithOrdinals(values, build);
+            final FloatArray finalValues = values;
+            final Ordinals build = builder.build(fieldDataType.getSettings());
+            RandomAccessOrds ordinals = build.ordinals();
+            if (FieldData.isMultiValued(ordinals) || CommonSettings.getMemoryStorageHint(fieldDataType) == CommonSettings.MemoryStorageFormat.ORDINALS) {
+                final long ramBytesUsed = build.ramBytesUsed() + values.ramBytesUsed();
+                data = new AtomicDoubleFieldData(ramBytesUsed) {
+
+                    @Override
+                    public SortedNumericDoubleValues getDoubleValues() {
+                        return withOrdinals(build, finalValues, reader.maxDoc());
+                    }
+
+                };
             } else {
-                Docs ordinals = build.ordinals();
                 final FixedBitSet set = builder.buildDocsWithValuesSet();
 
                 // there's sweet spot where due to low unique value count, using ordinals will consume less memory
                 long singleValuesArraySize = reader.maxDoc() * RamUsageEstimator.NUM_BYTES_FLOAT + (set == null ? 0 : RamUsageEstimator.sizeOf(set.getBits()) + RamUsageEstimator.NUM_BYTES_INT);
-                long uniqueValuesArraySize = values.sizeInBytes();
-                long ordinalsSize = build.getMemorySizeInBytes();
+                long uniqueValuesArraySize = values.ramBytesUsed();
+                long ordinalsSize = build.ramBytesUsed();
                 if (uniqueValuesArraySize + ordinalsSize < singleValuesArraySize) {
-                    data = new FloatArrayAtomicFieldData.WithOrdinals(values, build);
+                    final long ramBytesUsed = build.ramBytesUsed() + values.ramBytesUsed();
                     success = true;
-                    return data;
+                    return data = new AtomicDoubleFieldData(ramBytesUsed) {
+
+                        @Override
+                        public SortedNumericDoubleValues getDoubleValues() {
+                            return withOrdinals(build, finalValues, reader.maxDoc());
+                        }
+
+                    };
                 }
 
                 int maxDoc = reader.maxDoc();
-                FloatArray sValues = BigArrays.NON_RECYCLING_INSTANCE.newFloatArray(maxDoc);
+                final FloatArray sValues = BigArrays.NON_RECYCLING_INSTANCE.newFloatArray(maxDoc);
                 for (int i = 0; i < maxDoc; i++) {
-                    final long ordinal = ordinals.getOrd(i);
-                    if (ordinal != Ordinals.MISSING_ORDINAL) {
+                    ordinals.setDocument(i);
+                    final long ordinal = ordinals.nextOrd();
+                    if (ordinal != SortedSetDocValues.NO_MORE_ORDS) {
                         sValues.set(i, values.get(ordinal));
                     }
                 }
                 assert sValues.size() == maxDoc;
-                if (set == null) {
-                    data = new FloatArrayAtomicFieldData.Single(sValues, ordinals.getMaxOrd() - Ordinals.MIN_ORDINAL);
-                } else {
-                    data = new FloatArrayAtomicFieldData.SingleFixedSet(sValues, set, ordinals.getMaxOrd() - Ordinals.MIN_ORDINAL);
-                }
+                final long ramBytesUsed = sValues.ramBytesUsed() + (set == null ? 0 : set.ramBytesUsed());
+                data = new AtomicDoubleFieldData(ramBytesUsed) {
+
+                    @Override
+                    public SortedNumericDoubleValues getDoubleValues() {
+                        return singles(sValues, set);
+                    }
+
+                };
+                success = true;
             }
             success = true;
             return data;
         } finally {
             if (success) {
-                estimator.afterLoad(null, data.getMemorySizeInBytes());
+                estimator.afterLoad(null, data.ramBytesUsed());
             }
 
         }
@@ -142,7 +155,53 @@ public class FloatArrayIndexFieldData extends AbstractIndexFieldData<FloatArrayA
     }
 
     @Override
-    public XFieldComparatorSource comparatorSource(@Nullable Object missingValue, MultiValueMode sortMode) {
-        return new FloatValuesComparatorSource(this, missingValue, sortMode);
+    public XFieldComparatorSource comparatorSource(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested) {
+        return new FloatValuesComparatorSource(this, missingValue, sortMode, nested);
+    }
+
+    private static SortedNumericDoubleValues withOrdinals(Ordinals ordinals, final FloatArray values, int maxDoc) {
+        final RandomAccessOrds ords = ordinals.ordinals();
+        final SortedDocValues singleOrds = DocValues.unwrapSingleton(ords);
+        if (singleOrds != null) {
+            final NumericDoubleValues singleValues = new NumericDoubleValues() {
+                @Override
+                public double get(int docID) {
+                    final int ord = singleOrds.getOrd(docID);
+                    if (ord >= 0) {
+                        return values.get(singleOrds.getOrd(docID));
+                    } else {
+                        return 0;
+                    }
+                }
+            };
+            return FieldData.singleton(singleValues, DocValues.docsWithValue(ords, maxDoc));
+        } else {
+            return new SortedNumericDoubleValues() {
+                @Override
+                public double valueAt(int index) {
+                    return values.get(ords.ordAt(index));
+                }
+
+                @Override
+                public void setDocument(int doc) {
+                    ords.setDocument(doc);
+                }
+
+                @Override
+                public int count() {
+                    return ords.cardinality();
+                }
+            };
+        }
+    }
+
+    private static SortedNumericDoubleValues singles(final FloatArray values, FixedBitSet set) {
+        final NumericDoubleValues numValues = new NumericDoubleValues() {
+            @Override
+            public double get(int docID) {
+                return values.get(docID);
+            }
+        };
+        return FieldData.singleton(numValues, set);
     }
 }

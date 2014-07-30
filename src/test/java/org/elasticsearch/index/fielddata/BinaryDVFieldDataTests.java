@@ -27,7 +27,6 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.MapperTestUtils;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.junit.Test;
 
@@ -49,7 +48,7 @@ public class BinaryDVFieldDataTests extends AbstractFieldDataTests {
                 .endObject()
                 .endObject().endObject().string();
 
-        final DocumentMapper mapper = MapperTestUtils.newParser().parse(mapping);
+        final DocumentMapper mapper = mapperService.documentMapperParser().parse(mapping);
 
 
         ObjectArrayList<byte[]> bytesList1 = new ObjectArrayList<>(2);
@@ -77,25 +76,29 @@ public class BinaryDVFieldDataTests extends AbstractFieldDataTests {
         writer.addDocument(d.rootDoc());
 
         AtomicReaderContext reader = refreshReader();
-        IndexFieldData indexFieldData = getForField("field");
+        IndexFieldData<?> indexFieldData = getForField("field");
         AtomicFieldData fieldData = indexFieldData.load(reader);
 
-        BytesValues bytesValues = fieldData.getBytesValues();
+        SortedBinaryDocValues bytesValues = fieldData.getBytesValues();
 
         CollectionUtils.sortAndDedup(bytesList1);
-        assertThat(bytesValues.setDocument(0), equalTo(2));
-        assertThat(bytesValues.nextValue(), equalTo(new BytesRef(bytesList1.get(0))));
-        assertThat(bytesValues.nextValue(), equalTo(new BytesRef(bytesList1.get(1))));
+        bytesValues.setDocument(0);
+        assertThat(bytesValues.count(), equalTo(2));
+        assertThat(bytesValues.valueAt(0), equalTo(new BytesRef(bytesList1.get(0))));
+        assertThat(bytesValues.valueAt(1), equalTo(new BytesRef(bytesList1.get(1))));
 
-        assertThat(bytesValues.setDocument(1), equalTo(1));
-        assertThat(bytesValues.nextValue(), equalTo(new BytesRef(bytes1)));
+        bytesValues.setDocument(1);
+        assertThat(bytesValues.count(), equalTo(1));
+        assertThat(bytesValues.valueAt(0), equalTo(new BytesRef(bytes1)));
 
-        assertThat(bytesValues.setDocument(2), equalTo(0));
+        bytesValues.setDocument(2);
+        assertThat(bytesValues.count(), equalTo(0));
 
         CollectionUtils.sortAndDedup(bytesList2);
-        assertThat(bytesValues.setDocument(3), equalTo(2));
-        assertThat(bytesValues.nextValue(), equalTo(new BytesRef(bytesList2.get(0))));
-        assertThat(bytesValues.nextValue(), equalTo(new BytesRef(bytesList2.get(1))));
+        bytesValues.setDocument(3);
+        assertThat(bytesValues.count(), equalTo(2));
+        assertThat(bytesValues.valueAt(0), equalTo(new BytesRef(bytesList2.get(0))));
+        assertThat(bytesValues.valueAt(1), equalTo(new BytesRef(bytesList2.get(1))));
     }
 
     private byte[] randomBytes() {

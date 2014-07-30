@@ -206,7 +206,7 @@ public class ElasticsearchRestTests extends ElasticsearchIntegrationTest {
 
     @Override
     protected boolean randomizeNumberOfShardsAndReplicas() {
-        return COMPATIBILITY_VERSION.onOrAfter(Version.V_1_2_0);
+        return compatibilityVersion().onOrAfter(Version.V_1_2_0);
     }
 
     @Test

@@ -198,15 +198,27 @@ public class MultiPhrasePrefixQuery extends Query {
                 buffer.append("(");
                 for (int j = 0; j < terms.length; j++) {
                     buffer.append(terms[j].text());
-                    if (j < terms.length - 1)
-                        buffer.append(" ");
+                    if (j < terms.length - 1) {
+                        if (i.hasNext()) {
+                            buffer.append(" ");
+                        } else {
+                            buffer.append("* ");
+                        }
+                    }
                 }
-                buffer.append(")");
+                if (i.hasNext()) {
+                    buffer.append(") ");
+                } else {
+                    buffer.append("*)");
+                }
             } else {
                 buffer.append(terms[0].text());
+                if (i.hasNext()) {
+                    buffer.append(" ");
+                } else {
+                    buffer.append("*");
+                }
             }
-            if (i.hasNext())
-                buffer.append(" ");
         }
         buffer.append("\"");
 
@@ -272,7 +284,7 @@ public class MultiPhrasePrefixQuery extends Query {
         }
         return true;
     }
-    
+
     public String getField() {
         return field;
     }

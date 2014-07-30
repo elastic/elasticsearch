@@ -23,9 +23,8 @@ import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MapperTestUtils;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.hamcrest.MatcherAssert;
 import org.junit.Test;
 
@@ -34,7 +33,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class GeohashMappingGeoPointTests extends ElasticsearchTestCase {
+public class GeohashMappingGeoPointTests extends ElasticsearchSingleNodeTest {
 
     @Test
     public void testLatLonValues() throws Exception {
@@ -42,7 +41,7 @@ public class GeohashMappingGeoPointTests extends ElasticsearchTestCase {
                 .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", false).endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
 
         ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -61,7 +60,7 @@ public class GeohashMappingGeoPointTests extends ElasticsearchTestCase {
                 .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", false).endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
 
         ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -80,7 +79,7 @@ public class GeohashMappingGeoPointTests extends ElasticsearchTestCase {
                 .startObject("properties").startObject("point").field("type", "geo_point").field("geohash", true).endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
 
         ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -99,7 +98,7 @@ public class GeohashMappingGeoPointTests extends ElasticsearchTestCase {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point").field("geohash_precision", 10).endObject().endObject()
                 .endObject().endObject().string();
-        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
         FieldMapper mapper = defaultMapper.mappers().smartName("point").mapper();
         assertThat(mapper, instanceOf(GeoPointFieldMapper.class));
         GeoPointFieldMapper geoPointFieldMapper = (GeoPointFieldMapper) mapper;
@@ -111,7 +110,7 @@ public class GeohashMappingGeoPointTests extends ElasticsearchTestCase {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point").field("geohash_precision", "5m").endObject().endObject()
                 .endObject().endObject().string();
-        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
         FieldMapper mapper = defaultMapper.mappers().smartName("point").mapper();
         assertThat(mapper, instanceOf(GeoPointFieldMapper.class));
         GeoPointFieldMapper geoPointFieldMapper = (GeoPointFieldMapper) mapper;
@@ -124,7 +123,7 @@ public class GeohashMappingGeoPointTests extends ElasticsearchTestCase {
                 .startObject("properties").startObject("point").field("type", "geo_point").endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
 
         ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()

@@ -305,6 +305,6 @@ public class GetRequest extends SingleShardOperationRequest<GetRequest> {
 
     @Override
     public String toString() {
-        return "[" + index + "][" + type + "][" + id + "]: routing [" + routing + "]";
+        return "get [" + index + "][" + type + "][" + id + "]: routing [" + routing + "]";
     }
 }

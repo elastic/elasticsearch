@@ -120,7 +120,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         }
 
         void toXContent(XContentBuilder builder, Params params, boolean keyed, @Nullable ValueFormatter formatter) throws IOException {
-            if (formatter != null) {
+            if (formatter != null && formatter != ValueFormatter.RAW) {
                 Text keyTxt = new StringText(formatter.format(key));
                 if (keyed) {
                     builder.startObject(keyTxt.string());
@@ -391,8 +391,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(name);
+    public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         if (keyed) {
             builder.startObject(CommonFields.BUCKETS);
         } else {
@@ -406,7 +405,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         } else {
             builder.endArray();
         }
-        return builder.endObject();
+        return builder;
     }
 
 }

@@ -31,7 +31,7 @@
     </parent>
 
     <properties>
-        <lucene.version>4.8.1</lucene.version>
+        <lucene.version>4.9.0</lucene.version>
         <tests.jvms>auto</tests.jvms>
         <tests.shuffle>true</tests.shuffle>
         <tests.output>onerror</tests.output>
@@ -150,6 +150,13 @@
             <scope>compile</scope>
         </dependency>
         <dependency>
+            <groupId>org.apache.lucene</groupId>
+            <artifactId>lucene-expressions</artifactId>
+            <version>${lucene.version}</version>
+            <scope>compile</scope>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
             <groupId>com.spatial4j</groupId>
             <artifactId>spatial4j</artifactId>
             <version>0.4.1</version>
@@ -209,37 +216,30 @@
         </dependency>
 
         <dependency>
-            <groupId>org.mvel</groupId>
-            <artifactId>mvel2</artifactId>
-            <version>2.2.0.Final</version>
-            <scope>compile</scope>
-        </dependency>
-
-        <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-core</artifactId>
-            <version>2.3.3</version>
+            <version>2.4.1.1</version>
             <scope>compile</scope>
         </dependency>
 
         <dependency>
             <groupId>com.fasterxml.jackson.dataformat</groupId>
             <artifactId>jackson-dataformat-smile</artifactId>
-            <version>2.3.3</version>
+            <version>2.4.1</version>
             <scope>compile</scope>
         </dependency>
 
         <dependency>
             <groupId>com.fasterxml.jackson.dataformat</groupId>
             <artifactId>jackson-dataformat-yaml</artifactId>
-            <version>2.3.3</version>
+            <version>2.4.1</version>
             <scope>compile</scope>
         </dependency>
 
         <dependency>
             <groupId>com.fasterxml.jackson.dataformat</groupId>
             <artifactId>jackson-dataformat-cbor</artifactId>
-            <version>2.3.3</version>
+            <version>2.4.1</version>
             <scope>compile</scope>
         </dependency>
 
@@ -264,6 +264,14 @@
             <scope>compile</scope>
         </dependency>
         <!-- END: dependencies that are shaded -->
+
+        <dependency>
+            <groupId>org.codehaus.groovy</groupId>
+            <artifactId>groovy-all</artifactId>
+            <version>2.3.2</version>
+            <scope>compile</scope>
+            <optional>true</optional>
+        </dependency>
 
         <dependency>
             <groupId>log4j</groupId>
@@ -500,6 +508,7 @@
                                 <tests.network>${tests.network}</tests.network>
                                 <tests.cluster>${tests.cluster}</tests.cluster>
                                 <tests.heap.size>${tests.heap.size}</tests.heap.size>
+                                <tests.filter>${tests.filter}</tests.filter>
                                 <es.node.local>${env.ES_TEST_LOCAL}</es.node.local>
                                 <es.node.mode>${es.node.mode}</es.node.mode>
                                 <es.logger.level>${es.logger.level}</es.logger.level>
@@ -648,7 +657,6 @@
                         <includes>
                             <include>com.google.guava:guava</include>
                             <include>com.carrotsearch:hppc</include>
-                            <include>org.mvel:mvel2</include>
                             <include>com.fasterxml.jackson.core:jackson-core</include>
                             <include>com.fasterxml.jackson.dataformat:jackson-dataformat-smile</include>
                             <include>com.fasterxml.jackson.dataformat:jackson-dataformat-yaml</include>
@@ -673,10 +681,6 @@
                         <relocation>
                             <pattern>jsr166e</pattern>
                             <shadedPattern>org.elasticsearch.common.util.concurrent.jsr166e</shadedPattern>
-                        </relocation>
-                        <relocation>
-                            <pattern>org.mvel2</pattern>
-                            <shadedPattern>org.elasticsearch.common.mvel2</shadedPattern>
                         </relocation>
                         <relocation>
                             <pattern>com.fasterxml.jackson</pattern>
@@ -715,6 +719,12 @@
                                 <exclude>/*.txt</exclude>
                                 <exclude>build.properties</exclude>
                             </excludes>
+                        </filter>
+                        <filter>
+                            <artifact>io.netty:netty</artifact>
+                            <includes>
+                                <include>org/jboss/netty/**</include>
+                            </includes>
                         </filter>
                     </filters>
                 </configuration>
@@ -870,7 +880,7 @@
                                 </data>
                                 <data>
                                     <src>${project.build.directory}/lib</src>
-                                    <includes>lucene*, log4j*, jna*, spatial4j*, jts*</includes>
+                                    <includes>lucene*, log4j*, jna*, spatial4j*, jts*, groovy*</includes>
                                     <type>directory</type>
                                     <mapper>
                                         <type>perm</type>
@@ -1070,6 +1080,7 @@
                                         <include>jna*</include>
                                         <include>spatial4j*</include>
                                         <include>jts*</include>
+                                        <include>groovy*</include>
                                     </includes>
                                 </source>
                                 <source>
@@ -1147,9 +1158,6 @@
                                 <exclude>org/elasticsearch/Version.class</exclude>
                                 <exclude>org/elasticsearch/common/lucene/search/Queries$QueryWrapperFilterFactory.class</exclude>
                                 <!-- end excludes for valid system-out -->
-                                <!-- start excludes for Unsafe -->
-                                <exclude>org/elasticsearch/common/util/UnsafeUtils.class</exclude>
-                                <!-- end excludes for Unsafe -->
                                 <!-- start excludes for Math.abs -->
                                 <exclude>org/elasticsearch/common/util/MathUtils.class</exclude>
                                 <exclude>org/elasticsearch/common/math/UnboxedMathUtils.class</exclude>
@@ -1158,6 +1166,12 @@
                                 <!-- start exclude for FilteredQuery -->
                                 <exclude>org/elasticsearch/common/lucene/search/XFilteredQuery.class</exclude>
                                 <!-- end exclude for FilteredQuery -->
+                                <!-- start exclude for Channels utility class -->
+                                <exclude>org/elasticsearch/common/io/Channels.class</exclude>
+                                <!-- end exclude for Channels -->
+                                <!-- start exclude for Lucene utility class -->
+                                <exclude>org/elasticsearch/common/lucene/Lucene$LenientParser.class</exclude>
+                                <!-- end exclude for Lucene -->
                             </excludes>
                             <bundledSignatures>
                                 <!-- This will automatically choose the right signatures based on 'targetVersion': -->
@@ -1393,7 +1407,7 @@
             <version>0.6.4.201312101107</version>
             <scope>test</scope>
           </dependency>
-        </dependencies>        
+        </dependencies>
         <build>
           <plugins>
             <plugin>
@@ -1418,7 +1432,7 @@
                   <id>default-check</id>
                   <goals>
                     <goal>check</goal>
-                  </goals>                  
+                  </goals>
                 </execution>
               </executions>
               <configuration>

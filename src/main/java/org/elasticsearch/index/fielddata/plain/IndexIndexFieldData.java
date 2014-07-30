@@ -19,81 +19,29 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
-import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.index.*;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.*;
-import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
-import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsBuilder;
-import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
-import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 
-public class IndexIndexFieldData implements IndexFieldData.WithOrdinals<AtomicFieldData.WithOrdinals<ScriptDocValues>> {
+public class IndexIndexFieldData extends AbstractIndexOrdinalsFieldData {
 
     public static class Builder implements IndexFieldData.Builder {
 
         @Override
         public IndexFieldData<?> build(Index index, Settings indexSettings, FieldMapper<?> mapper, IndexFieldDataCache cache,
-                CircuitBreakerService breakerService, MapperService mapperService, GlobalOrdinalsBuilder globalOrdinalBuilder) {
+                CircuitBreakerService breakerService, MapperService mapperService) {
             return new IndexIndexFieldData(index, mapper.names());
         }
 
     }
 
-    private static final Ordinals.Docs INDEX_ORDINALS = new Ordinals.Docs() {
-
-        @Override
-        public int setDocument(int docId) {
-            return 1;
-        }
-
-        @Override
-        public long nextOrd() {
-            return Ordinals.MIN_ORDINAL;
-        }
-
-        @Override
-        public boolean isMultiValued() {
-            return false;
-        }
-
-        @Override
-        public long getOrd(int docId) {
-            return Ordinals.MIN_ORDINAL;
-        }
-
-        @Override
-        public long getMaxOrd() {
-            return 1;
-        }
-
-        @Override
-        public long currentOrd() {
-            return Ordinals.MIN_ORDINAL;
-        }
-    };
-
-    private static class IndexBytesValues extends BytesValues.WithOrdinals {
-
-        protected IndexBytesValues(String index) {
-            super(INDEX_ORDINALS);
-            scratch.copyChars(index);
-        }
-
-        @Override
-        public BytesRef getValueByOrd(long ord) {
-            return scratch;
-        }
-
-    }
-
-    private static class IndexAtomicFieldData implements AtomicFieldData.WithOrdinals<ScriptDocValues> {
+    private static class IndexAtomicFieldData extends AbstractAtomicOrdinalsFieldData {
 
         private final String index;
 
@@ -102,73 +50,44 @@ public class IndexIndexFieldData implements IndexFieldData.WithOrdinals<AtomicFi
         }
 
         @Override
-        public long getMemorySizeInBytes() {
+        public long ramBytesUsed() {
             return 0;
         }
 
         @Override
-        public boolean isMultiValued() {
-            return false;
-        }
+        public RandomAccessOrds getOrdinalsValues() {
+            final BytesRef term = new BytesRef(index);
+            final SortedDocValues sortedValues = new SortedDocValues() {
 
-        @Override
-        public long getNumberUniqueValues() {
-            return 1;
-        }
+                @Override
+                public BytesRef lookupOrd(int ord) {
+                    return term;
+                }
 
-        @Override
-        public BytesValues.WithOrdinals getBytesValues() {
-            return new IndexBytesValues(index);
-        }
+                @Override
+                public int getValueCount() {
+                    return 1;
+                }
 
-        @Override
-        public ScriptDocValues getScriptValues() {
-            return new ScriptDocValues.Strings(getBytesValues());
+                @Override
+                public int getOrd(int docID) {
+                    return 0;
+                }
+            };
+            return (RandomAccessOrds) DocValues.singleton(sortedValues);
         }
 
         @Override
         public void close() {
         }
 
-        @Override
-        public TermsEnum getTermsEnum() {
-            return new AtomicFieldDataWithOrdinalsTermsEnum(this);
-        }
-
     }
 
-    private final FieldMapper.Names names;
-    private final Index index;
+    private final AtomicOrdinalsFieldData atomicFieldData;
 
     private IndexIndexFieldData(Index index, FieldMapper.Names names) {
-        this.index = index;
-        this.names = names;
-    }
-
-    @Override
-    public Index index() {
-        return index;
-    }
-
-    @Override
-    public org.elasticsearch.index.mapper.FieldMapper.Names getFieldNames() {
-        return names;
-    }
-
-    @Override
-    public FieldDataType getFieldDataType() {
-        return new FieldDataType("string");
-    }
-
-    @Override
-    public boolean valuesOrdered() {
-        return true;
-    }
-
-    @Override
-    public org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource comparatorSource(Object missingValue,
-            MultiValueMode sortMode) {
-        return new BytesRefFieldComparatorSource(this, missingValue, sortMode);
+        super(index, ImmutableSettings.EMPTY, names, new FieldDataType("string"), null, null);
+        atomicFieldData = new IndexAtomicFieldData(index().name());
     }
 
     @Override
@@ -180,23 +99,23 @@ public class IndexIndexFieldData implements IndexFieldData.WithOrdinals<AtomicFi
     }
 
     @Override
-    public AtomicFieldData.WithOrdinals<ScriptDocValues> load(AtomicReaderContext context) {
-        return new IndexAtomicFieldData(index().name());
+    public final AtomicOrdinalsFieldData load(AtomicReaderContext context) {
+        return atomicFieldData;
     }
 
     @Override
-    public AtomicFieldData.WithOrdinals<ScriptDocValues> loadDirect(AtomicReaderContext context)
+    public AtomicOrdinalsFieldData loadDirect(AtomicReaderContext context)
             throws Exception {
-        return load(context);
+        return atomicFieldData;
     }
 
     @Override
-    public IndexFieldData.WithOrdinals<?> loadGlobal(IndexReader indexReader) {
+    public IndexOrdinalsFieldData loadGlobal(IndexReader indexReader) {
         return this;
     }
 
     @Override
-    public IndexFieldData.WithOrdinals<?> localGlobalDirect(IndexReader indexReader) throws Exception {
+    public IndexOrdinalsFieldData localGlobalDirect(IndexReader indexReader) throws Exception {
         return loadGlobal(indexReader);
     }
 

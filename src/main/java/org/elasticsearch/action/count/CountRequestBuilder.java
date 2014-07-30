@@ -92,6 +92,14 @@ public class CountRequestBuilder extends BroadcastOperationRequestBuilder<CountR
     }
 
     /**
+     * The query binary to execute
+     */
+    public CountRequestBuilder setQuery(BytesReference queryBinary) {
+        sourceBuilder().setQuery(queryBinary);
+        return this;
+    }
+
+    /**
      * The source to execute.
      */
     public CountRequestBuilder setSource(BytesReference source) {
@@ -112,6 +120,11 @@ public class CountRequestBuilder extends BroadcastOperationRequestBuilder<CountR
      */
     public CountRequestBuilder setSource(byte[] querySource) {
         request.source(querySource);
+        return this;
+    }
+
+    public CountRequestBuilder setTerminateAfter(int terminateAfter) {
+        request().terminateAfter(terminateAfter);
         return this;
     }
 

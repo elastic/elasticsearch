@@ -20,15 +20,16 @@
 package org.elasticsearch.index.translog.fs;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogException;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public class SimpleFsTranslogFile implements FsTranslogFile {
 
@@ -36,11 +37,12 @@ public class SimpleFsTranslogFile implements FsTranslogFile {
     private final ShardId shardId;
     private final RafReference raf;
     private final AtomicBoolean closed = new AtomicBoolean();
+    private final ReadWriteLock rwl = new ReentrantReadWriteLock();
 
-    private final AtomicInteger operationCounter = new AtomicInteger();
+    private volatile int operationCounter = 0;
 
-    private final AtomicLong lastPosition = new AtomicLong(0);
-    private final AtomicLong lastWrittenPosition = new AtomicLong(0);
+    private volatile long lastPosition = 0;
+    private volatile long lastWrittenPosition = 0;
 
     private volatile long lastSyncPosition = 0;
 
@@ -56,25 +58,34 @@ public class SimpleFsTranslogFile implements FsTranslogFile {
     }
 
     public int estimatedNumberOfOperations() {
-        return operationCounter.get();
+        return operationCounter;
     }
 
     public long translogSizeInBytes() {
-        return lastWrittenPosition.get();
+        return lastWrittenPosition;
     }
 
     public Translog.Location add(BytesReference data) throws IOException {
-        long position = lastPosition.getAndAdd(data.length());
-        data.writeTo(raf.channel());
-        lastWrittenPosition.getAndAdd(data.length());
-        operationCounter.incrementAndGet();
-        return new Translog.Location(id, position, data.length());
+        rwl.writeLock().lock();
+        try {
+            long position = lastPosition;
+            data.writeTo(raf.channel());
+            lastPosition = lastPosition + data.length();
+            lastWrittenPosition = lastWrittenPosition + data.length();
+            operationCounter = operationCounter + 1;
+            return new Translog.Location(id, position, data.length());
+        } finally {
+            rwl.writeLock().unlock();
+        }
     }
 
     public byte[] read(Translog.Location location) throws IOException {
-        ByteBuffer buffer = ByteBuffer.allocate(location.size);
-        raf.channel().read(buffer, location.translogLocation);
-        return buffer.array();
+        rwl.readLock().lock();
+        try {
+            return Channels.readFromFileChannel(raf.channel(), location.translogLocation, location.size);
+        } finally {
+            rwl.readLock().unlock();
+        }
     }
 
     public void close(boolean delete) {
@@ -98,29 +109,45 @@ public class SimpleFsTranslogFile implements FsTranslogFile {
      * Returns a snapshot on this file, <tt>null</tt> if it failed to snapshot.
      */
     public FsChannelSnapshot snapshot() throws TranslogException {
-        try {
-            if (!raf.increaseRefCount()) {
-                return null;
+        if (raf.increaseRefCount()) {
+            boolean success = false;
+            try {
+                rwl.writeLock().lock();
+                try {
+                    FsChannelSnapshot snapshot = new FsChannelSnapshot(this.id, raf, lastWrittenPosition, operationCounter);
+                    success = true;
+                    return snapshot;
+                } finally {
+                    rwl.writeLock().unlock();
+                }
+            } catch (FileNotFoundException e) {
+                throw new TranslogException(shardId, "failed to create snapshot", e);
+            } finally {
+                if (!success) {
+                    raf.decreaseRefCount(false);
+                }
             }
-            return new FsChannelSnapshot(this.id, raf, lastWrittenPosition.get(), operationCounter.get());
-        } catch (Exception e) {
-            throw new TranslogException(shardId, "Failed to snapshot", e);
         }
+        return null;
     }
 
     @Override
     public boolean syncNeeded() {
-        return lastWrittenPosition.get() != lastSyncPosition;
+        return lastWrittenPosition != lastSyncPosition;
     }
 
     public void sync() throws IOException {
         // check if we really need to sync here...
-        long last = lastWrittenPosition.get();
-        if (last == lastSyncPosition) {
+        if (!syncNeeded()) {
             return;
         }
-        lastSyncPosition = last;
-        raf.channel().force(false);
+        rwl.writeLock().lock();
+        try {
+            lastSyncPosition = lastWrittenPosition;
+            raf.channel().force(false);
+        } finally {
+            rwl.writeLock().unlock();
+        }
     }
 
     @Override

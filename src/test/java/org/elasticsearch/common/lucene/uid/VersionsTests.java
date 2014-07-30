@@ -199,7 +199,7 @@ public class VersionsTests extends ElasticsearchLuceneTestCase {
             this.version = version;
         }
         @Override
-        public TokenStream tokenStream(Analyzer analyzer) throws IOException {
+        public TokenStream tokenStream(Analyzer analyzer, TokenStream reuse) throws IOException {
             return new TokenStream() {
                 boolean finished = true;
                 final CharTermAttribute term = addAttribute(CharTermAttribute.class);

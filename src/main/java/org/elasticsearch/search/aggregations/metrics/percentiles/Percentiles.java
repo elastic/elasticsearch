@@ -23,15 +23,7 @@ import org.elasticsearch.search.aggregations.Aggregation;
 /**
  *
  */
-public interface Percentiles extends Aggregation, Iterable<Percentiles.Percentile> {
-
-    public static interface Percentile {
-
-        double getPercent();
-
-        double getValue();
-
-    }
+public interface Percentiles extends Aggregation, Iterable<Percentile> {
 
     double percentile(double percent);
 

@@ -24,6 +24,7 @@ import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.*;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
@@ -50,11 +51,13 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
  */
 public class TransportNodesSnapshotsStatus extends TransportNodesOperationAction<TransportNodesSnapshotsStatus.Request, TransportNodesSnapshotsStatus.NodesSnapshotStatus, TransportNodesSnapshotsStatus.NodeRequest, TransportNodesSnapshotsStatus.NodeSnapshotStatus> {
 
+    private static final String ACTION_NAME = "cluster/snapshot/status/nodes";
+
     private final SnapshotsService snapshotsService;
 
     @Inject
-    public TransportNodesSnapshotsStatus(Settings settings, ClusterName clusterName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, SnapshotsService snapshotsService) {
-        super(settings, clusterName, threadPool, clusterService, transportService);
+    public TransportNodesSnapshotsStatus(Settings settings, ClusterName clusterName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, SnapshotsService snapshotsService, ActionFilters actionFilters) {
+        super(settings, ACTION_NAME, clusterName, threadPool, clusterService, transportService, actionFilters);
         this.snapshotsService = snapshotsService;
     }
 
@@ -65,11 +68,6 @@ public class TransportNodesSnapshotsStatus extends TransportNodesOperationAction
     @Override
     protected String executor() {
         return ThreadPool.Names.GENERIC;
-    }
-
-    @Override
-    protected String transportAction() {
-        return "cluster/snapshot/status/nodes";
     }
 
     @Override

@@ -3,23 +3,31 @@ Azure Cloud Plugin for Elasticsearch
 
 The Azure Cloud plugin allows to use Azure API for the unicast discovery mechanism.
 
-In order to install the plugin, simply run: `bin/plugin -install elasticsearch/elasticsearch-cloud-azure/2.3.0`.
+In order to install the plugin, run: 
 
-* For master elasticsearch versions, look at [master branch](https://github.com/elasticsearch/elasticsearch-cloud-azure/tree/master).
-* For 1.3.x elasticsearch versions, look at [es-1.3 branch](https://github.com/elasticsearch/elasticsearch-cloud-azure/tree/es-1.3).
-* For 1.2.x elasticsearch versions, look at [es-1.2 branch](https://github.com/elasticsearch/elasticsearch-cloud-azure/tree/es-1.2).
-* For 1.1.x elasticsearch versions, look at [es-1.1 branch](https://github.com/elasticsearch/elasticsearch-cloud-azure/tree/es-1.1).
-* For 1.0.x elasticsearch versions, look at [es-1.0 branch](https://github.com/elasticsearch/elasticsearch-cloud-azure/tree/es-1.0).
-* For 0.90.x elasticsearch versions, look at [es-0.90 branch](https://github.com/elasticsearch/elasticsearch-cloud-azure/tree/es-0.90).
+```sh
+bin/plugin -install elasticsearch/elasticsearch-cloud-azure/2.3.0
+```
 
-|     Azure Cloud Plugin      |    elasticsearch    | Release date |
-|-----------------------------|---------------------|:------------:|
-| 3.0.0-SNAPSHOT              | master              |  XXXX-XX-XX  |
+You need to install a version matching your Elasticsearch version:
 
-Please read documentation relative to the version you are using:
+|       Elasticsearch    | AWS Cloud Plugin  |                                                             Docs                                                                   |
+|------------------------|-------------------|------------------------------------------------------------------------------------------------------------------------------------|
+|    master              | Build from source | See below                                                                                                                          |
+|    es-1.x              | Build from source | [2.5.0-SNAPSHOT](https://github.com/dadoonet/elasticsearch-cloud-azure/tree/docs-es-1.x#azure-cloud-plugin-for-elasticsearch)      |
+|    es-1.3              | Build from source | [2.4.0-SNAPSHOT](https://github.com/dadoonet/elasticsearch-cloud-azure/tree/docs-es-1.3#azure-cloud-plugin-for-elasticsearch)      |
+|    es-1.2              |     2.3.0         | [2.3.0](https://github.com/elasticsearch/elasticsearch-cloud-azure/blob/v2.3.0/#azure-cloud-plugin-for-elasticsearch)              |
+|    es-1.1              |     2.2.0         | [2.2.0](https://github.com/elasticsearch/elasticsearch-cloud-azure/blob/v2.2.0/#azure-cloud-plugin-for-elasticsearch)              |
+|    es-1.0              |     2.1.0         | [2.1.0](https://github.com/elasticsearch/elasticsearch-cloud-azure/blob/v2.1.0/#azure-cloud-plugin-for-elasticsearch)              |
+|    es-0.90             |     1.0.0.alpha1  | [1.0.0.alpha1](https://github.com/elasticsearch/elasticsearch-cloud-azure/blob/v1.0.0.alpha1/#azure-cloud-plugin-for-elasticsearch)|
 
-* [3.0.0-SNAPSHOT](https://github.com/elasticsearch/elasticsearch-cloud-azure/blob/master/README.md)
+To build a `SNAPSHOT` version, you need to build it with Maven:
 
+```bash
+mvn clean install
+plugin --install cloud-azure \ 
+       --url file:target/releases/elasticsearch-cloud-azure-X.X.X-SNAPSHOT.zip
+```
 
 Azure Virtual Machine Discovery
 ===============================

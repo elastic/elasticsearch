@@ -33,6 +33,7 @@ import org.elasticsearch.common.logging.ESLoggerFactory;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.HttpURLConnection;
 import java.net.URISyntaxException;
 
 /**
@@ -97,7 +98,7 @@ public class AbstractAzureBlobContainer extends AbstractBlobContainer {
                 is.close();
                 listener.onCompleted();
             } catch (ServiceException e) {
-                if (e.getHttpStatusCode() == 404) {
+                if (e.getHttpStatusCode() == HttpURLConnection.HTTP_NOT_FOUND) {
                     listener.onFailure(new FileNotFoundException(e.getMessage()));
                 } else {
                     listener.onFailure(e);

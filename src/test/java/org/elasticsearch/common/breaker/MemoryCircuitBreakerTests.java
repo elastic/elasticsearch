@@ -41,8 +41,8 @@ public class MemoryCircuitBreakerTests extends ElasticsearchTestCase {
 
     @Test
     public void testThreadedUpdatesToBreaker() throws Exception {
-        final int NUM_THREADS = 5;
-        final int BYTES_PER_THREAD = 1000;
+        final int NUM_THREADS = scaledRandomIntBetween(3, 15);
+        final int BYTES_PER_THREAD = scaledRandomIntBetween(500, 4500);
         final Thread[] threads = new Thread[NUM_THREADS];
         final AtomicBoolean tripped = new AtomicBoolean(false);
         final AtomicReference<Throwable> lastException = new AtomicReference<>(null);
@@ -83,8 +83,8 @@ public class MemoryCircuitBreakerTests extends ElasticsearchTestCase {
 
     @Test
     public void testThreadedUpdatesToChildBreaker() throws Exception {
-        final int NUM_THREADS = 5;
-        final int BYTES_PER_THREAD = 1000;
+        final int NUM_THREADS = scaledRandomIntBetween(3, 15);
+        final int BYTES_PER_THREAD = scaledRandomIntBetween(500, 4500);
         final Thread[] threads = new Thread[NUM_THREADS];
         final AtomicBoolean tripped = new AtomicBoolean(false);
         final AtomicReference<Throwable> lastException = new AtomicReference<>(null);
@@ -141,8 +141,8 @@ public class MemoryCircuitBreakerTests extends ElasticsearchTestCase {
 
     @Test
     public void testThreadedUpdatesToChildBreakerWithParentLimit() throws Exception {
-        final int NUM_THREADS = 5;
-        final int BYTES_PER_THREAD = 1000;
+        final int NUM_THREADS = scaledRandomIntBetween(3, 15);
+        final int BYTES_PER_THREAD = scaledRandomIntBetween(500, 4500);
         final Thread[] threads = new Thread[NUM_THREADS];
         final AtomicInteger tripped = new AtomicInteger(0);
         final AtomicReference<Throwable> lastException = new AtomicReference<>(null);

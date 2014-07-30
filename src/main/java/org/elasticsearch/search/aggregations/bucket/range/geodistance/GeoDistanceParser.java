@@ -209,7 +209,7 @@ public class GeoDistanceParser implements Aggregator.Parser {
             public void setNextReader(AtomicReaderContext reader) {
                 final MultiGeoPointValues geoValues = source.geoPointValues();
                 final FixedSourceDistance distance = distanceType.fixedSourceDistance(origin.getLat(), origin.getLon(), unit);
-                distanceValues = GeoDistance.distanceValues(distance, geoValues);
+                distanceValues = GeoDistance.distanceValues(geoValues, distance);
             }
 
             @Override

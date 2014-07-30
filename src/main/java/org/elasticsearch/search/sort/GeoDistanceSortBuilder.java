@@ -19,12 +19,17 @@
 
 package org.elasticsearch.search.sort;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.GeoDistance;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.FilterBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 
 /**
@@ -33,10 +38,8 @@ import java.util.Locale;
 public class GeoDistanceSortBuilder extends SortBuilder {
 
     final String fieldName;
-
-    private double lat;
-    private double lon;
-    private String geohash;
+    private final List<GeoPoint> points = new ArrayList<>();
+    private final List<String> geohashes = new ArrayList<>();
 
     private GeoDistance geoDistance;
     private DistanceUnit unit;
@@ -61,16 +64,25 @@ public class GeoDistanceSortBuilder extends SortBuilder {
      * @param lon longitude.
      */
     public GeoDistanceSortBuilder point(double lat, double lon) {
-        this.lat = lat;
-        this.lon = lon;
+        points.add(new GeoPoint(lat, lon));
+        return this;
+    }
+
+    /**
+     * The point to create the range distance facets from.
+     *
+     * @param points reference points.
+     */
+    public GeoDistanceSortBuilder points(GeoPoint... points) {
+        this.points.addAll(Arrays.asList(points));
         return this;
     }
 
     /**
      * The geohash of the geo point to create the range distance facets from.
      */
-    public GeoDistanceSortBuilder geohash(String geohash) {
-        this.geohash = geohash;
+    public GeoDistanceSortBuilder geohashes(String... geohashes) {
+        this.geohashes.addAll(Arrays.asList(geohashes));
         return this;
     }
 
@@ -137,13 +149,23 @@ public class GeoDistanceSortBuilder extends SortBuilder {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("_geo_distance");
-
-        if (geohash != null) {
-            builder.field(fieldName, geohash);
-        } else {
-            builder.startArray(fieldName).value(lon).value(lat).endArray();
+        if (geohashes.size() == 0 && points.size() == 0) {
+            throw new ElasticsearchParseException("No points provided for _geo_distance sort.");
         }
-
+        if (geohashes.size() == 1 && points.size() == 0) {
+            builder.field(fieldName, geohashes.get(0));
+        } else if (geohashes.size() == 1 && points.size() == 0) {
+            builder.field(fieldName, points.get(0));
+        } else {
+            builder.startArray(fieldName);
+            for (GeoPoint point : points) {
+                builder.value(point);
+            }
+            for (String geohash : geohashes) {
+                builder.value(geohash);
+            }
+            builder.endArray();
+        }
         if (unit != null) {
             builder.field("unit", unit);
         }

@@ -263,6 +263,22 @@ conform with http://geojson.org/[GeoJSON].
 }
 --------------------------------------------------
 
+
+==== Multiple reference points
+
+Multiple geo points can be passed as an array containing any `geo_point` format, for example
+
+```
+"pin.location" : [[-70, 40], [-71, 42]]
+"pin.location" : [{"lat": -70, "lon": 40}, {"lat": -71, "lon": 42}]
+
+```
+and so forth.
+
+The final distance for a document will then be `min`/`max` distance of all points contained in the document to all points given in the sort request.
+
+
+
 ==== Script Based Sorting
 
 Allow to sort based on custom scripts, here is an example:

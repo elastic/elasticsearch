@@ -20,6 +20,7 @@ package org.elasticsearch.test;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.client.Requests;
@@ -32,6 +33,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.Node;
@@ -126,7 +128,18 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
      * Create a new index on the singleton node with the provided index settings.
      */
     protected static IndexService createIndex(String index, Settings settings) {
-        assertAcked(Holder.NODE.client().admin().indices().prepareCreate(index).setSettings(settings).get());
+        return createIndex(index, settings, null, null);
+    }
+
+    /**
+     * Create a new index on the singleton node with the provided index settings.
+     */
+    protected static IndexService createIndex(String index, Settings settings, String type, XContentBuilder mappings) {
+        CreateIndexRequestBuilder createIndexRequestBuilder = Holder.NODE.client().admin().indices().prepareCreate(index).setSettings(settings);
+        if (type != null && mappings != null) {
+            createIndexRequestBuilder.addMapping(type, mappings);
+        }
+        assertAcked(createIndexRequestBuilder.get());
         // Wait for the index to be allocated so that cluster state updates don't override
         // changes that would have been done locally
         ClusterHealthResponse health = Holder.NODE.client().admin().cluster()

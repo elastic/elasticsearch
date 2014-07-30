@@ -48,8 +48,7 @@ import org.junit.Test;
 import java.util.List;
 import java.util.ArrayList;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.*;
 
 /**
  */
@@ -200,7 +199,7 @@ public class S3SnapshotRestoreTest extends AbstractAwsTest {
 	logger.info("--> verify encryption for bucket [{}], prefix [{}]", bucketName, basePath);
 	List<S3ObjectSummary> summaries = s3Client.listObjects(bucketName, basePath).getObjectSummaries();
 	for (S3ObjectSummary summary : summaries) {
-	    assertThat(s3Client.getObjectMetadata(bucketName, summary.getKey()).getServerSideEncryption(), equalTo("AES256"));
+	    assertThat(s3Client.getObjectMetadata(bucketName, summary.getKey()).getSSEAlgorithm(), equalTo("AES256"));
 	}
 
 	logger.info("--> delete some data");
@@ -387,6 +386,10 @@ public class S3SnapshotRestoreTest extends AbstractAwsTest {
             String accessKey = bucket.get("access_key", settings.get("cloud.aws.access_key"));
             String secretKey = bucket.get("secret_key", settings.get("cloud.aws.secret_key"));
             String bucketName = bucket.get("bucket");
+
+            // We check that settings has been set in elasticsearch.yml integration test file
+            // as described in README
+            assertThat("Your settings in elasticsearch.yml are incorrects. Check README file.", bucketName, notNullValue());
             AmazonS3 client = internalCluster().getInstance(AwsS3Service.class).client(region, accessKey, secretKey);
             try {
                 ObjectListing prevListing = null;

@@ -20,6 +20,12 @@
 package org.elasticsearch.cloud.azure;
 
 import com.carrotsearch.randomizedtesting.annotations.TestGroup;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.FailedToResolveConfigException;
+import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 
 import java.lang.annotation.Documented;
@@ -34,27 +40,7 @@ public abstract class AbstractAzureTest extends ElasticsearchIntegrationTest {
 
     /**
      * Annotation for tests that require Azure to run. Azure tests are disabled by default.
-     * <p/>
-     * To enable test add -Dtests.azure=true -Des.config=/path/to/elasticsearch.yml
-     * <p/>
-     * The elasticsearch.yml file should contain the following keys
-     * <pre>
-      cloud:
-          azure:
-              keystore: FULLPATH-TO-YOUR-KEYSTORE
-              password: YOUR-PASSWORD
-              subscription_id: YOUR-AZURE-SUBSCRIPTION-ID
-              service_name: YOUR-AZURE-SERVICE-NAME
-
-      discovery:
-              type: azure
-
-      repositories:
-          azure:
-              account: "yourstorageaccount"
-              key: "storage key"
-              container: "container name"
-     * </pre>
+     * See README file for details.
      */
     @Documented
     @Inherited
@@ -66,5 +52,26 @@ public abstract class AbstractAzureTest extends ElasticsearchIntegrationTest {
     /**
      */
     public static final String SYSPROP_AZURE = "tests.azure";
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        ImmutableSettings.Builder settings = ImmutableSettings.builder()
+                .put(super.nodeSettings(nodeOrdinal))
+                .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, true);
+
+        Environment environment = new Environment();
+
+        // if explicit, just load it and don't load from env
+        try {
+            if (Strings.hasText(System.getProperty("tests.config"))) {
+                settings.loadFromUrl(environment.resolveConfig(System.getProperty("tests.config")));
+            } else {
+                fail("to run integration tests, you need to set -Dtest.azure=true and -Dtests.config=/path/to/elasticsearch.yml");
+            }
+        } catch (FailedToResolveConfigException exception) {
+            fail("your test configuration file is incorrect: " + System.getProperty("tests.config"));
+        }
+        return settings.build();
+    }
 
 }

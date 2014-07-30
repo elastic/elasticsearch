@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.nullValue;
  * Reported issue in #15
  * (https://github.com/elasticsearch/elasticsearch-cloud-azure/issues/15)
  */
-@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST,
+@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE,
         numDataNodes = 0,
         transportClientRatio = 0.0,
         numClientNodes = 0)

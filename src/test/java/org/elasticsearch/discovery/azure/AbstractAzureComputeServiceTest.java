@@ -24,7 +24,6 @@ import org.elasticsearch.cloud.azure.AbstractAzureTest;
 import org.elasticsearch.cloud.azure.AzureComputeService;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.plugins.PluginsService;
 
 public abstract class AbstractAzureComputeServiceTest extends AbstractAzureTest {
 
@@ -44,7 +43,6 @@ public abstract class AbstractAzureComputeServiceTest extends AbstractAzureTest 
 
     protected Settings settingsBuilder() {
         ImmutableSettings.Builder builder = ImmutableSettings.settingsBuilder()
-                .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, true)
                 .put("discovery.type", "azure")
                 .put("cloud.azure.api.impl", mock)
                 // We add a fake subscription_id to start mock compute service
@@ -54,6 +52,8 @@ public abstract class AbstractAzureComputeServiceTest extends AbstractAzureTest 
                 .put("cloud.azure.password", "dummy")
                 .put("cloud.azure.service_name", "dummy")
                 .put("cloud.azure.refresh_interval", "5s")
+                // We need the network to make the mock working
+                .put("node.mode", "network")
                 // Make the tests run faster
                 .put("discovery.zen.join.timeout", "100ms")
                 .put("discovery.zen.ping.timeout", "10ms")

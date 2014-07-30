@@ -414,7 +414,7 @@ Replaces `account`, `key` with your settings. Please, note that the test will de
 To run test:
 
 ```sh
-mvn -Dtests.azure=true -Des.config=/path/to/config/file/elasticsearch.yml clean test
+mvn -Dtests.azure=true -Dtests.config=/path/to/config/file/elasticsearch.yml clean test
 ```
 
 

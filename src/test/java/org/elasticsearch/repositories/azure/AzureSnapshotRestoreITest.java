@@ -47,7 +47,7 @@ import static org.hamcrest.Matchers.greaterThan;
 
 /**
  * This test needs Azure to run and -Dtests.azure=true to be set
- * and -Des.config=/path/to/elasticsearch.yml
+ * and -Dtests.config=/path/to/elasticsearch.yml
  * @see org.elasticsearch.cloud.azure.AbstractAzureTest
  */
 @AbstractAzureTest.AzureTest

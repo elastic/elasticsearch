@@ -1611,6 +1611,9 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
                 .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field1", "b").endObject()))
                 .execute().actionGet();
         assertMatchCount(response, 0l);
+
+        SearchResponse searchResponse = client().prepareSearch("test1", "test2").get();
+        assertHitCount(searchResponse, 0);
     }
 
     public static String[] convertFromTextArray(PercolateResponse.Match[] matches, String index) {

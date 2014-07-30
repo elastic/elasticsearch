@@ -88,11 +88,6 @@ public class TermVectorRequestBuilder extends ActionRequestBuilder<TermVectorReq
         return this;
     }
 
-    public TermVectorRequestBuilder setGenerateAll(boolean generateAll) {
-        request.generateAll(generateAll);
-        return this;
-    }
-
     public TermVectorRequestBuilder setSelectedFields(String... fields) {
         request.selectedFields(fields);
         return this;

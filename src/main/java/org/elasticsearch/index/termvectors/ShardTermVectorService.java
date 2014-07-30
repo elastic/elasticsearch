@@ -28,6 +28,7 @@ import org.elasticsearch.action.termvector.TermVectorResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.get.GetField;
@@ -71,11 +72,10 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
             Fields topLevelFields = MultiFields.getFields(topLevelReader);
             Versions.DocIdAndVersion docIdAndVersion = Versions.loadDocIdAndVersion(topLevelReader, uidTerm);
             if (docIdAndVersion != null) {
-                Fields termVectorsByField = docIdAndVersion.context.reader().getTermVectors(docIdAndVersion.docId);
-                if (request.generateAll()) {
-                    request.selectedFields(getAllFields(docIdAndVersion));
-                }
+                /* handle potential wildcards in fields */
+                handleFieldWildcards(request);
                 /* generate term vectors if not available */
+                Fields termVectorsByField = docIdAndVersion.context.reader().getTermVectors(docIdAndVersion.docId);
                 if (request.selectedFields() != null) {
                     termVectorsByField = generateTermVectorsIfNeeded(termVectorsByField, request, uidTerm, false);
                 }
@@ -93,13 +93,18 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
         return termVectorResponse;
     }
 
-    private String[] getAllFields(Versions.DocIdAndVersion docIdAndVersion) {
+    private void handleFieldWildcards(TermVectorRequest request) {
         List<String> fieldNames = new ArrayList<>();
-        FieldInfos fieldInfos = docIdAndVersion.context.reader().getFieldInfos();
-        for (FieldInfo fieldInfo : fieldInfos) {
-            fieldNames.add(fieldInfo.name);
+        for (String pattern : request.selectedFields()) {
+            if (Regex.isSimpleMatchPattern(pattern)) {
+                for (String fieldName : indexShard.mapperService().simpleMatchToIndexNames(pattern)) {
+                    fieldNames.add(fieldName);
+                }
+            } else {
+                fieldNames.add(pattern);
+            }
         }
-        return fieldNames.toArray(new String[fieldNames.size()]);
+        request.selectedFields(fieldNames.toArray(Strings.EMPTY_ARRAY));
     }
 
     private Fields generateTermVectorsIfNeeded(Fields termVectorsByField, TermVectorRequest request, Term uidTerm, boolean realTime) throws IOException {

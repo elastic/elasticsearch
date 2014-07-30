@@ -297,6 +297,34 @@ public class AzureSnapshotRestoreITest extends AbstractAzureTest {
     }
 
     /**
+     * For issue #28: https://github.com/elasticsearch/elasticsearch-cloud-azure/issues/28
+     */
+    @Test
+    public void testGetDeleteNonExistingSnapshot_28() throws StorageException, ServiceException, URISyntaxException {
+        ClusterAdminClient client = client().admin().cluster();
+        logger.info("-->  creating azure repository without any path");
+        PutRepositoryResponse putRepositoryResponse = client.preparePutRepository("test-repo").setType("azure")
+                .setSettings(ImmutableSettings.settingsBuilder()
+                                .put(AzureStorageService.Fields.CONTAINER, getContainerName())
+                ).get();
+        assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+
+        try {
+            client.prepareGetSnapshots("test-repo").addSnapshots("nonexistingsnapshotname").get();
+            fail("Shouldn't be here");
+        } catch (SnapshotMissingException ex) {
+            // Expected
+        }
+
+        try {
+            client.prepareDeleteSnapshot("test-repo", "nonexistingsnapshotname").get();
+            fail("Shouldn't be here");
+        } catch (SnapshotMissingException ex) {
+            // Expected
+        }
+    }
+
+    /**
      * For issue #21: https://github.com/elasticsearch/elasticsearch-cloud-azure/issues/21
      */
     @Test @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch-cloud-azure/issues/21")

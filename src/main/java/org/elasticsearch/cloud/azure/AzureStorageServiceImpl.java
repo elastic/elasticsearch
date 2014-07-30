@@ -120,6 +120,9 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureSto
         options.setRetryPolicyFactory(new RetryNoRetry());
         blob_container.deleteIfExists(options, null);
         */
+        if (logger.isTraceEnabled()) {
+            logger.trace("removing container [{}]", container);
+        }
         blob_container.deleteIfExists();
     }
 

@@ -73,7 +73,9 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
             Versions.DocIdAndVersion docIdAndVersion = Versions.loadDocIdAndVersion(topLevelReader, uidTerm);
             if (docIdAndVersion != null) {
                 /* handle potential wildcards in fields */
-                handleFieldWildcards(request);
+                if (request.selectedFields() != null) {
+                    handleFieldWildcards(request);
+                }
                 /* generate term vectors if not available */
                 Fields termVectorsByField = docIdAndVersion.context.reader().getTermVectors(docIdAndVersion.docId);
                 if (request.selectedFields() != null) {
@@ -94,15 +96,9 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
     }
 
     private void handleFieldWildcards(TermVectorRequest request) {
-        List<String> fieldNames = new ArrayList<>();
+        Set<String> fieldNames = new HashSet<>();
         for (String pattern : request.selectedFields()) {
-            if (Regex.isSimpleMatchPattern(pattern)) {
-                for (String fieldName : indexShard.mapperService().simpleMatchToIndexNames(pattern)) {
-                    fieldNames.add(fieldName);
-                }
-            } else {
-                fieldNames.add(pattern);
-            }
+            fieldNames.addAll(indexShard.mapperService().simpleMatchToIndexNames(pattern));
         }
         request.selectedFields(fieldNames.toArray(Strings.EMPTY_ARRAY));
     }

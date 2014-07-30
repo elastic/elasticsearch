@@ -742,7 +742,7 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
     }
 
     @Test
-    public void testGenerateAll() throws ElasticsearchException, IOException {
+    public void testSimpleWildCards() throws ElasticsearchException, IOException {
         int numFields = 25;
 
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties");
@@ -763,7 +763,7 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
         client().prepareIndex("test", "type1", "0").setSource(source).get();
         refresh();
 
-        TermVectorResponse response = client().prepareTermVector("test", "type1", "0").setGenerateAll(true).get();
+        TermVectorResponse response = client().prepareTermVector("test", "type1", "0").setSelectedFields("field*").get();
         assertThat("Doc doesn't exists but should", response.isExists(), equalTo(true));
         assertThat("All term vectors should have been generated", response.getFields().size(), equalTo(numFields));
     }

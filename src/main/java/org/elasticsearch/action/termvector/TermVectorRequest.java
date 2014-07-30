@@ -339,7 +339,7 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
     public static enum Flag {
         // Do not change the order of these flags we use
         // the ordinal for encoding! Only append to the end!
-        Positions, Offsets, Payloads, FieldStatistics, TermStatistics, GenerateAll;
+        Positions, Offsets, Payloads, FieldStatistics, TermStatistics;
     }
 
     /**

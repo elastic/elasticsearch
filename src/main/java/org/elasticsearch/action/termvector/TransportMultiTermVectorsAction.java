@@ -48,8 +48,7 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
 
     @Inject
     public TransportMultiTermVectorsAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                           ClusterService clusterService, TransportSingleShardMultiTermsVectorAction shardAction,
-                                           ActionFilters actionFilters) {
+                                           ClusterService clusterService, TransportSingleShardMultiTermsVectorAction shardAction, ActionFilters actionFilters) {
         super(settings, MultiTermVectorsAction.NAME, threadPool, transportService, actionFilters);
         this.clusterService = clusterService;
         this.shardAction = shardAction;

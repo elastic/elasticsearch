@@ -27,12 +27,11 @@ import org.apache.lucene.search.SortField;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
-import org.elasticsearch.index.mapper.*;
-import org.elasticsearch.index.mapper.Mapper.BuilderContext;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.ObjectMappers;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
@@ -60,8 +59,6 @@ public class SortParseElement implements SearchParseElement {
 
     public static final String SCORE_FIELD_NAME = "_score";
     public static final String DOC_FIELD_NAME = "_doc";
-
-    private static ImmutableMap<String, FieldMapper<?>> UNMAPPED_MAPPERS = ImmutableMap.of();
 
     private final ImmutableMap<String, SortParser> parsers;
 
@@ -204,16 +201,7 @@ public class SortParseElement implements SearchParseElement {
             FieldMapper<?> fieldMapper = context.smartNameFieldMapper(fieldName);
             if (fieldMapper == null) {
                 if (unmappedType != null) {
-                    // We build a fake field that will have empty values since it doesn't exist
-                    final Mapper.TypeParser.ParserContext parserContext = context.mapperService().documentMapperParser().parserContext();
-                    Mapper.TypeParser typeParser = parserContext.typeParser(unmappedType);
-                    if (typeParser == null) {
-                        throw new SearchParseException(context, "No mapper found for type [" + unmappedType + "]");
-                    }
-                    Mapper.Builder<?, ?> builder = typeParser.parse(fieldName, ImmutableMap.<String, Object>of(), parserContext);
-                    Settings indexSettings = context.indexShard().indexService().settingsService().getSettings();
-                    BuilderContext builderContext = new BuilderContext(indexSettings, new ContentPath(1));
-                    fieldMapper = (FieldMapper<?>) builder.build(builderContext);
+                    fieldMapper = context.mapperService().unmappedFieldMapper(unmappedType);
                 } else {
                     throw new SearchParseException(context, "No mapping found for [" + fieldName + "] in order to sort on");
                 }

@@ -19,10 +19,14 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.settings.Validator;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.node.settings.NodeSettingsService;
 
 import java.util.Locale;
 
@@ -47,6 +51,19 @@ public class ClusterRebalanceAllocationDecider extends AllocationDecider {
 
     public static final String NAME = "cluster_rebalance";
 
+    public static final String CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE = "cluster.routing.allocation.allow_rebalance";
+    public static final Validator ALLOCATION_ALLOW_REBALANCE_VALIDATOR = new Validator() {
+        @Override
+        public String validate(String setting, String value) {
+            try {
+                ClusterRebalanceType.parseString(value);
+                return null;
+            } catch (ElasticsearchIllegalArgumentException e) {
+                return "the value of " + setting + " must be one of: [always, indices_primaries_active, indices_all_active]";
+            }
+        }
+    };
+
     /**
      * An enum representation for the configured re-balance type. 
      */
@@ -62,26 +79,58 @@ public class ClusterRebalanceAllocationDecider extends AllocationDecider {
         /**
          * Re-balancing is allowed only once all shards on all indices are active. 
          */
-        INDICES_ALL_ACTIVE
+        INDICES_ALL_ACTIVE;
+
+        public static ClusterRebalanceType parseString(String typeString) {
+            if ("always".equalsIgnoreCase(typeString)) {
+                return ClusterRebalanceType.ALWAYS;
+            } else if ("indices_primaries_active".equalsIgnoreCase(typeString) || "indicesPrimariesActive".equalsIgnoreCase(typeString)) {
+                return ClusterRebalanceType.INDICES_PRIMARIES_ACTIVE;
+            } else if ("indices_all_active".equalsIgnoreCase(typeString) || "indicesAllActive".equalsIgnoreCase(typeString)) {
+                return ClusterRebalanceType.INDICES_ALL_ACTIVE;
+            }
+            throw new ElasticsearchIllegalArgumentException("Illegal value for " + CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE + ": " + typeString);
+        }
     }
 
-    private final ClusterRebalanceType type;
+    private ClusterRebalanceType type;
 
     @Inject
-    public ClusterRebalanceAllocationDecider(Settings settings) {
+    public ClusterRebalanceAllocationDecider(Settings settings, NodeSettingsService nodeSettingsService) {
         super(settings);
-        String allowRebalance = settings.get("cluster.routing.allocation.allow_rebalance", "indices_all_active");
-        if ("always".equalsIgnoreCase(allowRebalance)) {
-            type = ClusterRebalanceType.ALWAYS;
-        } else if ("indices_primaries_active".equalsIgnoreCase(allowRebalance) || "indicesPrimariesActive".equalsIgnoreCase(allowRebalance)) {
-            type = ClusterRebalanceType.INDICES_PRIMARIES_ACTIVE;
-        } else if ("indices_all_active".equalsIgnoreCase(allowRebalance) || "indicesAllActive".equalsIgnoreCase(allowRebalance)) {
-            type = ClusterRebalanceType.INDICES_ALL_ACTIVE;
-        } else {
-            logger.warn("[cluster.routing.allocation.allow_rebalance] has a wrong value {}, defaulting to 'indices_all_active'", allowRebalance);
+        String allowRebalance = settings.get(CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, "indices_all_active");
+        try {
+            type = ClusterRebalanceType.parseString(allowRebalance);
+        } catch (ElasticsearchIllegalStateException e) {
+            logger.warn("[{}] has a wrong value {}, defaulting to 'indices_all_active'", CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, allowRebalance);
             type = ClusterRebalanceType.INDICES_ALL_ACTIVE;
         }
-        logger.debug("using [cluster.routing.allocation.allow_rebalance] with [{}]", type.toString().toLowerCase(Locale.ROOT));
+        logger.debug("using [{}] with [{}]", CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, type.toString().toLowerCase(Locale.ROOT));
+
+        nodeSettingsService.addListener(new ApplySettings());
+    }
+
+    class ApplySettings implements NodeSettingsService.Listener {
+
+        @Override
+        public void onRefreshSettings(Settings settings) {
+            String newAllowRebalance = settings.get(CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, null);
+            if (newAllowRebalance != null) {
+                ClusterRebalanceType newType = null;
+                try {
+                    newType = ClusterRebalanceType.parseString(newAllowRebalance);
+                } catch (ElasticsearchIllegalArgumentException e) {
+                    // ignore
+                }
+
+                if (newType != null && newType != ClusterRebalanceAllocationDecider.this.type) {
+                    logger.info("updating [{}] from [{}] to [{}]", CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE,
+                            ClusterRebalanceAllocationDecider.this.type.toString().toLowerCase(Locale.ROOT),
+                            newType.toString().toLowerCase(Locale.ROOT));
+                    ClusterRebalanceAllocationDecider.this.type = newType;
+                }
+            }
+        }
     }
 
     @Override

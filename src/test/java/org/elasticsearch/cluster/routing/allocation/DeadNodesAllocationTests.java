@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
+import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.ElasticsearchAllocationTestCase;
@@ -45,7 +46,7 @@ public class DeadNodesAllocationTests extends ElasticsearchAllocationTestCase {
     public void simpleDeadNodeOnStartedPrimaryShard() {
         AllocationService allocation = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
-                .put("cluster.routing.allocation.allow_rebalance", "always")
+                .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, "always")
                 .build());
 
         logger.info("--> building initial routing table");
@@ -97,7 +98,7 @@ public class DeadNodesAllocationTests extends ElasticsearchAllocationTestCase {
     public void deadNodeWhileRelocatingOnToNode() {
         AllocationService allocation = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
-                .put("cluster.routing.allocation.allow_rebalance", "always")
+                .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, "always")
                 .build());
 
         logger.info("--> building initial routing table");
@@ -172,7 +173,7 @@ public class DeadNodesAllocationTests extends ElasticsearchAllocationTestCase {
     public void deadNodeWhileRelocatingOnFromNode() {
         AllocationService allocation = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
-                .put("cluster.routing.allocation.allow_rebalance", "always")
+                .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, "always")
                 .build());
 
         logger.info("--> building initial routing table");

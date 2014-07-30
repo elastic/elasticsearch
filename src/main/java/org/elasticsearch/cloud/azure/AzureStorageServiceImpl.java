@@ -113,7 +113,14 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureSto
     @Override
     public void removeContainer(String container) throws URISyntaxException, StorageException {
         CloudBlobContainer blob_container = client.getContainerReference(container);
-        blob_container.delete();
+        // TODO Should we set some timeout and retry options?
+        /*
+        BlobRequestOptions options = new BlobRequestOptions();
+        options.setTimeoutIntervalInMs(1000);
+        options.setRetryPolicyFactory(new RetryNoRetry());
+        blob_container.deleteIfExists(options, null);
+        */
+        blob_container.deleteIfExists();
     }
 
     @Override
@@ -188,13 +195,13 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureSto
     }
 
     @Override
-    public ImmutableMap<String, BlobMetaData> listBlobsByPrefix(String container, String prefix) throws URISyntaxException, StorageException, ServiceException {
-        logger.debug("listBlobsByPrefix container [{}], prefix [{}]", container, prefix);
+    public ImmutableMap<String, BlobMetaData> listBlobsByPrefix(String container, String keyPath, String prefix) throws URISyntaxException, StorageException, ServiceException {
+        logger.debug("listBlobsByPrefix container [{}], keyPath [{}], prefix [{}]", container, keyPath, prefix);
         ImmutableMap.Builder<String, BlobMetaData> blobsBuilder = ImmutableMap.builder();
 
         CloudBlobContainer blob_container = client.getContainerReference(container);
         if (blob_container.exists()) {
-            Iterable<ListBlobItem> blobs = blob_container.listBlobs(prefix);
+            Iterable<ListBlobItem> blobs = blob_container.listBlobs(keyPath + prefix);
             for (ListBlobItem blob : blobs) {
                 URI uri = blob.getUri();
                 if (logger.isTraceEnabled()) {
@@ -202,7 +209,7 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureSto
                 }
                 String blobpath = uri.getPath().substring(container.length() + 1);
                 BlobProperties properties = service.getBlobProperties(container, blobpath).getProperties();
-                String name = uri.getPath().substring(prefix.length());
+                String name = blobpath.substring(keyPath.length() + 1);
                 if (logger.isTraceEnabled()) {
                     logger.trace("blob url [{}], name [{}], size [{}]", uri, name, properties.getContentLength());
                 }

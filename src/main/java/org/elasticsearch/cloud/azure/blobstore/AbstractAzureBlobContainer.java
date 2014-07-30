@@ -111,24 +111,18 @@ public class AbstractAzureBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public ImmutableMap<String, BlobMetaData> listBlobsByPrefix(@Nullable String blobNamePrefix) throws IOException {
-        final String prefix;
-        if (blobNamePrefix != null) {
-            prefix = buildKey(blobNamePrefix);
-        } else {
-            prefix = keyPath;
-        }
+    public ImmutableMap<String, BlobMetaData> listBlobsByPrefix(@Nullable String prefix) throws IOException {
 
         try {
-            return blobStore.client().listBlobsByPrefix(blobStore.container(), prefix);
+            return blobStore.client().listBlobsByPrefix(blobStore.container(), keyPath, prefix);
         } catch (URISyntaxException e) {
-            logger.warn("can not access [{}] in container {{}}: {}", blobNamePrefix, blobStore.container(), e.getMessage());
+            logger.warn("can not access [{}] in container {{}}: {}", prefix, blobStore.container(), e.getMessage());
             throw new IOException(e);
         } catch (StorageException e) {
-            logger.warn("can not access [{}] in container {{}}: {}", blobNamePrefix, blobStore.container(), e.getMessage());
+            logger.warn("can not access [{}] in container {{}}: {}", prefix, blobStore.container(), e.getMessage());
             throw new IOException(e);
         } catch (ServiceException e) {
-            logger.warn("can not access [{}] in container {{}}: {}", blobNamePrefix, blobStore.container(), e.getMessage());
+            logger.warn("can not access [{}] in container {{}}: {}", prefix, blobStore.container(), e.getMessage());
             throw new IOException(e);
         }
     }

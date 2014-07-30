@@ -82,7 +82,7 @@ public class AzureStorageServiceMock extends AbstractLifecycleComponent<AzureSto
     }
 
     @Override
-    public ImmutableMap<String, BlobMetaData> listBlobsByPrefix(String container, String prefix) {
+    public ImmutableMap<String, BlobMetaData> listBlobsByPrefix(String container, String keyPath, String prefix) {
         ImmutableMap.Builder<String, BlobMetaData> blobsBuilder = ImmutableMap.builder();
         for (String blobName : blobs.keySet()) {
             if (Strings.startsWithIgnoreCase(blobName, prefix)) {

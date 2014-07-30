@@ -242,7 +242,7 @@ Replace all occurrences of `access_key`, `secret_key`, `bucket` and `region` wit
 To run test:
 
 ```sh
-mvn -Dtests.aws=true -Des.config=/path/to/config/file/elasticsearch.yml clean test
+mvn -Dtests.aws=true -Dtests.config=/path/to/config/file/elasticsearch.yml clean test
 ```
 
 

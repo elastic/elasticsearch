@@ -50,7 +50,7 @@ public class S3ImmutableBlobContainer extends AbstractS3BlobContainer implements
                     try {
                         ObjectMetadata md = new ObjectMetadata();
                         if (blobStore.serverSideEncryption()) {
-                            md.setServerSideEncryption(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION);
+                            md.setSSEAlgorithm(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION);
                         }
                         md.setContentLength(sizeInBytes);
                         blobStore.client().putObject(blobStore.bucket(), buildKey(blobName), is, md);

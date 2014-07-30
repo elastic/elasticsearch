@@ -25,13 +25,13 @@
   - match:
       $body: >
             /^
-              ( 0                   \s+
-                \d+(\.\d+)?[kmgt]b  \s+
-                \d+(\.\d+)?[kmgt]b  \s+
-                \d+(\.\d+)?[kmgt]b  \s+
-                \d+                 \s+
-                [-\w.]+             \s+
-                \d+(\.\d+){3}       \s+
+              ( 0                      \s+
+                \d+(\.\d+)?[kmgt]?b    \s+
+                (\d+(\.\d+)?[kmgt]b)?  \s+  #no value from client nodes
+                (\d+(\.\d+)?[kmgt]b)?  \s+  #no value from client nodes
+                (\d+)?                 \s+  #no value from client nodes
+                [-\w.]+                \s+
+                \d+(\.\d+){3}          \s+
                 \w.*
                 \n
               )+
@@ -55,19 +55,19 @@
   - match:
       $body: >
             /^
-              ( [1-5]               \s+
-                \d+(\.\d+)?[kmgt]b  \s+
-                \d+(\.\d+)?[kmgt]b  \s+
-                \d+(\.\d+)?[kmgt]b  \s+
-                \d+                 \s+
-                [-\w.]+             \s+
-                \d+(\.\d+){3}       \s+
+              ( \d+                    \s+
+                \d+(\.\d+)?[kmgt]?b    \s+
+                (\d+(\.\d+)?[kmgt]b)?  \s+  #no value from client nodes
+                (\d+(\.\d+)?[kmgt]b)?  \s+  #no value from client nodes
+                (\d+)?                 \s+  #no value from client nodes
+                [-\w.]+                \s+
+                \d+(\.\d+){3}          \s+
                 \w.*
                 \n
               )+
               (
-                \d+                 \s+
-                UNASSIGNED          \s+
+                \d+                    \s+
+                UNASSIGNED             \s+
                 \n
               )?
             $/
@@ -82,13 +82,13 @@
   - match:
       $body: >
             /^
-              ( 0                   \s+
-                \d+(\.\d+)?[kmgt]b  \s+
-                \d+(\.\d+)?[kmgt]b  \s+
-                \d+(\.\d+)?[kmgt]b  \s+
-                \d+                 \s+
-                [-\w.]+             \s+
-                \d+(\.\d+){3}       \s+
+              ( 0                      \s+
+                \d+(\.\d+)?[kmgt]?b    \s+
+                (\d+(\.\d+)?[kmgt]b)?  \s+  #no value from client nodes
+                (\d+(\.\d+)?[kmgt]b)?  \s+  #no value from client nodes
+                (\d+)?                 \s+  #no value from client nodes
+                [-\w.]+                \s+
+                \d+(\.\d+){3}          \s+
                 \w.*
                 \n
               )
@@ -112,23 +112,23 @@
   - match:
 
       $body: >
-           /^  shards               \s+
-               disk.used            \s+
-               disk.avail           \s+
-               disk.total           \s+
-               disk.percent         \s+
-               host                 \s+
-               ip                   \s+
-               node                 \s+
+           /^  shards                  \s+
+               disk.used               \s+
+               disk.avail              \s+
+               disk.total              \s+
+               disk.percent            \s+
+               host                    \s+
+               ip                      \s+
+               node                    \s+
                \n
 
-              ( \s+0                \s+
-                \d+(\.\d+)?[kmgt]b  \s+
-                \d+(\.\d+)?[kmgt]b  \s+
-                \d+(\.\d+)?[kmgt]b  \s+
-                \d+                 \s+
-                [-\w.]+             \s+
-                \d+(\.\d+){3}       \s+
+              ( \s+0                   \s+
+                \d+(\.\d+)?[kmgt]?b    \s+
+                (\d+(\.\d+)?[kmgt]b)?  \s+  #no value from client nodes
+                (\d+(\.\d+)?[kmgt]b)?  \s+  #no value from client nodes
+                (\d+)?                 \s+  #no value from client nodes
+                [-\w.]+                \s+
+                \d+(\.\d+){3}          \s+
                 \w.*
                 \n
               )+
@@ -144,7 +144,7 @@
   - match:
       $body: >
             /^
-              ( \d+                 \s+
+              ( \d*                 \s+
                 \w.*
                 \n
               )+
@@ -162,7 +162,7 @@
               node                  \s+
               \n
               (
-                \s+\d+              \s+
+                \s+\d*           \s+
                 \w.*
                 \n
               )+
@@ -182,9 +182,9 @@
             /^
               ( 0                   \s+
                 \d+                 \s+
-                \d+                 \s+
-                \d+                 \s+
-                \d+                 \s+
+                \d*                 \s+  #no value from client nodes
+                \d*                 \s+  #no value from client nodes
+                \d*                 \s+  #no value from client nodes
                 [-\w.]+             \s+
                 \d+(\.\d+){3}       \s+
                 \w.*

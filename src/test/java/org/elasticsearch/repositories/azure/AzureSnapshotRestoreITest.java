@@ -22,6 +22,7 @@ package org.elasticsearch.repositories.azure;
 
 import com.microsoft.windowsazure.services.core.ServiceException;
 import com.microsoft.windowsazure.services.core.storage.StorageException;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
@@ -32,6 +33,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -44,6 +46,7 @@ import java.net.URISyntaxException;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.is;
 
 /**
  * This test needs Azure to run and -Dtests.azure=true to be set
@@ -222,6 +225,47 @@ public class AzureSnapshotRestoreITest extends AbstractAzureTest {
         clusterState = client.admin().cluster().prepareState().get().getState();
         assertThat(clusterState.getMetaData().hasIndex("test-idx-1"), equalTo(true));
         assertThat(clusterState.getMetaData().hasIndex("test-idx-2"), equalTo(true));
+    }
+
+    /**
+     * For issue #21: https://github.com/elasticsearch/elasticsearch-cloud-azure/issues/21
+     */
+    @Test @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch-cloud-azure/issues/21")
+    public void testForbiddenContainerName() {
+        checkContainerName("", false);
+        checkContainerName("es", false);
+        checkContainerName("-elasticsearch", false);
+        checkContainerName("elasticsearch--integration", false);
+        checkContainerName("elasticsearch_integration", false);
+        checkContainerName("ElAsTicsearch_integration", false);
+        checkContainerName("123456789-123456789-123456789-123456789-123456789-123456789-1234", false);
+        checkContainerName("123456789-123456789-123456789-123456789-123456789-123456789-123", true);
+        checkContainerName("elasticsearch-integration", true);
+        checkContainerName("elasticsearch-integration-007", true);
+    }
+
+    /**
+     * Create repository with wrong or correct container name
+     * @param container Container name we want to create
+     * @param correct Is this container name correct
+     */
+    private void checkContainerName(String container, boolean correct) {
+        logger.info("-->  creating azure repository with container name [{}]", container);
+        try {
+            PutRepositoryResponse putRepositoryResponse = client().admin().cluster().preparePutRepository("test-repo")
+                    .setType("azure").setSettings(ImmutableSettings.settingsBuilder()
+                                    .put(AzureStorageService.Fields.CONTAINER, container)
+                                    .put(AzureStorageService.Fields.BASE_PATH, basePath)
+                                    .put(AzureStorageService.Fields.CHUNK_SIZE, randomIntBetween(1000, 10000))
+                    ).get();
+            assertThat(putRepositoryResponse.isAcknowledged(), is(correct));
+            client().admin().cluster().prepareDeleteRepository("test-repo").get();
+        } catch (RepositoryException e) {
+            if (correct) {
+                // We did not expect any exception here :(
+                throw e;
+            }
+        }
     }
 
     /**

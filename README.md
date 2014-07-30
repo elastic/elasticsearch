@@ -395,9 +395,21 @@ client.admin().cluster().preparePutRepository("my_backup3")
         ).get();
 ```
 
+Repository validation rules
+---------------------------
+
+According to the [containers naming guide](http://msdn.microsoft.com/en-us/library/dd135715.aspx), a container name must 
+be a valid DNS name, conforming to the following naming rules:
+
+* Container names must start with a letter or number, and can contain only letters, numbers, and the dash (-) character.
+* Every dash (-) character must be immediately preceded and followed by a letter or number; consecutive dashes are not 
+permitted in container names.
+* All letters in a container name must be lowercase.
+* Container names must be from 3 through 63 characters long.
+
 
 Testing
--------
+=======
 
 Integrations tests in this plugin require working Azure configuration and therefore disabled by default.
 To enable tests prepare a config file elasticsearch.yml with the following content:

@@ -29,7 +29,7 @@ public class NettySSLTransport extends NettyTransport {
     @Inject
     public NettySSLTransport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays, Version version) {
         super(settings, threadPool, networkService, bigArrays, version);
-        this.ssl = settings.getAsBoolean("transport.tcp.ssl", false);
+        this.ssl = settings.getAsBoolean("shield.transport.ssl", false);
     }
 
     @Override
@@ -48,7 +48,7 @@ public class NettySSLTransport extends NettyTransport {
 
         public SslServerChannelPipelineFactory(NettyTransport nettyTransport) {
             super(nettyTransport);
-            sslConfig = new SSLConfig(settings.getByPrefix("transport.tcp.ssl."));
+            sslConfig = new SSLConfig(settings.getByPrefix("shield.transport.ssl."));
             // try to create an SSL engine, so that exceptions lead to early exit
             sslConfig.createSSLEngine();
         }
@@ -73,7 +73,7 @@ public class NettySSLTransport extends NettyTransport {
 
         public SslClientChannelPipelineFactory(NettyTransport transport) {
             super(transport);
-            sslConfig = new SSLConfig(settings.getByPrefix("transport.tcp.ssl."));
+            sslConfig = new SSLConfig(settings.getByPrefix("shield.transport.ssl."));
             // try to create an SSL engine, so that exceptions lead to early exit
             sslConfig.createSSLEngine();
         }

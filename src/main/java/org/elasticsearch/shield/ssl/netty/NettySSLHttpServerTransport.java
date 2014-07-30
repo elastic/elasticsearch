@@ -27,7 +27,7 @@ public class NettySSLHttpServerTransport extends NettyHttpServerTransport {
     @Inject
     public NettySSLHttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays) {
         super(settings, networkService, bigArrays);
-        this.ssl = settings.getAsBoolean("http.ssl", false);
+        this.ssl = settings.getAsBoolean("shield.http.ssl", false);
     }
 
     @Override
@@ -45,7 +45,7 @@ public class NettySSLHttpServerTransport extends NettyHttpServerTransport {
         public ChannelPipeline getPipeline() throws Exception {
             ChannelPipeline pipeline = super.getPipeline();
             if (ssl) {
-                SSLConfig sslConfig = new SSLConfig(settings.getByPrefix("http.ssl."));
+                SSLConfig sslConfig = new SSLConfig(settings.getByPrefix("shield.http.ssl."));
                 SSLEngine engine = sslConfig.createSSLEngine();
                 engine.setUseClientMode(false);
                 // TODO MAKE ME CONFIGURABLE

@@ -42,31 +42,9 @@ import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.hamcrest.Matchers.*;
 
-/**
- * Created a testnode cert and a test client cert, which is imported into the keystore
- *
- * keytool -genkeypair -alias testnode -keystore testnode.jks -keyalg RSA -storepass testnode -keypass testnode -dname "cn=Elasticsearch Test Node, ou=elasticsearch, o=org"
- * keytool -export -alias testnode -keystore testnode.jks -rfc -file testnode.cert -storepass testnode
- *
- * keytool -genkeypair -alias testclient -keystore testclient.jks -keyalg RSA -storepass testclient -keypass testclient -dname "cn=Elasticsearch Test Client, ou=elasticsearch, o=org"
- * keytool -export -alias testclient -keystore testclient.jks -rfc -file testclient.cert -storepass testclient
- *
- * keytool -import -trustcacerts -alias testclient -file testclient.cert -keystore testnode.jks -storepass testnode -noprompt
- * keytool -import -trustcacerts -alias testnode -file testnode.cert -keystore testclient.jks -storepass testclient -noprompt
- *
- */
 @ClusterScope(scope = Scope.SUITE, numDataNodes = 1, transportClientRatio = 0.0, numClientNodes = 0)
 public class SslIntegrationTests extends ElasticsearchIntegrationTest {
 
-    /*
-    # transport.tcp.ssl.keystore: /path/to/the/keystore
-    # transport.tcp.ssl.keystore_password: password
-    # transport.tcp.ssl.keystore_algorithm: SunX509
-    #
-    # transport.tcp.ssl.truststore: /path/to/the/truststore
-    # transport.tcp.ssl.truststore_password: password
-    # transport.tcp.ssl.truststore_algorithm: PKIX
-         */
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         File testnodeStore;
@@ -82,16 +60,16 @@ public class SslIntegrationTests extends ElasticsearchIntegrationTest {
                 .put("discovery.zen.ping.multicast.ping.enabled", false)
                 // needed to ensure that netty transport is started
                 .put("node.mode", "network")
-                .put("transport.tcp.ssl", true)
-                .put("transport.tcp.ssl.keystore", testnodeStore.getPath())
-                .put("transport.tcp.ssl.keystore_password", "testnode")
-                .put("transport.tcp.ssl.truststore", testnodeStore.getPath())
-                .put("transport.tcp.ssl.truststore_password", "testnode")
-                .put("http.ssl", true)
-                .put("http.ssl.keystore", testnodeStore.getPath())
-                .put("http.ssl.keystore_password", "testnode")
-                .put("http.ssl.truststore", testnodeStore.getPath())
-                .put("http.ssl.truststore_password", "testnode")
+                .put("shield.transport.ssl", true)
+                .put("shield.transport.ssl.keystore", testnodeStore.getPath())
+                .put("shield.transport.ssl.keystore_password", "testnode")
+                .put("shield.transport.ssl.truststore", testnodeStore.getPath())
+                .put("shield.transport.ssl.truststore_password", "testnode")
+                .put("shield.http.ssl", true)
+                .put("shield.http.ssl.keystore", testnodeStore.getPath())
+                .put("shield.http.ssl.keystore_password", "testnode")
+                .put("shield.http.ssl.truststore", testnodeStore.getPath())
+                .put("shield.http.ssl.truststore_password", "testnode")
                 // SSL SETUP
                 .put("http.type", NettySSLHttpServerTransportModule.class.getName())
                 .put(TransportModule.TRANSPORT_TYPE_KEY, NettySSLTransportModule.class.getName())
@@ -124,7 +102,7 @@ public class SslIntegrationTests extends ElasticsearchIntegrationTest {
     public void testThatUnconfiguredCipchersAreRejected() {
         // some randomly taken ciphers from SSLContext.getDefault().getSocketFactory().getSupportedCipherSuites()
         // could be really randomized
-        Settings customSettings = getSettings("transport_client").put("transport.tcp.ssl.ciphers", new String[]{"TLS_ECDH_anon_WITH_RC4_128_SHA", "SSL_RSA_WITH_3DES_EDE_CBC_SHA"}).build();
+        Settings customSettings = getSettings("transport_client").put("shield.transport.ssl.ciphers", new String[]{"TLS_ECDH_anon_WITH_RC4_128_SHA", "SSL_RSA_WITH_3DES_EDE_CBC_SHA"}).build();
 
         TransportClient transportClient = new TransportClient(customSettings);
 
@@ -163,13 +141,13 @@ public class SslIntegrationTests extends ElasticsearchIntegrationTest {
 
     @Test(expected = ElasticsearchSSLException.class)
     public void testConnectNodeFailsWithWrongCipher() throws Exception {
-        Settings customSettings = getSettings("ssl_node").put("transport.tcp.ssl.ciphers", new String[]{"TLS_ECDH_anon_WITH_RC4_128_SHA", "SSL_RSA_WITH_3DES_EDE_CBC_SHA"}).build();
+        Settings customSettings = getSettings("ssl_node").put("shield.transport.ssl.ciphers", new String[]{"TLS_ECDH_anon_WITH_RC4_128_SHA", "SSL_RSA_WITH_3DES_EDE_CBC_SHA"}).build();
         NodeBuilder.nodeBuilder().settings(customSettings).node().start();
     }
 
     @Test(expected = ElasticsearchSSLException.class)
     public void testConnectNodeClientFailsWithWrongCipher() throws Exception {
-        Settings customSettings = getSettings("ssl_node").put("node.client", true).put("transport.tcp.ssl.ciphers", new String[]{"TLS_ECDH_anon_WITH_RC4_128_SHA", "SSL_RSA_WITH_3DES_EDE_CBC_SHA"}).build();
+        Settings customSettings = getSettings("ssl_node").put("node.client", true).put("shield.transport.ssl.ciphers", new String[]{"TLS_ECDH_anon_WITH_RC4_128_SHA", "SSL_RSA_WITH_3DES_EDE_CBC_SHA"}).build();
         NodeBuilder.nodeBuilder().settings(customSettings).node().start();
     }
 
@@ -230,11 +208,11 @@ public class SslIntegrationTests extends ElasticsearchIntegrationTest {
 
         return ImmutableSettings.settingsBuilder()
                 .put("node.name", name)
-                .put("transport.tcp.ssl", true)
-                .put("transport.tcp.ssl.keystore", testClientKeyStore.getPath())
-                .put("transport.tcp.ssl.keystore_password", "testclient")
-                .put("transport.tcp.ssl.truststore", testClientTrustStore .getPath())
-                .put("transport.tcp.ssl.truststore_password", "testclient")
+                .put("shield.transport.ssl", true)
+                .put("shield.transport.ssl.keystore", testClientKeyStore.getPath())
+                .put("shield.transport.ssl.keystore_password", "testclient")
+                .put("shield.transport.ssl.truststore", testClientTrustStore .getPath())
+                .put("shield.transport.ssl.truststore_password", "testclient")
                 .put("discovery.zen.ping.multicast.ping.enabled", false)
                 .put(TransportModule.TRANSPORT_TYPE_KEY, NettySSLTransportModule.class.getName())
                 //.put("plugin.types", SecurityPlugin.class.getName())

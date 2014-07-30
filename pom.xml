@@ -82,7 +82,7 @@ governing permissions and limitations under the License. -->
         <dependency>
             <groupId>com.microsoft.windowsazure</groupId>
             <artifactId>microsoft-windowsazure-api</artifactId>
-            <version>0.4.5</version>
+            <version>0.4.6</version>
         </dependency>
         <dependency>
             <groupId>log4j</groupId>

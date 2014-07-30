@@ -25,6 +25,7 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.fielddata.*;
 
+import java.util.List;
 import java.util.Locale;
 
 /**
@@ -371,12 +372,13 @@ public enum GeoDistance {
         }
     }
 
+
     /**
-     * Return a {@link SortedNumericDoubleValues} instance that returns the distance to a given geo-point for each document.
+     * Return a {@link SortedNumericDoubleValues} instance that returns the distances to a list of geo-points for each document.
      */
-    public static SortedNumericDoubleValues distanceValues(final FixedSourceDistance distance, final MultiGeoPointValues geoPointValues) {
+    public static SortedNumericDoubleValues distanceValues(final MultiGeoPointValues geoPointValues, final FixedSourceDistance... distances) {
         final GeoPointValues singleValues = FieldData.unwrapSingleton(geoPointValues);
-        if (singleValues != null) {
+        if (singleValues != null && distances.length == 1) {
             final Bits docsWithField = FieldData.unwrapSingletonBits(geoPointValues);
             return FieldData.singleton(new NumericDoubleValues() {
 
@@ -386,7 +388,7 @@ public enum GeoDistance {
                         return 0d;
                     }
                     final GeoPoint point = singleValues.get(docID);
-                    return distance.calculate(point.lat(), point.lon());
+                    return distances[0].calculate(point.lat(), point.lon());
                 }
 
             }, docsWithField);
@@ -396,15 +398,18 @@ public enum GeoDistance {
                 @Override
                 public void setDocument(int doc) {
                     geoPointValues.setDocument(doc);
-                    count = geoPointValues.count();
+                    count = geoPointValues.count() * distances.length;
                     grow();
-                    for (int i = 0; i < count; ++i) {
-                        final GeoPoint point = geoPointValues.valueAt(i);
-                        values[i] = distance.calculate(point.lat(), point.lon());
+                    int valueCounter = 0;
+                    for (FixedSourceDistance distance : distances) {
+                        for (int i = 0; i < geoPointValues.count(); ++i) {
+                            final GeoPoint point = geoPointValues.valueAt(i);
+                            values[valueCounter] = distance.calculate(point.lat(), point.lon());
+                            valueCounter++;
+                        }
                     }
                     sort();
                 }
-
             };
         }
     }

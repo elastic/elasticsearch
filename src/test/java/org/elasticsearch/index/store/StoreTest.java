@@ -48,6 +48,8 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
+import static com.carrotsearch.randomizedtesting.RandomizedTest.randomInt;
+import static com.carrotsearch.randomizedtesting.RandomizedTest.randomIntBetween;
 import static org.hamcrest.Matchers.*;
 
 public class StoreTest extends ElasticsearchLuceneTestCase {
@@ -360,6 +362,86 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         assertThat(store.directory().listAll().length, is(2));
         assertDeleteContent(store, directoryService);
         IOUtils.close(store);
+    }
+
+    @Test
+    public void testVerifyingIndexInput() throws IOException {
+        Directory dir = newDirectory();
+        IndexOutput output = dir.createOutput("foo.bar", IOContext.DEFAULT);
+        int iters = scaledRandomIntBetween(10, 100);
+        for (int i = 0; i < iters; i++) {
+            BytesRef bytesRef = new BytesRef(TestUtil.randomRealisticUnicodeString(random(), 10, 1024));
+            output.writeBytes(bytesRef.bytes, bytesRef.offset, bytesRef.length);
+        }
+        CodecUtil.writeFooter(output);
+        output.close();
+
+        // Check file
+        IndexInput indexInput = dir.openInput("foo.bar", IOContext.DEFAULT);
+        long checksum = CodecUtil.retrieveChecksum(indexInput);
+        indexInput.seek(0);
+        IndexInput verifyingIndexInput = new Store.VerifyingIndexInput(dir.openInput("foo.bar", IOContext.DEFAULT));
+        readIndexInputFullyWithRandomSeeks(verifyingIndexInput);
+        Store.verify(verifyingIndexInput);
+        assertThat(checksum, equalTo(((ChecksumIndexInput) verifyingIndexInput).getChecksum()));
+        IOUtils.close(indexInput, verifyingIndexInput);
+
+        // Corrupt file and check again
+        corruptFile(dir, "foo.bar", "foo1.bar");
+        verifyingIndexInput = new Store.VerifyingIndexInput(dir.openInput("foo1.bar", IOContext.DEFAULT));
+        readIndexInputFullyWithRandomSeeks(verifyingIndexInput);
+        try {
+            Store.verify(verifyingIndexInput);
+            fail("should be a corrupted index");
+        } catch (CorruptIndexException ex) {
+            // ok
+        }
+        IOUtils.close(verifyingIndexInput);
+
+        IOUtils.close(dir);
+    }
+
+    private void readIndexInputFullyWithRandomSeeks(IndexInput indexInput) throws IOException{
+        BytesRef ref = new BytesRef(scaledRandomIntBetween(1, 1024));
+        long pos = 0;
+        while (pos < indexInput.length()) {
+            assertEquals(pos, indexInput.getFilePointer());
+            int op = random().nextInt(5);
+            if (op == 0 ) {
+                int shift =  100 - randomIntBetween(0, 200);
+                pos =  Math.min(indexInput.length() - 1, Math.max(0, pos + shift));
+                indexInput.seek(pos);
+            } else if (op == 1) {
+                indexInput.readByte();
+                pos ++;
+            } else {
+                int min = (int) Math.min(indexInput.length() - pos, ref.bytes.length);
+                indexInput.readBytes(ref.bytes, ref.offset, min);
+                pos += min;
+            }
+        }
+    }
+
+    private void corruptFile(Directory dir, String fileIn, String fileOut) throws IOException {
+        IndexInput input = dir.openInput(fileIn, IOContext.READONCE);
+        IndexOutput output = dir.createOutput(fileOut, IOContext.DEFAULT);
+        long len = input.length();
+        byte[] b = new byte[1024];
+        long broken = randomInt((int) len);
+        long pos = 0;
+        while (pos < len) {
+            int min = (int) Math.min(input.length() - pos, b.length);
+            input.readBytes(b, 0, min);
+            if (broken >= pos && broken < pos + min) {
+                // Flip one byte
+                int flipPos = (int) (broken - pos);
+                b[flipPos] = (byte) (b[flipPos] ^ 42);
+            }
+            output.writeBytes(b, min);
+            pos += min;
+        }
+        IOUtils.close(input, output);
+
     }
 
     public void assertDeleteContent(Store store,DirectoryService service) throws IOException {

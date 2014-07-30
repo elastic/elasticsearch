@@ -50,6 +50,8 @@ import java.nio.file.NoSuchFileException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.zip.CRC32;
+import java.util.zip.Checksum;
 
 /**
  * A Store provides plain access to files written by an elasticsearch index shard. Each shard
@@ -295,6 +297,22 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
     public static void verify(IndexOutput output) throws IOException {
         if (output instanceof VerifyingIndexOutput) {
             ((VerifyingIndexOutput)output).verify();
+        }
+    }
+
+    public IndexInput openVerifyingInput(String filename, IOContext context, StoreFileMetaData metadata) throws IOException {
+        if (metadata.hasLegacyChecksum() || metadata.checksum() == null) {
+            logger.debug("open legacy input for {}", filename);
+            return directory().openInput(filename, context);
+        }
+        assert metadata.writtenBy() != null;
+        assert metadata.writtenBy().onOrAfter(Version.LUCENE_48);
+        return new VerifyingIndexInput(directory().openInput(filename, context));
+    }
+
+    public static void verify(IndexInput input) throws IOException {
+        if (input instanceof VerifyingIndexInput) {
+            ((VerifyingIndexInput)input).verify();
         }
     }
 
@@ -700,6 +718,138 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
             }
             output.writeBytes(b, offset, length);
             writtenBytes += length;
+        }
+
+    }
+
+    /**
+     * Index input that calculates checksum as data is read from the input.
+     *
+     * This class supports random access (it is possible to seek backward and forward) in order to accommodate retry
+     * mechanism that is used in some repository plugins (S3 for example). However, the checksum is only calculated on
+     * the first read. All consecutive reads of the same data are not used to calculate the checksum.
+     */
+    static class VerifyingIndexInput extends ChecksumIndexInput {
+        private final IndexInput input;
+        private final Checksum digest;
+        private final long checksumPosition;
+        private final byte[] checksum = new byte[8];
+        private long verifiedPosition = 0;
+
+        public VerifyingIndexInput(IndexInput input) {
+            this(input, new BufferedChecksum(new CRC32()));
+        }
+
+        public VerifyingIndexInput(IndexInput input, Checksum digest) {
+            super("VerifyingIndexInput(" + input + ")");
+            this.input = input;
+            this.digest = digest;
+            checksumPosition = input.length() - 8;
+        }
+
+        @Override
+        public byte readByte() throws IOException {
+            long pos = input.getFilePointer();
+            final byte b = input.readByte();
+            pos++;
+            if (pos > verifiedPosition) {
+                if (pos <= checksumPosition) {
+                    digest.update(b);
+                } else {
+                    checksum[(int) (pos - checksumPosition - 1)] = b;
+                }
+                verifiedPosition = pos;
+            }
+            return b;
+        }
+
+        @Override
+        public void readBytes(byte[] b, int offset, int len)
+                throws IOException {
+            long pos = input.getFilePointer();
+            input.readBytes(b, offset, len);
+            if (pos + len > verifiedPosition) {
+                // Conversion to int is safe here because (verifiedPosition - pos) can be at most len, which is integer
+                int alreadyVerified = (int)Math.max(0, verifiedPosition - pos);
+                if (pos < checksumPosition) {
+                    if (pos + len < checksumPosition) {
+                        digest.update(b, offset + alreadyVerified, len - alreadyVerified);
+                    } else {
+                        int checksumOffset = (int) (checksumPosition - pos);
+                        if (checksumOffset - alreadyVerified > 0) {
+                            digest.update(b, offset + alreadyVerified, checksumOffset - alreadyVerified);
+                        }
+                        System.arraycopy(b, offset + checksumOffset, checksum, 0, len - checksumOffset);
+                    }
+                } else {
+                    // Conversion to int is safe here because checksumPosition is (file length - 8) so
+                    // (pos - checksumPosition) cannot be bigger than 8 unless we are reading after the end of file
+                    assert pos - checksumPosition < 8;
+                    System.arraycopy(b, offset, checksum, (int) (pos - checksumPosition), len);
+                }
+                verifiedPosition = pos + len;
+            }
+        }
+
+        @Override
+        public long getChecksum() {
+            return digest.getValue();
+        }
+
+        @Override
+        public void seek(long pos) throws IOException {
+            if (pos < verifiedPosition) {
+                // going within verified region - just seek there
+                input.seek(pos);
+            } else {
+                if (verifiedPosition > getFilePointer()) {
+                    // portion of the skip region is verified and portion is not
+                    // skipping the verified portion
+                    input.seek(verifiedPosition);
+                    // and checking unverified
+                    skipBytes(pos - verifiedPosition);
+                } else {
+                    skipBytes(pos - getFilePointer());
+                }
+            }
+        }
+
+        @Override
+        public void close() throws IOException {
+            input.close();
+        }
+
+        @Override
+        public long getFilePointer() {
+            return input.getFilePointer();
+        }
+
+        @Override
+        public long length() {
+            return input.length();
+        }
+
+        @Override
+        public IndexInput clone() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public IndexInput slice(String sliceDescription, long offset, long length) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        public long getStoredChecksum() {
+            return new ByteArrayDataInput(checksum).readLong();
+        }
+
+        public void verify() throws CorruptIndexException {
+            long storedChecksum = getStoredChecksum();
+            if (getChecksum() == storedChecksum) {
+                return;
+            }
+            throw new CorruptIndexException("verification failed : calculated=" + Store.digestToString(getChecksum()) +
+                    " stored=" + Store.digestToString(storedChecksum));
         }
 
     }

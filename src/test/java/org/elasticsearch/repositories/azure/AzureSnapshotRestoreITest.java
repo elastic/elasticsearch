@@ -35,6 +35,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryMissingException;
+import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.store.MockDirectoryHelper;
@@ -44,9 +45,7 @@ import org.junit.Test;
 
 import java.net.URISyntaxException;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.*;
 
 /**
  * This test needs Azure to run and -Dtests.azure=true to be set
@@ -265,6 +264,30 @@ public class AzureSnapshotRestoreITest extends AbstractAzureTest {
                 // We did not expect any exception here :(
                 throw e;
             }
+        }
+    }
+
+    /**
+     * Test case for issue #23: https://github.com/elasticsearch/elasticsearch-cloud-azure/issues/23
+     */
+    @Test
+    public void testNonExistingRepo_23() {
+        Client client = client();
+        logger.info("-->  creating azure repository with path [{}]", basePath);
+        PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
+                .setType("azure").setSettings(ImmutableSettings.settingsBuilder()
+                                .put(AzureStorageService.Fields.CONTAINER, "elasticsearch-integration")
+                                .put(AzureStorageService.Fields.BASE_PATH, basePath)
+                                .put(AzureStorageService.Fields.CHUNK_SIZE, randomIntBetween(1000, 10000))
+                ).get();
+        assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+
+        logger.info("--> restore non existing snapshot");
+        try {
+            client.admin().cluster().prepareRestoreSnapshot("test-repo", "no-existing-snapshot").setWaitForCompletion(true).execute().actionGet();
+            fail("Shouldn't be here");
+        } catch (SnapshotMissingException ex) {
+            // Expected
         }
     }
 

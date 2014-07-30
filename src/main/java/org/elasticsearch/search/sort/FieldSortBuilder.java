@@ -36,7 +36,9 @@ public class FieldSortBuilder extends SortBuilder {
 
     private Object missing;
 
-    private Object ignoreUnmapped;
+    private Boolean ignoreUnmapped;
+
+    private String unmappedType;
 
     private String sortMode;
 
@@ -78,19 +80,23 @@ public class FieldSortBuilder extends SortBuilder {
     /**
      * Sets if the field does not exists in the index, it should be ignored and not sorted by or not. Defaults
      * to <tt>false</tt> (not ignoring).
+     * @deprecated Use {@link #unmappedType(String)} instead. <code>ignoreUnmapped
      */
+    @Deprecated
     public FieldSortBuilder ignoreUnmapped(boolean ignoreUnmapped) {
         this.ignoreUnmapped = ignoreUnmapped;
         return this;
     }
 
     /**
-     * Sets if the field does not exists in the index, it should be ignored and not sorted by or not.
+     * Set the type to use in case the current field is not mapped in an index.
      * Specifying a type tells Elasticsearch what type the sort values should have, which is important
      * for cross-index search, if there are sort fields that exist on some indices only.
+     * If the unmapped type is <tt>null</tt> then query execution will fail if one or more indices
+     * don't have a mapping for the current field.
      */
-    public FieldSortBuilder ignoreUnmapped(String type) {
-        this.ignoreUnmapped = type;
+    public FieldSortBuilder unmappedType(String type) {
+        this.unmappedType = type;
         return this;
     }
 
@@ -134,7 +140,10 @@ public class FieldSortBuilder extends SortBuilder {
             builder.field("missing", missing);
         }
         if (ignoreUnmapped != null) {
-            builder.field("ignore_unmapped", ignoreUnmapped);
+            builder.field(SortParseElement.IGNORE_UNMAPPED.getPreferredName(), ignoreUnmapped);
+        }
+        if (unmappedType != null) {
+            builder.field(SortParseElement.UNMAPPED_TYPE.getPreferredName(), unmappedType);
         }
         if (sortMode != null) {
             builder.field("mode", sortMode);

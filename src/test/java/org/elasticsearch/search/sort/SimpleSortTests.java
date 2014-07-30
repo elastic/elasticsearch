@@ -1691,8 +1691,8 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
         ensureYellow("test1", "test2");
 
         SearchResponse resp = client().prepareSearch("test1", "test2")
-                .addSort(fieldSort("str_field").order(SortOrder.ASC).ignoreUnmapped("string"))
-                .addSort(fieldSort("str_field2").order(SortOrder.DESC).ignoreUnmapped("string")).get();
+                .addSort(fieldSort("str_field").order(SortOrder.ASC).unmappedType("string"))
+                .addSort(fieldSort("str_field2").order(SortOrder.DESC).unmappedType("string")).get();
 
         final StringAndBytesText maxTerm = new StringAndBytesText(IndexFieldData.XFieldComparatorSource.MAX_TERM.utf8ToString());
         assertSortValues(resp,
@@ -1700,15 +1700,15 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
                 new Object[] {maxTerm, null});
 
         resp = client().prepareSearch("test1", "test2")
-                .addSort(fieldSort("long_field").order(SortOrder.ASC).ignoreUnmapped("long"))
-                .addSort(fieldSort("long_field2").order(SortOrder.DESC).ignoreUnmapped("long")).get();
+                .addSort(fieldSort("long_field").order(SortOrder.ASC).unmappedType("long"))
+                .addSort(fieldSort("long_field2").order(SortOrder.DESC).unmappedType("long")).get();
         assertSortValues(resp,
                 new Object[] {3L, Long.MIN_VALUE},
                 new Object[] {Long.MAX_VALUE, Long.MIN_VALUE});
 
         resp = client().prepareSearch("test1", "test2")
-                .addSort(fieldSort("double_field").order(SortOrder.ASC).ignoreUnmapped("double"))
-                .addSort(fieldSort("double_field2").order(SortOrder.DESC).ignoreUnmapped("double")).get();
+                .addSort(fieldSort("double_field").order(SortOrder.ASC).unmappedType("double"))
+                .addSort(fieldSort("double_field2").order(SortOrder.DESC).unmappedType("double")).get();
         assertSortValues(resp,
                 new Object[] {0.65, Double.NEGATIVE_INFINITY},
                 new Object[] {Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY});

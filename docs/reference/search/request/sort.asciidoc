@@ -131,12 +131,14 @@ the `nested_filter` then a missing value is used.
 
 ==== Ignoring Unmapped Fields
 
-coming[1.4.0] Before 1.4.0 this parameter accepted a boolean, which was not
-enough information to decide on the sort values to emit, and didn't work for
-cross-index search.
+coming[1.4.0] Before 1.4.0 there was the `ignore_unmapped` boolean
+parameter, which was not enough information to decide on the sort
+values to emit, and didn't work for cross-index search. It is still
+supported but users are encouraged to migrate to the new
+`unmapped_type` instead.
 
 By default, the search request will fail if there is no mapping
-associated with a field. The `ignore_unmapped` option allows to ignore
+associated with a field. The `unmapped_type` option allows to ignore
 fields that have no mapping and not sort by them. The value of this
 parameter is used to determine what sort values to emit. Here is an
 example of how it can be used:
@@ -145,7 +147,7 @@ example of how it can be used:
 --------------------------------------------------
 {
     "sort" : [
-        { "price" : {"ignore_unmapped" : "long"} },
+        { "price" : {"unmapped_type" : "long"} },
     ],
     "query" : {
         "term" : { "user" : "kimchy" }

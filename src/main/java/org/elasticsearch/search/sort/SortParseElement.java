@@ -26,6 +26,7 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -54,8 +55,13 @@ public class SortParseElement implements SearchParseElement {
     private static final SortField SORT_DOC = new SortField(null, SortField.Type.DOC);
     private static final SortField SORT_DOC_REVERSE = new SortField(null, SortField.Type.DOC, true);
 
+    public static final ParseField IGNORE_UNMAPPED = new ParseField("ignore_unmapped");
+    public static final ParseField UNMAPPED_TYPE = new ParseField("unmapped_type");
+
     public static final String SCORE_FIELD_NAME = "_score";
     public static final String DOC_FIELD_NAME = "_doc";
+
+    private static ImmutableMap<String, FieldMapper<?>> UNMAPPED_MAPPERS = ImmutableMap.of();
 
     private final ImmutableMap<String, SortParser> parsers;
 
@@ -120,7 +126,7 @@ public class SortParseElement implements SearchParseElement {
                 boolean reverse = false;
                 String missing = null;
                 String innerJsonName = null;
-                String ignoreUnmapped = null;
+                String unmappedType = null;
                 MultiValueMode sortMode = null;
                 Filter nestedFilter = null;
                 String nestedPath = null;
@@ -134,7 +140,7 @@ public class SortParseElement implements SearchParseElement {
                     } else {
                         throw new ElasticsearchIllegalArgumentException("sort direction [" + fieldName + "] not supported");
                     }
-                    addSortField(context, sortFields, fieldName, reverse, ignoreUnmapped, missing, sortMode, nestedPath, nestedFilter);
+                    addSortField(context, sortFields, fieldName, reverse, unmappedType, missing, sortMode, nestedPath, nestedFilter);
                 } else {
                     if (parsers.containsKey(fieldName)) {
                         sortFields.add(parsers.get(fieldName).parse(parser, context));
@@ -153,12 +159,11 @@ public class SortParseElement implements SearchParseElement {
                                     }
                                 } else if ("missing".equals(innerJsonName)) {
                                     missing = parser.textOrNull();
-                                } else if ("ignore_unmapped".equals(innerJsonName) || "ignoreUnmapped".equals(innerJsonName)) {
-                                    if (parser.isBooleanValue()) {
-                                        ignoreUnmapped = parser.booleanValue() ? LongFieldMapper.CONTENT_TYPE : null;
-                                    } else {
-                                        ignoreUnmapped = parser.text();
-                                    }
+                                } else if (IGNORE_UNMAPPED.match(innerJsonName)) {
+                                    // backward compatibility: ignore_unmapped has been replaced with unmapped_type
+                                    unmappedType = parser.booleanValue() ? LongFieldMapper.CONTENT_TYPE : null;
+                                } else if (UNMAPPED_TYPE.match(innerJsonName)) {
+                                    unmappedType = parser.textOrNull();
                                 } else if ("mode".equals(innerJsonName)) {
                                     sortMode = MultiValueMode.fromString(parser.text());
                                 } else if ("nested_path".equals(innerJsonName) || "nestedPath".equals(innerJsonName)) {
@@ -175,14 +180,14 @@ public class SortParseElement implements SearchParseElement {
                                 }
                             }
                         }
-                        addSortField(context, sortFields, fieldName, reverse, ignoreUnmapped, missing, sortMode, nestedPath, nestedFilter);
+                        addSortField(context, sortFields, fieldName, reverse, unmappedType, missing, sortMode, nestedPath, nestedFilter);
                     }
                 }
             }
         }
     }
 
-    private void addSortField(SearchContext context, List<SortField> sortFields, String fieldName, boolean reverse, String ignoreUnmapped, @Nullable final String missing, MultiValueMode sortMode, String nestedPath, Filter nestedFilter) {
+    private void addSortField(SearchContext context, List<SortField> sortFields, String fieldName, boolean reverse, String unmappedType, @Nullable final String missing, MultiValueMode sortMode, String nestedPath, Filter nestedFilter) {
         if (SCORE_FIELD_NAME.equals(fieldName)) {
             if (reverse) {
                 sortFields.add(SORT_SCORE_REVERSE);
@@ -198,12 +203,12 @@ public class SortParseElement implements SearchParseElement {
         } else {
             FieldMapper<?> fieldMapper = context.smartNameFieldMapper(fieldName);
             if (fieldMapper == null) {
-                if (ignoreUnmapped != null) {
+                if (unmappedType != null) {
                     // We build a fake field that will have empty values since it doesn't exist
                     final Mapper.TypeParser.ParserContext parserContext = context.mapperService().documentMapperParser().parserContext();
-                    Mapper.TypeParser typeParser = parserContext.typeParser(ignoreUnmapped);
+                    Mapper.TypeParser typeParser = parserContext.typeParser(unmappedType);
                     if (typeParser == null) {
-                        throw new SearchParseException(context, "No mapper found for type [" + ignoreUnmapped + "]");
+                        throw new SearchParseException(context, "No mapper found for type [" + unmappedType + "]");
                     }
                     Mapper.Builder<?, ?> builder = typeParser.parse(fieldName, ImmutableMap.<String, Object>of(), parserContext);
                     Settings indexSettings = context.indexShard().indexService().settingsService().getSettings();

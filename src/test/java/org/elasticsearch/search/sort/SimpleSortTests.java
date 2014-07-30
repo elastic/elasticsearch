@@ -30,8 +30,11 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.geo.GeoDistance;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.text.StringAndBytesText;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.Uid;
@@ -1675,5 +1678,70 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
         }
     }
 
+    public void testManyToManyGeoPoints() throws ExecutionException, InterruptedException {
+        /**
+         * | q  |  d1    |   d2
+         * |    |        |
+         * |    |        |
+         * |    |        |
+         * |2  o|  x     |     x
+         * |    |        |
+         * |1  o|      x | x
+         * |___________________________
+         * 1   2   3   4   5   6   7
+         */
+        assertAcked(prepareCreate("index")
+                .addMapping("type", "{\"type\": {\"properties\": {\"location\": {\"type\": \"geo_point\"}}}}"));
+        String d1 = randomBoolean() ?
+                "{\"location\": [{\"lat\": \"3\", \"lon\": \"2\"}, {\"lat\": \"4\", \"lon\": \"1\"}]}" :
+                "{\"location\": [{\"lat\": \"4\", \"lon\": \"1\"}, {\"lat\": \"3\", \"lon\": \"2\"}]}";
+        String d2 = randomBoolean() ?
+                "{\"location\": [{\"lat\": \"5\", \"lon\": \"1\"}, {\"lat\": \"6\", \"lon\": \"2\"}]}" :
+                "{\"location\": [{\"lat\": \"6\", \"lon\": \"2\"}, {\"lat\": \"5\", \"lon\": \"1\"}]}";
+        indexRandom(true,
+                client().prepareIndex("index", "type", "d1").setSource(d1),
+                client().prepareIndex("index", "type", "d2").setSource(d2));
+        ensureYellow();
+        GeoPoint[] q = new GeoPoint[2];
+        if (randomBoolean()) {
+            q[0] = new GeoPoint(2, 1);
+            q[1] = new GeoPoint(2, 2);
+        } else {
+            q[1] = new GeoPoint(2, 2);
+            q[0] = new GeoPoint(2, 1);
+        }
+
+        SearchResponse searchResponse = client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .addSort(new GeoDistanceSortBuilder("location").points(q).sortMode("min").order(SortOrder.ASC).geoDistance(GeoDistance.PLANE).unit(DistanceUnit.KILOMETERS))
+                .execute().actionGet();
+        assertOrderedSearchHits(searchResponse, "d1", "d2");
+        assertThat((Double) searchResponse.getHits().getAt(0).getSortValues()[0], equalTo(GeoDistance.PLANE.calculate(2, 2, 3, 2, DistanceUnit.KILOMETERS)));
+        assertThat((Double) searchResponse.getHits().getAt(1).getSortValues()[0], equalTo(GeoDistance.PLANE.calculate(2, 1, 5, 1, DistanceUnit.KILOMETERS)));
+
+        searchResponse = client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .addSort(new GeoDistanceSortBuilder("location").points(q).sortMode("min").order(SortOrder.DESC).geoDistance(GeoDistance.PLANE).unit(DistanceUnit.KILOMETERS))
+                .execute().actionGet();
+        assertOrderedSearchHits(searchResponse, "d2", "d1");
+        assertThat((Double) searchResponse.getHits().getAt(0).getSortValues()[0], equalTo(GeoDistance.PLANE.calculate(2, 1, 5, 1, DistanceUnit.KILOMETERS)));
+        assertThat((Double) searchResponse.getHits().getAt(1).getSortValues()[0], equalTo(GeoDistance.PLANE.calculate(2, 2, 3, 2, DistanceUnit.KILOMETERS)));
+
+        searchResponse = client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .addSort(new GeoDistanceSortBuilder("location").points(q).sortMode("max").order(SortOrder.ASC).geoDistance(GeoDistance.PLANE).unit(DistanceUnit.KILOMETERS))
+                .execute().actionGet();
+        assertOrderedSearchHits(searchResponse, "d1", "d2");
+        assertThat((Double) searchResponse.getHits().getAt(0).getSortValues()[0], equalTo(GeoDistance.PLANE.calculate(2, 2, 4, 1, DistanceUnit.KILOMETERS)));
+        assertThat((Double) searchResponse.getHits().getAt(1).getSortValues()[0], equalTo(GeoDistance.PLANE.calculate(2, 1, 6, 2, DistanceUnit.KILOMETERS)));
+
+        searchResponse = client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .addSort(new GeoDistanceSortBuilder("location").points(q).sortMode("max").order(SortOrder.DESC).geoDistance(GeoDistance.PLANE).unit(DistanceUnit.KILOMETERS))
+                .execute().actionGet();
+        assertOrderedSearchHits(searchResponse, "d2", "d1");
+        assertThat((Double) searchResponse.getHits().getAt(0).getSortValues()[0], equalTo(GeoDistance.PLANE.calculate(2, 1, 6, 2, DistanceUnit.KILOMETERS)));
+        assertThat((Double) searchResponse.getHits().getAt(1).getSortValues()[0], equalTo(GeoDistance.PLANE.calculate(2, 2, 4, 1, DistanceUnit.KILOMETERS)));
+    }
 
 }

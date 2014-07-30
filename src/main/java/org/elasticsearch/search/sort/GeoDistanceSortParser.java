@@ -26,12 +26,14 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoDistance.FixedSourceDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.unit.DistanceUnit;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -43,6 +45,10 @@ import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 /**
  *
@@ -57,7 +63,7 @@ public class GeoDistanceSortParser implements SortParser {
     @Override
     public SortField parse(XContentParser parser, SearchContext context) throws Exception {
         String fieldName = null;
-        GeoPoint point = new GeoPoint();
+        List<GeoPoint> geoPoints = new ArrayList<>();
         DistanceUnit unit = DistanceUnit.DEFAULT;
         GeoDistance geoDistance = GeoDistance.DEFAULT;
         boolean reverse = false;
@@ -74,7 +80,8 @@ public class GeoDistanceSortParser implements SortParser {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentName = parser.currentName();
             } else if (token == XContentParser.Token.START_ARRAY) {
-                GeoUtils.parseGeoPoint(parser, point);
+                parseGeoPoints(parser, geoPoints);
+
                 fieldName = currentName;
             } else if (token == XContentParser.Token.START_OBJECT) {
                 // the json in the format of -> field : { lat : 30, lon : 12 }
@@ -83,7 +90,9 @@ public class GeoDistanceSortParser implements SortParser {
                     nestedFilter = parsedFilter == null ? null : parsedFilter.filter();
                 } else {
                     fieldName = currentName;
+                    GeoPoint point = new GeoPoint();
                     GeoUtils.parseGeoPoint(parser, point);
+                    geoPoints.add(point);
                 }
             } else if (token.isValue()) {
                 if ("reverse".equals(currentName)) {
@@ -102,14 +111,18 @@ public class GeoDistanceSortParser implements SortParser {
                 } else if ("nested_path".equals(currentName) || "nestedPath".equals(currentName)) {
                     nestedPath = parser.text();
                 } else {
+                    GeoPoint point = new GeoPoint();
                     point.resetFromString(parser.text());
+                    geoPoints.add(point);
                     fieldName = currentName;
                 }
             }
         }
 
         if (normalizeLat || normalizeLon) {
-            GeoUtils.normalizePoint(point, normalizeLat, normalizeLon);
+            for (GeoPoint point : geoPoints) {
+                GeoUtils.normalizePoint(point, normalizeLat, normalizeLon);
+            }
         }
 
         if (sortMode == null) {
@@ -126,7 +139,10 @@ public class GeoDistanceSortParser implements SortParser {
         }
         final MultiValueMode finalSortMode = sortMode; // final reference for use in the anonymous class
         final IndexGeoPointFieldData geoIndexFieldData = context.fieldData().getForField(mapper);
-        final FixedSourceDistance distance = geoDistance.fixedSourceDistance(point.lat(), point.lon(), unit);
+        final FixedSourceDistance[] distances = new FixedSourceDistance[geoPoints.size()];
+        for (int i = 0; i< geoPoints.size(); i++) {
+            distances[i] = geoDistance.fixedSourceDistance(geoPoints.get(i).lat(), geoPoints.get(i).lon(), unit);
+        }
         ObjectMapper objectMapper;
         if (nestedPath != null) {
             ObjectMappers objectMappers = context.mapperService().objectMapper(nestedPath);
@@ -167,7 +183,7 @@ public class GeoDistanceSortParser implements SortParser {
                     @Override
                     protected Doubles getDoubleValues(AtomicReaderContext context, String field) throws IOException {
                         final MultiGeoPointValues geoPointValues = geoIndexFieldData.load(context).getGeoPointValues();
-                        final SortedNumericDoubleValues distanceValues = GeoDistance.distanceValues(distance, geoPointValues);
+                        final SortedNumericDoubleValues distanceValues = GeoDistance.distanceValues(geoPointValues, distances);
                         final NumericDoubleValues selectedValues;
                         if (nested == null) {
                             selectedValues = finalSortMode.select(distanceValues, Double.MAX_VALUE);
@@ -189,5 +205,32 @@ public class GeoDistanceSortParser implements SortParser {
         };
 
         return new SortField(fieldName, geoDistanceComparatorSource, reverse);
+    }
+
+    private void parseGeoPoints(XContentParser parser, List<GeoPoint> geoPoints) throws IOException {
+
+        XContentBuilder parserCopy = jsonBuilder();
+        parserCopy.copyCurrentStructure(parser);
+        String dummyField = "{\"dummy_field\":" + parserCopy.string() + "}";
+        XContentParser copiedParser =  XContentHelper.createParser(new BytesArray(dummyField));
+        try {
+            copiedParser.nextToken();
+            copiedParser.nextToken();
+            copiedParser.nextToken();
+            while (!copiedParser.nextToken().equals(XContentParser.Token.END_ARRAY)) {
+                GeoPoint point = new GeoPoint();
+                GeoUtils.parseGeoPoint(copiedParser, point);
+                geoPoints.add(point);
+            }
+        } catch (ElasticsearchParseException e) {
+            // it might be that the input was [number, number] in which case we must try to parse again
+            copiedParser = XContentHelper.createParser(new BytesArray(dummyField));
+            GeoPoint point = new GeoPoint();
+            copiedParser.nextToken();
+            copiedParser.nextToken();
+            copiedParser.nextToken();
+            GeoUtils.parseGeoPoint(copiedParser, point);
+            geoPoints.add(point);
+        }
     }
 }

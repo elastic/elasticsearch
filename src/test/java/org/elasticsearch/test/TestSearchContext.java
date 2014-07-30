@@ -77,6 +77,7 @@ public class TestSearchContext extends SearchContext {
     ContextIndexSearcher searcher;
     int size;
     private int terminateAfter = DEFAULT_TERMINATE_AFTER;
+    private String[] types;
 
     public TestSearchContext(ThreadPool threadPool, CacheRecycler cacheRecycler, PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, IndexService indexService, FilterCache filterCache, IndexFieldDataService indexFieldDataService) {
         this.cacheRecycler = cacheRecycler;
@@ -96,6 +97,10 @@ public class TestSearchContext extends SearchContext {
         this.filterCache = null;
         this.indexFieldDataService = null;
         this.threadPool = null;
+    }
+
+    public void setTypes(String... types) {
+        this.types = types;
     }
 
     @Override
@@ -290,7 +295,10 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public MapperService mapperService() {
-        return indexService.mapperService();
+        if (indexService != null) {
+            return indexService.mapperService();
+        }
+        return null;
     }
 
     @Override
@@ -582,6 +590,9 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public FieldMapper<?> smartNameFieldMapper(String name) {
+        if (mapperService() != null) {
+            return mapperService().smartNameFieldMapper(name, types());
+        }
         return null;
     }
 

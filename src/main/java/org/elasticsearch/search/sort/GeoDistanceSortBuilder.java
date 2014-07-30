@@ -19,12 +19,16 @@
 
 package org.elasticsearch.search.sort;
 
+import com.google.common.collect.Lists;
 import org.elasticsearch.common.geo.GeoDistance;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.FilterBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
 /**
@@ -33,10 +37,8 @@ import java.util.Locale;
 public class GeoDistanceSortBuilder extends SortBuilder {
 
     final String fieldName;
-
-    private double lat;
-    private double lon;
-    private String geohash;
+    private final List<GeoPoint> points = new ArrayList<>();
+    private final List<String> geohashes = new ArrayList<>();
 
     private GeoDistance geoDistance;
     private DistanceUnit unit;
@@ -61,16 +63,25 @@ public class GeoDistanceSortBuilder extends SortBuilder {
      * @param lon longitude.
      */
     public GeoDistanceSortBuilder point(double lat, double lon) {
-        this.lat = lat;
-        this.lon = lon;
+        points.add(new GeoPoint(lat, lon));
+        return this;
+    }
+
+    /**
+     * The point to create the range distance facets from.
+     *
+     * @param points reference points.
+     */
+    public GeoDistanceSortBuilder points(GeoPoint... points) {
+        this.points.addAll(Lists.newArrayList(points));
         return this;
     }
 
     /**
      * The geohash of the geo point to create the range distance facets from.
      */
-    public GeoDistanceSortBuilder geohash(String geohash) {
-        this.geohash = geohash;
+    public GeoDistanceSortBuilder geohash(String... geohash) {
+        this.geohashes.addAll(Lists.newArrayList(geohash));
         return this;
     }
 
@@ -138,10 +149,18 @@ public class GeoDistanceSortBuilder extends SortBuilder {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("_geo_distance");
 
-        if (geohash != null) {
-            builder.field(fieldName, geohash);
+        if (geohashes.size() != 0) {
+            if (geohashes.size() == 1) {
+                builder.field(fieldName, geohashes.get(0));
+            } else {
+                builder.field(fieldName, geohashes);
+            }
         } else {
-            builder.startArray(fieldName).value(lon).value(lat).endArray();
+            if (points.size() == 1) {
+                builder.field(fieldName, points.get(0));
+            } else {
+                builder.field(fieldName, points);
+            }
         }
 
         if (unit != null) {

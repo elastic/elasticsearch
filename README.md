@@ -71,7 +71,10 @@ Before starting, you need to have:
   2014` doesn't seem to create a valid keypair for ssh.  FWIW,
   `OpenSSL 1.0.1c 10 May 2012` on Ubuntu 12.04 LTS is known to work.
 
-Here is a description on how to generate this using `openssl`:
+You should follow [this guide](http://azure.microsoft.com/en-us/documentation/articles/linux-use-ssh-key/) to learn
+how to create or use existing SSH keys. If you have already did it, you can skip the following.
+
+Here is a description on how to generate SSH keys using `openssl`:
 
 ```sh
 # You may want to use another dir than /tmp
@@ -79,7 +82,12 @@ cd /tmp
 openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout azure-private.key -out azure-certificate.pem
 chmod 600 azure-private.key azure-certificate.pem
 openssl x509 -outform der -in azure-certificate.pem -out azure-certificate.cer
+```
 
+Generate a keystore which will be used by the plugin to authenticate with a certificate
+all Azure API calls.
+
+```sh
 # Generate a keystore (azurekeystore.pkcs12)
 # Transform private key to PEM format
 openssl pkcs8 -topk8 -nocrypt -in azure-private.key -inform PEM -out azure-pk.pem -outform PEM

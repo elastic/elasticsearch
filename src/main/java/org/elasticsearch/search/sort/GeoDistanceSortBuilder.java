@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.sort;
 
-import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -82,7 +81,7 @@ public class GeoDistanceSortBuilder extends SortBuilder {
     /**
      * The geohash of the geo point to create the range distance facets from.
      */
-    public GeoDistanceSortBuilder geohash(String... geohashes) {
+    public GeoDistanceSortBuilder geohashes(String... geohashes) {
         this.geohashes.addAll(Arrays.asList(geohashes));
         return this;
     }

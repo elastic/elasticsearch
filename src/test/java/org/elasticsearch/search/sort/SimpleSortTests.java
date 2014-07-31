@@ -1774,7 +1774,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
         for (int i = 0; i < 4; i++) {
             int at = randomInt(3 - i);
             if (randomBoolean()) {
-                geoDistanceSortBuilder.geohash(qHashes.get(at));
+                geoDistanceSortBuilder.geohashes(qHashes.get(at));
             } else {
                 geoDistanceSortBuilder.points(qPoints.get(at));
             }

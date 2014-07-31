@@ -1,3 +1,4 @@
 org.elasticsearch.index.codec.postingsformat.Elasticsearch090PostingsFormat
 org.elasticsearch.search.suggest.completion.Completion090PostingsFormat
+org.apache.lucene.search.suggest.analyzing.LookupPostingsFormat
 org.elasticsearch.index.codec.postingsformat.BloomFilterPostingsFormat

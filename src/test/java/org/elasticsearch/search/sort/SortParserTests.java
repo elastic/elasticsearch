@@ -21,8 +21,9 @@
 package org.elasticsearch.search.sort;
 
 
-import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.service.IndexService;
@@ -30,158 +31,119 @@ import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.elasticsearch.test.TestSearchContext;
 import org.junit.Test;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+
 public class SortParserTests extends ElasticsearchSingleNodeTest {
 
     @Test
     public void testGeoDistanceSortParserManyPointsNoException() throws Exception {
-        String mapping = "{\"type\": {\"properties\": {\"location\": {\"type\": \"geo_point\"}}}}";
+        XContentBuilder mapping = jsonBuilder();
+        mapping.startObject().startObject("type").startObject("properties").startObject("location").field("type", "geo_point").endObject().endObject().endObject().endObject();
         IndexService indexService = createIndex("testidx", ImmutableSettings.settingsBuilder().build(), "type", mapping);
-        TestSearchContext context = (TestSearchContext)createSearchContext(indexService);
+        TestSearchContext context = (TestSearchContext) createSearchContext(indexService);
         context.setTypes("type");
 
-        String sortString = "{\n" +
-                "        \"location\": [\n" +
-                "          [\n" +
-                "            1.2,\n" +
-                "            3\n" +
-                "          ],\n" +
-                "          [\n" +
-                "            5,\n" +
-                "            6\n" +
-                "          ]\n" +
-                "        ],\n" +
-                "        \"order\": \"desc\",\n" +
-                "        \"unit\": \"km\",\n" +
-                "        \"sort_mode\": \"max\"\n" +
-                "      }\n" +
-                "    }";
-        XContentParser parser = XContentHelper.createParser(new BytesArray(sortString));
+        XContentBuilder sortBuilder = jsonBuilder();
+        sortBuilder.startObject();
+        sortBuilder.startArray("location");
+        sortBuilder.startArray().value(1.2).value(3).endArray().startArray().value(5).value(6).endArray();
+        sortBuilder.endArray();
+        sortBuilder.field("order", "desc");
+        sortBuilder.field("unit", "km");
+        sortBuilder.field("sort_mode", "max");
+        sortBuilder.endObject();
+        XContentParser parser = XContentHelper.createParser(sortBuilder.bytes());
         parser.nextToken();
         GeoDistanceSortParser geoParser = new GeoDistanceSortParser();
         geoParser.parse(parser, context);
 
-        sortString = "{\n" +
-                "        \"location\": [\n" +
-                "          {\n" +
-                "            \"lat\":1.2,\n" +
-                "            \"lon\":3\n" +
-                "          },\n" +
-                "          {\n" +
-                "             \"lat\":1.2,\n" +
-                "            \"lon\":3\n" +
-                "          }\n" +
-                "        ],\n" +
-                "        \"order\": \"desc\",\n" +
-                "        \"unit\": \"km\",\n" +
-                "        \"sort_mode\": \"max\"\n" +
-                "    }";
-        parser = XContentHelper.createParser(new BytesArray(sortString));
-        parser.nextToken();
-        geoParser = new GeoDistanceSortParser();
-        geoParser.parse(parser, context);
+        sortBuilder = jsonBuilder();
+        sortBuilder.startObject();
+        sortBuilder.startArray("location");
+        sortBuilder.value(new GeoPoint(1.2, 3)).value(new GeoPoint(1.2, 3));
+        sortBuilder.endArray();
+        sortBuilder.field("order", "desc");
+        sortBuilder.field("unit", "km");
+        sortBuilder.field("sort_mode", "max");
+        sortBuilder.endObject();
+        parse(context, sortBuilder);
 
-        sortString = "{\n" +
-                "        \"location\": [\n" +
-                "          \"1,2\",\n" +
-                "          \"3,4\"\n" +
-                "        ],\n" +
-                "        \"order\": \"desc\",\n" +
-                "        \"unit\": \"km\",\n" +
-                "        \"sort_mode\": \"max\"\n" +
-                "    }";
-        parser = XContentHelper.createParser(new BytesArray(sortString));
-        parser.nextToken();
-        geoParser = new GeoDistanceSortParser();
-        geoParser.parse(parser, context);
+        sortBuilder = jsonBuilder();
+        sortBuilder.startObject();
+        sortBuilder.startArray("location");
+        sortBuilder.value("1,2").value("3,4");
+        sortBuilder.endArray();
+        sortBuilder.field("order", "desc");
+        sortBuilder.field("unit", "km");
+        sortBuilder.field("sort_mode", "max");
+        sortBuilder.endObject();
+        parse(context, sortBuilder);
 
-        sortString = "{\n" +
-                "        \"location\": [\n" +
-                "          \"s3y0zh7w1z0g\",\n" +
-                "          \"s6wjr4et3f8v\"\n" +
-                "        ],\n" +
-                "        \"order\": \"desc\",\n" +
-                "        \"unit\": \"km\",\n" +
-                "        \"sort_mode\": \"max\"\n" +
-                "    }";
-        parser = XContentHelper.createParser(new BytesArray(sortString));
-        parser.nextToken();
-        geoParser = new GeoDistanceSortParser();
-        geoParser.parse(parser, context);
+        sortBuilder = jsonBuilder();
+        sortBuilder.startObject();
+        sortBuilder.startArray("location");
+        sortBuilder.value("s3y0zh7w1z0g").value("s6wjr4et3f8v");
+        sortBuilder.endArray();
+        sortBuilder.field("order", "desc");
+        sortBuilder.field("unit", "km");
+        sortBuilder.field("sort_mode", "max");
+        sortBuilder.endObject();
+        parse(context, sortBuilder);
 
-        sortString = "{\n" +
-                "        \"location\": " +
-                "          [\n" +
-                "            1.2,\n" +
-                "            3\n" +
-                "          ],\n" +
-                "        \"order\": \"desc\",\n" +
-                "        \"unit\": \"km\",\n" +
-                "        \"sort_mode\": \"max\"\n" +
-                "      }\n" +
-                "    }";
-        parser = XContentHelper.createParser(new BytesArray(sortString));
-        parser.nextToken();
-        geoParser = new GeoDistanceSortParser();
-        geoParser.parse(parser, context);
+        sortBuilder = jsonBuilder();
+        sortBuilder.startObject();
+        sortBuilder.startArray("location");
+        sortBuilder.value(1.2).value(3);
+        sortBuilder.endArray();
+        sortBuilder.field("order", "desc");
+        sortBuilder.field("unit", "km");
+        sortBuilder.field("sort_mode", "max");
+        sortBuilder.endObject();
+        parse(context, sortBuilder);
 
-        sortString = "{\n" +
-                "        \"location\": \n" +
-                "          {\n" +
-                "            \"lat\":1.2,\n" +
-                "            \"lon\":3\n" +
-                "          }," +
-                "        \"order\": \"desc\",\n" +
-                "        \"unit\": \"km\",\n" +
-                "        \"sort_mode\": \"max\"\n" +
-                "    }";
-        parser = XContentHelper.createParser(new BytesArray(sortString));
-        parser.nextToken();
-        geoParser = new GeoDistanceSortParser();
-        geoParser.parse(parser, context);
+        sortBuilder = jsonBuilder();
+        sortBuilder.startObject();
+        sortBuilder.field("location", new GeoPoint(1, 2));
+        sortBuilder.field("order", "desc");
+        sortBuilder.field("unit", "km");
+        sortBuilder.field("sort_mode", "max");
+        sortBuilder.endObject();
+        parse(context, sortBuilder);
 
-        sortString = "{\n" +
-                "        \"location\": \"1,2\"," +
-                "        \"order\": \"desc\",\n" +
-                "        \"unit\": \"km\",\n" +
-                "        \"sort_mode\": \"max\"\n" +
-                "    }";
-        parser = XContentHelper.createParser(new BytesArray(sortString));
-        parser.nextToken();
-        geoParser = new GeoDistanceSortParser();
-        geoParser.parse(parser, context);
+        sortBuilder = jsonBuilder();
+        sortBuilder.startObject();
+        sortBuilder.field("location", "1,2");
+        sortBuilder.field("order", "desc");
+        sortBuilder.field("unit", "km");
+        sortBuilder.field("sort_mode", "max");
+        sortBuilder.endObject();
+        parse(context, sortBuilder);
 
-        sortString = "{\n" +
-                "        \"location\": \"s3y0zh7w1z0g\",\n" +
-                "        \"order\": \"desc\",\n" +
-                "        \"unit\": \"km\",\n" +
-                "        \"sort_mode\": \"max\"\n" +
-                "    }";
-        parser = XContentHelper.createParser(new BytesArray(sortString));
-        parser.nextToken();
-        geoParser = new GeoDistanceSortParser();
-        geoParser.parse(parser, context);
+        sortBuilder = jsonBuilder();
+        sortBuilder.startObject();
+        sortBuilder.field("location", "s3y0zh7w1z0g");
+        sortBuilder.field("order", "desc");
+        sortBuilder.field("unit", "km");
+        sortBuilder.field("sort_mode", "max");
+        sortBuilder.endObject();
+        parse(context, sortBuilder);
 
+        sortBuilder = jsonBuilder();
+        sortBuilder.startObject();
+        sortBuilder.startArray("location");
+        sortBuilder.value(new GeoPoint(1, 2)).value("s3y0zh7w1z0g").startArray().value(1).value(2).endArray().value("1,2");
+        sortBuilder.endArray();
+        sortBuilder.field("order", "desc");
+        sortBuilder.field("unit", "km");
+        sortBuilder.field("sort_mode", "max");
+        sortBuilder.endObject();
+        parse(context, sortBuilder);
+    }
 
-        sortString = "{\n" +
-                "        \"location\": [\n" +
-                "          {\n" +
-                "            \"lat\": 1.2,\n" +
-                "            \"lon\": 3\n" +
-                "          },\n" +
-                "          \"s3y0zh7w1z0g\",\n" +
-                "          [\n" +
-                "            1,\n" +
-                "            2\n" +
-                "          ],\n" +
-                "          \"1,2\"\n" +
-                "        ],\n" +
-                "        \"order\": \"desc\",\n" +
-                "        \"unit\": \"km\",\n" +
-                "        \"sort_mode\": \"max\"\n" +
-                "      }";
-        parser = XContentHelper.createParser(new BytesArray(sortString));
+    protected void parse(TestSearchContext context, XContentBuilder sortBuilder) throws Exception {
+        XContentParser parser = XContentHelper.createParser(sortBuilder.bytes());
         parser.nextToken();
-        geoParser = new GeoDistanceSortParser();
+        GeoDistanceSortParser geoParser = new GeoDistanceSortParser();
         geoParser.parse(parser, context);
     }
 }

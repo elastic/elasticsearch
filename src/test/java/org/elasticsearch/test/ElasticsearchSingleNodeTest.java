@@ -33,6 +33,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.Node;
@@ -133,7 +134,7 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
     /**
      * Create a new index on the singleton node with the provided index settings.
      */
-    protected static IndexService createIndex(String index, Settings settings, String type, String mappings) {
+    protected static IndexService createIndex(String index, Settings settings, String type, XContentBuilder mappings) {
         CreateIndexRequestBuilder createIndexRequestBuilder = Holder.NODE.client().admin().indices().prepareCreate(index).setSettings(settings);
         if (type != null && mappings != null) {
             createIndexRequestBuilder.addMapping(type, mappings);

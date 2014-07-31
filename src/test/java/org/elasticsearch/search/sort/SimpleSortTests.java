@@ -1678,7 +1678,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
         }
     }
 
-    public void testManyToManyGeoPoints() throws ExecutionException, InterruptedException {
+    public void testManyToManyGeoPoints() throws ExecutionException, InterruptedException, IOException {
         /**
          * | q  |  d1    |   d2
          * |    |        |
@@ -1690,17 +1690,20 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
          * |___________________________
          * 1   2   3   4   5   6   7
          */
-        assertAcked(prepareCreate("index")
-                .addMapping("type", "{\"type\": {\"properties\": {\"location\": {\"type\": \"geo_point\"}}}}"));
-        String d1 = randomBoolean() ?
-                "{\"location\": [{\"lat\": \"3\", \"lon\": \"2\"}, {\"lat\": \"4\", \"lon\": \"1\"}]}" :
-                "{\"location\": [{\"lat\": \"4\", \"lon\": \"1\"}, {\"lat\": \"3\", \"lon\": \"2\"}]}";
-        String d2 = randomBoolean() ?
-                "{\"location\": [{\"lat\": \"5\", \"lon\": \"1\"}, {\"lat\": \"6\", \"lon\": \"2\"}]}" :
-                "{\"location\": [{\"lat\": \"6\", \"lon\": \"2\"}, {\"lat\": \"5\", \"lon\": \"1\"}]}";
+        assertAcked(prepareCreate("index").addMapping("type", "location", "type=geo_point"));
+        XContentBuilder d1Builder = jsonBuilder();
+        GeoPoint[] d1Points = {new GeoPoint(3, 2), new GeoPoint(4, 1)};
+        createShuffeldJSONArray(d1Builder, d1Points);
+
+        XContentBuilder d2Builder = jsonBuilder();
+        GeoPoint[] d2Points = {new GeoPoint(5, 1), new GeoPoint(6, 2)};
+        createShuffeldJSONArray(d2Builder, d2Points);
+
+        logger.info(d1Builder.string());
+        logger.info(d2Builder.string());
         indexRandom(true,
-                client().prepareIndex("index", "type", "d1").setSource(d1),
-                client().prepareIndex("index", "type", "d2").setSource(d2));
+                client().prepareIndex("index", "type", "d1").setSource(d1Builder),
+                client().prepareIndex("index", "type", "d2").setSource(d2Builder));
         ensureYellow();
         GeoPoint[] q = new GeoPoint[2];
         if (randomBoolean()) {
@@ -1744,6 +1747,19 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
         assertThat((Double) searchResponse.getHits().getAt(1).getSortValues()[0], equalTo(GeoDistance.PLANE.calculate(2, 2, 4, 1, DistanceUnit.KILOMETERS)));
     }
 
+    protected void createShuffeldJSONArray(XContentBuilder builder, GeoPoint[] pointsArray) throws IOException {
+        List<GeoPoint> points = new ArrayList<>();
+        points.addAll(Arrays.asList(pointsArray));
+        builder.startObject();
+        builder.startArray("location");
+        int numPoints = points.size();
+        for (int i = 0; i < numPoints; i++) {
+            builder.value(points.remove(randomInt(points.size() - 1)));
+        }
+        builder.endArray();
+        builder.endObject();
+    }
+
     public void testManyToManyGeoPointsWithDifferentFormats() throws ExecutionException, InterruptedException, IOException {
         /**   q     d1       d2
          * |4  o|   x    |   x
@@ -1756,14 +1772,18 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
          * |______________________
          * 1   2   3   4   5   6
          */
-        assertAcked(prepareCreate("index")
-                .addMapping("type", "{\"type\": {\"properties\": {\"location\": {\"type\": \"geo_point\"}}}}"));
-        String d1 = "{\"location\": [{\"lat\": \"2.5\", \"lon\": \"1\"}, {\"lat\": \"2.75\", \"lon\": \"2\"}, {\"lat\": \"3\", \"lon\": \"3\"}, {\"lat\": \"3.25\", \"lon\": \"4\"}]}";
-        String d2 = "{\"location\": [{\"lat\": \"4.5\", \"lon\": \"1\"}, {\"lat\": \"4.75\", \"lon\": \"2\"}, {\"lat\": \"5\", \"lon\": \"3\"}, {\"lat\": \"5.25\", \"lon\": \"4\"}]}";
+        assertAcked(prepareCreate("index").addMapping("type", "location", "type=geo_point"));
+        XContentBuilder d1Builder = jsonBuilder();
+        GeoPoint[] d1Points = {new GeoPoint(2.5, 1), new GeoPoint(2.75, 2), new GeoPoint(3, 3), new GeoPoint(3.25, 4)};
+        createShuffeldJSONArray(d1Builder, d1Points);
+
+        XContentBuilder d2Builder = jsonBuilder();
+        GeoPoint[] d2Points = {new GeoPoint(4.5, 1), new GeoPoint(4.75, 2), new GeoPoint(5, 3), new GeoPoint(5.25, 4)};
+        createShuffeldJSONArray(d2Builder, d2Points);
 
         indexRandom(true,
-                client().prepareIndex("index", "type", "d1").setSource(d1),
-                client().prepareIndex("index", "type", "d2").setSource(d2));
+                client().prepareIndex("index", "type", "d1").setSource(d1Builder),
+                client().prepareIndex("index", "type", "d2").setSource(d2Builder));
         ensureYellow();
 
         List<String> qHashes = new ArrayList<>();

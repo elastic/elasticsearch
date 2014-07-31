@@ -350,4 +350,47 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
         output.close();
 
     }
+
+    private class CompletionProvider {
+        final RAMDirectory dir = new RAMDirectory();
+        final IndexWriterConfig indexWriterConfig;
+        final CompletionFieldMapper mapper;
+        IndexWriter writer;
+
+        public CompletionProvider(final CompletionFieldMapper mapper) {
+            FilterCodec filterCodec = new FilterCodec("filtered", Codec.getDefault()) {
+                public PostingsFormat postingsFormat() {
+                    return mapper.postingsFormatProvider().get();
+                }
+            };
+            this.indexWriterConfig = new IndexWriterConfig(TEST_VERSION_CURRENT, mapper.indexAnalyzer());
+            indexWriterConfig.setCodec(filterCodec);
+            this.mapper = mapper;
+        }
+
+        public void indexCompletions(String[] terms, String[] surfaces, long[] weights) throws IOException {
+            writer = new IndexWriter(dir, indexWriterConfig);
+            for (int i = 0; i < weights.length; i++) {
+                Document doc = new Document();
+                BytesRef payload = mapper.buildPayload(new BytesRef(surfaces[i]), weights[i], new BytesRef(Long.toString(weights[i])));
+                doc.add(mapper.getCompletionField(ContextMapping.EMPTY_CONTEXT, terms[i], payload));
+                if (randomBoolean()) {
+                    writer.commit();
+                }
+                writer.addDocument(doc);
+            }
+            writer.commit();
+            writer.forceMerge(1, true);
+            writer.commit();
+            writer.close();
+        }
+
+        public IndexReader getReader() throws IOException {
+            if (writer != null) {
+                return DirectoryReader.open(writer, true);
+            } else {
+                return null;
+            }
+        }
+    }
 }

@@ -96,7 +96,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     @Override
     protected void doExecute(final BulkRequest bulkRequest, final ActionListener<BulkResponse> listener) {
         final long startTime = System.currentTimeMillis();
-        final AtomicArray<BulkItemResponse> responses = new AtomicArray<BulkItemResponse>(bulkRequest.requests.size());
+        final AtomicArray<BulkItemResponse> responses = new AtomicArray<>(bulkRequest.requests.size());
 
         if (autoCreateIndex.needToCheck()) {
             final Set<String> indices = Sets.newHashSet();
@@ -125,7 +125,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             ClusterState state = clusterService.state();
             for (final String index : indices) {
                 if (autoCreateIndex.shouldAutoCreate(index, state)) {
-                    createIndexAction.execute(new CreateIndexRequest(index).cause("auto(bulk api)"), new ActionListener<CreateIndexResponse>() {
+                    createIndexAction.execute(new CreateIndexRequest(index).cause("auto(bulk api)").masterNodeTimeout(bulkRequest.timeout()), new ActionListener<CreateIndexResponse>() {
                         @Override
                         public void onResponse(CreateIndexResponse result) {
                             if (counter.decrementAndGet() == 0) {
@@ -145,7 +145,11 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                                 }
                             }
                             if (counter.decrementAndGet() == 0) {
-                                executeBulk(bulkRequest, startTime, listener, responses);
+                                try {
+                                    executeBulk(bulkRequest, startTime, listener, responses);
+                                } catch (Throwable t) {
+                                    listener.onFailure(t);
+                                }
                             }
                         }
                     });

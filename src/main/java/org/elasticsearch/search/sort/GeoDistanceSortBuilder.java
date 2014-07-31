@@ -28,6 +28,7 @@ import org.elasticsearch.index.query.FilterBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
@@ -73,15 +74,15 @@ public class GeoDistanceSortBuilder extends SortBuilder {
      * @param points reference points.
      */
     public GeoDistanceSortBuilder points(GeoPoint... points) {
-        this.points.addAll(Lists.newArrayList(points));
+        this.points.addAll(Arrays.asList(points));
         return this;
     }
 
     /**
      * The geohash of the geo point to create the range distance facets from.
      */
-    public GeoDistanceSortBuilder geohash(String... geohash) {
-        this.geohashes.addAll(Lists.newArrayList(geohash));
+    public GeoDistanceSortBuilder geohash(String... geohashes) {
+        this.geohashes.addAll(Arrays.asList(geohashes));
         return this;
     }
 

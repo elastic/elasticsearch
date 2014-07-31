@@ -199,7 +199,7 @@ public class NodesFaultDetection extends AbstractComponent {
         });
     }
 
-    private void notifyPingRecieved(final PingRequest pingRequest) {
+    private void notifyPingReceived(final PingRequest pingRequest) {
         threadPool.generic().execute(new Runnable() {
 
             @Override
@@ -326,7 +326,7 @@ public class NodesFaultDetection extends AbstractComponent {
                 throw new ElasticsearchIllegalStateException("Got pinged with cluster name [" + request.clusterName + "], but I'm part of cluster [" + clusterName + "]");
             }
 
-            notifyPingRecieved(request);
+            notifyPingReceived(request);
 
             channel.sendResponse(new PingResponse());
         }

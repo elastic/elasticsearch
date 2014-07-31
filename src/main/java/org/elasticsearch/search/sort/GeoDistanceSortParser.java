@@ -208,29 +208,25 @@ public class GeoDistanceSortParser implements SortParser {
     }
 
     private void parseGeoPoints(XContentParser parser, List<GeoPoint> geoPoints) throws IOException {
-
-        XContentBuilder parserCopy = jsonBuilder();
-        parserCopy.copyCurrentStructure(parser);
-        String dummyField = "{\"dummy_field\":" + parserCopy.string() + "}";
-        XContentParser copiedParser =  XContentHelper.createParser(new BytesArray(dummyField));
-        try {
-            copiedParser.nextToken();
-            copiedParser.nextToken();
-            copiedParser.nextToken();
-            while (!copiedParser.nextToken().equals(XContentParser.Token.END_ARRAY)) {
+        while (!parser.nextToken().equals(XContentParser.Token.END_ARRAY)) {
+            if (parser.currentToken() == XContentParser.Token.VALUE_NUMBER) {
+                // we might get here if the geo point is " number, number] " and the parser already moved over the opening bracket
+                // in this case we cannot use GeoUtils.parseGeoPoint(..) because this expects an opening bracket
+                double lon = parser.doubleValue();
+                parser.nextToken();
+                if (!parser.currentToken().equals(XContentParser.Token.VALUE_NUMBER)) {
+                    throw new ElasticsearchParseException("geo point parsing: expected second number but got" + parser.currentToken());
+                }
+                double lat = parser.doubleValue();
                 GeoPoint point = new GeoPoint();
-                GeoUtils.parseGeoPoint(copiedParser, point);
+                point.reset(lat, lon);
+                geoPoints.add(point);
+            } else {
+                GeoPoint point = new GeoPoint();
+                GeoUtils.parseGeoPoint(parser, point);
                 geoPoints.add(point);
             }
-        } catch (ElasticsearchParseException e) {
-            // it might be that the input was [number, number] in which case we must try to parse again
-            copiedParser = XContentHelper.createParser(new BytesArray(dummyField));
-            GeoPoint point = new GeoPoint();
-            copiedParser.nextToken();
-            copiedParser.nextToken();
-            copiedParser.nextToken();
-            GeoUtils.parseGeoPoint(copiedParser, point);
-            geoPoints.add(point);
+
         }
     }
 }

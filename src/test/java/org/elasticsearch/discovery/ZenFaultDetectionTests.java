@@ -134,7 +134,7 @@ public class ZenFaultDetectionTests extends ElasticsearchTestCase {
         settings.put("discovery.zen.fd.connect_on_network_disconnect", shouldRetry).put("discovery.zen.fd.ping_interval", "5m");
         NodesFaultDetection nodesFD = new NodesFaultDetection(settings.build(), threadPool, serviceA, new ClusterName("test"));
         nodesFD.start();
-        nodesFD.updateNodes(buildNodesForA(true));
+        nodesFD.updateNodes(buildNodesForA(true), -1);
         final String[] failureReason = new String[1];
         final DiscoveryNode[] failureNode = new DiscoveryNode[1];
         final CountDownLatch notified = new CountDownLatch(1);

@@ -29,7 +29,7 @@ public final class CompletionPostingsFormatProvider extends AbstractPostingsForm
 
     private final Completion090PostingsFormat postingsFormat;
 
-    public CompletionPostingsFormatProvider(String name, PostingsFormatProvider delegate, Completion090PostingsFormat.CompletionLookupProvider provider) {
+    public CompletionPostingsFormatProvider(String name, PostingsFormatProvider delegate, CompletionLookupProvider provider) {
         super(name);
         this.postingsFormat = new Completion090PostingsFormat(delegate.get(), provider);
     }

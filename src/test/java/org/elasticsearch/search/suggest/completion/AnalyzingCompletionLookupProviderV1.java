@@ -37,8 +37,6 @@ import org.apache.lucene.util.fst.PairOutputs.Pair;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
 import org.elasticsearch.search.suggest.completion.AnalyzingCompletionLookupProvider.AnalyzingSuggestHolder;
-import org.elasticsearch.search.suggest.completion.Completion090PostingsFormat.CompletionLookupProvider;
-import org.elasticsearch.search.suggest.completion.Completion090PostingsFormat.LookupFactory;
 import org.elasticsearch.search.suggest.context.ContextMapping.ContextQuery;
 
 import java.io.IOException;
@@ -121,7 +119,7 @@ public class AnalyzingCompletionLookupProviderV1 extends CompletionLookupProvide
             public TermsConsumer addField(final FieldInfo field) throws IOException {
 
                 return new TermsConsumer() {
-                    final XAnalyzingSuggester.XBuilder builder = new XAnalyzingSuggester.XBuilder(maxSurfaceFormsPerAnalyzedForm, hasPayloads, PAYLOAD_SEP);
+                    final AnalyzingFSTBuilder builder = new AnalyzingFSTBuilder(maxSurfaceFormsPerAnalyzedForm, hasPayloads, PAYLOAD_SEP);
                     final CompletionPostingsConsumer postingsConsumer = new CompletionPostingsConsumer(AnalyzingCompletionLookupProviderV1.this, builder);
 
                     @Override
@@ -176,10 +174,10 @@ public class AnalyzingCompletionLookupProviderV1 extends CompletionLookupProvide
     private static final class CompletionPostingsConsumer extends PostingsConsumer {
         private final SuggestPayload spare = new SuggestPayload();
         private AnalyzingCompletionLookupProviderV1 analyzingSuggestLookupProvider;
-        private XAnalyzingSuggester.XBuilder builder;
+        private AnalyzingFSTBuilder builder;
         private int maxAnalyzedPathsForOneInput = 0;
 
-        public CompletionPostingsConsumer(AnalyzingCompletionLookupProviderV1 analyzingSuggestLookupProvider, XAnalyzingSuggester.XBuilder builder) {
+        public CompletionPostingsConsumer(AnalyzingCompletionLookupProviderV1 analyzingSuggestLookupProvider, AnalyzingFSTBuilder builder) {
             this.analyzingSuggestLookupProvider = analyzingSuggestLookupProvider;
             this.builder = builder;
         }

@@ -36,8 +36,6 @@ import org.apache.lucene.util.fst.*;
 import org.apache.lucene.util.fst.PairOutputs.Pair;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
-import org.elasticsearch.search.suggest.completion.Completion090PostingsFormat.CompletionLookupProvider;
-import org.elasticsearch.search.suggest.completion.Completion090PostingsFormat.LookupFactory;
 import org.elasticsearch.search.suggest.context.ContextMapping.ContextQuery;
 
 import java.io.IOException;
@@ -57,7 +55,8 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
     public static final int CODEC_VERSION_START = 1;
     public static final int CODEC_VERSION_SERIALIZED_LABELS = 2;
     public static final int CODEC_VERSION_CHECKSUMS = 3;
-    public static final int CODEC_VERSION_LATEST = CODEC_VERSION_CHECKSUMS;
+    public static final int CODEC_REAL_TIME = 4;
+    public static final int CODEC_VERSION_LATEST = CODEC_REAL_TIME;
 
     private boolean preserveSep;
     private boolean preservePositionIncrements;
@@ -113,7 +112,7 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
             public TermsConsumer addField(final FieldInfo field) throws IOException {
 
                 return new TermsConsumer() {
-                    final XAnalyzingSuggester.XBuilder builder = new XAnalyzingSuggester.XBuilder(maxSurfaceFormsPerAnalyzedForm, hasPayloads, XAnalyzingSuggester.PAYLOAD_SEP);
+                    final AnalyzingFSTBuilder builder = new AnalyzingFSTBuilder(maxSurfaceFormsPerAnalyzedForm, hasPayloads, XAnalyzingSuggester.PAYLOAD_SEP);
                     final CompletionPostingsConsumer postingsConsumer = new CompletionPostingsConsumer(AnalyzingCompletionLookupProvider.this, builder);
 
                     @Override
@@ -172,16 +171,17 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
     private static final class CompletionPostingsConsumer extends PostingsConsumer {
         private final SuggestPayload spare = new SuggestPayload();
         private AnalyzingCompletionLookupProvider analyzingSuggestLookupProvider;
-        private XAnalyzingSuggester.XBuilder builder;
+        private AnalyzingFSTBuilder builder;
         private int maxAnalyzedPathsForOneInput = 0;
 
-        public CompletionPostingsConsumer(AnalyzingCompletionLookupProvider analyzingSuggestLookupProvider, XAnalyzingSuggester.XBuilder builder) {
+        public CompletionPostingsConsumer(AnalyzingCompletionLookupProvider analyzingSuggestLookupProvider, AnalyzingFSTBuilder builder) {
             this.analyzingSuggestLookupProvider = analyzingSuggestLookupProvider;
             this.builder = builder;
         }
 
         @Override
         public void startDoc(int docID, int freq) throws IOException {
+            builder.setDocID(docID);
         }
 
         @Override
@@ -224,7 +224,7 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
 
         for (Map.Entry<Long, String> entry : meta.entrySet()) {
             input.seek(entry.getKey());
-            FST<Pair<Long, BytesRef>> fst = new FST<>(input, new PairOutputs<>(
+            final FST<Pair<Long, BytesRef>> fst = new FST<>(input, new PairOutputs<>(
                     PositiveIntOutputs.getSingleton(), ByteSequenceOutputs.getSingleton()));
             int maxAnalyzedPathsForOneInput = input.readVInt();
             int maxSurfaceFormsPerAnalyzedForm = input.readVInt();

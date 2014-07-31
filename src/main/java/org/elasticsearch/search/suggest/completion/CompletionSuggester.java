@@ -24,6 +24,7 @@ import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.suggest.Lookup;
+import org.apache.lucene.search.suggest.analyzing.XAnalyzingSuggester;
 import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.UnicodeUtil;
@@ -73,7 +74,12 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
                     // docs from the segment that had a value in this segment.
                     continue;
                 }
-                List<Lookup.LookupResult> lookupResults = lookup.lookup(spare, false, suggestionContext.getSize());
+                List<Lookup.LookupResult> lookupResults;
+                if (lookup instanceof XAnalyzingSuggester) {
+                    lookupResults = ((XAnalyzingSuggester) lookup).lookup(spare, null, false, suggestionContext.getSize(), atomicReader.getLiveDocs());
+                } else {
+                    lookupResults = lookup.lookup(spare, false, suggestionContext.getSize());
+                }
                 for (Lookup.LookupResult res : lookupResults) {
 
                     final String key = res.key.toString();

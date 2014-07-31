@@ -23,6 +23,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.joda.time.DateTimeZone;
 import org.joda.time.MutableDateTime;
 
+import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -260,4 +261,20 @@ public class DateMathParser {
             }
         }
     }
+
+    public static DateTimeZone parseZone(String text) throws IOException {
+        int index = text.indexOf(':');
+        if (index != -1) {
+            int beginIndex = text.charAt(0) == '+' ? 1 : 0;
+            // format like -02:30
+            return DateTimeZone.forOffsetHoursMinutes(
+                    Integer.parseInt(text.substring(beginIndex, index)),
+                    Integer.parseInt(text.substring(index + 1))
+            );
+        } else {
+            // id, listed here: http://joda-time.sourceforge.net/timezones.html
+            return DateTimeZone.forID(text);
+        }
+    }
+
 }

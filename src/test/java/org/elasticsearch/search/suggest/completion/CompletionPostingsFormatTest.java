@@ -32,8 +32,10 @@ import org.apache.lucene.search.suggest.Lookup.LookupResult;
 import org.apache.lucene.search.suggest.analyzing.AnalyzingSuggester;
 import org.apache.lucene.search.suggest.analyzing.XAnalyzingSuggester;
 import org.apache.lucene.store.*;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LineFileDocs;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.codec.postingsformat.Elasticsearch090PostingsFormat;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
@@ -48,13 +50,9 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.*;
 
 public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
 
@@ -115,6 +113,7 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
         assertThat(analyzingSuggestHolder.endByte, is(XAnalyzingSuggester.END_BYTE));
         dir.close();
     }
+
 
     @Test
     public void testDuellCompletions() throws IOException, NoSuchFieldException, SecurityException, IllegalArgumentException,
@@ -258,7 +257,7 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
                         lookup.get(j).value, equalTo(refLookup.get(j).value));
                 assertThat(lookup.get(j).payload, equalTo(refLookup.get(j).payload));
                 if (usePayloads) {
-                    assertThat(lookup.get(j).payload.utf8ToString(),  equalTo(Long.toString(lookup.get(j).value)));    
+                    assertThat(lookup.get(j).payload.utf8ToString(),  equalTo(Long.toString(lookup.get(j).value)));
                 }
             }
         }
@@ -350,4 +349,5 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
         output.close();
 
     }
+
 }

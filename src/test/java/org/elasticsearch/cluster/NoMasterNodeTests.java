@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster;
 
 import com.google.common.base.Predicate;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.get.GetResponse;
@@ -262,6 +263,11 @@ public class NoMasterNodeTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test1", "type1", "1").setSource("field", "value1").get();
         client().prepareIndex("test2", "type1", "1").setSource("field", "value1").get();
         refresh();
+
+        ensureSearchable("test1", "test2");
+
+        ClusterStateResponse clusterState = client().admin().cluster().prepareState().get();
+        logger.info("Cluster state:\n" + clusterState.getState().prettyPrint());
 
         internalCluster().stopRandomDataNode();
         assertThat(awaitBusy(new Predicate<Object>() {

@@ -141,17 +141,12 @@ public class DiscoveryWithServiceDisruptions extends ElasticsearchIntegrationTes
     }
 
     private List<String> startUnicastCluster(int numberOfNodes, @Nullable int[] unicastHostsOrdinals, int minimumMasterNode) throws ExecutionException, InterruptedException {
-        return startUnicastCluster(numberOfNodes, unicastHostsOrdinals, minimumMasterNode, ImmutableSettings.EMPTY);
-    }
-
-    private List<String> startUnicastCluster(int numberOfNodes, @Nullable int[] unicastHostsOrdinals, int minimumMasterNode, Settings settings) throws ExecutionException, InterruptedException {
         if (minimumMasterNode < 0) {
             minimumMasterNode = numberOfNodes / 2 + 1;
         }
         // TODO: Rarely use default settings form some of these
         Settings nodeSettings = ImmutableSettings.builder()
                 .put(DEFAULT_SETTINGS)
-                .put(settings)
                 .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, minimumMasterNode)
                 .build();
 
@@ -511,9 +506,7 @@ public class DiscoveryWithServiceDisruptions extends ElasticsearchIntegrationTes
     public void testMasterNodeGCs() throws Exception {
         // TODO: on mac OS multicast threads are shared between nodes and we therefore we can't simulate GC and stop pinging for just one node
         // find a way to block thread creation in the generic thread pool to avoid this.
-        // TODO: with local transport the threads of the source node enter the target node, since everything is local and like above we can't simulate GC on one node
-        // with netty transport the threads of different nodes don't touch each other due to the network threading Netty uses
-        List<String> nodes = startUnicastCluster(3, null, -1, ImmutableSettings.builder().put("node.mode", "network").build());
+        List<String> nodes = startUnicastCluster(3, null, -1);
 
         String oldMasterNode = internalCluster().getMasterName();
         // a very long GC, but it's OK as we remove the disruption when it has had an effect

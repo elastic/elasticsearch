@@ -1378,6 +1378,32 @@
           </plugins>
         </build>
       </profile>
+      <!-- profile for development that doesn't check forbidden-apis, no-commit validation or license headers run with mvn -Pdev -->
+      <profile>
+        <id>dev</id>
+        <properties>
+          <validate.skip>true</validate.skip>
+        </properties>
+          <build>
+        <plugins>
+          <plugin>
+              <groupId>de.thetaphi</groupId>
+              <artifactId>forbiddenapis</artifactId>
+              <version>1.5.1</version>
+              <executions>
+                <execution>
+                    <id>check-forbidden-apis</id>
+                    <phase>none</phase>
+                </execution>
+                <execution>
+                    <id>check-forbidden-test-apis</id>
+                    <phase>none</phase>
+                </execution>
+              </executions>
+          </plugin>
+          </plugins>
+          </build>
+      </profile>
       <!-- license profile, to generate third party license file -->
       <profile>
         <id>license</id>

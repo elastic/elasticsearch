@@ -70,6 +70,7 @@ import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
@@ -104,6 +105,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     /** how long to wait before performing another join attempt after a join request failed with an retriable error */
     private final TimeValue joinRetryDelay;
 
+    /** how many pings from *another* master to tolerate before forcing a rejoin on other or local master */
+    private final int maxPingsFromAnotherMaster;
 
     // a flag that should be used only for testing
     private final boolean sendLeaveRequest;
@@ -153,6 +156,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         this.joinTimeout = settings.getAsTime("discovery.zen.join_timeout", TimeValue.timeValueMillis(pingTimeout.millis() * 20));
         this.joinRetryAttempts = settings.getAsInt("discovery.zen.join_retry_attempts", 3);
         this.joinRetryDelay = settings.getAsTime("discovery.zen.join_retry_delay", TimeValue.timeValueMillis(100));
+        this.maxPingsFromAnotherMaster = settings.getAsInt("discovery.zen.max_pings_from_another_master", 3);
         this.sendLeaveRequest = componentSettings.getAsBoolean("send_leave_request", true);
 
         this.masterElectionFilterClientNodes = settings.getAsBoolean("discovery.zen.master_election.filter_client", true);
@@ -168,7 +172,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         this.masterFD.addListener(new MasterNodeFailureListener());
 
         this.nodesFD = new NodesFaultDetection(settings, threadPool, transportService, clusterName);
-        this.nodesFD.addListener(new NodeFailureListener());
+        this.nodesFD.addListener(new NodeFaultDetectionListener());
 
         this.publishClusterState = new PublishClusterStateAction(settings, transportService, this, new NewClusterStateListener(), discoverySettings);
         this.pingService.setNodesProvider(this);
@@ -194,7 +198,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         final String nodeId = DiscoveryService.generateNodeId(settings);
         localNode = new DiscoveryNode(settings.get("name"), nodeId, transportService.boundAddress().publishAddress(), nodeAttributes, version);
         latestDiscoNodes = new DiscoveryNodes.Builder().put(localNode).localNodeId(localNode.id()).build();
-        nodesFD.updateNodes(latestDiscoNodes);
+        nodesFD.updateNodes(latestDiscoNodes, -1);
         pingService.start();
 
         // do the join on a different thread, the DiscoveryService waits for 30s anyhow till it is discovered
@@ -288,7 +292,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             throw new ElasticsearchIllegalStateException("Shouldn't publish state when not master");
         }
         latestDiscoNodes = clusterState.nodes();
-        nodesFD.updateNodes(clusterState.nodes());
+        nodesFD.updateNodes(clusterState.nodes(), clusterState.version());
         publishClusterState.publish(clusterState, ackListener);
     }
 
@@ -648,29 +652,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             clusterService.submitStateUpdateTask("zen-disco-master_receive_cluster_state_from_another_master [" + newState.nodes().masterNode() + "]", Priority.URGENT, new ProcessedClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    if (newState.version() > currentState.version()) {
-                        logger.warn("received cluster state from [{}] which is also master but with a newer cluster_state, rejoining to cluster...", newState.nodes().masterNode());
-                        return rejoin(currentState, "zen-disco-master_receive_cluster_state_from_another_master [" + newState.nodes().masterNode() + "]");
-                    } else {
-                        logger.warn("received cluster state from [{}] which is also master but with an older cluster_state, telling [{}] to rejoin the cluster", newState.nodes().masterNode(), newState.nodes().masterNode());
-
-                        try {
-                            // make sure we're connected to this node (connect to node does nothing if we're already connected)
-                            // since the network connections are asymmetric, it may be that we received a state but have disconnected from the node
-                            // in the past (after a master failure, for example)
-                            transportService.connectToNode(newState.nodes().masterNode());
-                            transportService.sendRequest(newState.nodes().masterNode(), RejoinClusterRequestHandler.ACTION, new RejoinClusterRequest(currentState.nodes().localNodeId()), new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
-                                @Override
-                                public void handleException(TransportException exp) {
-                                    logger.warn("failed to send rejoin request to [{}]", exp, newState.nodes().masterNode());
-                                }
-                            });
-                        } catch (Exception e) {
-                            logger.warn("failed to send rejoin request to [{}]", e, newState.nodes().masterNode());
-                        }
-
-                        return currentState;
-                    }
+                    return handleAnotherMaster(currentState, newState.nodes().masterNode(), newState.version(), "via a new cluster state");
                 }
 
                 @Override
@@ -986,6 +968,31 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 .build();
     }
 
+    private ClusterState handleAnotherMaster(ClusterState localClusterState, final DiscoveryNode otherMaster, long otherClusterStateVersion, String reason) {
+        assert master : "handleAnotherMaster called but current node is not a master";
+        if (otherClusterStateVersion > localClusterState.version()) {
+            return rejoin(localClusterState, "zen-disco-discovered another master with a new cluster_state [" + otherMaster + "][" + reason + "]");
+        } else {
+            logger.warn("discovered [{}] which is also master but with an older cluster_state, telling [{}] to rejoin the cluster ([{}])", otherMaster, otherMaster, reason);
+            try {
+                // make sure we're connected to this node (connect to node does nothing if we're already connected)
+                // since the network connections are asymmetric, it may be that we received a state but have disconnected from the node
+                // in the past (after a master failure, for example)
+                transportService.connectToNode(otherMaster);
+                transportService.sendRequest(otherMaster, RejoinClusterRequestHandler.ACTION, new RejoinClusterRequest(localClusterState.nodes().localNodeId()), new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
+
+                    @Override
+                    public void handleException(TransportException exp) {
+                        logger.warn("failed to send rejoin request to [{}]", exp, otherMaster);
+                    }
+                });
+            } catch (Exception e) {
+                logger.warn("failed to send rejoin request to [{}]", e, otherMaster);
+            }
+            return localClusterState;
+        }
+    }
+
     private void sendInitialStateEventIfNeeded() {
         if (initialStateSent.compareAndSet(false, true)) {
             for (InitialStateDiscoveryListener listener : initialStateListeners) {
@@ -1014,11 +1021,47 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         }
     }
 
-    private class NodeFailureListener implements NodesFaultDetection.Listener {
+    private class NodeFaultDetectionListener extends NodesFaultDetection.Listener {
+
+        private final AtomicInteger pingsWhileMaster = new AtomicInteger(0);
 
         @Override
         public void onNodeFailure(DiscoveryNode node, String reason) {
             handleNodeFailure(node, reason);
+        }
+
+        @Override
+        public void onPingReceived(final NodesFaultDetection.PingRequest pingRequest) {
+            // if we are master, we don't expect any fault detection from another node. If we get it
+            // means we potentially have two masters in the cluster.
+            if (!master) {
+                pingsWhileMaster.set(0);
+                return;
+            }
+
+            // nodes pre 1.4.0 do not send this information
+            if (pingRequest.masterNode() == null) {
+                return;
+            }
+
+            if (pingsWhileMaster.incrementAndGet() < maxPingsFromAnotherMaster) {
+                logger.trace("got a ping from another master {}. current ping count: [{}]", pingRequest.masterNode(), pingsWhileMaster.get());
+                return;
+            }
+            logger.debug("got a ping from another master {}. resolving who should rejoin. current ping count: [{}]", pingRequest.masterNode(), pingsWhileMaster.get());
+            clusterService.submitStateUpdateTask("ping from another master", Priority.URGENT, new ClusterStateUpdateTask() {
+
+                @Override
+                public ClusterState execute(ClusterState currentState) throws Exception {
+                    pingsWhileMaster.set(0);
+                    return handleAnotherMaster(currentState, pingRequest.masterNode(), pingRequest.clusterStateVersion(), "node fd ping");
+                }
+
+                @Override
+                public void onFailure(String source, Throwable t) {
+                    logger.debug("unexpected error during cluster state update task after pings from another master", t);
+                }
+            });
         }
     }
 

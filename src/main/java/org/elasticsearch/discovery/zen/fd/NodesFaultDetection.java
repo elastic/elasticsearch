@@ -46,9 +46,12 @@ import static org.elasticsearch.transport.TransportRequestOptions.options;
  */
 public class NodesFaultDetection extends AbstractComponent {
 
-    public static interface Listener {
+    public abstract static class Listener {
 
-        void onNodeFailure(DiscoveryNode node, String reason);
+        public void onNodeFailure(DiscoveryNode node, String reason) {}
+
+        public void onPingReceived(PingRequest pingRequest) {}
+
     }
 
     private final ThreadPool threadPool;
@@ -76,6 +79,8 @@ public class NodesFaultDetection extends AbstractComponent {
     private final FDConnectionListener connectionListener;
 
     private volatile DiscoveryNodes latestNodes = EMPTY_NODES;
+
+    private volatile long clusterStateVersion = -1;
 
     private volatile boolean running = false;
 
@@ -109,9 +114,10 @@ public class NodesFaultDetection extends AbstractComponent {
         listeners.remove(listener);
     }
 
-    public void updateNodes(DiscoveryNodes nodes) {
+    public void updateNodes(DiscoveryNodes nodes, long clusterStateVersion) {
         DiscoveryNodes prevNodes = latestNodes;
         this.latestNodes = nodes;
+        this.clusterStateVersion = clusterStateVersion;
         if (!running) {
             return;
         }
@@ -193,6 +199,19 @@ public class NodesFaultDetection extends AbstractComponent {
         });
     }
 
+    private void notifyPingRecieved(final PingRequest pingRequest) {
+        threadPool.generic().execute(new Runnable() {
+
+            @Override
+            public void run() {
+                for (Listener listener : listeners) {
+                    listener.onPingReceived(pingRequest);
+                }
+            }
+
+        });
+    }
+
     private class SendPingRequest implements Runnable {
 
         private final DiscoveryNode node;
@@ -206,7 +225,7 @@ public class NodesFaultDetection extends AbstractComponent {
             if (!running) {
                 return;
             }
-            final PingRequest pingRequest = new PingRequest(node.id(), clusterName);
+            final PingRequest pingRequest = new PingRequest(node.id(), clusterName, latestNodes.localNode(), clusterStateVersion);
             final TransportRequestOptions options = options().withType(TransportRequestOptions.Type.PING).withTimeout(pingRetryTimeout);
             transportService.sendRequest(node, PingRequestHandler.ACTION, pingRequest, options, new BaseTransportResponseHandler<PingResponse>() {
                         @Override
@@ -306,6 +325,9 @@ public class NodesFaultDetection extends AbstractComponent {
                 // Don't introduce new exception for bwc reasons
                 throw new ElasticsearchIllegalStateException("Got pinged with cluster name [" + request.clusterName + "], but I'm part of cluster [" + clusterName + "]");
             }
+
+            notifyPingRecieved(request);
+
             channel.sendResponse(new PingResponse());
         }
 
@@ -323,12 +345,18 @@ public class NodesFaultDetection extends AbstractComponent {
 
         private ClusterName clusterName;
 
+        private DiscoveryNode masterNode;
+
+        private long clusterStateVersion = -1;
+
         PingRequest() {
         }
 
-        PingRequest(String nodeId, ClusterName clusterName) {
+        PingRequest(String nodeId, ClusterName clusterName, DiscoveryNode masterNode, long clusterStateVersion) {
             this.nodeId = nodeId;
             this.clusterName = clusterName;
+            this.masterNode = masterNode;
+            this.clusterStateVersion = clusterStateVersion;
         }
 
         public String nodeId() {
@@ -339,12 +367,22 @@ public class NodesFaultDetection extends AbstractComponent {
             return clusterName;
         }
 
+        public DiscoveryNode masterNode() {
+            return masterNode;
+        }
+
+        public long clusterStateVersion() {
+            return clusterStateVersion;
+        }
+
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             nodeId = in.readString();
             if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
                 clusterName = ClusterName.readClusterName(in);
+                masterNode = DiscoveryNode.readNode(in);
+                clusterStateVersion = in.readLong();
             }
         }
 
@@ -354,6 +392,8 @@ public class NodesFaultDetection extends AbstractComponent {
             out.writeString(nodeId);
             if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
                 clusterName.writeTo(out);
+                masterNode.writeTo(out);
+                out.writeLong(clusterStateVersion);
             }
         }
     }

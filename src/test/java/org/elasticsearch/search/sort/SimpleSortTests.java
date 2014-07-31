@@ -1744,4 +1744,111 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
         assertThat((Double) searchResponse.getHits().getAt(1).getSortValues()[0], equalTo(GeoDistance.PLANE.calculate(2, 2, 4, 1, DistanceUnit.KILOMETERS)));
     }
 
+    public void testManyToManyGeoPointsWithDifferentFormats() throws ExecutionException, InterruptedException, IOException {
+        /**   q     d1       d2
+         * |4  o|   x    |   x
+         * |    |        |
+         * |3  o|  x     |  x
+         * |    |        |
+         * |2  o| x      | x
+         * |    |        |
+         * |1  o|x       |x
+         * |______________________
+         * 1   2   3   4   5   6
+         */
+        assertAcked(prepareCreate("index")
+                .addMapping("type", "{\"type\": {\"properties\": {\"location\": {\"type\": \"geo_point\"}}}}"));
+        String d1 = "{\"location\": [{\"lat\": \"2.5\", \"lon\": \"1\"}, {\"lat\": \"2.75\", \"lon\": \"2\"}, {\"lat\": \"3\", \"lon\": \"3\"}, {\"lat\": \"3.25\", \"lon\": \"4\"}]}";
+        String d2 = "{\"location\": [{\"lat\": \"4.5\", \"lon\": \"1\"}, {\"lat\": \"4.75\", \"lon\": \"2\"}, {\"lat\": \"5\", \"lon\": \"3\"}, {\"lat\": \"5.25\", \"lon\": \"4\"}]}";
+
+        indexRandom(true,
+                client().prepareIndex("index", "type", "d1").setSource(d1),
+                client().prepareIndex("index", "type", "d2").setSource(d2));
+        ensureYellow();
+
+        List<String> qHashes = new ArrayList<>();
+        List<GeoPoint> qPoints = new ArrayList<>();
+        createQPoints(qHashes, qPoints);
+
+        GeoDistanceSortBuilder geoDistanceSortBuilder = new GeoDistanceSortBuilder("location");
+        for (int i = 0; i < 4; i++) {
+            int at = randomInt(3 - i);
+            if (randomBoolean()) {
+                geoDistanceSortBuilder.geohash(qHashes.get(at));
+            } else {
+                geoDistanceSortBuilder.points(qPoints.get(at));
+            }
+            qHashes.remove(at);
+            qPoints.remove(at);
+        }
+
+        SearchResponse searchResponse = client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .addSort(geoDistanceSortBuilder.sortMode("min").order(SortOrder.ASC).geoDistance(GeoDistance.PLANE).unit(DistanceUnit.KILOMETERS))
+                .execute().actionGet();
+        assertOrderedSearchHits(searchResponse, "d1", "d2");
+        assertThat((Double) searchResponse.getHits().getAt(0).getSortValues()[0], closeTo(GeoDistance.PLANE.calculate(2.5, 1, 2, 1, DistanceUnit.KILOMETERS), 1.e-5));
+        assertThat((Double) searchResponse.getHits().getAt(1).getSortValues()[0], closeTo(GeoDistance.PLANE.calculate(4.5, 1, 2, 1, DistanceUnit.KILOMETERS), 1.e-5));
+
+        searchResponse = client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .addSort(geoDistanceSortBuilder.sortMode("max").order(SortOrder.ASC).geoDistance(GeoDistance.PLANE).unit(DistanceUnit.KILOMETERS))
+                .execute().actionGet();
+        assertOrderedSearchHits(searchResponse, "d1", "d2");
+        assertThat((Double) searchResponse.getHits().getAt(0).getSortValues()[0], closeTo(GeoDistance.PLANE.calculate(3.25, 4, 2, 1, DistanceUnit.KILOMETERS), 1.e-5));
+        assertThat((Double) searchResponse.getHits().getAt(1).getSortValues()[0], closeTo(GeoDistance.PLANE.calculate(5.25, 4, 2, 1, DistanceUnit.KILOMETERS), 1.e-5));
+
+        //test all the different formats in one
+        createQPoints(qHashes, qPoints);
+        XContentBuilder searchSourceBuilder = jsonBuilder();
+        searchSourceBuilder.startObject().startArray("sort").startObject().startObject("_geo_distance").startArray("location");
+
+        for (int i = 0; i < 4; i++) {
+            int at = randomInt(qPoints.size() - 1);
+            int format = randomInt(3);
+            switch (format) {
+                case 0: {
+                    searchSourceBuilder.value(qHashes.get(at));
+                    break;
+                }
+                case 1: {
+                    searchSourceBuilder.value(qPoints.get(at).lat() + "," + qPoints.get(at).lon());
+                    break;
+                }
+                case 2: {
+                    searchSourceBuilder.value(qPoints.get(at));
+                    break;
+                }
+                case 3: {
+                    searchSourceBuilder.startArray().value(qPoints.get(at).lon()).value(qPoints.get(at).lat()).endArray();
+                    break;
+                }
+            }
+            qHashes.remove(at);
+            qPoints.remove(at);
+        }
+
+        searchSourceBuilder.endArray();
+        searchSourceBuilder.field("order", "asc");
+        searchSourceBuilder.field("unit", "km");
+        searchSourceBuilder.field("sort_mode", "min");
+        searchSourceBuilder.field("distance_type", "plane");
+        searchSourceBuilder.endObject();
+        searchSourceBuilder.endObject();
+        searchSourceBuilder.endArray();
+        searchSourceBuilder.endObject();
+
+        searchResponse = client().prepareSearch().setSource(searchSourceBuilder).execute().actionGet();
+        assertOrderedSearchHits(searchResponse, "d1", "d2");
+        assertThat((Double) searchResponse.getHits().getAt(0).getSortValues()[0], closeTo(GeoDistance.PLANE.calculate(2.5, 1, 2, 1, DistanceUnit.KILOMETERS), 1.e-5));
+        assertThat((Double) searchResponse.getHits().getAt(1).getSortValues()[0], closeTo(GeoDistance.PLANE.calculate(4.5, 1, 2, 1, DistanceUnit.KILOMETERS), 1.e-5));
+    }
+
+    protected void createQPoints(List<String> qHashes, List<GeoPoint> qPoints) {
+        GeoPoint[] qp = {new GeoPoint(2, 1), new GeoPoint(2, 2), new GeoPoint(2, 3), new GeoPoint(2, 4)};
+        qPoints.addAll(Arrays.asList(qp));
+        String[] qh = {"s02equ04ven0", "s037ms06g7h0", "s065kk0dc540", "s06g7h0dyg00"};
+        qHashes.addAll(Arrays.asList(qh));
+    }
+
 }

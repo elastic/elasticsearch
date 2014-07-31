@@ -20,6 +20,7 @@
 package org.elasticsearch.search.sort;
 
 import com.google.common.collect.Lists;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.unit.DistanceUnit;
@@ -149,21 +150,23 @@ public class GeoDistanceSortBuilder extends SortBuilder {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("_geo_distance");
-
-        if (geohashes.size() != 0) {
-            if (geohashes.size() == 1) {
-                builder.field(fieldName, geohashes.get(0));
-            } else {
-                builder.field(fieldName, geohashes);
-            }
-        } else {
-            if (points.size() == 1) {
-                builder.field(fieldName, points.get(0));
-            } else {
-                builder.field(fieldName, points);
-            }
+        if (geohashes.size() == 0 && points.size() == 0) {
+            throw new ElasticsearchParseException("No points provided for _geo_distance sort.");
         }
-
+        if (geohashes.size() == 1 && points.size() == 0) {
+            builder.field(fieldName, geohashes.get(0));
+        } else if (geohashes.size() == 1 && points.size() == 0) {
+            builder.field(fieldName, points.get(0));
+        } else {
+            builder.startArray(fieldName);
+            for (GeoPoint point : points) {
+                builder.value(point);
+            }
+            for (String geohash : geohashes) {
+                builder.value(geohash);
+            }
+            builder.endArray();
+        }
         if (unit != null) {
             builder.field("unit", unit);
         }

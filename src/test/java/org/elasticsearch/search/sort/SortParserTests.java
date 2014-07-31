@@ -160,5 +160,28 @@ public class SortParserTests extends ElasticsearchSingleNodeTest {
         parser.nextToken();
         geoParser = new GeoDistanceSortParser();
         geoParser.parse(parser, context);
+
+
+        sortString = "{\n" +
+                "        \"location\": [\n" +
+                "          {\n" +
+                "            \"lat\": 1.2,\n" +
+                "            \"lon\": 3\n" +
+                "          },\n" +
+                "          \"s3y0zh7w1z0g\",\n" +
+                "          [\n" +
+                "            1,\n" +
+                "            2\n" +
+                "          ],\n" +
+                "          \"1,2\"\n" +
+                "        ],\n" +
+                "        \"order\": \"desc\",\n" +
+                "        \"unit\": \"km\",\n" +
+                "        \"sort_mode\": \"max\"\n" +
+                "      }";
+        parser = XContentHelper.createParser(new BytesArray(sortString));
+        parser.nextToken();
+        geoParser = new GeoDistanceSortParser();
+        geoParser.parse(parser, context);
     }
 }

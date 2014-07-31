@@ -85,7 +85,8 @@ public class ConcurrentPercolatorTests extends ElasticsearchIntegrationTest {
         final AtomicBoolean stop = new AtomicBoolean(false);
         final AtomicInteger counts = new AtomicInteger(0);
         final AtomicReference<Throwable> exceptionHolder = new AtomicReference<>();
-        Thread[] threads = new Thread[5];
+        Thread[] threads = new Thread[scaledRandomIntBetween(2, 5)];
+        final int numberOfPercolations = scaledRandomIntBetween(1000, 10000);
 
         for (int i = 0; i < threads.length; i++) {
             Runnable r = new Runnable() {
@@ -95,7 +96,7 @@ public class ConcurrentPercolatorTests extends ElasticsearchIntegrationTest {
                         start.await();
                         while (!stop.get()) {
                             int count = counts.incrementAndGet();
-                            if ((count > 10000)) {
+                            if ((count > numberOfPercolations)) {
                                 stop.set(true);
                             }
                             PercolateResponse percolate;
@@ -147,9 +148,9 @@ public class ConcurrentPercolatorTests extends ElasticsearchIntegrationTest {
     public void testConcurrentAddingAndPercolating() throws Exception {
         createIndex("index");
         ensureGreen();
-        final int numIndexThreads = 3;
-        final int numPercolateThreads = 6;
-        final int numPercolatorOperationsPerThread = 1000;
+        final int numIndexThreads = scaledRandomIntBetween(1, 3);
+        final int numPercolateThreads = scaledRandomIntBetween(2, 6);
+        final int numPercolatorOperationsPerThread = scaledRandomIntBetween(100, 1000);
 
         final Set<Throwable> exceptionsHolder = ConcurrentCollections.newConcurrentSet();
         final CountDownLatch start = new CountDownLatch(1);
@@ -217,6 +218,7 @@ public class ConcurrentPercolatorTests extends ElasticsearchIntegrationTest {
 
         Thread[] percolateThreads = new Thread[numPercolateThreads];
         for (int i = 0; i < numPercolateThreads; i++) {
+            final Random rand = new Random(getRandom().nextLong());
             Runnable r = new Runnable() {
                 @Override
                 public void run() {
@@ -231,10 +233,9 @@ public class ConcurrentPercolatorTests extends ElasticsearchIntegrationTest {
                                 .field("field1", "value")
                                 .field("field2", "value")
                                 .endObject().endObject();
-                        Random random = getRandom();
                         start.await();
                         for (int counter = 0; counter < numPercolatorOperationsPerThread; counter++) {
-                            int x = random.nextInt(3);
+                            int x = rand.nextInt(3);
                             int atLeastExpected;
                             PercolateResponse response;
                             switch (x) {
@@ -294,8 +295,8 @@ public class ConcurrentPercolatorTests extends ElasticsearchIntegrationTest {
     public void testConcurrentAddingAndRemovingWhilePercolating() throws Exception {
         createIndex("index");
         ensureGreen();
-        final int numIndexThreads = 3;
-        final int numberPercolateOperation = 100;
+        final int numIndexThreads = scaledRandomIntBetween(1, 3);
+        final int numberPercolateOperation = scaledRandomIntBetween(10, 100);
 
         final AtomicReference<Throwable> exceptionHolder = new AtomicReference<>(null);
         final AtomicInteger idGen = new AtomicInteger(0);
@@ -304,6 +305,7 @@ public class ConcurrentPercolatorTests extends ElasticsearchIntegrationTest {
         Thread[] indexThreads = new Thread[numIndexThreads];
         final Semaphore semaphore = new Semaphore(numIndexThreads, true);
         for (int i = 0; i < indexThreads.length; i++) {
+            final Random rand = new Random(getRandom().nextLong());
             Runnable r = new Runnable() {
                 @Override
                 public void run() {
@@ -314,7 +316,7 @@ public class ConcurrentPercolatorTests extends ElasticsearchIntegrationTest {
                         while (run.get()) {
                             semaphore.acquire();
                             try {
-                                if (!liveIds.isEmpty() && getRandom().nextInt(100) < 19) {
+                                if (!liveIds.isEmpty() && rand.nextInt(100) < 19) {
                                     String id;
                                     do {
                                         if (liveIds.isEmpty()) {

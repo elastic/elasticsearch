@@ -6,7 +6,7 @@ setup:
             settings:
               "index.translog.disable_flush": true
               "index.number_of_shards": 1
-              "refresh_interval": "1h"
+              "refresh_interval": -1
             mappings:
               doc:
                 "properties":

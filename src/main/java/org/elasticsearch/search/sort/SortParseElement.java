@@ -158,7 +158,10 @@ public class SortParseElement implements SearchParseElement {
                                     missing = parser.textOrNull();
                                 } else if (IGNORE_UNMAPPED.match(innerJsonName)) {
                                     // backward compatibility: ignore_unmapped has been replaced with unmapped_type
-                                    unmappedType = parser.booleanValue() ? LongFieldMapper.CONTENT_TYPE : null;
+                                    if (unmappedType == null // don't override if unmapped_type has been provided too
+                                            && parser.booleanValue()) {
+                                        unmappedType = LongFieldMapper.CONTENT_TYPE;
+                                    }
                                 } else if (UNMAPPED_TYPE.match(innerJsonName)) {
                                     unmappedType = parser.textOrNull();
                                 } else if ("mode".equals(innerJsonName)) {

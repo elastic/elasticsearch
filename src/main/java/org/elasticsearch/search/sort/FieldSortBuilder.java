@@ -80,7 +80,7 @@ public class FieldSortBuilder extends SortBuilder {
     /**
      * Sets if the field does not exists in the index, it should be ignored and not sorted by or not. Defaults
      * to <tt>false</tt> (not ignoring).
-     * @deprecated Use {@link #unmappedType(String)} instead. <code>ignoreUnmapped
+     * @deprecated Use {@link #unmappedType(String)} instead.
      */
     @Deprecated
     public FieldSortBuilder ignoreUnmapped(boolean ignoreUnmapped) {

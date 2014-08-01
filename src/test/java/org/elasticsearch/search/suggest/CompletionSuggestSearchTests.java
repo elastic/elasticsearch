@@ -27,6 +27,8 @@ import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse;
 import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.elasticsearch.action.deletebyquery.DeleteByQueryRequestBuilder;
+import org.elasticsearch.action.deletebyquery.DeleteByQueryResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -39,7 +41,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.percolator.PercolatorService;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.sort.FieldSortBuilder;
@@ -98,6 +102,42 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
         assertSuggestionsNotInOrder("t", "The Prodigy", "Turbonegro", "Turbonegro Get it on", "The Prodigy Firestarter");
     }
 
+    @Test
+    public void testNRTDeleteDocFiltering() throws Exception {
+
+        createIndexAndMapping(completionMappingBuilder);
+        String[][] input = {{"Foo Fighters"}, {"Foo Fighters"}, {"Foo Fighters"}, {"Foo Fighters"},
+                {"Generator", "Foo Fighters Generator"}, {"Learn to Fly", "Foo Fighters Learn to Fly"},
+                {"The Prodigy"}, {"The Prodigy"}, {"The Prodigy"}, {"Firestarter", "The Prodigy Firestarter"},
+                {"Turbonegro"}, {"Turbonegro"}, {"Get it on", "Turbonegro Get it on"}}; // work with frequencies
+        for (int i = 0; i < input.length; i++) {
+            client().prepareIndex(INDEX, TYPE, "" + i)
+                    .setSource(jsonBuilder()
+                                    .startObject().startObject(FIELD)
+                                    .startArray("input").value(input[i]).endArray()
+                                    .endObject()
+                                    .endObject()
+                    )
+                    .execute().actionGet();
+        }
+
+        refresh();
+
+        assertSuggestionsNotInOrder("f", "Foo Fighters", "Firestarter", "Foo Fighters Generator", "Foo Fighters Learn to Fly");
+        assertSuggestionsNotInOrder("t", "The Prodigy", "Turbonegro", "Turbonegro Get it on", "The Prodigy Firestarter");
+
+
+        DeleteByQueryRequestBuilder deleteByQueryRequestBuilder = client().prepareDeleteByQuery();
+        deleteByQueryRequestBuilder.setQuery(QueryBuilders.idsQuery(TYPE).addIds("4")); // delete Foo Fighters Generator
+        DeleteByQueryResponse actionGet = deleteByQueryRequestBuilder.execute().actionGet();
+        assertThat(actionGet.status(), equalTo(RestStatus.OK));
+
+        refresh();
+        //assertSuggestionsNotInOrder("f", "Foo Fighters", "Firestarter", "Foo Fighters Generator", "Foo Fighters Learn to Fly");
+        //assertSuggestionsNotInOrder("t", "The Prodigy", "Turbonegro", "Turbonegro Get it on", "The Prodigy Firestarter");
+        assertSuggestionsNotInOrder("f", "Foo Fighters", "Firestarter", "Foo Fighters Learn to Fly");
+
+    }
     @Test
     public void testSuggestFieldWithPercolateApi() throws Exception {
         createIndexAndMapping(completionMappingBuilder);

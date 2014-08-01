@@ -19,21 +19,28 @@
 
 package org.elasticsearch.search.suggest.completion;
 
+import com.carrotsearch.ant.tasks.junit4.dependencies.org.apache.commons.io.FileUtils;
 import com.google.common.collect.Lists;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.codecs.*;
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.StringField;
+import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.*;
 import org.apache.lucene.index.FieldInfo.DocValuesType;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.suggest.InputIterator;
 import org.apache.lucene.search.suggest.Lookup;
 import org.apache.lucene.search.suggest.Lookup.LookupResult;
 import org.apache.lucene.search.suggest.analyzing.AnalyzingSuggester;
 import org.apache.lucene.search.suggest.analyzing.XAnalyzingSuggester;
 import org.apache.lucene.store.*;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LineFileDocs;
+import org.apache.lucene.util.LuceneTestCase;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.codec.postingsformat.Elasticsearch090PostingsFormat;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
@@ -46,12 +53,10 @@ import org.elasticsearch.search.suggest.context.ContextMapping;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
+import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Field;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -116,6 +121,89 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
         dir.close();
     }
 
+    @Test
+    public void testRTDeletedDocFiltering() throws IOException {
+        final boolean preserveSeparators = getRandom().nextBoolean();
+        final boolean preservePositionIncrements = getRandom().nextBoolean();
+        final boolean usePayloads = getRandom().nextBoolean();
+        PostingsFormatProvider provider = new PreBuiltPostingsFormatProvider(new Elasticsearch090PostingsFormat());
+        NamedAnalyzer namedAnalzyer = new NamedAnalyzer("foo", new StandardAnalyzer(TEST_VERSION_CURRENT));
+        final CompletionFieldMapper mapper = new CompletionFieldMapper(new Names("foo"), namedAnalzyer, namedAnalzyer, provider, null, usePayloads,
+                preserveSeparators, preservePositionIncrements, Integer.MAX_VALUE, AbstractFieldMapper.MultiFields.empty(), null, ContextMapping.EMPTY_MAPPING);
+
+
+        String prefixStr = randomUnicodeOfLengthBetween(2, 6);
+        int num = scaledRandomIntBetween(300, 1000);
+        final String[] titles = new String[num];
+        final long[] weights = new long[num];
+        for (int i = 0; i < titles.length; i++) {
+            titles[i] = prefixStr + randomUnicodeOfCodepointLengthBetween(4, scaledRandomIntBetween(30, 100));
+            weights[i] = between(0, 100);
+        }
+
+        CompletionProvider completionProvider = new CompletionProvider(mapper);
+        completionProvider.indexCompletions(titles, titles, weights);
+
+        int res = between(10, 20);
+        final StringBuilder builder = new StringBuilder();
+        SuggestUtils.analyze(namedAnalzyer.tokenStream("foo", prefixStr), new SuggestUtils.TokenConsumer() {
+            @Override
+            public void nextToken() throws IOException {
+                if (builder.length() == 0) {
+                    builder.append(this.charTermAttr.toString());
+                }
+            }
+        });
+        String firstTerm = builder.toString();
+        String prefix = firstTerm.isEmpty() ? "" : firstTerm.substring(0, between(1, firstTerm.length()));
+
+        int count = 0;
+        Map<String, Boolean> deletedTerms = new HashMap<>();
+        int limit = between(1, res);
+        while (count < limit) {
+            IndexReader reader = completionProvider.getReader();
+            for (Tuple<Lookup, Bits> lookupAndLiveBitsTuple : completionProvider.getLookups(reader)) {
+                Lookup lookup = lookupAndLiveBitsTuple.v1();
+                Bits liveDocs = lookupAndLiveBitsTuple.v2();
+
+                assertTrue(lookup instanceof XAnalyzingSuggester);
+                XAnalyzingSuggester suggester = (XAnalyzingSuggester) lookup;
+
+                if (liveDocs != null) {
+                    int xxx = 0;
+                }
+                final List<LookupResult> lookupResults = suggester.lookup(prefix, null, false, res, liveDocs);
+
+                if (lookupResults.size() > 0) {
+                    if (count > 0 && deletedTerms.size() > 0) {
+                        for(LookupResult result : lookupResults) {
+                            assertFalse(deletedTerms.containsKey(result.key.toString()));
+                        }
+                    }
+                    for (LookupResult result : lookupResults) {
+                        if (randomBoolean()) {
+                            String key = result.key.toString();
+                            completionProvider.deleteDoc(key);
+                            deletedTerms.put(key, true);
+                        }
+                    }
+                }
+            }
+            count++;
+
+            if (reader.leaves().size() > 1) {
+                if (randomBoolean()) {
+                    // sometimes do merge
+                    completionProvider.forceMerge();
+                }
+            }
+
+            reader.close();
+
+        }
+
+        completionProvider.close();
+    }
     @Test
     public void testDuellCompletions() throws IOException, NoSuchFieldException, SecurityException, IllegalArgumentException,
             IllegalAccessException {
@@ -352,12 +440,14 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
     }
 
     private class CompletionProvider {
-        final RAMDirectory dir = new RAMDirectory();
         final IndexWriterConfig indexWriterConfig;
         final CompletionFieldMapper mapper;
         IndexWriter writer;
+        int docCounter = 0;
+        RAMDirectory dir = new RAMDirectory();
 
-        public CompletionProvider(final CompletionFieldMapper mapper) {
+
+        public CompletionProvider(final CompletionFieldMapper mapper) throws IOException {
             FilterCodec filterCodec = new FilterCodec("filtered", Codec.getDefault()) {
                 public PostingsFormat postingsFormat() {
                     return mapper.postingsFormatProvider().get();
@@ -370,27 +460,74 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
 
         public void indexCompletions(String[] terms, String[] surfaces, long[] weights) throws IOException {
             writer = new IndexWriter(dir, indexWriterConfig);
+            BytesRef dummyPayload = new BytesRef();
             for (int i = 0; i < weights.length; i++) {
                 Document doc = new Document();
                 BytesRef payload = mapper.buildPayload(new BytesRef(surfaces[i]), weights[i], new BytesRef(Long.toString(weights[i])));
                 doc.add(mapper.getCompletionField(ContextMapping.EMPTY_CONTEXT, terms[i], payload));
+                doc.add(new TextField("dummy", new String(terms[i]), org.apache.lucene.document.Field.Store.YES));
                 if (randomBoolean()) {
                     writer.commit();
                 }
                 writer.addDocument(doc);
+                docCounter++;
             }
             writer.commit();
+
+            //REMOVE
             writer.forceMerge(1, true);
             writer.commit();
-            writer.close();
+
+            DirectoryReader reader = DirectoryReader.open(writer, true);
+            IndexSearcher s = new IndexSearcher(reader);
+            final Document doc = s.doc(0);
+            int actualDocCount = 0;
+            for (AtomicReaderContext ctx : reader.leaves()) {
+                actualDocCount += ctx.reader().numDocs();
+            }
+            assertThat(actualDocCount, equalTo(weights.length));
+            reader.close();
+
+        }
+
+        public void deleteDoc(String term) throws IOException {
+            Term[] terms = { new Term("foo", term) };
+            writer.deleteDocuments(terms);
+            writer.commit();
+            docCounter--;
+        }
+
+        public void forceMerge() throws IOException {
+            writer.forceMerge(1, true);
+            writer.commit();
         }
 
         public IndexReader getReader() throws IOException {
             if (writer != null) {
-                return DirectoryReader.open(writer, true);
+                IndexReader r = DirectoryReader.open(writer, true);
+                assertEquals(docCounter, r.numDocs());
+                return r;
             } else {
                 return null;
             }
+        }
+
+        public List<Tuple<Lookup, Bits>> getLookups(IndexReader reader) throws IOException {
+            List<Tuple<Lookup, Bits>> res = new ArrayList<>();
+            for(AtomicReaderContext ctx : reader.leaves()) {
+                AtomicReader atomicReader = ctx.reader();
+                Terms luceneTerms = atomicReader.terms(mapper.name());
+                if (luceneTerms instanceof Completion090PostingsFormat.CompletionTerms) {
+                    Lookup lookup = ((Completion090PostingsFormat.CompletionTerms) luceneTerms).getLookup(mapper, new CompletionSuggestionContext(null));
+                    res.add(new Tuple<>(lookup, atomicReader.getLiveDocs()));
+                }
+            }
+            return res;
+        }
+
+        public void close() throws IOException {
+            writer.close();
+            dir.close();
         }
     }
 }

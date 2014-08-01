@@ -229,12 +229,24 @@ public class DateMathParser {
         return dateTime.getMillis();
     }
 
+    /**
+     * Get a DateTimeFormatter parser applying timezone if any.
+     */
+    public static DateTimeFormatter getDateTimeFormatterParser(FormatDateTimeFormatter dateTimeFormatter, DateTimeZone timeZone) {
+        if (dateTimeFormatter == null) {
+            return null;
+        }
+
+        DateTimeFormatter parser = dateTimeFormatter.parser();
+        if (timeZone != null) {
+            parser = parser.withZone(timeZone);
+        }
+        return parser;
+    }
+
     private long parseStringValue(String value, DateTimeZone timeZone) {
         try {
-            DateTimeFormatter parser = dateTimeFormatter.parser();
-            if (timeZone != null) {
-                parser = parser.withZone(timeZone);
-            }
+            DateTimeFormatter parser = getDateTimeFormatterParser(dateTimeFormatter, timeZone);
             return parser.parseMillis(value);
         } catch (RuntimeException e) {
             try {
@@ -253,10 +265,7 @@ public class DateMathParser {
             // we also use 1970-01-01 as the base for it so we can handle searches like 10:12:55 (just time)
             // since when we index those, the base is 1970-01-01
             MutableDateTime dateTime = new MutableDateTime(1970, 1, 1, 23, 59, 59, 999, DateTimeZone.UTC);
-            DateTimeFormatter parser = dateTimeFormatter.parser();
-            if (timeZone != null) {
-                parser = parser.withZone(timeZone);
-            }
+            DateTimeFormatter parser = getDateTimeFormatterParser(dateTimeFormatter, timeZone);
             int location = parser.parseInto(dateTime, value, 0);
             // if we parsed all the string value, we are good
             if (location == value.length()) {

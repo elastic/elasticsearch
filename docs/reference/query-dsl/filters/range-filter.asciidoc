@@ -53,6 +53,9 @@ move them to UTC time based date:
 
 In the above example, `gte` will be actually moved to `2011-12-31T23:00:00` UTC date.
 
+NOTE: you can not enter a date with a timezone explicitly defined with the `time_zone` parameter.
+For example, setting `from` to `2012-01-01T00:00:00+01:00` will fail if you set any `time_zone`.
+
 [float]
 ==== Execution
 

@@ -23,6 +23,7 @@ import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.rounding.DateTimeUnit;
 import org.elasticsearch.common.rounding.Rounding;
 import org.elasticsearch.common.rounding.TimeZoneRounding;
@@ -214,19 +215,7 @@ public class DateHistogramFacetParser extends AbstractComponent implements Facet
         if (token == XContentParser.Token.VALUE_NUMBER) {
             return DateTimeZone.forOffsetHours(parser.intValue());
         } else {
-            String text = parser.text();
-            int index = text.indexOf(':');
-            if (index != -1) {
-                int beginIndex = text.charAt(0) == '+' ? 1 : 0;
-                // format like -02:30
-                return DateTimeZone.forOffsetHoursMinutes(
-                        Integer.parseInt(text.substring(beginIndex, index)),
-                        Integer.parseInt(text.substring(index + 1))
-                );
-            } else {
-                // id, listed here: http://joda-time.sourceforge.net/timezones.html
-                return DateTimeZone.forID(text);
-            }
+            return DateMathParser.parseZone(parser.text());
         }
     }
 

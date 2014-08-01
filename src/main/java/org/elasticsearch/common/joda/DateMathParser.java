@@ -22,6 +22,7 @@ package org.elasticsearch.common.joda;
 import org.elasticsearch.ElasticsearchParseException;
 import org.joda.time.DateTimeZone;
 import org.joda.time.MutableDateTime;
+import org.joda.time.format.DateTimeFormatter;
 
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
@@ -40,14 +41,26 @@ public class DateMathParser {
     }
 
     public long parse(String text, long now) {
-        return parse(text, now, false);
+        return parse(text, now, false, DateTimeZone.UTC);
+    }
+
+    public long parse(String text, long now, DateTimeZone timeZone) {
+        return parse(text, now, false, timeZone);
     }
 
     public long parseRoundCeil(String text, long now) {
-        return parse(text, now, true);
+        return parse(text, now, true, DateTimeZone.UTC);
+    }
+
+    public long parseRoundCeil(String text, long now, DateTimeZone timeZone) {
+        return parse(text, now, true, timeZone);
     }
 
     public long parse(String text, long now, boolean roundCeil) {
+        return parse(text, now, roundCeil, DateTimeZone.UTC);
+    }
+
+    public long parse(String text, long now, boolean roundCeil, DateTimeZone timeZone) {
         long time;
         String mathString;
         if (text.startsWith("now")) {
@@ -64,9 +77,9 @@ public class DateMathParser {
                 mathString = text.substring(index + 2);
             }
             if (roundCeil) {
-                time = parseRoundCeilStringValue(parseString);
+                time = parseRoundCeilStringValue(parseString, timeZone);
             } else {
-                time = parseStringValue(parseString);
+                time = parseStringValue(parseString, timeZone);
             }
         }
 
@@ -216,9 +229,13 @@ public class DateMathParser {
         return dateTime.getMillis();
     }
 
-    private long parseStringValue(String value) {
+    private long parseStringValue(String value, DateTimeZone timeZone) {
         try {
-            return dateTimeFormatter.parser().parseMillis(value);
+            DateTimeFormatter parser = dateTimeFormatter.parser();
+            if (timeZone != null) {
+                parser = parser.withZone(timeZone);
+            }
+            return parser.parseMillis(value);
         } catch (RuntimeException e) {
             try {
                 long time = Long.parseLong(value);
@@ -229,14 +246,18 @@ public class DateMathParser {
         }
     }
 
-    private long parseRoundCeilStringValue(String value) {
+    private long parseRoundCeilStringValue(String value, DateTimeZone timeZone) {
         try {
             // we create a date time for inclusive upper range, we "include" by default the day level data
             // so something like 2011-01-01 will include the full first day of 2011.
             // we also use 1970-01-01 as the base for it so we can handle searches like 10:12:55 (just time)
             // since when we index those, the base is 1970-01-01
             MutableDateTime dateTime = new MutableDateTime(1970, 1, 1, 23, 59, 59, 999, DateTimeZone.UTC);
-            int location = dateTimeFormatter.parser().parseInto(dateTime, value, 0);
+            DateTimeFormatter parser = dateTimeFormatter.parser();
+            if (timeZone != null) {
+                parser = parser.withZone(timeZone);
+            }
+            int location = parser.parseInto(dateTime, value, 0);
             // if we parsed all the string value, we are good
             if (location == value.length()) {
                 return dateTime.getMillis();

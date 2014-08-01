@@ -90,10 +90,10 @@ public class IndexQueryParserFilterDateRangeTimezoneTests extends ElasticsearchS
         Query parsedQuery = queryParser.parse(query).query();
         assertThat(parsedQuery, instanceOf(NumericRangeQuery.class));
 
-        // Min value was 2012-01-01 (UTC+1) so we need to remove one hour
-        DateTime min = DateTime.parse("2012-01-01T00:00:00.000Z").minusHours(1);
+        // Min value was 2012-01-01 (UTC) so we need to remove one hour
+        DateTime min = DateTime.parse("2012-01-01T00:00:00.000+01:00");
         // Max value is when we started the test. So it should be some ms from now
-        DateTime max = new DateTime(startDate).minusHours(1);
+        DateTime max = new DateTime(startDate);
 
         assertThat(((NumericRangeQuery) parsedQuery).getMin().longValue(), is(min.getMillis()));
 

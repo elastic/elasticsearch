@@ -2360,24 +2360,64 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch("test")
-                .setQuery(QueryBuilders.filteredQuery(matchAllQuery(), FilterBuilders.rangeFilter("date").from("2014-01-01").to("2014-01-01T00:59:00")))
+                .setQuery(QueryBuilders.filteredQuery(matchAllQuery(), FilterBuilders.rangeFilter("date").from("2014-01-01T00:00:00").to("2014-01-01T00:59:00")))
                 .get();
         assertHitCount(searchResponse, 1l);
         assertThat(searchResponse.getHits().getAt(0).getId(), is("1"));
-
         searchResponse = client().prepareSearch("test")
-                .setQuery(QueryBuilders.filteredQuery(matchAllQuery(), FilterBuilders.rangeFilter("date").from("2014-01-01").to("2014-01-01T00:59:00").timeZone("+1:00")))
+                .setQuery(QueryBuilders.filteredQuery(matchAllQuery(), FilterBuilders.rangeFilter("date").from("2013-12-31T23:00:00").to("2013-12-31T23:59:00")))
                 .get();
         assertHitCount(searchResponse, 1l);
         assertThat(searchResponse.getHits().getAt(0).getId(), is("2"));
-
-        // The same query should work with long values as well
         searchResponse = client().prepareSearch("test")
-                .setQuery(QueryBuilders.filteredQuery(matchAllQuery(), FilterBuilders.rangeFilter("date").from(1388534400000L).to(1388537940999L).timeZone("+1:00")))
+                .setQuery(QueryBuilders.filteredQuery(matchAllQuery(), FilterBuilders.rangeFilter("date").from("2014-01-01T01:00:00").to("2014-01-01T01:59:00")))
+                .get();
+        assertHitCount(searchResponse, 1l);
+        assertThat(searchResponse.getHits().getAt(0).getId(), is("3"));
+
+        // We explicitly define a time zone in the from/to dates so whatever the time zone is, it won't be used
+        searchResponse = client().prepareSearch("test")
+                .setQuery(QueryBuilders.filteredQuery(matchAllQuery(), FilterBuilders.rangeFilter("date").from("2014-01-01T00:00:00Z").to("2014-01-01T00:59:00Z").timeZone("+10:00")))
+                .get();
+        assertHitCount(searchResponse, 1l);
+        assertThat(searchResponse.getHits().getAt(0).getId(), is("1"));
+        searchResponse = client().prepareSearch("test")
+                .setQuery(QueryBuilders.filteredQuery(matchAllQuery(), FilterBuilders.rangeFilter("date").from("2013-12-31T23:00:00Z").to("2013-12-31T23:59:00Z").timeZone("+10:00")))
                 .get();
         assertHitCount(searchResponse, 1l);
         assertThat(searchResponse.getHits().getAt(0).getId(), is("2"));
+        searchResponse = client().prepareSearch("test")
+                .setQuery(QueryBuilders.filteredQuery(matchAllQuery(), FilterBuilders.rangeFilter("date").from("2014-01-01T01:00:00Z").to("2014-01-01T01:59:00Z").timeZone("+10:00")))
+                .get();
+        assertHitCount(searchResponse, 1l);
+        assertThat(searchResponse.getHits().getAt(0).getId(), is("3"));
 
+        // We define a time zone to be applied to the filter and from/to have no time zone
+        searchResponse = client().prepareSearch("test")
+                .setQuery(QueryBuilders.filteredQuery(matchAllQuery(), FilterBuilders.rangeFilter("date").from("2014-01-01T03:00:00").to("2014-01-01T03:59:00").timeZone("+3:00")))
+                .get();
+        assertHitCount(searchResponse, 1l);
+        assertThat(searchResponse.getHits().getAt(0).getId(), is("1"));
+        searchResponse = client().prepareSearch("test")
+                .setQuery(QueryBuilders.filteredQuery(matchAllQuery(), FilterBuilders.rangeFilter("date").from("2014-01-01T02:00:00").to("2014-01-01T02:59:00").timeZone("+3:00")))
+                .get();
+        assertHitCount(searchResponse, 1l);
+        assertThat(searchResponse.getHits().getAt(0).getId(), is("2"));
+        searchResponse = client().prepareSearch("test")
+                .setQuery(QueryBuilders.filteredQuery(matchAllQuery(), FilterBuilders.rangeFilter("date").from("2014-01-01T04:00:00").to("2014-01-01T04:59:00").timeZone("+3:00")))
+                .get();
+        assertHitCount(searchResponse, 1l);
+        assertThat(searchResponse.getHits().getAt(0).getId(), is("3"));
+
+        // When we use long values, it means we have ms since epoch UTC based so we don't apply any transformation
+        try {
+            client().prepareSearch("test")
+                    .setQuery(QueryBuilders.filteredQuery(matchAllQuery(), FilterBuilders.rangeFilter("date").from(1388534400000L).to(1388537940999L).timeZone("+1:00")))
+                    .get();
+            fail("A Range Filter using ms since epoch with a TimeZone should raise a QueryParsingException");
+        } catch (SearchPhaseExecutionException e) {
+            // We expect it
+        }
 
         searchResponse = client().prepareSearch("test")
                 .setQuery(QueryBuilders.filteredQuery(matchAllQuery(), FilterBuilders.rangeFilter("date").from("2014-01-01").to("2014-01-01T00:59:00").timeZone("-1:00")))
@@ -2417,24 +2457,64 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch("test")
-                .setQuery(QueryBuilders.rangeQuery("date").from("2014-01-01").to("2014-01-01T00:59:00"))
+                .setQuery(QueryBuilders.rangeQuery("date").from("2014-01-01T00:00:00").to("2014-01-01T00:59:00"))
                 .get();
         assertHitCount(searchResponse, 1l);
         assertThat(searchResponse.getHits().getAt(0).getId(), is("1"));
-
         searchResponse = client().prepareSearch("test")
-                .setQuery(QueryBuilders.rangeQuery("date").from("2014-01-01").to("2014-01-01T00:59:00").timeZone("+1:00"))
+                .setQuery(QueryBuilders.rangeQuery("date").from("2013-12-31T23:00:00").to("2013-12-31T23:59:00"))
                 .get();
         assertHitCount(searchResponse, 1l);
         assertThat(searchResponse.getHits().getAt(0).getId(), is("2"));
-
-        // The same query should work with long values as well
         searchResponse = client().prepareSearch("test")
-                .setQuery(QueryBuilders.rangeQuery("date").from(1388534400000L).to(1388537940999L).timeZone("+1:00"))
+                .setQuery(QueryBuilders.rangeQuery("date").from("2014-01-01T01:00:00").to("2014-01-01T01:59:00"))
+                .get();
+        assertHitCount(searchResponse, 1l);
+        assertThat(searchResponse.getHits().getAt(0).getId(), is("3"));
+
+        // We explicitly define a time zone in the from/to dates so whatever the time zone is, it won't be used
+        searchResponse = client().prepareSearch("test")
+                .setQuery(QueryBuilders.rangeQuery("date").from("2014-01-01T00:00:00Z").to("2014-01-01T00:59:00Z").timeZone("+10:00"))
+                .get();
+        assertHitCount(searchResponse, 1l);
+        assertThat(searchResponse.getHits().getAt(0).getId(), is("1"));
+        searchResponse = client().prepareSearch("test")
+                .setQuery(QueryBuilders.rangeQuery("date").from("2013-12-31T23:00:00Z").to("2013-12-31T23:59:00Z").timeZone("+10:00"))
                 .get();
         assertHitCount(searchResponse, 1l);
         assertThat(searchResponse.getHits().getAt(0).getId(), is("2"));
+        searchResponse = client().prepareSearch("test")
+                .setQuery(QueryBuilders.rangeQuery("date").from("2014-01-01T01:00:00Z").to("2014-01-01T01:59:00Z").timeZone("+10:00"))
+                .get();
+        assertHitCount(searchResponse, 1l);
+        assertThat(searchResponse.getHits().getAt(0).getId(), is("3"));
 
+        // We define a time zone to be applied to the filter and from/to have no time zone
+        searchResponse = client().prepareSearch("test")
+                .setQuery(QueryBuilders.rangeQuery("date").from("2014-01-01T03:00:00").to("2014-01-01T03:59:00").timeZone("+3:00"))
+                .get();
+        assertHitCount(searchResponse, 1l);
+        assertThat(searchResponse.getHits().getAt(0).getId(), is("1"));
+        searchResponse = client().prepareSearch("test")
+                .setQuery(QueryBuilders.rangeQuery("date").from("2014-01-01T02:00:00").to("2014-01-01T02:59:00").timeZone("+3:00"))
+                .get();
+        assertHitCount(searchResponse, 1l);
+        assertThat(searchResponse.getHits().getAt(0).getId(), is("2"));
+        searchResponse = client().prepareSearch("test")
+                .setQuery(QueryBuilders.rangeQuery("date").from("2014-01-01T04:00:00").to("2014-01-01T04:59:00").timeZone("+3:00"))
+                .get();
+        assertHitCount(searchResponse, 1l);
+        assertThat(searchResponse.getHits().getAt(0).getId(), is("3"));
+
+        // When we use long values, it means we have ms since epoch UTC based so we don't apply any transformation
+        try {
+            client().prepareSearch("test")
+                    .setQuery(QueryBuilders.rangeQuery("date").from(1388534400000L).to(1388537940999L).timeZone("+1:00"))
+                    .get();
+            fail("A Range Filter using ms since epoch with a TimeZone should raise a QueryParsingException");
+        } catch (SearchPhaseExecutionException e) {
+            // We expect it
+        }
 
         searchResponse = client().prepareSearch("test")
                 .setQuery(QueryBuilders.rangeQuery("date").from("2014-01-01").to("2014-01-01T00:59:00").timeZone("-1:00"))
@@ -2453,7 +2533,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
             client().prepareSearch("test")
                     .setQuery(QueryBuilders.rangeQuery("num").from("0").to("4").timeZone("-1:00"))
                     .get();
-            fail("A Range Query on a numeric field with a TimeZone should raise a QueryParsingException");
+            fail("A Range Filter on a numeric field with a TimeZone should raise a QueryParsingException");
         } catch (SearchPhaseExecutionException e) {
             // We expect it
         }

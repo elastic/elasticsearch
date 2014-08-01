@@ -121,6 +121,9 @@ public class RangeQueryParser implements QueryParser {
             if (smartNameFieldMappers.hasMapper()) {
                 FieldMapper mapper = smartNameFieldMappers.mapper();
                 if (mapper instanceof DateFieldMapper) {
+                    if ((from instanceof Number || to instanceof Number) && timeZone != null) {
+                        throw new QueryParsingException(parseContext.index(), "[range] time_zone when using ms since epoch format as it's UTC based can not be applied to [" + fieldName + "]");
+                    }
                     query = ((DateFieldMapper) mapper).rangeQuery(from, to, includeLower, includeUpper, timeZone, parseContext);
                 } else  {
                     if (timeZone != null) {

@@ -135,6 +135,9 @@ public class RangeFilterParser implements FilterParser {
                     }
                     FieldMapper mapper = smartNameFieldMappers.mapper();
                     if (mapper instanceof DateFieldMapper) {
+                        if ((from instanceof Number || to instanceof Number) && timeZone != null) {
+                            throw new QueryParsingException(parseContext.index(), "[range] time_zone when using ms since epoch format as it's UTC based can not be applied to [" + fieldName + "]");
+                        }
                         filter = ((DateFieldMapper) mapper).rangeFilter(from, to, includeLower, includeUpper, timeZone, parseContext, explicitlyCached);
                     } else  {
                         if (timeZone != null) {
@@ -151,8 +154,14 @@ public class RangeFilterParser implements FilterParser {
                         throw new QueryParsingException(parseContext.index(), "[range] filter field [" + fieldName + "] is not a numeric type");
                     }
                     if (mapper instanceof DateFieldMapper) {
+                        if ((from instanceof Number || to instanceof Number) && timeZone != null) {
+                            throw new QueryParsingException(parseContext.index(), "[range] time_zone when using ms since epoch format as it's UTC based can not be applied to [" + fieldName + "]");
+                        }
                         filter = ((DateFieldMapper) mapper).rangeFilter(parseContext, from, to, includeLower, includeUpper, timeZone, parseContext, explicitlyCached);
                     } else {
+                        if (timeZone != null) {
+                            throw new QueryParsingException(parseContext.index(), "[range] time_zone can not be applied to non date field [" + fieldName + "]");
+                        }
                         filter = ((NumberFieldMapper) mapper).rangeFilter(parseContext, from, to, includeLower, includeUpper, parseContext);
                     }
                 } else {

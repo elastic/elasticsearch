@@ -266,6 +266,8 @@ conform with http://geojson.org/[GeoJSON].
 
 ==== Multiple reference points
 
+added[1.4.0]
+
 Multiple geo points can be passed as an array containing any `geo_point` format, for example
 
 ```

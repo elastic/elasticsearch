@@ -143,6 +143,7 @@ public class MemoryCircuitBreakerTests extends ElasticsearchTestCase {
     public void testThreadedUpdatesToChildBreakerWithParentLimit() throws Exception {
         final int NUM_THREADS = scaledRandomIntBetween(3, 15);
         final int BYTES_PER_THREAD = scaledRandomIntBetween(500, 4500);
+        final int parentLimit = (BYTES_PER_THREAD * NUM_THREADS) - 2;
         final Thread[] threads = new Thread[NUM_THREADS];
         final AtomicInteger tripped = new AtomicInteger(0);
         final AtomicReference<Throwable> lastException = new AtomicReference<>(null);
@@ -159,7 +160,7 @@ public class MemoryCircuitBreakerTests extends ElasticsearchTestCase {
             @Override
             public void checkParentLimit(String label) throws CircuitBreakingException {
                 // Parent will trip right before regular breaker would trip
-                if (getBreaker(CircuitBreaker.Name.REQUEST).getUsed() > (BYTES_PER_THREAD * NUM_THREADS) - 2) {
+                if (getBreaker(CircuitBreaker.Name.REQUEST).getUsed() > parentLimit) {
                     parentTripped.incrementAndGet();
                     throw new CircuitBreakingException("parent tripped");
                 }
@@ -197,7 +198,8 @@ public class MemoryCircuitBreakerTests extends ElasticsearchTestCase {
         }
 
         assertThat("no other exceptions were thrown", lastException.get(), equalTo(null));
-        assertThat("breaker was tripped exactly once", breaker.getTrippedCount(), equalTo(0L));
+        assertThat("breaker should be reset back to the parent limit after parent breaker trips",
+                breaker.getUsed(), equalTo((long)parentLimit));
         assertThat("parent breaker was tripped exactly twice", parentTripped.get(), equalTo(2));
         assertThat("total breaker was tripped exactly twice", tripped.get(), equalTo(2));
     }

@@ -46,29 +46,29 @@ final class ExternalNode implements Closeable {
 
     private final File path;
     private final Random random;
-    private final NodeSettingsSource nodeSettingsSource;
+    private final SettingsSource settingsSource;
     private Process process;
     private NodeInfo nodeInfo;
     private final String clusterName;
     private TransportClient client;
 
-    ExternalNode(File path, long seed, NodeSettingsSource nodeSettingsSource) {
-        this(path, null, seed, nodeSettingsSource);
+    ExternalNode(File path, long seed, SettingsSource settingsSource) {
+        this(path, null, seed, settingsSource);
     }
 
-    ExternalNode(File path, String clusterName, long seed, NodeSettingsSource nodeSettingsSource) {
+    ExternalNode(File path, String clusterName, long seed, SettingsSource settingsSource) {
         if (!path.isDirectory()) {
             throw new IllegalArgumentException("path must be a directory");
         }
         this.path = path;
         this.clusterName = clusterName;
         this.random = new Random(seed);
-        this.nodeSettingsSource = nodeSettingsSource;
+        this.settingsSource = settingsSource;
     }
 
     synchronized ExternalNode start(Client localNode, Settings defaultSettings, String nodeName, String clusterName, int nodeOrdinal) throws IOException, InterruptedException {
-        ExternalNode externalNode = new ExternalNode(path, clusterName, random.nextLong(), nodeSettingsSource);
-        Settings settings = ImmutableSettings.builder().put(nodeSettingsSource.settings(nodeOrdinal)).put(defaultSettings).build();
+        ExternalNode externalNode = new ExternalNode(path, clusterName, random.nextLong(), settingsSource);
+        Settings settings = ImmutableSettings.builder().put(settingsSource.node(nodeOrdinal)).put(defaultSettings).build();
         externalNode.startInternal(localNode, settings, nodeName, clusterName);
         return externalNode;
     }

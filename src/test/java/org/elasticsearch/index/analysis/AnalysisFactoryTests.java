@@ -147,6 +147,7 @@ public class AnalysisFactoryTests extends ElasticsearchTestCase {
         put("trim",                      TrimTokenFilterFactory.class);
         put("truncate",                  TruncateTokenFilterFactory.class);
         put("turkishlowercase",          LowerCaseTokenFilterFactory.class);
+        put("type",                      KeepTypeFilterFactory.class);
         put("uppercase",                 UpperCaseTokenFilterFactory.class);
         put("worddelimiter",             WordDelimiterTokenFilterFactory.class);
                 
@@ -168,8 +169,6 @@ public class AnalysisFactoryTests extends ElasticsearchTestCase {
         put("removeduplicates",          Void.class);
         // ???
         put("tokenoffsetpayload",        Void.class);
-        // like a stop filter but by token-type
-        put("type",                      Void.class);
         // puts the type into the payload
         put("typeaspayload",             Void.class);
     }};

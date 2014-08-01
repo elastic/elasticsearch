@@ -20,11 +20,16 @@ package org.elasticsearch.test;
 
 import org.elasticsearch.common.settings.Settings;
 
-abstract class NodeSettingsSource {
+abstract class SettingsSource {
 
-    public static final NodeSettingsSource EMPTY = new NodeSettingsSource() {
+    public static final SettingsSource EMPTY = new SettingsSource() {
         @Override
-        public Settings settings(int nodeOrdinal) {
+        public Settings node(int nodeOrdinal) {
+            return null;
+        }
+
+        @Override
+        public Settings transportClient() {
             return null;
         }
     };
@@ -32,6 +37,8 @@ abstract class NodeSettingsSource {
     /**
      * @return  the settings for the node represented by the given ordinal, or {@code null} if there are no settings defined
      */
-    public abstract Settings settings(int nodeOrdinal);
+    public abstract Settings node(int nodeOrdinal);
+
+    public abstract Settings transportClient();
 
 }

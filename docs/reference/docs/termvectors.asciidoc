@@ -4,7 +4,9 @@
 added[1.0.0.Beta1]
 
 Returns information and statistics on terms in the fields of a
-particular document as stored in the index.
+particular document as stored in the index. Note that this is a
+near realtime API as the term vectors are not available until the
+next refresh.
 
 [source,js]
 --------------------------------------------------

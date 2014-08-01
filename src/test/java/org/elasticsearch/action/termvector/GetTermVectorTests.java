@@ -29,6 +29,7 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
@@ -70,6 +71,8 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
             assertThat(actionGet, notNullValue());
             assertThat(actionGet.getIndex(), equalTo("test"));
             assertThat(actionGet.isExists(), equalTo(false));
+            // check response is nevertheless serializable to json
+            actionGet.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS);
         }
     }
 

@@ -28,6 +28,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
@@ -68,6 +69,8 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
             TermVectorResponse actionGet = termVector.actionGet();
             assertThat(actionGet, notNullValue());
             assertThat(actionGet.isExists(), equalTo(false));
+            // check response is nevertheless serializable to json
+            actionGet.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS);
         }
     }
 

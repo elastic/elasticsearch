@@ -14,12 +14,12 @@ You need to install a version matching your Elasticsearch version:
 |       Elasticsearch    | AWS Cloud Plugin  |                                                             Docs                                                                   |
 |------------------------|-------------------|------------------------------------------------------------------------------------------------------------------------------------|
 |    master              | Build from source | See below                                                                                                                          |
-|    es-1.x              | Build from source | [2.5.0-SNAPSHOT](https://github.com/dadoonet/elasticsearch-cloud-azure/tree/docs-es-1.x#azure-cloud-plugin-for-elasticsearch)      |
-|    es-1.3              | Build from source | [2.4.0-SNAPSHOT](https://github.com/dadoonet/elasticsearch-cloud-azure/tree/docs-es-1.3#azure-cloud-plugin-for-elasticsearch)      |
-|    es-1.2              |     2.3.0         | [2.3.0](https://github.com/elasticsearch/elasticsearch-cloud-azure/blob/v2.3.0/#azure-cloud-plugin-for-elasticsearch)              |
-|    es-1.1              |     2.2.0         | [2.2.0](https://github.com/elasticsearch/elasticsearch-cloud-azure/blob/v2.2.0/#azure-cloud-plugin-for-elasticsearch)              |
-|    es-1.0              |     2.1.0         | [2.1.0](https://github.com/elasticsearch/elasticsearch-cloud-azure/blob/v2.1.0/#azure-cloud-plugin-for-elasticsearch)              |
-|    es-0.90             |     1.0.0.alpha1  | [1.0.0.alpha1](https://github.com/elasticsearch/elasticsearch-cloud-azure/blob/v1.0.0.alpha1/#azure-cloud-plugin-for-elasticsearch)|
+|    es-1.x              | Build from source | [2.5.0-SNAPSHOT](https://github.com/elasticsearch/elasticsearch-cloud-azure/tree/es-1.x/#azure-cloud-plugin-for-elasticsearch)     |
+|    es-1.3              | Build from source | [2.4.0-SNAPSHOT](https://github.com/elasticsearch/elasticsearch-cloud-azure/tree/es-1.3/#azure-cloud-plugin-for-elasticsearch)     |
+|    es-1.2              |     2.3.0         | [2.3.0](https://github.com/elasticsearch/elasticsearch-cloud-azure/tree/v2.3.0/#azure-cloud-plugin-for-elasticsearch)              |
+|    es-1.1              |     2.2.0         | [2.2.0](https://github.com/elasticsearch/elasticsearch-cloud-azure/tree/v2.2.0/#azure-cloud-plugin-for-elasticsearch)              |
+|    es-1.0              |     2.1.0         | [2.1.0](https://github.com/elasticsearch/elasticsearch-cloud-azure/tree/v2.1.0/#azure-cloud-plugin-for-elasticsearch)              |
+|    es-0.90             |     1.0.0.alpha1  | [1.0.0.alpha1](https://github.com/elasticsearch/elasticsearch-cloud-azure/tree/v1.0.0.alpha1/#azure-cloud-plugin-for-elasticsearch)|
 
 To build a `SNAPSHOT` version, you need to build it with Maven:
 

@@ -157,7 +157,7 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
             // If the parent breaker is tripped, this breaker has to be
             // adjusted back down because the allocation is "blocked" but the
             // breaker has already been incremented
-            this.used.addAndGet(-bytes);
+            this.addWithoutBreaking(-bytes);
             throw e;
         }
         return newUsed;

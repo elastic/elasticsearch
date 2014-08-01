@@ -25,6 +25,7 @@ import org.elasticsearch.action.admin.indices.IndicesAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.client.support.AbstractIndicesAdminClient;
+import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.client.transport.TransportClientNodesService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -47,11 +48,14 @@ public class InternalTransportIndicesAdminClient extends AbstractIndicesAdminCli
 
     private final ImmutableMap<Action, TransportActionNodeProxy> actions;
 
+    private final Headers headers;
+
     @Inject
     public InternalTransportIndicesAdminClient(Settings settings, TransportClientNodesService nodesService, TransportService transportService, ThreadPool threadPool,
-                                               Map<String, GenericAction> actions) {
+                                               Map<String, GenericAction> actions, Headers headers) {
         this.nodesService = nodesService;
         this.threadPool = threadPool;
+        this.headers = headers;
         MapBuilder<Action, TransportActionNodeProxy> actionsBuilder = new MapBuilder<>();
         for (GenericAction action : actions.values()) {
             if (action instanceof IndicesAction) {
@@ -77,6 +81,7 @@ public class InternalTransportIndicesAdminClient extends AbstractIndicesAdminCli
     @SuppressWarnings("unchecked")
     @Override
     public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, IndicesAdminClient>> void execute(final Action<Request, Response, RequestBuilder, IndicesAdminClient> action, final Request request, ActionListener<Response> listener) {
+        headers.applyTo(request);
         final TransportActionNodeProxy<Request, Response> proxy = actions.get(action);
         nodesService.execute(new TransportClientNodesService.NodeListenerCallback<Response>() {
             @Override

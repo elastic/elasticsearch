@@ -1440,13 +1440,28 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         return ImmutableSettings.EMPTY;
     }
 
+    /**
+     * This method is used to obtain additional settings for clients created by the internal cluster.
+     * These settings will be applied on the client in addition to some randomized settings defined in
+     * the cluster. These setttings will also override any other settings the internal cluster might
+     * add by default.
+     */
+    protected Settings transportClientSettings() {
+        return ImmutableSettings.EMPTY;
+    }
+
     protected TestCluster buildTestCluster(Scope scope) throws IOException {
         long currentClusterSeed = randomLong();
 
-        NodeSettingsSource nodeSettingsSource = new NodeSettingsSource() {
+        SettingsSource settingsSource = new SettingsSource() {
             @Override
-            public Settings settings(int nodeOrdinal) {
+            public Settings node(int nodeOrdinal) {
                 return nodeSettings(nodeOrdinal);
+            }
+
+            @Override
+            public Settings transportClient() {
+                return transportClientSettings();
             }
         };
 
@@ -1461,7 +1476,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
 
         int numClientNodes = getNumClientNodes();
         boolean enableRandomBenchNodes = enableRandomBenchNodes();
-        return new InternalTestCluster(currentClusterSeed, minNumDataNodes, maxNumDataNodes, clusterName(scope.name(), ElasticsearchTestCase.CHILD_VM_ID, currentClusterSeed), nodeSettingsSource, numClientNodes, enableRandomBenchNodes);
+        return new InternalTestCluster(currentClusterSeed, minNumDataNodes, maxNumDataNodes, clusterName(scope.name(), ElasticsearchTestCase.CHILD_VM_ID, currentClusterSeed), settingsSource, numClientNodes, enableRandomBenchNodes);
     }
 
     /**

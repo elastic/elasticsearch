@@ -100,6 +100,7 @@ import static com.carrotsearch.randomizedtesting.RandomizedTest.systemPropertyAs
 import static junit.framework.Assert.fail;
 import static org.apache.lucene.util.LuceneTestCase.rarely;
 import static org.apache.lucene.util.LuceneTestCase.usually;
+import static org.elasticsearch.common.settings.ImmutableSettings.EMPTY;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 import static org.elasticsearch.test.ElasticsearchTestCase.assertBusy;
@@ -175,21 +176,21 @@ public final class InternalTestCluster extends TestCluster {
 
     private final boolean enableRandomBenchNodes;
 
-    private final NodeSettingsSource nodeSettingsSource;
+    private final SettingsSource settingsSource;
 
     private final ExecutorService executor;
 
     private final boolean hasFilterCache;
 
     public InternalTestCluster(long clusterSeed, String clusterName) {
-        this(clusterSeed, DEFAULT_MIN_NUM_DATA_NODES, DEFAULT_MAX_NUM_DATA_NODES, clusterName, NodeSettingsSource.EMPTY, DEFAULT_NUM_CLIENT_NODES, DEFAULT_ENABLE_RANDOM_BENCH_NODES);
+        this(clusterSeed, DEFAULT_MIN_NUM_DATA_NODES, DEFAULT_MAX_NUM_DATA_NODES, clusterName, SettingsSource.EMPTY, DEFAULT_NUM_CLIENT_NODES, DEFAULT_ENABLE_RANDOM_BENCH_NODES);
     }
 
     public InternalTestCluster(long clusterSeed, int minNumDataNodes, int maxNumDataNodes, String clusterName, int numClientNodes, boolean enableRandomBenchNodes) {
-        this(clusterSeed, minNumDataNodes, maxNumDataNodes, clusterName, NodeSettingsSource.EMPTY, numClientNodes, enableRandomBenchNodes);
+        this(clusterSeed, minNumDataNodes, maxNumDataNodes, clusterName, SettingsSource.EMPTY, numClientNodes, enableRandomBenchNodes);
     }
 
-    public InternalTestCluster(long clusterSeed, int minNumDataNodes, int maxNumDataNodes, String clusterName, NodeSettingsSource nodeSettingsSource, int numClientNodes, boolean enableRandomBenchNodes) {
+    public InternalTestCluster(long clusterSeed, int minNumDataNodes, int maxNumDataNodes, String clusterName, SettingsSource settingsSource, int numClientNodes, boolean enableRandomBenchNodes) {
         this.clusterName = clusterName;
 
         if (minNumDataNodes < 0 || maxNumDataNodes < 0) {
@@ -232,7 +233,7 @@ public final class InternalTestCluster extends TestCluster {
         }
 
         logger.info("Setup InternalTestCluster [{}] with seed [{}] using [{}] data nodes and [{}] client nodes", clusterName, SeedUtils.formatSeed(clusterSeed), numSharedDataNodes, numSharedClientNodes);
-        this.nodeSettingsSource = nodeSettingsSource;
+        this.settingsSource = settingsSource;
         Builder builder = ImmutableSettings.settingsBuilder();
         if (random.nextInt(5) == 0) { // sometimes set this
             // randomize (multi/single) data path, special case for 0, don't set it at all...
@@ -294,7 +295,7 @@ public final class InternalTestCluster extends TestCluster {
         Builder builder = ImmutableSettings.settingsBuilder().put(defaultSettings)
                 .put(getRandomNodeSettings(nodeSeed))
                 .put(FilterCacheModule.FilterCacheSettings.FILTER_CACHE_TYPE, hasFilterCache() ? WeightedFilterCache.class : NoneFilterCache.class);
-        Settings settings = nodeSettingsSource.settings(nodeOrdinal);
+        Settings settings = settingsSource.node(nodeOrdinal);
         if (settings != null) {
             if (settings.get(ClusterName.SETTING) != null) {
                 throw new ElasticsearchIllegalStateException("Tests must not set a '" + ClusterName.SETTING + "' as a node setting set '" + ClusterName.SETTING + "': [" + settings.get(ClusterName.SETTING) + "]");
@@ -515,7 +516,7 @@ public final class InternalTestCluster extends TestCluster {
                 .put("tests.mock.version", version)
                 .build();
         Node node = nodeBuilder().settings(finalSettings).build();
-        return new NodeAndClient(name, node, new RandomClientFactory());
+        return new NodeAndClient(name, node, new RandomClientFactory(settingsSource));
     }
 
     private String buildNodeName(int id) {
@@ -586,6 +587,17 @@ public final class InternalTestCluster extends TestCluster {
         Settings settings = getSettings(nodeId, random.nextLong(), ImmutableSettings.EMPTY);
         startNodeClient(settings);
         return getRandomNodeAndClient(new ClientNodePredicate()).client(random);
+    }
+
+    public synchronized Client startNodeClient(Settings settings) {
+        ensureOpen(); // currently unused
+        Builder builder = settingsBuilder().put(settings).put("node.client", true).put("node.data", false);
+        if (size() == 0) {
+            // if we are the first node - don't wait for a state
+            builder.put("discovery.initial_state_timeout", 0);
+        }
+        String name = startNode(builder);
+        return nodes.get(name).nodeClient();
     }
 
     /**
@@ -707,7 +719,7 @@ public final class InternalTestCluster extends TestCluster {
                 if (maybeTransportClient instanceof TransportClient) {
                     transportClient = maybeTransportClient;
                 } else {
-                    transportClient = TransportClientFactory.NO_SNIFF_CLIENT_FACTORY.client(node, clusterName, random);
+                    transportClient = TransportClientFactory.noSniff(settingsSource.transportClient()).client(node, clusterName, random);
                 }
             }
             return transportClient;
@@ -763,27 +775,46 @@ public final class InternalTestCluster extends TestCluster {
     public static final String TRANSPORT_CLIENT_PREFIX = "transport_client_";
     static class TransportClientFactory extends ClientFactory {
 
-        private boolean sniff;
-        public static TransportClientFactory NO_SNIFF_CLIENT_FACTORY = new TransportClientFactory(false);
-        public static TransportClientFactory SNIFF_CLIENT_FACTORY = new TransportClientFactory(true);
+        private static TransportClientFactory NO_SNIFF_CLIENT_FACTORY = new TransportClientFactory(false, ImmutableSettings.EMPTY);
+        private static TransportClientFactory SNIFF_CLIENT_FACTORY = new TransportClientFactory(true, ImmutableSettings.EMPTY);
 
-        private TransportClientFactory(boolean sniff) {
+        private final boolean sniff;
+        private final Settings settings;
+
+        public static TransportClientFactory noSniff(Settings settings) {
+            if (settings == null || settings.names().isEmpty()) {
+                return NO_SNIFF_CLIENT_FACTORY;
+            }
+            return new TransportClientFactory(false, settings);
+        }
+
+        public static TransportClientFactory sniff(Settings settings) {
+            if (settings == null || settings.names().isEmpty()) {
+                return SNIFF_CLIENT_FACTORY;
+            }
+            return new TransportClientFactory(true, settings);
+        }
+
+        TransportClientFactory(boolean sniff, Settings settings) {
             this.sniff = sniff;
+            this.settings = settings != null ? settings : ImmutableSettings.EMPTY;
         }
 
         @Override
         public Client client(Node node, String clusterName, Random random) {
             TransportAddress addr = ((InternalNode) node).injector().getInstance(TransportService.class).boundAddress().publishAddress();
             Settings nodeSettings = node.settings();
-            Builder builder = settingsBuilder().put("client.transport.nodes_sampler_interval", "1s")
+            Builder builder = settingsBuilder()
+                    .put("client.transport.nodes_sampler_interval", "1s")
                     .put("name", TRANSPORT_CLIENT_PREFIX + node.settings().get("name"))
                     .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false)
-                    .put(ClusterName.SETTING, clusterName).put("client.transport.sniff", sniff);
-            builder.put("node.mode", nodeSettings.get("node.mode", NODE_MODE));
-            builder.put("node.local", nodeSettings.get("node.local", ""));
-            builder.put("logger.prefix", nodeSettings.get("logger.prefix", ""));
-            builder.put("logger.level", nodeSettings.get("logger.level", "INFO"));
-            builder.put("config.ignore_system_properties", true);
+                    .put(ClusterName.SETTING, clusterName).put("client.transport.sniff", sniff)
+                    .put("node.mode", nodeSettings.get("node.mode", NODE_MODE))
+                    .put("node.local", nodeSettings.get("node.local", ""))
+                    .put("logger.prefix", nodeSettings.get("logger.prefix", ""))
+                    .put("logger.level", nodeSettings.get("logger.level", "INFO"))
+                    .put("config.ignore_system_properties", true)
+                    .put(settings);
 
             TransportClient client = new TransportClient(builder.build());
             client.addTransportAddress(addr);
@@ -792,6 +823,12 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     class RandomClientFactory extends ClientFactory {
+
+        private SettingsSource settingsSource;
+
+        RandomClientFactory(SettingsSource settingsSource) {
+            this.settingsSource = settingsSource;
+        }
 
         @Override
         public Client client(Node node, String clusterName, Random random) {
@@ -803,7 +840,7 @@ public final class InternalTestCluster extends TestCluster {
                 /* no sniff client for now - doesn't work will all tests since it might throw NoNodeAvailableException if nodes are shut down.
                  * we first need support of transportClientRatio as annotations or so
                  */
-                return TransportClientFactory.NO_SNIFF_CLIENT_FACTORY.client(node, clusterName, random);
+                return TransportClientFactory.noSniff(settingsSource.transportClient()).client(node, clusterName, random);
             } else {
                 return node.client();
             }
@@ -1194,16 +1231,6 @@ public final class InternalTestCluster extends TestCluster {
         assert size() >= numNodes;
         NavigableMap<String, NodeAndClient> dataNodes = Maps.filterEntries(nodes, new EntryNodePredicate(new DataNodePredicate()));
         return Sets.newHashSet(Iterators.limit(dataNodes.keySet().iterator(), numNodes));
-    }
-
-    public synchronized void startNodeClient(Settings settings) {
-        ensureOpen(); // currently unused
-        Builder builder = settingsBuilder().put(settings).put("node.client", true).put("node.data", false);
-        if (size() == 0) {
-            // if we are the first node - don't wait for a state
-            builder.put("discovery.initial_state_timeout", 0);
-        }
-        startNode(builder);
     }
 
     /**

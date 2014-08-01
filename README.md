@@ -11,7 +11,7 @@ bin/plugin -install elasticsearch/elasticsearch-cloud-azure/2.3.0
 
 You need to install a version matching your Elasticsearch version:
 
-|       Elasticsearch    | AWS Cloud Plugin  |                                                             Docs                                                                   |
+|       Elasticsearch    | Azure Cloud Plugin|                                                             Docs                                                                   |
 |------------------------|-------------------|------------------------------------------------------------------------------------------------------------------------------------|
 |    master              | Build from source | See below                                                                                                                          |
 |    es-1.x              | Build from source | [2.5.0-SNAPSHOT](https://github.com/elasticsearch/elasticsearch-cloud-azure/tree/es-1.x/#azure-cloud-plugin-for-elasticsearch)     |

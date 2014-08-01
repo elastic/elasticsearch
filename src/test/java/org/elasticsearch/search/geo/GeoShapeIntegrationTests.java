@@ -23,6 +23,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.GeoShapeFilterBuilder;
@@ -375,5 +376,56 @@ public class GeoShapeIntegrationTests extends ElasticsearchIntegrationTest {
         assertThat(coordinates.get(1).get(0).doubleValue(), equalTo(45.0));
         assertThat(coordinates.get(1).get(1).doubleValue(), equalTo(-45.0));
         assertThat(locationMap.size(), equalTo(2));
+    }
+
+    @Test
+    public void testShapeFilter_geometryCollection() throws Exception {
+        createIndex("shapes");
+        assertAcked(prepareCreate("test").addMapping("type", "location", "type=geo_shape"));
+
+        XContentBuilder docSource = jsonBuilder().startObject().startObject("location")
+                .field("type", "geometrycollection")
+                .startArray("geometries")
+                .startObject()
+                .field("type", "point")
+                .startArray("coordinates")
+                .value(100.0).value(0.0)
+                .endArray()
+                .endObject()
+                .startObject()
+                .field("type", "linestring")
+                .startArray("coordinates")
+                .startArray()
+                .value(101.0).value(0.0)
+                .endArray()
+                .startArray()
+                .value(102.0).value(1.0)
+                .endArray()
+                .endArray()
+                .endObject()
+                .endArray()
+                .endObject().endObject();
+        indexRandom(true,
+                client().prepareIndex("test", "type", "1")
+                .setSource(docSource));
+        ensureSearchable("test");
+
+        GeoShapeFilterBuilder filter = FilterBuilders.geoShapeFilter("location", ShapeBuilder.newGeometryCollection().polygon(ShapeBuilder.newPolygon().point(99.0, -1.0).point(99.0, 3.0).point(103.0, 3.0).point(103.0, -1.0).point(99.0, -1.0)), ShapeRelation.INTERSECTS);
+        SearchResponse result = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery())
+                .setPostFilter(filter).get();
+        assertSearchResponse(result);
+        assertHitCount(result, 1);
+        filter = FilterBuilders.geoShapeFilter("location", ShapeBuilder.newGeometryCollection().polygon(ShapeBuilder.newPolygon().point(199.0, -11.0).point(199.0, 13.0).point(193.0, 13.0).point(193.0, -11.0).point(199.0, -11.0)), ShapeRelation.INTERSECTS);
+        result = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery())
+                .setPostFilter(filter).get();
+        assertSearchResponse(result);
+        assertHitCount(result, 0);
+        filter = FilterBuilders.geoShapeFilter("location", ShapeBuilder.newGeometryCollection()
+                .polygon(ShapeBuilder.newPolygon().point(99.0, -1.0).point(99.0, 3.0).point(103.0, 3.0).point(103.0, -1.0).point(99.0, -1.0))
+                .polygon(ShapeBuilder.newPolygon().point(199.0, -11.0).point(199.0, 13.0).point(193.0, 13.0).point(193.0, -11.0).point(199.0, -11.0)), ShapeRelation.INTERSECTS);
+        result = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery())
+                .setPostFilter(filter).get();
+        assertSearchResponse(result);
+        assertHitCount(result, 1);
     }
 }

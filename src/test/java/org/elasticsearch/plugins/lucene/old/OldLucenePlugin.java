@@ -17,17 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.plugin.lucene.current;
+package org.elasticsearch.plugins.lucene.old;
 
 import org.elasticsearch.plugins.AbstractPlugin;
 
-public class CurrentLucenePlugin extends AbstractPlugin {
+public class OldLucenePlugin extends AbstractPlugin {
     /**
      * The name of the plugin.
      */
     @Override
     public String name() {
-        return "current-lucene";
+        return "old-lucene";
     }
 
     /**
@@ -35,6 +35,6 @@ public class CurrentLucenePlugin extends AbstractPlugin {
      */
     @Override
     public String description() {
-        return "current";
+        return "old";
     }
 }

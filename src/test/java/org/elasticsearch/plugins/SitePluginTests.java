@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.plugin;
+package org.elasticsearch.plugins;
 
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.impl.client.CloseableHttpClient;
@@ -48,7 +48,7 @@ public class SitePluginTests extends ElasticsearchIntegrationTest {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         try {
-            File pluginDir = new File(SitePluginTests.class.getResource("/org/elasticsearch/plugin").toURI());
+            File pluginDir = new File(SitePluginTests.class.getResource("/org/elasticsearch/plugins").toURI());
             return settingsBuilder()
                     .put(super.nodeSettings(nodeOrdinal))
                     .put("path.plugins", pluginDir.getAbsolutePath())

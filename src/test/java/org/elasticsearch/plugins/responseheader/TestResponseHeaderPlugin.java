@@ -17,24 +17,24 @@
  * under the License.
  */
 
-package org.elasticsearch.plugin.lucene.old;
+package org.elasticsearch.plugins.responseheader;
 
 import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.rest.RestModule;
 
-public class OldLucenePlugin extends AbstractPlugin {
-    /**
-     * The name of the plugin.
-     */
+public class TestResponseHeaderPlugin extends AbstractPlugin {
+
     @Override
     public String name() {
-        return "old-lucene";
+        return "test-plugin-custom-header";
     }
 
-    /**
-     * The description of the plugin.
-     */
     @Override
     public String description() {
-        return "old";
+        return "test-plugin-custom-header-desc";
+    }
+
+    public void onModule(RestModule restModule) {
+        restModule.addRestAction(TestResponseHeaderRestAction.class);
     }
 }

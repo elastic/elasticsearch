@@ -20,18 +20,27 @@
 package org.elasticsearch.discovery.azure;
 
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
-import org.elasticsearch.cloud.azure.AbstractAzureTest;
 import org.elasticsearch.cloud.azure.AzureComputeService;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 
-public abstract class AbstractAzureComputeServiceTest extends AbstractAzureTest {
+public abstract class AbstractAzureComputeServiceTest extends ElasticsearchIntegrationTest {
 
     private Class<? extends AzureComputeService> mock;
 
     public AbstractAzureComputeServiceTest(Class<? extends AzureComputeService> mock) {
         // We want to inject the Azure API Mock
         this.mock = mock;
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        ImmutableSettings.Builder settings = ImmutableSettings.builder()
+                .put(super.nodeSettings(nodeOrdinal))
+                .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, true);
+        return settings.build();
     }
 
     protected void checkNumberOfNodes(int expected) {

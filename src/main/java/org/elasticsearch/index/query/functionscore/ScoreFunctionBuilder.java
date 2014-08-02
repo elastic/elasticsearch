@@ -20,9 +20,33 @@
 package org.elasticsearch.index.query.functionscore;
 
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
-public interface ScoreFunctionBuilder extends ToXContent {
+import java.io.IOException;
 
-    public String getName();
+public abstract class ScoreFunctionBuilder implements ToXContent {
 
+    public ScoreFunctionBuilder setWeight(float weight) {
+        this.weight = weight;
+        return this;
+    }
+
+    private Float weight;
+
+    public abstract String getName();
+
+    protected void buildWeight(XContentBuilder builder) throws IOException {
+        if (weight != null) {
+            builder.field(FunctionScoreQueryParser.WEIGHT_FIELD.getPreferredName(), weight);
+        }
+    }
+
+    @Override
+    public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        buildWeight(builder);
+        doXContent(builder, params);
+        return builder;
+    }
+
+    protected abstract void doXContent(XContentBuilder builder, Params params) throws IOException;
 }

@@ -16,46 +16,27 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.query.functionscore.random;
 
+package org.elasticsearch.index.query.functionscore.weight;
+
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 
 import java.io.IOException;
 
 /**
- * A function that computes a random score for the matched documents
+ * A query that multiplies the weight to the score.
  */
-public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder {
+public class WeightBuilder extends ScoreFunctionBuilder {
 
-    private Integer seed = null;
-
-    public RandomScoreFunctionBuilder() {
-    }
 
     @Override
     public String getName() {
-        return RandomScoreFunctionParser.NAMES[0];
-    }
-
-    /**
-     * Sets the seed based on which the random number will be generated. Using the same seed is guaranteed to generate the same
-     * random number for a specific doc.
-     *
-     * @param seed The seed.
-     */
-    public RandomScoreFunctionBuilder seed(int seed) {
-        this.seed = seed;
-        return this;
+        return "weight";
     }
 
     @Override
-    public void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(getName());
-        if (seed != null) {
-            builder.field("seed", seed.intValue());
-        }
-        builder.endObject();
+    protected void doXContent(XContentBuilder builder, Params params) throws IOException {
     }
-
 }

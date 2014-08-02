@@ -28,7 +28,9 @@ import org.apache.lucene.search.Explanation;
 public abstract class ScoreFunction {
 
     private final CombineFunction scoreCombiner;
-    
+
+    private double weight = 1.0;
+
     public abstract void setNextReader(AtomicReaderContext context);
 
     public abstract double score(int docId, float subQueryScore);
@@ -43,4 +45,16 @@ public abstract class ScoreFunction {
         this.scoreCombiner = scoreCombiner;
     }
 
+    public ScoreFunction setWeight(double weight) {
+        this.weight = weight;
+        return this;
+    }
+
+    public double getWeight() {
+        return weight;
+    }
+
+    public Explanation explainWeight() {
+        return new Explanation((float) weight, "weight");
+    }
 }

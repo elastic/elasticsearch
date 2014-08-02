@@ -26,7 +26,7 @@ import org.elasticsearch.search.MultiValueMode;
 import java.io.IOException;
 import java.util.Locale;
 
-public abstract class DecayFunctionBuilder implements ScoreFunctionBuilder {
+public abstract class DecayFunctionBuilder extends ScoreFunctionBuilder {
 
     protected static final String ORIGIN = "origin";
     protected static final String SCALE = "scale";

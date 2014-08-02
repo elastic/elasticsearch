@@ -1,0 +1,10 @@
+{
+    "function_score": {
+      "functions": [
+        {
+          "weight": 2,
+          "boost_factor": 2
+        }
+      ]
+    }
+}

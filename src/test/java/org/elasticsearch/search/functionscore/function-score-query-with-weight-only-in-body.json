@@ -1,0 +1,7 @@
+{
+  "query": {
+    "function_score": {
+      "weight": 2
+    }
+  }
+}

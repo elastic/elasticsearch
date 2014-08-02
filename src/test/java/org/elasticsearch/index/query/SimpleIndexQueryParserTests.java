@@ -34,6 +34,7 @@ import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedString;
@@ -2316,6 +2317,50 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         assertThat(((XFilteredQuery) ((QueryWrapperFilter) parsedQuery.filter()).getQuery()).getFilter(), instanceOf(TermFilter.class));
         TermFilter filter = (TermFilter) ((XFilteredQuery) ((QueryWrapperFilter) parsedQuery.filter()).getQuery()).getFilter();
         assertThat(filter.getTerm().toString(), equalTo("text:apache"));
+    }
+
+    @Test
+    public void checkProperErrorMessageWhenTwoFunctionsDefinedInQueryBody() throws IOException {
+        IndexQueryParserService queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/function-score-query-causing-NPE.json");
+        try {
+            queryParser.parse(query).query();
+            fail();
+        } catch (QueryParsingException e) {
+            assertThat(e.getDetailedMessage(), containsString("Use functions[{...},...] if you want to define several functions."));
+        }
+    }
+
+    @Test
+    public void checkProperErrorMessagesForMisplacedWeightsAndFunctions() throws IOException {
+        IndexQueryParserService queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/function-score-query-with-weight-for-boost_factor.json");
+        try {
+            queryParser.parse(query).query();
+            fail();
+        } catch (QueryParsingException e) {
+            assertThat(e.getDetailedMessage(), containsString("boost_factor/weight defined together does not make sense. Use one of them only. weight is preferable because boost_factor is deprecated. If you are using the java API, use either FactorBuilder#boostFactor(..) or a WeightFactorBuilder. WeightFactorBuilder is preferable because FactorBuilder is deprecated."));
+        }
+        try {
+            functionScoreQuery().add(factorFunction(2.0f).setWeight(2.0));
+            fail();
+        } catch (ElasticsearchIllegalArgumentException e) {
+            assertThat(e.getDetailedMessage(), containsString("boost_factor/weight defined together does not make sense. Use one of them only. weight is preferable because boost_factor is deprecated. If you are using the java API, use either FactorBuilder#boostFactor(..) or a WeightFactorBuilder. WeightFactorBuilder is preferable because FactorBuilder is deprecated."));
+        }
+        query = copyToStringFromClasspath("/org/elasticsearch/index/query/function-score-query-with-functions-and-weight-in-body.json");
+        try {
+            queryParser.parse(query).query();
+            fail();
+        } catch (QueryParsingException e) {
+            assertThat(e.getDetailedMessage(), containsString("You can either define \"functions\":[...] or a single function, not both. Found \"functions\": [...] already, now encountering \"weight\"."));
+        }
+        query = copyToStringFromClasspath("/org/elasticsearch/index/query/function-score-query-with-weight-and-functions-in-body.json");
+        try {
+            queryParser.parse(query).query();
+            fail();
+        } catch (QueryParsingException e) {
+            assertThat(e.getDetailedMessage(), containsString("You can either define \"functions\":[...] or a single function, not both. Found \"weight\" already, now encountering \"functions\": [...]."));
+        }
     }
 
     // https://github.com/elasticsearch/elasticsearch/issues/6722

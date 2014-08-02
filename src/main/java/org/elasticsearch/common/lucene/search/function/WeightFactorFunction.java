@@ -21,42 +21,31 @@ package org.elasticsearch.common.lucene.search.function;
 
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Explanation;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 
 /**
  *
  */
-@Deprecated
-public class BoostScoreFunction extends ScoreFunction {
+public class WeightFactorFunction extends ScoreFunction {
 
-    public static final String BOOST_WEIGHT_ERROR_MESSAGE = "boost_factor/weight defined together does not make sense. Use one of them only. weight is preferable because boost_factor is deprecated. If you are using the java API, use either FactorBuilder#boostFactor(..) or a WeightFactorBuilder. WeightFactorBuilder is preferable because FactorBuilder is deprecated.";
 
-    private final float boost;
-
-    public BoostScoreFunction(float boost) {
+    public WeightFactorFunction(double weight) {
         super(CombineFunction.MULT);
-        this.boost = boost;
-    }
-
-    public float getBoost() {
-        return boost;
+        this.setWeight(weight);
     }
 
     @Override
     public void setNextReader(AtomicReaderContext context) {
         // nothing to do here...
     }
-    
+
     @Override
     public double score(int docId, float subQueryScore) {
-        return boost;
+        return 1.0;
     }
 
     @Override
-    public Explanation explainScore(int docId, float subQueryScore) {
-        Explanation exp = new Explanation(boost, "static boost factor");
-        exp.addDetail(new Explanation(boost, "boostFactor"));
-        return exp;
+    public Explanation explainScore(int docId, float score) {
+        return new Explanation(score, "weight");
     }
 
     @Override
@@ -66,9 +55,9 @@ public class BoostScoreFunction extends ScoreFunction {
         if (o == null || getClass() != o.getClass())
             return false;
 
-        BoostScoreFunction that = (BoostScoreFunction) o;
+        WeightFactorFunction that = (WeightFactorFunction) o;
 
-        if (Float.compare(that.boost, boost) != 0)
+        if (Double.compare(that.getWeight(), getWeight()) != 0)
             return false;
 
         return true;
@@ -76,16 +65,11 @@ public class BoostScoreFunction extends ScoreFunction {
 
     @Override
     public int hashCode() {
-        return (boost != +0.0f ? Float.floatToIntBits(boost) : 0);
+        return (getWeight() != +0.0f ? Float.floatToIntBits((float) getWeight()) : 0);
     }
 
     @Override
     public String toString() {
-        return "boost[" + boost + "]";
-    }
-
-    @Override
-    public ScoreFunction setWeight(double weight) {
-        throw new ElasticsearchIllegalArgumentException(BOOST_WEIGHT_ERROR_MESSAGE);
+        return "weight[" + getWeight() + "]";
     }
 }

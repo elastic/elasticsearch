@@ -30,7 +30,7 @@ import java.util.Locale;
  * Builder to construct {@code field_value_factor} functions for a function
  * score query.
  */
-public class FieldValueFactorFunctionBuilder implements ScoreFunctionBuilder {
+public class FieldValueFactorFunctionBuilder extends ScoreFunctionBuilder {
     private String field = null;
     private Float factor = null;
     private FieldValueFactorFunction.Modifier modifier = null;

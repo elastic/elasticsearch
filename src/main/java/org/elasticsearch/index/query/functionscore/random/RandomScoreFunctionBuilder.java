@@ -26,7 +26,7 @@ import java.io.IOException;
 /**
  * A function that computes a random score for the matched documents
  */
-public class RandomScoreFunctionBuilder implements ScoreFunctionBuilder {
+public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder {
 
     private Integer seed = null;
 

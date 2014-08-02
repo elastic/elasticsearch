@@ -31,7 +31,7 @@ import java.util.Map;
  * A function that uses a script to compute or influence the score of documents
  * that match with the inner query or filter.
  */
-public class ScriptScoreFunctionBuilder implements ScoreFunctionBuilder {
+public class ScriptScoreFunctionBuilder extends ScoreFunctionBuilder {
 
     private String script;
 

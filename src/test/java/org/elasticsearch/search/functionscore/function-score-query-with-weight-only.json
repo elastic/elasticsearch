@@ -1,0 +1,11 @@
+{
+  "query": {
+    "function_score": {
+      "functions": [
+        {
+          "weight": 2
+        }
+      ]
+    }
+  }
+}

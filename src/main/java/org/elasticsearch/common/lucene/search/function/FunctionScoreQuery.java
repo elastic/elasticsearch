@@ -132,7 +132,10 @@ public class FunctionScoreQuery extends Query {
             }
             function.setNextReader(context);
             Explanation functionExplanation = function.explainScore(doc, subQueryExpl.getValue());
-            return combineFunction.explain(getBoost(), subQueryExpl, functionExplanation, maxBoost);
+            ComplexExplanation functionScoreExplanation = new ComplexExplanation(true, functionExplanation.getValue() * (float) function.getWeight(), "product of:");
+            functionScoreExplanation.addDetail(functionExplanation);
+            functionScoreExplanation.addDetail(function.explainWeight());
+            return combineFunction.explain(getBoost(), subQueryExpl, functionScoreExplanation, maxBoost);
         }
     }
 
@@ -173,7 +176,7 @@ public class FunctionScoreQuery extends Query {
         public float score() throws IOException {
             float score = scorer.score();
             return scoreCombiner.combine(subQueryBoost, score,
-                    function.score(scorer.docID(), score), maxBoost);
+                    function.score(scorer.docID(), score) * function.getWeight(), maxBoost);
         }
 
         @Override

@@ -17,53 +17,26 @@
  * under the License.
  */
 
-package org.elasticsearch.index.query.functionscore.factor;
+package org.elasticsearch.index.query.functionscore.weight;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.common.lucene.search.function.BoostScoreFunction;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 
 import java.io.IOException;
 
 /**
- * A query that simply applies the boost factor to another query (multiply it).
- *
- *
+ * A query that multiplies the weight to the score.
  */
-@Deprecated
-public class FactorBuilder extends ScoreFunctionBuilder {
-
-    private Float boostFactor;
-
-    /**
-     * Sets the boost factor for this query.
-     */
-    public FactorBuilder boostFactor(float boost) {
-        this.boostFactor = new Float(boost);
-        return this;
-    }
+public class WeightBuilder extends ScoreFunctionBuilder {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (boostFactor != null) {
-            builder.field("boost_factor", boostFactor.floatValue());
-        }
+        buildWeight(builder);
         return builder;
     }
 
     @Override
     public String getName() {
-        return FactorParser.NAMES[0];
-    }
-
-    @Override
-    public ScoreFunctionBuilder setWeight(double weight) {
-        throw new ElasticsearchIllegalArgumentException(BoostScoreFunction.BOOST_WEIGHT_ERROR_MESSAGE);
-    }
-
-    @Override
-    public void buildWeight(XContentBuilder builder) throws IOException {
-        //we do not want the weight to be written for boost_factor as it does not make sense to have it
+        throw new UnsupportedOperationException("weight factor is never supposed to be parsed");
     }
 }

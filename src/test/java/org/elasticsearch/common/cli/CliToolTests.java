@@ -167,13 +167,13 @@ public class CliToolTests extends CliToolTestCase {
                 int count = writeCounter.incrementAndGet();
                 switch (count) {
                     case 1:
-                        assertThat(msg, equalTo("\n"));
+                        assertThat(msg, equalTo(System.lineSeparator()));
                         break;
                     case 2:
-                        assertThat(msg, equalTo("cmd1 help\n"));
+                        assertThat(msg, equalTo("cmd1 help" + System.lineSeparator()));
                         break;
                     case 3:
-                        assertThat(msg, equalTo("\n"));
+                        assertThat(msg, equalTo(System.lineSeparator()));
                         break;
                     default:
                         fail("written more than expected");
@@ -202,13 +202,13 @@ public class CliToolTests extends CliToolTestCase {
                 int count = writeCounter.incrementAndGet();
                 switch (count) {
                     case 1:
-                        assertThat(msg, equalTo("\n"));
+                        assertThat(msg, equalTo(System.lineSeparator()));
                         break;
                     case 2:
-                        assertThat(msg, equalTo("tool help\n"));
+                        assertThat(msg, equalTo("tool help"+System.lineSeparator()));
                         break;
                     case 3:
-                        assertThat(msg, equalTo("\n"));
+                        assertThat(msg, equalTo(System.lineSeparator()));
                         break;
                     default:
                         fail("written more than expected");
@@ -242,13 +242,13 @@ public class CliToolTests extends CliToolTestCase {
                 int count = writeCounter.incrementAndGet();
                 switch (count) {
                     case 1:
-                        assertThat(msg, equalTo("\n"));
+                        assertThat(msg, equalTo(System.lineSeparator()));
                         break;
                     case 2:
-                        assertThat(msg, equalTo("cmd1 help\n"));
+                        assertThat(msg, equalTo("cmd1 help" + System.lineSeparator()));
                         break;
                     case 3:
-                        assertThat(msg, equalTo("\n"));
+                        assertThat(msg, equalTo(System.lineSeparator()));
                         break;
                     default:
                         fail("written more than expected");

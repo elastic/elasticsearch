@@ -130,7 +130,7 @@ public class HttpDownloadHelper {
     public static class VerboseProgress implements DownloadProgress {
         private int dots = 0;
         // CheckStyle:VisibilityModifier OFF - bc
-        PrintStream out;
+        PrintWriter writer;
         // CheckStyle:VisibilityModifier ON
 
         /**
@@ -139,14 +139,23 @@ public class HttpDownloadHelper {
          * @param out the output stream.
          */
         public VerboseProgress(PrintStream out) {
-            this.out = out;
+            this.writer = new PrintWriter(out);
+        }
+
+        /**
+         * Construct a verbose progress reporter.
+         *
+         * @param writer the output stream.
+         */
+        public VerboseProgress(PrintWriter writer) {
+            this.writer = this.writer;
         }
 
         /**
          * begin a download
          */
         public void beginDownload() {
-            out.print("Downloading ");
+            writer.print("Downloading ");
             dots = 0;
         }
 
@@ -154,9 +163,9 @@ public class HttpDownloadHelper {
          * tick handler
          */
         public void onTick() {
-            out.print(".");
+            writer.print(".");
             if (dots++ > 50) {
-                out.flush();
+                writer.flush();
                 dots = 0;
             }
         }
@@ -165,8 +174,8 @@ public class HttpDownloadHelper {
          * end a download
          */
         public void endDownload() {
-            out.println("DONE");
-            out.flush();
+            writer.println("DONE");
+            writer.flush();
         }
     }
 

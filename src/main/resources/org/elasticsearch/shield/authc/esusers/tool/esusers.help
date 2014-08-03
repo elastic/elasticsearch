@@ -1,22 +1,26 @@
-SYNTAX:
+NAME
 
-   esusers <command>
+    esusers - Manages elasticsearch native users
 
-DESCRIPTION:
+SYNOPSIS
 
-   This tool manages all native security aspects in elasticsearch, saving
-   the administratorfrom needing to modify security related fiels manually.
-   This tool provides several commands for different security management
-   tasks
+    esusers <command>
 
-COMMANDS:
+DESCRIPTION
 
-   passwd     Changes passwords for a native user
+    This tool manages all native security aspects in elasticsearch, saving
+    the administratorfrom needing to modify security related fiels manually.
+    This tool provides several commands for different security management
+    tasks
 
-   useradd    Adds a new native user to the system
+COMMANDS
 
-   userdel    Removes an existing native user from the system
+    passwd     Changes passwords for a native user
 
-NOTES:
+    useradd    Adds a new native user to the system
 
-   [1] For usage help on specific commands please type "security <command> -h"
+    userdel    Removes an existing native user from the system
+
+NOTES
+
+    [*] For usage help on specific commands please type "security <command> -h"

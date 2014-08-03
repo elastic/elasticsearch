@@ -6,13 +6,13 @@
 package org.elasticsearch.shield.authc.esusers.tool;
 
 import com.google.common.base.Charsets;
+import org.elasticsearch.common.cli.CliTool;
+import org.elasticsearch.common.cli.CliToolTestCase;
+import org.elasticsearch.common.cli.Terminal;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.authc.support.Hasher;
-import org.elasticsearch.shield.support.cli.CliToolTestCase;
-import org.elasticsearch.shield.support.cli.CliTool;
-import org.elasticsearch.shield.support.cli.Terminal;
 import org.junit.Test;
 
 import java.io.BufferedWriter;
@@ -365,4 +365,5 @@ public class ESUsersToolTests extends CliToolTestCase {
         CliTool.ExitStatus status = cmd.execute(settings, env);
         assertThat(status, is(CliTool.ExitStatus.NO_USER));
     }
+
 }

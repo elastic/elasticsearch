@@ -5,16 +5,16 @@
  */
 package org.elasticsearch.shield.authc.esusers.tool;
 
-import org.apache.commons.cli.CommandLine;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.cli.CliTool;
+import org.elasticsearch.common.cli.CliToolConfig;
+import org.elasticsearch.common.cli.Terminal;
+import org.elasticsearch.common.cli.commons.CommandLine;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.authc.esusers.FileUserPasswdStore;
 import org.elasticsearch.shield.authc.esusers.FileUserRolesStore;
 import org.elasticsearch.shield.authc.support.Hasher;
-import org.elasticsearch.shield.support.cli.CliTool;
-import org.elasticsearch.shield.support.cli.CliToolConfig;
-import org.elasticsearch.shield.support.cli.Terminal;
 
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -22,8 +22,8 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.shield.support.cli.CliToolConfig.Builder.cmd;
-import static org.elasticsearch.shield.support.cli.CliToolConfig.Builder.option;
+import static org.elasticsearch.common.cli.CliToolConfig.Builder.cmd;
+import static org.elasticsearch.common.cli.CliToolConfig.Builder.option;
 
 /**
  *

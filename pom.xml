@@ -1248,6 +1248,7 @@
                                 <include>org/apache/lucene/util/AbstractRandomizedTest.class</include>
                                 <include>org/apache/lucene/util/AbstractRandomizedTest$*.class</include>
                                 <include>org/elasticsearch/common/cli/CliToolTestCase.class</include>
+                                <include>org/elasticsearch/common/cli/CliToolTestCase$*.class</include>
                             </includes>
                             <excludes>
                                 <!-- unit tests for yaml suite parser & rest spec parser need to be excluded -->

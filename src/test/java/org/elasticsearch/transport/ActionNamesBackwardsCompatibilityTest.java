@@ -25,6 +25,7 @@ import org.elasticsearch.action.bench.AbortBenchmarkAction;
 import org.elasticsearch.action.bench.BenchmarkAction;
 import org.elasticsearch.action.bench.BenchmarkService;
 import org.elasticsearch.action.bench.BenchmarkStatusAction;
+import org.elasticsearch.action.exists.ExistsAction;
 import org.elasticsearch.action.indexedscripts.delete.DeleteIndexedScriptAction;
 import org.elasticsearch.action.indexedscripts.get.GetIndexedScriptAction;
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptAction;
@@ -122,6 +123,9 @@ public class ActionNamesBackwardsCompatibilityTest extends ElasticsearchBackward
         actionsVersions.put(BenchmarkAction.NAME, Version.V_1_4_0);
         actionsVersions.put(BenchmarkStatusAction.NAME, Version.V_1_4_0);
         actionsVersions.put(AbortBenchmarkAction.NAME, Version.V_1_4_0);
+
+        actionsVersions.put(ExistsAction.NAME, Version.V_1_4_0);
+        actionsVersions.put(ExistsAction.NAME + "[s]", Version.V_1_4_0);
 
         actionsVersions.put(IndicesStore.ACTION_SHARD_EXISTS, Version.V_1_3_0);
 

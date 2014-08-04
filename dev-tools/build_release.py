@@ -232,8 +232,8 @@ def update_documentation_to_released_version(readme_file, repo_url, release, bra
 
 # Update installation instructions in README.md file
 def set_install_instructions(readme_file, artifact_name, release):
-    pattern = '`bin/plugin -install elasticsearch/%s/.+`' % artifact_name
-    replacement = '`bin/plugin -install elasticsearch/%s/%s`' % (artifact_name, release)
+    pattern = 'bin/plugin -install elasticsearch/%s/.+' % artifact_name
+    replacement = 'bin/plugin -install elasticsearch/%s/%s' % (artifact_name, release)
 
     def callback(line):
         return re.sub(pattern, replacement, line)

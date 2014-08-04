@@ -19,7 +19,6 @@
 
 package org.elasticsearch.update;
 
-import org.apache.lucene.document.Field;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.util.LuceneTestCase.Slow;
@@ -27,10 +26,10 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.update.UpdateRequest;
-import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.transport.NoNodeAvailableException;
@@ -44,14 +43,15 @@ import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.merge.policy.AbstractMergePolicyProvider;
 import org.elasticsearch.index.merge.policy.MergePolicyModule;
-import org.elasticsearch.index.merge.policy.TieredMergePolicyProvider;
-import org.elasticsearch.index.store.CorruptedFileTest;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
@@ -179,6 +179,51 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
             assertThat(getResponse.getSourceAsMap().get("field").toString(), equalTo("2"));
         }
     }
+    
+    @Test
+    public void testScriptedUpsert() throws Exception {
+        createIndex();
+        ensureGreen();
+        
+        // Script logic is 
+        // 1) New accounts take balance from "balance" in upsert doc and first payment is charged at 50%
+        // 2) Existing accounts subtract full payment from balance stored in elasticsearch
+        
+        String script="int oldBalance=ctx._source.balance;"+
+                      "int deduction=ctx.op == \"create\" ? (payment/2) :  payment;"+
+                      "ctx._source.balance=oldBalance-deduction;";
+        int openingBalance=10;
+
+        // Pay money from what will be a new account and opening balance comes from upsert doc
+        // provided by client
+        UpdateResponse updateResponse = client().prepareUpdate("test", "type1", "1")
+                .setUpsert(XContentFactory.jsonBuilder().startObject().field("balance", openingBalance).endObject())
+                .setScriptedUpsert(true)
+                .addScriptParam("payment", 2)
+                .setScript(script, ScriptService.ScriptType.INLINE)
+                .execute().actionGet();
+        assertTrue(updateResponse.isCreated());
+
+        for (int i = 0; i < 5; i++) {
+            GetResponse getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
+            assertThat(getResponse.getSourceAsMap().get("balance").toString(), equalTo("9"));
+        }
+
+        // Now pay money for an existing account where balance is stored in es 
+        updateResponse = client().prepareUpdate("test", "type1", "1")
+                .setUpsert(XContentFactory.jsonBuilder().startObject().field("balance", openingBalance).endObject())
+                .setScriptedUpsert(true)
+                .addScriptParam("payment", 2)
+                .setScript(script, ScriptService.ScriptType.INLINE)
+                .execute().actionGet();
+        assertFalse(updateResponse.isCreated());
+
+
+        for (int i = 0; i < 5; i++) {
+            GetResponse getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
+            assertThat(getResponse.getSourceAsMap().get("balance").toString(), equalTo("7"));
+        }
+    }    
 
     @Test
     public void testUpsertDoc() throws Exception {

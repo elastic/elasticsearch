@@ -214,33 +214,40 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
         switch (config) {
             case 0: {
                 // do nothing
+                break;
             }
             case 1: {
                 storeTermVectors = true;
+                break;
             }
             case 2: {
                 storeTermVectors = true;
                 storePositions = true;
+                break;
             }
             case 3: {
                 storeTermVectors = true;
                 storeOffsets = true;
+                break;
             }
             case 4: {
                 storeTermVectors = true;
                 storePositions = true;
                 storeOffsets = true;
+                break;
             }
             case 5: {
                 storeTermVectors = true;
                 storePositions = true;
                 storePayloads = true;
+                break;
             }
             case 6: {
                 storeTermVectors = true;
                 storePositions = true;
                 storeOffsets = true;
                 storePayloads = true;
+                break;
             }
         }
         ft.setStoreTermVectors(storeTermVectors);

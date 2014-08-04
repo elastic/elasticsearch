@@ -27,7 +27,7 @@ import org.elasticsearch.client.IndicesAdminClient;
 public class AnalyzeAction extends IndicesAction<AnalyzeRequest, AnalyzeResponse, AnalyzeRequestBuilder> {
 
     public static final AnalyzeAction INSTANCE = new AnalyzeAction();
-    public static final String NAME = "indices/analyze";
+    public static final String NAME = "indices:admin/analyze";
 
     private AnalyzeAction() {
         super(NAME);

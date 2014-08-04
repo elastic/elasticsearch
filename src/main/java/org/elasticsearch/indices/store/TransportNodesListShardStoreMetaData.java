@@ -61,7 +61,7 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
  */
 public class TransportNodesListShardStoreMetaData extends TransportNodesOperationAction<TransportNodesListShardStoreMetaData.Request, TransportNodesListShardStoreMetaData.NodesStoreFilesMetaData, TransportNodesListShardStoreMetaData.NodeRequest, TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData> {
 
-    private static final String ACTION_NAME = "/cluster/nodes/indices/shard/store";
+    public static final String ACTION_NAME = "internal:cluster/nodes/indices/shard/store";
 
     private final IndicesService indicesService;
 

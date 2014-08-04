@@ -27,7 +27,7 @@ import org.elasticsearch.client.Client;
 public class DeleteAction extends ClientAction<DeleteRequest, DeleteResponse, DeleteRequestBuilder> {
 
     public static final DeleteAction INSTANCE = new DeleteAction();
-    public static final String NAME = "delete";
+    public static final String NAME = "indices:data/write/delete";
 
     private DeleteAction() {
         super(NAME);

@@ -53,6 +53,8 @@ public final class ExternalTestCluster extends TestCluster {
 
     private final InetSocketAddress[] httpAddresses;
 
+    private final String clusterName;
+
     private final int numDataNodes;
     private final int numBenchNodes;
 
@@ -64,6 +66,7 @@ public final class ExternalTestCluster extends TestCluster {
 
         NodesInfoResponse nodeInfos = this.client.admin().cluster().prepareNodesInfo().clear().setSettings(true).setHttp(true).get();
         httpAddresses = new InetSocketAddress[nodeInfos.getNodes().length];
+        this.clusterName = nodeInfos.getClusterName().value();
         int dataNodes = 0;
         int benchNodes = 0;
         for (int i = 0; i < nodeInfos.getNodes().length; i++) {
@@ -120,13 +123,16 @@ public final class ExternalTestCluster extends TestCluster {
     public void ensureEstimatedStats() {
         if (size() > 0) {
             NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats()
-                    .clear().setBreaker(true).execute().actionGet();
+                    .clear().setBreaker(true).setIndices(true).execute().actionGet();
             for (NodeStats stats : nodeStats.getNodes()) {
                 assertThat("Fielddata breaker not reset to 0 on node: " + stats.getNode(),
                         stats.getBreaker().getStats(CircuitBreaker.Name.FIELDDATA).getEstimated(), equalTo(0L));
                 // ExternalTestCluster does not check the request breaker,
                 // because checking it requires a network request, which in
                 // turn increments the breaker, making it non-0
+
+                assertThat("Fielddata size must be 0 on node: " + stats.getNode(), stats.getIndices().getFieldData().getMemorySizeInBytes(), equalTo(0l));
+                assertThat("Filter cache size must be 0 on node: " + stats.getNode(), stats.getIndices().getFilterCache().getMemorySizeInBytes(), equalTo(0l));
             }
         }
     }
@@ -139,5 +145,10 @@ public final class ExternalTestCluster extends TestCluster {
     @Override
     public boolean hasFilterCache() {
         return true; // default
+    }
+
+    @Override
+    public String getClusterName() {
+        return clusterName;
     }
 }

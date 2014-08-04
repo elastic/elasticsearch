@@ -193,4 +193,8 @@ public abstract class TestCluster implements Iterable<Client>, Closeable {
      */
     public abstract boolean hasFilterCache();
 
+    /**
+     * Returns the cluster name
+     */
+    public abstract String getClusterName();
 }

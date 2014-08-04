@@ -27,7 +27,7 @@ import org.elasticsearch.client.IndicesAdminClient;
 public class CloseIndexAction extends IndicesAction<CloseIndexRequest, CloseIndexResponse, CloseIndexRequestBuilder> {
 
     public static final CloseIndexAction INSTANCE = new CloseIndexAction();
-    public static final String NAME = "indices/close";
+    public static final String NAME = "indices:admin/close";
 
     private CloseIndexAction() {
         super(NAME);

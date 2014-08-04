@@ -174,6 +174,11 @@ public class GetRequestBuilder extends SingleShardOperationRequestBuilder<GetReq
         return this;
     }
 
+    public GetRequestBuilder setIgnoreErrorsOnGeneratedFields(Boolean ignoreErrorsOnGeneratedFields) {
+        request.ignoreErrorsOnGeneratedFields(ignoreErrorsOnGeneratedFields);
+        return this;
+    }
+
     /**
      * Sets the version, which will cause the get operation to only be performed if a matching
      * version exists and no changes happened on the doc since then.

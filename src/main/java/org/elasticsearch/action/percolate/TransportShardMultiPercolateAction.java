@@ -52,7 +52,7 @@ public class TransportShardMultiPercolateAction extends TransportShardSingleOper
 
     private final PercolatorService percolatorService;
 
-    private static final String ACTION_NAME = "mpercolate/shard";
+    private static final String ACTION_NAME = MultiPercolateAction.NAME + "[shard]";
 
     @Inject
     public TransportShardMultiPercolateAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, PercolatorService percolatorService, ActionFilters actionFilters) {

@@ -80,6 +80,8 @@ import static org.elasticsearch.cluster.metadata.MetaDataIndexStateService.INDEX
  */
 public class RestoreService extends AbstractComponent implements ClusterStateListener {
 
+    public static final String UPDATE_RESTORE_ACTION_NAME = "internal:cluster/snapshot/update_restore";
+
     private final ClusterService clusterService;
 
     private final RepositoriesService repositoriesService;
@@ -100,7 +102,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
         this.transportService = transportService;
         this.allocationService = allocationService;
         this.createIndexService = createIndexService;
-        transportService.registerHandler(UpdateRestoreStateRequestHandler.ACTION, new UpdateRestoreStateRequestHandler());
+        transportService.registerHandler(UPDATE_RESTORE_ACTION_NAME, new UpdateRestoreStateRequestHandler());
         clusterService.add(this);
     }
 
@@ -322,7 +324,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
             innerUpdateRestoreState(request);
         } else {
             transportService.sendRequest(clusterService.state().nodes().masterNode(),
-                    UpdateRestoreStateRequestHandler.ACTION, request, EmptyTransportResponseHandler.INSTANCE_SAME);
+                    UPDATE_RESTORE_ACTION_NAME, request, EmptyTransportResponseHandler.INSTANCE_SAME);
         }
     }
 
@@ -488,7 +490,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
             innerUpdateRestoreState(request);
         } else {
             transportService.sendRequest(clusterService.state().nodes().masterNode(),
-                    UpdateRestoreStateRequestHandler.ACTION, request, EmptyTransportResponseHandler.INSTANCE_SAME);
+                    UPDATE_RESTORE_ACTION_NAME, request, EmptyTransportResponseHandler.INSTANCE_SAME);
         }
     }
 
@@ -813,8 +815,6 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
      * Internal class that is used to send notifications about finished shard restore operations to master node
      */
     private class UpdateRestoreStateRequestHandler extends BaseTransportRequestHandler<UpdateIndexShardRestoreStatusRequest> {
-
-        static final String ACTION = "cluster/snapshot/update_restore";
 
         @Override
         public UpdateIndexShardRestoreStatusRequest newInstance() {

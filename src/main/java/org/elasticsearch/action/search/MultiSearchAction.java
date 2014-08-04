@@ -27,7 +27,7 @@ import org.elasticsearch.client.Client;
 public class MultiSearchAction extends ClientAction<MultiSearchRequest, MultiSearchResponse, MultiSearchRequestBuilder> {
 
     public static final MultiSearchAction INSTANCE = new MultiSearchAction();
-    public static final String NAME = "msearch";
+    public static final String NAME = "indices:data/read/msearch";
 
     private MultiSearchAction() {
         super(NAME);

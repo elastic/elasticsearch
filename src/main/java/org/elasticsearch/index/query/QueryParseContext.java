@@ -88,17 +88,17 @@ public class QueryParseContext {
 
     private EnumSet<ParseField.Flag> parseFlags = ParseField.EMPTY_FLAGS;
 
-    private final boolean disableCaching;
+    private final boolean disableFilterCaching;
 
     public QueryParseContext(Index index, IndexQueryParserService indexQueryParser) {
         this(index, indexQueryParser, false);
     }
 
-    public QueryParseContext(Index index, IndexQueryParserService indexQueryParser, boolean disableCaching) {
+    public QueryParseContext(Index index, IndexQueryParserService indexQueryParser, boolean disableFilterCaching) {
         this.index = index;
         this.indexQueryParser = indexQueryParser;
-        this.propagateNoCache = disableCaching;
-        this.disableCaching = disableCaching;
+        this.propagateNoCache = disableFilterCaching;
+        this.disableFilterCaching = disableFilterCaching;
     }
 
     public  void parseFlags(EnumSet<ParseField.Flag> parseFlags) {
@@ -178,7 +178,7 @@ public class QueryParseContext {
         if (filter == null) {
             return null;
         }
-        if (this.disableCaching || this.propagateNoCache || filter instanceof NoCacheFilter) {
+        if (this.disableFilterCaching || this.propagateNoCache || filter instanceof NoCacheFilter) {
             return filter;
         }
         if (cacheKey != null) {
@@ -188,11 +188,7 @@ public class QueryParseContext {
     }
 
     public <IFD extends IndexFieldData<?>> IFD getForField(FieldMapper<?> mapper) {
-        if (disableCaching) {
-            return indexQueryParser.fieldDataService.getForFieldDirect(mapper);
-        } else {
-            return indexQueryParser.fieldDataService.getForField(mapper);
-        }
+        return indexQueryParser.fieldDataService.getForField(mapper);
     }
 
     public void addNamedFilter(String name, Filter filter) {

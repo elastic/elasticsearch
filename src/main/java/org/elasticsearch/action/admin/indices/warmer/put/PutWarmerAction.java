@@ -27,7 +27,7 @@ import org.elasticsearch.client.IndicesAdminClient;
 public class PutWarmerAction extends IndicesAction<PutWarmerRequest, PutWarmerResponse, PutWarmerRequestBuilder> {
 
     public static final PutWarmerAction INSTANCE = new PutWarmerAction();
-    public static final String NAME = "indices/warmer/put";
+    public static final String NAME = "indices:admin/warmers/put";
 
     private PutWarmerAction() {
         super(NAME);

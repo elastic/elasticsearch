@@ -125,6 +125,15 @@ Also only leaf fields can be returned via the `field` option. So object fields c
 will fail.
 
 [float]
+[[generated-fields]]
+=== Generated fields
+added[1.4.0]
+
+If no refresh occurred between indexing and refresh, GET will access the transaction log to fetch the document. However, some fields are generated only when indexing. 
+If you try to access a field that is only generated when indexing, you will get an exception (default). You can choose to ignore field that are generated if the transaction log is accessed by setting `ignore_errors_on_generated_fields=true`.
+
+
+[float]
 [[_source]]
 === Getting the _source directly
 
@@ -224,3 +233,4 @@ for all version types with the exception of version type `FORCE` which always
 retrieves the document.
 
 Note that Elasticsearch do not store older versions of documents. Only the current version can be retrieved.
+

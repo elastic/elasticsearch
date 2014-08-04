@@ -31,7 +31,7 @@ import org.elasticsearch.index.query.QueryParsingException;
 
 import java.io.IOException;
 
-public class JLHScore implements SignificanceHeuristic {
+public class JLHScore extends SignificanceHeuristic {
 
     public static final JLHScore INSTANCE = new JLHScore();
 
@@ -59,25 +59,10 @@ public class JLHScore implements SignificanceHeuristic {
      * Calculates the significance of a term in a sample against a background of
      * normal distributions by comparing the changes in frequency. This is the heart
      * of the significant terms feature.
-     * <p/>
-     *
-     * @param subsetFreq   The frequency of the term in the selected sample
-     * @param subsetSize   The size of the selected sample (typically number of docs)
-     * @param supersetFreq The frequency of the term in the superset from which the sample was taken
-     * @param supersetSize The size of the superset from which the sample was taken  (typically number of docs)
-     * @return a "significance" score
      */
     @Override
     public double getScore(long subsetFreq, long subsetSize, long supersetFreq, long supersetSize) {
-        if (subsetFreq < 0 || subsetSize < 0 || supersetFreq < 0 || supersetSize < 0) {
-            throw new ElasticsearchIllegalArgumentException("Frequencies of subset and superset must be positive in JLHScore.getScore()");
-        }
-        if (subsetFreq > subsetSize) {
-            throw new ElasticsearchIllegalArgumentException("subsetFreq > subsetSize, in JLHScore.score(..)");
-        }
-        if (supersetFreq > supersetSize) {
-            throw new ElasticsearchIllegalArgumentException("supersetFreq > supersetSize, in JLHScore.score(..)");
-        }
+        checkFrequencyValidity(subsetFreq, subsetSize, supersetFreq, supersetSize, "JLHScore");
         if ((subsetSize == 0) || (supersetSize == 0)) {
             // avoid any divide by zero issues
             return 0;

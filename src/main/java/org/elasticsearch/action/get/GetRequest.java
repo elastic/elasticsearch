@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.get;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.single.shard.SingleShardOperationRequest;
@@ -59,6 +60,7 @@ public class GetRequest extends SingleShardOperationRequest<GetRequest> {
 
     private VersionType versionType = VersionType.INTERNAL;
     private long version = Versions.MATCH_ANY;
+    private boolean ignoreErrorsOnGeneratedFields;
 
     GetRequest() {
         type = "_all";
@@ -240,8 +242,17 @@ public class GetRequest extends SingleShardOperationRequest<GetRequest> {
         return this;
     }
 
+    public GetRequest ignoreErrorsOnGeneratedFields(boolean ignoreErrorsOnGeneratedFields) {
+        this.ignoreErrorsOnGeneratedFields = ignoreErrorsOnGeneratedFields;
+        return this;
+    }
+
     public VersionType versionType() {
         return this.versionType;
+    }
+
+    public boolean ignoreErrorsOnGeneratedFields() {
+        return ignoreErrorsOnGeneratedFields;
     }
 
     @Override
@@ -264,6 +275,9 @@ public class GetRequest extends SingleShardOperationRequest<GetRequest> {
             this.realtime = false;
         } else if (realtime == 1) {
             this.realtime = true;
+        }
+        if(in.getVersion().onOrAfter(Version.V_1_4_0)) {
+            this.ignoreErrorsOnGeneratedFields = in.readBoolean();
         }
 
         this.versionType = VersionType.fromValue(in.readByte());
@@ -296,7 +310,9 @@ public class GetRequest extends SingleShardOperationRequest<GetRequest> {
         } else {
             out.writeByte((byte) 1);
         }
-
+        if(out.getVersion().onOrAfter(Version.V_1_4_0)) {
+            out.writeBoolean(ignoreErrorsOnGeneratedFields);
+        }
         out.writeByte(versionType.getValue());
         Versions.writeVersionWithVLongForBW(version, out);
 
@@ -307,4 +323,5 @@ public class GetRequest extends SingleShardOperationRequest<GetRequest> {
     public String toString() {
         return "get [" + index + "][" + type + "][" + id + "]: routing [" + routing + "]";
     }
+
 }

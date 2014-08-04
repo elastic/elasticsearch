@@ -72,10 +72,10 @@ share the following allowed settings:
 |=======================================================================
 |Setting |Description
 |`network.tcp.no_delay` |Enable or disable tcp no delay setting.
-Defaults to `true`.
+Defaults to `true`. coming[1.4,Can be set to `default` to not be set at all.]
 
-|`network.tcp.keep_alive` |Enable or disable tcp keep alive. By default
-not explicitly set.
+|`network.tcp.keep_alive` |Enable or disable tcp keep alive. Defaults
+to `true`. coming[1.4,Can be set to `default` to not be set at all].
 
 |`network.tcp.reuse_address` |Should an address be reused or not.
 Defaults to `true` on non-windows machines.

@@ -23,7 +23,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -32,8 +31,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.BaseTransportRequestHandler;
-import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.HashMap;
@@ -73,13 +70,14 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
                 responses.set(i, new MultiGetItemResponse(null, new MultiGetResponse.Failure(item.index(), item.type(), item.id(), "[" + item.index() + "] missing")));
                 continue;
             }
-            if (item.routing() == null && clusterState.getMetaData().routingRequired(item.index(), item.type())) {
-                responses.set(i, new MultiGetItemResponse(null, new MultiGetResponse.Failure(item.index(), item.type(), item.id(), "routing is required, but hasn't been specified")));
-                continue;
-            }
 
             item.routing(clusterState.metaData().resolveIndexRouting(item.routing(), item.index()));
             item.index(clusterState.metaData().concreteSingleIndex(item.index(), item.indicesOptions()));
+            if (item.routing() == null && clusterState.getMetaData().routingRequired(item.index(), item.type())) {
+                responses.set(i, new MultiGetItemResponse(null, new MultiGetResponse.Failure(item.index(), item.type(), item.id(),
+                        "routing is required for [" + item.index() + "]/[" + item.type() + "]/[" + item.id() + "]")));
+                continue;
+            }
             ShardId shardId = clusterService.operationRouting()
                     .getShards(clusterState, item.index(), item.type(), item.id(), item.routing(), null).shardId();
             MultiGetShardRequest shardRequest = shardRequests.get(shardId);
@@ -88,6 +86,7 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
                 shardRequest.preference(request.preference);
                 shardRequest.realtime(request.realtime);
                 shardRequest.refresh(request.refresh);
+                shardRequest.ignoreErrorsOnGeneratedFields(request.ignoreErrorsOnGeneratedFields);
 
                 shardRequests.put(shardId, shardRequest);
             }

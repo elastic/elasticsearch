@@ -20,6 +20,7 @@
 package org.elasticsearch.action.delete.index;
 
 import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.TransportIndexReplicationOperationAction;
 import org.elasticsearch.cluster.ClusterService;
@@ -39,7 +40,7 @@ import java.util.List;
  */
 public class TransportIndexDeleteAction extends TransportIndexReplicationOperationAction<IndexDeleteRequest, IndexDeleteResponse, ShardDeleteRequest, ShardDeleteRequest, ShardDeleteResponse> {
 
-    private static final String ACTION_NAME = "indices/index/delete";
+    private static final String ACTION_NAME = DeleteAction.NAME + "[index]";
 
     @Inject
     public TransportIndexDeleteAction(Settings settings, ClusterService clusterService, TransportService transportService,

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper.object;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.collect.Iterables;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexableField;
@@ -31,11 +30,9 @@ import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.UpdateInPlaceMap;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -454,11 +451,12 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
             throw new MapperParsingException("object mapping for [" + name + "] tried to parse as object, but found a concrete value");
         }
 
-        Document restoreDoc = null;
         if (nested.isNested()) {
-            Document nestedDoc = new Document();
+            context = context.createNestedContext(fullPath);
+            Document nestedDoc = context.doc();
+            Document parentDoc = nestedDoc.getParent();
             // pre add the uid field if possible (id was already provided)
-            IndexableField uidField = context.doc().getField(UidFieldMapper.NAME);
+            IndexableField uidField = parentDoc.getField(UidFieldMapper.NAME);
             if (uidField != null) {
                 // we don't need to add it as a full uid field in nested docs, since we don't need versioning
                 // we also rely on this for UidField#loadVersion
@@ -470,8 +468,6 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
             // note, we don't prefix it with the type of the doc since it allows us to execute a nested query
             // across types (for example, with similar nested objects)
             nestedDoc.add(new Field(TypeFieldMapper.NAME, nestedTypePathAsString, TypeFieldMapper.Defaults.FIELD_TYPE));
-            restoreDoc = context.switchDoc(nestedDoc);
-            context.addDoc(nestedDoc);
         }
 
         ContentPath.Type origPathType = context.path().pathType();
@@ -505,24 +501,26 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
         // restore the enable path flag
         context.path().pathType(origPathType);
         if (nested.isNested()) {
-            Document nestedDoc = context.switchDoc(restoreDoc);
+            Document nestedDoc = context.doc();
+            Document parentDoc = nestedDoc.getParent();
             if (nested.isIncludeInParent()) {
                 for (IndexableField field : nestedDoc.getFields()) {
                     if (field.name().equals(UidFieldMapper.NAME) || field.name().equals(TypeFieldMapper.NAME)) {
                         continue;
                     } else {
-                        context.doc().add(field);
+                        parentDoc.add(field);
                     }
                 }
             }
             if (nested.isIncludeInRoot()) {
+                Document rootDoc = context.rootDoc();
                 // don't add it twice, if its included in parent, and we are handling the master doc...
-                if (!(nested.isIncludeInParent() && context.doc() == context.rootDoc())) {
+                if (!nested.isIncludeInParent() || parentDoc != rootDoc) {
                     for (IndexableField field : nestedDoc.getFields()) {
                         if (field.name().equals(UidFieldMapper.NAME) || field.name().equals(TypeFieldMapper.NAME)) {
                             continue;
                         } else {
-                            context.rootDoc().add(field);
+                            rootDoc.add(field);
                         }
                     }
                 }
@@ -534,6 +532,11 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
         // we can only handle null values if we have mappings for them
         Mapper mapper = mappers.get(lastFieldName);
         if (mapper != null) {
+            if (mapper instanceof FieldMapper) {
+                if (!((FieldMapper) mapper).supportsNullValue()) {
+                    throw new MapperParsingException("no object mapping found for null value in [" + lastFieldName + "]");
+                }
+            }
             mapper.parse(context);
         }
     }

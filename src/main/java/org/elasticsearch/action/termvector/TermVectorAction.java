@@ -27,7 +27,7 @@ import org.elasticsearch.client.Client;
 public class TermVectorAction extends ClientAction<TermVectorRequest, TermVectorResponse, TermVectorRequestBuilder> {
 
     public static final TermVectorAction INSTANCE = new TermVectorAction();
-    public static final String NAME = "tv";
+    public static final String NAME = "indices:data/read/tv";
 
     private TermVectorAction() {
         super(NAME);

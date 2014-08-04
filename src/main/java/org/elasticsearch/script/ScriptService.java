@@ -78,7 +78,11 @@ public class ScriptService extends AbstractComponent {
 
     public static final String DEFAULT_SCRIPTING_LANGUAGE_SETTING = "script.default_lang";
     public static final String DISABLE_DYNAMIC_SCRIPTING_SETTING = "script.disable_dynamic";
+    public static final String DISABLE_INDEXED_SCRIPTING_SETTING = "script.disable_indexed";
+
+
     public static final String DISABLE_DYNAMIC_SCRIPTING_DEFAULT = "sandbox";
+    public static final String DISABLE_INDEXED_SCRIPTING_DEFAULT = "sandbox";
     public static final String SCRIPT_INDEX = ".scripts";
 
     //Make static so that it has visibility in IndexedScript
@@ -93,6 +97,7 @@ public class ScriptService extends AbstractComponent {
     private final File scriptsDirectory;
 
     private final DynamicScriptDisabling dynamicScriptingDisabled;
+    private final IndexedScriptDisabling indexedScriptDisabled;
 
     private Client client = null;
 
@@ -123,6 +128,29 @@ public class ScriptService extends AbstractComponent {
                     return SANDBOXED_ONLY;
                 default:
                     throw new ElasticsearchIllegalArgumentException("Unrecognized script allowance setting: [" + s + "]");
+            }
+        }
+    }
+
+    enum IndexedScriptDisabling {
+        INDEXED_SCRIPTS_DISABLED,
+        INDEXED_SCRIPTS_FULLY_ENABLED,
+        INDEXED_SCRIPTS_SANDBOXED_ONLY;
+
+        public static final IndexedScriptDisabling parse(String s) {
+            switch (s.toLowerCase(Locale.ROOT)) {
+                // true for "disable_scripted" means non index scripting will be disabled
+                case "true":
+                case "all":
+                    return INDEXED_SCRIPTS_DISABLED;
+                case "false":
+                case "none":
+                    return INDEXED_SCRIPTS_FULLY_ENABLED;
+                case "sandbox":
+                case "sandboxed":
+                    return INDEXED_SCRIPTS_SANDBOXED_ONLY;
+                default:
+                    throw new ElasticsearchIllegalArgumentException("Unrecognized indexed script allowance setting: [" + s + "]");
             }
         }
     }
@@ -225,6 +253,9 @@ public class ScriptService extends AbstractComponent {
 
         this.defaultLang = settings.get(DEFAULT_SCRIPTING_LANGUAGE_SETTING, "groovy");
         this.dynamicScriptingDisabled = DynamicScriptDisabling.parse(settings.get(DISABLE_DYNAMIC_SCRIPTING_SETTING, DISABLE_DYNAMIC_SCRIPTING_DEFAULT));
+        this.indexedScriptDisabled = IndexedScriptDisabling.parse(settings.get(DISABLE_INDEXED_SCRIPTING_SETTING,
+                DISABLE_INDEXED_SCRIPTING_DEFAULT));
+
 
         CacheBuilder cacheBuilder = CacheBuilder.newBuilder();
         if (cacheMaxSize >= 0) {
@@ -284,6 +315,15 @@ public class ScriptService extends AbstractComponent {
     }
 
     public CompiledScript compile(String lang,  String script, ScriptType scriptType) {
+        return compile(lang, script, scriptType, scriptType);
+    }
+
+
+    /**
+     * Use validateAs parameter to allow scripts to be parsed as scriptType but use validateAs to check
+     * if they are allowed to run.
+     */
+    private CompiledScript compile(String lang,  String script, ScriptType scriptType, ScriptType validateAs) {
         if (logger.isTraceEnabled()) {
             logger.trace("Compiling lang: [{}] type: [{}] script: {}", lang, scriptType, script);
         }
@@ -303,8 +343,7 @@ public class ScriptService extends AbstractComponent {
                 lang = indexedScript.lang;
             }
 
-            verifyDynamicScripting(indexedScript.lang); //Since anyone can index a script, disable indexed scripting
-                                          // if dynamic scripting is disabled, perhaps its own setting ?
+            verifyScriptingAllowed(indexedScript.lang, validateAs);
 
             script = getScriptFromIndex(client, indexedScript.lang, indexedScript.id);
         } else if (scriptType == ScriptType.FILE) {
@@ -332,19 +371,13 @@ public class ScriptService extends AbstractComponent {
         }
 
         //This is an inline script check to see if we have it in the cache
-        verifyDynamicScripting(lang);
+        verifyScriptingAllowed(lang, validateAs);
 
         cacheKey = new CacheKey(lang, script);
 
         compiled = cache.getIfPresent(cacheKey);
         if (compiled != null) {
             return compiled;
-        }
-
-        //Either an un-cached inline script or an indexed script
-
-        if (!dynamicScriptEnabled(lang)) {
-            throw new ScriptException("dynamic scripting for [" + lang + "] disabled");
         }
 
         if (cacheKey == null) {
@@ -369,9 +402,10 @@ public class ScriptService extends AbstractComponent {
         return compiled;
     }
 
-    private void verifyDynamicScripting(String lang) {
-        if (!dynamicScriptEnabled(lang)) {
-            throw new ScriptException("dynamic scripting for [" + lang + "] disabled");
+    private void verifyScriptingAllowed(String lang, ScriptType scriptType) {
+        if (!scriptEnabled(lang, scriptType)) {
+            throw new ScriptException( (scriptType == ScriptType.INLINE ? "dynamic" : "indexed")
+                    + " scripting for [" + lang + "] disabled");
         }
     }
 
@@ -413,7 +447,7 @@ public class ScriptService extends AbstractComponent {
             //Just try and compile it
             //This will have the benefit of also adding the script to the cache if it compiles
             try {
-                CompiledScript compiledScript = compile(scriptLang, context.template(), ScriptService.ScriptType.INLINE);
+                CompiledScript compiledScript = compile(scriptLang, context.template(), ScriptService.ScriptType.INLINE, ScriptType.INDEXED);
                 if (compiledScript == null) {
                     throw new ElasticsearchIllegalArgumentException("Unable to parse [" + context.template() +
                             "] lang [" + scriptLang + "] (ScriptService.compile returned null)");
@@ -432,8 +466,9 @@ public class ScriptService extends AbstractComponent {
                                  @Nullable TimeValue timeout, @Nullable String sOpType, long version,
                                  VersionType versionType, ActionListener<IndexResponse> listener) {
         try {
-            scriptLang = validateScriptLanguage(scriptLang);
+            verifyScriptingAllowed(scriptLang, ScriptType.INDEXED);
 
+            scriptLang = validateScriptLanguage(scriptLang);
             //verify that the script compiles
             validate(scriptBytes, scriptLang);
 
@@ -521,7 +556,7 @@ public class ScriptService extends AbstractComponent {
         cache.invalidateAll();
     }
 
-    private boolean dynamicScriptEnabled(String lang) {
+    private boolean scriptEnabled(String lang, ScriptType scriptType) {
         ScriptEngineService service = scriptEngines.get(lang);
         if (service == null) {
             throw new ElasticsearchIllegalArgumentException("script_lang not supported [" + lang + "]");
@@ -529,12 +564,26 @@ public class ScriptService extends AbstractComponent {
 
         // Templating languages (mustache) and native scripts are always
         // allowed, "native" executions are registered through plugins
-        if (this.dynamicScriptingDisabled == DynamicScriptDisabling.EVERYTHING_ALLOWED || "native".equals(lang) || "mustache".equals(lang)) {
+        if ("native".equals(lang) || "mustache".equals(lang)) {
             return true;
-        } else if (this.dynamicScriptingDisabled == DynamicScriptDisabling.ONLY_DISK_ALLOWED) {
-            return false;
+        }
+
+        if (scriptType == ScriptType.INDEXED) {
+            if (this.indexedScriptDisabled == IndexedScriptDisabling.INDEXED_SCRIPTS_FULLY_ENABLED ) {
+                return true;
+            } else if (this.indexedScriptDisabled == IndexedScriptDisabling.INDEXED_SCRIPTS_DISABLED ) {
+                return false;
+            } else {
+                return service.sandboxed();
+            }
         } else {
-            return service.sandboxed();
+            if (this.dynamicScriptingDisabled == DynamicScriptDisabling.EVERYTHING_ALLOWED) {
+                return true;
+            } else if (this.dynamicScriptingDisabled == DynamicScriptDisabling.ONLY_DISK_ALLOWED) {
+                return false;
+            } else {
+                return service.sandboxed();
+            }
         }
     }
 

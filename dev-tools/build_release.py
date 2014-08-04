@@ -46,10 +46,13 @@ from os.path import dirname, abspath
 
   - run prerequisite checks ie. check for S3 credentials available as env variables
   - detect the version to release from the specified branch (--branch) or the current branch
-  - creates a release branch & updates pom.xml and README.md to point to a release version rather than a snapshot
+  - check that github issues related to the version are closed
+  - creates a version release branch & updates pom.xml to point to a release version rather than a snapshot
+  - creates a master release branch & updates README.md to point to the latest release version for the given elasticsearch branch
   - builds the artifacts
-  - commits the new version and merges the release branch into the source branch
-  - creates a tag and pushes the commit to the specified origin (--remote)
+  - commits the new version and merges the version release branch into the source branch
+  - merges the master release branch into the master branch
+  - creates a tag and pushes branch and master to the specified origin (--remote)
   - publishes the releases to sonatype and S3
   - send a mail based on github issues fixed by this version
 
@@ -72,7 +75,7 @@ LOG = env.get('ES_RELEASE_LOG', '/tmp/elasticsearch_release.log')
 ROOT_DIR = abspath(os.path.join(abspath(dirname(__file__)), '../'))
 README_FILE = ROOT_DIR + '/README.md'
 POM_FILE = ROOT_DIR + '/pom.xml'
-DEV_TOOLS_DIR = ROOT_DIR + '/dev-tools'
+DEV_TOOLS_DIR = ROOT_DIR + '/plugin_tools'
 
 ##########################################################
 #
@@ -515,26 +518,26 @@ def prepare_email(artifact_id, release_version, repository,
     msg = MIMEMultipart('alternative')
     msg['Subject'] = '[ANN] %s %s released' % (artifact_name, release_version)
     text = template_email_txt % {'release_version': release_version,
-       'artifact_id': artifact_id,
-       'artifact_name': artifact_name,
-       'artifact_description': artifact_description,
-       'project_url': project_url,
-       'empty_message': plain_empty_message,
-       'issues_bug': plain_issues_bug,
-       'issues_update': plain_issues_update,
-       'issues_new': plain_issues_new,
-       'issues_doc': plain_issues_doc}
+                                 'artifact_id': artifact_id,
+                                 'artifact_name': artifact_name,
+                                 'artifact_description': artifact_description,
+                                 'project_url': project_url,
+                                 'empty_message': plain_empty_message,
+                                 'issues_bug': plain_issues_bug,
+                                 'issues_update': plain_issues_update,
+                                 'issues_new': plain_issues_new,
+                                 'issues_doc': plain_issues_doc}
 
     html = template_email_html % {'release_version': release_version,
-       'artifact_id': artifact_id,
-       'artifact_name': artifact_name,
-       'artifact_description': artifact_description,
-       'project_url': project_url,
-       'empty_message': html_empty_message,
-       'issues_bug': html_issues_bug,
-       'issues_update': html_issues_update,
-       'issues_new': html_issues_new,
-       'issues_doc': html_issues_doc}
+                                  'artifact_id': artifact_id,
+                                  'artifact_name': artifact_name,
+                                  'artifact_description': artifact_description,
+                                  'project_url': project_url,
+                                  'empty_message': html_empty_message,
+                                  'issues_bug': html_issues_bug,
+                                  'issues_update': html_issues_update,
+                                  'issues_new': html_issues_new,
+                                  'issues_doc': html_issues_doc}
 
     # Record the MIME types of both parts - text/plain and text/html.
     part1 = MIMEText(text, 'plain')

@@ -46,7 +46,6 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.index.engine.DocumentAlreadyExistsException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.service.IndexShard;
@@ -168,7 +167,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         }
         Throwable cause = ExceptionsHelper.unwrapCause(e);
         // on version conflict or document missing, it means
-        // that a new change has crept into the replica, and its fine
+        // that a new change has crept into the replica, and it's fine
         if (cause instanceof VersionConflictEngineException) {
             return true;
         }

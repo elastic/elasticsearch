@@ -79,13 +79,24 @@ due to forced awareness or allocation filtering.
 `cluster.routing.allocation.balance.index`::
      Defines a factor to the number of shards per index allocated
       on a specific node (float). Defaults to `0.5f`.  Raising this raises the
-      tendency to equalize the number of shards per index across all nodes in
-      the cluster.
+      tendency to equalize the number of shards in each index across all nodes
+      in the cluster.
 
 `cluster.routing.allocation.balance.primary`::
      Defines a weight factor for the number of primaries of a specific index
-      allocated on a node (float). `0.05f`.  Raising this raises the tendency
-      to equalize the number of primary shards across all nodes in the cluster.
+      allocated on a node (float). Defaults to `0.05f`.  Raising this raises
+      the tendency to equalize the number of primary shards across all nodes in
+      the cluster.
+
+`cluster.routing.allocation.balance.size`::
+     Defines a weight factor for the number of similarly sized shards allocated
+      on a node (float). Defaults to `0.00f` because it is new and we're not
+      yet sure what a good default is.  Raising this raises the tendency to
+      equalize the number of similarly sized shards across all nodes in the
+      cluster.  "Similarly sized" means that this formula spits out the same
+      number:
+        size <= 10^7^ bytes ? 0 : floor(log10(size))
+      So 1GB and 5GB shards are "similar" and so are 1KB and 40MB.
 
 `cluster.routing.allocation.balance.threshold`::
      Minimal optimization value of operations that should be performed (non

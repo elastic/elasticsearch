@@ -20,30 +20,54 @@
 package org.elasticsearch.cluster;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSetMultimap;
 
 import java.util.Map;
 
 /**
- * ClusterInfo is an object representing a map of nodes to {@link DiskUsage}
- * and a map of shard ids to shard sizes, see
- * <code>InternalClusterInfoService.shardIdentifierFromRouting(String)</code>
- * for the key used in the shardSizes map
+ * ClusterInfo contains information like {@link DiskUsage}, shard sizes, and
+ * average shard sizes.
  */
 public class ClusterInfo {
-
     private final ImmutableMap<String, DiskUsage> usages;
     private final ImmutableMap<String, Long> shardSizes;
+    private final ImmutableMap<String, Long> indexToAverageShardSize;
+    private final ImmutableSetMultimap<Integer, String> shardSizeBinToShard;
 
-    public ClusterInfo(ImmutableMap<String, DiskUsage> usages, ImmutableMap<String, Long> shardSizes) {
+    public ClusterInfo(ImmutableMap<String, DiskUsage> usages, ImmutableMap<String, Long> shardSizes,
+            ImmutableMap<String, Long> indexToAverageShardSize, ImmutableSetMultimap<Integer, String> shardSizeBinToShard) {
         this.usages = usages;
         this.shardSizes = shardSizes;
+        this.indexToAverageShardSize = indexToAverageShardSize;
+        this.shardSizeBinToShard = shardSizeBinToShard;
+
     }
 
     public Map<String, DiskUsage> getNodeDiskUsages() {
-        return this.usages;
+        return usages;
     }
 
+    /**
+     * @return map from {@link InternalClusterInfoService#shardIdentifierFromRouting(String)} to shard size in bytes
+     */
     public Map<String, Long> getShardSizes() {
-        return this.shardSizes;
+        return shardSizes;
+    }
+
+    /**
+     * @return map from index name to average shard size
+     */
+    public ImmutableMap<String, Long> getIndexToAverageShardSize() {
+        return indexToAverageShardSize;
+    }
+
+    /**
+     * @return multimap from a
+     *         {@link InternalClusterInfoService#shardBinBySize(long)} to
+     *         {@link InternalClusterInfoService#shardIdentifierFromRouting(String)}
+     *         .
+     */
+    public ImmutableSetMultimap<Integer, String> getShardSizeBinToShard() {
+        return shardSizeBinToShard;
     }
 }

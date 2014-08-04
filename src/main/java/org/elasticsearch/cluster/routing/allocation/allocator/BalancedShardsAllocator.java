@@ -23,6 +23,7 @@ import com.google.common.base.Predicate;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.IntroSorter;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -70,10 +71,12 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
     public static final String SETTING_INDEX_BALANCE_FACTOR = "cluster.routing.allocation.balance.index";
     public static final String SETTING_SHARD_BALANCE_FACTOR = "cluster.routing.allocation.balance.shard";
     public static final String SETTING_PRIMARY_BALANCE_FACTOR = "cluster.routing.allocation.balance.primary";
+    public static final String SETTING_SIZE_BALANCE_FACTOR = "cluster.routing.allocation.balance.size";
 
     private static final float DEFAULT_INDEX_BALANCE_FACTOR = 0.5f;
     private static final float DEFAULT_SHARD_BALANCE_FACTOR = 0.45f;
     private static final float DEFAULT_PRIMARY_BALANCE_FACTOR = 0.05f;
+    private static final float DEFAULT_SIZE_BALANCE_FACTOR = 0f;
 
     class ApplySettings implements NodeSettingsService.Listener {
         @Override
@@ -81,19 +84,20 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             final float indexBalance = settings.getAsFloat(SETTING_INDEX_BALANCE_FACTOR, weightFunction.indexBalance);
             final float shardBalance = settings.getAsFloat(SETTING_SHARD_BALANCE_FACTOR, weightFunction.shardBalance);
             final float primaryBalance = settings.getAsFloat(SETTING_PRIMARY_BALANCE_FACTOR, weightFunction.primaryBalance);
+            final float sizeBalance = settings.getAsFloat(SETTING_SIZE_BALANCE_FACTOR, weightFunction.sizeBalance);
             float threshold = settings.getAsFloat(SETTING_THRESHOLD, BalancedShardsAllocator.this.threshold);
             if (threshold <= 0.0f) {
                 throw new ElasticsearchIllegalArgumentException("threshold must be greater than 0.0f but was: " + threshold);
             }
             BalancedShardsAllocator.this.threshold = threshold;
-            BalancedShardsAllocator.this.weightFunction = new WeightFunction(indexBalance, shardBalance, primaryBalance);
+            BalancedShardsAllocator.this.weightFunction = new WeightFunction(indexBalance, shardBalance, primaryBalance, sizeBalance);
         }
     }
 
-    private volatile WeightFunction weightFunction = new WeightFunction(DEFAULT_INDEX_BALANCE_FACTOR, DEFAULT_SHARD_BALANCE_FACTOR, DEFAULT_PRIMARY_BALANCE_FACTOR);
+    private volatile WeightFunction weightFunction = new WeightFunction(DEFAULT_INDEX_BALANCE_FACTOR, DEFAULT_SHARD_BALANCE_FACTOR,
+            DEFAULT_PRIMARY_BALANCE_FACTOR, DEFAULT_SIZE_BALANCE_FACTOR);
 
     private volatile float threshold = 1.0f;
-
 
     public BalancedShardsAllocator(Settings settings) {
         this(settings, new NodeSettingsService(settings));
@@ -158,6 +162,12 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
         return weightFunction.shardBalance;
     }
 
+    /**
+     * Returns the shard size related weight factor.
+     */
+    public float getSizeBalance() {
+        return weightFunction.sizeBalance;
+    }
 
     /**
      * This class is the primary weight function used to create balanced over nodes and shards in the cluster.
@@ -166,6 +176,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
      * <li><code>index balance</code> - balance property over shards per index</li>
      * <li><code>shard balance</code> - balance property over shards per cluster</li>
      * <li><code>primary balance</code> - balance property over primaries per cluster</li>
+     * <li><code>size balance</code> - balance property over shard size</li>
      * </ul>
      * <p>
      * Each of these properties are expressed as factor such that the properties factor defines the relative importance of the property for the
@@ -183,6 +194,9 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
      * <li>
      * <code>weight<sub>primary</sub>(node, index) = primaryBalance * (node.numPrimaries() - avgPrimariesPerNode)</code>
      * </li>
+     * <li>
+     * <code>weight<sub>shard size</sub>(node, index) = shardBalance * (node.shardsOfThisSize() - avgShardsOfThisSize)</code>
+     * </li>
      * </ul>
      * <code>weight(node, index) = weight<sub>index</sub>(node, index) + weight<sub>node</sub>(node, index) + weight<sub>primary</sub>(node, index)</code>
      */
@@ -191,14 +205,15 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
         private final float indexBalance;
         private final float shardBalance;
         private final float primaryBalance;
+        private final float sizeBalance;
         private final EnumMap<Operation, float[]> thetaMap = new EnumMap<>(Operation.class);
 
-        public WeightFunction(float indexBalance, float shardBalance, float primaryBalance) {
-            float sum = indexBalance + shardBalance + primaryBalance;
+        public WeightFunction(float indexBalance, float shardBalance, float primaryBalance, float sizeBalance) {
+            float sum = indexBalance + shardBalance + primaryBalance + sizeBalance;
             if (sum <= 0.0f) {
                 throw new ElasticsearchIllegalArgumentException("Balance factors must sum to a value > 0 but was: " + sum);
             }
-            final float[] defaultTheta = new float[]{shardBalance / sum, indexBalance / sum, primaryBalance / sum};
+            final float[] defaultTheta = new float[]{shardBalance / sum, indexBalance / sum, primaryBalance / sum, sizeBalance / sum};
             for (Operation operation : Operation.values()) {
                 switch (operation) {
                     case THRESHOLD_CHECK:
@@ -206,7 +221,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                         if (sum <= 0.0f) {
                             thetaMap.put(operation, defaultTheta);
                         } else {
-                            thetaMap.put(operation, new float[]{shardBalance / sum, indexBalance / sum, 0});
+                            thetaMap.put(operation, new float[]{shardBalance / sum, indexBalance / sum, 0, sizeBalance / sum});
                         }
                         break;
                     case BALANCE:
@@ -221,15 +236,24 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             this.indexBalance = indexBalance;
             this.shardBalance = shardBalance;
             this.primaryBalance = primaryBalance;
+            this.sizeBalance = sizeBalance;
         }
 
         public float weight(Operation operation, Balancer balancer, ModelNode node, String index) {
-            final float weightShard = (node.numShards() - balancer.avgShardsPerNode());
-            final float weightIndex = (node.numShards(index) - balancer.avgShardsPerNode(index));
-            final float weightPrimary = (node.numPrimaries() - balancer.avgPrimariesPerNode());
             final float[] theta = thetaMap.get(operation);
+
+            final float weightShard = node.numShards() - balancer.avgShardsPerNode();
+            final float weightIndex = node.numShards(index) - balancer.avgShardsPerNode(index);
+            final float weightPrimary = node.numPrimaries() - balancer.avgPrimariesPerNode();
+            float weightSize;
+            if (theta[3] == 0) {
+                // No need to calculate the size weight if we aren't using it.
+                weightSize = 0;
+            } else {
+                weightSize = balancer.sizeWeight(node, index);
+            }
             assert theta != null;
-            return theta[0] * weightShard + theta[1] * weightIndex + theta[2] * weightPrimary;
+            return theta[0] * weightShard + theta[1] * weightIndex + theta[2] * weightPrimary + theta[3] * weightSize;
         }
 
     }
@@ -263,7 +287,6 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
      * A {@link Balancer}
      */
     public static class Balancer {
-
         private final ESLogger logger;
         private final Map<String, ModelNode> nodes = new HashMap<>();
         private final HashSet<String> indices = new HashSet<>();
@@ -327,6 +350,27 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
          */
         public float avgPrimariesPerNode(String index) {
             return ((float) metaData.index(index).numberOfShards()) / nodes.size();
+        }
+
+        public float sizeWeight(ModelNode weighingNode, String index) {
+            Long indexShardSize = allocation.clusterInfo().getIndexToAverageShardSize().get(index);
+            indexShardSize = indexShardSize == null ? 0 : indexShardSize;
+
+            int nodeCount = 0;
+            Set<String> shards = allocation.clusterInfo().getShardSizeBinToShard()
+                    .get(InternalClusterInfoService.shardBinBySize(indexShardSize));
+            if (shards == null) {
+                return 0;
+            }
+
+            for (Map.Entry<String, ModelIndex> currentIndex: weighingNode.indices.entrySet()) {
+                for (MutableShardRouting shard: currentIndex.getValue().getAllShards()) {
+                    if (shards.contains(InternalClusterInfoService.shardIdentifierFromRouting(shard))) {
+                        nodeCount++;
+                    }
+                }
+            }
+            return nodeCount - (float)shards.size() / nodes.size();
         }
 
         /**

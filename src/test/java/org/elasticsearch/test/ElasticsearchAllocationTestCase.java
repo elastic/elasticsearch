@@ -47,7 +47,6 @@ import static org.hamcrest.CoreMatchers.is;
 /**
  */
 public abstract class ElasticsearchAllocationTestCase extends ElasticsearchTestCase {
-
     public static AllocationService createAllocationService() {
         return createAllocationService(ImmutableSettings.Builder.EMPTY_SETTINGS);
     }
@@ -57,9 +56,13 @@ public abstract class ElasticsearchAllocationTestCase extends ElasticsearchTestC
     }
 
     public static AllocationService createAllocationService(Settings settings, Random random) {
+        return createAllocationService(settings, random, ClusterInfoService.EMPTY);
+    }
+
+    public static AllocationService createAllocationService(Settings settings, Random random, ClusterInfoService clusterInfoService) {
         return new AllocationService(settings,
                 randomAllocationDeciders(settings, new NodeSettingsService(ImmutableSettings.Builder.EMPTY_SETTINGS), random),
-                new ShardsAllocators(settings), ClusterInfoService.EMPTY);
+                new ShardsAllocators(settings), clusterInfoService);
     }
 
     public static AllocationDeciders randomAllocationDeciders(Settings settings, NodeSettingsService nodeSettingsService, Random random) {

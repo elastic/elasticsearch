@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSetMultimap;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
@@ -32,7 +33,7 @@ import org.elasticsearch.action.admin.indices.stats.TransportIndicesStatsAction;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -44,6 +45,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.TreeMap;
+
+import static java.lang.Math.floor;
+import static java.lang.Math.log10;
 
 /**
  * InternalClusterInfoService provides the ClusterInfoService interface,
@@ -56,7 +61,13 @@ import java.util.Map;
  * Every time the timer runs, gathers information about the disk usage and
  * shard sizes across the cluster.
  */
-public final class InternalClusterInfoService extends AbstractComponent implements ClusterInfoService, LocalNodeMasterListener, ClusterStateListener {
+public final class InternalClusterInfoService extends AbstractComponent implements ClusterInfoService, ClusterStateListener {
+    /**
+     * Max size in bytes that a shard can be and still be considered "small".
+     * All "small" shards are binned together logShardSize and thus by the shard
+     * size allocation function.
+     */
+    public static final long SMALL_SHARD_LIMIT = 10 * 1000 * 1000;
 
     public static final String INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL = "cluster.info.update.interval";
 
@@ -64,7 +75,9 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
 
     private volatile ImmutableMap<String, DiskUsage> usages;
     private volatile ImmutableMap<String, Long> shardSizes;
-    private volatile boolean isMaster = false;
+    private volatile ImmutableMap<String, Long> indexToAverageShardSize;
+    private volatile ImmutableSetMultimap<Integer, String> shardSizeBinToShard;
+
     private volatile boolean enabled;
     private final TransportNodesStatsAction transportNodesStatsAction;
     private final TransportIndicesStatsAction transportIndicesStatsAction;
@@ -79,26 +92,28 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
         super(settings);
         this.usages = ImmutableMap.of();
         this.shardSizes = ImmutableMap.of();
+        this.indexToAverageShardSize = ImmutableMap.of();
         this.transportNodesStatsAction = transportNodesStatsAction;
         this.transportIndicesStatsAction = transportIndicesStatsAction;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
         this.updateFrequency = settings.getAsTime(INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL, TimeValue.timeValueSeconds(30));
-        this.enabled = settings.getAsBoolean(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED, false);
+        // Enable cluster info collection if the node is master eligible
+        this.enabled = settings.getAsBoolean("node.master", true);
         nodeSettingsService.addListener(new ApplySettings());
 
-        // Add InternalClusterInfoService to listen for Master changes
-        this.clusterService.add((LocalNodeMasterListener)this);
         // Add to listen for state changes (when nodes are added)
         this.clusterService.add((ClusterStateListener)this);
+
+        enabledChanged();
     }
 
     class ApplySettings implements NodeSettingsService.Listener {
         @Override
         public void onRefreshSettings(Settings settings) {
             TimeValue newUpdateFrequency = settings.getAsTime(INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL, null);
-            // ClusterInfoService is only enabled if the DiskThresholdDecider is enabled
-            Boolean newEnabled = settings.getAsBoolean(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED, null);
+            // only collect the cluster info if the node is a potential master
+            Boolean newEnabled = settings.getAsBoolean("node.master", null);
 
             if (newUpdateFrequency != null) {
                 if (newUpdateFrequency.getMillis() < TimeValue.timeValueSeconds(10).getMillis()) {
@@ -110,39 +125,24 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
                 }
             }
 
-            // We don't log about enabling it here, because the DiskThresholdDecider will already be logging about enable/disable
             if (newEnabled != null) {
                 InternalClusterInfoService.this.enabled = newEnabled;
+                enabledChanged();
             }
         }
     }
 
-    @Override
-    public void onMaster() {
-        this.isMaster = true;
-        if (logger.isTraceEnabled()) {
-            logger.trace("I have been elected master, scheduling a ClusterInfoUpdateJob");
-        }
-        try {
+    private void enabledChanged() {
+        if (enabled) {
             // Submit a job that will start after DEFAULT_STARTING_INTERVAL, and reschedule itself after running
             threadPool.schedule(updateFrequency, executorName(), new SubmitReschedulingClusterInfoUpdatedJob());
             if (clusterService.state().getNodes().getDataNodes().size() > 1) {
                 // Submit an info update job to be run immediately
                 threadPool.executor(executorName()).execute(new ClusterInfoUpdateJob(false));
             }
-        } catch (EsRejectedExecutionException ex) {
-            if (logger.isDebugEnabled()) {
-                logger.debug("Couldn't schedule cluster info update task - node might be shutting down", ex);
-            }
         }
     }
 
-    @Override
-    public void offMaster() {
-        this.isMaster = false;
-    }
-
-    @Override
     public String executorName() {
         return ThreadPool.Names.MANAGEMENT;
     }
@@ -162,14 +162,14 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
             }
         }
 
-        if (this.isMaster && dataNodeAdded && clusterService.state().getNodes().getDataNodes().size() > 1) {
+        if (dataNodeAdded && clusterService.state().getNodes().getDataNodes().size() > 1) {
             if (logger.isDebugEnabled()) {
                 logger.debug("data node was added, retrieving new cluster info");
             }
             threadPool.executor(executorName()).execute(new ClusterInfoUpdateJob(false));
         }
 
-        if (this.isMaster && event.nodesRemoved()) {
+        if (event.nodesRemoved()) {
             for (DiscoveryNode removedNode : event.nodesDelta().removedNodes()) {
                 if (removedNode.dataNode()) {
                     if (logger.isTraceEnabled()) {
@@ -185,7 +185,7 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
 
     @Override
     public ClusterInfo getClusterInfo() {
-        return new ClusterInfo(usages, shardSizes);
+        return new ClusterInfo(usages, shardSizes, indexToAverageShardSize, shardSizeBinToShard);
     }
 
     /**
@@ -218,7 +218,6 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
      * during shard balancing.
      */
     public class ClusterInfoUpdateJob implements Runnable {
-
         // This boolean is used to signal to the ClusterInfoUpdateJob that it
         // needs to reschedule itself to run again at a later time. It can be
         // set to false to only run once
@@ -234,7 +233,7 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
                 logger.trace("Performing ClusterInfoUpdateJob");
             }
 
-            if (isMaster && this.reschedule) {
+            if (this.reschedule) {
                 if (logger.isTraceEnabled()) {
                     logger.trace("Scheduling next run for updating cluster info in: {}", updateFrequency.toString());
                 }
@@ -301,7 +300,9 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
                 @Override
                 public void onResponse(IndicesStatsResponse indicesStatsResponse) {
                     ShardStats[] stats = indicesStatsResponse.getShards();
-                    HashMap<String, Long> newShardSizes = new HashMap<>();
+                    Map<String, Tuple<Long, Integer>> averageShardSizesWork = new TreeMap<>();
+                    Map<String, Long> newShardSizes = new HashMap<>();
+                    ImmutableSetMultimap.Builder<Integer, String> newShardSizeBinToShard = ImmutableSetMultimap.builder();
                     for (ShardStats s : stats) {
                         long size = s.getStats().getStore().sizeInBytes();
                         String sid = shardIdentifierFromRouting(s.getShardRouting());
@@ -309,8 +310,24 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
                             logger.trace("shard: {} size: {}", sid, size);
                         }
                         newShardSizes.put(sid, size);
+                        newShardSizeBinToShard.put(shardBinBySize(size), sid);
+                        Tuple<Long, Integer> avgWork = averageShardSizesWork.get(s.getIndex());
+                        if (avgWork == null) {
+                            avgWork = new Tuple<>(size, 1);
+                        } else {
+                            avgWork = new Tuple<>(avgWork.v1() + size, avgWork.v2() + 1);
+                        }
+                        averageShardSizesWork.put(s.getIndex(), avgWork);
                     }
                     shardSizes = ImmutableMap.copyOf(newShardSizes);
+                    shardSizeBinToShard = newShardSizeBinToShard.build();
+
+                    ImmutableMap.Builder<String, Long> newIndexToAverageShardSize = ImmutableMap.builder();
+                    for (Map.Entry<String, Tuple<Long, Integer>> entry : averageShardSizesWork.entrySet()) {
+                        // TODO support for newly created indexes returning a configured value for a while
+                        newIndexToAverageShardSize.put(entry.getKey(), entry.getValue().v1() / entry.getValue().v2());
+                    }
+                    indexToAverageShardSize = newIndexToAverageShardSize.build();
                 }
 
                 @Override
@@ -337,5 +354,14 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
      */
     public static String shardIdentifierFromRouting(ShardRouting shardRouting) {
         return shardRouting.shardId().toString() + "[" + (shardRouting.primary() ? "p" : "r") + "]";
+    }
+
+    /**
+     * Get the size based bin that shards of this size should be in.
+     * @param size shard size in bytes
+     * @return bin number
+     */
+    public static int shardBinBySize(long size) {
+        return size <= SMALL_SHARD_LIMIT ? 0 : (int)floor(log10(size));
     }
 }

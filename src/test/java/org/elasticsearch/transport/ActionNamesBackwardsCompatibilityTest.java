@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.bwcompat;
+package org.elasticsearch.transport;
 
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.Version;
@@ -34,10 +34,8 @@ import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.*;
 import org.junit.Test;
 
-import java.lang.reflect.Field;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -53,9 +51,7 @@ public class ActionNamesBackwardsCompatibilityTest extends ElasticsearchBackward
     public void testTransportHandlers() throws NoSuchFieldException, IllegalAccessException, InterruptedException {
         InternalTestCluster internalCluster = backwardsCluster().internalCluster();
         TransportService transportService = internalCluster.getInstance(TransportService.class);
-        Field field = transportService.getClass().getDeclaredField("serverHandlers");
-        field.setAccessible(true);
-        ImmutableMap<String, TransportRequestHandler> requestHandlers = (ImmutableMap<String, TransportRequestHandler>) field.get(transportService);
+        ImmutableMap<String, TransportRequestHandler> requestHandlers = transportService.serverHandlers;
 
         DiscoveryNodes nodes = client().admin().cluster().prepareState().get().getState().nodes();
 

@@ -73,7 +73,7 @@ public class ChiSquare extends NXYSignificanceHeuristic {
 
         // here we check if the term appears more often in subset than in background without subset.
         if (!includeNegatives && frequencies.N11 / frequencies.N_1 < frequencies.N10 / frequencies.N_0) {
-            return -1.0 * Double.MAX_VALUE;
+            return Double.NEGATIVE_INFINITY;
         }
         return (frequencies.N * Math.pow((frequencies.N11 * frequencies.N00 - frequencies.N01 * frequencies.N10), 2.0) /
                 ((frequencies.N_1) * (frequencies.N1_) * (frequencies.N0_) * (frequencies.N_0)));

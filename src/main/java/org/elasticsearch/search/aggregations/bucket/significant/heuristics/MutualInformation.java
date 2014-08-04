@@ -80,11 +80,11 @@ public class MutualInformation extends NXYSignificanceHeuristic {
                 / log2;
 
         if (Double.isNaN(score)) {
-            score = -1.0 * Float.MAX_VALUE;
+            score = Double.NEGATIVE_INFINITY;
         }
         // here we check if the term appears more often in subset than in background without subset.
         if (!includeNegatives && frequencies.N11 / frequencies.N_1 < frequencies.N10 / frequencies.N_0) {
-            score = -1.0 * Double.MAX_VALUE;
+            score = Double.NEGATIVE_INFINITY;
         }
         return score;
     }

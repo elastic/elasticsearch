@@ -1,0 +1,15 @@
+[[breaking-changes-20]]
+= Breaking changes in 2.0
+
+[partintro]
+--
+This section discusses the changes that you need to be aware of when migrating
+your application to Elasticsearch 2.0.
+--
+
+== Deprecations
+
+* The indices `_status` API has been removed.  Use the
+  <<indices-recovery>> API instead.
+
+

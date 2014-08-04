@@ -90,11 +90,55 @@ public class UpdateHelper extends AbstractComponent {
             if (request.upsertRequest() == null && !request.docAsUpsert()) {
                 throw new DocumentMissingException(new ShardId(request.index(), request.shardId()), request.type(), request.id());
             }
+            Long ttl = null;
             IndexRequest indexRequest = request.docAsUpsert() ? request.doc() : request.upsertRequest();
+            if(request.scriptedUpsert()&&(request.script() != null)){
+                // Run the script to perform the create logic
+                IndexRequest upsert = request.upsertRequest();               
+                Map<String, Object> upsertDoc = upsert.sourceAsMap();
+                Map<String, Object> ctx = new HashMap<>(2);
+                // Tell the script that this is a create and not an update
+                ctx.put("op", "create");
+                ctx.put("_source", upsertDoc);
+                try {
+                    ExecutableScript script = scriptService.executable(request.scriptLang, request.script, request.scriptType, request.scriptParams);
+                    script.setNextVar("ctx", ctx);
+                    script.run();
+                    // we need to unwrap the ctx...
+                    ctx = (Map<String, Object>) script.unwrap(ctx);
+                } catch (Exception e) {
+                    throw new ElasticsearchIllegalArgumentException("failed to execute script", e);
+                }                
+                //Allow the script to set TTL using ctx._ttl
+                ttl = getTTLFromScriptContext(ctx);
+                //Allow the script to abort the create by setting "op" to "none"
+                String scriptOpChoice = (String) ctx.get("op");
+                if (scriptOpChoice != null) {
+                    if ("none".equals(scriptOpChoice)) {
+                        // Script has requested silent abort of insert
+                        UpdateResponse update = new UpdateResponse(getResult.getIndex(), getResult.getType(), getResult.getId(),
+                                getResult.getVersion(), false);
+                        update.setGetResult(getResult);
+                        return new Result(update, Operation.NONE, upsertDoc, XContentType.JSON);
+                    }
+                    if (!"create".equals(scriptOpChoice)) {
+                        // Only valid options for an upsert script are "create"
+                        // (the default) or "none", meaning abort upsert
+                        logger.warn("Used upsert operation [{}] for script [{}], doing nothing...", scriptOpChoice, request.script);
+                        UpdateResponse update = new UpdateResponse(getResult.getIndex(), getResult.getType(), getResult.getId(),
+                                getResult.getVersion(), false);
+                        update.setGetResult(getResult);
+                        return new Result(update, Operation.NONE, upsertDoc, XContentType.JSON);
+                    }
+                }
+                indexRequest.source((Map)ctx.get("_source"));
+            }
+
             indexRequest.index(request.index()).type(request.type()).id(request.id())
                     // it has to be a "create!"
-                    .create(true)
+                    .create(true)                    
                     .routing(request.routing())
+                    .ttl(ttl)
                     .refresh(request.refresh())
                     .replicationType(request.replicationType()).consistencyLevel(request.consistencyLevel());
             indexRequest.operationThreaded(false);
@@ -121,7 +165,6 @@ public class UpdateHelper extends AbstractComponent {
         String operation = null;
         String timestamp = null;
         Long ttl = null;
-        Object fetchedTTL = null;
         final Map<String, Object> updatedSourceAsMap;
         final XContentType updateSourceContentType = sourceAndContent.v1();
         String routing = getResult.getFields().containsKey(RoutingFieldMapper.NAME) ? getResult.field(RoutingFieldMapper.NAME).getValue().toString() : null;
@@ -164,15 +207,8 @@ public class UpdateHelper extends AbstractComponent {
             operation = (String) ctx.get("op");
             timestamp = (String) ctx.get("_timestamp");
 
-            fetchedTTL = ctx.get("_ttl");
-            if (fetchedTTL != null) {
-                if (fetchedTTL instanceof Number) {
-                    ttl = ((Number) fetchedTTL).longValue();
-                } else {
-                    ttl = TimeValue.parseTimeValue((String) fetchedTTL, null).millis();
-                }
-            }
-
+            ttl = getTTLFromScriptContext(ctx);
+            
             updatedSourceAsMap = (Map<String, Object>) ctx.get("_source");
         }
 
@@ -209,6 +245,19 @@ public class UpdateHelper extends AbstractComponent {
             UpdateResponse update = new UpdateResponse(getResult.getIndex(), getResult.getType(), getResult.getId(), getResult.getVersion(), false);
             return new Result(update, Operation.NONE, updatedSourceAsMap, updateSourceContentType);
         }
+    }
+
+    private Long getTTLFromScriptContext(Map<String, Object> ctx) {
+        Long ttl = null;
+        Object fetchedTTL = ctx.get("_ttl");
+        if (fetchedTTL != null) {
+            if (fetchedTTL instanceof Number) {
+                ttl = ((Number) fetchedTTL).longValue();
+            } else {
+                ttl = TimeValue.parseTimeValue((String) fetchedTTL, null).millis();
+            }
+        }
+        return ttl;
     }
 
     /**

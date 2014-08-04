@@ -126,6 +126,7 @@ curl -XPOST 'localhost:9200/test/type1/1/_update' -d '{
 If `name` was `new_name` before the request was sent then the entire update
 request is ignored.
 
+=== Upserts
 There is also support for `upsert`. If the document does
 not already exists, the content of the `upsert` element will be used to
 index the fresh doc:
@@ -142,6 +143,36 @@ curl -XPOST 'localhost:9200/test/type1/1/_update' -d '{
     }
 }'
 --------------------------------------------------
+added[1.4.0]
+
+If the document does not exist you may want your update script to
+run anyway in order to initialize the document contents using 
+business logic unknown to the client. In this case pass the
+new `scripted_upsert` parameter with the value `true`. 
+
+[source,js]
+--------------------------------------------------
+curl -XPOST 'localhost:9200/sessions/session/dh3sgudg8gsrgl/_update' -d '{
+    "script_id" : "myWebSessionSummariser",
+    "scripted_upsert":true,
+    "params" : {
+        "pageViewEvent" : {
+        	"url":"foo.com/bar",
+        	"response":404,
+        	"time":"2014-01-01 12:32"
+        }
+    },
+    "upsert" : {
+    }
+}'
+--------------------------------------------------
+The default `scripted_upsert` setting is `false` meaning the script is not executed for inserts.
+However, in scenarios like the one above we may be using a non-trivial script stored
+using the new "indexed scripts" feature. The script may be deriving properties 
+like the duration of our web session based on observing multiple page view events so the 
+client can supply a blank "upsert" document and allow the script to fill in most of the details
+using the events passed in the `params` element.  
+
 
 Last it also supports `doc_as_upsert`. So that the
 provided document will be inserted if the document does not already
@@ -157,6 +188,9 @@ curl -XPOST 'localhost:9200/test/type1/1/_update' -d '{
     "doc_as_upsert" : true
 }'
 --------------------------------------------------
+
+
+=== Parameters
 
 The update operation supports similar parameters as the index API,
 including:

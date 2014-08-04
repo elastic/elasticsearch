@@ -92,7 +92,7 @@ public class UpdateHelper extends AbstractComponent {
             }
             Long ttl = null;
             IndexRequest indexRequest = request.docAsUpsert() ? request.doc() : request.upsertRequest();
-            if(request.scriptedUpsert()&&(request.script() != null)){
+            if (request.scriptedUpsert() && (request.script() != null)) {
                 // Run the script to perform the create logic
                 IndexRequest upsert = request.upsertRequest();               
                 Map<String, Object> upsertDoc = upsert.sourceAsMap();
@@ -113,23 +113,17 @@ public class UpdateHelper extends AbstractComponent {
                 ttl = getTTLFromScriptContext(ctx);
                 //Allow the script to abort the create by setting "op" to "none"
                 String scriptOpChoice = (String) ctx.get("op");
-                if (scriptOpChoice != null) {
-                    if ("none".equals(scriptOpChoice)) {
-                        // Script has requested silent abort of insert
-                        UpdateResponse update = new UpdateResponse(getResult.getIndex(), getResult.getType(), getResult.getId(),
-                                getResult.getVersion(), false);
-                        update.setGetResult(getResult);
-                        return new Result(update, Operation.NONE, upsertDoc, XContentType.JSON);
-                    }
-                    if (!"create".equals(scriptOpChoice)) {
-                        // Only valid options for an upsert script are "create"
-                        // (the default) or "none", meaning abort upsert
+                
+                // Only valid options for an upsert script are "create"
+                // (the default) or "none", meaning abort upsert
+                if (!"create".equals(scriptOpChoice)) {
+                    if (!"none".equals(scriptOpChoice)) {
                         logger.warn("Used upsert operation [{}] for script [{}], doing nothing...", scriptOpChoice, request.script);
-                        UpdateResponse update = new UpdateResponse(getResult.getIndex(), getResult.getType(), getResult.getId(),
-                                getResult.getVersion(), false);
-                        update.setGetResult(getResult);
-                        return new Result(update, Operation.NONE, upsertDoc, XContentType.JSON);
                     }
+                    UpdateResponse update = new UpdateResponse(getResult.getIndex(), getResult.getType(), getResult.getId(),
+                            getResult.getVersion(), false);
+                    update.setGetResult(getResult);
+                    return new Result(update, Operation.NONE, upsertDoc, XContentType.JSON);
                 }
                 indexRequest.source((Map)ctx.get("_source"));
             }

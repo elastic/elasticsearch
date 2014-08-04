@@ -348,6 +348,12 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
         return rangeFilter(parseContext, lowerTerm, upperTerm, includeLower, includeUpper, null, context, false);
     }
 
+    /*
+     * `timeZone` parameter is only applied when:
+     * - not null
+     * - the object to parse is a String (does not apply to ms since epoch which are UTC based time values)
+     * - the String to parse does not have already a timezone defined (ie. `2014-01-01T00:00:00+03:00`)
+     */
     public Filter rangeFilter(QueryParseContext parseContext, Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable DateTimeZone timeZone, @Nullable QueryParseContext context, boolean explicitCaching) {
         boolean cache = explicitCaching;
         Long lowerVal = null;

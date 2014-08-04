@@ -41,7 +41,7 @@ public class DateMathParser {
     }
 
     public long parse(String text, long now) {
-        return parse(text, now, false, DateTimeZone.UTC);
+        return parse(text, now, false, null);
     }
 
     public long parse(String text, long now, DateTimeZone timeZone) {
@@ -49,7 +49,7 @@ public class DateMathParser {
     }
 
     public long parseRoundCeil(String text, long now) {
-        return parse(text, now, true, DateTimeZone.UTC);
+        return parse(text, now, true, null);
     }
 
     public long parseRoundCeil(String text, long now, DateTimeZone timeZone) {
@@ -57,7 +57,7 @@ public class DateMathParser {
     }
 
     public long parse(String text, long now, boolean roundCeil) {
-        return parse(text, now, roundCeil, DateTimeZone.UTC);
+        return parse(text, now, roundCeil, null);
     }
 
     public long parse(String text, long now, boolean roundCeil, DateTimeZone timeZone) {
@@ -250,6 +250,8 @@ public class DateMathParser {
             return parser.parseMillis(value);
         } catch (RuntimeException e) {
             try {
+                // When date is given as a numeric value, it's a date in ms since epoch
+                // By definition, it's a UTC date.
                 long time = Long.parseLong(value);
                 return timeUnit.toMillis(time);
             } catch (NumberFormatException e1) {

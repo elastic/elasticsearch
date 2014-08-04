@@ -375,8 +375,8 @@ public class RangeFilterBuilder extends BaseFilterBuilder {
     /**
      * In case of date field, we can adjust the from/to fields using a timezone
      */
-    public RangeFilterBuilder timeZone(String preZone) {
-        this.timeZone = preZone;
+    public RangeFilterBuilder timeZone(String timeZone) {
+        this.timeZone = timeZone;
         return this;
     }
 

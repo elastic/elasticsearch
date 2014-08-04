@@ -168,12 +168,8 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         }
         Throwable cause = ExceptionsHelper.unwrapCause(e);
         // on version conflict or document missing, it means
-        // that a news change has crept into the replica, and its fine
+        // that a new change has crept into the replica, and its fine
         if (cause instanceof VersionConflictEngineException) {
-            return true;
-        }
-        // same here
-        if (cause instanceof DocumentAlreadyExistsException) {
             return true;
         }
         return false;

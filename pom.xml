@@ -1150,7 +1150,7 @@
             <plugin>
                 <groupId>de.thetaphi</groupId>
                 <artifactId>forbiddenapis</artifactId>
-                <version>1.5.1</version>
+                <version>1.6.1</version>
 
                 <executions>
                     <execution>

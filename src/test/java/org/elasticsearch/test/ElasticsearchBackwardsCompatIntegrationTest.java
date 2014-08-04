@@ -88,6 +88,9 @@ public abstract class ElasticsearchBackwardsCompatIntegrationTest extends Elasti
             throw new IllegalArgumentException("Invalid Backwards tests location path:" + path + " version: " + version);
         }
         File file = new File(path, "elasticsearch-" + version);
+        if (!file.exists()) {
+            throw new IllegalArgumentException("Backwards tests location is missing: " + file.getAbsolutePath());
+        }
         if (!file.isDirectory()) {
             throw new IllegalArgumentException("Backwards tests location is not a directory: " + file.getAbsolutePath());
         }

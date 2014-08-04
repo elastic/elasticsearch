@@ -75,7 +75,7 @@ LOG = env.get('ES_RELEASE_LOG', '/tmp/elasticsearch_release.log')
 ROOT_DIR = abspath(os.path.join(abspath(dirname(__file__)), '../'))
 README_FILE = ROOT_DIR + '/README.md'
 POM_FILE = ROOT_DIR + '/pom.xml'
-DEV_TOOLS_DIR = ROOT_DIR + '/plugin_tools'
+DEV_TOOLS_DIR = ROOT_DIR + '/dev-tools'
 
 ##########################################################
 #

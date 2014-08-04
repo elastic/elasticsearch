@@ -143,6 +143,26 @@ bin/plugin --install mobz/elasticsearch-head --timeout 0
 -----------------------------------
 
 [float]
+==== Proxy settings
+
+If you need to install plugin under a proxy environment, you can use environment variables, `proxyHost` and `proxyPort`.
+
+On Linux and Mac, here is an example of setting it:
+
+[source,shell]
+-----------------------------------
+bin/plugin -DproxyHost=host_name -DproxyPort=port_number --install mobz/elasticsearch-head
+-----------------------------------
+
+On Windows, here is an example of setting it:
+
+[source,shell]
+-----------------------------------
+set JAVA_OPTS="-DproxyHost=host_name -DproxyPort=port_number"
+bin/plugin --install mobz/elasticsearch-head
+-----------------------------------
+
+[float]
 ==== Lucene version dependent plugins
 
 added[1.2.0]

@@ -172,9 +172,14 @@ def process_file(file_path, line_callback):
         return False
 
 
+# Split a version x.y.z as an array of digits [x,y,z]
+def split_version_to_digits(version):
+    return list(map(int, re.findall(r'\d+', version)))
+
+
 # Guess the next snapshot version number (increment last digit)
 def guess_snapshot(version):
-    digits = list(map(int, re.findall(r'\d+', version)))
+    digits = split_version_to_digits(version)
     source = '%s.%s.%s' % (digits[0], digits[1], digits[2])
     destination = '%s.%s.%s' % (digits[0], digits[1], digits[2] + 1)
     return version.replace(source, destination)
@@ -183,8 +188,8 @@ def guess_snapshot(version):
 # Guess the anchor in generated documentation
 # Looks like this "#version-230-for-elasticsearch-13"
 def get_doc_anchor(release, esversion):
-    plugin_digits = list(map(int, re.findall(r'\d+', release)))
-    es_digits = list(map(int, re.findall(r'\d+', esversion)))
+    plugin_digits = split_version_to_digits(release)
+    es_digits = split_version_to_digits(esversion)
     return '#version-%s%s%s-for-elasticsearch-%s%s' % (
         plugin_digits[0], plugin_digits[1], plugin_digits[2], es_digits[0], es_digits[1])
 
@@ -209,6 +214,26 @@ def add_maven_snapshot(pom, release, snapshot):
         return line.replace(pattern, replacement)
 
     process_file(pom, callback)
+
+
+# Moves the README.md file from a snapshot to a release version. Doc looks like:
+# ## Version 2.5.0-SNAPSHOT for Elasticsearch: 1.x
+# It needs to be updated to
+# ## Version 2.5.0 for Elasticsearch: 1.x
+def update_documentation_in_released_branch(readme_file, release, esversion):
+    pattern = '## Version (.)+ for Elasticsearch: (.)+'
+    es_digits = split_version_to_digits(esversion)
+    replacement = '## Version %s for Elasticsearch: %s.%s\n' % (
+        release, es_digits[0], es_digits[1])
+
+    def callback(line):
+        # If we find pattern, we replace its content
+        if re.search(pattern, line) is not None:
+            return replacement
+        else:
+            return line
+
+    process_file(readme_file, callback)
 
 
 # Moves the README.md file from a snapshot to a release (documentation link)
@@ -713,6 +738,7 @@ if __name__ == '__main__':
         ########################################
         pending_files = [POM_FILE, README_FILE]
         remove_maven_snapshot(POM_FILE, release_version)
+        update_documentation_in_released_branch(README_FILE, release_version, elasticsearch_version)
         print('  Done removing snapshot version')
         add_pending_files(*pending_files)  # expects var args use * to expand
         commit_release(artifact_id, release_version)
@@ -751,6 +777,7 @@ if __name__ == '__main__':
         tag_release(release_version)
 
         add_maven_snapshot(POM_FILE, release_version, snapshot_version)
+        update_documentation_in_released_branch(README_FILE, '%s-SNAPSHOT' % snapshot_version, elasticsearch_version)
         add_pending_files(*pending_files)
         commit_snapshot()
 

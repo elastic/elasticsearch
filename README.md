@@ -15,7 +15,7 @@ You need to install a version matching your Elasticsearch version:
 |------------------------|-------------------|------------------------------------------------------------------------------------------------------------------------------------|
 |    master              | Build from source | See below                                                                                                                          |
 |    es-1.x              | Build from source | [2.5.0-SNAPSHOT](https://github.com/elasticsearch/elasticsearch-cloud-azure/tree/es-1.x/#azure-cloud-plugin-for-elasticsearch)     |
-|    es-1.3              | Build from source | [2.4.0-SNAPSHOT](https://github.com/elasticsearch/elasticsearch-cloud-azure/tree/es-1.3/#azure-cloud-plugin-for-elasticsearch)     |
+|    es-1.3              |     2.4.0         | [2.4.0](https://github.com/elasticsearch/elasticsearch-cloud-azure/tree/v2.4.0/#version-240-for-elasticsearch-13)                  |
 |    es-1.2              |     2.3.0         | [2.3.0](https://github.com/elasticsearch/elasticsearch-cloud-azure/tree/v2.3.0/#azure-cloud-plugin-for-elasticsearch)              |
 |    es-1.1              |     2.2.0         | [2.2.0](https://github.com/elasticsearch/elasticsearch-cloud-azure/tree/v2.2.0/#azure-cloud-plugin-for-elasticsearch)              |
 |    es-1.0              |     2.1.0         | [2.1.0](https://github.com/elasticsearch/elasticsearch-cloud-azure/tree/v2.1.0/#azure-cloud-plugin-for-elasticsearch)              |

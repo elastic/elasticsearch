@@ -363,7 +363,7 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
         assertThat(score, lessThanOrEqualTo(1.0));
         assertThat(score, greaterThanOrEqualTo(0.0));
         heuristic = new MutualInformation(false, true);
-        assertThat(heuristic.getScore(0, 1, 2, 3), equalTo(-1.0 * Double.MAX_VALUE));
+        assertThat(heuristic.getScore(0, 1, 2, 3), equalTo(Double.NEGATIVE_INFINITY));
 
         heuristic = new MutualInformation(true, false);
         score = heuristic.getScore(2, 3, 1, 4);

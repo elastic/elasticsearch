@@ -445,30 +445,36 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         }
         updatedVersion = create.versionType().updateVersion(currentVersion, expectedVersion);
 
-        // if the doc does not exist or it exists but is not deleted
-        if (versionValue != null) {
-            if (!versionValue.delete()) {
-                if (create.origin() == Operation.Origin.RECOVERY) {
-                    return;
-                } else {
-                    throw new DocumentAlreadyExistsException(shardId, create.type(), create.id());
-                }
-            }
-        } else if (currentVersion != Versions.NOT_FOUND) {
-            // its not deleted, its already there
+        // if the doc exists
+        boolean doUpdate = false;
+        if ((versionValue != null && versionValue.delete() == false) || (versionValue == null && currentVersion != Versions.NOT_FOUND)) {
             if (create.origin() == Operation.Origin.RECOVERY) {
                 return;
+            } else if (create.origin() == Operation.Origin.REPLICA) {
+                // #7142: the primary already determined it's OK to index this document, and we confirmed above that the version doesn't
+                // conflict, so we must also update here on the replica to remain consistent:
+                doUpdate = true;
             } else {
+                // On primary, we throw DAEE if the _uid is already in the index with an older version:
+                assert create.origin() == Operation.Origin.PRIMARY;
                 throw new DocumentAlreadyExistsException(shardId, create.type(), create.id());
             }
         }
 
         create.updateVersion(updatedVersion);
 
-        if (create.docs().size() > 1) {
-            writer.addDocuments(create.docs(), create.analyzer());
+        if (doUpdate) {
+            if (create.docs().size() > 1) {
+                writer.updateDocuments(create.uid(), create.docs(), create.analyzer());
+            } else {
+                writer.updateDocument(create.uid(), create.docs().get(0), create.analyzer());
+            }
         } else {
-            writer.addDocument(create.docs().get(0), create.analyzer());
+            if (create.docs().size() > 1) {
+                writer.addDocuments(create.docs(), create.analyzer());
+            } else {
+                writer.addDocument(create.docs().get(0), create.analyzer());
+            }
         }
         Translog.Location translogLocation = translog.add(new Translog.Create(create));
 

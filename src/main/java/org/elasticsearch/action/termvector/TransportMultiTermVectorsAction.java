@@ -23,7 +23,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -32,8 +31,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.BaseTransportRequestHandler;
-import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.HashMap;
@@ -71,12 +68,12 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
                         termVectorRequest.type(), termVectorRequest.id(), "[" + termVectorRequest.index() + "] missing")));
                 continue;
             }
+            termVectorRequest.index(clusterState.metaData().concreteSingleIndex(termVectorRequest.index(), termVectorRequest.indicesOptions()));
             if (termVectorRequest.routing() == null && clusterState.getMetaData().routingRequired(termVectorRequest.index(), termVectorRequest.type())) {
-                responses.set(i, new MultiTermVectorsItemResponse(null, new MultiTermVectorsResponse.Failure(termVectorRequest.index(),
-                        termVectorRequest.type(), termVectorRequest.id(), "routing is required, but hasn't been specified")));
+                responses.set(i, new MultiTermVectorsItemResponse(null, new MultiTermVectorsResponse.Failure(termVectorRequest.index(), termVectorRequest.type(), termVectorRequest.id(),
+                        "routing is required for [" + termVectorRequest.index() + "]/[" + termVectorRequest.type() + "]/[" + termVectorRequest.id() + "]")));
                 continue;
             }
-            termVectorRequest.index(clusterState.metaData().concreteSingleIndex(termVectorRequest.index(), termVectorRequest.indicesOptions()));
             ShardId shardId = clusterService
                     .operationRouting()
                     .getShards(clusterState, termVectorRequest.index(), termVectorRequest.type(), termVectorRequest.id(),

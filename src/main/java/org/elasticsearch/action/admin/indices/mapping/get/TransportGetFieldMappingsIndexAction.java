@@ -56,7 +56,7 @@ import java.util.List;
  */
 public class TransportGetFieldMappingsIndexAction extends TransportSingleCustomOperationAction<GetFieldMappingsIndexRequest, GetFieldMappingsResponse> {
 
-    private static final String ACTION_NAME = GetFieldMappingsAction.NAME + "/index";
+    private static final String ACTION_NAME = GetFieldMappingsAction.NAME + "[index]";
 
     protected final ClusterService clusterService;
     private final IndicesService indicesService;

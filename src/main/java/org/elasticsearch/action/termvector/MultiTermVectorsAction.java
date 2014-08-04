@@ -27,7 +27,7 @@ import org.elasticsearch.client.Client;
 public class MultiTermVectorsAction extends ClientAction<MultiTermVectorsRequest, MultiTermVectorsResponse, MultiTermVectorsRequestBuilder> {
 
     public static final MultiTermVectorsAction INSTANCE = new MultiTermVectorsAction();
-    public static final String NAME = "mtv";
+    public static final String NAME = "indices:data/read/mtv";
 
     private MultiTermVectorsAction() {
         super(NAME);

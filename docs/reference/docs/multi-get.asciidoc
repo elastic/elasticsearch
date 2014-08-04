@@ -181,6 +181,13 @@ curl 'localhost:9200/_mget' -d '{
 --------------------------------------------------
 
 [float]
+=== Generated fields
+
+added[1.4.0]
+
+See <<generated-fields>> for fields are generated only when indexing. 
+
+[float]
 [[mget-routing]]
 === Routing
 

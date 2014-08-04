@@ -88,7 +88,7 @@ public class ConfigurableErrorNettyTransportModule extends AbstractModule {
 
                         final NettyTransportChannel transportChannel = new NettyTransportChannel(transport, action, channel, requestId, version);
                         try {
-                            final TransportRequestHandler handler = transportServiceAdapter.handler(action);
+                            final TransportRequestHandler handler = transportServiceAdapter.handler(action, version);
                             if (handler == null) {
                                 throw new ActionNotFoundTransportException(action);
                             }

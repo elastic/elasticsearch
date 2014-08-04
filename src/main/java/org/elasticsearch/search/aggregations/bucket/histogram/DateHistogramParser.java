@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.rounding.DateTimeUnit;
 import org.elasticsearch.common.rounding.Rounding;
 import org.elasticsearch.common.rounding.TimeZoneRounding;
@@ -100,11 +101,11 @@ public class DateHistogramParser implements Aggregator.Parser {
                 continue;
             } else if (token == XContentParser.Token.VALUE_STRING) {
                 if ("time_zone".equals(currentFieldName) || "timeZone".equals(currentFieldName)) {
-                    preZone = parseZone(parser.text());
+                    preZone = DateMathParser.parseZone(parser.text());
                 } else if ("pre_zone".equals(currentFieldName) || "preZone".equals(currentFieldName)) {
-                    preZone = parseZone(parser.text());
+                    preZone = DateMathParser.parseZone(parser.text());
                 } else if ("post_zone".equals(currentFieldName) || "postZone".equals(currentFieldName)) {
-                    postZone = parseZone(parser.text());
+                    postZone = DateMathParser.parseZone(parser.text());
                 } else if ("pre_offset".equals(currentFieldName) || "preOffset".equals(currentFieldName)) {
                     preOffset = parseOffset(parser.text());
                 } else if ("post_offset".equals(currentFieldName) || "postOffset".equals(currentFieldName)) {
@@ -220,20 +221,4 @@ public class DateHistogramParser implements Aggregator.Parser {
         int beginIndex = offset.charAt(0) == '+' ? 1 : 0;
         return TimeValue.parseTimeValue(offset.substring(beginIndex), null).millis();
     }
-
-    private DateTimeZone parseZone(String text) throws IOException {
-        int index = text.indexOf(':');
-        if (index != -1) {
-            int beginIndex = text.charAt(0) == '+' ? 1 : 0;
-            // format like -02:30
-            return DateTimeZone.forOffsetHoursMinutes(
-                    Integer.parseInt(text.substring(beginIndex, index)),
-                    Integer.parseInt(text.substring(index + 1))
-            );
-        } else {
-            // id, listed here: http://joda-time.sourceforge.net/timezones.html
-            return DateTimeZone.forID(text);
-        }
-    }
-
 }

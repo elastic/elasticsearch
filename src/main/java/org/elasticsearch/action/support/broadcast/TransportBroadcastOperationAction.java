@@ -59,7 +59,7 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.threadPool = threadPool;
-        this.transportShardAction = actionName + "/s";
+        this.transportShardAction = actionName + "[s]";
         this.executor = executor();
 
         transportService.registerHandler(actionName, new TransportHandler());
@@ -95,7 +95,7 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
 
     protected abstract ClusterBlockException checkRequestBlock(ClusterState state, Request request, String[] concreteIndices);
 
-    class AsyncBroadcastAction {
+    protected class AsyncBroadcastAction {
 
         private final Request request;
         private final ActionListener<Response> listener;
@@ -106,7 +106,7 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
         private final AtomicInteger counterOps = new AtomicInteger();
         private final AtomicReferenceArray shardsResponses;
 
-        AsyncBroadcastAction(Request request, ActionListener<Response> listener) {
+        protected AsyncBroadcastAction(Request request, ActionListener<Response> listener) {
             this.request = request;
             this.listener = listener;
 
@@ -156,7 +156,7 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
             }
         }
 
-        void performOperation(final ShardIterator shardIt, final ShardRouting shard, final int shardIndex) {
+        protected void performOperation(final ShardIterator shardIt, final ShardRouting shard, final int shardIndex) {
             if (shard == null) {
                 // no more active shards... (we should not really get here, just safety)
                 onOperation(null, shardIt, shardIndex, new NoShardAvailableActionException(shardIt.shardId()));
@@ -210,7 +210,7 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
         }
 
         @SuppressWarnings({"unchecked"})
-        void onOperation(ShardRouting shard, int shardIndex, ShardResponse response) {
+        protected void onOperation(ShardRouting shard, int shardIndex, ShardResponse response) {
             shardsResponses.set(shardIndex, response);
             if (expectedOps == counterOps.incrementAndGet()) {
                 finishHim();
@@ -247,7 +247,7 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
             }
         }
 
-        void finishHim() {
+        protected void finishHim() {
             try {
                 listener.onResponse(newResponse(request, shardsResponses, clusterState));
             } catch (Throwable e) {

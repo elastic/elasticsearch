@@ -55,7 +55,7 @@ public class TransportShardDeleteByQueryAction extends TransportShardReplication
 
     public final static String DELETE_BY_QUERY_API = "delete_by_query";
 
-    private static final String ACTION_NAME = DeleteByQueryAction.NAME + "/shard";
+    private static final String ACTION_NAME = DeleteByQueryAction.NAME + "[s]";
 
     private final ScriptService scriptService;
     private final CacheRecycler cacheRecycler;

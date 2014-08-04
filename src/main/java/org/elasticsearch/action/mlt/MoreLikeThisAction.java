@@ -28,7 +28,7 @@ import org.elasticsearch.client.Client;
 public class MoreLikeThisAction extends ClientAction<MoreLikeThisRequest, SearchResponse, MoreLikeThisRequestBuilder> {
 
     public static final MoreLikeThisAction INSTANCE = new MoreLikeThisAction();
-    public static final String NAME = "mlt";
+    public static final String NAME = "indices:data/read/mlt";
 
     private MoreLikeThisAction() {
         super(NAME);

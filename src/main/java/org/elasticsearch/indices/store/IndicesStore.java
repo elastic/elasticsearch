@@ -61,7 +61,8 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
     public static final String INDICES_STORE_THROTTLE_TYPE = "indices.store.throttle.type";
     public static final String INDICES_STORE_THROTTLE_MAX_BYTES_PER_SEC = "indices.store.throttle.max_bytes_per_sec";
 
-    private static final String ACTION_SHARD_EXISTS = "index/shard/exists";
+    public static final String ACTION_SHARD_EXISTS = "internal:index/shard/exists";
+
     private static final EnumSet<IndexShardState> ACTIVE_STATES = EnumSet.of(IndexShardState.STARTED, IndexShardState.RELOCATED);
 
     class ApplySettings implements NodeSettingsService.Listener {

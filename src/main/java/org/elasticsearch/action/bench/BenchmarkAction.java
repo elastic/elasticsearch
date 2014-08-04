@@ -28,7 +28,7 @@ import org.elasticsearch.common.Strings;
 public class BenchmarkAction extends ClientAction<BenchmarkRequest, BenchmarkResponse, BenchmarkRequestBuilder> {
 
     public static final BenchmarkAction INSTANCE = new BenchmarkAction();
-    public static final String NAME = "benchmark/start";
+    public static final String NAME = "indices:data/benchmark/start";
 
     private BenchmarkAction() {
         super(NAME);

@@ -45,6 +45,8 @@ import java.util.Map;
  */
 public class PublishClusterStateAction extends AbstractComponent {
 
+    public static final String ACTION_NAME = "internal:discovery/zen/publish";
+
     public static interface NewClusterStateListener {
 
         static interface NewStateProcessed {
@@ -69,11 +71,11 @@ public class PublishClusterStateAction extends AbstractComponent {
         this.nodesProvider = nodesProvider;
         this.listener = listener;
         this.discoverySettings = discoverySettings;
-        transportService.registerHandler(PublishClusterStateRequestHandler.ACTION, new PublishClusterStateRequestHandler());
+        transportService.registerHandler(ACTION_NAME, new PublishClusterStateRequestHandler());
     }
 
     public void close() {
-        transportService.removeHandler(PublishClusterStateRequestHandler.ACTION);
+        transportService.removeHandler(ACTION_NAME);
     }
 
     public void publish(ClusterState clusterState, final Discovery.AckListener ackListener) {
@@ -112,7 +114,7 @@ public class PublishClusterStateAction extends AbstractComponent {
                 TransportRequestOptions options = TransportRequestOptions.options().withType(TransportRequestOptions.Type.STATE).withCompress(false);
                 // no need to put a timeout on the options here, because we want the response to eventually be received
                 // and not log an error if it arrives after the timeout
-                transportService.sendRequest(node, PublishClusterStateRequestHandler.ACTION,
+                transportService.sendRequest(node, ACTION_NAME,
                         new BytesTransportRequest(bytes, node.version()),
                         options, // no need to compress, we already compressed the bytes
 
@@ -151,8 +153,6 @@ public class PublishClusterStateAction extends AbstractComponent {
     }
 
     private class PublishClusterStateRequestHandler extends BaseTransportRequestHandler<BytesTransportRequest> {
-
-        static final String ACTION = "discovery/zen/publish";
 
         @Override
         public BytesTransportRequest newInstance() {

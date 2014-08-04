@@ -22,6 +22,7 @@ package org.elasticsearch.action.get;
 import com.google.common.collect.Iterators;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.*;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Nullable;
@@ -250,6 +251,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
     String preference;
     Boolean realtime;
     boolean refresh;
+    public boolean ignoreErrorsOnGeneratedFields = false;
 
     List<Item> items = new ArrayList<>();
 
@@ -320,6 +322,12 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
 
     public MultiGetRequest refresh(boolean refresh) {
         this.refresh = refresh;
+        return this;
+    }
+
+
+    public MultiGetRequest ignoreErrorsOnGeneratedFields(boolean ignoreErrorsOnGeneratedFields) {
+        this.ignoreErrorsOnGeneratedFields = ignoreErrorsOnGeneratedFields;
         return this;
     }
 
@@ -495,6 +503,9 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
         } else if (realtime == 1) {
             this.realtime = true;
         }
+        if(in.getVersion().onOrAfter(Version.V_1_4_0)) {
+            ignoreErrorsOnGeneratedFields = in.readBoolean();
+        }
 
         int size = in.readVInt();
         items = new ArrayList<>(size);
@@ -514,6 +525,9 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
             out.writeByte((byte) 0);
         } else {
             out.writeByte((byte) 1);
+        }
+        if(out.getVersion().onOrAfter(Version.V_1_4_0)) {
+            out.writeBoolean(ignoreErrorsOnGeneratedFields);
         }
 
         out.writeVInt(items.size());

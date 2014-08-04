@@ -28,7 +28,7 @@ import org.elasticsearch.search.suggest.Suggest;
 public class SuggestAction extends ClientAction<SuggestRequest, SuggestResponse, SuggestRequestBuilder> {
 
     public static final SuggestAction INSTANCE = new SuggestAction();
-    public static final String NAME = "suggest";
+    public static final String NAME = "indices:data/read/suggest";
 
     private SuggestAction() {
         super(NAME);

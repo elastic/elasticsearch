@@ -28,7 +28,7 @@ import org.elasticsearch.client.Client;
 public class PutIndexedScriptAction extends ClientAction<PutIndexedScriptRequest, PutIndexedScriptResponse, PutIndexedScriptRequestBuilder> {
 
     public static final PutIndexedScriptAction INSTANCE = new PutIndexedScriptAction();
-    public static final String NAME = "putIndexedScript";
+    public static final String NAME = "indices:data/write/script/put";
 
 
     private PutIndexedScriptAction() {

@@ -27,7 +27,7 @@ import org.elasticsearch.client.ClusterAdminClient;
 public class NodesRestartAction extends ClusterAction<NodesRestartRequest, NodesRestartResponse, NodesRestartRequestBuilder> {
 
     public static final NodesRestartAction INSTANCE = new NodesRestartAction();
-    public static final String NAME = "cluster/nodes/restart";
+    public static final String NAME = "cluster:admin/nodes/restart";
 
     private NodesRestartAction() {
         super(NAME);

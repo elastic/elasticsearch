@@ -51,7 +51,6 @@ governing permissions and limitations under the License. -->
         <tests.client.ratio></tests.client.ratio>
         <tests.jvm.argline></tests.jvm.argline>
         <es.logger.level>INFO</es.logger.level>
-        <es.config>${project.build.testOutputDirectory}/elasticsearch.yml</es.config>
     </properties>
 
     <dependencies>

@@ -153,7 +153,7 @@ new `scripted_upsert` parameter with the value `true`.
 [source,js]
 --------------------------------------------------
 curl -XPOST 'localhost:9200/sessions/session/dh3sgudg8gsrgl/_update' -d '{
-    "script_id" : "myWebSessionSummariser",
+    "script_id" : "my_web_session_summariser",
     "scripted_upsert":true,
     "params" : {
         "pageViewEvent" : {
@@ -174,7 +174,7 @@ client can supply a blank "upsert" document and allow the script to fill in most
 using the events passed in the `params` element.  
 
 
-Last it also supports `doc_as_upsert`. So that the
+Last, the upsert facility also supports `doc_as_upsert`. So that the
 provided document will be inserted if the document does not already
 exist. This will reduce the amount of data that needs to be sent to
 elasticsearch.

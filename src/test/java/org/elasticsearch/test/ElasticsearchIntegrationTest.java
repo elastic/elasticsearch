@@ -444,7 +444,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         builder.put(CodecService.INDEX_CODEC_BLOOM_LOAD, random.nextBoolean());
 
         if (random.nextBoolean()) {
-            builder.put(IndicesQueryCache.INDEX_QUERY_CACHE_ENABLED, random.nextBoolean());
+            builder.put(IndicesQueryCache.INDEX_CACHE_QUERY_ENABLED, random.nextBoolean());
         }
 
         return builder;

@@ -81,7 +81,8 @@ public class IndicesQueryCache extends AbstractComponent implements RemovalListe
      * A setting to enable or disable query caching on an index level. Its dynamic by default
      * since we are checking on the cluster state IndexMetaData always.
      */
-    public static final String INDEX_QUERY_CACHE_ENABLED = "index.cache.query.enable";
+    public static final String INDEX_CACHE_QUERY_ENABLED = "index.cache.query.enable";
+    public static final String INDEX_CACHE_QUERY_CLEAN_INTERVAL = "index.cache.query.clean_interval";
 
     public static final String INDICES_CACHE_QUERY_SIZE = "indices.cache.query.size";
     public static final String INDICES_CACHE_QUERY_EXPIRE = "indices.cache.query.expire";
@@ -106,7 +107,7 @@ public class IndicesQueryCache extends AbstractComponent implements RemovalListe
         super(settings);
         this.clusterService = clusterService;
         this.threadPool = threadPool;
-        this.cleanInterval = componentSettings.getAsTime("clean_interval", TimeValue.timeValueSeconds(60));
+        this.cleanInterval = settings.getAsTime(INDEX_CACHE_QUERY_CLEAN_INTERVAL, TimeValue.timeValueSeconds(60));
         // this cache can be very small yet still be very effective
         this.size = settings.get(INDICES_CACHE_QUERY_SIZE, "1%");
         this.expire = settings.getAsTime(INDICES_CACHE_QUERY_EXPIRE, null);
@@ -186,13 +187,15 @@ public class IndicesQueryCache extends AbstractComponent implements RemovalListe
         if (index == null) { // in case we didn't yet have the cluster state, or it just got deleted
             return false;
         }
-        if (!index.settings().getAsBoolean(INDEX_QUERY_CACHE_ENABLED, Boolean.FALSE)) {
+        if (!index.settings().getAsBoolean(INDEX_CACHE_QUERY_ENABLED, Boolean.FALSE)) {
             return false;
         }
         // if the reader is not a directory reader, we can't get the version from it
         if (!(context.searcher().getIndexReader() instanceof DirectoryReader)) {
             return false;
         }
+        // if now in millis is used (or in the future, a more generic "isDeterministic" flag
+        // then we can't cache based on "now" key within the search request, as it is not deterministic
         if (context.nowInMillisUsed()) {
             return false;
         }
@@ -424,8 +427,8 @@ public class IndicesQueryCache extends AbstractComponent implements RemovalListe
     }
 
     /**
-     * this class aim is to just provide an on the write *write* format that is the same as {@link QuerySearchResult}
-     * and also provide a nice wrapper for in node communication.
+     * this class aim is to just provide an on the wire *write* format that is the same as {@link QuerySearchResult}
+     * and also provide a nice wrapper for in node communication for an already constructed {@link QuerySearchResult}.
      */
     private static class BytesQuerySearchResult extends QuerySearchResultProvider {
 

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.indices.stats;
 
-import com.carrotsearch.randomizedtesting.annotations.Seed;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.*;
@@ -61,7 +60,7 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
         //Filter/Query cache is cleaned periodically, default is 60s, so make sure it runs often. Thread.sleep for 60s is bad
         return  ImmutableSettings.settingsBuilder().put(super.nodeSettings(nodeOrdinal))
                 .put("indices.cache.filter.clean_interval", "1ms")
-                .put("indices.cache.query.clean_interval", "1ms")
+                .put(IndicesQueryCache.INDEX_CACHE_QUERY_CLEAN_INTERVAL, "1ms")
                 .build();
     }
 
@@ -192,7 +191,7 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testQueryCache() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("idx").setSettings(IndicesQueryCache.INDEX_QUERY_CACHE_ENABLED, true).get());
+        assertAcked(client().admin().indices().prepareCreate("idx").setSettings(IndicesQueryCache.INDEX_CACHE_QUERY_ENABLED, true).get());
         ensureGreen();
 
         int numDocs = randomIntBetween(2, 100);

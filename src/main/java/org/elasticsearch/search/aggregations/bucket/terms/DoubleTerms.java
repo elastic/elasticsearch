@@ -151,7 +151,7 @@ public class DoubleTerms extends InternalTerms {
         for (InternalTerms.Bucket bucket : buckets) {
             builder.startObject();
             builder.field(CommonFields.KEY, ((Bucket) bucket).term);
-            if (formatter != null) {
+            if (formatter != null && formatter != ValueFormatter.RAW) {
                 builder.field(CommonFields.KEY_AS_STRING, formatter.format(((Bucket) bucket).term));
             }
             builder.field(CommonFields.DOC_COUNT, bucket.getDocCount());

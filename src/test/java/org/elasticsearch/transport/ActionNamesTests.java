@@ -20,10 +20,14 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.bench.AbortBenchmarkAction;
-import org.elasticsearch.action.bench.BenchmarkAction;
-import org.elasticsearch.action.bench.BenchmarkService;
-import org.elasticsearch.action.bench.BenchmarkStatusAction;
+import org.elasticsearch.action.benchmark.AbstractBenchmarkService;
+import org.elasticsearch.action.benchmark.BenchmarkCoordinatorService;
+import org.elasticsearch.action.benchmark.BenchmarkExecutorService;
+import org.elasticsearch.action.benchmark.abort.BenchmarkAbortAction;
+import org.elasticsearch.action.benchmark.pause.BenchmarkPauseAction;
+import org.elasticsearch.action.benchmark.resume.BenchmarkResumeAction;
+import org.elasticsearch.action.benchmark.start.BenchmarkStartAction;
+import org.elasticsearch.action.benchmark.status.BenchmarkStatusAction;
 import org.elasticsearch.action.exists.ExistsAction;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
@@ -123,12 +127,14 @@ public class ActionNamesTests extends ElasticsearchIntegrationTest {
 
     static {
         //add here new actions that don't need a mapping as they weren't available prior to 1.4
-        post_1_4_actions.add(BenchmarkService.STATUS_ACTION_NAME);
-        post_1_4_actions.add(BenchmarkService.START_ACTION_NAME);
-        post_1_4_actions.add(BenchmarkService.ABORT_ACTION_NAME);
-        post_1_4_actions.add(BenchmarkAction.NAME);
         post_1_4_actions.add(BenchmarkStatusAction.NAME);
-        post_1_4_actions.add(AbortBenchmarkAction.NAME);
+        post_1_4_actions.add(BenchmarkStartAction.NAME);
+        post_1_4_actions.add(BenchmarkPauseAction.NAME);
+        post_1_4_actions.add(BenchmarkResumeAction.NAME);
+        post_1_4_actions.add(BenchmarkAbortAction.NAME);
+        post_1_4_actions.add(BenchmarkCoordinatorService.BenchmarkDefinitionRequestHandler.ACTION);
+        post_1_4_actions.add(AbstractBenchmarkService.NodeStateUpdateRequestHandler.ACTION);
+        post_1_4_actions.add(BenchmarkExecutorService.BenchmarkStatusRequestHandler.ACTION);
         post_1_4_actions.add(ExistsAction.NAME);
         post_1_4_actions.add(ExistsAction.NAME + "[s]");
     }

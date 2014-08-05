@@ -1,0 +1,21 @@
+{
+    "benchmark.pause": {
+        "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/search-benchmark.html",
+        "methods": ["POST"],
+        "url": {
+            "path": "/_bench/_pause/{id}",
+            "paths": [
+                "/_bench/_pause/{id}"
+            ],
+            "parts": { },
+            "params": {
+                "id": {
+                    "required": true,
+                    "type": "boolean",
+                    "description": "The unique ID of the benchmark to pause"
+                }
+            }
+        },
+        "body": null
+    }
+}

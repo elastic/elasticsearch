@@ -21,10 +21,11 @@ package org.elasticsearch.transport;
 
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.bench.AbortBenchmarkAction;
-import org.elasticsearch.action.bench.BenchmarkAction;
-import org.elasticsearch.action.bench.BenchmarkService;
-import org.elasticsearch.action.bench.BenchmarkStatusAction;
+import org.elasticsearch.action.benchmark.abort.BenchmarkAbortAction;
+import org.elasticsearch.action.benchmark.status.BenchmarkStatusAction;
+import org.elasticsearch.action.benchmark.pause.BenchmarkPauseAction;
+import org.elasticsearch.action.benchmark.resume.BenchmarkResumeAction;
+import org.elasticsearch.action.benchmark.start.BenchmarkStartAction;
 import org.elasticsearch.action.exists.ExistsAction;
 import org.elasticsearch.action.indexedscripts.delete.DeleteIndexedScriptAction;
 import org.elasticsearch.action.indexedscripts.get.GetIndexedScriptAction;
@@ -117,12 +118,11 @@ public class ActionNamesBackwardsCompatibilityTest extends ElasticsearchBackward
     private static final Map<String, Version> actionsVersions = new HashMap<>();
 
     static {
-        actionsVersions.put(BenchmarkService.STATUS_ACTION_NAME, Version.V_1_4_0);
-        actionsVersions.put(BenchmarkService.START_ACTION_NAME, Version.V_1_4_0);
-        actionsVersions.put(BenchmarkService.ABORT_ACTION_NAME, Version.V_1_4_0);
-        actionsVersions.put(BenchmarkAction.NAME, Version.V_1_4_0);
         actionsVersions.put(BenchmarkStatusAction.NAME, Version.V_1_4_0);
-        actionsVersions.put(AbortBenchmarkAction.NAME, Version.V_1_4_0);
+        actionsVersions.put(BenchmarkAbortAction.NAME, Version.V_1_4_0);
+        actionsVersions.put(BenchmarkPauseAction.NAME, Version.V_1_4_0);
+        actionsVersions.put(BenchmarkResumeAction.NAME, Version.V_1_4_0);
+        actionsVersions.put(BenchmarkStartAction.NAME, Version.V_1_4_0);
 
         actionsVersions.put(ExistsAction.NAME, Version.V_1_4_0);
         actionsVersions.put(ExistsAction.NAME + "[s]", Version.V_1_4_0);

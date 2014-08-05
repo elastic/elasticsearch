@@ -118,7 +118,16 @@ import org.elasticsearch.action.admin.indices.warmer.get.GetWarmersAction;
 import org.elasticsearch.action.admin.indices.warmer.get.TransportGetWarmersAction;
 import org.elasticsearch.action.admin.indices.warmer.put.PutWarmerAction;
 import org.elasticsearch.action.admin.indices.warmer.put.TransportPutWarmerAction;
-import org.elasticsearch.action.bench.*;
+import org.elasticsearch.action.benchmark.abort.BenchmarkAbortAction;
+import org.elasticsearch.action.benchmark.abort.TransportBenchmarkAbortAction;
+import org.elasticsearch.action.benchmark.pause.BenchmarkPauseAction;
+import org.elasticsearch.action.benchmark.pause.TransportBenchmarkPauseAction;
+import org.elasticsearch.action.benchmark.resume.BenchmarkResumeAction;
+import org.elasticsearch.action.benchmark.resume.TransportBenchmarkResumeAction;
+import org.elasticsearch.action.benchmark.start.BenchmarkStartAction;
+import org.elasticsearch.action.benchmark.start.TransportBenchmarkStartAction;
+import org.elasticsearch.action.benchmark.status.BenchmarkStatusAction;
+import org.elasticsearch.action.benchmark.status.TransportBenchmarkStatusAction;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
@@ -308,9 +317,11 @@ public class ActionModule extends AbstractModule {
         registerAction(ExplainAction.INSTANCE, TransportExplainAction.class);
         registerAction(ClearScrollAction.INSTANCE, TransportClearScrollAction.class);
         registerAction(RecoveryAction.INSTANCE, TransportRecoveryAction.class);
-        registerAction(BenchmarkAction.INSTANCE, TransportBenchmarkAction.class);
-        registerAction(AbortBenchmarkAction.INSTANCE, TransportAbortBenchmarkAction.class);
+        registerAction(BenchmarkStartAction.INSTANCE, TransportBenchmarkStartAction.class);
+        registerAction(BenchmarkAbortAction.INSTANCE, TransportBenchmarkAbortAction.class);
         registerAction(BenchmarkStatusAction.INSTANCE, TransportBenchmarkStatusAction.class);
+        registerAction(BenchmarkResumeAction.INSTANCE, TransportBenchmarkResumeAction.class);
+        registerAction(BenchmarkPauseAction.INSTANCE, TransportBenchmarkPauseAction.class);
 
         //Indexed scripts
         registerAction(PutIndexedScriptAction.INSTANCE, TransportPutIndexedScriptAction.class);

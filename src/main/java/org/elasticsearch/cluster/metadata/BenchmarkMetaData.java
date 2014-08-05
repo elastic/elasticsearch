@@ -27,14 +27,17 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.*;
 
 /**
  * Meta data about benchmarks that are currently executing
  */
 public class BenchmarkMetaData implements MetaData.Custom {
-    public static final String TYPE = "benchmark";
 
+    public static final String TYPE = "benchmark";
     public static final Factory FACTORY = new Factory();
+
+    private final ImmutableList<Entry> entries;
 
     @Override
     public boolean equals(Object o) {
@@ -42,7 +45,6 @@ public class BenchmarkMetaData implements MetaData.Custom {
         if (o == null || getClass() != o.getClass()) return false;
 
         BenchmarkMetaData that = (BenchmarkMetaData) o;
-
         if (!entries.equals(that.entries)) return false;
 
         return true;
@@ -53,33 +55,67 @@ public class BenchmarkMetaData implements MetaData.Custom {
         return entries.hashCode();
     }
 
-    public static class Entry {
-        private final State state;
-        private final String benchmarkId;
-        private final String[] nodeids;
+    public static ImmutableList<Entry> delta(BenchmarkMetaData prev, BenchmarkMetaData cur) {
 
-        public Entry(Entry e, State state) {
-            this(e.benchmarkId(), state, e.nodes());
+        if (cur == null || cur.entries == null || cur.entries.size() == 0) {
+            return ImmutableList.of();
+        }
+        if (prev == null || prev.entries == null || prev.entries.size() == 0) {
+            return ImmutableList.copyOf(cur.entries);
         }
 
-        public Entry(String benchmarkId, State state, String[] nodeIds) {
-            this.state = state;
-            this.benchmarkId = benchmarkId;
-            this.nodeids =  nodeIds;
+        final List<Entry> changed = new ArrayList<>();
+
+        for (Entry e : cur.entries) {
+            final Entry matched = find(e, prev.entries);
+            if (matched == null) {
+                changed.add(e);
+            } else {
+                if (!e.equals(matched)) {
+                    changed.add(e);
+                }
+            }
+        }
+
+        return ImmutableList.copyOf(changed);
+    }
+
+    private static Entry find(Entry entry, List<Entry> list) {
+        for (Entry e : list) {
+            if (e.benchmarkId().equals(entry.benchmarkId())) {
+                return e;
+            }
+        }
+        return null;
+    }
+
+    public static class Entry {
+
+        private final String                 benchmarkId;
+        private final State                  state;
+        private final Map<String, NodeState> nodeStateMap;
+
+        public Entry(String benchmarkId) {
+            this(benchmarkId, State.INITIALIZING, new HashMap<String, NodeState>());
+        }
+
+        public Entry(String benchmarkId, State state, Map<String, NodeState> nodeStateMap) {
+            this.benchmarkId  = benchmarkId;
+            this.state        = state;
+            this.nodeStateMap = nodeStateMap;
         }
 
         public String benchmarkId() {
-            return this.benchmarkId;
+            return benchmarkId;
         }
 
         public State state() {
             return state;
         }
 
-        public String[] nodes() {
-            return nodeids;
+        public Map<String, NodeState> nodeStateMap() {
+            return nodeStateMap;
         }
-
 
         @Override
         public boolean equals(Object o) {
@@ -91,22 +127,75 @@ public class BenchmarkMetaData implements MetaData.Custom {
             if (!benchmarkId.equals(entry.benchmarkId)) return false;
             if (state != entry.state) return false;
 
+            if (nodeStateMap().size() != entry.nodeStateMap().size()) return false;
+
+            for (Map.Entry<String, NodeState> me : nodeStateMap().entrySet()) {
+                final NodeState ns = entry.nodeStateMap().get(me.getKey());
+                if (ns == null) {
+                    return false;
+                }
+                if (me.getValue() != ns) {
+                    return false;
+                }
+            }
+
             return true;
         }
 
         @Override
         public int hashCode() {
-            int result = state.hashCode();
-            result = 31 * result + benchmarkId.hashCode();
+            int result = benchmarkId.hashCode();
+            result = 31 * result + state.hashCode();
             return result;
+        }
+
+        public static enum NodeState {
+
+            INITIALIZING((byte) 0),
+            READY((byte) 1),
+            RUNNING((byte) 2),
+            PAUSED((byte) 3),
+            COMPLETED((byte) 4),
+            FAILED((byte) 5),
+            ABORTED((byte) 6);
+
+            private static final NodeState[] NODE_STATES = new NodeState[NodeState.values().length];
+
+            static {
+                for (NodeState state : NodeState.values()) {
+                    assert state.id() < NODE_STATES.length && state.id() >= 0;
+                    NODE_STATES[state.id()] = state;
+                }
+            }
+
+            private final byte id;
+
+            NodeState(byte id) {
+                this.id = id;
+            }
+
+            public byte id() {
+                return id;
+            }
+
+            public static NodeState fromId(byte id) {
+                if (id < 0 || id >= NodeState.values().length) {
+                    throw new ElasticsearchIllegalArgumentException("No benchmark state for value [" + id + "]");
+                }
+                return NODE_STATES[id];
+            }
         }
     }
 
     public static enum State {
-        STARTED((byte) 0),
-        SUCCESS((byte) 1),
-        FAILED((byte) 2),
-        ABORTED((byte) 3);
+
+        INITIALIZING((byte) 0),
+        RUNNING((byte) 1),
+        PAUSED((byte) 2),
+        RESUMING((byte) 3),
+        COMPLETED((byte) 4),
+        FAILED((byte) 5),
+        ABORTED((byte) 6);
 
         private static final State[] STATES = new State[State.values().length];
 
@@ -128,7 +217,7 @@ public class BenchmarkMetaData implements MetaData.Custom {
         }
 
         public boolean completed() {
-            return this == SUCCESS || this == FAILED;
+            return this == COMPLETED || this == FAILED;
         }
 
         public static State fromId(byte id) {
@@ -138,9 +227,6 @@ public class BenchmarkMetaData implements MetaData.Custom {
             return STATES[id];
         }
     }
-
-    private final ImmutableList<Entry> entries;
-
 
     public BenchmarkMetaData(ImmutableList<Entry> entries) {
         this.entries = entries;
@@ -153,7 +239,6 @@ public class BenchmarkMetaData implements MetaData.Custom {
     public ImmutableList<Entry> entries() {
         return this.entries;
     }
-
 
     public static class Factory implements MetaData.Custom.Factory<BenchmarkMetaData> {
 
@@ -168,8 +253,12 @@ public class BenchmarkMetaData implements MetaData.Custom {
             for (int i = 0; i < entries.length; i++) {
                 String benchmarkId = in.readString();
                 State state = State.fromId(in.readByte());
-                String[] nodes = in.readStringArray();
-                entries[i] = new Entry(benchmarkId, state, nodes);
+                int size = in.readVInt();
+                Map<String, Entry.NodeState> map = new HashMap<>(size);
+                for (int j = 0; j < size; j++) {
+                    map.put(in.readString(), Entry.NodeState.fromId(in.readByte()));
+                }
+                entries[i] = new Entry(benchmarkId, state, map);
             }
             return new BenchmarkMetaData(entries);
         }
@@ -180,7 +269,11 @@ public class BenchmarkMetaData implements MetaData.Custom {
             for (Entry entry : repositories.entries()) {
                 out.writeString(entry.benchmarkId());
                 out.writeByte(entry.state().id());
-                out.writeStringArray(entry.nodes());
+                out.writeVInt(entry.nodeStateMap.size());
+                for (Map.Entry<String, Entry.NodeState> mapEntry : entry.nodeStateMap().entrySet()) {
+                    out.writeString(mapEntry.getKey());
+                    out.writeByte(mapEntry.getValue().id());
+                }
             }
         }
 
@@ -202,9 +295,10 @@ public class BenchmarkMetaData implements MetaData.Custom {
             builder.startObject();
             builder.field("id", entry.benchmarkId());
             builder.field("state", entry.state());
-            builder.startArray("on_nodes");
-            for (String nodeid : entry.nodes()) {
-                builder.value(nodeid);
+            builder.startArray("node_states");
+            for (Map.Entry<String, Entry.NodeState> mapEntry : entry.nodeStateMap().entrySet()) {
+                builder.field("node_id", mapEntry.getKey());
+                builder.field("node_state", mapEntry.getValue());
             }
             builder.endArray();
             builder.endObject();
@@ -217,10 +311,19 @@ public class BenchmarkMetaData implements MetaData.Custom {
 
     public boolean contains(String benchmarkId) {
         for (Entry e : entries) {
-           if (e.benchmarkId.equals(benchmarkId)) {
-               return true;
-           }
+            if (e.benchmarkId.equals(benchmarkId)) {
+                return true;
+            }
         }
         return false;
+    }
+
+    public Entry get(String benchmarkId) {
+        for (Entry e : entries) {
+            if (e.benchmarkId.equals(benchmarkId)) {
+                return e;
+            }
+        }
+        return null;
     }
 }

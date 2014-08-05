@@ -1,0 +1,22 @@
+{
+    "benchmark.status": {
+        "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/search-benchmark.html",
+        "methods": ["GET"],
+        "url": {
+            "path": "/_bench/_status/{id}",
+            "paths": [
+                "/_bench/_status",
+                "/_bench/_status/{id}"
+            ],
+            "parts": { },
+            "params": {
+                "id": {
+                    "required": false,
+                    "type": "list",
+                    "description": "A list of comma-separated ID's to get the status of"
+                }
+            }
+        },
+        "body": null
+    }
+}

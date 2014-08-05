@@ -43,6 +43,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 
+import static org.elasticsearch.http.netty.NettyHttpServerTransport.*;
 import static org.jboss.netty.handler.codec.http.HttpHeaders.Names.*;
 
 /**
@@ -97,20 +98,24 @@ public class NettyHttpChannel extends HttpChannel {
             resp = new DefaultHttpResponse(HttpVersion.HTTP_1_1, status);
         }
         if (RestUtils.isBrowser(nettyRequest.headers().get(USER_AGENT))) {
-            if (transport.settings().getAsBoolean("http.cors.enabled", true)) {
+            if (transport.settings().getAsBoolean(SETTING_CORS_ENABLED, true)) {
                 String originHeader = request.header(ORIGIN);
                 if (!Strings.isNullOrEmpty(originHeader)) {
                     if (corsPattern == null) {
-                        resp.headers().add(ACCESS_CONTROL_ALLOW_ORIGIN, transport.settings().get("http.cors.allow-origin", "*"));
+                        resp.headers().add(ACCESS_CONTROL_ALLOW_ORIGIN, transport.settings().get(SETTING_CORS_ALLOW_ORIGIN, "*"));
                     } else {
                         resp.headers().add(ACCESS_CONTROL_ALLOW_ORIGIN, corsPattern.matcher(originHeader).matches() ? originHeader : "null");
                     }
                 }
                 if (nettyRequest.getMethod() == HttpMethod.OPTIONS) {
                     // Allow Ajax requests based on the CORS "preflight" request
-                    resp.headers().add(ACCESS_CONTROL_MAX_AGE, transport.settings().getAsInt("http.cors.max-age", 1728000));
-                    resp.headers().add(ACCESS_CONTROL_ALLOW_METHODS, transport.settings().get("http.cors.allow-methods", "OPTIONS, HEAD, GET, POST, PUT, DELETE"));
-                    resp.headers().add(ACCESS_CONTROL_ALLOW_HEADERS, transport.settings().get("http.cors.allow-headers", "X-Requested-With, Content-Type, Content-Length"));
+                    resp.headers().add(ACCESS_CONTROL_MAX_AGE, transport.settings().getAsInt(SETTING_CORS_MAX_AGE, 1728000));
+                    resp.headers().add(ACCESS_CONTROL_ALLOW_METHODS, transport.settings().get(SETTING_CORS_ALLOW_METHODS, "OPTIONS, HEAD, GET, POST, PUT, DELETE"));
+                    resp.headers().add(ACCESS_CONTROL_ALLOW_HEADERS, transport.settings().get(SETTING_CORS_ALLOW_HEADERS, "X-Requested-With, Content-Type, Content-Length"));
+                }
+
+                if (transport.settings().getAsBoolean(SETTING_CORS_ALLOW_CREDENTIALS, false)) {
+                    resp.headers().add(ACCESS_CONTROL_ALLOW_CREDENTIALS, "true");
                 }
             }
         }

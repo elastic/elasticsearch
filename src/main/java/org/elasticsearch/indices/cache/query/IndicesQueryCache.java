@@ -187,7 +187,12 @@ public class IndicesQueryCache extends AbstractComponent implements RemovalListe
         if (index == null) { // in case we didn't yet have the cluster state, or it just got deleted
             return false;
         }
-        if (!index.settings().getAsBoolean(INDEX_CACHE_QUERY_ENABLED, Boolean.FALSE)) {
+        // if not explicitly set in the request, use the index setting, if not, use the request
+        if (request.queryCache() == null) {
+            if (!index.settings().getAsBoolean(INDEX_CACHE_QUERY_ENABLED, Boolean.FALSE)) {
+                return false;
+            }
+        } else if (!request.queryCache()) {
             return false;
         }
         // if the reader is not a directory reader, we can't get the version from it
@@ -199,7 +204,6 @@ public class IndicesQueryCache extends AbstractComponent implements RemovalListe
         if (context.nowInMillisUsed()) {
             return false;
         }
-        // TODO allow to have a queryCache level flag on the request as well
         return true;
     }
 

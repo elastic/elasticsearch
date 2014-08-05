@@ -236,6 +236,25 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
 
         client().admin().indices().prepareClearCache().setQueryCache(true).get(); // clean the cache
         assertThat(client().admin().indices().prepareStats("idx").setQueryCache(true).get().getTotal().getQueryCache().getMemorySizeInBytes(), equalTo(0l));
+
+        // test explicit request parameter
+
+        assertThat(client().prepareSearch("idx").setSearchType(SearchType.COUNT).setQueryCache(false).get().getHits().getTotalHits(), equalTo((long) numDocs));
+        assertThat(client().admin().indices().prepareStats("idx").setQueryCache(true).get().getTotal().getQueryCache().getMemorySizeInBytes(), equalTo(0l));
+
+        assertThat(client().prepareSearch("idx").setSearchType(SearchType.COUNT).setQueryCache(true).get().getHits().getTotalHits(), equalTo((long) numDocs));
+        assertThat(client().admin().indices().prepareStats("idx").setQueryCache(true).get().getTotal().getQueryCache().getMemorySizeInBytes(), greaterThan(0l));
+
+        // set the index level setting to false, and see that the reverse works
+
+        client().admin().indices().prepareClearCache().setQueryCache(true).get(); // clean the cache
+        assertAcked(client().admin().indices().prepareUpdateSettings("idx").setSettings(ImmutableSettings.builder().put(IndicesQueryCache.INDEX_CACHE_QUERY_ENABLED, false)));
+
+        assertThat(client().prepareSearch("idx").setSearchType(SearchType.COUNT).get().getHits().getTotalHits(), equalTo((long) numDocs));
+        assertThat(client().admin().indices().prepareStats("idx").setQueryCache(true).get().getTotal().getQueryCache().getMemorySizeInBytes(), equalTo(0l));
+
+        assertThat(client().prepareSearch("idx").setSearchType(SearchType.COUNT).setQueryCache(true).get().getHits().getTotalHits(), equalTo((long) numDocs));
+        assertThat(client().admin().indices().prepareStats("idx").setQueryCache(true).get().getTotal().getQueryCache().getMemorySizeInBytes(), greaterThan(0l));
     }
 
     @Test

@@ -44,19 +44,18 @@ cloud:
 
 ### Transport security
 
-By default this plugin uses HTTP for all API calls to AWS endpoints. If you wish to configure HTTPS you can set 
+By default this plugin uses HTTPS for all API calls to AWS endpoints. If you wish to configure HTTP you can set 
 `cloud.aws.protocol` in the elasticsearch config. You can optionally override this setting per individual service 
 via: `cloud.aws.ec2.protocol` or `cloud.aws.s3.protocol`. 
 
 ```
 cloud:
     aws:
-        protocol: http
+        protocol: https
         s3: 
-            protocol: https
-        ec2: 
             protocol: http
-
+        ec2: 
+            protocol: https
 ```
 
 ### Region

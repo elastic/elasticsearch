@@ -208,15 +208,9 @@ public class NoMasterNodeTests extends ElasticsearchIntegrationTest {
             bulkRequestBuilder.get();
             fail("Expected ClusterBlockException");
         } catch (ClusterBlockException | MasterNotDiscoveredException e) {
-            // today, we clear the metadata on when there is no master, so it will go through the auto create logic and
-            // add it... (if set to true), if we didn't remove the metedata when there is no master, then, the non
-            // retry in bulk should be taken into account
-            if (!autoCreateIndex) {
-                assertThat(System.currentTimeMillis() - now, lessThan(50l));
-            } else {
-                assertThat(System.currentTimeMillis() - now, greaterThan(timeout.millis() - 50));
-                assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
-            }
+            // The metadata isn't cleared and because bulk api doesn't retry global blocks we fail fast
+            assertThat(System.currentTimeMillis() - now, lessThan(50l));
+            assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
         }
 
         now = System.currentTimeMillis();
@@ -228,9 +222,8 @@ public class NoMasterNodeTests extends ElasticsearchIntegrationTest {
             bulkRequestBuilder.get();
             fail("Expected ClusterBlockException");
         } catch (ClusterBlockException | MasterNotDiscoveredException e) {
-            // today, we clear the metadata on when there is no master, so it will go through the auto create logic and
-            // add it... (if set to true), if we didn't remove the metedata when there is no master, then, the non
-            // retry in bulk should be taken into account
+            // If the index exists the bulk doesn't retry with a global block, if an index doesn't exist bulk api delegates
+            // to the create index api which does retry / wait on a global block.
             if (!autoCreateIndex) {
                 assertThat(System.currentTimeMillis() - now, lessThan(50l));
             } else {

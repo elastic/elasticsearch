@@ -51,7 +51,7 @@ governing permissions and limitations under the License. -->
         <elasticsearch.version>2.0.0-SNAPSHOT</elasticsearch.version>
         <google.gce.version>v1-rev15-1.18.0-rc</google.gce.version>
         <google.api.version>1.18.0-rc</google.api.version>
-        <lucene.version>4.8.1</lucene.version>
+        <lucene.version>4.9.0</lucene.version>
         <tests.shuffle>true</tests.shuffle>
         <tests.output>onerror</tests.output>
         <tests.client.ratio></tests.client.ratio>

@@ -60,7 +60,7 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
         //Filter/Query cache is cleaned periodically, default is 60s, so make sure it runs often. Thread.sleep for 60s is bad
         return  ImmutableSettings.settingsBuilder().put(super.nodeSettings(nodeOrdinal))
                 .put("indices.cache.filter.clean_interval", "1ms")
-                .put(IndicesQueryCache.INDEX_CACHE_QUERY_CLEAN_INTERVAL, "1ms")
+                .put(IndicesQueryCache.INDICES_CACHE_QUERY_CLEAN_INTERVAL, "1ms")
                 .build();
     }
 

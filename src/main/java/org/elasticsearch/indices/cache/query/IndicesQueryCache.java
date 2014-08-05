@@ -82,7 +82,7 @@ public class IndicesQueryCache extends AbstractComponent implements RemovalListe
      * since we are checking on the cluster state IndexMetaData always.
      */
     public static final String INDEX_CACHE_QUERY_ENABLED = "index.cache.query.enable";
-    public static final String INDEX_CACHE_QUERY_CLEAN_INTERVAL = "index.cache.query.clean_interval";
+    public static final String INDICES_CACHE_QUERY_CLEAN_INTERVAL = "indices.cache.query.clean_interval";
 
     public static final String INDICES_CACHE_QUERY_SIZE = "indices.cache.query.size";
     public static final String INDICES_CACHE_QUERY_EXPIRE = "indices.cache.query.expire";
@@ -107,7 +107,7 @@ public class IndicesQueryCache extends AbstractComponent implements RemovalListe
         super(settings);
         this.clusterService = clusterService;
         this.threadPool = threadPool;
-        this.cleanInterval = settings.getAsTime(INDEX_CACHE_QUERY_CLEAN_INTERVAL, TimeValue.timeValueSeconds(60));
+        this.cleanInterval = settings.getAsTime(INDICES_CACHE_QUERY_CLEAN_INTERVAL, TimeValue.timeValueSeconds(60));
         // this cache can be very small yet still be very effective
         this.size = settings.get(INDICES_CACHE_QUERY_SIZE, "1%");
         this.expire = settings.getAsTime(INDICES_CACHE_QUERY_EXPIRE, null);

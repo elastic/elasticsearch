@@ -10,3 +10,4 @@
 /.classpath
 *.vmoptions
 .local-execution-hints.log
+plugin_tools

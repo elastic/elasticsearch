@@ -187,7 +187,7 @@ class LiveVersionMap implements ReferenceManager.RefreshListener, Accountable {
         // Deduct tombstones bytes used for the version we just removed or replaced:
         if (prevTombstone != null) {
             long v = ramBytesUsedTombstones.addAndGet(-(BASE_BYTES_PER_CHM_ENTRY + prevTombstone.ramBytesUsed() + uidRAMBytesUsed));
-            assert v >= 0;
+            assert v >= 0: "bytes=" + v;
         }
     }
 
@@ -200,7 +200,7 @@ class LiveVersionMap implements ReferenceManager.RefreshListener, Accountable {
         if (prev != null) {
             assert prev.delete();
             long v = ramBytesUsedTombstones.addAndGet(-(BASE_BYTES_PER_CHM_ENTRY + prev.ramBytesUsed() + uidRAMBytesUsed));
-            assert v >= 0;
+            assert v >= 0: "bytes=" + v;
         }
         final VersionValue curVersion = maps.current.get(uid);
         if (curVersion != null && curVersion.delete()) {
@@ -226,7 +226,12 @@ class LiveVersionMap implements ReferenceManager.RefreshListener, Accountable {
         maps = new Maps();
         tombstones.clear();
         ramBytesUsedCurrent.set(0);
-        ramBytesUsedTombstones.set(0);
+
+        // NOTE: we can't zero this here, because a refresh thread could be calling InternalEngine.pruneDeletedTombstones at the same time,
+        // and this will lead to an assert trip.  Presumably it's fine if our ramBytesUsedTombstones is non-zero after clear since the index
+        // is being closed:
+        //ramBytesUsedTombstones.set(0);
+
         if (mgr != null) {
             mgr.removeListener(this);
             mgr = null;

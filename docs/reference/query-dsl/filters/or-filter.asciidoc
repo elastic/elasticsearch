@@ -1,8 +1,8 @@
 [[query-dsl-or-filter]]
 === Or Filter
 
-A filter that matches documents using `OR` boolean operator on other
-queries. Can be placed within queries that accept a filter.
+A filter that matches documents using the `OR` boolean operator on other
+filters. Can be placed within queries that accept a filter.
 
 [source,js]
 --------------------------------------------------

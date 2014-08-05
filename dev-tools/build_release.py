@@ -6,7 +6,7 @@
 # not use this file except in compliance  with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+# http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing,
 # software distributed under the License is distributed on
@@ -22,6 +22,7 @@ import datetime
 import argparse
 import github3
 import smtplib
+import sys
 
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -45,10 +46,13 @@ from os.path import dirname, abspath
 
   - run prerequisite checks ie. check for S3 credentials available as env variables
   - detect the version to release from the specified branch (--branch) or the current branch
-  - creates a release branch & updates pom.xml and README.md to point to a release version rather than a snapshot
+  - check that github issues related to the version are closed
+  - creates a version release branch & updates pom.xml to point to a release version rather than a snapshot
+  - creates a master release branch & updates README.md to point to the latest release version for the given elasticsearch branch
   - builds the artifacts
-  - commits the new version and merges the release branch into the source branch
-  - creates a tag and pushes the commit to the specified origin (--remote)
+  - commits the new version and merges the version release branch into the source branch
+  - merges the master release branch into the master branch
+  - creates a tag and pushes branch and master to the specified origin (--remote)
   - publishes the releases to sonatype and S3
   - send a mail based on github issues fixed by this version
 
@@ -68,18 +72,34 @@ Once it's done it will print all the remaining steps.
 env = os.environ
 
 LOG = env.get('ES_RELEASE_LOG', '/tmp/elasticsearch_release.log')
-ROOT_DIR = os.path.join(abspath(dirname(__file__)), '../')
-README_FILE = ROOT_DIR + 'README.md'
-POM_FILE = ROOT_DIR + 'pom.xml'
+ROOT_DIR = abspath(os.path.join(abspath(dirname(__file__)), '../'))
+README_FILE = ROOT_DIR + '/README.md'
+POM_FILE = ROOT_DIR + '/pom.xml'
+DEV_TOOLS_DIR = ROOT_DIR + '/dev-tools'
 
+##########################################################
+#
+# Utility methods (log and run)
+#
+##########################################################
+# Log a message
 def log(msg):
     log_plain('\n%s' % msg)
 
+
+# Purge the log file
+def purge_log():
+    os.remove(LOG)
+
+
+# Log a message to the LOG file
 def log_plain(msg):
     f = open(LOG, mode='ab')
     f.write(msg.encode('utf-8'))
     f.close()
 
+
+# Run a command and log it
 def run(command, quiet=False):
     log('%s: RUN: %s\n' % (datetime.datetime.now(), command))
     if os.system('%s >> %s 2>&1' % (command, LOG)):
@@ -88,19 +108,25 @@ def run(command, quiet=False):
             print(msg)
         raise RuntimeError(msg)
 
+##########################################################
+#
+# Clean logs and check JAVA and Maven
+#
+##########################################################
 try:
+    purge_log()
     JAVA_HOME = env['JAVA_HOME']
 except KeyError:
     raise RuntimeError("""
   Please set JAVA_HOME in the env before running release tool
-  On OSX use: export JAVA_HOME=`/usr/libexec/java_home -v '1.6*'`""")
+  On OSX use: export JAVA_HOME=`/usr/libexec/java_home -v '1.7*'`""")
 
 try:
-    MVN='mvn'
+    MVN = 'mvn'
     # make sure mvn3 is used if mvn3 is available
     # some systems use maven 2 as default
     run('mvn3 --version', quiet=True)
-    MVN='mvn3'
+    MVN = 'mvn3'
 except RuntimeError:
     pass
 
@@ -109,34 +135,15 @@ def java_exe():
     path = JAVA_HOME
     return 'export JAVA_HOME="%s" PATH="%s/bin:$PATH" JAVACMD="%s/bin/java"' % (path, path, path)
 
-# Returns the hash of the current git HEAD revision
-def get_head_hash():
-    return os.popen(' git rev-parse --verify HEAD 2>&1').read().strip()
 
-# Returns the hash of the given tag revision
-def get_tag_hash(tag):
-    return os.popen('git show-ref --tags %s --hash 2>&1' % (tag)).read().strip()
-
-# Returns the name of the current branch
-def get_current_branch():
-    return os.popen('git rev-parse --abbrev-ref HEAD  2>&1').read().strip()
-
+##########################################################
+#
+# String and file manipulation utils
+#
+##########################################################
 # Utility that returns the name of the release branch for a given version
-def release_branch(version):
-    return 'release_branch_%s' % version
-
-# runs get fetch on the given remote
-def fetch(remote):
-    run('git fetch %s' % remote)
-
-# Creates a new release branch from the given source branch
-# and rebases the source branch from the remote before creating
-# the release branch. Note: This fails if the source branch
-# doesn't exist on the provided remote.
-def create_release_branch(remote, src_branch, release):
-    run('git checkout %s' % src_branch)
-    run('git pull --rebase %s %s' % (remote, src_branch))
-    run('git checkout -b %s' % (release_branch(release)))
+def release_branch(branchsource, version):
+    return 'release_branch_%s_%s' % (branchsource, version)
 
 
 # Reads the given file and applies the
@@ -146,7 +153,7 @@ def create_release_branch(remote, src_branch, release):
 def process_file(file_path, line_callback):
     fh, abs_path = tempfile.mkstemp()
     modified = False
-    with open(abs_path,'w', encoding='utf-8') as new_file:
+    with open(abs_path, 'w', encoding='utf-8') as new_file:
         with open(file_path, encoding='utf-8') as old_file:
             for line in old_file:
                 new_line = line_callback(line)
@@ -164,130 +171,114 @@ def process_file(file_path, line_callback):
         os.remove(abs_path)
         return False
 
-# Guess the next snapshot version number (increment second digit)
+
+# Split a version x.y.z as an array of digits [x,y,z]
+def split_version_to_digits(version):
+    return list(map(int, re.findall(r'\d+', version)))
+
+
+# Guess the next snapshot version number (increment last digit)
 def guess_snapshot(version):
-    digits=list(map(int, re.findall(r'\d+', version)))
-    source='%s.%s' % (digits[0], digits[1])
-    destination='%s.%s' % (digits[0], digits[1]+1)
+    digits = split_version_to_digits(version)
+    source = '%s.%s.%s' % (digits[0], digits[1], digits[2])
+    destination = '%s.%s.%s' % (digits[0], digits[1], digits[2] + 1)
     return version.replace(source, destination)
+
+
+# Guess the anchor in generated documentation
+# Looks like this "#version-230-for-elasticsearch-13"
+def get_doc_anchor(release, esversion):
+    plugin_digits = split_version_to_digits(release)
+    es_digits = split_version_to_digits(esversion)
+    return '#version-%s%s%s-for-elasticsearch-%s%s' % (
+        plugin_digits[0], plugin_digits[1], plugin_digits[2], es_digits[0], es_digits[1])
+
 
 # Moves the pom.xml file from a snapshot to a release
 def remove_maven_snapshot(pom, release):
     pattern = '<version>%s-SNAPSHOT</version>' % release
     replacement = '<version>%s</version>' % release
+
     def callback(line):
         return line.replace(pattern, replacement)
+
     process_file(pom, callback)
 
-# Moves the README.md file from a snapshot to a release
-def remove_version_snapshot(readme_file, release):
-    pattern = '%s-SNAPSHOT' % release
-    replacement = '%s         ' % release
-    def callback(line):
-        return line.replace(pattern, replacement)
-    process_file(readme_file, callback)
 
 # Moves the pom.xml file to the next snapshot
 def add_maven_snapshot(pom, release, snapshot):
     pattern = '<version>%s</version>' % release
     replacement = '<version>%s-SNAPSHOT</version>' % snapshot
+
     def callback(line):
         return line.replace(pattern, replacement)
+
     process_file(pom, callback)
 
-# Add in README.md file the next snapshot
-def add_version_snapshot(readme_file, release, snapshot):
-    pattern = '| %s         ' % release
-    replacement = '| %s-SNAPSHOT' % snapshot
+
+# Moves the README.md file from a snapshot to a release version. Doc looks like:
+# ## Version 2.5.0-SNAPSHOT for Elasticsearch: 1.x
+# It needs to be updated to
+# ## Version 2.5.0 for Elasticsearch: 1.x
+def update_documentation_in_released_branch(readme_file, release, esversion):
+    pattern = '## Version (.)+ for Elasticsearch: (.)+'
+    es_digits = split_version_to_digits(esversion)
+    replacement = '## Version %s for Elasticsearch: %s.%s\n' % (
+        release, es_digits[0], es_digits[1])
+
     def callback(line):
-        # If we find pattern, we copy the line and replace its content
-        if line.find(pattern) >= 0:
-            return line.replace(pattern, replacement).replace('%s' % (datetime.datetime.now().strftime("%Y-%m-%d")),
-                                                              'XXXX-XX-XX')+line
+        # If we find pattern, we replace its content
+        if re.search(pattern, line) is not None:
+            return replacement
         else:
             return line
+
     process_file(readme_file, callback)
 
+
 # Moves the README.md file from a snapshot to a release (documentation link)
-def remove_documentation_snapshot(readme_file, repo_url, release, branch):
-    pattern = '* [%s-SNAPSHOT](%sblob/%s/README.md)' % (release, repo_url, branch)
-    replacement = '* [%s](%sblob/v%s/README.md)' % (release, repo_url, release)
+# We need to find the right branch we are on and update the line
+#        |    es-1.3              | Build from source | [2.4.0-SNAPSHOT](https://github.com/elasticsearch/elasticsearch-cloud-azure/tree/es-1.3/#version-240-snapshot-for-elasticsearch-13)     |
+#        |    es-1.2              |     2.3.0         | [2.3.0](https://github.com/elasticsearch/elasticsearch-cloud-azure/tree/v2.3.0/#version-230-snapshot-for-elasticsearch-13)              |
+def update_documentation_to_released_version(readme_file, repo_url, release, branch, esversion):
+    pattern = '%s' % branch
+    replacement = '|    %s              |     %s         | [%s](%stree/v%s/%s)                  |\n' % (
+        branch, release, release, repo_url, release, get_doc_anchor(release, esversion))
+
     def callback(line):
         # If we find pattern, we replace its content
         if line.find(pattern) >= 0:
-            return line.replace(pattern, replacement)
+            return replacement
         else:
             return line
+
     process_file(readme_file, callback)
 
-# Add in README.markdown file the documentation for the next version
-def add_documentation_snapshot(readme_file, repo_url, release, snapshot, branch):
-    pattern = '* [%s](%sblob/v%s/README.md)' % (release, repo_url, release)
-    replacement = '* [%s-SNAPSHOT](%sblob/%s/README.md)' % (snapshot, repo_url, branch)
-    def callback(line):
-        # If we find pattern, we copy the line and replace its content
-        if line.find(pattern) >= 0:
-            return line.replace(pattern, replacement)+line
-        else:
-            return line
-    process_file(readme_file, callback)
-
-# Set release date in README.md file
-def set_date(readme_file):
-    pattern = 'XXXX-XX-XX'
-    replacement = '%s' % (datetime.datetime.now().strftime("%Y-%m-%d"))
-    def callback(line):
-        return line.replace(pattern, replacement)
-    process_file(readme_file, callback)
 
 # Update installation instructions in README.md file
 def set_install_instructions(readme_file, artifact_name, release):
-    pattern = '`bin/plugin -install elasticsearch/%s/.+`' % artifact_name
-    replacement = '`bin/plugin -install elasticsearch/%s/%s`' % (artifact_name, release)
+    pattern = 'bin/plugin -install elasticsearch/%s/.+' % artifact_name
+    replacement = 'bin/plugin -install elasticsearch/%s/%s' % (artifact_name, release)
+
     def callback(line):
         return re.sub(pattern, replacement, line)
+
     process_file(readme_file, callback)
 
-
-# Stages the given files for the next git commit
-def add_pending_files(*files):
-    for file in files:
-        run('git add %s' % file)
-
-# Executes a git commit with 'release [version]' as the commit message
-def commit_release(artifact_id, release):
-    run('git commit -m "prepare release %s-%s"' % (artifact_id, release))
-
-def commit_snapshot():
-    run('git commit -m "prepare for next development iteration"')
-
-def tag_release(release):
-    run('git tag -a v%s -m "Tag release version %s"' % (release, release))
-
-def run_mvn(*cmd):
-    for c in cmd:
-        run('%s; %s -f %s %s' % (java_exe(), MVN, POM_FILE, c))
-
-def build_release(run_tests=False, dry_run=True):
-    target = 'deploy'
-    if dry_run:
-        target = 'package'
-    if run_tests:
-        run_mvn('clean test')
-    run_mvn('clean %s -DskipTests' %(target))
 
 # Checks the pom.xml for the release version. <version>2.0.0-SNAPSHOT</version>
 # This method fails if the pom file has no SNAPSHOT version set ie.
 # if the version is already on a release version we fail.
 # Returns the next version string ie. 0.90.7
 def find_release_version(src_branch):
-    run('git checkout %s' % src_branch)
+    git_checkout(src_branch)
     with open(POM_FILE, encoding='utf-8') as file:
         for line in file:
             match = re.search(r'<version>(.+)-SNAPSHOT</version>', line)
             if match:
                 return match.group(1)
         raise RuntimeError('Could not find release version in branch %s' % src_branch)
+
 
 # extract a value from pom.xml
 def find_from_pom(tag):
@@ -298,12 +289,15 @@ def find_from_pom(tag):
                 return match.group(1)
         raise RuntimeError('Could not find <%s> in pom.xml file' % (tag))
 
+
+# Get artifacts which have been generated in target/releases
 def get_artifacts(artifact_id, release):
-    artifact_path = ROOT_DIR + 'target/releases/%s-%s.zip' % (artifact_id, release)
-    print('  Path %s' % (artifact_path))
+    artifact_path = ROOT_DIR + '/target/releases/%s-%s.zip' % (artifact_id, release)
+    print('  Path %s' % artifact_path)
     if not os.path.isfile(artifact_path):
-        raise RuntimeError('Could not find required artifact at %s' % (artifact_path))
+        raise RuntimeError('Could not find required artifact at %s' % artifact_path)
     return artifact_path
+
 
 # Generates sha1 for a file
 # and returns the checksum files as well
@@ -316,38 +310,11 @@ def generate_checksums(release_file):
 
     if os.system('cd %s; shasum %s > %s' % (directory, file, checksum_file)):
         raise RuntimeError('Failed to generate checksum for file %s' % release_file)
-    res = res + [os.path.join(directory, checksum_file), release_file]
+    res += [os.path.join(directory, checksum_file), release_file]
     return res
 
-def git_merge(src_branch, release_version):
-    run('git checkout %s' %  src_branch)
-    run('git merge %s' %  release_branch(release_version))
 
-def git_push(remote, src_branch, release_version, dry_run):
-    if not dry_run:
-        run('git push %s %s' % (remote, src_branch)) # push the commit
-        run('git push %s v%s' % (remote, release_version)) # push the tag
-    else:
-        print('  dryrun [True] -- skipping push to remote %s' % remote)
-
-def publish_artifacts(artifacts, base='elasticsearch/elasticsearch', dry_run=True):
-    location = os.path.dirname(os.path.realpath(__file__))
-    for artifact in artifacts:
-        if dry_run:
-            print('Skip Uploading %s to Amazon S3 in %s' % (artifact, base))
-        else:
-            print('Uploading %s to Amazon S3' % artifact)
-            # requires boto to be installed but it is not available on python3k yet so we use a dedicated tool
-            run('python %s/upload-s3.py --file %s --path %s' % (location, os.path.abspath(artifact), base))
-
-
-#################
-##
-##
-## Email and Github Management
-##
-##
-#################
+# Format a GitHub issue as plain text
 def format_issues_plain(issues, title='Fix'):
     response = ""
 
@@ -358,6 +325,8 @@ def format_issues_plain(issues, title='Fix'):
 
     return response
 
+
+# Format a GitHub issue as html text
 def format_issues_html(issues, title='Fix'):
     response = ""
 
@@ -369,6 +338,130 @@ def format_issues_html(issues, title='Fix'):
 
     return response
 
+
+##########################################################
+#
+# GIT commands
+#
+##########################################################
+# Returns the hash of the current git HEAD revision
+def get_head_hash():
+    return os.popen('git rev-parse --verify HEAD 2>&1').read().strip()
+
+
+# Returns the name of the current branch
+def get_current_branch():
+    return os.popen('git rev-parse --abbrev-ref HEAD  2>&1').read().strip()
+
+
+# runs get fetch on the given remote
+def fetch(remote):
+    run('git fetch %s' % remote)
+
+
+# Creates a new release branch from the given source branch
+# and rebases the source branch from the remote before creating
+# the release branch. Note: This fails if the source branch
+# doesn't exist on the provided remote.
+def create_release_branch(remote, src_branch, release):
+    git_checkout(src_branch)
+    run('git pull --rebase %s %s' % (remote, src_branch))
+    run('git checkout -b %s' % (release_branch(src_branch, release)))
+
+
+# Stages the given files for the next git commit
+def add_pending_files(*files):
+    for file in files:
+        run('git add %s' % file)
+
+
+# Executes a git commit with 'release [version]' as the commit message
+def commit_release(artifact_id, release):
+    run('git commit -m "prepare release %s-%s"' % (artifact_id, release))
+
+
+# Commit documentation changes on the master branch
+def commit_master(release):
+    run('git commit -m "update documentation with release %s"' % release)
+
+
+# Commit next snapshot files
+def commit_snapshot():
+    run('git commit -m "prepare for next development iteration"')
+
+
+# Put the version tag on on the current commit
+def tag_release(release):
+    run('git tag -a v%s -m "Tag release version %s"' % (release, release))
+
+
+# Checkout a given branch
+def git_checkout(branch):
+    run('git checkout %s' % branch)
+
+
+# Merge the release branch with the actual branch
+def git_merge(src_branch, release_version):
+    git_checkout(src_branch)
+    run('git merge %s' % release_branch(src_branch, release_version))
+
+
+# Push the actual branch and master branch
+def git_push(remote, src_branch, release_version, dry_run):
+    if not dry_run:
+        run('git push %s %s master' % (remote, src_branch))  # push the commit and the master
+        run('git push %s v%s' % (remote, release_version))  # push the tag
+    else:
+        print('  dryrun [True] -- skipping push to remote %s %s master' % (remote, src_branch))
+
+
+##########################################################
+#
+# Maven commands
+#
+##########################################################
+# Run a given maven command
+def run_mvn(*cmd):
+    for c in cmd:
+        run('%s; %s -f %s %s' % (java_exe(), MVN, POM_FILE, c))
+
+
+# Run deploy or package depending on dry_run
+# Default to run mvn package
+# When run_tests=True a first mvn clean test is run
+def build_release(run_tests=False, dry_run=True):
+    target = 'deploy'
+    tests = '-DskipTests'
+    if run_tests:
+        tests = ''
+    if dry_run:
+        target = 'package'
+    run_mvn('clean %s %s' % (target, tests))
+
+
+##########################################################
+#
+# Amazon S3 publish commands
+#
+##########################################################
+# Upload files to S3
+def publish_artifacts(artifacts, base='elasticsearch/elasticsearch', dry_run=True):
+    location = os.path.dirname(os.path.realpath(__file__))
+    for artifact in artifacts:
+        if dry_run:
+            print('Skip Uploading %s to Amazon S3 in %s' % (artifact, base))
+        else:
+            print('Uploading %s to Amazon S3' % artifact)
+            # requires boto to be installed but it is not available on python3k yet so we use a dedicated tool
+            run('python %s/upload-s3.py --file %s --path %s' % (location, os.path.abspath(artifact), base))
+
+
+##########################################################
+#
+# Email and Github Management
+#
+##########################################################
+# Create a Github repository instance to access issues
 def get_github_repository(reponame,
                           login=env.get('GITHUB_LOGIN', None),
                           password=env.get('GITHUB_PASSWORD', None),
@@ -382,31 +475,45 @@ def get_github_repository(reponame,
 
     return g.repository("elasticsearch", reponame)
 
+
 # Check if there are some remaining open issues and fails
 def check_opened_issues(version, repository, reponame):
     opened_issues = [i for i in repository.iter_issues(state='open', labels='%s' % version)]
-    if len(opened_issues)>0:
-        raise NameError('Some issues [%s] are still opened. Check https://github.com/elasticsearch/%s/issues?labels=%s&state=open'
-                        % (len(opened_issues), reponame, version))
+    if len(opened_issues) > 0:
+        raise NameError(
+            'Some issues [%s] are still opened. Check https://github.com/elasticsearch/%s/issues?labels=%s&state=open'
+            % (len(opened_issues), reponame, version))
+
 
 # List issues from github: can be done anonymously if you don't
 # exceed a given number of github API calls per day
-# Check if there are some remaining open issues and fails
 def list_issues(version,
                 repository,
                 severity='bug'):
     issues = [i for i in repository.iter_issues(state='closed', labels='%s,%s' % (severity, version))]
     return issues
 
+
+def read_email_template(format='html'):
+    file_name = '%s/email_template.%s' % (DEV_TOOLS_DIR, format)
+    log('open email template %s' % file_name)
+    with open(file_name, encoding='utf-8') as template_file:
+        data = template_file.read()
+    return data
+
+
+# Read template messages
+template_email_html = read_email_template('html')
+template_email_txt = read_email_template('txt')
+
+
 # Get issues from github and generates a Plain/HTML Multipart email
-# And send it if dry_run=False
 def prepare_email(artifact_id, release_version, repository,
                   artifact_name, artifact_description, project_url,
                   severity_labels_bug='bug',
                   severity_labels_update='update',
                   severity_labels_new='new',
                   severity_labels_doc='doc'):
-
     ## Get bugs from github
     issues_bug = list_issues(release_version, repository, severity=severity_labels_bug)
     issues_update = list_issues(release_version, repository, severity=severity_labels_update)
@@ -425,7 +532,7 @@ def prepare_email(artifact_id, release_version, repository,
     html_issues_new = format_issues_html(issues_new, 'New')
     html_issues_doc = format_issues_html(issues_doc, 'Doc')
 
-    if len(issues_bug)+len(issues_update)+len(issues_new)+len(issues_doc) > 0:
+    if len(issues_bug) + len(issues_update) + len(issues_new) + len(issues_doc) > 0:
         plain_empty_message = ""
         html_empty_message = ""
 
@@ -435,76 +542,27 @@ def prepare_email(artifact_id, release_version, repository,
 
     msg = MIMEMultipart('alternative')
     msg['Subject'] = '[ANN] %s %s released' % (artifact_name, release_version)
-    text = """
-Heya,
+    text = template_email_txt % {'release_version': release_version,
+                                 'artifact_id': artifact_id,
+                                 'artifact_name': artifact_name,
+                                 'artifact_description': artifact_description,
+                                 'project_url': project_url,
+                                 'empty_message': plain_empty_message,
+                                 'issues_bug': plain_issues_bug,
+                                 'issues_update': plain_issues_update,
+                                 'issues_new': plain_issues_new,
+                                 'issues_doc': plain_issues_doc}
 
-
-We are pleased to announce the release of the %(artifact_name)s, version %(release_version)s.
-
-%(artifact_description)s.
-
-%(project_url)s
-
-Release Notes - %(artifact_id)s - Version %(release_version)s
-
-%(empty_message)s
-%(issues_bug)s
-%(issues_update)s
-%(issues_new)s
-%(issues_doc)s
-
-Issues, Pull requests, Feature requests are warmly welcome on %(artifact_id)s project repository: %(project_url)s
-For questions or comments around this plugin, feel free to use elasticsearch mailing list: https://groups.google.com/forum/#!forum/elasticsearch
-
-Enjoy,
-
--The Elasticsearch team
-""" % {'release_version': release_version,
-       'artifact_id': artifact_id,
-       'artifact_name': artifact_name,
-       'artifact_description': artifact_description,
-       'project_url': project_url,
-       'empty_message': plain_empty_message,
-       'issues_bug': plain_issues_bug,
-       'issues_update': plain_issues_update,
-       'issues_new': plain_issues_new,
-       'issues_doc': plain_issues_doc}
-
-    html = """
-<html>
-    <body>
-        <p>Heya,</p>
-
-        <p>We are pleased to announce the release of the <b>%(artifact_name)s</b>, <b>version %(release_version)s</b></p>
-
-<blockquote>%(artifact_description)s.</blockquote>
-
-<h1>Release Notes - Version %(release_version)s</h1>
-%(empty_message)s
-%(issues_bug)s
-%(issues_update)s
-%(issues_new)s
-%(issues_doc)s
-
-<p>Issues, Pull requests, Feature requests are warmly welcome on
-<a href='%(project_url)s'>%(artifact_id)s</a> project repository!</p>
-<p>For questions or comments around this plugin, feel free to use elasticsearch
-<a href='https://groups.google.com/forum/#!forum/elasticsearch'>mailing list</a>!</p>
-
-<p>Enjoy,</p>
-
-<p>- The <a href="http://www.elasticsearch.com/">Elasticsearch team</a></p>
-</body></html>
-""" % {'release_version': release_version,
-       'artifact_id': artifact_id,
-       'artifact_name': artifact_name,
-       'artifact_description': artifact_description,
-       'project_url': project_url,
-       'empty_message': html_empty_message,
-       'issues_bug': html_issues_bug,
-       'issues_update': html_issues_update,
-       'issues_new': html_issues_new,
-       'issues_doc': html_issues_doc}
+    html = template_email_html % {'release_version': release_version,
+                                  'artifact_id': artifact_id,
+                                  'artifact_name': artifact_name,
+                                  'artifact_description': artifact_description,
+                                  'project_url': project_url,
+                                  'empty_message': html_empty_message,
+                                  'issues_bug': html_issues_bug,
+                                  'issues_update': html_issues_update,
+                                  'issues_new': html_issues_new,
+                                  'issues_doc': html_issues_doc}
 
     # Record the MIME types of both parts - text/plain and text/html.
     part1 = MIMEText(text, 'plain')
@@ -518,6 +576,7 @@ Enjoy,
 
     return msg
 
+
 def send_email(msg,
                dry_run=True,
                mail=True,
@@ -527,14 +586,16 @@ def send_email(msg,
     msg['From'] = 'Elasticsearch Team <%s>' % sender
     msg['To'] = 'Elasticsearch Mailing List <%s>' % to
     # save mail on disk
-    with open(ROOT_DIR+'target/email.txt', 'w') as email_file:
+    with open(ROOT_DIR + '/target/email.txt', 'w') as email_file:
         email_file.write(msg.as_string())
     if mail and not dry_run:
         s = smtplib.SMTP(smtp_server, 25)
         s.sendmail(sender, to, msg.as_string())
         s.quit()
     else:
-        print('generated email: open %starget/email.txt' % ROOT_DIR)
+        print('generated email: open %s/target/email.txt' % ROOT_DIR)
+        print(msg.as_string())
+
 
 def print_sonatype_notice():
     settings = os.path.join(os.path.expanduser('~'), '.m2/settings.xml')
@@ -566,13 +627,18 @@ def print_sonatype_notice():
   </settings>
   """)
 
+
 def check_s3_credentials():
     if not env.get('AWS_ACCESS_KEY_ID', None) or not env.get('AWS_SECRET_ACCESS_KEY', None):
-        raise RuntimeError('Could not find "AWS_ACCESS_KEY_ID" / "AWS_SECRET_ACCESS_KEY" in the env variables please export in order to upload to S3')
+        raise RuntimeError(
+            'Could not find "AWS_ACCESS_KEY_ID" / "AWS_SECRET_ACCESS_KEY" in the env variables please export in order to upload to S3')
+
 
 def check_github_credentials():
     if not env.get('GITHUB_KEY', None) and not env.get('GITHUB_LOGIN', None):
-        log('WARN: Could not find "GITHUB_LOGIN" / "GITHUB_PASSWORD" or "GITHUB_KEY" in the env variables. You could need it.')
+        log(
+            'WARN: Could not find "GITHUB_LOGIN" / "GITHUB_PASSWORD" or "GITHUB_KEY" in the env variables. You could need it.')
+
 
 def check_email_settings():
     if not env.get('MAIL_SENDER', None):
@@ -604,6 +670,9 @@ if __name__ == '__main__':
     run_tests = args.tests
     dry_run = args.dryrun
     mail = args.mail
+
+    if src_branch == 'master':
+        raise RuntimeError('Can not release the master branch. You need to create another branch before a release')
 
     if not dry_run:
         check_s3_credentials()
@@ -645,20 +714,33 @@ if __name__ == '__main__':
 
     if not dry_run:
         smoke_test_version = release_version
-    head_hash = get_head_hash()
-    run_mvn('clean') # clean the env!
-    create_release_branch(remote, src_branch, release_version)
-    print('  Created release branch [%s]' % (release_branch(release_version)))
+
+    try:
+        git_checkout('master')
+        master_hash = get_head_hash()
+        git_checkout(src_branch)
+        version_hash = get_head_hash()
+        run_mvn('clean')  # clean the env!
+        create_release_branch(remote, 'master', release_version)
+        print('  Created release branch [%s]' % (release_branch('master', release_version)))
+        create_release_branch(remote, src_branch, release_version)
+        print('  Created release branch [%s]' % (release_branch(src_branch, release_version)))
+    except RuntimeError:
+        print('Logs:')
+        with open(LOG, 'r') as log_file:
+            print(log_file.read())
+        sys.exit(-1)
+
     success = False
     try:
+        ########################################
+        # Start update process in version branch
+        ########################################
         pending_files = [POM_FILE, README_FILE]
         remove_maven_snapshot(POM_FILE, release_version)
-        remove_documentation_snapshot(README_FILE, project_url, release_version, src_branch)
-        remove_version_snapshot(README_FILE, release_version)
-        set_date(README_FILE)
-        set_install_instructions(README_FILE, artifact_id, release_version)
+        update_documentation_in_released_branch(README_FILE, release_version, elasticsearch_version)
         print('  Done removing snapshot version')
-        add_pending_files(*pending_files) # expects var args use * to expand
+        add_pending_files(*pending_files)  # expects var args use * to expand
         commit_release(artifact_id, release_version)
         print('  Committed release version [%s]' % release_version)
         print(''.join(['-' for _ in range(80)]))
@@ -676,18 +758,31 @@ if __name__ == '__main__':
         artifact_and_checksums = generate_checksums(artifact)
         print(''.join(['-' for _ in range(80)]))
 
+        ########################################
+        # Start update process in master branch
+        ########################################
+        git_checkout(release_branch('master', release_version))
+        update_documentation_to_released_version(README_FILE, project_url, release_version, src_branch,
+                                                 elasticsearch_version)
+        set_install_instructions(README_FILE, artifact_id, release_version)
+        add_pending_files(*pending_files)  # expects var args use * to expand
+        commit_master(release_version)
+
         print('Finish Release -- dry_run: %s' % dry_run)
         input('Press Enter to continue...')
+
         print('  merge release branch')
         git_merge(src_branch, release_version)
         print('  tag')
         tag_release(release_version)
 
         add_maven_snapshot(POM_FILE, release_version, snapshot_version)
-        add_version_snapshot(README_FILE, release_version, snapshot_version)
-        add_documentation_snapshot(README_FILE, project_url, release_version, snapshot_version, src_branch)
+        update_documentation_in_released_branch(README_FILE, '%s-SNAPSHOT' % snapshot_version, elasticsearch_version)
         add_pending_files(*pending_files)
         commit_snapshot()
+
+        print('  merge master branch')
+        git_merge('master', release_version)
 
         print('  push to %s %s -- dry_run: %s' % (remote, src_branch, dry_run))
         git_push(remote, src_branch, release_version, dry_run)
@@ -695,6 +790,7 @@ if __name__ == '__main__':
         publish_artifacts(artifact_and_checksums, base='elasticsearch/%s' % (artifact_id) , dry_run=dry_run)
         print('  preparing email (from github issues)')
         msg = prepare_email(artifact_id, release_version, repository, artifact_name, artifact_description, project_url)
+        input('Press Enter to send email...')
         print('  sending email -- dry_run: %s, mail: %s' % (dry_run, mail))
         send_email(msg, dry_run=dry_run, mail=mail)
 
@@ -710,13 +806,26 @@ Release successful pending steps:
         success = True
     finally:
         if not success:
-            run('git reset --hard HEAD')
-            run('git checkout %s' %  src_branch)
+            print('Logs:')
+            with open(LOG, 'r') as log_file:
+                print(log_file.read())
+            git_checkout('master')
+            run('git reset --hard %s' % master_hash)
+            git_checkout(src_branch)
+            run('git reset --hard %s' % version_hash)
+            try:
+                run('git tag -d v%s' % release_version)
+            except RuntimeError:
+                pass
         elif dry_run:
             print('End of dry_run')
             input('Press Enter to reset changes...')
-
-            run('git reset --hard %s' % head_hash)
+            git_checkout('master')
+            run('git reset --hard %s' % master_hash)
+            git_checkout(src_branch)
+            run('git reset --hard %s' % version_hash)
             run('git tag -d v%s' % release_version)
+
         # we delete this one anyways
-        run('git branch -D %s' %  (release_branch(release_version)))
+        run('git branch -D %s' % (release_branch('master', release_version)))
+        run('git branch -D %s' % (release_branch(src_branch, release_version)))

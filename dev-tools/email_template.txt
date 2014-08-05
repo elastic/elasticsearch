@@ -1,0 +1,23 @@
+Heya,
+
+
+We are pleased to announce the release of the %(artifact_name)s, version %(release_version)s.
+
+%(artifact_description)s.
+
+%(project_url)s
+
+Release Notes - %(artifact_id)s - Version %(release_version)s
+
+%(empty_message)s
+%(issues_bug)s
+%(issues_update)s
+%(issues_new)s
+%(issues_doc)s
+
+Issues, Pull requests, Feature requests are warmly welcome on %(artifact_id)s project repository: %(project_url)s
+For questions or comments around this plugin, feel free to use elasticsearch mailing list: https://groups.google.com/forum/#!forum/elasticsearch
+
+Enjoy,
+
+-The Elasticsearch team

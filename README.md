@@ -4,27 +4,30 @@ AWS Cloud Plugin for Elasticsearch
 The Amazon Web Service (AWS) Cloud plugin allows to use [AWS API](https://github.com/aws/aws-sdk-java)
 for the unicast discovery mechanism and add S3 repositories.
 
-In order to install the plugin, run: `bin/plugin -install elasticsearch/elasticsearch-cloud-aws/2.1.1`.
+In order to install the plugin, run: 
 
-where `2.1.1` would be the version applicable to your elasticsearch release, as follows:
+```sh
+bin/plugin -install elasticsearch/elasticsearch-cloud-aws/2.2.0
+```
 
-* For master elasticsearch versions, look at [master branch](https://github.com/elasticsearch/elasticsearch-cloud-aws/tree/master).
-* For 1.3.x elasticsearch versions, look at [es-1.3 branch](https://github.com/elasticsearch/elasticsearch-cloud-aws/tree/es-1.3).
-* For 1.2.x elasticsearch versions, look at [es-1.2 branch](https://github.com/elasticsearch/elasticsearch-cloud-aws/tree/es-1.2).
-* For 1.1.x elasticsearch versions, look at [es-1.1 branch](https://github.com/elasticsearch/elasticsearch-cloud-aws/tree/es-1.1).
-* For 1.0.x elasticsearch versions, look at [es-1.0 branch](https://github.com/elasticsearch/elasticsearch-cloud-aws/tree/es-1.0).
-* For 0.90.x elasticsearch versions, look at [es-0.90 branch](https://github.com/elasticsearch/elasticsearch-cloud-aws/tree/es-0.90).
+You need to install a version matching your Elasticsearch version:
 
-SNAPSHOT releases are still in development are _NOT_ available for automatic installation with `bin/plugin`. In such cases
-you would be responsible building the plugin and providing the file/url yourself.
+|       Elasticsearch    |  AWS Cloud Plugin |                                                             Docs                                                                   |
+|------------------------|-------------------|------------------------------------------------------------------------------------------------------------------------------------|
+|    master              | Build from source | See below                                                                                                                          |
+|    es-1.3              | Build from source | [2.3.0-SNAPSHOT](https://github.com/elasticsearch/elasticsearch-cloud-aws/tree/es-1.3/#version-230-snapshot-for-elasticsearch-13)  |
+|    es-1.2              |     2.2.0         | [2.2.0](https://github.com/elasticsearch/elasticsearch-cloud-aws/tree/v2.2.0/#aws-cloud-plugin-for-elasticsearch)                  |
+|    es-1.1              |     2.1.1         | [2.1.1](https://github.com/elasticsearch/elasticsearch-cloud-aws/tree/v2.1.1/#aws-cloud-plugin-for-elasticsearch)                  |
+|    es-1.0              |     2.0.0         | [2.0.0](https://github.com/elasticsearch/elasticsearch-cloud-aws/tree/v2.0.0/#aws-cloud-plugin-for-elasticsearch)                  |
+|    es-0.90             |     1.16.0        | [1.16.0](https://github.com/elasticsearch/elasticsearch-cloud-aws/tree/v1.16.0/#aws-cloud-plugin-for-elasticsearch)                |
 
-|      AWS Cloud Plugin      |    elasticsearch    | Release date |
-|----------------------------|---------------------|:------------:|
-| 3.0.0-SNAPSHOT             | master              |  XXXX-XX-XX  |
+To build a `SNAPSHOT` version, you need to build it with Maven:
 
-Please read documentation relative to the version you are using:
-
-* [3.0.0-SNAPSHOT](https://github.com/elasticsearch/elasticsearch-cloud-aws/blob/master/README.md)
+```bash
+mvn clean install
+plugin --install cloud-aws \ 
+       --url file:target/releases/elasticsearch-cloud-aws-X.X.X-SNAPSHOT.zip
+```
 
 ## Generic Configuration
 

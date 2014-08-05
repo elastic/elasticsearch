@@ -143,7 +143,7 @@ public class SimpleClusterStateTests extends ElasticsearchIntegrationTest {
         logger.info("number of fields [{}], estimated bytes [{}]", numberOfFields, estimatedBytesSize);
         mapping.endObject().endObject().endObject();
         // if the create index is ack'ed, then all nodes have successfully processed the cluster state
-        assertAcked(client().admin().indices().prepareCreate("test").addMapping("type", mapping).get());
+        assertAcked(client().admin().indices().prepareCreate("test").addMapping("type", mapping).setTimeout("60s").get());
         ensureGreen(); // wait for green state, so its both green, and there are no more pending events
         MappingMetaData masterMappingMetaData = client().admin().indices().prepareGetMappings("test").setTypes("type").get().getMappings().get("test").get("type");
         for (Client client : clients()) {

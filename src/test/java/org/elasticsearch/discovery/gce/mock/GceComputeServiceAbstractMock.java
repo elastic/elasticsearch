@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.discovery.gce;
+package org.elasticsearch.discovery.gce.mock;
 
 import com.google.api.services.compute.model.Instance;
 import com.google.api.services.compute.model.Metadata;
@@ -27,6 +27,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cloud.gce.GceComputeService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.gce.GceComputeEngineTest;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -72,7 +73,7 @@ public abstract class GceComputeServiceAbstractMock extends AbstractLifecycleCom
 
             // Add metadata es_port:930X where X is the instance number
             Metadata metadata = new Metadata();
-            metadata.put("es_port", "" + AbstractGceComputeServiceTest.getPort(nodeNumber));
+            metadata.put("es_port", "" + GceComputeEngineTest.getPort(nodeNumber));
             instance.setMetadata(metadata);
 
             instances.add(instance);

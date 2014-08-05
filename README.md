@@ -377,6 +377,31 @@ Or, you may use the alias:
 If you have created a machine without the correct permissions, you will see `403 unauthorized` error messages. The only 
 way to alter these permissions is to delete the instance (NOT THE DISK). Then create another with the correct permissions.
 
+
+Testing
+=======
+
+Integrations tests in this plugin require working GCE configuration and therefore disabled by default.
+To enable tests prepare a config file elasticsearch.yml with the following content:
+
+```
+cloud:
+  gce:
+      project_id: es-cloud
+      zone: europe-west1-a
+discovery:
+      type: gce
+```
+
+Replaces `project_id` and `zone` with your settings. 
+
+To run test:
+
+```sh
+mvn -Dtests.gce=true -Dtests.config=/path/to/config/file/elasticsearch.yml clean test
+```
+
+
 License
 -------
 

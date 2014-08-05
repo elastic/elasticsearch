@@ -243,6 +243,7 @@ governing permissions and limitations under the License. -->
                                 <tests.weekly>${tests.weekly}</tests.weekly>
                                 <tests.slow>${tests.slow}</tests.slow>
                                 <tests.gce>${tests.gce}</tests.gce>
+                                <tests.config>${tests.config}</tests.config>
                                 <tests.awaitsfix>${tests.awaitsfix}</tests.awaitsfix>
                                 <tests.slow>${tests.slow}</tests.slow>
                                 <tests.timeoutSuite>${tests.timeoutSuite}</tests.timeoutSuite>
@@ -252,7 +253,6 @@ governing permissions and limitations under the License. -->
                                 <tests.client.ratio>${tests.client.ratio}</tests.client.ratio>
                                 <es.node.local>false</es.node.local>
                                 <es.node.mode>network</es.node.mode>
-                                <es.config>${es.config}</es.config>
                                 <es.logger.level>${es.logger.level}</es.logger.level>
                                 <java.awt.headless>true</java.awt.headless>
                             </systemProperties>

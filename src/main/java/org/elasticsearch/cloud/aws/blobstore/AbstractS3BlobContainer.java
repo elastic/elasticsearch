@@ -32,6 +32,7 @@ import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.common.collect.ImmutableMap;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 
@@ -81,6 +82,13 @@ public class AbstractS3BlobContainer extends AbstractBlobContainer {
                 try {
                     S3Object object = blobStore.client().getObject(blobStore.bucket(), buildKey(blobName));
                     is = object.getObjectContent();
+                } catch (AmazonS3Exception e) {
+                    if (e.getStatusCode() == 404) {
+                        listener.onFailure(new FileNotFoundException(e.getMessage()));
+                    } else {
+                        listener.onFailure(e);
+                    }
+                    return;
                 } catch (Throwable e) {
                     listener.onFailure(e);
                     return;

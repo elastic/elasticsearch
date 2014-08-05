@@ -23,11 +23,11 @@ import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.DeleteObjectsRequest;
 import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
-
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.cloud.aws.AbstractAwsTest;
 import org.elasticsearch.cloud.aws.AbstractAwsTest.AwsTest;
 import org.elasticsearch.cloud.aws.AwsS3Service;
@@ -37,6 +37,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.RepositoryMissingException;
+import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
@@ -45,8 +46,8 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.util.List;
 import java.util.ArrayList;
+import java.util.List;
 
 import static org.hamcrest.Matchers.*;
 
@@ -317,7 +318,57 @@ public class S3SnapshotRestoreTest extends AbstractAwsTest {
         assertRepositoryIsOperational(client, "test-repo");
     }
 
-    private void assertRepositoryIsOperational(Client client, String repository) {
+    /**
+     * Test case for issue #86: https://github.com/elasticsearch/elasticsearch-cloud-aws/issues/86
+     */
+    @Test
+    public void testNonExistingRepo_86() {
+        Client client = client();
+        logger.info("-->  creating s3 repository with bucket[{}] and path [{}]", internalCluster().getInstance(Settings.class).get("repositories.s3.bucket"), basePath);
+        PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
+                .setType("s3").setSettings(ImmutableSettings.settingsBuilder()
+                                .put("base_path", basePath)
+                ).get();
+        assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+
+        logger.info("--> restore non existing snapshot");
+        try {
+            client.admin().cluster().prepareRestoreSnapshot("test-repo", "no-existing-snapshot").setWaitForCompletion(true).execute().actionGet();
+            fail("Shouldn't be here");
+        } catch (SnapshotMissingException ex) {
+            // Expected
+        }
+    }
+
+    /**
+     * For issue #86: https://github.com/elasticsearch/elasticsearch-cloud-aws/issues/86
+     */
+    @Test
+    public void testGetDeleteNonExistingSnapshot_86() {
+        ClusterAdminClient client = client().admin().cluster();
+        logger.info("-->  creating azure repository without any path");
+        PutRepositoryResponse putRepositoryResponse = client.preparePutRepository("test-repo").setType("azure")
+                .setType("s3").setSettings(ImmutableSettings.settingsBuilder()
+                                .put("base_path", basePath)
+                ).get();
+        assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+
+        try {
+            client.prepareGetSnapshots("test-repo").addSnapshots("no-existing-snapshot").get();
+            fail("Shouldn't be here");
+        } catch (SnapshotMissingException ex) {
+            // Expected
+        }
+
+        try {
+            client.prepareDeleteSnapshot("test-repo", "no-existing-snapshot").get();
+            fail("Shouldn't be here");
+        } catch (SnapshotMissingException ex) {
+            // Expected
+        }
+    }
+
+     private void assertRepositoryIsOperational(Client client, String repository) {
         createIndex("test-idx-1");
         ensureGreen();
 

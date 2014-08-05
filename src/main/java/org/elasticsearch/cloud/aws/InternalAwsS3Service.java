@@ -19,9 +19,6 @@
 
 package org.elasticsearch.cloud.aws;
 
-import java.util.HashMap;
-import java.util.Map;
-
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
 import com.amazonaws.auth.*;
@@ -35,6 +32,9 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  *
@@ -88,7 +88,7 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent<AwsS3Servic
         }
 
         ClientConfiguration clientConfiguration = new ClientConfiguration();
-        String protocol = componentSettings.get("protocol", "http").toLowerCase();
+        String protocol = componentSettings.get("protocol", "https").toLowerCase();
         protocol = componentSettings.get("s3.protocol", protocol).toLowerCase();
         if ("http".equals(protocol)) {
             clientConfiguration.setProtocol(Protocol.HTTP);

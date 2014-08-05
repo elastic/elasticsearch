@@ -1,0 +1,36 @@
+{
+    "benchmark.submit": {
+        "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/search-benchmark.html",
+        "methods": ["PUT"],
+        "url": {
+            "path": "/_bench/_submit",
+            "paths": [
+                "/_bench/_submit",
+                "/{index}/_bench/_submit",
+                "/{index}/{types}/_bench/_submit"
+            ],
+            "parts": {
+                "index": {
+                    "required": false,
+                    "type": "list",
+                    "description": "A comma-separated list of index names; use `_all` or empty string to perform the operation on all indices"
+                },
+                "types": {
+                    "required": false,
+                    "type": "list",
+                    "description": "A comma-separated list of document types"
+                }
+            },
+            "params": {
+                "verbose": {
+                    "type": "boolean",
+                    "description": "Specify whether to return verbose statistics about each iteration (default: false)"
+                }
+            }
+        },
+        "body": {
+            "description": "The search definition using the Query DSL",
+            "required": true
+        }
+    }
+}

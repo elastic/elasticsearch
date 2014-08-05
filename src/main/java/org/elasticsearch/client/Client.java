@@ -20,7 +20,11 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.action.*;
-import org.elasticsearch.action.bench.*;
+import org.elasticsearch.action.benchmark.abort.*;
+import org.elasticsearch.action.benchmark.pause.*;
+import org.elasticsearch.action.benchmark.resume.*;
+import org.elasticsearch.action.benchmark.start.*;
+import org.elasticsearch.action.benchmark.status.*;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -649,37 +653,72 @@ public interface Client extends ElasticsearchClient<Client>, Releasable {
     /**
      * Runs a benchmark on the server
      */
-    void bench(BenchmarkRequest request, ActionListener<BenchmarkResponse> listener);
+    void startBenchmark(BenchmarkStartRequest request, ActionListener<BenchmarkStartResponse> listener);
 
     /**
      * Runs a benchmark on the server
      */
-    ActionFuture<BenchmarkResponse> bench(BenchmarkRequest request);
+    ActionFuture<BenchmarkStartResponse> startBenchmark(BenchmarkStartRequest request);
 
     /**
      * Runs a benchmark on the server
      */
-    BenchmarkRequestBuilder prepareBench(String... indices);
+    BenchmarkStartRequestBuilder prepareStartBenchmark(String... indices);
 
     /**
      * Aborts a benchmark run on the server
      */
-    void abortBench(AbortBenchmarkRequest request, ActionListener<AbortBenchmarkResponse> listener);
+    void abortBench(BenchmarkAbortRequest request, ActionListener<BenchmarkAbortResponse> listener);
 
     /**
      * Aborts a benchmark run on the server
      */
-    AbortBenchmarkRequestBuilder prepareAbortBench(String... benchmarkNames);
+    BenchmarkAbortRequestBuilder prepareAbortBench(String... benchmarkIdPatterns);
 
     /**
      * Reports on status of actively running benchmarks
      */
-    void benchStatus(BenchmarkStatusRequest request, ActionListener<BenchmarkStatusResponse> listener);
+    void benchmarkStatus(BenchmarkStatusRequest request, ActionListener<BenchmarkStatusResponses> listener);
 
     /**
      * Reports on status of actively running benchmarks
      */
-    BenchmarkStatusRequestBuilder prepareBenchStatus();
+    ActionFuture<BenchmarkStatusResponses> benchmarkStatus(BenchmarkStatusRequest request);
+
+    /**
+     * Reports on status of actively running benchmarks
+     */
+    BenchmarkStatusRequestBuilder prepareBenchmarkStatus(String... benchmarkIdPatterns);
+
+    /**
+     * Resumes a paused benchmark
+     */
+    void resumeBenchmark(BenchmarkResumeRequest request, ActionListener<BenchmarkResumeResponse> listener);
+
+    /**
+     * Resumes a paused benchmark
+     */
+    ActionFuture<BenchmarkResumeResponse> resumeBenchmark(BenchmarkResumeRequest request);
+
+    /**
+     * Resumes a paused benchmark
+     */
+    BenchmarkResumeRequestBuilder prepareResumeBenchmark(String... benchmarkIdPatterns);
+
+    /**
+     * Pauses a running benchmark
+     */
+    void pauseBenchmark(BenchmarkPauseRequest request, ActionListener<BenchmarkPauseResponse> listener);
+
+    /**
+     * Pauses a running benchmark
+     */
+    ActionFuture<BenchmarkPauseResponse> pauseBenchmark(BenchmarkPauseRequest request);
+
+    /**
+     * Pauses a running benchmark
+     */
+    BenchmarkPauseRequestBuilder preparePauseBenchmark(String... benchmarkIdPatterns);
 
     /**
      * Returns this clients settings

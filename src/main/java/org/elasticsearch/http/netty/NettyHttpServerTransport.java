@@ -65,6 +65,13 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
         NettyUtils.setup();
     }
 
+    public static final String SETTING_CORS_ENABLED = "http.cors.enabled";
+    public static final String SETTING_CORS_ALLOW_ORIGIN = "http.cors.allow-origin";
+    public static final String SETTING_CORS_MAX_AGE = "http.cors.max-age";
+    public static final String SETTING_CORS_ALLOW_METHODS = "http.cors.allow-methods";
+    public static final String SETTING_CORS_ALLOW_HEADERS = "http.cors.allow-headers";
+    public static final String SETTING_CORS_ALLOW_CREDENTIALS = "http.cors.allow-credentials";
+
     private final NetworkService networkService;
     final BigArrays bigArrays;
 

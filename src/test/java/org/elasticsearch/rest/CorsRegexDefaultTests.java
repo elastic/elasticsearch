@@ -38,6 +38,7 @@ public class CorsRegexDefaultTests extends ElasticsearchIntegrationTest {
         assertThat(response.getStatusCode(), is(200));
         assertThat(response.getHeaders(), hasKey("Access-Control-Allow-Origin"));
         assertThat(response.getHeaders().get("Access-Control-Allow-Origin"), is("*"));
+        assertThat(response.getHeaders(), not(hasKey("Access-Control-Allow-Credentials")));
     }
 
     @Test
@@ -46,5 +47,6 @@ public class CorsRegexDefaultTests extends ElasticsearchIntegrationTest {
 
         assertThat(response.getStatusCode(), is(200));
         assertThat(response.getHeaders(), not(hasKey("Access-Control-Allow-Origin")));
+        assertThat(response.getHeaders(), not(hasKey("Access-Control-Allow-Credentials")));
     }
 }

@@ -44,6 +44,7 @@ public class InternalAuthenticationService extends AbstractComponent implements 
      *                                 request
      */
     @Override
+    @SuppressWarnings("unchecked")
     public User authenticate(String action, TransportMessage<?> message) throws AuthenticationException {
         for (Realm realm : realms) {
             AuthenticationToken token = realm.token(message);

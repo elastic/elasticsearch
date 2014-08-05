@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.os.OsUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
@@ -68,7 +69,7 @@ public class SslIntegrationTests extends ElasticsearchIntegrationTest {
             throw new RuntimeException(e);
         }
 
-        return ImmutableSettings.settingsBuilder()
+        ImmutableSettings.Builder builder = ImmutableSettings.settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("discovery.zen.ping.multicast.ping.enabled", false)
                 //
@@ -90,8 +91,12 @@ public class SslIntegrationTests extends ElasticsearchIntegrationTest {
                 .put("http.type", NettySSLHttpServerTransportModule.class.getName())
                 .put(TransportModule.TRANSPORT_TYPE_KEY, NettySSLTransportModule.class.getName())
                 .put("plugin.types", SecurityPlugin.class.getName())
-                .put("shield.n2n.file", ipFilterFile.getPath())
-                .build();
+                .put("shield.n2n.file", ipFilterFile.getPath());
+
+        if (OsUtils.MAC) {
+            builder.put("network.host", randomBoolean() ? "127.0.0.1" : "::1");
+        }
+        return builder.build();
     }
 
     @Test

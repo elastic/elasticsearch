@@ -5,160 +5,264 @@
  */
 package org.elasticsearch.shield.authz;
 
-import org.apache.lucene.util.automaton.Automaton;
-import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.base.Predicate;
+import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.shield.support.AutomatonPredicate;
+import org.elasticsearch.shield.support.Automatons;
 import org.elasticsearch.transport.TransportRequest;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Set;
 
 /**
+ * Represents a permission in the system. There are 3 types of permissions:
  *
+ * <ul>
+ *     <li>
+ *         Cluster -    a permission that is based on privileges for cluster wide actions
+ *     </li>
+ *     <li>
+ *         Indices -    a permission that is based on privileges for index related actions executed
+ *                      on specific indices
+ *     </li>
+ *     <li>
+ *         Global -     a composite permission that combines a both cluster & indices permissions
+ *     </li>
+ * </ul>
  */
-public abstract class Permission {
+public interface Permission {
 
-    public abstract boolean check(String action, TransportRequest request, MetaData metaData);
+    boolean check(String action, TransportRequest request, MetaData metaData);
 
-    public static Cluster cluster(Privilege.Cluster clusterPrivilege) {
-        return new Cluster(clusterPrivilege.predicate());
-    }
+    public static class Global implements Permission {
 
-    public static Index index(Privilege.Index indexPrivilege, String... indexNamePatterns) {
-        assert indexNamePatterns.length != 0 : "Index permissions must at least be defined on a single index";
+        private final Cluster cluster;
+        private final Indices indices;
 
-        Automaton indices = new RegExp(indexNamePatterns[0]).toAutomaton();
-        for (int i = 1; i < indexNamePatterns.length; i++) {
-            indices.union(new RegExp(indexNamePatterns[i]).toAutomaton());
-        }
-        return new Index(new AutomatonPredicate(indices), indexPrivilege.predicate());
-    }
-
-    public static Compound.Builder compound() {
-        return new Compound.Builder();
-    }
-
-    public static class Index extends Permission {
-
-        private final Predicate<String> indicesMatcher;
-        private final Predicate<String> actionMatcher;
-
-        private Index(Predicate<String> indicesMatcher, Predicate<String> actionMatcher) {
-            this.indicesMatcher = indicesMatcher;
-            this.actionMatcher = actionMatcher;
+        Global() {
+            this(null, null);
         }
 
-        @Override
+        Global(Cluster cluster, Indices indices) {
+            this.cluster = cluster;
+            this.indices = indices;
+        }
+
+        public Cluster cluster() {
+            return cluster;
+        }
+
+        public Indices indices() {
+            return indices;
+        }
+
         public boolean check(String action, TransportRequest request, MetaData metaData) {
-            if (!actionMatcher.apply(action)) {
+            if (cluster != null && cluster.check(action, request, metaData)) {
+                return true;
+            }
+            if (indices != null && indices.check(action, request, metaData)) {
+                return true;
+            }
+            return false;
+        }
+
+        public static Builder builder() {
+            return new Builder();
+        }
+
+        public static class Builder {
+
+            private Cluster cluster = Cluster.NONE;
+            private ImmutableList.Builder<Indices.Group> groups;
+
+            private Builder() {
+            }
+
+            public Builder set(Privilege.Cluster privilege) {
+                cluster = new Cluster(privilege);
+                return this;
+            }
+
+            public Builder add(Privilege.Index privilege, String... indices) {
+                if (groups == null) {
+                    groups = ImmutableList.builder();
+                }
+                groups.add(new Indices.Group(privilege, indices));
+                return this;
+            }
+
+            public Global build() {
+                Indices indices = groups != null ? new Indices(groups.build()) : Indices.NONE;
+                return new Global(cluster, indices);
+            }
+        }
+    }
+
+    public static class Cluster implements Permission {
+
+        public static final Cluster NONE = new Cluster(Privilege.Cluster.NONE) {
+            @Override
+            public boolean check(String action, TransportRequest request, MetaData metaData) {
                 return false;
             }
+        };
 
-            boolean isIndicesRequest = request instanceof CompositeIndicesRequest || request instanceof IndicesRequest;
+        private final Privilege.Cluster privilege;
+        private final Predicate<String> predicate;
 
-            assert isIndicesRequest : "the only requests passing the action matcher should be IndicesRequests";
+        private Cluster(Privilege.Cluster privilege) {
+            this.privilege = privilege;
+            this.predicate = privilege.predicate();
+        }
 
-            // if for some reason we are missing an action... just for safety we'll reject
-            if (!isIndicesRequest) {
+        public Privilege.Cluster privilege() {
+            return privilege;
+        }
+
+        @Override
+        public boolean check(String action, TransportRequest request, MetaData metaData) {
+            return predicate.apply(action);
+        }
+    }
+
+    public static class Indices implements Permission {
+
+        public static final Indices NONE = new Indices() {
+            @Override
+            public boolean check(String action, TransportRequest request, MetaData metaData) {
                 return false;
             }
+        };
 
-            Set<String> indices = Sets.newHashSet();
-            if (request instanceof CompositeIndicesRequest) {
-                CompositeIndicesRequest compositeIndicesRequest = (CompositeIndicesRequest) request;
-                for (IndicesRequest indicesRequest : compositeIndicesRequest.subRequests()) {
-                    Collections.addAll(indices, explodeWildcards(indicesRequest, metaData));
-                }
-            } else {
-                Collections.addAll(indices, explodeWildcards((IndicesRequest) request, metaData));
-            }
+        private Group[] groups;
 
-            for (String index : indices) {
-                if (!indicesMatcher.apply(index)) {
-                    return false;
-                }
-            }
-            return true;
+        public Indices(Collection<Group> groups) {
+            this(groups.toArray(new Group[groups.size()]));
         }
 
-        private String[] explodeWildcards(IndicesRequest indicesRequest, MetaData metaData) {
-            if (indicesRequest.indicesOptions().expandWildcardsOpen() || indicesRequest.indicesOptions().expandWildcardsClosed()) {
-                if (MetaData.isAllIndices(indicesRequest.indices())) {
-                    return new String[]{"_all"};
-
-                    /* the following is an alternative to requiring explicit privileges for _all, we just expand it, we could potentially extract
-                    this code fragment to a separate method in MetaData#concreteIndices in the open source and just use it here]
-
-                    if (indicesRequest.indicesOptions().expandWildcardsOpen() && indicesRequest.indicesOptions().expandWildcardsClosed()) {
-                        return metaData.concreteAllIndices();
-                    } else if (indicesRequest.indicesOptions().expandWildcardsOpen()) {
-                        return metaData.concreteAllOpenIndices();
-                    } else {
-                        return metaData.concreteAllClosedIndices();
-                    }*/
-
-                }
-                return metaData.convertFromWildcards(indicesRequest.indices(), indicesRequest.indicesOptions());
-            }
-            return indicesRequest.indices();
+        public Indices(Group... groups) {
+            this.groups = groups;
         }
-    }
 
-    public static class Cluster extends Permission {
+        public Group[] groups() {
+            return groups;
+        }
 
-        private final Predicate<String> actionMatcher;
+        /**
+         * @return  A predicate that will match all the indices that this permission
+         *          has the given privilege for.
+         */
+        public Predicate<String> allowedIndicesMatcher(Privilege.Index privilege) {
+            ImmutableList.Builder<String> indices = ImmutableList.builder();
+            for (Group group : groups) {
+                if (group.privilege.implies(privilege)) {
+                    indices.add(group.indices);
+                }
+            }
+            return new AutomatonPredicate(Automatons.patterns(indices.build()));
+        }
 
-        private Cluster(Predicate<String> actionMatcher) {
-            this.actionMatcher = actionMatcher;
+        /**
+         * @return  A predicate that will match all the indices that this permission
+         *          has the privilege for executing the given action on.
+         */
+        public Predicate<String> allowedIndicesMatcher(String action) {
+            ImmutableList.Builder<String> indices = ImmutableList.builder();
+            for (Group group : groups) {
+                if (group.actionMatcher.apply(action)) {
+                    indices.add(group.indices);
+                }
+            }
+            return new AutomatonPredicate(Automatons.patterns(indices.build()));
         }
 
         @Override
         public boolean check(String action, TransportRequest request, MetaData metaData) {
-            return actionMatcher.apply(action);
-        }
-    }
-
-    public static class Compound extends Permission {
-
-        private final Permission[] permissions;
-
-        private Compound(Permission... permissions) {
-            this.permissions = permissions;
-        }
-
-        @Override
-        public boolean check(String action, TransportRequest request, MetaData metaData) {
-            for (int i = 0; i < permissions.length; i++) {
-                if (permissions[i].check(action, request, metaData)) {
+            for (int i = 0; i < groups.length; i++) {
+                if (groups[i].check(action, request, metaData)) {
                     return true;
                 }
             }
             return false;
         }
 
-        public static class Builder {
+        public static class Group implements Permission {
 
-            private Permission[] permissions = null;
+            private final Privilege.Index privilege;
+            private final Predicate<String> actionMatcher;
+            private final String[] indices;
+            private final Predicate<String> indicesMatcher;
 
-            private Builder() {}
-
-            public void add(Permission... permissions) {
-                if (this.permissions == null) {
-                    this.permissions = permissions;
-                    return;
-                }
-                Permission[] extended = new Permission[this.permissions.length + permissions.length];
-                System.arraycopy(this.permissions, 0, extended, 0, this.permissions.length);
-                System.arraycopy(permissions, 0, extended, this.permissions.length, permissions.length);
+            public Group(Privilege.Index privilege, String... indices) {
+                assert indices.length != 0;
+                this.privilege = privilege;
+                this.actionMatcher = privilege.predicate();
+                this.indices = indices;
+                this.indicesMatcher = new AutomatonPredicate(Automatons.patterns(indices));
             }
 
-            public Compound build() {
-                return new Compound(permissions);
+            public Privilege.Index privilege() {
+                return privilege;
+            }
+
+            public String[] indices() {
+                return indices;
+            }
+
+            @Override
+            public boolean check(String action, TransportRequest request, MetaData metaData) {
+
+                if (!actionMatcher.apply(action)) {
+                    return false;
+                }
+
+                boolean isIndicesRequest = request instanceof CompositeIndicesRequest || request instanceof IndicesRequest;
+
+                assert isIndicesRequest : "the only requests passing the action matcher should be IndicesRequests";
+
+                // if for some reason we are missing an action... just for safety we'll reject
+                if (!isIndicesRequest) {
+                    return false;
+                }
+
+                Set<String> indices = Sets.newHashSet();
+                if (request instanceof CompositeIndicesRequest) {
+                    CompositeIndicesRequest compositeIndicesRequest = (CompositeIndicesRequest) request;
+                    for (IndicesRequest indicesRequest : compositeIndicesRequest.subRequests()) {
+                        Collections.addAll(indices, explodeWildcards(indicesRequest, metaData));
+                    }
+                } else {
+                    Collections.addAll(indices, explodeWildcards((IndicesRequest) request, metaData));
+                }
+
+                for (String index : indices) {
+                    if (!indicesMatcher.apply(index)) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+
+            private String[] explodeWildcards(IndicesRequest indicesRequest, MetaData metaData) {
+                if (indicesRequest.indicesOptions().expandWildcardsOpen() || indicesRequest.indicesOptions().expandWildcardsClosed()) {
+                    if (MetaData.isAllIndices(indicesRequest.indices())) {
+                        if (indicesRequest.indicesOptions().expandWildcardsOpen() && indicesRequest.indicesOptions().expandWildcardsClosed()) {
+                            return metaData.concreteAllIndices();
+                        }
+                        if (indicesRequest.indicesOptions().expandWildcardsOpen()) {
+                            return metaData.concreteAllOpenIndices();
+                        }
+                        return metaData.concreteAllClosedIndices();
+
+                    }
+                    return metaData.convertFromWildcards(indicesRequest.indices(), indicesRequest.indicesOptions());
+                }
+                return indicesRequest.indices();
             }
         }
     }

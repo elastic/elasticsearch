@@ -1,0 +1,13 @@
+role1:
+  cluster: ALL
+  indices:
+    'idx1,idx2': READ
+    idx3: crud
+
+role2:
+  cluster: ALL, MONITOR
+
+role3:
+  indices:
+    '.*_.*': READ, WRITE
+

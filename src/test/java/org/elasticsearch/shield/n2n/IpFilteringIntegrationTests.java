@@ -6,7 +6,10 @@
 package org.elasticsearch.shield.n2n;
 
 import com.google.common.base.Charsets;
+import com.google.common.collect.ImmutableTable;
 import com.google.common.net.InetAddresses;
+import org.elasticsearch.common.os.OsUtils;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -38,16 +41,21 @@ public class IpFilteringIntegrationTests extends ElasticsearchIntegrationTest {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return settingsBuilder()
+        ImmutableSettings.Builder builder = settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("discovery.zen.ping.multicast.ping.enabled", false)
                 .put("node.mode", "network")
-                //.put("network.host", "127.0.0.1")
+                // todo http tests fail without an explicit IP (needs investigation)
+                .put("network.host", randomBoolean() ? "127.0.0.1" : "::1")
                 .put("http.type", NettySSLHttpServerTransportModule.class.getName())
                 .put(TransportModule.TRANSPORT_TYPE_KEY, NettySSLTransportModule.class.getName())
-                .put("plugin.types", SecurityPlugin.class.getName())
+                .put("plugin.types", SecurityPlugin.class.getName());
                 //.put("shield.n2n.file", configFile.getPath())
-                .build();
+
+        if (OsUtils.MAC) {
+            builder.put("network.host", randomBoolean() ? "127.0.0.1" : "::1");
+        }
+        return builder.build();
     }
 
     @Test(expected = SocketException.class)

@@ -42,9 +42,15 @@ public class IndexedScriptDisabledTest extends ElasticsearchIntegrationTest {
 
     @Override
     public Settings nodeSettings(int nodeOrdinal) {
-        return settingsBuilder()
-                .put(ScriptService.DISABLE_INDEXED_SCRIPTING_SETTING, "true")
-                .build();
+        if (randomBoolean()) {
+            return settingsBuilder()
+                    .put(ScriptService.DISABLE_INDEXED_SCRIPTING_SETTING, "true")
+                    .build();
+        } else {
+            return settingsBuilder()
+                    .put(ScriptService.ENABLE_INDEXED_SCRIPTING_SETTING, "false")
+                    .build();
+        }
     }
 
     @Test(expected= ScriptException.class)

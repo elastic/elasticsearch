@@ -80,6 +80,8 @@ public class ScriptService extends AbstractComponent {
     public static final String DISABLE_DYNAMIC_SCRIPTING_SETTING = "script.disable_dynamic";
     public static final String DISABLE_INDEXED_SCRIPTING_SETTING = "script.disable_indexed";
 
+    public static final String ENABLE_DYNAMIC_SCRIPTING_SETTING = "script.enable_dynamic";
+    public static final String ENABLE_INDEXED_SCRIPTING_SETTING = "script.enable_indexed";
 
     public static final String DISABLE_DYNAMIC_SCRIPTING_DEFAULT = "sandbox";
     public static final String DISABLE_INDEXED_SCRIPTING_DEFAULT = "sandbox";
@@ -130,6 +132,26 @@ public class ScriptService extends AbstractComponent {
                     throw new ElasticsearchIllegalArgumentException("Unrecognized script allowance setting: [" + s + "]");
             }
         }
+
+        public static final DynamicScriptDisabling parseEnabled(String s) {
+            switch (s.toLowerCase(Locale.ROOT)) {
+                // true for "disable_dynamic" means only on-disk scripts are enabled
+                case "true":
+                case "all":
+                    return EVERYTHING_ALLOWED;
+                // false for "disable_dynamic" means all scripts are enabled
+                case "false":
+                case "none":
+                    return ONLY_DISK_ALLOWED;
+                // only sandboxed scripting is enabled
+                case "sandbox":
+                case "sandboxed":
+                    return SANDBOXED_ONLY;
+                default:
+                    throw new ElasticsearchIllegalArgumentException("Unrecognized script allowance setting: [" + s + "]");
+            }
+        }
+
     }
 
     enum IndexedScriptDisabling {
@@ -153,6 +175,24 @@ public class ScriptService extends AbstractComponent {
                     throw new ElasticsearchIllegalArgumentException("Unrecognized indexed script allowance setting: [" + s + "]");
             }
         }
+
+        public static final IndexedScriptDisabling parseEnabled(String s) {
+            switch (s.toLowerCase(Locale.ROOT)) {
+                // true for "disable_scripted" means non index scripting will be disabled
+                case "true":
+                case "all":
+                    return INDEXED_SCRIPTS_FULLY_ENABLED;
+                case "false":
+                case "none":
+                    return INDEXED_SCRIPTS_DISABLED;
+                case "sandbox":
+                case "sandboxed":
+                    return INDEXED_SCRIPTS_SANDBOXED_ONLY;
+                default:
+                    throw new ElasticsearchIllegalArgumentException("Unrecognized indexed script allowance setting: [" + s + "]");
+            }
+        }
+
     }
 
     public static final ParseField SCRIPT_LANG = new ParseField("lang","script_lang");
@@ -252,9 +292,18 @@ public class ScriptService extends AbstractComponent {
         logger.debug("using script cache with max_size [{}], expire [{}]", cacheMaxSize, cacheExpire);
 
         this.defaultLang = settings.get(DEFAULT_SCRIPTING_LANGUAGE_SETTING, "groovy");
-        this.dynamicScriptingDisabled = DynamicScriptDisabling.parse(settings.get(DISABLE_DYNAMIC_SCRIPTING_SETTING, DISABLE_DYNAMIC_SCRIPTING_DEFAULT));
-        this.indexedScriptDisabled = IndexedScriptDisabling.parse(settings.get(DISABLE_INDEXED_SCRIPTING_SETTING,
-                DISABLE_INDEXED_SCRIPTING_DEFAULT));
+        if (settings.names().contains(ENABLE_DYNAMIC_SCRIPTING_SETTING) ){
+            this.dynamicScriptingDisabled = DynamicScriptDisabling.parseEnabled(settings.get(ENABLE_DYNAMIC_SCRIPTING_SETTING, DISABLE_DYNAMIC_SCRIPTING_DEFAULT));
+        } else {
+            this.dynamicScriptingDisabled = DynamicScriptDisabling.parse(settings.get(DISABLE_DYNAMIC_SCRIPTING_SETTING, DISABLE_DYNAMIC_SCRIPTING_DEFAULT));
+        }
+        if (settings.names().contains(ENABLE_INDEXED_SCRIPTING_SETTING) ) {
+            this.indexedScriptDisabled = IndexedScriptDisabling.parseEnabled(settings.get(ENABLE_INDEXED_SCRIPTING_SETTING,
+                    DISABLE_INDEXED_SCRIPTING_DEFAULT));
+        } else {
+            this.indexedScriptDisabled = IndexedScriptDisabling.parse(settings.get(DISABLE_INDEXED_SCRIPTING_SETTING,
+                    DISABLE_INDEXED_SCRIPTING_DEFAULT));
+        }
 
 
         CacheBuilder cacheBuilder = CacheBuilder.newBuilder();

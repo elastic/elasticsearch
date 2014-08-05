@@ -24,7 +24,7 @@ import org.elasticsearch.common.settings.Settings;
 
 /**
  */
-public class S3SnapshotRestoreOverHttpsTest extends S3SnapshotRestoreAbstractTest {
+public class S3SnapshotRestoreOverHttpsTest extends AbstractS3SnapshotRestoreTest {
     @Override
     public Settings nodeSettings(int nodeOrdinal) {
         ImmutableSettings.Builder settings = ImmutableSettings.builder()

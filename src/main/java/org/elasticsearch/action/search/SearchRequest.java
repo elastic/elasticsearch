@@ -81,6 +81,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
 
     private BytesReference extraSource;
     private boolean extraSourceUnsafe;
+    private Boolean queryCache;
 
     private Scroll scroll;
 
@@ -493,6 +494,20 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
         return scroll(new Scroll(TimeValue.parseTimeValue(keepAlive, null)));
     }
 
+    /**
+     * Sets if this request should use the query cache or not, assuming that it can (for
+     * example, if "now" is used, it will never be cached). By default (not set, or null,
+     * will default to the index level setting if query cache is enabled or not).
+     */
+    public SearchRequest queryCache(Boolean queryCache) {
+        this.queryCache = queryCache;
+        return this;
+    }
+
+    public Boolean queryCache() {
+        return this.queryCache;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -532,6 +547,10 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
             if (in.readBoolean()) {
                 templateParams = (Map<String, String>) in.readGenericValue();
             }
+        }
+
+        if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
+            queryCache = in.readOptionalBoolean();
         }
     }
 
@@ -573,6 +592,10 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
             if (existTemplateParams) {
                 out.writeGenericValue(templateParams);
             }
+        }
+
+        if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
+            out.writeOptionalBoolean(queryCache);
         }
     }
 }

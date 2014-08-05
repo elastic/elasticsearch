@@ -58,7 +58,7 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         //Filter/Query cache is cleaned periodically, default is 60s, so make sure it runs often. Thread.sleep for 60s is bad
-        return  ImmutableSettings.settingsBuilder().put(super.nodeSettings(nodeOrdinal))
+        return ImmutableSettings.settingsBuilder().put(super.nodeSettings(nodeOrdinal))
                 .put("indices.cache.filter.clean_interval", "1ms")
                 .put(IndicesQueryCache.INDICES_CACHE_QUERY_CLEAN_INTERVAL, "1ms")
                 .build();
@@ -194,16 +194,35 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
         assertAcked(client().admin().indices().prepareCreate("idx").setSettings(IndicesQueryCache.INDEX_CACHE_QUERY_ENABLED, true).get());
         ensureGreen();
 
-        int numDocs = randomIntBetween(2, 100);
-        IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
-        for (int i = 0; i < numDocs; ++i) {
-            builders[i] = client().prepareIndex("idx", "type", Integer.toString(i)).setSource(jsonBuilder()
-                    .startObject()
-                    .field("common", "field")
-                    .field("str_value", "s" + i)
-                    .endObject());
+        // index docs until we have at least one doc on each shard, otherwise, our tests will not work
+        // since refresh will not refresh anything on a shard that has 0 docs and its search response get cached
+        int pageDocs = randomIntBetween(2, 100);
+        int numDocs = 0;
+        int counter = 0;
+        while (true) {
+            IndexRequestBuilder[] builders = new IndexRequestBuilder[pageDocs];
+            for (int i = 0; i < pageDocs; ++i) {
+                builders[i] = client().prepareIndex("idx", "type", Integer.toString(counter++)).setSource(jsonBuilder()
+                        .startObject()
+                        .field("common", "field")
+                        .field("str_value", "s" + i)
+                        .endObject());
+            }
+            indexRandom(true, builders);
+            numDocs += pageDocs;
+
+            boolean allHaveDocs = true;
+            for (ShardStats stats : client().admin().indices().prepareStats("idx").setDocs(true).get().getShards()) {
+                if (stats.getStats().getDocs().getCount() == 0) {
+                    allHaveDocs = false;
+                    break;
+                }
+            }
+
+            if (allHaveDocs) {
+                break;
+            }
         }
-        indexRandom(true, builders);
 
         assertThat(client().admin().indices().prepareStats("idx").setQueryCache(true).get().getTotal().getQueryCache().getMemorySizeInBytes(), equalTo(0l));
         for (int i = 0; i < 10; i++) {
@@ -212,7 +231,7 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
         }
 
         // index the data again...
-        builders = new IndexRequestBuilder[numDocs];
+        IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; ++i) {
             builders[i] = client().prepareIndex("idx", "type", Integer.toString(i)).setSource(jsonBuilder()
                     .startObject()
@@ -417,7 +436,7 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
         stats = client().admin().indices().prepareStats().setSegments(true).get();
 
         assertThat(stats.getTotal().getSegments(), notNullValue());
-        assertThat(stats.getTotal().getSegments().getCount(), equalTo((long)test1.totalNumShards));
+        assertThat(stats.getTotal().getSegments().getCount(), equalTo((long) test1.totalNumShards));
         assumeTrue(org.elasticsearch.Version.CURRENT.luceneVersion != Version.LUCENE_46);
         assertThat(stats.getTotal().getSegments().getMemoryInBytes(), greaterThan(0l));
     }
@@ -681,7 +700,7 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
 
         ensureGreen();
 
-        client().prepareIndex("test1", "bar", Integer.toString(1)).setSource("foo","bar").execute().actionGet();
+        client().prepareIndex("test1", "bar", Integer.toString(1)).setSource("foo", "bar").execute().actionGet();
         refresh();
 
         client().prepareSearch("_all").setStats("bar", "baz").execute().actionGet();
@@ -718,8 +737,8 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
 
         ensureGreen();
 
-        client().prepareIndex("test1", "bar", Integer.toString(1)).setSource("foo","bar").execute().actionGet();
-        client().prepareIndex("test2", "baz", Integer.toString(1)).setSource("foo","bar").execute().actionGet();
+        client().prepareIndex("test1", "bar", Integer.toString(1)).setSource("foo", "bar").execute().actionGet();
+        client().prepareIndex("test2", "baz", Integer.toString(1)).setSource("foo", "bar").execute().actionGet();
         refresh();
 
         IndicesStatsRequestBuilder builder = client().admin().indices().prepareStats();

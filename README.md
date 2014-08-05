@@ -11,7 +11,7 @@ bin/plugin -install elasticsearch/elasticsearch-cloud-gce/2.2.0
 
 You need to install a version matching your Elasticsearch version:
 
-|       Elasticsearch    | Azure Cloud Plugin|                                                             Docs                                                                   |
+|       Elasticsearch    | GCE Cloud Plugin  |                                                             Docs                                                                   |
 |------------------------|-------------------|------------------------------------------------------------------------------------------------------------------------------------|
 |    master              | Build from source | See below                                                                                                                          |
 |    es-1.3              | Build from source | [2.3.0-SNAPSHOT](https://github.com/elasticsearch/elasticsearch-cloud-gce/tree/es-1.3/#google-compute-engine-cloud-plugin-for-elasticsearch)|
@@ -24,7 +24,7 @@ To build a `SNAPSHOT` version, you need to build it with Maven:
 
 ```bash
 mvn clean install
-plugin --install cloud-azure \ 
+plugin --install cloud-gce \ 
        --url file:target/releases/elasticsearch-cloud-gce-X.X.X-SNAPSHOT.zip
 ```
 

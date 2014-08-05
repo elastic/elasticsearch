@@ -136,7 +136,7 @@ public class NoMasterNodeTests extends ElasticsearchIntegrationTest {
                 ClusterBlockException.class, RestStatus.SERVICE_UNAVAILABLE
         );
 
-        checkWriteAction(autoCreateIndex, timeout,
+        checkWriteAction(false, timeout,
                 client().prepareUpdate("test", "type1", "1").setScript("test script", ScriptService.ScriptType.INLINE).setTimeout(timeout));
 
 
@@ -144,7 +144,7 @@ public class NoMasterNodeTests extends ElasticsearchIntegrationTest {
                 client().prepareUpdate("no_index", "type1", "1").setScript("test script", ScriptService.ScriptType.INLINE).setTimeout(timeout));
 
 
-        checkWriteAction(autoCreateIndex, timeout,
+        checkWriteAction(false, timeout,
                 client().prepareIndex("test", "type1", "1").setSource(XContentFactory.jsonBuilder().startObject().endObject()).setTimeout(timeout));
 
         checkWriteAction(autoCreateIndex, timeout,
@@ -154,7 +154,7 @@ public class NoMasterNodeTests extends ElasticsearchIntegrationTest {
         bulkRequestBuilder.add(client().prepareIndex("test", "type1", "1").setSource(XContentFactory.jsonBuilder().startObject().endObject()));
         bulkRequestBuilder.add(client().prepareIndex("test", "type1", "2").setSource(XContentFactory.jsonBuilder().startObject().endObject()));
         bulkRequestBuilder.setTimeout(timeout);
-        checkBulkAction(autoCreateIndex, timeout, bulkRequestBuilder);
+        checkBulkAction(false, timeout, bulkRequestBuilder);
 
         bulkRequestBuilder = client().prepareBulk();
         bulkRequestBuilder.add(client().prepareIndex("no_index", "type1", "1").setSource(XContentFactory.jsonBuilder().startObject().endObject()));
@@ -193,9 +193,8 @@ public class NoMasterNodeTests extends ElasticsearchIntegrationTest {
             builder.get();
             fail("Expected ClusterBlockException");
         } catch (ClusterBlockException e) {
-            // today, we clear the metadata on when there is no master, so it will go through the auto create logic and
-            // add it... (if set to true), if we didn't remove the metedata when there is no master, then, the non
-            // retry in bulk should be taken into account
+            // If the index exists the bulk doesn't retry with a global block, if an index doesn't exist bulk api delegates
+            // to the create index api which does retry / wait on a global block.
             if (!autoCreateIndex) {
                 assertThat(System.currentTimeMillis() - now, lessThan(timeout.millis() / 2));
             } else {

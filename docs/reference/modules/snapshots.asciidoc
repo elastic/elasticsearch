@@ -85,8 +85,10 @@ point to the root of the shared filesystem repository. The following settings ar
 
 The following are common settings applicable for all repository types:
 
+[horizontal]
 `max_restore_bytes_per_sec`:: Throttles per node restore rate. Defaults to `20mb` per second.
 `max_snapshot_bytes_per_sec`:: Throttles per node snapshot rate. Defaults to `20mb` per second.
+
 
 [float]
 ===== Repository plugins

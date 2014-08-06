@@ -119,7 +119,7 @@ public class AnalyzingCompletionLookupProviderV1 extends CompletionLookupProvide
             public TermsConsumer addField(final FieldInfo field) throws IOException {
 
                 return new TermsConsumer() {
-                    final AnalyzingFSTBuilder builder = new AnalyzingFSTBuilder(maxSurfaceFormsPerAnalyzedForm, hasPayloads, PAYLOAD_SEP);
+                    final XAnalyzingSuggester.XBuilder builder = new XAnalyzingSuggester.XBuilder(maxSurfaceFormsPerAnalyzedForm, hasPayloads, PAYLOAD_SEP);
                     final CompletionPostingsConsumer postingsConsumer = new CompletionPostingsConsumer(AnalyzingCompletionLookupProviderV1.this, builder);
 
                     @Override
@@ -174,10 +174,10 @@ public class AnalyzingCompletionLookupProviderV1 extends CompletionLookupProvide
     private static final class CompletionPostingsConsumer extends PostingsConsumer {
         private final SuggestPayload spare = new SuggestPayload();
         private AnalyzingCompletionLookupProviderV1 analyzingSuggestLookupProvider;
-        private AnalyzingFSTBuilder builder;
+        private XAnalyzingSuggester.XBuilder builder;
         private int maxAnalyzedPathsForOneInput = 0;
 
-        public CompletionPostingsConsumer(AnalyzingCompletionLookupProviderV1 analyzingSuggestLookupProvider, AnalyzingFSTBuilder builder) {
+        public CompletionPostingsConsumer(AnalyzingCompletionLookupProviderV1 analyzingSuggestLookupProvider, XAnalyzingSuggester.XBuilder builder) {
             this.analyzingSuggestLookupProvider = analyzingSuggestLookupProvider;
             this.builder = builder;
         }

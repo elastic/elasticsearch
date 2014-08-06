@@ -112,7 +112,7 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
             public TermsConsumer addField(final FieldInfo field) throws IOException {
 
                 return new TermsConsumer() {
-                    final AnalyzingFSTBuilder builder = new AnalyzingFSTBuilder(maxSurfaceFormsPerAnalyzedForm, hasPayloads, XAnalyzingSuggester.PAYLOAD_SEP);
+                    final XAnalyzingSuggester.XBuilder builder = new XAnalyzingSuggester.XBuilder(maxSurfaceFormsPerAnalyzedForm, hasPayloads, XAnalyzingSuggester.PAYLOAD_SEP);
                     final CompletionPostingsConsumer postingsConsumer = new CompletionPostingsConsumer(AnalyzingCompletionLookupProvider.this, builder);
 
                     @Override
@@ -171,10 +171,10 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
     private static final class CompletionPostingsConsumer extends PostingsConsumer {
         private final SuggestPayload spare = new SuggestPayload();
         private AnalyzingCompletionLookupProvider analyzingSuggestLookupProvider;
-        private AnalyzingFSTBuilder builder;
+        private XAnalyzingSuggester.XBuilder builder;
         private int maxAnalyzedPathsForOneInput = 0;
 
-        public CompletionPostingsConsumer(AnalyzingCompletionLookupProvider analyzingSuggestLookupProvider, AnalyzingFSTBuilder builder) {
+        public CompletionPostingsConsumer(AnalyzingCompletionLookupProvider analyzingSuggestLookupProvider, XAnalyzingSuggester.XBuilder builder) {
             this.analyzingSuggestLookupProvider = analyzingSuggestLookupProvider;
             this.builder = builder;
         }
@@ -187,9 +187,9 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
         @Override
         public void addPosition(int position, BytesRef payload, int startOffset, int endOffset) throws IOException {
             analyzingSuggestLookupProvider.parsePayload(payload, spare);
-            builder.addSurface(spare.surfaceForm, spare.payload, spare.weight);
+            int count = builder.addSurface(spare.surfaceForm, spare.payload, spare.weight);
             // multi fields have the same surface form so we sum up here
-            maxAnalyzedPathsForOneInput = Math.max(maxAnalyzedPathsForOneInput, position + 1);
+            maxAnalyzedPathsForOneInput = Math.max(maxAnalyzedPathsForOneInput, count);
         }
 
         @Override

@@ -123,19 +123,34 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
 
         refresh();
 
+        // sanity check
         assertSuggestionsNotInOrder("f", "Foo Fighters", "Firestarter", "Foo Fighters Generator", "Foo Fighters Learn to Fly");
         assertSuggestionsNotInOrder("t", "The Prodigy", "Turbonegro", "Turbonegro Get it on", "The Prodigy Firestarter");
 
-
+        // delete a single unique suggestion
         DeleteByQueryRequestBuilder deleteByQueryRequestBuilder = client().prepareDeleteByQuery();
         deleteByQueryRequestBuilder.setQuery(QueryBuilders.idsQuery(TYPE).addIds("4")); // delete Foo Fighters Generator
         DeleteByQueryResponse actionGet = deleteByQueryRequestBuilder.execute().actionGet();
         assertThat(actionGet.status(), equalTo(RestStatus.OK));
-
         refresh();
-        //assertSuggestionsNotInOrder("f", "Foo Fighters", "Firestarter", "Foo Fighters Generator", "Foo Fighters Learn to Fly");
-        //assertSuggestionsNotInOrder("t", "The Prodigy", "Turbonegro", "Turbonegro Get it on", "The Prodigy Firestarter");
         assertSuggestionsNotInOrder("f", "Foo Fighters", "Firestarter", "Foo Fighters Learn to Fly");
+
+        // delete multiple copies of same surface form (except 1)
+        deleteByQueryRequestBuilder = client().prepareDeleteByQuery();
+        deleteByQueryRequestBuilder.setQuery(QueryBuilders.idsQuery(TYPE).addIds("0", "1", "3")); // delete Foo Fighters (1st, 2nd & 4th)
+        actionGet = deleteByQueryRequestBuilder.execute().actionGet();
+        assertThat(actionGet.status(), equalTo(RestStatus.OK));
+        refresh();
+        assertSuggestionsNotInOrder("f", "Foo Fighters", "Firestarter", "Foo Fighters Learn to Fly");
+
+        // delete multiple copies of same surface form
+        deleteByQueryRequestBuilder = client().prepareDeleteByQuery();
+        deleteByQueryRequestBuilder.setQuery(QueryBuilders.idsQuery(TYPE).addIds("2")); // delete Foo Fighters (3rd)
+        actionGet = deleteByQueryRequestBuilder.execute().actionGet();
+        assertThat(actionGet.status(), equalTo(RestStatus.OK));
+        refresh();
+        assertSuggestionsNotInOrder("f", "Firestarter", "Foo Fighters Learn to Fly");
+
 
     }
     @Test

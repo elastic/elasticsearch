@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.suggest.completion;
 
-import com.carrotsearch.randomizedtesting.annotations.Seed;
 import com.google.common.collect.Lists;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.codecs.*;
@@ -27,7 +26,6 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.index.*;
 import org.apache.lucene.index.FieldInfo.DocValuesType;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.suggest.InputIterator;
 import org.apache.lucene.search.suggest.Lookup;
 import org.apache.lucene.search.suggest.Lookup.LookupResult;
@@ -51,7 +49,6 @@ import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.lang.reflect.Field;
 import java.util.*;
 
 import static org.hamcrest.Matchers.*;
@@ -256,6 +253,8 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
 
         Map<String, Integer> deletedTerms = new HashMap<>(1);
         deletedTerms.put(prefixStr + suffix, num);
+
+        // suggest for the same prefix n times, deleting one copy each time
         for (int i = 0; i < num; i++) {
             int res = between(1, num);
             IndexReader reader = completionProvider.getReader();
@@ -278,6 +277,7 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
                 deletedTerms.put(key, --counter);
             }
         }
+        assertThat(deletedTerms.get(prefixStr+suffix), equalTo(0));
         completionProvider.close();
     }
 

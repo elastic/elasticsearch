@@ -346,6 +346,27 @@ public class LatLonMappingGeoPointTests extends ElasticsearchSingleNodeTest {
     }
 
     @Test
+    public void testLonLatArrayDynamic() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startArray("dynamic_templates").startObject()
+                .startObject("point").field("match", "point*").startObject("mapping").field("type", "geo_point").field("lat_lon", true).endObject().endObject()
+                .endObject().endArray()
+                .endObject().endObject().string();
+
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+
+        ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                .startArray("point").value(1.3).value(1.2).endArray()
+                .endObject()
+                .bytes());
+
+        assertThat(doc.rootDoc().getField("point.lat"), notNullValue());
+        assertThat(doc.rootDoc().getField("point.lon"), notNullValue());
+        assertThat(doc.rootDoc().get("point"), equalTo("1.2,1.3"));
+    }
+
+    @Test
     public void testLonLatArrayStored() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).field("store", "yes").endObject().endObject()

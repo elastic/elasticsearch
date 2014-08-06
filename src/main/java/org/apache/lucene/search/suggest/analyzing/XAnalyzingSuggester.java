@@ -645,7 +645,7 @@ public class XAnalyzingSuggester extends Lookup {
   }
 
   private LookupResult getLookupResult(Long output1, BytesRef output2, CharsRef spare) {
-    PayLoadProcessor.PayloadMetaData metaData = PayLoadProcessor.parse(output2, hasPayloads, payloadSep, spare);
+    XPayLoadProcessor.PayloadMetaData metaData = XPayLoadProcessor.parse(output2, hasPayloads, payloadSep, spare);
     LookupResult result = new LookupResult(spare.toString(), decodeWeight(output1), metaData.payload);
     return result;
   }
@@ -786,7 +786,7 @@ public class XAnalyzingSuggester extends Lookup {
         @Override
         protected boolean acceptResult(IntsRef input, Pair<Long,BytesRef> output) {
 
-          PayLoadProcessor.PayloadMetaData metaData = PayLoadProcessor.parse(output.output2, hasPayloads, payloadSep, spare);
+          XPayLoadProcessor.PayloadMetaData metaData = XPayLoadProcessor.parse(output.output2, hasPayloads, payloadSep, spare);
           if (liveDocs != null && metaData.hasDocID()) {
             if (!liveDocs.get(metaData.docID)) {
               return false;
@@ -957,177 +957,168 @@ public class XAnalyzingSuggester extends Lookup {
   /**
    * Helper to encode/decode payload with surface + PAYLOAD_SEP + payload + PAYLOAD_SEP + docID
    */
-  static final class PayLoadProcessor {
-    static class PayloadMetaData {
-      BytesRef payload;
-      BytesRef surfaceForm;
-      int docID = -1;
+  static final class XPayLoadProcessor {
+      static class PayloadMetaData {
+          BytesRef payload;
+          BytesRef surfaceForm;
+          int docID = -1;
 
-      PayloadMetaData(BytesRef surfaceForm, BytesRef payload, int docID) {
-        this.payload = payload;
-        this.surfaceForm = surfaceForm;
-        this.docID = docID;
-      }
-
-      public boolean hasDocID() {
-        return docID != -1;
-      }
-    }
-
-    static PayloadMetaData parse(final BytesRef output, final boolean hasPayloads, final int payloadSep, CharsRef spare) {
-      BytesRef payload = null;
-      BytesRef surfaceForm;
-      int docID = -1;
-
-      boolean docIDExists = false;
-      if (hasPayloads) {
-        int sepIndex = -1;
-        for (int i = 0; i < output.length; i++) {
-          if (output.bytes[output.offset + i] == payloadSep) {
-            sepIndex = i;
-            break;
+          PayloadMetaData(BytesRef surfaceForm, BytesRef payload, int docID) {
+              this.payload = payload;
+              this.surfaceForm = surfaceForm;
+              this.docID = docID;
           }
-        }
-        assert sepIndex != -1;
-        spare.grow(sepIndex);
-        if (output.length - 5 > 0 && sepIndex < (output.length - 5)) {
-          docIDExists = output.bytes[output.length - 5] == payloadSep;
-        }
-        final int payloadLen = output.length - sepIndex - 1 - (docIDExists ? 5 : 0);
-        UnicodeUtil.UTF8toUTF16(output.bytes, output.offset, sepIndex, spare);
-        payload = new BytesRef(payloadLen);
-        System.arraycopy(output.bytes, sepIndex+1, payload.bytes, 0, payloadLen);
-        payload.length = payloadLen;
-        surfaceForm = new BytesRef(spare);
-      } else {
-        if (output.length - 5 >= 0) {
-          docIDExists = output.bytes[output.length - 5] == payloadSep;
-        }
-        int len = output.length - (docIDExists ? 5 : 0);
-        spare.grow(len);
-        UnicodeUtil.UTF8toUTF16(output.bytes, output.offset, len, spare);
-        surfaceForm = new BytesRef(spare);
+
+          public boolean hasDocID() {
+              return docID != -1;
+          }
       }
 
-      if (docIDExists) {
-        ByteArrayDataInput input = new ByteArrayDataInput(output.bytes, output.length - 4, 4);
-        docID = input.readInt();
+      static PayloadMetaData parse(final BytesRef output, final boolean hasPayloads, final int payloadSep, CharsRef spare) {
+          BytesRef payload = null;
+          BytesRef surfaceForm;
+          int docID = -1;
+
+          boolean docIDExists = false;
+          if (hasPayloads) {
+              int sepIndex = -1;
+              for (int i = 0; i < output.length; i++) {
+                  if (output.bytes[output.offset + i] == payloadSep) {
+                      sepIndex = i;
+                      break;
+                  }
+              }
+              assert sepIndex != -1;
+              spare.grow(sepIndex);
+              if (output.length - 5 > 0 && sepIndex < (output.length - 5)) {
+                  docIDExists = output.bytes[output.length - 5] == payloadSep;
+              }
+              final int payloadLen = output.length - sepIndex - 1 - (docIDExists ? 5 : 0);
+              UnicodeUtil.UTF8toUTF16(output.bytes, output.offset, sepIndex, spare);
+              payload = new BytesRef(payloadLen);
+              System.arraycopy(output.bytes, sepIndex + 1, payload.bytes, 0, payloadLen);
+              payload.length = payloadLen;
+              surfaceForm = new BytesRef(spare);
+          } else {
+              if (output.length - 5 >= 0) {
+                  docIDExists = output.bytes[output.length - 5] == payloadSep;
+              }
+              int len = output.length - (docIDExists ? 5 : 0);
+              spare.grow(len);
+              UnicodeUtil.UTF8toUTF16(output.bytes, output.offset, len, spare);
+              surfaceForm = new BytesRef(spare);
+          }
+
+          if (docIDExists) {
+              ByteArrayDataInput input = new ByteArrayDataInput(output.bytes, output.length - 4, 4);
+              docID = input.readInt();
+          }
+          return new PayloadMetaData(surfaceForm, payload, docID);
       }
-      return new PayloadMetaData(surfaceForm, payload, docID);
-    }
 
-    static BytesRef make(BytesRef surface, final BytesRef payload, final int docID, final int payloadSep, final boolean hasPayloads) throws IOException {
-      int len = surface.length + ((hasPayloads) ? 1 + payload.length : 0) + (1 + 4);
-      byte[] buffer = new byte[len];
-      ByteArrayDataOutput output = new ByteArrayDataOutput(buffer);
-      output.writeBytes(surface.bytes, surface.length - surface.offset);
-      if (hasPayloads) {
-        output.writeByte((byte) payloadSep);
-        output.writeBytes(payload.bytes, payload.length - payload.offset);
+      static BytesRef make(BytesRef surface, final BytesRef payload, final int docID, final int payloadSep, final boolean hasPayloads) throws IOException {
+          int len = surface.length + ((hasPayloads) ? 1 + payload.length : 0) + (1 + 4);
+          byte[] buffer = new byte[len];
+          ByteArrayDataOutput output = new ByteArrayDataOutput(buffer);
+          output.writeBytes(surface.bytes, surface.length - surface.offset);
+          if (hasPayloads) {
+              output.writeByte((byte) payloadSep);
+              output.writeBytes(payload.bytes, payload.length - payload.offset);
+          }
+          output.writeByte((byte) payloadSep);
+          output.writeInt(docID);
+
+          return new BytesRef(buffer, 0, len);
       }
-      output.writeByte((byte) payloadSep);
-      output.writeInt(docID);
-
-      return new BytesRef(buffer, 0, len);
-    }
-
   }
 
   public static class XBuilder {
-    private Builder<Pair<Long, BytesRef>> builder;
-    private int maxSurfaceFormsPerAnalyzedForm;
-    private IntsRef scratchInts = new IntsRef();
-    private final PairOutputs<Long, BytesRef> outputs;
-    private boolean hasPayloads;
-    private BytesRef analyzed = new BytesRef();
-    private final SurfaceFormAndPayload[] surfaceFormsAndPayload;
-    private int count;
-    private int payloadSep;
-    private int docID;
+      private Builder<Pair<Long, BytesRef>> builder;
+      private int maxSurfaceFormsPerAnalyzedForm;
+      private IntsRef scratchInts = new IntsRef();
+      private final PairOutputs<Long, BytesRef> outputs;
+      private boolean hasPayloads;
+      private BytesRef analyzed = new BytesRef();
+      private final SurfaceFormAndPayload[] surfaceFormsAndPayload;
+      private int count;
+      private int payloadSep;
+      private int docID;
 
-    public XBuilder(int maxSurfaceFormsPerAnalyzedForm, boolean hasPayloads, int payloadSep) {
-      this.payloadSep = payloadSep;
-      this.outputs = new PairOutputs<>(PositiveIntOutputs.getSingleton(), ByteSequenceOutputs.getSingleton());
-      this.builder = new Builder<>(FST.INPUT_TYPE.BYTE1, outputs);
-      this.maxSurfaceFormsPerAnalyzedForm = maxSurfaceFormsPerAnalyzedForm;
-      this.hasPayloads = hasPayloads;
-      surfaceFormsAndPayload = new SurfaceFormAndPayload[maxSurfaceFormsPerAnalyzedForm];
-    }
+      public XBuilder(int maxSurfaceFormsPerAnalyzedForm, boolean hasPayloads, int payloadSep) {
+          this.payloadSep = payloadSep;
+          this.outputs = new PairOutputs<>(PositiveIntOutputs.getSingleton(), ByteSequenceOutputs.getSingleton());
+          this.builder = new Builder<>(FST.INPUT_TYPE.BYTE1, outputs);
+          this.maxSurfaceFormsPerAnalyzedForm = maxSurfaceFormsPerAnalyzedForm;
+          this.hasPayloads = hasPayloads;
+          surfaceFormsAndPayload = new SurfaceFormAndPayload[maxSurfaceFormsPerAnalyzedForm];
+      }
 
-    public void startTerm(BytesRef analyzed) {
-      this.analyzed.copyBytes(analyzed);
-      this.analyzed.grow(analyzed.length + 2);
-    }
+      public void startTerm(BytesRef analyzed) {
+          this.analyzed.copyBytes(analyzed);
+          this.analyzed.grow(analyzed.length + 2);
+      }
 
-    public void setDocID(final int docID) {
-      this.docID = docID;
-    }
-
-    private final static class SurfaceFormAndPayload implements Comparable<SurfaceFormAndPayload> {
-        int docID;
-        BytesRef payload;
-        long weight;
-
-        public SurfaceFormAndPayload(int docID, BytesRef payload, long cost) {
-          super();
+      public void setDocID(final int docID) {
           this.docID = docID;
-          this.payload = payload;
-          this.weight = cost;
-        }
+      }
 
-        @Override
-        public int compareTo(SurfaceFormAndPayload o) {
-          int res = compare(weight, o.weight);
-          if (res == 0) {
-            return payload.compareTo(o.payload);
+      private final static class SurfaceFormAndPayload implements Comparable<SurfaceFormAndPayload> {
+          int docID;
+          BytesRef payload;
+          long weight;
+
+          public SurfaceFormAndPayload(int docID, BytesRef payload, long cost) {
+              super();
+              this.docID = docID;
+              this.payload = payload;
+              this.weight = cost;
           }
-          return res;
-        }
 
-        public static int compare(long x, long y) {
-          return (x < y) ? -1 : ((x == y) ? 0 : 1);
-        }
-    }
+          @Override
+          public int compareTo(SurfaceFormAndPayload o) {
+              int res = compare(weight, o.weight);
+              if (res == 0) {
+                  return payload.compareTo(o.payload);
+              }
+              return res;
+          }
 
-    public int addSurface(BytesRef surface, BytesRef payload, long cost) throws IOException {
-        int surfaceIndex = -1;
-        long encodedWeight = cost == -1 ? cost : encodeWeight(cost);
-        if (count >= maxSurfaceFormsPerAnalyzedForm) {
-          // More than maxSurfaceFormsPerAnalyzedForm
-          // dups: skip the rest:
+          public static int compare(long x, long y) {
+              return (x < y) ? -1 : ((x == y) ? 0 : 1);
+          }
+      }
+
+      public int addSurface(BytesRef surface, BytesRef payload, long cost) throws IOException {
+          int surfaceIndex = -1;
+          long encodedWeight = cost == -1 ? cost : encodeWeight(cost);
+          if (count >= maxSurfaceFormsPerAnalyzedForm) {
+              // More than maxSurfaceFormsPerAnalyzedForm
+              // dups: skip the rest:
+              return count;
+          }
+          surfaceIndex = count++;
+          BytesRef payloadRef = XPayLoadProcessor.make(surface, payload, docID, payloadSep, hasPayloads);
+          surfaceFormsAndPayload[surfaceIndex] = new SurfaceFormAndPayload(this.docID, payloadRef, encodedWeight);
           return count;
-        }
-        surfaceIndex = count++;
-        BytesRef payloadRef = PayLoadProcessor.make(surface, payload, docID, payloadSep, hasPayloads);
-        surfaceFormsAndPayload[surfaceIndex] = new SurfaceFormAndPayload(this.docID, payloadRef, encodedWeight);
-        return count;
-    }
+      }
 
-    public void finishTerm(long defaultWeight) throws IOException {
-        ArrayUtil.timSort(surfaceFormsAndPayload, 0, count);
-        int deduplicator = 0;
-        analyzed.bytes[analyzed.offset + analyzed.length] = END_BYTE;
-        analyzed.length += 2;
-        for (int i = 0; i < count; i++) {
-          analyzed.bytes[analyzed.offset + analyzed.length - 1] = (byte) deduplicator++;
-          Util.toIntsRef(analyzed, scratchInts);
-          SurfaceFormAndPayload candidate = surfaceFormsAndPayload[i];
-          long cost = candidate.weight == -1 ? encodeWeight(Math.min(Integer.MAX_VALUE, defaultWeight)) : candidate.weight;
-          builder.add(scratchInts, outputs.newPair(cost, candidate.payload));
-        }
-        count = 0;
-    }
+      public void finishTerm(long defaultWeight) throws IOException {
+          ArrayUtil.timSort(surfaceFormsAndPayload, 0, count);
+          int deduplicator = 0;
+          analyzed.bytes[analyzed.offset + analyzed.length] = END_BYTE;
+          analyzed.length += 2;
+          for (int i = 0; i < count; i++) {
+              analyzed.bytes[analyzed.offset + analyzed.length - 1] = (byte) deduplicator++;
+              Util.toIntsRef(analyzed, scratchInts);
+              SurfaceFormAndPayload candidate = surfaceFormsAndPayload[i];
+              long cost = candidate.weight == -1 ? encodeWeight(Math.min(Integer.MAX_VALUE, defaultWeight)) : candidate.weight;
+              builder.add(scratchInts, outputs.newPair(cost, candidate.payload));
+          }
+          count = 0;
+      }
 
-    public FST<Pair<Long, BytesRef>> build() throws IOException {
-      return builder.finish();
-    }
-
-    public boolean hasPayloads() {
-      return hasPayloads;
-    }
-
-    public int maxSurfaceFormsPerAnalyzedForm() {
-      return maxSurfaceFormsPerAnalyzedForm;
-    }
+      public FST<Pair<Long, BytesRef>> build() throws IOException {
+          return builder.finish();
+      }
   }
 }

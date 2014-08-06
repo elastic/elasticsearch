@@ -537,6 +537,10 @@ public class MetaDataMappingService extends AbstractComponent {
                         // do the actual merge here on the master, and update the mapping source
                         DocumentMapper newMapper = entry.getValue();
                         IndexService indexService = indicesService.indexService(index);
+                        if (indexService == null) {
+                            continue;
+                        }
+
                         CompressedString existingSource = null;
                         if (existingMappers.containsKey(entry.getKey())) {
                             existingSource = existingMappers.get(entry.getKey()).mappingSource();

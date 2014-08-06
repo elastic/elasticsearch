@@ -19,13 +19,12 @@
 
 package org.elasticsearch.indices;
 
+import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.service.IndexService;
-
-import java.util.Set;
 
 /**
  *
@@ -50,10 +49,24 @@ public interface IndicesService extends Iterable<IndexService>, LifecycleCompone
 
     IndicesLifecycle indicesLifecycle();
 
-    Set<String> indices();
+    /**
+     * Returns a snapshot of the started indices and the associated {@link IndexService} instances.
+     *
+     * The map being returned is not a live view and subsequent calls can return a different view.
+     */
+    ImmutableMap<String, IndexService> indices();
 
+    /**
+     * Returns an IndexService for the specified index if exists otherwise returns <code>null</code>.
+     *
+     * Even if the index name appeared in {@link #indices()} <code>null</code> can still be returned as an
+     * index maybe removed in the meantime, so preferable use the associated {@link IndexService} in order to prevent NPE.
+     */
     IndexService indexService(String index);
 
+    /**
+     * Returns an IndexService for the specified index if exists otherwise a {@link IndexMissingException} is thrown.
+     */
     IndexService indexServiceSafe(String index) throws IndexMissingException;
 
     IndexService createIndex(String index, Settings settings, String localNodeId) throws ElasticsearchException;

@@ -19,9 +19,7 @@
 
 package org.elasticsearch.bwcompat;
 
-import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
@@ -36,7 +34,7 @@ public class UnicastBackwardsCompatibilityTest extends ElasticsearchBackwardsCom
         return ImmutableSettings.builder()
                 .put("transport.tcp.port", 9380 + nodeOrdinal)
                 .put("discovery.zen.ping.multicast.enabled", false)
-                .put("discovery.zen.ping.unicast.hosts", "localhost:9390")
+                .put("discovery.zen.ping.unicast.hosts", "localhost:9390,localhost:9391")
                 .put(super.nodeSettings(nodeOrdinal))
                 .build();
     }
@@ -44,29 +42,16 @@ public class UnicastBackwardsCompatibilityTest extends ElasticsearchBackwardsCom
     @Override
     protected Settings externalNodeSettings(int nodeOrdinal) {
         return ImmutableSettings.settingsBuilder()
-                .put("discovery.zen.ping.multicast.enabled", false)
                 .put("transport.tcp.port", 9390 + nodeOrdinal)
-                .put("discovery.zen.ping.unicast.hosts", "localhost:9380")
+                .put("discovery.zen.ping.multicast.enabled", false)
+                .put("discovery.zen.ping.unicast.hosts", "localhost:9380,localhost:9381")
                 .put(super.nodeSettings(nodeOrdinal))
                 .build();
     }
 
     @Test
     public void testUnicastDiscovery() throws Exception {
-        for (final Client client : clients()) {
-            assertBusy(new Runnable() {
-                           @Override
-                           public void run() {
-                               ClusterState state = client.admin().cluster().prepareState().setLocal(true).get().getState();
-                               int dataNodes = 0;
-                               for (DiscoveryNode discoveryNode : state.nodes()) {
-                                   if (discoveryNode.isDataNode()) {
-                                       dataNodes++;
-                                   }
-                               }
-                               assertThat(dataNodes, equalTo(cluster().numDataNodes()));
-                           }
-                       });
-        }
+        ClusterHealthResponse healthResponse = client().admin().cluster().prepareHealth().get();
+        assertThat(healthResponse.getNumberOfDataNodes(), equalTo(cluster().numDataNodes()));
     }
 }

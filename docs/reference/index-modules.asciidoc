@@ -72,6 +72,8 @@ include::index-modules/translog.asciidoc[]
 
 include::index-modules/cache.asciidoc[]
 
+include::index-modules/query-cache.asciidoc[]
+
 include::index-modules/fielddata.asciidoc[]
 
 include::index-modules/codec.asciidoc[]

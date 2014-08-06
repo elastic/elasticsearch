@@ -68,7 +68,7 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTests {
                 ((TransportResponseHandler<NodesInfoResponse>) handler).handleResponse(new NodesInfoResponse(ClusterName.DEFAULT, new NodeInfo[0]));
                 return;
             }
-            handler.handleException(new TransportException("", new InternalException(action, request.getHeaders())));
+            handler.handleException(new TransportException("", new InternalException(action, request)));
         }
 
         @Override

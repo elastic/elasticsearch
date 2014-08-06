@@ -69,9 +69,6 @@ on all data and master nodes. The following settings are supported:
 `compress`:: Turns on compression of the snapshot files. Defaults to `true`.
 `chunk_size`:: Big files can be broken down into chunks during snapshotting if needed. The chunk size can be specified in bytes or by
  using size value notation, i.e. 1g, 10m, 5k. Defaults to `null` (unlimited chunk size).
-`max_restore_bytes_per_sec`:: Throttles per node restore rate. Defaults to `20mb` per second.
-`max_snapshot_bytes_per_sec`:: Throttles per node snapshot rate. Defaults to `20mb` per second.
-
 
 [float]
 ===== Read-only URL Repository
@@ -82,6 +79,14 @@ point to the root of the shared filesystem repository. The following settings ar
 
 [horizontal]
 `url`:: Location of the snapshots. Mandatory.
+
+[float]
+===== Common Repository Settings
+
+The following are common settings applicable for all repository types:
+
+`max_restore_bytes_per_sec`:: Throttles per node restore rate. Defaults to `20mb` per second.
+`max_snapshot_bytes_per_sec`:: Throttles per node snapshot rate. Defaults to `20mb` per second.
 
 [float]
 ===== Repository plugins

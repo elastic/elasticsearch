@@ -84,7 +84,7 @@ public class NodeClientHeadersTests extends AbstractClientHeadersTests {
 
         @Override
         protected void doExecute(ActionRequest request, ActionListener listener) {
-            listener.onFailure(new InternalException(actionName, request.getHeaders()));
+            listener.onFailure(new InternalException(actionName, request));
         }
     }
 

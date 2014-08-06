@@ -55,6 +55,8 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.engine.DocumentAlreadyExistsException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -284,7 +286,11 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
             case NONE:
                 UpdateResponse update = result.action();
                 listener.onResponse(update);
-                indicesService.indexService(request.index()).shard(request.shardId()).indexingService().noopUpdate(request.type());
+                IndexService indexService = indicesService.indexService(request.index());
+                if (indexService !=  null) {
+                    IndexShard indexShard = indexService.shard(request.shardId());
+                    indexShard.indexingService().noopUpdate(request.type());
+                }
                 break;
             default:
                 throw new ElasticsearchIllegalStateException("Illegal operation " + result.operation());

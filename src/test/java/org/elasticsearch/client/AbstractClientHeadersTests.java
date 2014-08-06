@@ -53,10 +53,12 @@ import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.transport.TransportMessage;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.*;
@@ -135,9 +137,12 @@ public abstract class AbstractClientHeadersTests extends ElasticsearchTestCase {
         private final String action;
         private final Map<String, Object> headers;
 
-        public InternalException(String action, Map<String, Object> headers) {
+        public InternalException(String action, TransportMessage<?> message) {
             this.action = action;
-            this.headers = headers;
+            this.headers = new HashMap<>();
+            for (String key : message.getHeaders()) {
+                headers.put(key, message.getHeader(key));
+            }
         }
     }
 

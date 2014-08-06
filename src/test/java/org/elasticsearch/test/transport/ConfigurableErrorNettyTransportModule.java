@@ -95,8 +95,8 @@ public class ConfigurableErrorNettyTransportModule extends AbstractModule {
                             final TransportRequest request = handler.newInstance();
                             request.remoteAddress(new InetSocketTransportAddress((InetSocketAddress) channel.getRemoteAddress()));
                             request.readFrom(buffer);
-                            if (request.getHeaders() != null && request.getHeaders().containsKey("ERROR")) {
-                                throw new ElasticsearchException((String) request.getHeaders().get("ERROR"));
+                            if (request.hasHeader("ERROR")) {
+                                throw new ElasticsearchException((String) request.getHeader("ERROR"));
                             }
                             if (handler.executor() == ThreadPool.Names.SAME) {
                                 //noinspection unchecked

@@ -12,7 +12,7 @@ core types:
 --------------------------------------------------
 {
     "tweet" {
-        "user" : "kimchy"
+        "user" : "kimchy",
         "message" : "This is a tweet!",
         "postDate" : "2009-11-15T14:12:12",
         "priority" : 4,

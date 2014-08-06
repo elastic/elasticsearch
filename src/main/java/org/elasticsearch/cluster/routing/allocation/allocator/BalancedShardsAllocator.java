@@ -71,7 +71,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
     public static final String SETTING_INDEX_BALANCE_FACTOR = "cluster.routing.allocation.balance.index";
     public static final String SETTING_SHARD_BALANCE_FACTOR = "cluster.routing.allocation.balance.shard";
     public static final String SETTING_PRIMARY_BALANCE_FACTOR = "cluster.routing.allocation.balance.primary";
-    public static final String SETTING_SIZE_BALANCE_FACTOR = "cluster.routing.allocation.balance.size";
+    public static final String SETTING_SHARD_SIZE_BALANCE_FACTOR = "cluster.routing.allocation.balance.shard_size";
 
     private static final float DEFAULT_INDEX_BALANCE_FACTOR = 0.5f;
     private static final float DEFAULT_SHARD_BALANCE_FACTOR = 0.45f;
@@ -84,7 +84,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             final float indexBalance = settings.getAsFloat(SETTING_INDEX_BALANCE_FACTOR, weightFunction.indexBalance);
             final float shardBalance = settings.getAsFloat(SETTING_SHARD_BALANCE_FACTOR, weightFunction.shardBalance);
             final float primaryBalance = settings.getAsFloat(SETTING_PRIMARY_BALANCE_FACTOR, weightFunction.primaryBalance);
-            final float sizeBalance = settings.getAsFloat(SETTING_SIZE_BALANCE_FACTOR, weightFunction.sizeBalance);
+            final float sizeBalance = settings.getAsFloat(SETTING_SHARD_SIZE_BALANCE_FACTOR, weightFunction.sizeBalance);
             float threshold = settings.getAsFloat(SETTING_THRESHOLD, BalancedShardsAllocator.this.threshold);
             if (threshold <= 0.0f) {
                 throw new ElasticsearchIllegalArgumentException("threshold must be greater than 0.0f but was: " + threshold);
@@ -357,6 +357,10 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             indexShardSize = indexShardSize == null ? 0 : indexShardSize;
 
             int nodeCount = 0;
+            // TODO if the sizes aren't available abort balancing?
+            if (allocation.clusterInfo().getShardSizeBinToShard() == null) {
+                return 0;
+            }
             Set<String> shards = allocation.clusterInfo().getShardSizeBinToShard()
                     .get(InternalClusterInfoService.shardBinBySize(indexShardSize));
             if (shards == null) {

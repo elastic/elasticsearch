@@ -37,6 +37,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.monitor.fs.FsStats;
@@ -62,14 +63,10 @@ import static java.lang.Math.log10;
  * shard sizes across the cluster.
  */
 public final class InternalClusterInfoService extends AbstractComponent implements ClusterInfoService, ClusterStateListener {
-    /**
-     * Max size in bytes that a shard can be and still be considered "small".
-     * All "small" shards are binned together logShardSize and thus by the shard
-     * size allocation function.
-     */
-    public static final long SMALL_SHARD_LIMIT = 10 * 1000 * 1000;
+    public static final ByteSizeValue DEFAULT_SMALL_SHARD_LIMIT = ByteSizeValue.parseBytesSizeValue("10mb");
 
     public static final String INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL = "cluster.info.update.interval";
+    public static final String SMALL_SHARD_LIMIT_NAME = "cluster.info.small_shard_size";
 
     private volatile TimeValue updateFrequency;
 
@@ -83,6 +80,12 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
     private final TransportIndicesStatsAction transportIndicesStatsAction;
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
+    /**
+     * Max size in bytes that a shard can be and still be considered "small".
+     * All "small" shards are binned together logShardSize and thus by the shard
+     * size allocation function.
+     */
+    private ByteSizeValue smallShardLimit;
 
     @Inject
     public InternalClusterInfoService(Settings settings, NodeSettingsService nodeSettingsService,
@@ -97,7 +100,10 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
         this.transportIndicesStatsAction = transportIndicesStatsAction;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
-        this.updateFrequency = settings.getAsTime(INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL, TimeValue.timeValueSeconds(30));
+        // The next two values get their configuration in the ApplySettings
+        // class on startup
+        this.updateFrequency = TimeValue.timeValueSeconds(30);
+        smallShardLimit = DEFAULT_SMALL_SHARD_LIMIT;
         // Enable cluster info collection if the node is master eligible
         this.enabled = settings.getAsBoolean("node.master", true);
         nodeSettingsService.addListener(new ApplySettings());
@@ -112,6 +118,8 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
         @Override
         public void onRefreshSettings(Settings settings) {
             TimeValue newUpdateFrequency = settings.getAsTime(INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL, null);
+            ByteSizeValue newSmallShardLimit = settings.getAsBytesSize(SMALL_SHARD_LIMIT_NAME, null);
+
             // only collect the cluster info if the node is a potential master
             Boolean newEnabled = settings.getAsBoolean("node.master", null);
 
@@ -123,6 +131,10 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
                     logger.info("updating [{}] from [{}] to [{}]", INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL, updateFrequency, newUpdateFrequency);
                     InternalClusterInfoService.this.updateFrequency = newUpdateFrequency;
                 }
+            }
+            if (newSmallShardLimit != null && !newSmallShardLimit.equals(smallShardLimit)) {
+                logger.info("updating [{}] from [{}] to [{}]", SMALL_SHARD_LIMIT_NAME, smallShardLimit, newSmallShardLimit);
+                smallShardLimit = newSmallShardLimit;
             }
 
             if (newEnabled != null) {
@@ -362,6 +374,6 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
      * @return bin number
      */
     public static int shardBinBySize(long size) {
-        return size <= SMALL_SHARD_LIMIT ? 0 : (int)floor(log10(size));
+        return size <= DEFAULT_SMALL_SHARD_LIMIT.bytes() ? 0 : (int)floor(log10(size));
     }
 }

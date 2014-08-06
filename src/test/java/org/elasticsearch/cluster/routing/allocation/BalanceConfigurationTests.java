@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllo
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.gateway.none.NoneGatewayAllocator;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.test.ElasticsearchAllocationTestCase;
@@ -56,6 +57,7 @@ public class BalanceConfigurationTests extends ElasticsearchAllocationTestCase {
     private int[] numberOfShards;
     private int numberOfReplicas;
     private int totalShards;
+    private long smallShardLimit;
 
     private ClusterInfo clusterInfo;
 
@@ -132,15 +134,16 @@ public class BalanceConfigurationTests extends ElasticsearchAllocationTestCase {
     }
 
     private void clusterBalancesWithTheseSettings(float shardBalance, float indexBalance, float primaryBalance, float sizeBalance, BalanceAssertion assertion) {
-        final float balanceTreshold = 1.0f;
+        final float balanceThreshold = 1.0f;
 
         ImmutableSettings.Builder settings = settingsBuilder();
         settings.put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString());
         settings.put(BalancedShardsAllocator.SETTING_INDEX_BALANCE_FACTOR, indexBalance);
         settings.put(BalancedShardsAllocator.SETTING_SHARD_BALANCE_FACTOR, shardBalance);
         settings.put(BalancedShardsAllocator.SETTING_PRIMARY_BALANCE_FACTOR, primaryBalance);
-        settings.put(BalancedShardsAllocator.SETTING_SIZE_BALANCE_FACTOR, sizeBalance);
-        settings.put(BalancedShardsAllocator.SETTING_THRESHOLD, balanceTreshold);
+        settings.put(BalancedShardsAllocator.SETTING_SHARD_SIZE_BALANCE_FACTOR, sizeBalance);
+        settings.put(BalancedShardsAllocator.SETTING_THRESHOLD, balanceThreshold);
+        settings.put(InternalClusterInfoService.SMALL_SHARD_LIMIT_NAME, smallShardLimit);
 
         AllocationService strategy = createAllocationService(settings.build(), getRandom(), new ClusterInfoService() {
             @Override
@@ -150,13 +153,13 @@ public class BalanceConfigurationTests extends ElasticsearchAllocationTestCase {
         });
 
         ClusterState clusterstate = initCluster(strategy);
-        assertion.assertBalanced(clusterstate.getRoutingNodes(), balanceTreshold);
+        assertion.assertBalanced(clusterstate.getRoutingNodes(), balanceThreshold);
 
         clusterstate = addNode(clusterstate, strategy);
-        assertion.assertBalanced(clusterstate.getRoutingNodes(), balanceTreshold);
+        assertion.assertBalanced(clusterstate.getRoutingNodes(), balanceThreshold);
 
         clusterstate = removeNodes(clusterstate, strategy);
-        assertion.assertBalanced(clusterstate.getRoutingNodes(), balanceTreshold);
+        assertion.assertBalanced(clusterstate.getRoutingNodes(), balanceThreshold);
     }
 
     private void initRandom() {
@@ -169,6 +172,8 @@ public class BalanceConfigurationTests extends ElasticsearchAllocationTestCase {
             numberOfShards[i] = getRandom().nextBoolean() ? 1 : between(2, 10);
             totalShards += numberOfShards[i];
         }
+        smallShardLimit = (long)(ByteSizeValue.parseBytesSizeValue("10KB").bytes() + 
+                getRandom().nextDouble() * ByteSizeValue.parseBytesSizeValue("100MB").bytes());
     }
 
     private ClusterState initCluster(AllocationService strategy) {
@@ -300,16 +305,16 @@ public class BalanceConfigurationTests extends ElasticsearchAllocationTestCase {
     }
 
     private interface BalanceAssertion {
-        void assertBalanced(RoutingNodes nodes, float treshold);
+        void assertBalanced(RoutingNodes nodes, float threshold);
     }
 
     private class ShardBalanceAssertion implements BalanceAssertion {
         @Override
-        public void assertBalanced(RoutingNodes nodes, float treshold) {
+        public void assertBalanced(RoutingNodes nodes, float threshold) {
             final int numShards = totalShards * (numberOfReplicas + 1);
             final float avgNumShards = (float)numShards / (float)numberOfNodes;
-            final int min = (int)Math.round(Math.floor(avgNumShards - treshold));
-            final int max = (int)Math.round(Math.ceil(avgNumShards + treshold));
+            final int min = (int)Math.round(Math.floor(avgNumShards - threshold));
+            final int max = (int)Math.round(Math.ceil(avgNumShards + threshold));
 
             for (RoutingNode node : nodes) {
                 assertThat(node.shardsWithState(STARTED).size(),
@@ -320,12 +325,12 @@ public class BalanceConfigurationTests extends ElasticsearchAllocationTestCase {
 
     private class IndexBalanceAssertion implements BalanceAssertion {
         @Override
-        public void assertBalanced(RoutingNodes nodes, float treshold) {
+        public void assertBalanced(RoutingNodes nodes, float threshold) {
             for (String index : nodes.getRoutingTable().indicesRouting().keySet()) {
                 int numShards = numberOfShards[Integer.parseInt(index.substring("test".length()))] * (numberOfReplicas + 1);
                 float avgNumShards = (float) (numShards) / (float) (numberOfNodes);
-                int min = (int)Math.round(Math.floor(avgNumShards - treshold));
-                int max = (int)Math.round(Math.ceil(avgNumShards + treshold));
+                int min = (int)Math.round(Math.floor(avgNumShards - threshold));
+                int max = (int)Math.round(Math.ceil(avgNumShards + threshold));
 
                 for (RoutingNode node : nodes) {
                     assertThat(node.shardsWithState(index, STARTED).size(),
@@ -337,10 +342,10 @@ public class BalanceConfigurationTests extends ElasticsearchAllocationTestCase {
 
     private class PrimaryBalanceAssertion implements BalanceAssertion {
         @Override
-        public void assertBalanced(RoutingNodes nodes, float treshold) {
+        public void assertBalanced(RoutingNodes nodes, float threshold) {
             final float avgNumShards = (float)totalShards / (float)numberOfNodes;
-            final int min = (int)Math.round(Math.floor(avgNumShards - treshold));
-            final int max = (int)Math.round(Math.ceil(avgNumShards + treshold));
+            final int min = (int)Math.round(Math.floor(avgNumShards - threshold));
+            final int max = (int)Math.round(Math.ceil(avgNumShards + threshold));
 
             for (RoutingNode node : nodes) {
                 int primaries = 0;
@@ -354,16 +359,16 @@ public class BalanceConfigurationTests extends ElasticsearchAllocationTestCase {
 
     private class SizeBalanceAssertion implements BalanceAssertion {
         @Override
-        public void assertBalanced(RoutingNodes nodes, float treshold) {
+        public void assertBalanced(RoutingNodes nodes, float threshold) {
             for (int i = 0; i < numberOfIndices; i++) {
                 String idx = "test" + i;
                 long size = clusterInfo.getIndexToAverageShardSize().get(idx);
                 int similarShards = 0;
 
                 long minSize, maxSize;
-                if (size < InternalClusterInfoService.SMALL_SHARD_LIMIT) {
+                if (size < smallShardLimit) {
                     minSize = 0;
-                    maxSize = InternalClusterInfoService.SMALL_SHARD_LIMIT;
+                    maxSize = smallShardLimit;
                 } else {
                     double log = Math.log10(size);
                     minSize = (long)Math.pow(10, Math.floor(log));
@@ -379,8 +384,8 @@ public class BalanceConfigurationTests extends ElasticsearchAllocationTestCase {
 
                 similarShards *= (numberOfReplicas + 1);
                 final float avgNumShards = (float)similarShards / (float)numberOfNodes;
-                final int min = (int)Math.round(Math.floor(avgNumShards - treshold));
-                final int max = (int)Math.round(Math.ceil(avgNumShards + treshold));
+                final int min = (int)Math.round(Math.floor(avgNumShards - threshold));
+                final int max = (int)Math.round(Math.ceil(avgNumShards + threshold));
 
                 for (RoutingNode node : nodes) {
                     int count = 0;
@@ -401,7 +406,7 @@ public class BalanceConfigurationTests extends ElasticsearchAllocationTestCase {
      */
     private class NoopBalanceAssertion implements BalanceAssertion {
         @Override
-        public void assertBalanced(RoutingNodes nodes, float treshold) {
+        public void assertBalanced(RoutingNodes nodes, float threshold) {
         }
     }
 
@@ -463,7 +468,7 @@ public class BalanceConfigurationTests extends ElasticsearchAllocationTestCase {
                 String sid = String.format(Locale.US, "[test%s][%s]", i, s);
                 shardSizes.put(sid + "[p]", sizes[i]);
                 shardSizes.put(sid + "[r]", sizes[i]);
-                int logSize = sizes[i] <= InternalClusterInfoService.SMALL_SHARD_LIMIT ? 0 : (int)Math.floor(Math.log10(sizes[i]));
+                int logSize = sizes[i] <= smallShardLimit ? 0 : (int)Math.floor(Math.log10(sizes[i]));
                 logShardSizeToShard.put(logSize, sid + "[p]");
                 logShardSizeToShard.put(logSize, sid + "[r]");
             }
@@ -478,7 +483,7 @@ public class BalanceConfigurationTests extends ElasticsearchAllocationTestCase {
         settings.put(BalancedShardsAllocator.SETTING_INDEX_BALANCE_FACTOR, 0.2);
         settings.put(BalancedShardsAllocator.SETTING_SHARD_BALANCE_FACTOR, 0.3);
         settings.put(BalancedShardsAllocator.SETTING_PRIMARY_BALANCE_FACTOR, 0.5);
-        settings.put(BalancedShardsAllocator.SETTING_SIZE_BALANCE_FACTOR, 0.8);
+        settings.put(BalancedShardsAllocator.SETTING_SHARD_SIZE_BALANCE_FACTOR, 0.8);
         settings.put(BalancedShardsAllocator.SETTING_THRESHOLD, 2.0);
         final NodeSettingsService.Listener[] listeners = new NodeSettingsService.Listener[1];
         NodeSettingsService service = new NodeSettingsService(settingsBuilder().build()) {
@@ -509,7 +514,7 @@ public class BalanceConfigurationTests extends ElasticsearchAllocationTestCase {
         settings.put(BalancedShardsAllocator.SETTING_INDEX_BALANCE_FACTOR, 0.5);
         settings.put(BalancedShardsAllocator.SETTING_SHARD_BALANCE_FACTOR, 0.1);
         settings.put(BalancedShardsAllocator.SETTING_PRIMARY_BALANCE_FACTOR, 0.4);
-        settings.put(BalancedShardsAllocator.SETTING_SIZE_BALANCE_FACTOR, 0.01);
+        settings.put(BalancedShardsAllocator.SETTING_SHARD_SIZE_BALANCE_FACTOR, 0.01);
         settings.put(BalancedShardsAllocator.SETTING_THRESHOLD, 3.0);
         listeners[0].onRefreshSettings(settings.build());
         assertThat(allocator.getIndexBalance(), equalTo(0.5f));

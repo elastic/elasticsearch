@@ -105,7 +105,7 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
     }
 
     protected ExplainResponse shardOperation(ExplainRequest request, int shardId) throws ElasticsearchException {
-        IndexService indexService = indicesService.indexService(request.index());
+        IndexService indexService = indicesService.indexServiceSafe(request.index());
         IndexShard indexShard = indexService.shardSafe(shardId);
         Term uidTerm = new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(request.type(), request.id()));
         Engine.GetResult result = indexShard.get(new Engine.Get(false, uidTerm));

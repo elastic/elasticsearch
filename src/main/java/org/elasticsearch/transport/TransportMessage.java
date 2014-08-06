@@ -19,6 +19,7 @@
 
 package org.elasticsearch.transport;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -75,16 +76,18 @@ public abstract class TransportMessage<TM extends TransportMessage<TM>> implemen
         return (V) headers.get(key);
     }
 
-    public Map<String, Object> getHeaders() {
-        return this.headers;
+    public final boolean hasHeader(String key) {
+        return headers != null && headers.containsKey(key);
+    }
+
+    public ImmutableMap<String, Object> getHeaders() {
+        return headers != null ? ImmutableMap.copyOf(this.headers) : ImmutableMap.<String, Object>of();
     }
 
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        if (in.readBoolean()) {
-            headers = in.readMap();
-        }
+        headers = in.readBoolean() ? headers = in.readMap() : null;
     }
 
     @Override

@@ -55,6 +55,6 @@
           type:   test
           id:     2
 
-  - match:  { _source.foo: xxx }  
+  - match:  { _source.foo: xxx }
 
-
+  

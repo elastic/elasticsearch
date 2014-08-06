@@ -28,6 +28,9 @@ import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.model.Instance;
 import com.google.api.services.compute.model.InstanceList;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.base.Function;
+import org.elasticsearch.common.collect.Iterables;
+import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -36,8 +39,8 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.DiscoveryException;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 
 /**
  *
@@ -46,7 +49,7 @@ public class GceComputeServiceImpl extends AbstractLifecycleComponent<GceCompute
     implements GceComputeService {
 
     private final String project;
-    private final String zone;
+    private final List<String> zoneList;
 
     // Forcing Google Token API URL as set in GCE SDK to
     //      http://metadata/computeMetadata/v1/instance/service-accounts/default/token
@@ -55,18 +58,34 @@ public class GceComputeServiceImpl extends AbstractLifecycleComponent<GceCompute
 
     @Override
     public Collection<Instance> instances() {
-        try {
-            logger.debug("get instances for project [{}], zone [{}]", project, zone);
 
-            Compute.Instances.List list = client().instances().list(project, zone);
-            InstanceList instanceList = list.execute();
+            logger.debug("get instances for project [{}], zoneList [{}]", project, zoneList);
 
-            return instanceList.getItems();
-        } catch (IOException e) {
-            logger.warn("disabling GCE discovery. Can not get list of nodes: {}", e.getMessage());
-            logger.debug("Full exception:", e);
-            return new ArrayList<Instance>();
-        }
+            List<List<Instance>> instanceListByZone = Lists.transform(zoneList, new Function<String, List<Instance>>() {
+                @Override
+                public List<Instance> apply(String zoneId) {
+                    try {
+                        Compute.Instances.List list = client().instances().list(project, zoneId);
+                        InstanceList instanceList = list.execute();
+
+                        return instanceList.getItems();
+                    } catch (IOException e) {
+                        logger.warn("Problem fetching instance list for zone {}", zoneId);
+                        logger.debug("Full exception:", e);
+
+                        return Lists.newArrayList();
+                    }
+                }
+            });
+
+            //Collapse instances from all zones into one neat list
+            List<Instance> instanceList = Lists.newArrayList(Iterables.concat(instanceListByZone));
+
+            if (instanceList.size() == 0) {
+                logger.warn("disabling GCE discovery. Can not get list of nodes");
+            }
+
+            return instanceList;
     }
 
     private Compute client;
@@ -85,7 +104,10 @@ public class GceComputeServiceImpl extends AbstractLifecycleComponent<GceCompute
         settingsFilter.addFilter(new GceSettingsFilter());
 
         this.project = componentSettings.get(Fields.PROJECT, settings.get("cloud.gce." + Fields.PROJECT));
-        this.zone = componentSettings.get(Fields.ZONE, settings.get("cloud.gce." + Fields.ZONE));
+
+        String[] zoneList = componentSettings.getAsArray(Fields.ZONE, settings.getAsArray("cloud.gce." + Fields.ZONE));
+        this.zoneList = Lists.newArrayList(zoneList);
+
     }
 
     public synchronized Compute client() {

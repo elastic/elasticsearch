@@ -29,24 +29,21 @@ import java.util.List;
 /**
  *
  */
-public class GceComputeServiceTwoNodesSameTagsMock extends GceComputeServiceAbstractMock {
-    private static List<ArrayList<String>> tags = Lists.newArrayList(
-            Lists.newArrayList("elasticsearch","dev"),
-            Lists.newArrayList("elasticsearch","dev"));
-
+public class GceComputeServiceTwoNodesTwoZonesMock extends GceComputeServiceAbstractMock {
+    private static List<String> zones = Lists.newArrayList("us-central1-a","europe-west1-a");
 
     @Override
     protected List<ArrayList<String>> getTags() {
-        return tags;
+        return Lists.newArrayList();
     }
 
     @Override
     protected List<String> getZones() {
-        return Lists.newArrayList();
+        return zones;
     }
 
     @Inject
-    protected GceComputeServiceTwoNodesSameTagsMock(Settings settings) {
+    protected GceComputeServiceTwoNodesTwoZonesMock(Settings settings) {
         super(settings);
     }
 }

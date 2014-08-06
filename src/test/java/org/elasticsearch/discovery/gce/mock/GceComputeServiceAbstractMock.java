@@ -25,6 +25,7 @@ import com.google.api.services.compute.model.NetworkInterface;
 import com.google.api.services.compute.model.Tags;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cloud.gce.GceComputeService;
+import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.gce.GceComputeEngineTest;
@@ -33,6 +34,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
+import static com.carrotsearch.randomizedtesting.RandomizedTest.randomInt;
+
 /**
  *
  */
@@ -40,28 +43,39 @@ public abstract class GceComputeServiceAbstractMock extends AbstractLifecycleCom
     implements GceComputeService {
 
     protected abstract List<ArrayList<String>> getTags();
+    protected abstract List<String> getZones();
+    private final List<String> zoneList;
 
     protected GceComputeServiceAbstractMock(Settings settings) {
         super(settings);
-        logger.debug("starting GCE Api Mock with {} nodes:", getTags().size());
-        for (List<String> tags : getTags()) {
-            logger.debug(" - {}", tags);
+
+        int numNodes = getTags().size() > getZones().size() ? getTags().size() : getZones().size();
+
+        logger.debug("starting GCE Api Mock with {} nodes:", numNodes);
+        for (int i = 0; i < numNodes; i++) {
+            List<String> tags = getTags().size() > i ? getTags().get(i) : null;
+            String zone = getZones().size() > i ? getZones().get(i) : null;
+            logger.debug(" - node #{}: tags [{}], zone [{}]", i, tags, zone);
         }
+
+        String[] zoneList = componentSettings.getAsArray(Fields.ZONE, settings.getAsArray("cloud.gce." + Fields.ZONE));
+        this.zoneList = Lists.newArrayList(zoneList);
     }
 
     private Collection<Instance> instances = null;
 
     private void computeInstances() {
         instances = new ArrayList<Instance>();
-
         int nodeNumber = 0;
         // For each instance (item of tags)
         for (List<String> tags : getTags()) {
-            logger.info(" ----> GCE Mock API: Adding node {}", nodeNumber);
+            String zone = zoneList.isEmpty() ? "dummy" : zoneList.get(randomInt(zoneList.size()-1));
+            logger.info(" ----> GCE Mock API: Adding node [{}] in zone [{}]", nodeNumber, zone);
             Instance instance = new Instance();
             instance.setName("Mock Node " + tags);
             instance.setMachineType("Mock Type machine");
             instance.setStatus("STARTED");
+            instance.setZone(zone);
             Tags instanceTags = new Tags();
             instanceTags.setItems(tags);
             instance.setTags(instanceTags);

@@ -39,6 +39,11 @@ public class GceComputeServiceTwoNodesDifferentTagsMock extends GceComputeServic
         return tags;
     }
 
+    @Override
+    protected List<String> getZones() {
+        return Lists.newArrayList();
+    }
+
     @Inject
     protected GceComputeServiceTwoNodesDifferentTagsMock(Settings settings) {
         super(settings);

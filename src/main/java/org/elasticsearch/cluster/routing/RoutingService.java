@@ -151,12 +151,14 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
 
                 @Override
                 public void onFailure(String source, Throwable t) {
-                    logger.error("unexpected failure during [{}]", t, source);
+                    ClusterState state = clusterService.state();
+                    logger.error("unexpected failure during [{}], current state:\n{}", t, source, state.prettyPrint());
                 }
             });
             routingTableDirty = false;
         } catch (Exception e) {
-            logger.warn("Failed to reroute routing table", e);
+            ClusterState state = clusterService.state();
+            logger.warn("Failed to reroute routing table, current state:\n{}", e, state.prettyPrint());
         }
     }
 

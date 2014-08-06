@@ -45,6 +45,11 @@
           "default" : "open",
           "description" : "Whether to expand wildcard expression to concrete indices that are open, closed or both."
         },
+        "percolate_format": {
+          "type" : "enum",
+          "options" : ["ids"],
+          "description" : "Return an array of matching query IDs instead of objects"
+        },
         "percolate_index": {
           "type" : "string",
           "description" : "The index to percolate the document into. Defaults to index."
@@ -52,6 +57,14 @@
         "percolate_type": {
           "type" : "string",
           "description" : "The type to percolate document into. Defaults to type."
+        },
+        "percolate_routing": {
+          "type" : "string",
+          "description" : "The routing value to use when percolating the existing document."
+        },
+        "percolate_preference": {
+          "type" : "string",
+          "description" : "Which shard to prefer when executing the percolate request."
         },
         "version" : {
           "type" : "number",

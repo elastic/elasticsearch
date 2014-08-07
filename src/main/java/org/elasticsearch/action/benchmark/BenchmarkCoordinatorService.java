@@ -80,8 +80,6 @@ public class BenchmarkCoordinatorService extends AbstractBenchmarkService<Benchm
     protected final BenchmarkStateManager manager;
     protected final Map<String, InternalCoordinatorState> benchmarks = new ConcurrentHashMap<>();
 
-
-
     /**
      * Constructs a service component for running benchmarks
      */
@@ -270,8 +268,7 @@ public class BenchmarkCoordinatorService extends AbstractBenchmarkService<Benchm
                     listener.onFailure(new BenchmarkMissingException(
                             "No benchmarks found matching: [" + Joiner.on(",").join(request.benchmarkIdPatterns()) + "]"));
                 } else {
-                    final OnPausedStateChangeListener on = new OnPausedStateChangeListener(listener,
-                                                                                           new CountDown(benchmarkIds.length));
+                    final OnPausedStateChangeListener on = new OnPausedStateChangeListener(listener, new CountDown(benchmarkIds.length));
 
                     for (final String benchmarkId : benchmarkIds) {
                         final InternalCoordinatorState ics = benchmarks.get(benchmarkId);
@@ -309,13 +306,15 @@ public class BenchmarkCoordinatorService extends AbstractBenchmarkService<Benchm
                     listener.onFailure(new BenchmarkMissingException(
                             "No benchmarks found matching: [" + Joiner.on(",").join(request.benchmarkIdPatterns()) + "]"));
                 } else {
+                    final OnResumedStateChangeListener on = new OnResumedStateChangeListener(listener, new CountDown(benchmarkIds.length));
+
                     for (final String benchmarkId : benchmarkIds) {
                         final InternalCoordinatorState ics = benchmarks.get(benchmarkId);
                         if (ics == null) {
                             throw new ElasticsearchIllegalStateException("benchmark [" + benchmarkId + "]: missing internal state");
                         }
 
-                        ics.onResumed = new OnResumedStateChangeListener(ics, listener);
+                        ics.onResumed = on;
                     }
                 }
             }
@@ -345,13 +344,15 @@ public class BenchmarkCoordinatorService extends AbstractBenchmarkService<Benchm
                     listener.onFailure(new BenchmarkMissingException(
                             "No benchmarks found matching: [" + Joiner.on(",").join(request.benchmarkIdPatterns()) + "]"));
                 } else {
+                    final OnAbortStateChangeListener on = new OnAbortStateChangeListener(listener, new CountDown(benchmarkIds.length));
+
                     for (final String benchmarkId : benchmarkIds) {
                         final InternalCoordinatorState ics = benchmarks.get(benchmarkId);
                         if (ics == null) {
                             throw new ElasticsearchIllegalStateException("benchmark [" + benchmarkId + "]: missing internal state");
                         }
 
-                        ics.onAbort = new OnAbortStateChangeListener(ics, listener);
+                        ics.onAbort = on;
                     }
                 }
             }
@@ -476,28 +477,34 @@ public class BenchmarkCoordinatorService extends AbstractBenchmarkService<Benchm
      */
     private final class OnAbortStateChangeListener implements StateChangeListener {
 
-        final InternalCoordinatorState               ics;
+        final CountDown                              countdown;
         final ActionListener<BenchmarkAbortResponse> listener;
+        final BenchmarkAbortResponse                 response;
 
-        OnAbortStateChangeListener(final InternalCoordinatorState ics, final ActionListener<BenchmarkAbortResponse> listener) {
-            this.ics      = ics;
-            this.listener = listener;
+        OnAbortStateChangeListener(final ActionListener<BenchmarkAbortResponse> listener, final CountDown countdown) {
+            this.countdown = countdown;
+            this.listener  = listener;
+            this.response  = new BenchmarkAbortResponse();
         }
 
         @Override
         public synchronized void onStateChange(BenchmarkMetaData.Entry entry) {
 
-            final BenchmarkAbortResponse response = new BenchmarkAbortResponse();
+            try {
+                for (Map.Entry<String, BenchmarkMetaData.Entry.NodeState> e : entry.nodeStateMap().entrySet()) {
+                    assert e.getValue() == BenchmarkMetaData.Entry.NodeState.ABORTED;
+                    response.addNodeResponse(entry.benchmarkId(), e.getKey(), e.getValue());
+                }
 
-            for (Map.Entry<String, BenchmarkMetaData.Entry.NodeState> e : entry.nodeStateMap().entrySet()) {
-                assert e.getValue() == BenchmarkMetaData.Entry.NodeState.ABORTED;
-                response.addNodeResponse(entry.benchmarkId(), e.getKey(), e.getValue());
+                // Initiate completion sequence; send partial results back to original caller
+                final InternalCoordinatorState ics = benchmarks.get(entry.benchmarkId());
+                ics.onFinished.onStateChange(entry);
+
+            } finally {
+                if (countdown.countDown()) {
+                    listener.onResponse(response);
+                }
             }
-
-            listener.onResponse(response);
-
-            // Initiate completion sequence; send partial results back to original caller
-            ics.onFinished.onStateChange(entry);
         }
     }
 
@@ -511,8 +518,7 @@ public class BenchmarkCoordinatorService extends AbstractBenchmarkService<Benchm
         final ActionListener<BenchmarkPauseResponse> listener;
         final BenchmarkPauseResponse                 response;
 
-        OnPausedStateChangeListener(final ActionListener<BenchmarkPauseResponse> listener,
-                                    final CountDown countdown) {
+        OnPausedStateChangeListener(final ActionListener<BenchmarkPauseResponse> listener, final CountDown countdown) {
             this.countdown = countdown;
             this.listener  = listener;
             this.response  = new BenchmarkPauseResponse();
@@ -521,13 +527,15 @@ public class BenchmarkCoordinatorService extends AbstractBenchmarkService<Benchm
         @Override
         public synchronized void onStateChange(BenchmarkMetaData.Entry entry) {
 
-            for (Map.Entry<String, BenchmarkMetaData.Entry.NodeState> e : entry.nodeStateMap().entrySet()) {
-                assert e.getValue() == BenchmarkMetaData.Entry.NodeState.PAUSED;
-                response.addNodeResponse(entry.benchmarkId(), e.getKey(), e.getValue());
-            }
-
-            if (countdown.countDown()) {
-                listener.onResponse(response);
+            try {
+                for (Map.Entry<String, BenchmarkMetaData.Entry.NodeState> e : entry.nodeStateMap().entrySet()) {
+                    assert e.getValue() == BenchmarkMetaData.Entry.NodeState.PAUSED;
+                    response.addNodeResponse(entry.benchmarkId(), e.getKey(), e.getValue());
+                }
+            } finally {
+                if (countdown.countDown()) {
+                    listener.onResponse(response);
+                }
             }
         }
     }
@@ -537,35 +545,44 @@ public class BenchmarkCoordinatorService extends AbstractBenchmarkService<Benchm
      */
     private final class OnResumedStateChangeListener implements StateChangeListener {
 
-        final InternalCoordinatorState                ics;
+        final CountDown                               countdown;
         final ActionListener<BenchmarkResumeResponse> listener;
+        final BenchmarkResumeResponse                 response;
 
-        OnResumedStateChangeListener(final InternalCoordinatorState ics, final ActionListener<BenchmarkResumeResponse> listener) {
-            this.ics      = ics;
-            this.listener = listener;
+        OnResumedStateChangeListener(final ActionListener<BenchmarkResumeResponse> listener, final CountDown countdown) {
+            this.listener  = listener;
+            this.countdown = countdown;
+            this.response  = new BenchmarkResumeResponse();
         }
 
         @Override
         public synchronized void onStateChange(BenchmarkMetaData.Entry entry) {
 
-            final BenchmarkResumeResponse response = new BenchmarkResumeResponse();
+            try {
+                for (Map.Entry<String, BenchmarkMetaData.Entry.NodeState> e : entry.nodeStateMap().entrySet()) {
+                    response.addNodeResponse(entry.benchmarkId(), e.getKey(), e.getValue());
+                }
 
-            for (Map.Entry<String, BenchmarkMetaData.Entry.NodeState> e : entry.nodeStateMap().entrySet()) {
-                response.addNodeResponse(entry.benchmarkId(), e.getKey(), e.getValue());
+                final InternalCoordinatorState ics = benchmarks.get(entry.benchmarkId());
+
+                manager.update(ics.benchmarkId, BenchmarkMetaData.State.RUNNING, BenchmarkMetaData.Entry.NodeState.RUNNING,
+                        new ActionListener() {
+                            @Override
+                            public void onResponse(Object o) { /* no-op */ }
+
+                            @Override
+                            public void onFailure(Throwable e) {
+
+                                // NOCOMMIT - Add this to node response?
+
+                                ics.onFailure(e);
+                            }
+                        });
+            } finally {
+                if (countdown.countDown()) {
+                    listener.onResponse(response);
+                }
             }
-
-            listener.onResponse(response);
-
-            manager.update(ics.benchmarkId, BenchmarkMetaData.State.RUNNING, BenchmarkMetaData.Entry.NodeState.RUNNING,
-                    new ActionListener() {
-                        @Override
-                        public void onResponse(Object o) { /* no-op */ }
-
-                        @Override
-                        public void onFailure(Throwable e) {
-                            ics.onFailure(e);
-                        }
-                    });
         }
     }
 

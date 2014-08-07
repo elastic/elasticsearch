@@ -105,6 +105,7 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
         this.usages = ImmutableMap.of();
         this.shardSizes = ImmutableMap.of();
         this.indexToAverageShardSize = ImmutableMap.of();
+        this.shardSizeBinToShard = ImmutableSetMultimap.of();
         this.transportNodesStatsAction = transportNodesStatsAction;
         this.transportIndicesStatsAction = transportIndicesStatsAction;
         this.clusterService = clusterService;

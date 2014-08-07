@@ -55,8 +55,7 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
     public static final int CODEC_VERSION_START = 1;
     public static final int CODEC_VERSION_SERIALIZED_LABELS = 2;
     public static final int CODEC_VERSION_CHECKSUMS = 3;
-    public static final int CODEC_REAL_TIME = 4;
-    public static final int CODEC_VERSION_LATEST = CODEC_REAL_TIME;
+    public static final int CODEC_VERSION_LATEST = CODEC_VERSION_CHECKSUMS;
 
     private boolean preserveSep;
     private boolean preservePositionIncrements;

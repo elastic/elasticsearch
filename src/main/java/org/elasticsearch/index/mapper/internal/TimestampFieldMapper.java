@@ -67,9 +67,10 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
             FIELD_TYPE.freeze();
         }
 
-        public static final EnabledAttributeMapper ENABLED = EnabledAttributeMapper.DISABLED;
+        public static final EnabledAttributeMapper ENABLED = EnabledAttributeMapper.UNSET_DISABLED;
         public static final String PATH = null;
         public static final FormatDateTimeFormatter DATE_TIME_FORMATTER = Joda.forPattern(DEFAULT_DATE_TIME_FORMAT);
+        public static final String DEFAULT_TIMESTAMP = "now";
     }
 
     public static class Builder extends NumberFieldMapper.Builder<Builder, TimestampFieldMapper> {
@@ -77,6 +78,7 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
         private EnabledAttributeMapper enabledState = EnabledAttributeMapper.UNSET_DISABLED;
         private String path = Defaults.PATH;
         private FormatDateTimeFormatter dateTimeFormatter = Defaults.DATE_TIME_FORMATTER;
+        private String defaultTimestamp = Defaults.DEFAULT_TIMESTAMP;
 
         public Builder() {
             super(Defaults.NAME, new FieldType(Defaults.FIELD_TYPE), Defaults.PRECISION_STEP_64_BIT);
@@ -97,6 +99,11 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
             return builder;
         }
 
+        public Builder defaultTimestamp(String defaultTimestamp) {
+            this.defaultTimestamp = defaultTimestamp;
+            return builder;
+        }
+
         @Override
         public TimestampFieldMapper build(BuilderContext context) {
             boolean roundCeil = Defaults.ROUND_CEIL;
@@ -104,7 +111,7 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
                 Settings settings = context.indexSettings();
                 roundCeil =  settings.getAsBoolean("index.mapping.date.round_ceil", settings.getAsBoolean("index.mapping.date.parse_upper_inclusive", Defaults.ROUND_CEIL));
             }
-            return new TimestampFieldMapper(fieldType, docValues, enabledState, path, dateTimeFormatter, roundCeil,
+            return new TimestampFieldMapper(fieldType, docValues, enabledState, path, dateTimeFormatter, defaultTimestamp, roundCeil,
                     ignoreMalformed(context), coerce(context), postingsProvider, docValuesProvider, normsLoading, fieldDataSettings, context.indexSettings());
         }
     }
@@ -124,6 +131,8 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
                     builder.path(fieldNode.toString());
                 } else if (fieldName.equals("format")) {
                     builder.dateTimeFormatter(parseDateTimeFormatter(builder.name(), fieldNode.toString()));
+                } else if (fieldName.equals("default")) {
+                    builder.defaultTimestamp(fieldNode == null ? null : fieldNode.toString());
                 }
             }
             return builder;
@@ -134,15 +143,16 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
     private EnabledAttributeMapper enabledState;
 
     private final String path;
+    private final String defaultTimestamp;
 
     public TimestampFieldMapper() {
-        this(new FieldType(Defaults.FIELD_TYPE), null, Defaults.ENABLED, Defaults.PATH, Defaults.DATE_TIME_FORMATTER,
+        this(new FieldType(Defaults.FIELD_TYPE), null, Defaults.ENABLED, Defaults.PATH, Defaults.DATE_TIME_FORMATTER, Defaults.DEFAULT_TIMESTAMP,
                 Defaults.ROUND_CEIL, Defaults.IGNORE_MALFORMED, Defaults.COERCE, null, null, null, null, ImmutableSettings.EMPTY);
     }
 
     protected TimestampFieldMapper(FieldType fieldType, Boolean docValues, EnabledAttributeMapper enabledState, String path,
-                                   FormatDateTimeFormatter dateTimeFormatter, boolean roundCeil,
-                                   Explicit<Boolean> ignoreMalformed,Explicit<Boolean> coerce, PostingsFormatProvider postingsProvider,
+                                   FormatDateTimeFormatter dateTimeFormatter, String defaultTimestamp, boolean roundCeil,
+                                   Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce, PostingsFormatProvider postingsProvider,
                                    DocValuesFormatProvider docValuesProvider, Loading normsLoading,
                                    @Nullable Settings fieldDataSettings, Settings indexSettings) {
         super(new Names(Defaults.NAME, Defaults.NAME, Defaults.NAME, Defaults.NAME), dateTimeFormatter,
@@ -152,6 +162,7 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
                 indexSettings, MultiFields.empty(), null);
         this.enabledState = enabledState;
         this.path = path;
+        this.defaultTimestamp = defaultTimestamp;
     }
 
     @Override
@@ -165,6 +176,10 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
 
     public String path() {
         return this.path;
+    }
+
+    public String defaultTimestamp() {
+        return this.defaultTimestamp;
     }
 
     public FormatDateTimeFormatter dateTimeFormatter() {
@@ -226,11 +241,12 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
         // if all are defaults, no sense to write it at all
         if (!includeDefaults && fieldType.indexed() == Defaults.FIELD_TYPE.indexed() && customFieldDataSettings == null &&
                 fieldType.stored() == Defaults.FIELD_TYPE.stored() && enabledState == Defaults.ENABLED && path == Defaults.PATH
-                && dateTimeFormatter.format().equals(Defaults.DATE_TIME_FORMATTER.format())) {
+                && dateTimeFormatter.format().equals(Defaults.DATE_TIME_FORMATTER.format())
+                && Defaults.DEFAULT_TIMESTAMP.equals(defaultTimestamp)) {
             return builder;
         }
         builder.startObject(CONTENT_TYPE);
-        if (includeDefaults || enabledState != Defaults.ENABLED) {
+        if (includeDefaults || enabledState.enabled != Defaults.ENABLED.enabled) {
             builder.field("enabled", enabledState.enabled);
         }
         if (enabledState.enabled) {
@@ -245,6 +261,9 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
             }
             if (includeDefaults || !dateTimeFormatter.format().equals(Defaults.DATE_TIME_FORMATTER.format())) {
                 builder.field("format", dateTimeFormatter.format());
+            }
+            if (includeDefaults || !Defaults.DEFAULT_TIMESTAMP.equals(defaultTimestamp)) {
+                builder.field("default", defaultTimestamp);
             }
             if (customFieldDataSettings != null) {
                 builder.field("fielddata", (Map) customFieldDataSettings.getAsMap());

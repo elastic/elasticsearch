@@ -21,41 +21,30 @@ package org.elasticsearch.index.codec;
 
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.bloom.BloomFilteringPostingsFormat;
-import org.apache.lucene.codecs.diskdv.DiskDocValuesFormat;
 import org.apache.lucene.codecs.lucene40.Lucene40Codec;
 import org.apache.lucene.codecs.lucene41.Lucene41Codec;
 import org.apache.lucene.codecs.lucene42.Lucene42Codec;
 import org.apache.lucene.codecs.lucene45.Lucene45Codec;
-import org.apache.lucene.codecs.lucene45.Lucene45DocValuesFormat;
 import org.apache.lucene.codecs.lucene46.Lucene46Codec;
+import org.apache.lucene.codecs.lucene49.Lucene49Codec;
+import org.apache.lucene.codecs.lucene49.Lucene49DocValuesFormat;
 import org.apache.lucene.codecs.memory.DirectPostingsFormat;
 import org.apache.lucene.codecs.memory.MemoryDocValuesFormat;
 import org.apache.lucene.codecs.memory.MemoryPostingsFormat;
 import org.apache.lucene.codecs.perfield.PerFieldPostingsFormat;
 import org.apache.lucene.codecs.pulsing.Pulsing41PostingsFormat;
 import org.apache.lucene.codecs.simpletext.SimpleTextCodec;
-import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.Injector;
-import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexNameModule;
-import org.elasticsearch.index.analysis.AnalysisModule;
 import org.elasticsearch.index.codec.docvaluesformat.*;
 import org.elasticsearch.index.codec.postingsformat.*;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.MapperServiceModule;
 import org.elasticsearch.index.mapper.internal.IdFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.mapper.internal.VersionFieldMapper;
-import org.elasticsearch.index.settings.IndexSettingsModule;
-import org.elasticsearch.index.similarity.SimilarityModule;
-import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
-import org.elasticsearch.indices.fielddata.breaker.DummyCircuitBreakerService;
-import org.elasticsearch.test.ElasticsearchLuceneTestCase;
+import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.test.ElasticsearchSingleNodeLuceneTestCase;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -65,7 +54,7 @@ import java.util.Arrays;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class CodecTests extends ElasticsearchLuceneTestCase {
+public class CodecTests extends ElasticsearchSingleNodeLuceneTestCase {
     
     @Override
     @Before
@@ -78,7 +67,8 @@ public class CodecTests extends ElasticsearchLuceneTestCase {
     public void testResolveDefaultCodecs() throws Exception {
         CodecService codecService = createCodecService();
         assertThat(codecService.codec("default"), instanceOf(PerFieldMappingPostingFormatCodec.class));
-        assertThat(codecService.codec("default"), instanceOf(Lucene46Codec.class));
+        assertThat(codecService.codec("default"), instanceOf(Lucene49Codec.class));
+        assertThat(codecService.codec("Lucene49"), instanceOf(Lucene49Codec.class));
         assertThat(codecService.codec("Lucene46"), instanceOf(Lucene46Codec.class));
         assertThat(codecService.codec("Lucene45"), instanceOf(Lucene45Codec.class));
         assertThat(codecService.codec("Lucene40"), instanceOf(Lucene40Codec.class));
@@ -141,9 +131,9 @@ public class CodecTests extends ElasticsearchLuceneTestCase {
             assertThat(docValuesFormatService.get(dvf), instanceOf(PreBuiltDocValuesFormatProvider.class));
         }
         assertThat(docValuesFormatService.get("memory").get(), instanceOf(MemoryDocValuesFormat.class));
-        assertThat(docValuesFormatService.get("disk").get(), instanceOf(DiskDocValuesFormat.class));
-        assertThat(docValuesFormatService.get("Disk").get(), instanceOf(DiskDocValuesFormat.class));
-        assertThat(docValuesFormatService.get("default").get(), instanceOf(Lucene45DocValuesFormat.class));
+        assertThat(docValuesFormatService.get("disk").get(), instanceOf(Lucene49DocValuesFormat.class));
+        assertThat(docValuesFormatService.get("Disk").get(), instanceOf(Lucene49DocValuesFormat.class));
+        assertThat(docValuesFormatService.get("default").get(), instanceOf(Lucene49DocValuesFormat.class));
     }
 
     @Test
@@ -315,7 +305,7 @@ public class CodecTests extends ElasticsearchLuceneTestCase {
         DocumentMapper documentMapper = codecService.mapperService().documentMapperParser().parse(mapping);
         assertThat(documentMapper.rootMapper(UidFieldMapper.class).hasDocValues(), equalTo(true));
         assertThat(documentMapper.rootMapper(UidFieldMapper.class).docValuesFormatProvider(), instanceOf(PreBuiltDocValuesFormatProvider.class));
-        assertThat(documentMapper.rootMapper(UidFieldMapper.class).docValuesFormatProvider().get(), instanceOf(DiskDocValuesFormat.class));
+        assertThat(documentMapper.rootMapper(UidFieldMapper.class).docValuesFormatProvider().get(), instanceOf(Lucene49DocValuesFormat.class));
     }
 
     @Test
@@ -328,7 +318,7 @@ public class CodecTests extends ElasticsearchLuceneTestCase {
         DocumentMapper documentMapper = codecService.mapperService().documentMapperParser().parse(mapping);
         assertThat(documentMapper.rootMapper(IdFieldMapper.class).hasDocValues(), equalTo(true));
         assertThat(documentMapper.rootMapper(IdFieldMapper.class).docValuesFormatProvider(), instanceOf(PreBuiltDocValuesFormatProvider.class));
-        assertThat(documentMapper.rootMapper(IdFieldMapper.class).docValuesFormatProvider().get(), instanceOf(DiskDocValuesFormat.class));
+        assertThat(documentMapper.rootMapper(IdFieldMapper.class).docValuesFormatProvider().get(), instanceOf(Lucene49DocValuesFormat.class));
     }
 
     @Test
@@ -346,7 +336,7 @@ public class CodecTests extends ElasticsearchLuceneTestCase {
         CodecService codecService = createCodecService(indexSettings);
         DocumentMapper documentMapper = codecService.mapperService().documentMapperParser().parse(mapping);
         assertThat(documentMapper.mappers().name("field1").mapper().docValuesFormatProvider(), instanceOf(PreBuiltDocValuesFormatProvider.class));
-        assertThat(documentMapper.mappers().name("field1").mapper().docValuesFormatProvider().get(), instanceOf(Lucene45DocValuesFormat.class));
+        assertThat(documentMapper.mappers().name("field1").mapper().docValuesFormatProvider().get(), instanceOf(Lucene49DocValuesFormat.class));
 
         assertThat(documentMapper.mappers().name("field2").mapper().docValuesFormatProvider(), instanceOf(DefaultDocValuesFormatProvider.class));
     }
@@ -386,7 +376,7 @@ public class CodecTests extends ElasticsearchLuceneTestCase {
         CodecService codecService = createCodecService(indexSettings);
         DocumentMapper documentMapper = codecService.mapperService().documentMapperParser().parse(mapping);
         assertThat(documentMapper.mappers().name("field1").mapper().docValuesFormatProvider(), instanceOf(PreBuiltDocValuesFormatProvider.class));
-        assertThat(documentMapper.mappers().name("field1").mapper().docValuesFormatProvider().get(), instanceOf(DiskDocValuesFormat.class));
+        assertThat(documentMapper.mappers().name("field1").mapper().docValuesFormatProvider().get(), instanceOf(Lucene49DocValuesFormat.class));
 
         assertThat(documentMapper.mappers().name("field2").mapper().docValuesFormatProvider(), instanceOf(DiskDocValuesFormatProvider.class));
     }
@@ -400,7 +390,7 @@ public class CodecTests extends ElasticsearchLuceneTestCase {
         CodecService codecService = createCodecService();
         DocumentMapper documentMapper = codecService.mapperService().documentMapperParser().parse(mapping);
         assertThat(documentMapper.rootMapper(VersionFieldMapper.class).docValuesFormatProvider(), instanceOf(PreBuiltDocValuesFormatProvider.class));
-        assertThat(documentMapper.rootMapper(VersionFieldMapper.class).docValuesFormatProvider().get(), instanceOf(DiskDocValuesFormat.class));
+        assertThat(documentMapper.rootMapper(VersionFieldMapper.class).docValuesFormatProvider().get(), instanceOf(Lucene49DocValuesFormat.class));
     }
 
     private static CodecService createCodecService() {
@@ -408,23 +398,8 @@ public class CodecTests extends ElasticsearchLuceneTestCase {
     }
 
     private static CodecService createCodecService(Settings settings) {
-        Index index = new Index("test");
-        Injector injector = new ModulesBuilder()
-                .add(new SettingsModule(settings))
-                .add(new IndexNameModule(index))
-                .add(new IndexSettingsModule(index, settings))
-                .add(new SimilarityModule(settings))
-                .add(new CodecModule(settings))
-                .add(new MapperServiceModule())
-                .add(new AnalysisModule(settings))
-                .add(new AbstractModule() {
-                    @Override
-                    protected void configure() {
-                        bind(CircuitBreakerService.class).to(DummyCircuitBreakerService.class);
-                    }
-                })
-                .createInjector();
-        return injector.getInstance(CodecService.class);
+        IndexService indexService = createIndex("test", settings);
+        return indexService.injector().getInstance(CodecService.class);
     }
 
 }

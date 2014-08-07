@@ -22,10 +22,9 @@ package org.elasticsearch.action.get;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.single.shard.SingleShardOperationRequestBuilder;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.internal.InternalClient;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.index.VersionType;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 
 /**
@@ -34,11 +33,11 @@ import org.elasticsearch.search.fetch.source.FetchSourceContext;
 public class GetRequestBuilder extends SingleShardOperationRequestBuilder<GetRequest, GetResponse, GetRequestBuilder> {
 
     public GetRequestBuilder(Client client) {
-        super((InternalClient) client, new GetRequest());
+        super(client, new GetRequest());
     }
 
     public GetRequestBuilder(Client client, @Nullable String index) {
-        super((InternalClient) client, new GetRequest(index));
+        super(client, new GetRequest(index));
     }
 
     /**
@@ -96,10 +95,8 @@ public class GetRequestBuilder extends SingleShardOperationRequestBuilder<GetReq
     }
 
     /**
-     * Indicates whether the response should contain the stored _source
-     *
-     * @param fetch
-     * @return
+     * Indicates whether the response should contain the stored _source.
+     * @return this for chaining
      */
     public GetRequestBuilder setFetchSource(boolean fetch) {
         FetchSourceContext context = request.fetchSourceContext();
@@ -109,6 +106,23 @@ public class GetRequestBuilder extends SingleShardOperationRequestBuilder<GetReq
         else {
             context.fetchSource(fetch);
         }
+        return this;
+    }
+
+    /**
+     * Should the source be transformed using the script to used at index time
+     * (if any)? Note that calling this without having called setFetchSource
+     * will automatically turn on source fetching.
+     *
+     * @return this for chaining
+     */
+    public GetRequestBuilder setTransformSource(boolean transform) {
+        FetchSourceContext context = request.fetchSourceContext();
+        if (context == null) {
+            context = new FetchSourceContext(true);
+            request.fetchSourceContext(context);
+        }
+        context.transformSource(transform);
         return this;
     }
 
@@ -160,6 +174,11 @@ public class GetRequestBuilder extends SingleShardOperationRequestBuilder<GetReq
         return this;
     }
 
+    public GetRequestBuilder setIgnoreErrorsOnGeneratedFields(Boolean ignoreErrorsOnGeneratedFields) {
+        request.ignoreErrorsOnGeneratedFields(ignoreErrorsOnGeneratedFields);
+        return this;
+    }
+
     /**
      * Sets the version, which will cause the get operation to only be performed if a matching
      * version exists and no changes happened on the doc since then.
@@ -179,7 +198,7 @@ public class GetRequestBuilder extends SingleShardOperationRequestBuilder<GetReq
 
     @Override
     protected void doExecute(ActionListener<GetResponse> listener) {
-        ((Client) client).get(request, listener);
+        client.get(request, listener);
     }
 
 

@@ -22,8 +22,7 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.breaker.MemoryCircuitBreaker;
-import org.elasticsearch.index.fielddata.AbstractIndexFieldData;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 
 import java.io.IOException;
 
@@ -34,9 +33,9 @@ import java.io.IOException;
  */
 public class NonEstimatingEstimator implements AbstractIndexFieldData.PerValueEstimator {
 
-    private final MemoryCircuitBreaker breaker;
+    private final CircuitBreaker breaker;
 
-    NonEstimatingEstimator(MemoryCircuitBreaker breaker) {
+    NonEstimatingEstimator(CircuitBreaker breaker) {
         this.breaker = breaker;
     }
 

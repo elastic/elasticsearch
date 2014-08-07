@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
@@ -36,7 +37,7 @@ public class MappingMetaDataParserTests extends ElasticsearchTestCase {
         MappingMetaData md = new MappingMetaData("type1", new CompressedString(""),
                 new MappingMetaData.Id("id"),
                 new MappingMetaData.Routing(true, "routing"),
-                new MappingMetaData.Timestamp(true, "timestamp", "dateOptionalTime"), false);
+                new MappingMetaData.Timestamp(true, "timestamp", "dateOptionalTime", TimestampFieldMapper.Defaults.DEFAULT_TIMESTAMP), false);
         byte[] bytes = jsonBuilder().startObject().field("field1", "value1").field("field2", "value2")
                 .field("id", "id").field("routing", "routing_value").field("timestamp", "1").endObject().bytes().toBytes();
         MappingMetaData.ParseContext parseContext = md.createParseContext(null, "routing_value", "1");
@@ -54,7 +55,7 @@ public class MappingMetaDataParserTests extends ElasticsearchTestCase {
         MappingMetaData md = new MappingMetaData("type1", new CompressedString(""),
                 new MappingMetaData.Id("id"),
                 new MappingMetaData.Routing(true, "routing"),
-                new MappingMetaData.Timestamp(true, "timestamp", "dateOptionalTime"), false);
+                new MappingMetaData.Timestamp(true, "timestamp", "dateOptionalTime", TimestampFieldMapper.Defaults.DEFAULT_TIMESTAMP), false);
         byte[] bytes = jsonBuilder().startObject().field("field1", "value1").field("field2", "value2")
                 .startArray("id").value("id").endArray().field("routing", "routing_value").field("timestamp", "1").endObject().bytes().toBytes();
         MappingMetaData.ParseContext parseContext = md.createParseContext(null, "routing_value", "1");
@@ -81,7 +82,7 @@ public class MappingMetaDataParserTests extends ElasticsearchTestCase {
         MappingMetaData md = new MappingMetaData("type1", new CompressedString(""),
                 new MappingMetaData.Id("id"),
                 new MappingMetaData.Routing(true, "routing"),
-                new MappingMetaData.Timestamp(true, "timestamp", "dateOptionalTime"), false);
+                new MappingMetaData.Timestamp(true, "timestamp", "dateOptionalTime", TimestampFieldMapper.Defaults.DEFAULT_TIMESTAMP), false);
         byte[] bytes = jsonBuilder().startObject().field("field1", "value1").field("field2", "value2")
                 .field("id", "id").field("routing", "routing_value").field("timestamp", "1").endObject().bytes().toBytes();
         MappingMetaData.ParseContext parseContext = md.createParseContext("id", null, "1");
@@ -99,7 +100,7 @@ public class MappingMetaDataParserTests extends ElasticsearchTestCase {
         MappingMetaData md = new MappingMetaData("type1", new CompressedString(""),
                 new MappingMetaData.Id("id"),
                 new MappingMetaData.Routing(true, "routing"),
-                new MappingMetaData.Timestamp(true, "timestamp", "dateOptionalTime"), false);
+                new MappingMetaData.Timestamp(true, "timestamp", "dateOptionalTime", TimestampFieldMapper.Defaults.DEFAULT_TIMESTAMP), false);
         byte[] bytes = jsonBuilder().startObject().field("field1", "value1").field("field2", "value2")
                 .field("id", "id").field("routing", "routing_value").field("timestamp", "1").endObject().bytes().toBytes();
         MappingMetaData.ParseContext parseContext = md.createParseContext("id", "routing_value1", null);
@@ -113,11 +114,24 @@ public class MappingMetaDataParserTests extends ElasticsearchTestCase {
     }
 
     @Test
+    public void testParseTimestampEquals() throws Exception {
+        MappingMetaData md1 = new MappingMetaData("type1", new CompressedString(""),
+                new MappingMetaData.Id("id"),
+                new MappingMetaData.Routing(true, "routing"),
+                new MappingMetaData.Timestamp(true, "timestamp", "dateOptionalTime", TimestampFieldMapper.Defaults.DEFAULT_TIMESTAMP), false);
+        MappingMetaData md2 = new MappingMetaData("type1", new CompressedString(""),
+                new MappingMetaData.Id("id"),
+                new MappingMetaData.Routing(true, "routing"),
+                new MappingMetaData.Timestamp(true, "timestamp", "dateOptionalTime", TimestampFieldMapper.Defaults.DEFAULT_TIMESTAMP), false);
+        assertThat(md1, equalTo(md2));
+    }
+
+    @Test
     public void testParseIdAndRoutingAndTimestamp() throws Exception {
         MappingMetaData md = new MappingMetaData("type1", new CompressedString(""),
                 new MappingMetaData.Id("id"),
                 new MappingMetaData.Routing(true, "routing"),
-                new MappingMetaData.Timestamp(true, "timestamp", "dateOptionalTime"), false);
+                new MappingMetaData.Timestamp(true, "timestamp", "dateOptionalTime", TimestampFieldMapper.Defaults.DEFAULT_TIMESTAMP), false);
         byte[] bytes = jsonBuilder().startObject().field("field1", "value1").field("field2", "value2")
                 .field("id", "id").field("routing", "routing_value").field("timestamp", "1").endObject().bytes().toBytes();
         MappingMetaData.ParseContext parseContext = md.createParseContext(null, null, null);
@@ -132,7 +146,7 @@ public class MappingMetaDataParserTests extends ElasticsearchTestCase {
         MappingMetaData md = new MappingMetaData("type1", new CompressedString(""),
                 new MappingMetaData.Id("obj1.id"),
                 new MappingMetaData.Routing(true, "obj1.routing"),
-                new MappingMetaData.Timestamp(true, "obj2.timestamp", "dateOptionalTime"), false);
+                new MappingMetaData.Timestamp(true, "obj2.timestamp", "dateOptionalTime", TimestampFieldMapper.Defaults.DEFAULT_TIMESTAMP), false);
         byte[] bytes = jsonBuilder().startObject().field("field1", "value1").field("field2", "value2")
                 .startObject("obj0").field("field1", "value1").field("field2", "value2").endObject()
                 .startObject("obj1").field("id", "id").field("routing", "routing_value").endObject()
@@ -150,7 +164,7 @@ public class MappingMetaDataParserTests extends ElasticsearchTestCase {
         MappingMetaData md = new MappingMetaData("type1", new CompressedString(""),
                 new MappingMetaData.Id("obj1.id"),
                 new MappingMetaData.Routing(true, "obj1.routing"),
-                new MappingMetaData.Timestamp(true, "obj2.timestamp", "dateOptionalTime"), false);
+                new MappingMetaData.Timestamp(true, "obj2.timestamp", "dateOptionalTime", TimestampFieldMapper.Defaults.DEFAULT_TIMESTAMP), false);
         byte[] bytes = jsonBuilder().startObject().field("field1", "value1").field("field2", "value2")
                 .startObject("obj0").field("field1", "value1").field("field2", "value2").endObject()
                 .startObject("obj1").field("id", "id").field("routing", "routing_value").endObject()
@@ -171,7 +185,7 @@ public class MappingMetaDataParserTests extends ElasticsearchTestCase {
         MappingMetaData md = new MappingMetaData("type1", new CompressedString(""),
                 new MappingMetaData.Id("obj1.id"),
                 new MappingMetaData.Routing(true, "obj1.routing"),
-                new MappingMetaData.Timestamp(true, "obj2.timestamp", "dateOptionalTime"), false);
+                new MappingMetaData.Timestamp(true, "obj2.timestamp", "dateOptionalTime", TimestampFieldMapper.Defaults.DEFAULT_TIMESTAMP), false);
         byte[] bytes = jsonBuilder().startObject().field("field1", "value1").field("field2", "value2")
                 .startObject("obj0").field("field1", "value1").field("field2", "value2").endObject()
                 .startObject("obj1").field("id", "id").field("routing", "routing_value").endObject()
@@ -192,7 +206,7 @@ public class MappingMetaDataParserTests extends ElasticsearchTestCase {
         MappingMetaData md = new MappingMetaData("type1", new CompressedString(""),
                 new MappingMetaData.Id("obj1.id"),
                 new MappingMetaData.Routing(true, "obj1.routing"),
-                new MappingMetaData.Timestamp(true, "obj2.timestamp", "dateOptionalTime"), false);
+                new MappingMetaData.Timestamp(true, "obj2.timestamp", "dateOptionalTime", TimestampFieldMapper.Defaults.DEFAULT_TIMESTAMP), false);
         byte[] bytes = jsonBuilder().startObject().field("field1", "value1").field("field2", "value2")
                 .startObject("obj0").field("field1", "value1").field("field2", "value2").endObject()
                 .startObject("obj1").field("routing", "routing_value").endObject()
@@ -213,7 +227,7 @@ public class MappingMetaDataParserTests extends ElasticsearchTestCase {
         MappingMetaData md = new MappingMetaData("type1", new CompressedString(""),
                 new MappingMetaData.Id("obj1.id"),
                 new MappingMetaData.Routing(true, "obj1.routing"),
-                new MappingMetaData.Timestamp(true, "obj1.timestamp", "dateOptionalTime"), false);
+                new MappingMetaData.Timestamp(true, "obj1.timestamp", "dateOptionalTime", TimestampFieldMapper.Defaults.DEFAULT_TIMESTAMP), false);
         byte[] bytes = jsonBuilder().startObject().field("field1", "value1").field("field2", "value2")
                 .startObject("obj0").field("field1", "value1").field("field2", "value2").endObject()
                 .startObject("obj1").field("id", "id").field("routing", "routing_value").field("timestamp", "1").endObject()
@@ -231,7 +245,7 @@ public class MappingMetaDataParserTests extends ElasticsearchTestCase {
         MappingMetaData md = new MappingMetaData("type1", new CompressedString(""),
                 new MappingMetaData.Id("obj1.obj0.id"),
                 new MappingMetaData.Routing(true, "obj1.obj2.routing"),
-                new MappingMetaData.Timestamp(true, "obj1.obj3.timestamp", "dateOptionalTime"), false);
+                new MappingMetaData.Timestamp(true, "obj1.obj3.timestamp", "dateOptionalTime", TimestampFieldMapper.Defaults.DEFAULT_TIMESTAMP), false);
         byte[] bytes = jsonBuilder().startObject().field("field1", "value1").field("field2", "value2")
                 .startObject("obj0").field("field1", "value1").field("field2", "value2").endObject()
                 .startObject("obj1")
@@ -260,7 +274,7 @@ public class MappingMetaDataParserTests extends ElasticsearchTestCase {
         MappingMetaData md = new MappingMetaData("type1", new CompressedString(""),
                 new MappingMetaData.Id("obj1.id"),
                 new MappingMetaData.Routing(true, "obj1.routing"),
-                new MappingMetaData.Timestamp(true, "obj1.timestamp", "dateOptionalTime"), false);
+                new MappingMetaData.Timestamp(true, "obj1.timestamp", "dateOptionalTime", TimestampFieldMapper.Defaults.DEFAULT_TIMESTAMP), false);
         byte[] bytes = jsonBuilder().startObject().field("field1", "value1").field("field2", "value2")
                 .startObject("obj0").field("field1", "value1").field("field2", "value2").endObject()
                 .startObject("obj1").field("id", "id").endObject()
@@ -280,7 +294,7 @@ public class MappingMetaDataParserTests extends ElasticsearchTestCase {
         MappingMetaData md = new MappingMetaData("type1", new CompressedString(""),
                 new MappingMetaData.Id("field1"),
                 new MappingMetaData.Routing(true, "field1.field1"),
-                new MappingMetaData.Timestamp(true, "field1", "dateOptionalTime"), false);
+                new MappingMetaData.Timestamp(true, "field1", "dateOptionalTime", TimestampFieldMapper.Defaults.DEFAULT_TIMESTAMP), false);
 
         byte[] bytes = jsonBuilder().startObject()
                 .field("aaa", "wr")
@@ -303,7 +317,7 @@ public class MappingMetaDataParserTests extends ElasticsearchTestCase {
         MappingMetaData md = new MappingMetaData("type1", new CompressedString(""),
                 new MappingMetaData.Id("id"),
                 new MappingMetaData.Routing(true, "field1.field1.field2"),
-                new MappingMetaData.Timestamp(true, "field1", "dateOptionalTime"), false);
+                new MappingMetaData.Timestamp(true, "field1", "dateOptionalTime", TimestampFieldMapper.Defaults.DEFAULT_TIMESTAMP), false);
 
         byte[] bytes = jsonBuilder().startObject()
                 .field("aaa", "wr")
@@ -326,7 +340,7 @@ public class MappingMetaDataParserTests extends ElasticsearchTestCase {
         MappingMetaData md = new MappingMetaData("type1", new CompressedString(""),
                 new MappingMetaData.Id(null),
                 new MappingMetaData.Routing(true, "field1.field2"),
-                new MappingMetaData.Timestamp(true, "field1", "dateOptionalTime"), false);
+                new MappingMetaData.Timestamp(true, "field1", "dateOptionalTime", TimestampFieldMapper.Defaults.DEFAULT_TIMESTAMP), false);
 
         byte[] bytes = jsonBuilder().startObject()
                 .field("aaa", "wr")

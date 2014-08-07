@@ -18,89 +18,32 @@
  */
 package org.elasticsearch.search.aggregations.metrics.percentiles;
 
-import org.apache.lucene.index.AtomicReaderContext;
-import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.util.ArrayUtils;
-import org.elasticsearch.common.util.ObjectArray;
-import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.TDigestState;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-
-import java.io.IOException;
+import org.elasticsearch.search.aggregations.support.*;
+import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 
 /**
  *
  */
-public class PercentilesAggregator extends NumericMetricsAggregator.MultiValue {
+public class PercentilesAggregator extends AbstractPercentilesAggregator {
 
-    private static int indexOfPercent(double[] percents, double percent) {
-        return ArrayUtils.binarySearch(percents, percent, 0.001);
-    }
-
-    private final double[] percents;
-    private final ValuesSource.Numeric valuesSource;
-    private DoubleValues values;
-
-    private ObjectArray<TDigestState> states;
-    private final double compression;
-    private final boolean keyed;
-
-
-    public PercentilesAggregator(String name, long estimatedBucketsCount, ValuesSource.Numeric valuesSource, AggregationContext context,
-                                 Aggregator parent, double[] percents, double compression, boolean keyed) {
-        super(name, estimatedBucketsCount, context, parent);
-        this.valuesSource = valuesSource;
-        this.keyed = keyed;
-        this.states = bigArrays.newObjectArray(estimatedBucketsCount);
-        this.percents = percents;
-        this.compression = compression;
+    public PercentilesAggregator(String name, long estimatedBucketsCount, Numeric valuesSource, AggregationContext context,
+            Aggregator parent, double[] percents, double compression, boolean keyed) {
+        super(name, estimatedBucketsCount, valuesSource, context, parent, percents, compression, keyed);
     }
 
     @Override
-    public boolean shouldCollect() {
-        return valuesSource != null;
-    }
-
-    @Override
-    public void setNextReader(AtomicReaderContext reader) {
-        values = valuesSource.doubleValues();
-    }
-
-    @Override
-    public void collect(int doc, long bucketOrd) throws IOException {
-        states = bigArrays.grow(states, bucketOrd + 1);
-
-        TDigestState state = states.get(bucketOrd);
+    public InternalAggregation buildAggregation(long owningBucketOrdinal) {
+        TDigestState state = getState(owningBucketOrdinal);
         if (state == null) {
-            state = new TDigestState(compression);
-            states.set(bucketOrd, state);
-        }
-
-        final int valueCount = values.setDocument(doc);
-        for (int i = 0; i < valueCount; i++) {
-            state.add(values.nextValue());
+            return buildEmptyAggregation();
+        } else {
+            return new InternalPercentiles(name, keys, state, keyed);
         }
     }
-
-    @Override
-    public boolean hasMetric(String name) {
-        return indexOfPercent(percents, Double.parseDouble(name)) >= 0;
-    }
-
-    private TDigestState getState(long bucketOrd) {
-        if (bucketOrd >= states.size()) {
-            return null;
-        }
-        final TDigestState state = states.get(bucketOrd);
-        return state;
-    }
-
+    
     @Override
     public double metric(String name, long bucketOrd) {
         TDigestState state = getState(bucketOrd);
@@ -112,23 +55,8 @@ public class PercentilesAggregator extends NumericMetricsAggregator.MultiValue {
     }
 
     @Override
-    public InternalAggregation buildAggregation(long owningBucketOrdinal) {
-        TDigestState state = getState(owningBucketOrdinal);
-        if (state == null) {
-            return buildEmptyAggregation();
-        } else {
-            return new InternalPercentiles(name, percents, state, keyed);
-        }
-    }
-
-    @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalPercentiles(name, percents, new TDigestState(compression), keyed);
-    }
-
-    @Override
-    protected void doClose() {
-        Releasables.close(states);
+        return new InternalPercentiles(name, keys, new TDigestState(compression), keyed);
     }
 
     public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric> {

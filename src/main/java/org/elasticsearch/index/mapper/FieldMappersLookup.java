@@ -19,14 +19,15 @@
 
 package org.elasticsearch.index.mapper;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Sets;
-import com.google.common.collect.UnmodifiableIterator;
+import com.google.common.collect.*;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.collect.UpdateInPlaceMap;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.Settings;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 
@@ -35,94 +36,104 @@ import java.util.Set;
  */
 public class FieldMappersLookup implements Iterable<FieldMapper> {
 
-    private volatile ImmutableList<FieldMapper> mappers;
-    private volatile ImmutableOpenMap<String, FieldMappers> name;
-    private volatile ImmutableOpenMap<String, FieldMappers> indexName;
-    private volatile ImmutableOpenMap<String, FieldMappers> fullName;
+    private volatile FieldMapper[] mappers;
+    private volatile List<FieldMapper> mappersAsList;
+    private final UpdateInPlaceMap<String, FieldMappers> name;
+    private final UpdateInPlaceMap<String, FieldMappers> indexName;
+    private final UpdateInPlaceMap<String, FieldMappers> fullName;
 
-    public FieldMappersLookup() {
-        this.mappers = ImmutableList.of();
-        this.fullName = ImmutableOpenMap.of();
-        this.name = ImmutableOpenMap.of();
-        this.indexName = ImmutableOpenMap.of();
+    public FieldMappersLookup(Settings settings) {
+        this.mappers = new FieldMapper[0];
+        this.mappersAsList = ImmutableList.of();
+        this.fullName = UpdateInPlaceMap.of(MapperService.getFieldMappersCollectionSwitch(settings));
+        this.name = UpdateInPlaceMap.of(MapperService.getFieldMappersCollectionSwitch(settings));
+        this.indexName = UpdateInPlaceMap.of(MapperService.getFieldMappersCollectionSwitch(settings));
     }
 
     /**
      * Adds a new set of mappers.
      */
-    public void addNewMappers(Iterable<FieldMapper> newMappers) {
-        final ImmutableOpenMap.Builder<String, FieldMappers> tempName = ImmutableOpenMap.builder(name);
-        final ImmutableOpenMap.Builder<String, FieldMappers> tempIndexName = ImmutableOpenMap.builder(indexName);
-        final ImmutableOpenMap.Builder<String, FieldMappers> tempFullName = ImmutableOpenMap.builder(fullName);
+    public void addNewMappers(List<FieldMapper> newMappers) {
+        final UpdateInPlaceMap<String, FieldMappers>.Mutator mutatorName = name.mutator();
+        final UpdateInPlaceMap<String, FieldMappers>.Mutator mutatorIndexName = indexName.mutator();
+        final UpdateInPlaceMap<String, FieldMappers>.Mutator mutatorFullName = fullName.mutator();
 
         for (FieldMapper fieldMapper : newMappers) {
-            FieldMappers mappers = tempName.get(fieldMapper.names().name());
+            FieldMappers mappers = mutatorName.get(fieldMapper.names().name());
             if (mappers == null) {
                 mappers = new FieldMappers(fieldMapper);
             } else {
                 mappers = mappers.concat(fieldMapper);
             }
-            tempName.put(fieldMapper.names().name(), mappers);
+            mutatorName.put(fieldMapper.names().name(), mappers);
 
-            mappers = tempIndexName.get(fieldMapper.names().indexName());
+            mappers = mutatorIndexName.get(fieldMapper.names().indexName());
             if (mappers == null) {
                 mappers = new FieldMappers(fieldMapper);
             } else {
                 mappers = mappers.concat(fieldMapper);
             }
-            tempIndexName.put(fieldMapper.names().indexName(), mappers);
+            mutatorIndexName.put(fieldMapper.names().indexName(), mappers);
 
-            mappers = tempFullName.get(fieldMapper.names().fullName());
+            mappers = mutatorFullName.get(fieldMapper.names().fullName());
             if (mappers == null) {
                 mappers = new FieldMappers(fieldMapper);
             } else {
                 mappers = mappers.concat(fieldMapper);
             }
-            tempFullName.put(fieldMapper.names().fullName(), mappers);
+            mutatorFullName.put(fieldMapper.names().fullName(), mappers);
         }
-        this.mappers = ImmutableList.<FieldMapper>builder().addAll(this.mappers).addAll(newMappers).build();
-        this.name = tempName.build();
-        this.indexName = tempIndexName.build();
-        this.fullName = tempFullName.build();
+        FieldMapper[] tempMappers = new FieldMapper[this.mappers.length + newMappers.size()];
+        System.arraycopy(mappers, 0, tempMappers, 0, mappers.length);
+        int counter = 0;
+        for (int i = mappers.length; i < tempMappers.length; i++) {
+            tempMappers[i] = newMappers.get(counter++);
+        }
+        this.mappers = tempMappers;
+        this.mappersAsList = Arrays.asList(this.mappers);
+
+        mutatorName.close();
+        mutatorIndexName.close();
+        mutatorFullName.close();
     }
 
     /**
      * Removes the set of mappers.
      */
     public void removeMappers(Iterable<FieldMapper> mappersToRemove) {
-        List<FieldMapper> tempMappers = new ArrayList<>(this.mappers);
-        ImmutableOpenMap.Builder<String, FieldMappers> tempName = ImmutableOpenMap.builder(this.name);
-        ImmutableOpenMap.Builder<String, FieldMappers> tempIndexName = ImmutableOpenMap.builder(this.indexName);
-        ImmutableOpenMap.Builder<String, FieldMappers> tempFullName = ImmutableOpenMap.builder(this.fullName);
+        List<FieldMapper> tempMappers = Lists.newArrayList(this.mappers);
+        final UpdateInPlaceMap<String, FieldMappers>.Mutator mutatorName = name.mutator();
+        final UpdateInPlaceMap<String, FieldMappers>.Mutator mutatorIndexName = indexName.mutator();
+        final UpdateInPlaceMap<String, FieldMappers>.Mutator mutatorFullName = fullName.mutator();
 
         for (FieldMapper mapper : mappersToRemove) {
-            FieldMappers mappers = tempName.get(mapper.names().name());
+            FieldMappers mappers = mutatorName.get(mapper.names().name());
             if (mappers != null) {
                 mappers = mappers.remove(mapper);
                 if (mappers.isEmpty()) {
-                    tempName.remove(mapper.names().name());
+                    mutatorName.remove(mapper.names().name());
                 } else {
-                    tempName.put(mapper.names().name(), mappers);
+                    mutatorName.put(mapper.names().name(), mappers);
                 }
             }
 
-            mappers = tempIndexName.get(mapper.names().indexName());
+            mappers = mutatorIndexName.get(mapper.names().indexName());
             if (mappers != null) {
                 mappers = mappers.remove(mapper);
                 if (mappers.isEmpty()) {
-                    tempIndexName.remove(mapper.names().indexName());
+                    mutatorIndexName.remove(mapper.names().indexName());
                 } else {
-                    tempIndexName.put(mapper.names().indexName(), mappers);
+                    mutatorIndexName.put(mapper.names().indexName(), mappers);
                 }
             }
 
-            mappers = tempFullName.get(mapper.names().fullName());
+            mappers = mutatorFullName.get(mapper.names().fullName());
             if (mappers != null) {
                 mappers = mappers.remove(mapper);
                 if (mappers.isEmpty()) {
-                    tempFullName.remove(mapper.names().fullName());
+                    mutatorFullName.remove(mapper.names().fullName());
                 } else {
-                    tempFullName.put(mapper.names().fullName(), mappers);
+                    mutatorFullName.put(mapper.names().fullName(), mappers);
                 }
             }
 
@@ -130,29 +141,30 @@ public class FieldMappersLookup implements Iterable<FieldMapper> {
         }
 
 
-        this.mappers = ImmutableList.copyOf(tempMappers);
-        this.name = tempName.build();
-        this.indexName = tempIndexName.build();
-        this.fullName = tempFullName.build();
+        this.mappers = tempMappers.toArray(new FieldMapper[tempMappers.size()]);
+        this.mappersAsList = Arrays.asList(this.mappers);
+        mutatorName.close();
+        mutatorIndexName.close();
+        mutatorFullName.close();
     }
 
     @Override
     public UnmodifiableIterator<FieldMapper> iterator() {
-        return mappers.iterator();
+        return Iterators.unmodifiableIterator(mappersAsList.iterator());
     }
 
     /**
      * The list of all mappers.
      */
-    public ImmutableList<FieldMapper> mappers() {
-        return this.mappers;
+    public List<FieldMapper> mappers() {
+        return this.mappersAsList;
     }
 
     /**
      * Is there a mapper (based on unique {@link FieldMapper} identity)?
      */
     public boolean hasMapper(FieldMapper fieldMapper) {
-        return mappers.contains(fieldMapper);
+        return mappersAsList.contains(fieldMapper);
     }
 
     /**

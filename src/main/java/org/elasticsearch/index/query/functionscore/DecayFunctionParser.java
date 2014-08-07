@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query.functionscore;
 
-import com.sun.swing.internal.plaf.metal.resources.metal;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.ComplexExplanation;
 import org.apache.lucene.search.Explanation;
@@ -36,10 +35,10 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.fielddata.DoubleValues;
-import org.elasticsearch.index.fielddata.GeoPointValues;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.MultiGeoPointValues;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
@@ -50,7 +49,6 @@ import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.query.functionscore.gauss.GaussDecayFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.gauss.GaussDecayFunctionParser;
 import org.elasticsearch.search.MultiValueMode;
-import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -202,10 +200,10 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
             }
         }
         if (!scaleFound || !refFound) {
-            throw new ElasticsearchParseException("Both " + DecayFunctionBuilder.SCALE + "and " + DecayFunctionBuilder.ORIGIN
+            throw new ElasticsearchParseException("Both " + DecayFunctionBuilder.SCALE + " and " + DecayFunctionBuilder.ORIGIN
                     + " must be set for numeric fields.");
         }
-        IndexNumericFieldData<?> numericFieldData = parseContext.fieldData().getForField(mapper);
+        IndexNumericFieldData numericFieldData = parseContext.getForField(mapper);
         return new NumericFieldDataScoreFunction(origin, scale, decay, offset, getDecayFunction(), numericFieldData, mode);
     }
 
@@ -237,7 +235,7 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         }
         double scale = DistanceUnit.DEFAULT.parse(scaleString, DistanceUnit.DEFAULT);
         double offset = DistanceUnit.DEFAULT.parse(offsetString, DistanceUnit.DEFAULT);
-        IndexGeoPointFieldData<?> indexFieldData = parseContext.fieldData().getForField(mapper);
+        IndexGeoPointFieldData indexFieldData = parseContext.getForField(mapper);
         return new GeoFieldDataScoreFunction(origin, scale, decay, offset, getDecayFunction(), indexFieldData, mode);
 
     }
@@ -277,20 +275,20 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         double scale = val.getMillis();
         val = TimeValue.parseTimeValue(offsetString, TimeValue.timeValueHours(24));
         double offset = val.getMillis();
-        IndexNumericFieldData<?> numericFieldData = parseContext.fieldData().getForField(dateFieldMapper);
+        IndexNumericFieldData numericFieldData = parseContext.getForField(dateFieldMapper);
         return new NumericFieldDataScoreFunction(origin, scale, decay, offset, getDecayFunction(), numericFieldData, mode);
     }
 
     static class GeoFieldDataScoreFunction extends AbstractDistanceScoreFunction {
 
         private final GeoPoint origin;
-        private final IndexGeoPointFieldData<?> fieldData;
-        private GeoPointValues geoPointValues = null;
+        private final IndexGeoPointFieldData fieldData;
+        private MultiGeoPointValues geoPointValues = null;
 
         private static final GeoDistance distFunction = GeoDistance.DEFAULT;
 
         public GeoFieldDataScoreFunction(GeoPoint origin, double scale, double decay, double offset, DecayFunction func,
-                IndexGeoPointFieldData<?> fieldData, MultiValueMode mode) {
+                IndexGeoPointFieldData fieldData, MultiValueMode mode) {
             super(scale, decay, offset, func, mode);
             this.origin = origin;
             this.fieldData = fieldData;
@@ -303,11 +301,12 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
 
         @Override
         protected double distance(int docId) {
-            final int num = geoPointValues.setDocument(docId);
+            geoPointValues.setDocument(docId);
+            final int num = geoPointValues.count();
             if (num > 0) {
                 double value = mode.startDouble();
                 for (int i = 0; i < num; i++) {
-                    GeoPoint other = geoPointValues.nextValue();
+                    GeoPoint other = geoPointValues.valueAt(i);
                     value = mode.apply(Math.max(0.0d, distFunction.calculate(origin.lat(), origin.lon(), other.lat(), other.lon(),
                             DistanceUnit.METERS) - offset), value);
                 }
@@ -321,10 +320,11 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         protected String getDistanceString(int docId) {
             StringBuilder values = new StringBuilder(mode.name());
             values.append(" of: [");
-            final int num = geoPointValues.setDocument(docId);
+            geoPointValues.setDocument(docId);
+            final int num = geoPointValues.count();
             if (num > 0) {
                 for (int i = 0; i < num; i++) {
-                    GeoPoint value = geoPointValues.nextValue();
+                    GeoPoint value = geoPointValues.valueAt(i);
                     values.append("Math.max(arcDistance(");
                     values.append(value).append("(=doc value),").append(origin).append("(=origin)) - ").append(offset).append("(=offset), 0)");
                     if (i != num - 1) {
@@ -346,12 +346,12 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
 
     static class NumericFieldDataScoreFunction extends AbstractDistanceScoreFunction {
 
-        private final IndexNumericFieldData<?> fieldData;
+        private final IndexNumericFieldData fieldData;
         private final double origin;
-        private DoubleValues doubleValues;
+        private SortedNumericDoubleValues doubleValues;
 
         public NumericFieldDataScoreFunction(double origin, double scale, double decay, double offset, DecayFunction func,
-                IndexNumericFieldData<?> fieldData, MultiValueMode mode) {
+                IndexNumericFieldData fieldData, MultiValueMode mode) {
             super(scale, decay, offset, func, mode);
             this.fieldData = fieldData;
             this.origin = origin;
@@ -363,11 +363,12 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
 
         @Override
         protected double distance(int docId) {
-            final int num = doubleValues.setDocument(docId);
+            doubleValues.setDocument(docId);
+            final int num = doubleValues.count();
             if (num > 0) {
                 double value = mode.startDouble();
                 for (int i = 0; i < num; i++) {
-                    final double other = doubleValues.nextValue();
+                    final double other = doubleValues.valueAt(i);
                     value = mode.apply(Math.max(0.0d, Math.abs(other - origin) - offset), value);
                 }
                 return mode.reduce(value, num);
@@ -380,11 +381,11 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         protected String getDistanceString(int docId) {
 
             StringBuilder values = new StringBuilder(mode.name());
-            values.append(" of: [");
-            final int num = doubleValues.setDocument(docId);
+            doubleValues.setDocument(docId);
+            final int num = doubleValues.count();
             if (num > 0) {
                 for (int i = 0; i < num; i++) {
-                    double value = doubleValues.nextValue();
+                    double value = doubleValues.valueAt(i);
                     values.append("Math.max(Math.abs(");
                     values.append(value).append("(=doc value) - ").append(origin).append("(=origin))) - ").append(offset).append("(=offset), 0)");
                     if (i != num - 1) {

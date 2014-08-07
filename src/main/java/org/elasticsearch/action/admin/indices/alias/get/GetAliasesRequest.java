@@ -20,6 +20,7 @@ package org.elasticsearch.action.admin.indices.alias.get;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequest;
 import org.elasticsearch.common.Strings;
@@ -30,7 +31,7 @@ import java.io.IOException;
 
 /**
  */
-public class GetAliasesRequest extends MasterNodeReadOperationRequest<GetAliasesRequest> {
+public class GetAliasesRequest extends MasterNodeReadOperationRequest<GetAliasesRequest> implements IndicesRequest {
 
     private String[] indices = Strings.EMPTY_ARRAY;
     private String[] aliases = Strings.EMPTY_ARRAY;
@@ -63,6 +64,7 @@ public class GetAliasesRequest extends MasterNodeReadOperationRequest<GetAliases
         return this;
     }
 
+    @Override
     public String[] indices() {
         return indices;
     }
@@ -71,6 +73,7 @@ public class GetAliasesRequest extends MasterNodeReadOperationRequest<GetAliases
         return aliases;
     }
 
+    @Override
     public IndicesOptions indicesOptions() {
         return indicesOptions;
     }

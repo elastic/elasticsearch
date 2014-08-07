@@ -18,15 +18,15 @@
  */
 package org.elasticsearch.action.percolate;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ClientAction;
 import org.elasticsearch.client.Client;
 
 /**
  */
-public class MultiPercolateAction extends Action<MultiPercolateRequest, MultiPercolateResponse, MultiPercolateRequestBuilder> {
+public class MultiPercolateAction extends ClientAction<MultiPercolateRequest, MultiPercolateResponse, MultiPercolateRequestBuilder> {
 
     public static final MultiPercolateAction INSTANCE = new MultiPercolateAction();
-    public static final String NAME = "mpercolate";
+    public static final String NAME = "indices:data/read/mpercolate";
 
     private MultiPercolateAction() {
         super(NAME);

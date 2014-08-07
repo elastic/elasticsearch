@@ -23,14 +23,13 @@ import com.carrotsearch.hppc.LongOpenHashSet;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.common.collect.BoundedTreeSet;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.fielddata.LongValues;
-import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.InternalFacet;
@@ -72,20 +71,13 @@ public class TermsLongFacetExecutor extends FacetExecutor {
         if (allTerms) {
             for (AtomicReaderContext readerContext : context.searcher().getTopReaderContext().leaves()) {
                 int maxDoc = readerContext.reader().maxDoc();
-                LongValues values = indexFieldData.load(readerContext).getLongValues();
-                if (values instanceof LongValues.WithOrdinals) {
-                    LongValues.WithOrdinals valuesWithOrds = (LongValues.WithOrdinals) values;
-                    Ordinals.Docs ordinals = valuesWithOrds.ordinals();
-                    for (long ord = Ordinals.MIN_ORDINAL; ord < ordinals.getMaxOrd(); ord++) {
-                        facets.v().putIfAbsent(valuesWithOrds.getValueByOrd(ord), 0);
-                    }
-                } else {
-                    for (int docId = 0; docId < maxDoc; docId++) {
-                        final int numValues = values.setDocument(docId);
-                        final LongIntOpenHashMap v = facets.v();
-                        for (int i = 0; i < numValues; i++) {
-                            v.putIfAbsent(values.nextValue(), 0);
-                        }
+                SortedNumericDocValues values = indexFieldData.load(readerContext).getLongValues();
+                for (int docId = 0; docId < maxDoc; docId++) {
+                    values.setDocument(docId);
+                    final int numValues = values.count();
+                    final LongIntOpenHashMap v = facets.v();
+                    for (int i = 0; i < numValues; i++) {
+                        v.putIfAbsent(values.valueAt(i), 0);
                     }
                 }
             }
@@ -136,7 +128,7 @@ public class TermsLongFacetExecutor extends FacetExecutor {
     class Collector extends FacetExecutor.Collector {
 
         private final StaticAggregatorValueProc aggregator;
-        private LongValues values;
+        private SortedNumericDocValues values;
 
         public Collector() {
             if (script == null && excluded.isEmpty()) {

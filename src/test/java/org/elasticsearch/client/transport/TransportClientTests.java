@@ -19,23 +19,66 @@
 
 package org.elasticsearch.client.transport;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.node.Node;
+import org.elasticsearch.node.NodeBuilder;
+import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import org.hamcrest.Matchers;
+import org.elasticsearch.transport.TransportService;
 import org.junit.Test;
 
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.startsWith;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, transportClientRatio = 1.0)
 public class TransportClientTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testPickingUpChangesInDiscoveryNode() {
-        String nodeName = cluster().startNode(ImmutableSettings.builder().put("node.data", false));
+        String nodeName = internalCluster().startNode(ImmutableSettings.builder().put("node.data", false));
 
-        TransportClient client = (TransportClient) cluster().client(nodeName);
-        assertThat(client.connectedNodes().get(0).dataNode(), Matchers.equalTo(false));
+        TransportClient client = (TransportClient) internalCluster().client(nodeName);
+        assertThat(client.connectedNodes().get(0).dataNode(), equalTo(false));
 
+    }
+
+    @Test
+    public void testNodeVersionIsUpdated() {
+        TransportClient client = (TransportClient)  internalCluster().client();
+        TransportClientNodesService nodeService = client.nodeService();
+        Node node = NodeBuilder.nodeBuilder().data(false).settings(ImmutableSettings.builder()
+                .put(internalCluster().getDefaultSettings())
+                .put("http.enabled", false)
+                .put("index.store.type", "ram")
+                .put("config.ignore_system_properties", true) // make sure we get what we set :)
+                .put("gateway.type", "none")
+                .build()).clusterName("foobar").build();
+        node.start();
+        try {
+            TransportAddress transportAddress = ((InternalNode) node).injector().getInstance(TransportService.class).boundAddress().publishAddress();
+            client.addTransportAddress(transportAddress);
+            assertThat(nodeService.connectedNodes().size(), greaterThanOrEqualTo(1)); // since we force transport clients there has to be one node started that we connect to.
+            for (DiscoveryNode discoveryNode : nodeService.connectedNodes()) {  // connected nodes have updated version
+                assertThat(discoveryNode.getVersion(), equalTo(Version.CURRENT));
+            }
+
+            for (DiscoveryNode discoveryNode : nodeService.listedNodes()) {
+                assertThat(discoveryNode.id(), startsWith("#transport#-"));
+                assertThat(discoveryNode.getVersion(), equalTo(Version.CURRENT.minimumCompatibilityVersion()));
+            }
+
+            assertThat(nodeService.filteredNodes().size(), equalTo(1));
+            for (DiscoveryNode discoveryNode : nodeService.filteredNodes()) {
+                assertThat(discoveryNode.getVersion(), equalTo(Version.CURRENT.minimumCompatibilityVersion()));
+            }
+        } finally {
+            node.stop();
+        }
     }
 }

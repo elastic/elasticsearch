@@ -22,6 +22,8 @@ package org.elasticsearch.action.percolate;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.single.shard.SingleShardOperationRequest;
 import org.elasticsearch.action.support.single.shard.TransportShardSingleOperationAction;
@@ -50,15 +52,12 @@ public class TransportShardMultiPercolateAction extends TransportShardSingleOper
 
     private final PercolatorService percolatorService;
 
-    @Inject
-    public TransportShardMultiPercolateAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, PercolatorService percolatorService) {
-        super(settings, threadPool, clusterService, transportService);
-        this.percolatorService = percolatorService;
-    }
+    private static final String ACTION_NAME = MultiPercolateAction.NAME + "[shard]";
 
-    @Override
-    protected String transportAction() {
-        return "mpercolate/shard";
+    @Inject
+    public TransportShardMultiPercolateAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, PercolatorService percolatorService, ActionFilters actionFilters) {
+        super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters);
+        this.percolatorService = percolatorService;
     }
 
     @Override
@@ -117,7 +116,7 @@ public class TransportShardMultiPercolateAction extends TransportShardSingleOper
     }
 
 
-    public static class Request extends SingleShardOperationRequest {
+    public static class Request extends SingleShardOperationRequest implements IndicesRequest {
 
         private int shardId;
         private String preference;
@@ -131,6 +130,11 @@ public class TransportShardMultiPercolateAction extends TransportShardSingleOper
             this.shardId = shardId;
             this.preference = preference;
             this.items = new ArrayList<>();
+        }
+
+        @Override
+        public String[] indices() {
+            return new String[]{index};
         }
 
         public int shardId() {

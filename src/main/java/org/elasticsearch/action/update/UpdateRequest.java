@@ -20,12 +20,14 @@
 package org.elasticsearch.action.update;
 
 import com.google.common.collect.Maps;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.action.support.single.instance.InstanceShardOperationRequest;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -36,6 +38,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.script.ScriptService;
 
 import java.io.IOException;
 import java.util.Map;
@@ -54,6 +57,8 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
     @Nullable
     String script;
     @Nullable
+    ScriptService.ScriptType scriptType;
+    @Nullable
     String scriptLang;
     @Nullable
     Map<String, Object> scriptParams;
@@ -71,7 +76,9 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
 
     private IndexRequest upsertRequest;
 
+    private boolean scriptedUpsert = false;
     private boolean docAsUpsert = false;
+    private boolean detectNoop = false;
 
     @Nullable
     private IndexRequest doc;
@@ -191,6 +198,8 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         return this.script;
     }
 
+    public ScriptService.ScriptType scriptType() { return this.scriptType; }
+
     public Map<String, Object> scriptParams() {
         return this.scriptParams;
     }
@@ -199,10 +208,22 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
      * The script to execute. Note, make sure not to send different script each times and instead
      * use script params if possible with the same (automatically compiled) script.
      */
-    public UpdateRequest script(String script) {
+    public UpdateRequest script(String script, ScriptService.ScriptType scriptType) {
         this.script = script;
+        this.scriptType = scriptType;
         return this;
     }
+
+    /**
+     * The script to execute. Note, make sure not to send different script each times and instead
+     * use script params if possible with the same (automatically compiled) script.
+     */
+    public UpdateRequest script(String script) {
+        this.script = script;
+        this.scriptType = ScriptService.ScriptType.INLINE;
+        return this;
+    }
+
 
     /**
      * The language of the script to execute.
@@ -243,8 +264,9 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
      * The script to execute. Note, make sure not to send different script each times and instead
      * use script params if possible with the same (automatically compiled) script.
      */
-    public UpdateRequest script(String script, @Nullable Map<String, Object> scriptParams) {
+    public UpdateRequest script(String script, ScriptService.ScriptType scriptType, @Nullable Map<String, Object> scriptParams) {
         this.script = script;
+        this.scriptType = scriptType;
         if (this.scriptParams != null) {
             this.scriptParams.putAll(scriptParams);
         } else {
@@ -259,11 +281,13 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
      *
      * @param script       The script to execute
      * @param scriptLang   The script language
+     * @param scriptType   The script type
      * @param scriptParams The script parameters
      */
-    public UpdateRequest script(String script, @Nullable String scriptLang, @Nullable Map<String, Object> scriptParams) {
+    public UpdateRequest script(String script, @Nullable String scriptLang, ScriptService.ScriptType scriptType, @Nullable Map<String, Object> scriptParams) {
         this.script = script;
         this.scriptLang = scriptLang;
+        this.scriptType = scriptType;
         if (this.scriptParams != null) {
             this.scriptParams.putAll(scriptParams);
         } else {
@@ -539,6 +563,19 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         return source(new BytesArray(source, offset, length));
     }
 
+    /**
+     * Should this update attempt to detect if it is a noop?
+     * @return this for chaining
+     */
+    public UpdateRequest detectNoop(boolean detectNoop) {
+        this.detectNoop = detectNoop;
+        return this;
+    }
+
+    public boolean detectNoop() {
+        return detectNoop;
+    }
+
     public UpdateRequest source(BytesReference source) throws Exception {
         XContentType xContentType = XContentFactory.xContentType(source);
         try (XContentParser parser = XContentFactory.xContent(xContentType).createParser(source)) {
@@ -552,10 +589,16 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
                     currentFieldName = parser.currentName();
                 } else if ("script".equals(currentFieldName)) {
                     script = parser.textOrNull();
+                    scriptType = ScriptService.ScriptType.INLINE;
+                } else if ("script_id".equals(currentFieldName)) {
+                    script = parser.textOrNull();
+                    scriptType = ScriptService.ScriptType.INDEXED;
                 } else if ("params".equals(currentFieldName)) {
                     scriptParams = parser.map();
                 } else if ("lang".equals(currentFieldName)) {
                     scriptLang = parser.text();
+                } else if ("scripted_upsert".equals(currentFieldName)) {
+                    scriptedUpsert = parser.booleanValue();
                 } else if ("upsert".equals(currentFieldName)) {
                     XContentBuilder builder = XContentFactory.contentBuilder(xContentType);
                     builder.copyCurrentStructure(parser);
@@ -566,6 +609,8 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
                     safeDoc().source(docBuilder);
                 } else if ("doc_as_upsert".equals(currentFieldName)) {
                     docAsUpsert(parser.booleanValue());
+                } else if ("detect_noop".equals(currentFieldName)) {
+                    detectNoop(parser.booleanValue());
                 }
             }
         }
@@ -579,6 +624,15 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
     public void docAsUpsert(boolean shouldUpsertDoc) {
         this.docAsUpsert = shouldUpsertDoc;
     }
+    
+    public boolean scriptedUpsert(){
+        return this.scriptedUpsert;
+    }
+    
+    public void scriptedUpsert(boolean scriptedUpsert) {
+        this.scriptedUpsert = scriptedUpsert;
+    }
+    
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
@@ -589,6 +643,13 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         id = in.readString();
         routing = in.readOptionalString();
         script = in.readOptionalString();
+        if(Strings.hasLength(script)) {
+            if (in.getVersion().onOrAfter(Version.V_1_3_0)) {
+                scriptType = ScriptService.ScriptType.readFrom(in);
+            } else {
+                scriptType = null;
+            }
+        }
         scriptLang = in.readOptionalString();
         scriptParams = in.readMap();
         retryOnConflict = in.readVInt();
@@ -611,6 +672,12 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         docAsUpsert = in.readBoolean();
         version = Versions.readVersion(in);
         versionType = VersionType.fromValue(in.readByte());
+        if (in.getVersion().onOrAfter(Version.V_1_3_0)) {
+            detectNoop = in.readBoolean();
+        }
+        if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
+            scriptedUpsert = in.readBoolean();
+        }
     }
 
     @Override
@@ -622,6 +689,9 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         out.writeString(id);
         out.writeOptionalString(routing);
         out.writeOptionalString(script);
+        if (Strings.hasLength(script) && out.getVersion().onOrAfter(Version.V_1_3_0)) {
+            ScriptService.ScriptType.writeTo(scriptType, out);
+        }
         out.writeOptionalString(scriptLang);
         out.writeMap(scriptParams);
         out.writeVInt(retryOnConflict);
@@ -657,6 +727,12 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         out.writeBoolean(docAsUpsert);
         Versions.writeVersion(version, out);
         out.writeByte(versionType.getValue());
+        if (out.getVersion().onOrAfter(Version.V_1_3_0)) {
+            out.writeBoolean(detectNoop);
+        }
+        if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
+            out.writeBoolean(scriptedUpsert);
+        }
     }
 
 }

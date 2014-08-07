@@ -44,6 +44,8 @@ import static org.elasticsearch.transport.TransportRequestOptions.options;
  */
 public class NodesFaultDetection extends AbstractComponent {
 
+    public static final String PING_ACTION_NAME = "internal:discovery/zen/fd/ping";
+
     public static interface Listener {
 
         void onNodeFailure(DiscoveryNode node, String reason);
@@ -89,7 +91,7 @@ public class NodesFaultDetection extends AbstractComponent {
 
         logger.debug("[node  ] uses ping_interval [{}], ping_timeout [{}], ping_retries [{}]", pingInterval, pingRetryTimeout, pingRetryCount);
 
-        transportService.registerHandler(PingRequestHandler.ACTION, new PingRequestHandler());
+        transportService.registerHandler(PING_ACTION_NAME, new PingRequestHandler());
 
         this.connectionListener = new FDConnectionListener();
         if (registerConnectionListener) {
@@ -145,7 +147,7 @@ public class NodesFaultDetection extends AbstractComponent {
 
     public void close() {
         stop();
-        transportService.removeHandler(PingRequestHandler.ACTION);
+        transportService.removeHandler(PING_ACTION_NAME);
         transportService.removeConnectionListener(connectionListener);
     }
 
@@ -200,7 +202,7 @@ public class NodesFaultDetection extends AbstractComponent {
             if (!running) {
                 return;
             }
-            transportService.sendRequest(node, PingRequestHandler.ACTION, new PingRequest(node.id()), options().withType(TransportRequestOptions.Type.PING).withTimeout(pingRetryTimeout),
+            transportService.sendRequest(node, PING_ACTION_NAME, new PingRequest(node.id()), options().withType(TransportRequestOptions.Type.PING).withTimeout(pingRetryTimeout),
                     new BaseTransportResponseHandler<PingResponse>() {
                         @Override
                         public PingResponse newInstance() {
@@ -228,15 +230,16 @@ public class NodesFaultDetection extends AbstractComponent {
                             if (!running) {
                                 return;
                             }
-                            if (exp instanceof ConnectTransportException) {
-                                // ignore this one, we already handle it by registering a connection listener
-                                return;
-                            }
                             NodeFD nodeFD = nodesFD.get(node);
                             if (nodeFD != null) {
                                 if (!nodeFD.running) {
                                     return;
                                 }
+                                if (exp instanceof ConnectTransportException || exp.getCause() instanceof ConnectTransportException) {
+                                    handleTransportDisconnect(node);
+                                    return;
+                                }
+
                                 int retryCount = ++nodeFD.retryCount;
                                 logger.trace("[node  ] failed to ping [{}], retry [{}] out of [{}]", exp, node, retryCount, pingRetryCount);
                                 if (retryCount >= pingRetryCount) {
@@ -247,7 +250,7 @@ public class NodesFaultDetection extends AbstractComponent {
                                     }
                                 } else {
                                     // resend the request, not reschedule, rely on send timeout
-                                    transportService.sendRequest(node, PingRequestHandler.ACTION, new PingRequest(node.id()),
+                                    transportService.sendRequest(node, PING_ACTION_NAME, new PingRequest(node.id()),
                                             options().withType(TransportRequestOptions.Type.PING).withTimeout(pingRetryTimeout), this);
                                 }
                             }
@@ -257,7 +260,8 @@ public class NodesFaultDetection extends AbstractComponent {
                         public String executor() {
                             return ThreadPool.Names.SAME;
                         }
-                    });
+                    }
+            );
         }
     }
 
@@ -279,8 +283,6 @@ public class NodesFaultDetection extends AbstractComponent {
 
 
     class PingRequestHandler extends BaseTransportRequestHandler<PingRequest> {
-
-        public static final String ACTION = "discovery/zen/fd/ping";
 
         @Override
         public PingRequest newInstance() {

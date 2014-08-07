@@ -21,20 +21,25 @@ package org.elasticsearch.action.admin.indices.cache.clear;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.client.IndicesAdminClient;
-import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 
 /**
  *
  */
-public class ClearIndicesCacheRequestBuilder extends BroadcastOperationRequestBuilder<ClearIndicesCacheRequest, ClearIndicesCacheResponse, ClearIndicesCacheRequestBuilder> {
+public class ClearIndicesCacheRequestBuilder extends BroadcastOperationRequestBuilder<ClearIndicesCacheRequest, ClearIndicesCacheResponse, ClearIndicesCacheRequestBuilder, IndicesAdminClient> {
 
     public ClearIndicesCacheRequestBuilder(IndicesAdminClient indicesClient) {
-        super((InternalIndicesAdminClient) indicesClient, new ClearIndicesCacheRequest());
+        super(indicesClient, new ClearIndicesCacheRequest());
     }
 
     public ClearIndicesCacheRequestBuilder setFilterCache(boolean filterCache) {
         request.filterCache(filterCache);
+        return this;
+    }
+
+    public ClearIndicesCacheRequestBuilder setQueryCache(boolean queryCache) {
+        request.queryCache(queryCache);
         return this;
     }
 
@@ -60,6 +65,6 @@ public class ClearIndicesCacheRequestBuilder extends BroadcastOperationRequestBu
 
     @Override
     protected void doExecute(ActionListener<ClearIndicesCacheResponse> listener) {
-        ((IndicesAdminClient) client).clearCache(request, listener);
+        client.clearCache(request, listener);
     }
 }

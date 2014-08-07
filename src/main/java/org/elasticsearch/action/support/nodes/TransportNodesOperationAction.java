@@ -23,13 +23,13 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.NoSuchNodeException;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
@@ -48,23 +48,20 @@ public abstract class TransportNodesOperationAction<Request extends NodesOperati
 
     protected final TransportService transportService;
 
-    final String transportAction;
     final String transportNodeAction;
     final String executor;
 
-    @Inject
-    public TransportNodesOperationAction(Settings settings, ClusterName clusterName, ThreadPool threadPool,
-                                         ClusterService clusterService, TransportService transportService) {
-        super(settings, threadPool);
+    protected TransportNodesOperationAction(Settings settings, String actionName, ClusterName clusterName, ThreadPool threadPool,
+                                            ClusterService clusterService, TransportService transportService, ActionFilters actionFilters) {
+        super(settings, actionName, threadPool, actionFilters);
         this.clusterName = clusterName;
         this.clusterService = clusterService;
         this.transportService = transportService;
 
-        this.transportAction = transportAction();
-        this.transportNodeAction = transportAction() + "/n";
+        this.transportNodeAction = actionName + "[n]";
         this.executor = executor();
 
-        transportService.registerHandler(transportAction, new TransportHandler());
+        transportService.registerHandler(actionName, new TransportHandler());
         transportService.registerHandler(transportNodeAction, new NodeTransportHandler());
     }
 
@@ -72,8 +69,6 @@ public abstract class TransportNodesOperationAction<Request extends NodesOperati
     protected void doExecute(Request request, ActionListener<Response> listener) {
         new AsyncAction(request, listener).start();
     }
-
-    protected abstract String transportAction();
 
     protected boolean transportCompress() {
         return false;
@@ -267,7 +262,7 @@ public abstract class TransportNodesOperationAction<Request extends NodesOperati
 
         @Override
         public String toString() {
-            return transportAction;
+            return actionName;
         }
     }
 

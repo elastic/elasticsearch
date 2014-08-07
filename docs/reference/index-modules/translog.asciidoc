@@ -7,21 +7,27 @@ applied atomically, while not "committing" the internal Lucene index for
 each request. A flush ("commit") still happens based on several
 parameters:
 
-[cols="<,<",options="header",]
-|=======================================================================
-|Setting |Description
-|index.translog.flush_threshold_ops |After how many operations to flush.
-Defaults to `unlimited`.
+`index.translog.flush_threshold_ops`::
 
-|index.translog.flush_threshold_size |Once the translog hits this size,
-a flush will happen. Defaults to `200mb`.
+After how many operations to flush. Defaults to `unlimited`.
 
-|index.translog.flush_threshold_period |The period with no flush
-happening to force a flush. Defaults to `30m`.
+`index.translog.flush_threshold_size`:: 
 
-|index.translog.interval |How often to check if a flush is needed, randomized
+Once the translog hits this size, a flush will happen. Defaults to `200mb`.
+
+`index.translog.flush_threshold_period`:: 
+
+The period with no flush happening to force a flush. Defaults to `30m`.
+
+`index.translog.interval`:: 
+
+How often to check if a flush is needed, randomized
 between the interval value and 2x the interval value. Defaults to `5s`.
-|=======================================================================
+
+`index.gateway.local.sync`::
+
+How often the translog is ++fsync++ed to disk. Defaults to `5s`.
+
 
 Note: these parameters can be updated at runtime using the Index
 Settings Update API (for example, these number can be increased when

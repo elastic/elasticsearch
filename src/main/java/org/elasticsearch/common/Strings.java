@@ -25,6 +25,7 @@ import com.google.common.collect.Iterables;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.util.CollectionUtils;
 
@@ -208,6 +209,18 @@ public class Strings {
     }
 
     /**
+     * Check that the given BytesReference is neither <code>null</code> nor of length 0
+     * Note: Will return <code>true</code> for a BytesReference that purely consists of whitespace.
+     *
+     * @param bytesReference the BytesReference to check (may be <code>null</code>)
+     * @return <code>true</code> if the BytesReference is not null and has length
+     * @see #hasLength(CharSequence)
+     */
+    public static boolean hasLength(BytesReference bytesReference) {
+        return (bytesReference != null && bytesReference.length() > 0);
+    }
+
+    /**
      * Check that the given String is neither <code>null</code> nor of length 0.
      * Note: Will return <code>true</code> for a String that purely consists of whitespace.
      *
@@ -218,6 +231,25 @@ public class Strings {
     public static boolean hasLength(String str) {
         return hasLength((CharSequence) str);
     }
+
+
+    /**
+     * Check that the given CharSequence is either <code>null</code> or of length 0.
+     * Note: Will return <code>false</code> for a CharSequence that purely consists of whitespace.
+     * <p><pre>
+     * StringUtils.isEmpty(null) = true
+     * StringUtils.isEmpty("") = true
+     * StringUtils.isEmpty(" ") = false
+     * StringUtils.isEmpty("Hello") = false
+     * </pre>
+     *
+     * @param str the CharSequence to check (may be <code>null</code>)
+     * @return <code>true</code> if the CharSequence is either null or has a zero length
+     */
+    public static boolean isEmpty(CharSequence str) {
+        return !hasLength(str);
+    }
+
 
     /**
      * Check whether the given CharSequence has actual text.

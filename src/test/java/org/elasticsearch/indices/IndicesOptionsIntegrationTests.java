@@ -49,7 +49,6 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.suggest.SuggestRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -171,6 +170,8 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
     @Test
     public void testSpecifiedIndexUnavailable_snapshotRestore() throws Exception {
         createIndex("test1");
+        ensureGreen("test1");
+        waitForRelocation();
 
         PutRepositoryResponse putRepositoryResponse = client().admin().cluster().preparePutRepository("dummy-repo")
                 .setType("fs").setSettings(ImmutableSettings.settingsBuilder().put("location", newTempDir())).get();
@@ -189,9 +190,9 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
         verify(restore("snap2", "test1", "test2").setIndicesOptions(options), false);
 
         options = IndicesOptions.strictExpandOpen();
-        assertAcked(prepareCreate("test2"));
+        createIndex("test2");
         //TODO: temporary work-around for #5531
-        ensureGreen();
+        ensureGreen("test2");
         waitForRelocation();
         verify(snapshot("snap3", "test1", "test2").setIndicesOptions(options), false);
         verify(restore("snap3", "test1", "test2").setIndicesOptions(options), false);
@@ -326,6 +327,8 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
     @Test
     public void testWildcardBehaviour_snapshotRestore() throws Exception {
         createIndex("foobar");
+        ensureGreen("foobar");
+        waitForRelocation();
 
         PutRepositoryResponse putRepositoryResponse = client().admin().cluster().preparePutRepository("dummy-repo")
                 .setType("fs").setSettings(ImmutableSettings.settingsBuilder().put("location", newTempDir())).get();
@@ -342,7 +345,7 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
 
         assertAcked(prepareCreate("barbaz"));
         //TODO: temporary work-around for #5531
-        ensureGreen();
+        ensureGreen("barbaz");
         waitForRelocation();
         options = IndicesOptions.fromOptions(false, false, true, false);
         verify(snapshot("snap3", "foo*", "bar*").setIndicesOptions(options), false);
@@ -409,16 +412,12 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
         verify(count("test1", "test2"), false);
         assertAcked(client().admin().indices().prepareClose("test2").get());
 
-        try {
-            search("test1", "test2").get();
-            fail("Exception should have been thrown");
-        } catch (ClusterBlockException e) {
-        }
-        try {
-            count("test1", "test2").get();
-            fail("Exception should have been thrown");
-        } catch (ClusterBlockException e) {
-        }
+        verify(search("test1", "test2"), true);
+        verify(count("test1", "test2"), true);
+
+        IndicesOptions options = IndicesOptions.fromOptions(true, true, true, false, IndicesOptions.strictExpandOpenAndForbidClosed());
+        verify(search("test1", "test2").setIndicesOptions(options), false);
+        verify(count("test1", "test2").setIndicesOptions(options), false);
 
         verify(search(), false);
         verify(count(), false);
@@ -480,7 +479,7 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
     @Test
     public void testDeleteMapping() throws Exception {
         assertAcked(prepareCreate("foobar").addMapping("type1", "field", "type=string"));
-        ensureYellow();
+        ensureGreen();
 
         verify(client().admin().indices().prepareDeleteMapping("foo").setType("type1"), true);
         assertThat(client().admin().indices().prepareTypesExists("foobar").setTypes("type1").get().isExists(), equalTo(true));
@@ -496,7 +495,9 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
         assertAcked(prepareCreate("foobar").addMapping("type1", "field", "type=string"));
         assertAcked(prepareCreate("bar").addMapping("type1", "field", "type=string"));
         assertAcked(prepareCreate("barbaz").addMapping("type1", "field", "type=string"));
-        ensureYellow();
+        // we wait for green to make sure indices with mappings have been created on all relevant
+        // nodes, and that recovery won't re-introduce a mapping
+        ensureGreen();
 
         verify(client().admin().indices().prepareDeleteMapping("foo*").setType("type1"), false);
         assertThat(client().admin().indices().prepareTypesExists("foo").setTypes("type1").get().isExists(), equalTo(false));
@@ -580,7 +581,7 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
         assertAcked(prepareCreate("bar").addMapping("type3", "field", "type=string"));
         assertAcked(prepareCreate("barbaz").addMapping("type4", "field", "type=string"));
         
-        ensureYellow();
+        ensureGreen();
 
         assertThat(client().admin().indices().prepareTypesExists("foo").setTypes("type1").get().isExists(), equalTo(true));
         assertThat(client().admin().indices().prepareTypesExists("foobar").setTypes("type2").get().isExists(), equalTo(true));
@@ -846,8 +847,8 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
             } else {
                 try {
                     requestBuilder.get();
-                    fail("IndexMissingException was expected");
-                } catch (IndexMissingException e) {}
+                    fail("IndexMissingException or IndexClosedException was expected");
+                } catch (IndexMissingException | IndexClosedException e) {}
             }
         } else {
             if (requestBuilder instanceof SearchRequestBuilder) {

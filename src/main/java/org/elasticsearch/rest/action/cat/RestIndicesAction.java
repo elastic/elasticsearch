@@ -62,7 +62,7 @@ public class RestIndicesAction extends AbstractCatAction {
     }
 
     @Override
-    public void doRequest(final RestRequest request, final RestChannel channel) {
+    public void doRequest(final RestRequest request, final RestChannel channel, final Client client) {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.clear().indices(indices).metaData(true);
@@ -122,6 +122,12 @@ public class RestIndicesAction extends AbstractCatAction {
 
         table.addCell("filter_cache.evictions", "sibling:pri;alias:fce,filterCacheEvictions;default:false;text-align:right;desc:filter cache evictions");
         table.addCell("pri.filter_cache.evictions", "default:false;text-align:right;desc:filter cache evictions");
+
+        table.addCell("query_cache.memory_size", "sibling:pri;alias:qcm,queryCacheMemory;default:false;text-align:right;desc:used query cache");
+        table.addCell("pri.query_cache.memory_size", "default:false;text-align:right;desc:used query cache");
+
+        table.addCell("query_cache.evictions", "sibling:pri;alias:qce,queryCacheEvictions;default:false;text-align:right;desc:query cache evictions");
+        table.addCell("pri.query_cache.evictions", "default:false;text-align:right;desc:query cache evictions");
 
         table.addCell("flush.total", "sibling:pri;alias:ft,flushTotal;default:false;text-align:right;desc:number of flushes");
         table.addCell("pri.flush.total", "default:false;text-align:right;desc:number of flushes");
@@ -240,6 +246,12 @@ public class RestIndicesAction extends AbstractCatAction {
         table.addCell("segments.memory", "sibling:pri;alias:sm,segmentsMemory;default:false;text-align:right;desc:memory used by segments");
         table.addCell("pri.segments.memory", "default:false;text-align:right;desc:memory used by segments");
 
+        table.addCell("segments.index_writer_memory", "sibling:pri;alias:siwm,segmentsIndexWriterMemory;default:false;text-align:right;desc:memory used by index writer");
+        table.addCell("pri.segments.index_writer_memory", "default:false;text-align:right;desc:memory used by index writer");
+
+        table.addCell("segments.version_map_memory", "sibling:pri;alias:svmm,segmentsVersionMapMemory;default:false;text-align:right;desc:memory used by version map");
+        table.addCell("pri.segments.version_map_memory", "default:false;text-align:right;desc:memory used by version map");
+
         table.addCell("warmer.current", "sibling:pri;alias:wc,warmerCurrent;default:false;text-align:right;desc:current warmer ops");
         table.addCell("pri.warmer.current", "default:false;text-align:right;desc:current warmer ops");
 
@@ -295,6 +307,12 @@ public class RestIndicesAction extends AbstractCatAction {
 
             table.addCell(indexStats == null ? null : indexStats.getTotal().getFilterCache().getEvictions());
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getFilterCache().getEvictions());
+
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getQueryCache().getMemorySize());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getQueryCache().getMemorySize());
+
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getQueryCache().getEvictions());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getQueryCache().getEvictions());
 
             table.addCell(indexStats == null ? null : indexStats.getTotal().getFlush().getTotal());
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getFlush().getTotal());
@@ -412,6 +430,12 @@ public class RestIndicesAction extends AbstractCatAction {
 
             table.addCell(indexStats == null ? null : indexStats.getTotal().getSegments().getMemory());
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getSegments().getMemory());
+
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getSegments().getIndexWriterMemory());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getSegments().getIndexWriterMemory());
+
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getSegments().getVersionMapMemory());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getSegments().getVersionMapMemory());
 
             table.addCell(indexStats == null ? null : indexStats.getTotal().getWarmer().current());
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getWarmer().current());

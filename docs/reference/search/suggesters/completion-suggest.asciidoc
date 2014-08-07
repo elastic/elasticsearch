@@ -11,7 +11,7 @@ basic `auto-complete` functionality.
 ==== Why another suggester? Why not prefix queries?
 
 The first question which comes to mind when reading about a prefix
-suggestion is, why you should use it all, if you have prefix queries
+suggestion is, why you should use it at all, if you have prefix queries
 already. The answer is simple: Prefix suggestions are fast.
 
 The data structures are internally backed by Lucenes

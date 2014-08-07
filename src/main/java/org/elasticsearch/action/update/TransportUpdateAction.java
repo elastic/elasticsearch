@@ -24,6 +24,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
@@ -34,6 +35,7 @@ import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.index.TransportIndexAction;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.single.instance.TransportInstanceSingleOperationAction;
@@ -54,6 +56,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.engine.DocumentAlreadyExistsException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -68,22 +71,19 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
     private final AutoCreateIndex autoCreateIndex;
     private final TransportCreateIndexAction createIndexAction;
     private final UpdateHelper updateHelper;
+    private final IndicesService indicesService;
 
     @Inject
     public TransportUpdateAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
                                  TransportIndexAction indexAction, TransportDeleteAction deleteAction, TransportCreateIndexAction createIndexAction,
-                                 UpdateHelper updateHelper) {
-        super(settings, threadPool, clusterService, transportService);
+                                 UpdateHelper updateHelper, ActionFilters actionFilters, IndicesService indicesService) {
+        super(settings, UpdateAction.NAME, threadPool, clusterService, transportService, actionFilters);
         this.indexAction = indexAction;
         this.deleteAction = deleteAction;
         this.createIndexAction = createIndexAction;
         this.updateHelper = updateHelper;
+        this.indicesService = indicesService;
         this.autoCreateIndex = new AutoCreateIndex(settings);
-    }
-
-    @Override
-    protected String transportAction() {
-        return UpdateAction.NAME;
     }
 
     @Override
@@ -121,7 +121,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         MetaData metaData = clusterService.state().metaData();
         String aliasOrIndex = request.index();
         request.routing((metaData.resolveIndexRouting(request.routing(), aliasOrIndex)));
-        request.index(metaData.concreteSingleIndex(request.index()));
+        request.index(metaData.concreteSingleIndex(request.index(), request.indicesOptions()));
 
         // Fail fast on the node that received the request, rather than failing when translating on the index or delete request.
         if (request.routing() == null && state.getMetaData().routingRequired(request.index(), request.type())) {
@@ -170,7 +170,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
             return clusterState.routingTable().index(request.index()).shard(request.shardId()).primaryShardIt();
         }
         ShardIterator shardIterator = clusterService.operationRouting()
-                .indexShards(clusterService.state(), request.index(), request.type(), request.id(), request.routing());
+                .indexShards(clusterState, request.index(), request.type(), request.id(), request.routing());
         ShardRouting shard;
         while ((shard = shardIterator.nextOrNull()) != null) {
             if (shard.primary()) {
@@ -210,9 +210,9 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                         e = ExceptionsHelper.unwrapCause(e);
                         if (e instanceof VersionConflictEngineException || e instanceof DocumentAlreadyExistsException) {
                             if (retryCount < request.retryOnConflict()) {
-                                threadPool.executor(executor()).execute(new Runnable() {
+                                threadPool.executor(executor()).execute(new ActionRunnable<UpdateResponse>(listener) {
                                     @Override
-                                    public void run() {
+                                    protected void doRun() {
                                         shardOperation(request, listener, retryCount + 1);
                                     }
                                 });
@@ -240,9 +240,9 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                         e = ExceptionsHelper.unwrapCause(e);
                         if (e instanceof VersionConflictEngineException) {
                             if (retryCount < request.retryOnConflict()) {
-                                threadPool.executor(executor()).execute(new Runnable() {
+                                threadPool.executor(executor()).execute(new ActionRunnable<UpdateResponse>(listener) {
                                     @Override
-                                    public void run() {
+                                    protected void doRun() {
                                         shardOperation(request, listener, retryCount + 1);
                                     }
                                 });
@@ -268,9 +268,9 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                         e = ExceptionsHelper.unwrapCause(e);
                         if (e instanceof VersionConflictEngineException) {
                             if (retryCount < request.retryOnConflict()) {
-                                threadPool.executor(executor()).execute(new Runnable() {
+                                threadPool.executor(executor()).execute(new ActionRunnable<UpdateResponse>(listener) {
                                     @Override
-                                    public void run() {
+                                    protected void doRun() {
                                         shardOperation(request, listener, retryCount + 1);
                                     }
                                 });
@@ -284,6 +284,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
             case NONE:
                 UpdateResponse update = result.action();
                 listener.onResponse(update);
+                indicesService.indexService(request.index()).shard(request.shardId()).indexingService().noopUpdate(request.type());
                 break;
             default:
                 throw new ElasticsearchIllegalStateException("Illegal operation " + result.operation());

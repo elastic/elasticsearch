@@ -272,7 +272,7 @@ parameter. For example:
 --------------------------------------------------
 $ curl -XPUT localhost:9200/twitter/tweet/1?timestamp=2009-11-15T14%3A12%3A12 -d '{
     "user" : "kimchy",
-    "message" : "trying out Elasticsearch",
+    "message" : "trying out Elasticsearch"
 }'
 --------------------------------------------------
 
@@ -343,6 +343,10 @@ setting. To alter this behavior per-operation, the `consistency` request
 parameter can be used.
 
 Valid write consistency values are `one`, `quorum`, and `all`.
+
+Note, for the case where the number of replicas is 1 (total of 2 copies
+of the data), then the default behavior is to succeed if 1 copy (the primary)
+can perform the write.
 
 [float]
 [[index-replication]]

@@ -1,0 +1,17 @@
+{
+  "delete_template": {
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/search-template.html",
+    "methods": ["DELETE"],
+    "url": {
+      "path": "/_search/template/{id}",
+      "paths": [ "/_search/template/{id}" ],
+      "parts": {
+        "id": {
+          "type" : "string",
+          "description" : "Template ID"
+        }
+      }
+    },
+    "body": null
+  }
+}

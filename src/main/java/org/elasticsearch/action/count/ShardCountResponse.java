@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.count;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -33,29 +34,41 @@ import java.io.IOException;
 class ShardCountResponse extends BroadcastShardOperationResponse {
 
     private long count;
+    private boolean terminatedEarly;
 
     ShardCountResponse() {
 
     }
 
-    public ShardCountResponse(String index, int shardId, long count) {
+    public ShardCountResponse(String index, int shardId, long count, boolean terminatedEarly) {
         super(index, shardId);
         this.count = count;
+        this.terminatedEarly = terminatedEarly;
     }
 
     public long getCount() {
         return this.count;
     }
 
+    public boolean terminatedEarly() {
+        return this.terminatedEarly;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         count = in.readVLong();
+        if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
+            terminatedEarly = in.readBoolean();
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeVLong(count);
+        if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
+            out.writeBoolean(terminatedEarly);
+        }
     }
 }

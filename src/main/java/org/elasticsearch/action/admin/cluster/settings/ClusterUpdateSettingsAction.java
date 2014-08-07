@@ -27,7 +27,7 @@ import org.elasticsearch.client.ClusterAdminClient;
 public class ClusterUpdateSettingsAction extends ClusterAction<ClusterUpdateSettingsRequest, ClusterUpdateSettingsResponse, ClusterUpdateSettingsRequestBuilder> {
 
     public static final ClusterUpdateSettingsAction INSTANCE = new ClusterUpdateSettingsAction();
-    public static final String NAME = "cluster/settings/update";
+    public static final String NAME = "cluster:admin/settings/update";
 
     private ClusterUpdateSettingsAction() {
         super(NAME);

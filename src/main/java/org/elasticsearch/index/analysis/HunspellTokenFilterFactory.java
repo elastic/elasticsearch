@@ -39,7 +39,7 @@ public class HunspellTokenFilterFactory extends AbstractTokenFilterFactory {
     private final boolean longestOnly;
 
     @Inject
-    public HunspellTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings, HunspellService hunspellService) {
+    public HunspellTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings, HunspellService hunspellService)  {
         super(index, indexSettings, name, settings);
 
         String locale = settings.get("locale", settings.get("language", settings.get("lang", null)));
@@ -64,7 +64,7 @@ public class HunspellTokenFilterFactory extends AbstractTokenFilterFactory {
     public boolean dedup() {
         return dedup;
     }
-    
+
     public boolean longestOnly() {
         return longestOnly;
     }

@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.mapper.object;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import org.apache.lucene.document.XStringField;
+import com.google.common.collect.Iterables;
+import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.TermFilter;
@@ -28,9 +28,11 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.collect.UpdateInPlaceMap;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -39,6 +41,7 @@ import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
+import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.IOException;
 import java.util.*;
@@ -165,14 +168,14 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
             context.path().pathType(origPathType);
             context.path().remove();
 
-            ObjectMapper objectMapper = createMapper(name, context.path().fullPathAsText(name), enabled, nested, dynamic, pathType, mappers);
+            ObjectMapper objectMapper = createMapper(name, context.path().fullPathAsText(name), enabled, nested, dynamic, pathType, mappers, context.indexSettings());
             objectMapper.includeInAllIfNotSet(includeInAll);
 
             return (Y) objectMapper;
         }
 
-        protected ObjectMapper createMapper(String name, String fullPath, boolean enabled, Nested nested, Dynamic dynamic, ContentPath.Type pathType, Map<String, Mapper> mappers) {
-            return new ObjectMapper(name, fullPath, enabled, nested, dynamic, pathType, mappers);
+        protected ObjectMapper createMapper(String name, String fullPath, boolean enabled, Nested nested, Dynamic dynamic, ContentPath.Type pathType, Map<String, Mapper> mappers, @Nullable @IndexSettings Settings settings) {
+            return new ObjectMapper(name, fullPath, enabled, nested, dynamic, pathType, mappers, settings);
         }
     }
 
@@ -308,19 +311,22 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
 
     private Boolean includeInAll;
 
-    private volatile ImmutableOpenMap<String, Mapper> mappers = ImmutableOpenMap.of();
+    private final UpdateInPlaceMap<String, Mapper> mappers;
 
     private final Object mutex = new Object();
 
-    ObjectMapper(String name, String fullPath, boolean enabled, Nested nested, Dynamic dynamic, ContentPath.Type pathType, Map<String, Mapper> mappers) {
+    ObjectMapper(String name, String fullPath, boolean enabled, Nested nested, Dynamic dynamic, ContentPath.Type pathType, Map<String, Mapper> mappers, @Nullable @IndexSettings Settings settings) {
         this.name = name;
         this.fullPath = fullPath;
         this.enabled = enabled;
         this.nested = nested;
         this.dynamic = dynamic;
         this.pathType = pathType;
+        this.mappers = UpdateInPlaceMap.of(MapperService.getFieldMappersCollectionSwitch(settings));
         if (mappers != null) {
-            this.mappers = ImmutableOpenMap.builder(this.mappers).putAll(mappers).build();
+            UpdateInPlaceMap<String, Mapper>.Mutator mappersMutator = this.mappers.mutator();
+            mappersMutator.putAll(mappers);
+            mappersMutator.close();
         }
         this.nestedTypePathAsString = "__" + fullPath;
         this.nestedTypePathAsBytes = new BytesRef(nestedTypePathAsString);
@@ -339,9 +345,9 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
         }
         this.includeInAll = includeInAll;
         // when called from outside, apply this on all the inner mappers
-        for (ObjectObjectCursor<String, Mapper> cursor : mappers) {
-            if (cursor.value instanceof AllFieldMapper.IncludeInAll) {
-                ((AllFieldMapper.IncludeInAll) cursor.value).includeInAll(includeInAll);
+        for (Mapper mapper : mappers.values()) {
+            if (mapper instanceof AllFieldMapper.IncludeInAll) {
+                ((AllFieldMapper.IncludeInAll) mapper).includeInAll(includeInAll);
             }
         }
     }
@@ -352,9 +358,9 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
             this.includeInAll = includeInAll;
         }
         // when called from outside, apply this on all the inner mappers
-        for (ObjectObjectCursor<String, Mapper> cursor : mappers) {
-            if (cursor.value instanceof AllFieldMapper.IncludeInAll) {
-                ((AllFieldMapper.IncludeInAll) cursor.value).includeInAllIfNotSet(includeInAll);
+        for (Mapper mapper : mappers.values()) {
+            if (mapper instanceof AllFieldMapper.IncludeInAll) {
+                ((AllFieldMapper.IncludeInAll) mapper).includeInAllIfNotSet(includeInAll);
             }
         }
     }
@@ -363,9 +369,9 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
     public void unsetIncludeInAll() {
         includeInAll = null;
         // when called from outside, apply this on all the inner mappers
-        for (ObjectObjectCursor<String, Mapper> cursor : mappers) {
-            if (cursor.value instanceof AllFieldMapper.IncludeInAll) {
-                ((AllFieldMapper.IncludeInAll) cursor.value).unsetIncludeInAll();
+        for (Mapper mapper : mappers.values()) {
+            if (mapper instanceof AllFieldMapper.IncludeInAll) {
+                ((AllFieldMapper.IncludeInAll) mapper).unsetIncludeInAll();
             }
         }
     }
@@ -383,23 +389,25 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
             ((AllFieldMapper.IncludeInAll) mapper).includeInAllIfNotSet(includeInAll);
         }
         synchronized (mutex) {
-            this.mappers = ImmutableOpenMap.builder(this.mappers).fPut(mapper.name(), mapper).build();
+            UpdateInPlaceMap<String, Mapper>.Mutator mappingMutator = this.mappers.mutator();
+            mappingMutator.put(mapper.name(), mapper);
+            mappingMutator.close();
         }
         return this;
     }
 
     @Override
     public void traverse(FieldMapperListener fieldMapperListener) {
-        for (ObjectObjectCursor<String, Mapper> cursor : mappers) {
-            cursor.value.traverse(fieldMapperListener);
+        for (Mapper mapper : mappers.values()) {
+            mapper.traverse(fieldMapperListener);
         }
     }
 
     @Override
     public void traverse(ObjectMapperListener objectMapperListener) {
         objectMapperListener.objectMapper(this);
-        for (ObjectObjectCursor<String, Mapper> cursor : mappers) {
-            cursor.value.traverse(objectMapperListener);
+        for (Mapper mapper : mappers.values()) {
+            mapper.traverse(objectMapperListener);
         }
     }
 
@@ -443,24 +451,23 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
             throw new MapperParsingException("object mapping for [" + name + "] tried to parse as object, but found a concrete value");
         }
 
-        Document restoreDoc = null;
         if (nested.isNested()) {
-            Document nestedDoc = new Document();
+            context = context.createNestedContext(fullPath);
+            Document nestedDoc = context.doc();
+            Document parentDoc = nestedDoc.getParent();
             // pre add the uid field if possible (id was already provided)
-            IndexableField uidField = context.doc().getField(UidFieldMapper.NAME);
+            IndexableField uidField = parentDoc.getField(UidFieldMapper.NAME);
             if (uidField != null) {
                 // we don't need to add it as a full uid field in nested docs, since we don't need versioning
                 // we also rely on this for UidField#loadVersion
 
                 // this is a deeply nested field
-                nestedDoc.add(new XStringField(UidFieldMapper.NAME, uidField.stringValue(), UidFieldMapper.Defaults.NESTED_FIELD_TYPE));
+                nestedDoc.add(new Field(UidFieldMapper.NAME, uidField.stringValue(), UidFieldMapper.Defaults.NESTED_FIELD_TYPE));
             }
             // the type of the nested doc starts with __, so we can identify that its a nested one in filters
             // note, we don't prefix it with the type of the doc since it allows us to execute a nested query
             // across types (for example, with similar nested objects)
-            nestedDoc.add(new XStringField(TypeFieldMapper.NAME, nestedTypePathAsString, TypeFieldMapper.Defaults.FIELD_TYPE));
-            restoreDoc = context.switchDoc(nestedDoc);
-            context.addDoc(nestedDoc);
+            nestedDoc.add(new Field(TypeFieldMapper.NAME, nestedTypePathAsString, TypeFieldMapper.Defaults.FIELD_TYPE));
         }
 
         ContentPath.Type origPathType = context.path().pathType();
@@ -494,24 +501,26 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
         // restore the enable path flag
         context.path().pathType(origPathType);
         if (nested.isNested()) {
-            Document nestedDoc = context.switchDoc(restoreDoc);
+            Document nestedDoc = context.doc();
+            Document parentDoc = nestedDoc.getParent();
             if (nested.isIncludeInParent()) {
                 for (IndexableField field : nestedDoc.getFields()) {
                     if (field.name().equals(UidFieldMapper.NAME) || field.name().equals(TypeFieldMapper.NAME)) {
                         continue;
                     } else {
-                        context.doc().add(field);
+                        parentDoc.add(field);
                     }
                 }
             }
             if (nested.isIncludeInRoot()) {
+                Document rootDoc = context.rootDoc();
                 // don't add it twice, if its included in parent, and we are handling the master doc...
-                if (!(nested.isIncludeInParent() && context.doc() == context.rootDoc())) {
+                if (!nested.isIncludeInParent() || parentDoc != rootDoc) {
                     for (IndexableField field : nestedDoc.getFields()) {
                         if (field.name().equals(UidFieldMapper.NAME) || field.name().equals(TypeFieldMapper.NAME)) {
                             continue;
                         } else {
-                            context.rootDoc().add(field);
+                            rootDoc.add(field);
                         }
                     }
                 }
@@ -523,6 +532,11 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
         // we can only handle null values if we have mappings for them
         Mapper mapper = mappers.get(lastFieldName);
         if (mapper != null) {
+            if (mapper instanceof FieldMapper) {
+                if (!((FieldMapper) mapper).supportsNullValue()) {
+                    throw new MapperParsingException("no object mapping found for null value in [" + lastFieldName + "]");
+                }
+            }
             mapper.parse(context);
         }
     }
@@ -867,8 +881,8 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
         FieldMapperListener.Aggregator newFieldMappers = new FieldMapperListener.Aggregator();
         ObjectMapperListener.Aggregator newObjectMappers = new ObjectMapperListener.Aggregator();
         synchronized (mutex) {
-            for (ObjectObjectCursor<String, Mapper> cursor : mergeWithObject.mappers) {
-                Mapper mergeWithMapper = cursor.value;
+            for (Mapper mapper : mergeWithObject.mappers.values()) {
+                Mapper mergeWithMapper = mapper;
                 Mapper mergeIntoMapper = mappers.get(mergeWithMapper.name());
                 if (mergeIntoMapper == null) {
                     // no mapping, simply add it if not simulating
@@ -901,8 +915,8 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
 
     @Override
     public void close() {
-        for (ObjectObjectCursor<String, Mapper> cursor : mappers) {
-            cursor.value.close();
+        for (Mapper mapper : mappers.values()) {
+            mapper.close();
         }
     }
 
@@ -945,13 +959,16 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
         doXContent(builder, params);
 
         // sort the mappers so we get consistent serialization format
-        TreeMap<String, Mapper> sortedMappers = new TreeMap<>();
-        for (ObjectObjectCursor<String, Mapper> cursor : mappers) {
-            sortedMappers.put(cursor.key, cursor.value);
-        }
+        Mapper[] sortedMappers = Iterables.toArray(mappers.values(), Mapper.class);
+        Arrays.sort(sortedMappers, new Comparator<Mapper>() {
+            @Override
+            public int compare(Mapper o1, Mapper o2) {
+                return o1.name().compareTo(o2.name());
+            }
+        });
 
         // check internal mappers first (this is only relevant for root object)
-        for (Mapper mapper : sortedMappers.values()) {
+        for (Mapper mapper : sortedMappers) {
             if (mapper instanceof InternalMapper) {
                 mapper.toXContent(builder, params);
             }
@@ -969,7 +986,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
 
         if (!mappers.isEmpty()) {
             builder.startObject("properties");
-            for (Mapper mapper : sortedMappers.values()) {
+            for (Mapper mapper : sortedMappers) {
                 if (!(mapper instanceof InternalMapper)) {
                     mapper.toXContent(builder, params);
                 }

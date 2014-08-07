@@ -1,0 +1,21 @@
+{
+  "put_template": {
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/search-template.html",
+    "methods": ["PUT", "POST"],
+    "url": {
+      "path": "/_search/template/{id}",
+      "paths": [ "/_search/template/{id}" ],
+      "parts": {
+        "id": {
+          "type" : "string",
+          "description" : "Template ID",
+          "required" : true
+        }
+      }
+    },
+    "body": {
+      "description" : "The document",
+      "required" : true
+    }
+  }
+}

@@ -26,7 +26,7 @@ import org.elasticsearch.common.collect.BoundedTreeSet;
 import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefHash;
-import org.elasticsearch.index.fielddata.BytesValues;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.search.facet.InternalFacet;
 import org.elasticsearch.search.facet.terms.TermsFacet;
 import org.elasticsearch.search.facet.terms.support.EntryPriorityQueue;
@@ -43,29 +43,30 @@ public class HashedAggregator {
         hash = new BytesRefHashHashCount(new BytesRefHash(10, BigArrays.NON_RECYCLING_INSTANCE));
     }
 
-    public void onDoc(int docId, BytesValues values) {
-        final int length = values.setDocument(docId);
+    public void onDoc(int docId, SortedBinaryDocValues values) {
+        values.setDocument(docId);
+        final int length = values.count();
         int pendingMissing = 1;
         total += length;
         for (int i = 0; i < length; i++) {
-            final BytesRef value = values.nextValue();
-            onValue(docId, value, value.hashCode(), values);
+            final BytesRef value = values.valueAt(i);
+            onValue(docId, value, value.hashCode());
             pendingMissing = 0;
         }
         missing += pendingMissing;
     }
 
-    public void addValue(BytesRef value, int hashCode, BytesValues values) {
-        final boolean added = hash.addNoCount(value, hashCode, values);
-        assert assertHash.addNoCount(value, hashCode, values) == added : "asserting counter diverged from current counter - value: "
+    public void addValue(BytesRef value, int hashCode) {
+        final boolean added = hash.addNoCount(value, hashCode);
+        assert assertHash.addNoCount(value, hashCode) == added : "asserting counter diverged from current counter - value: "
                 + value + " hash: " + hashCode;
     }
 
-    protected void onValue(int docId, BytesRef value, int hashCode, BytesValues values) {
-        final boolean added = hash.add(value, hashCode, values);
+    protected void onValue(int docId, BytesRef value, int hashCode) {
+        final boolean added = hash.add(value, hashCode);
         // note: we must do a deep copy here the incoming value could have been
         // modified by a script or so
-        assert assertHash.add(BytesRef.deepCopyOf(value), hashCode, values) == added : "asserting counter diverged from current counter - value: "
+        assert assertHash.add(BytesRef.deepCopyOf(value), hashCode) == added : "asserting counter diverged from current counter - value: "
                 + value + " hash: " + hashCode;
     }
 
@@ -138,9 +139,9 @@ public class HashedAggregator {
     }
 
     private static interface HashCount {
-        public boolean add(BytesRef value, int hashCode, BytesValues values);
+        public boolean add(BytesRef value, int hashCode);
 
-        public boolean addNoCount(BytesRef value, int hashCode, BytesValues values);
+        public boolean addNoCount(BytesRef value, int hashCode);
 
         public void release();
 
@@ -158,7 +159,7 @@ public class HashedAggregator {
         }
 
         @Override
-        public boolean add(BytesRef value, int hashCode, BytesValues values) {
+        public boolean add(BytesRef value, int hashCode) {
             int key = (int)hash.add(value, hashCode);
             if (key < 0) {
                 key = ((-key) - 1);
@@ -168,7 +169,7 @@ public class HashedAggregator {
             return (counts[key]++) == 0;
         }
 
-        public boolean addNoCount(BytesRef value, int hashCode, BytesValues values) {
+        public boolean addNoCount(BytesRef value, int hashCode) {
             int key = (int)hash.add(value, hashCode);
             final boolean added = key >= 0;
             if (key < 0) {
@@ -237,7 +238,7 @@ public class HashedAggregator {
         private HashedBytesRef spare = new HashedBytesRef();
 
         @Override
-        public boolean add(BytesRef value, int hashCode, BytesValues values) {
+        public boolean add(BytesRef value, int hashCode) {
             int adjustedValue = valuesAndCount.addTo(spare.reset(value, hashCode), 1);
             assert adjustedValue >= 1;
             if (adjustedValue == 1) { // only if we added the spare we create a
@@ -264,7 +265,7 @@ public class HashedAggregator {
         }
 
         @Override
-        public boolean addNoCount(BytesRef value, int hashCode, BytesValues values) {
+        public boolean addNoCount(BytesRef value, int hashCode) {
             if (!valuesAndCount.containsKey(spare.reset(value, hashCode))) {
                 valuesAndCount.addTo(spare.reset(BytesRef.deepCopyOf(value), hashCode), 0);
                 spare = new HashedBytesRef(); // reset the reference since we just added to the hash

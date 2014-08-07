@@ -22,7 +22,6 @@ package org.elasticsearch.client.transport.support;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.client.IndicesAdminClient;
-import org.elasticsearch.client.transport.TransportClientNodesService;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -32,17 +31,13 @@ import org.elasticsearch.common.settings.Settings;
  */
 public class InternalTransportAdminClient extends AbstractComponent implements AdminClient {
 
-    private final TransportClientNodesService nodesService;
-
     private final InternalTransportIndicesAdminClient indicesAdminClient;
 
     private final InternalTransportClusterAdminClient clusterAdminClient;
 
     @Inject
-    public InternalTransportAdminClient(Settings settings, TransportClientNodesService nodesService,
-                                        InternalTransportIndicesAdminClient indicesAdminClient, InternalTransportClusterAdminClient clusterAdminClient) {
+    public InternalTransportAdminClient(Settings settings, InternalTransportIndicesAdminClient indicesAdminClient, InternalTransportClusterAdminClient clusterAdminClient) {
         super(settings);
-        this.nodesService = nodesService;
         this.indicesAdminClient = indicesAdminClient;
         this.clusterAdminClient = clusterAdminClient;
     }

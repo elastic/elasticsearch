@@ -57,7 +57,7 @@ given filter:
 If no filter is given with a function this is equivalent to specifying
 `"match_all": {}`
 
-First, each document is scored by the defined functons. The parameter
+First, each document is scored by the defined functions. The parameter
 `score_mode` specifies how the computed scores are combined:
 
 [horizontal]
@@ -151,6 +151,9 @@ that is initialized with a `seed`.
 --------------------------------------------------
 
 ===== Field Value factor
+
+added[1.2.0]
+
 The `field_value_factor` function allows you to use a field from a document to
 influence the score. It's similar to using the `script_score` function, however,
 it avoids the overhead of scripting. If used on a multi-valued field, only the
@@ -270,18 +273,33 @@ Normal decay, computed as:
 +
 image:images/Gaussian.png[]
 
+where image:images/sigma.png[] is computed to assure that the score takes the value `decay` at distance `scale` from `origin`+-`offset`
+
+image:images/sigma_calc.png[]
+
+[horizontal]
 `exp`::
 
 Exponential decay, computed as:
 +
 image:images/Exponential.png[]
 
+where again the parameter image:images/lambda.png[] is computed to assure that the score takes the value `decay` at distance `scale` from `origin`+-`offset`
 
+image:images/lambda_calc.png[]
+
+[horizontal]
 `linear`::
+
 Linear decay, computed as:
 +
 image:images/Linear.png[].
-+
+
+
+where again the parameter `s` is computed to assure that the score takes the value `decay` at distance `scale` from `origin`+-`offset`
+
+image:images/s_calc.png[]
+
 In contrast to the normal and exponential decay, this function actually
 sets the score to 0 if the field value exceeds twice the user given
 scale value.

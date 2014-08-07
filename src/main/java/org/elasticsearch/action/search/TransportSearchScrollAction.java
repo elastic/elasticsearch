@@ -25,6 +25,8 @@ import org.elasticsearch.action.search.type.ParsedScrollId;
 import org.elasticsearch.action.search.type.TransportSearchScrollQueryAndFetchAction;
 import org.elasticsearch.action.search.type.TransportSearchScrollQueryThenFetchAction;
 import org.elasticsearch.action.search.type.TransportSearchScrollScanAction;
+import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -39,7 +41,7 @@ import static org.elasticsearch.action.search.type.TransportSearchHelper.parseSc
 /**
  *
  */
-public class TransportSearchScrollAction extends TransportAction<SearchScrollRequest, SearchResponse> {
+public class TransportSearchScrollAction extends HandledTransportAction<SearchScrollRequest, SearchResponse> {
 
     private final TransportSearchScrollQueryThenFetchAction queryThenFetchAction;
 
@@ -51,13 +53,11 @@ public class TransportSearchScrollAction extends TransportAction<SearchScrollReq
     public TransportSearchScrollAction(Settings settings, ThreadPool threadPool, TransportService transportService,
                                        TransportSearchScrollQueryThenFetchAction queryThenFetchAction,
                                        TransportSearchScrollQueryAndFetchAction queryAndFetchAction,
-                                       TransportSearchScrollScanAction scanAction) {
-        super(settings, threadPool);
+                                       TransportSearchScrollScanAction scanAction, ActionFilters actionFilters) {
+        super(settings, SearchScrollAction.NAME, threadPool, transportService, actionFilters);
         this.queryThenFetchAction = queryThenFetchAction;
         this.queryAndFetchAction = queryAndFetchAction;
         this.scanAction = scanAction;
-
-        transportService.registerHandler(SearchScrollAction.NAME, new TransportHandler());
     }
 
     @Override
@@ -78,41 +78,8 @@ public class TransportSearchScrollAction extends TransportAction<SearchScrollReq
         }
     }
 
-    private class TransportHandler extends BaseTransportRequestHandler<SearchScrollRequest> {
-
-        @Override
-        public SearchScrollRequest newInstance() {
-            return new SearchScrollRequest();
-        }
-
-        @Override
-        public void messageReceived(SearchScrollRequest request, final TransportChannel channel) throws Exception {
-            // no need for a threaded listener
-            request.listenerThreaded(false);
-            execute(request, new ActionListener<SearchResponse>() {
-                @Override
-                public void onResponse(SearchResponse result) {
-                    try {
-                        channel.sendResponse(result);
-                    } catch (Throwable e) {
-                        onFailure(e);
-                    }
-                }
-
-                @Override
-                public void onFailure(Throwable e) {
-                    try {
-                        channel.sendResponse(e);
-                    } catch (Exception e1) {
-                        logger.warn("Failed to send response for search", e1);
-                    }
-                }
-            });
-        }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.SAME;
-        }
+    @Override
+    public SearchScrollRequest newRequestInstance() {
+        return new SearchScrollRequest();
     }
 }

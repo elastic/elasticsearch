@@ -170,7 +170,7 @@ public class TopHitsContext extends SearchContext {
     }
 
     @Override
-    public long nowInMillis() {
+    protected long nowInMillisImpl() {
         return context.nowInMillis();
     }
 
@@ -364,6 +364,16 @@ public class TopHitsContext extends SearchContext {
 
     @Override
     public void timeoutInMillis(long timeoutInMillis) {
+        throw new UnsupportedOperationException("Not supported");
+    }
+
+    @Override
+    public int terminateAfter() {
+        return context.terminateAfter();
+    }
+
+    @Override
+    public void terminateAfter(int terminateAfter) {
         throw new UnsupportedOperationException("Not supported");
     }
 

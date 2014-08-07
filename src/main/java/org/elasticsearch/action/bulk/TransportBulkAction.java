@@ -32,7 +32,9 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
+import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.ClusterService;
@@ -62,7 +64,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  *
  */
-public class TransportBulkAction extends TransportAction<BulkRequest, BulkResponse> {
+public class TransportBulkAction extends HandledTransportAction<BulkRequest, BulkResponse> {
 
     private final AutoCreateIndex autoCreateIndex;
 
@@ -76,22 +78,25 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
 
     @Inject
     public TransportBulkAction(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterService clusterService,
-                               TransportShardBulkAction shardBulkAction, TransportCreateIndexAction createIndexAction) {
-        super(settings, threadPool);
+                               TransportShardBulkAction shardBulkAction, TransportCreateIndexAction createIndexAction, ActionFilters actionFilters) {
+        super(settings, BulkAction.NAME, threadPool, transportService, actionFilters);
         this.clusterService = clusterService;
         this.shardBulkAction = shardBulkAction;
         this.createIndexAction = createIndexAction;
 
         this.autoCreateIndex = new AutoCreateIndex(settings);
         this.allowIdGeneration = componentSettings.getAsBoolean("action.allow_id_generation", true);
+    }
 
-        transportService.registerHandler(BulkAction.NAME, new TransportHandler());
+    @Override
+    public BulkRequest newRequestInstance(){
+        return new BulkRequest();
     }
 
     @Override
     protected void doExecute(final BulkRequest bulkRequest, final ActionListener<BulkResponse> listener) {
         final long startTime = System.currentTimeMillis();
-        final AtomicArray<BulkItemResponse> responses = new AtomicArray<BulkItemResponse>(bulkRequest.requests.size());
+        final AtomicArray<BulkItemResponse> responses = new AtomicArray<>(bulkRequest.requests.size());
 
         if (autoCreateIndex.needToCheck()) {
             final Set<String> indices = Sets.newHashSet();
@@ -120,7 +125,7 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
             ClusterState state = clusterService.state();
             for (final String index : indices) {
                 if (autoCreateIndex.shouldAutoCreate(index, state)) {
-                    createIndexAction.execute(new CreateIndexRequest(index).cause("auto(bulk api)"), new ActionListener<CreateIndexResponse>() {
+                    createIndexAction.execute(new CreateIndexRequest(index).cause("auto(bulk api)").masterNodeTimeout(bulkRequest.timeout()), new ActionListener<CreateIndexResponse>() {
                         @Override
                         public void onResponse(CreateIndexResponse result) {
                             if (counter.decrementAndGet() == 0) {
@@ -140,7 +145,11 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
                                 }
                             }
                             if (counter.decrementAndGet() == 0) {
-                                executeBulk(bulkRequest, startTime, listener, responses);
+                                try {
+                                    executeBulk(bulkRequest, startTime, listener, responses);
+                                } catch (Throwable t) {
+                                    listener.onFailure(t);
+                                }
                             }
                         }
                     });
@@ -202,7 +211,7 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
             if (request instanceof IndexRequest) {
                 IndexRequest indexRequest = (IndexRequest) request;
                 String aliasOrIndex = indexRequest.index();
-                indexRequest.index(clusterState.metaData().concreteSingleIndex(indexRequest.index()));
+                indexRequest.index(clusterState.metaData().concreteSingleIndex(indexRequest.index(), indexRequest.indicesOptions()));
 
                 MappingMetaData mappingMd = null;
                 if (metaData.hasIndex(indexRequest.index())) {
@@ -220,11 +229,11 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
             } else if (request instanceof DeleteRequest) {
                 DeleteRequest deleteRequest = (DeleteRequest) request;
                 deleteRequest.routing(clusterState.metaData().resolveIndexRouting(deleteRequest.routing(), deleteRequest.index()));
-                deleteRequest.index(clusterState.metaData().concreteSingleIndex(deleteRequest.index()));
+                deleteRequest.index(clusterState.metaData().concreteSingleIndex(deleteRequest.index(), deleteRequest.indicesOptions()));
             } else if (request instanceof UpdateRequest) {
                 UpdateRequest updateRequest = (UpdateRequest) request;
                 updateRequest.routing(clusterState.metaData().resolveIndexRouting(updateRequest.routing(), updateRequest.index()));
-                updateRequest.index(clusterState.metaData().concreteSingleIndex(updateRequest.index()));
+                updateRequest.index(clusterState.metaData().concreteSingleIndex(updateRequest.index(), updateRequest.indicesOptions()));
             }
         }
 
@@ -334,44 +343,6 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
                     listener.onResponse(new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]), System.currentTimeMillis() - startTime));
                 }
             });
-        }
-    }
-
-    class TransportHandler extends BaseTransportRequestHandler<BulkRequest> {
-
-        @Override
-        public BulkRequest newInstance() {
-            return new BulkRequest();
-        }
-
-        @Override
-        public void messageReceived(final BulkRequest request, final TransportChannel channel) throws Exception {
-            // no need to use threaded listener, since we just send a response
-            request.listenerThreaded(false);
-            execute(request, new ActionListener<BulkResponse>() {
-                @Override
-                public void onResponse(BulkResponse result) {
-                    try {
-                        channel.sendResponse(result);
-                    } catch (Throwable e) {
-                        onFailure(e);
-                    }
-                }
-
-                @Override
-                public void onFailure(Throwable e) {
-                    try {
-                        channel.sendResponse(e);
-                    } catch (Exception e1) {
-                        logger.warn("Failed to send error response for action [" + BulkAction.NAME + "] and request [" + request + "]", e1);
-                    }
-                }
-            });
-        }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.SAME;
         }
     }
 }

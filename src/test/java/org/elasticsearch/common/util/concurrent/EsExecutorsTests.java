@@ -221,16 +221,13 @@ public class EsExecutorsTests extends ElasticsearchTestCase {
         assertThat("wrong pool size", pool.getPoolSize(), equalTo(max));
         assertThat("wrong active size", pool.getActiveCount(), equalTo(max));
         barrier.await();
-        awaitBusy(new Predicate<Object>() {
-            public boolean apply(Object o) {
-                return pool.getActiveCount() == 0 && pool.getPoolSize() < max;
+        assertBusy(new Runnable() {
+            @Override
+            public void run() {
+                assertThat("wrong active count", pool.getActiveCount(), equalTo(0));
+                assertThat("idle threads didn't shrink below max. (" + pool.getPoolSize() + ")", pool.getPoolSize(), lessThan(max));
             }
         });
-        //assertThat("not all tasks completed", pool.getCompletedTaskCount(), equalTo((long) max));
-        assertThat("wrong active count", pool.getActiveCount(), equalTo(0));
-        //assertThat("wrong pool size. ", min, equalTo(pool.getPoolSize())); //BUG in ThreadPool - Bug ID: 6458662
-        //assertThat("idle threads didn't stay above min (" + pool.getPoolSize() + ")", pool.getPoolSize(), greaterThan(0));
-        assertThat("idle threads didn't shrink below max. (" + pool.getPoolSize() + ")", pool.getPoolSize(), lessThan(max));
         pool.shutdown();
     }
 }

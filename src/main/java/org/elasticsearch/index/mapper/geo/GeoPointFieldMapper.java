@@ -24,7 +24,6 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.base.Objects;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
-import org.apache.lucene.document.XStringField;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.apache.lucene.util.BytesRef;
@@ -540,9 +539,8 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
         int min = enableGeohashPrefix ? 1 : geohash.length();
 
         for (int i = len; i >= min; i--) {
-            context.externalValue(geohash.substring(0, i));
             // side effect of this call is adding the field
-            geohashMapper.parse(context);
+            geohashMapper.parse(context.createExternalValueContext(geohash.substring(0, i)));
         }
     }
 
@@ -571,7 +569,7 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
         }
 
         if (fieldType.indexed() || fieldType.stored()) {
-            Field field = new XStringField(names.indexName(), Double.toString(point.lat()) + ',' + Double.toString(point.lon()), fieldType);
+            Field field = new Field(names.indexName(), Double.toString(point.lat()) + ',' + Double.toString(point.lon()), fieldType);
             context.doc().add(field);
         }
         if (enableGeoHash) {
@@ -581,10 +579,8 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
             parseGeohashField(context, geohash);
         }
         if (enableLatLon) {
-            context.externalValue(point.lat());
-            latMapper.parse(context);
-            context.externalValue(point.lon());
-            lonMapper.parse(context);
+            latMapper.parse(context.createExternalValueContext(point.lat()));
+            lonMapper.parse(context.createExternalValueContext(point.lon()));
         }
         if (hasDocValues()) {
             CustomGeoPointDocValuesField field = (CustomGeoPointDocValuesField) context.doc().getByKey(names().indexName());

@@ -19,14 +19,16 @@
 
 package org.elasticsearch.cluster;
 
-import com.google.common.base.Predicate;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.percolate.PercolateSourceBuilder;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.discovery.Discovery;
+import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -35,21 +37,24 @@ import org.junit.Test;
 import java.util.HashMap;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
+import static org.hamcrest.Matchers.*;
 
 /**
  */
-@ClusterScope(scope= Scope.TEST, numDataNodes =0)
+@ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class NoMasterNodeTests extends ElasticsearchIntegrationTest {
 
     @Test
     @TestLogging("action:TRACE,cluster.service:TRACE")
     public void testNoMasterActions() throws Exception {
+        // note, sometimes, we want to check with the fact that an index gets created, sometimes not...
+        boolean autoCreateIndex = randomBoolean();
+        logger.info("auto_create_index set to {}", autoCreateIndex);
+
         Settings settings = settingsBuilder()
                 .put("discovery.type", "zen")
-                .put("action.auto_create_index", false)
+                .put("action.auto_create_index", autoCreateIndex)
                 .put("discovery.zen.minimum_master_nodes", 2)
                 .put("discovery.zen.ping_timeout", "200ms")
                 .put("discovery.initial_state_timeout", "500ms")
@@ -57,31 +62,45 @@ public class NoMasterNodeTests extends ElasticsearchIntegrationTest {
 
         TimeValue timeout = TimeValue.timeValueMillis(200);
 
-        cluster().startNode(settings);
+        internalCluster().startNode(settings);
         // start a second node, create an index, and then shut it down so we have no master block
-        cluster().startNode(settings);
+        internalCluster().startNode(settings);
         createIndex("test");
         client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
-        cluster().stopRandomDataNode();
-        assertThat(awaitBusy(new Predicate<Object>() {
-            public boolean apply(Object o) {
+        internalCluster().stopRandomDataNode();
+        assertBusy(new Runnable() {
+            @Override
+            public void run() {
                 ClusterState state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-                return state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK);
+                assertTrue(state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK));
             }
-        }), equalTo(true));
-
+        });
 
         try {
             client().prepareGet("test", "type1", "1").execute().actionGet();
             fail("Expected ClusterBlockException");
-        } catch (ClusterBlockException e) {
+        } catch (ClusterBlockException | MasterNotDiscoveredException e) {
+            assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+        }
+
+        try {
+            client().prepareGet("no_index", "type1", "1").execute().actionGet();
+            fail("Expected ClusterBlockException");
+        } catch (ClusterBlockException | MasterNotDiscoveredException e) {
             assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
         }
 
         try {
             client().prepareMultiGet().add("test", "type1", "1").execute().actionGet();
             fail("Expected ClusterBlockException");
-        } catch (ClusterBlockException e) {
+        } catch (ClusterBlockException | MasterNotDiscoveredException e) {
+            assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+        }
+
+        try {
+            client().prepareMultiGet().add("no_index", "type1", "1").execute().actionGet();
+            fail("Expected ClusterBlockException");
+        } catch (ClusterBlockException | MasterNotDiscoveredException e) {
             assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
         }
 
@@ -92,15 +111,35 @@ public class NoMasterNodeTests extends ElasticsearchIntegrationTest {
                     .setIndices("test").setDocumentType("type1")
                     .setSource(percolateSource).execute().actionGet();
             fail("Expected ClusterBlockException");
-        } catch (ClusterBlockException e) {
+        } catch (ClusterBlockException | MasterNotDiscoveredException e) {
+            assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+        }
+
+        try {
+            PercolateSourceBuilder percolateSource = new PercolateSourceBuilder();
+            percolateSource.percolateDocument().setDoc(new HashMap());
+            client().preparePercolate()
+                    .setIndices("no_index").setDocumentType("type1")
+                    .setSource(percolateSource).execute().actionGet();
+            fail("Expected ClusterBlockException");
+        } catch (ClusterBlockException | MasterNotDiscoveredException e) {
             assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
         }
 
         long now = System.currentTimeMillis();
         try {
-            client().prepareUpdate("test", "type1", "1").setScript("test script").setTimeout(timeout).execute().actionGet();
+            client().prepareUpdate("test", "type1", "1").setScript("test script", ScriptService.ScriptType.INLINE).setTimeout(timeout).execute().actionGet();
             fail("Expected ClusterBlockException");
-        } catch (ClusterBlockException e) {
+        } catch (ClusterBlockException | MasterNotDiscoveredException e) {
+            assertThat(System.currentTimeMillis() - now, greaterThan(timeout.millis() - 50));
+            assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+        }
+
+        now = System.currentTimeMillis();
+        try {
+            client().prepareUpdate("no_index", "type1", "1").setScript("test script", ScriptService.ScriptType.INLINE).setTimeout(timeout).execute().actionGet();
+            fail("Expected ClusterBlockException");
+        } catch (ClusterBlockException | MasterNotDiscoveredException e) {
             assertThat(System.currentTimeMillis() - now, greaterThan(timeout.millis() - 50));
             assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
         }
@@ -108,14 +147,28 @@ public class NoMasterNodeTests extends ElasticsearchIntegrationTest {
         try {
             client().admin().indices().prepareAnalyze("test", "this is a test").execute().actionGet();
             fail("Expected ClusterBlockException");
-        } catch (ClusterBlockException e) {
+        } catch (ClusterBlockException | MasterNotDiscoveredException e) {
+            assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+        }
+
+        try {
+            client().admin().indices().prepareAnalyze("no_index", "this is a test").execute().actionGet();
+            fail("Expected ClusterBlockException");
+        } catch (ClusterBlockException | MasterNotDiscoveredException e) {
             assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
         }
 
         try {
             client().prepareCount("test").execute().actionGet();
             fail("Expected ClusterBlockException");
-        } catch (ClusterBlockException e) {
+        } catch (ClusterBlockException | MasterNotDiscoveredException e) {
+            assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+        }
+
+        try {
+            client().prepareCount("no_index").execute().actionGet();
+            fail("Expected ClusterBlockException");
+        } catch (ClusterBlockException | MasterNotDiscoveredException e) {
             assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
         }
 
@@ -123,12 +176,61 @@ public class NoMasterNodeTests extends ElasticsearchIntegrationTest {
         try {
             client().prepareIndex("test", "type1", "1").setSource(XContentFactory.jsonBuilder().startObject().endObject()).setTimeout(timeout).execute().actionGet();
             fail("Expected ClusterBlockException");
-        } catch (ClusterBlockException e) {
+        } catch (ClusterBlockException | MasterNotDiscoveredException e) {
             assertThat(System.currentTimeMillis() - now, greaterThan(timeout.millis() - 50));
             assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
         }
 
-        cluster().startNode(settings);
+        now = System.currentTimeMillis();
+        try {
+            client().prepareIndex("no_index", "type1", "1").setSource(XContentFactory.jsonBuilder().startObject().endObject()).setTimeout(timeout).execute().actionGet();
+            fail("Expected ClusterBlockException");
+        } catch (ClusterBlockException | MasterNotDiscoveredException e) {
+            assertThat(System.currentTimeMillis() - now, greaterThan(timeout.millis() - 50));
+            assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+        }
+
+        now = System.currentTimeMillis();
+        try {
+            BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
+            bulkRequestBuilder.add(client().prepareIndex("test", "type1", "1").setSource(XContentFactory.jsonBuilder().startObject().endObject()));
+            bulkRequestBuilder.add(client().prepareIndex("test", "type1", "2").setSource(XContentFactory.jsonBuilder().startObject().endObject()));
+            bulkRequestBuilder.setTimeout(timeout);
+            bulkRequestBuilder.get();
+            fail("Expected ClusterBlockException");
+        } catch (ClusterBlockException | MasterNotDiscoveredException e) {
+            // today, we clear the metadata on when there is no master, so it will go through the auto create logic and
+            // add it... (if set to true), if we didn't remove the metedata when there is no master, then, the non
+            // retry in bulk should be taken into account
+            if (!autoCreateIndex) {
+                assertThat(System.currentTimeMillis() - now, lessThan(50l));
+            } else {
+                assertThat(System.currentTimeMillis() - now, greaterThan(timeout.millis() - 50));
+                assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+            }
+        }
+
+        now = System.currentTimeMillis();
+        try {
+            BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
+            bulkRequestBuilder.add(client().prepareIndex("no_index", "type1", "1").setSource(XContentFactory.jsonBuilder().startObject().endObject()));
+            bulkRequestBuilder.add(client().prepareIndex("no_index", "type1", "2").setSource(XContentFactory.jsonBuilder().startObject().endObject()));
+            bulkRequestBuilder.setTimeout(timeout);
+            bulkRequestBuilder.get();
+            fail("Expected ClusterBlockException");
+        } catch (ClusterBlockException | MasterNotDiscoveredException e) {
+            // today, we clear the metadata on when there is no master, so it will go through the auto create logic and
+            // add it... (if set to true), if we didn't remove the metedata when there is no master, then, the non
+            // retry in bulk should be taken into account
+            if (!autoCreateIndex) {
+                assertThat(System.currentTimeMillis() - now, lessThan(50l));
+            } else {
+                assertThat(System.currentTimeMillis() - now, greaterThan(timeout.millis() - 50));
+                assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+            }
+        }
+
+        internalCluster().startNode(settings);
         client().admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
     }
 }

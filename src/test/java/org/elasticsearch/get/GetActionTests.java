@@ -19,15 +19,16 @@
 
 package org.elasticsearch.get;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.get.MultiGetRequest;
-import org.elasticsearch.action.get.MultiGetResponse;
+import org.elasticsearch.action.get.*;
 import org.elasticsearch.common.Base64;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -35,12 +36,15 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
+import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.client.Requests.clusterHealthRequest;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.*;
 
 public class GetActionTests extends ElasticsearchIntegrationTest {
@@ -156,11 +160,6 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void simpleMultiGetTests() throws Exception {
-        try {
-            client().admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // fine
-        }
         client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1)).execute().actionGet();
 
         ensureGreen();
@@ -795,12 +794,13 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    @TestLogging("index.shard.service:TRACE,cluster.service:TRACE,action.admin.indices.flush:TRACE")
     public void testGetFields_complexField() throws Exception {
         client().admin().indices().prepareCreate("my-index")
                 .setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1))
                 .addMapping("my-type2", jsonBuilder().startObject().startObject("my-type2").startObject("properties")
                         .startObject("field1").field("type", "object")
-                            .startObject("field2").field("type", "object")
+                        .startObject("field2").field("type", "object")
                                 .startObject("field3").field("type", "object")
                                     .startObject("field4").field("type", "string").field("store", "yes")
                                 .endObject()
@@ -832,9 +832,12 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
                     .endArray()
                 .endObject().bytes();
 
+        logger.info("indexing documents");
+
         client().prepareIndex("my-index", "my-type1", "1").setSource(source).get();
         client().prepareIndex("my-index", "my-type2", "1").setSource(source).get();
 
+        logger.info("checking real time retrieval");
 
         String field = "field1.field2.field3.field4";
         GetResponse getResponse = client().prepareGet("my-index", "my-type1", "1").setFields(field).get();
@@ -851,9 +854,23 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
         assertThat(getResponse.getField(field).getValues().get(0).toString(), equalTo("value1"));
         assertThat(getResponse.getField(field).getValues().get(1).toString(), equalTo("value2"));
 
-        FlushResponse flushResponse = client().admin().indices().prepareFlush("my-index").get();
-        // the flush must at least succeed on one shard and not all shards, because we don't wait for yellow/green
-        assertThat(flushResponse.getSuccessfulShards(), greaterThanOrEqualTo(1));
+        logger.info("waiting for recoveries to complete");
+
+        // Flush fails if shard has ongoing recoveries, make sure the cluster is settled down
+        ensureGreen();
+
+        logger.info("flushing");
+        FlushResponse flushResponse = client().admin().indices().prepareFlush("my-index").setForce(true).get();
+        if (flushResponse.getSuccessfulShards() == 0) {
+            StringBuilder sb = new StringBuilder("failed to flush at least one shard. total shards [")
+                    .append(flushResponse.getTotalShards()).append("], failed shards: [").append(flushResponse.getFailedShards()).append("]");
+            for (ShardOperationFailedException failure: flushResponse.getShardFailures()) {
+                sb.append("\nShard failure: ").append(failure);
+            }
+            fail(sb.toString());
+        }
+
+        logger.info("checking post-flush retrieval");
 
         getResponse = client().prepareGet("my-index", "my-type1", "1").setFields(field).get();
         assertThat(getResponse.isExists(), equalTo(true));
@@ -870,4 +887,469 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
         assertThat(getResponse.getField(field).getValues().get(1).toString(), equalTo("value2"));
     }
 
+    @Test
+    public void testGet_allField() throws Exception {
+        prepareCreate("my-index")
+                .addMapping("my-type1", jsonBuilder()
+                        .startObject()
+                        .startObject("my-type1")
+                        .startObject("_all")
+                        .field("store", true)
+                        .endObject()
+                        .startObject("properties")
+                        .startObject("some_field")
+                        .field("type", "string")
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject())
+                .get();
+        index("my-index", "my-type1", "1", "some_field", "some text");
+        refresh();
+
+        GetResponse getResponse = client().prepareGet("my-index", "my-type1", "1").setFields("_all").get();
+        assertNotNull(getResponse.getField("_all").getValue());
+        assertThat(getResponse.getField("_all").getValue().toString(), equalTo("some text" + " "));
+    }
+
+    @Test
+    public void testUngeneratedFieldsThatAreNeverStored() throws IOException {
+        String createIndexSource = "{\n" +
+                "  \"settings\": {\n" +
+                "    \"index.translog.disable_flush\": true,\n" +
+                "    \"refresh_interval\": \"-1\"\n" +
+                "  },\n" +
+                "  \"mappings\": {\n" +
+                "    \"doc\": {\n" +
+                "      \"_source\": {\n" +
+                "        \"enabled\": \"" + randomBoolean() + "\"\n" +
+                "      },\n" +
+                "      \"properties\": {\n" +
+                "        \"suggest\": {\n" +
+                "          \"type\": \"completion\"\n" +
+                "        }\n" +
+                "      }\n" +
+                "    }\n" +
+                "  }\n" +
+                "}";
+        assertAcked(prepareCreate("testidx").setSource(createIndexSource));
+        ensureGreen();
+        String doc = "{\n" +
+                "  \"suggest\": {\n" +
+                "    \"input\": [\n" +
+                "      \"Nevermind\",\n" +
+                "      \"Nirvana\"\n" +
+                "    ],\n" +
+                "    \"output\": \"Nirvana - Nevermind\"\n" +
+                "  }\n" +
+                "}";
+
+        index("testidx", "doc", "1", doc);
+        String[] fieldsList = {"suggest"};
+        // before refresh - document is only in translog
+        assertGetFieldsAlwaysNull("testidx", "doc", "1", fieldsList);
+        refresh();
+        //after refresh - document is in translog and also indexed
+        assertGetFieldsAlwaysNull("testidx", "doc", "1", fieldsList);
+        flush();
+        //after flush - document is in not anymore translog - only indexed
+        assertGetFieldsAlwaysNull("testidx", "doc", "1", fieldsList);
+    }
+
+    @Test
+    public void testUngeneratedFieldsThatAreAlwaysStored() throws IOException {
+        String storedString = randomBoolean() ? "yes" : "no";
+        String createIndexSource = "{\n" +
+                "  \"settings\": {\n" +
+                "    \"index.translog.disable_flush\": true,\n" +
+                "    \"refresh_interval\": \"-1\"\n" +
+                "  },\n" +
+                "  \"mappings\": {\n" +
+                "    \"parentdoc\": {},\n" +
+                "    \"doc\": {\n" +
+                "      \"_source\": {\n" +
+                "        \"enabled\": " + randomBoolean() + "\n" +
+                "      },\n" +
+                "      \"_parent\": {\n" +
+                "        \"type\": \"parentdoc\",\n" +
+                "        \"store\": \"" + storedString + "\"\n" +
+                "      },\n" +
+                "      \"_ttl\": {\n" +
+                "        \"enabled\": true,\n" +
+                "        \"store\": \"" + storedString + "\"\n" +
+                "      }\n" +
+                "    }\n" +
+                "  }\n" +
+                "}";
+        assertAcked(prepareCreate("testidx").setSource(createIndexSource));
+        ensureGreen();
+        String doc = "{\n" +
+                "  \"_ttl\": \"1h\"\n" +
+                "}";
+
+        client().prepareIndex("testidx", "doc").setId("1").setSource(doc).setParent("1").execute().actionGet();
+
+        String[] fieldsList = {"_ttl", "_parent"};
+        // before refresh - document is only in translog
+        assertGetFieldsAlwaysWorks("testidx", "doc", "1", fieldsList, "1");
+        refresh();
+        //after refresh - document is in translog and also indexed
+        assertGetFieldsAlwaysWorks("testidx", "doc", "1", fieldsList, "1");
+        flush();
+        //after flush - document is in not anymore translog - only indexed
+        assertGetFieldsAlwaysWorks("testidx", "doc", "1", fieldsList, "1");
+    }
+
+    @Test
+    public void testUngeneratedFieldsPartOfSourceUnstoredSourceDisabled() throws IOException {
+        indexSingleDocumentWithUngeneratedFieldsThatArePartOf_source(false, false);
+        String[] fieldsList = {"my_boost"};
+        // before refresh - document is only in translog
+        assertGetFieldsAlwaysNull("testidx", "doc", "1", fieldsList);
+        refresh();
+        //after refresh - document is in translog and also indexed
+        assertGetFieldsAlwaysNull("testidx", "doc", "1", fieldsList);
+        flush();
+        //after flush - document is in not anymore translog - only indexed
+        assertGetFieldsAlwaysNull("testidx", "doc", "1", fieldsList);
+    }
+
+    @Test
+    public void testUngeneratedFieldsPartOfSourceEitherStoredOrSourceEnabled() throws IOException {
+        boolean stored = randomBoolean();
+        boolean sourceEnabled = true;
+        if (stored) {
+            sourceEnabled = randomBoolean();
+        }
+        indexSingleDocumentWithUngeneratedFieldsThatArePartOf_source(stored, sourceEnabled);
+        String[] fieldsList = {"my_boost"};
+        // before refresh - document is only in translog
+        assertGetFieldsAlwaysWorks("testidx", "doc", "1", fieldsList);
+        refresh();
+        //after refresh - document is in translog and also indexed
+        assertGetFieldsAlwaysWorks("testidx", "doc", "1", fieldsList);
+        flush();
+        //after flush - document is in not anymore translog - only indexed
+        assertGetFieldsAlwaysWorks("testidx", "doc", "1", fieldsList);
+    }
+
+    void indexSingleDocumentWithUngeneratedFieldsThatArePartOf_source(boolean stored, boolean sourceEnabled) {
+        String storedString = stored ? "yes" : "no";
+        String createIndexSource = "{\n" +
+                "  \"settings\": {\n" +
+                "    \"index.translog.disable_flush\": true,\n" +
+                "    \"refresh_interval\": \"-1\"\n" +
+                "  },\n" +
+                "  \"mappings\": {\n" +
+                "    \"doc\": {\n" +
+                "      \"_source\": {\n" +
+                "        \"enabled\": " + sourceEnabled + "\n" +
+                "      },\n" +
+                "      \"_boost\": {\n" +
+                "        \"name\": \"my_boost\",\n" +
+                "        \"null_value\": 1,\n" +
+                "        \"store\": \"" + storedString + "\"\n" +
+                "      }\n" +
+                "    }\n" +
+                "  }\n" +
+                "}";
+        assertAcked(prepareCreate("testidx").setSource(createIndexSource));
+        ensureGreen();
+        String doc = "{\n" +
+                "  \"my_boost\": 5.0,\n" +
+                "  \"_ttl\": \"1h\"\n" +
+                "}\n";
+
+        client().prepareIndex("testidx", "doc").setId("1").setSource(doc).setRouting("1").execute().actionGet();
+    }
+
+
+    @Test
+    public void testUngeneratedFieldsNotPartOfSourceUnstored() throws IOException {
+        indexSingleDocumentWithUngeneratedFieldsThatAreNeverPartOf_source(false, randomBoolean());
+        String[] fieldsList = {"_timestamp", "_size", "_routing"};
+        // before refresh - document is only in translog
+        assertGetFieldsAlwaysNull("testidx", "doc", "1", fieldsList, "1");
+        refresh();
+        //after refresh - document is in translog and also indexed
+        assertGetFieldsAlwaysNull("testidx", "doc", "1", fieldsList, "1");
+        flush();
+        //after flush - document is in not anymore translog - only indexed
+        assertGetFieldsAlwaysNull("testidx", "doc", "1", fieldsList, "1");
+    }
+
+    @Test
+    public void testUngeneratedFieldsNotPartOfSourceStored() throws IOException {
+        indexSingleDocumentWithUngeneratedFieldsThatAreNeverPartOf_source(true, randomBoolean());
+        String[] fieldsList = {"_timestamp", "_size", "_routing"};
+        // before refresh - document is only in translog
+        assertGetFieldsAlwaysWorks("testidx", "doc", "1", fieldsList, "1");
+        refresh();
+        //after refresh - document is in translog and also indexed
+        assertGetFieldsAlwaysWorks("testidx", "doc", "1", fieldsList, "1");
+        flush();
+        //after flush - document is in not anymore translog - only indexed
+        assertGetFieldsAlwaysWorks("testidx", "doc", "1", fieldsList, "1");
+    }
+
+    void indexSingleDocumentWithUngeneratedFieldsThatAreNeverPartOf_source(boolean stored, boolean sourceEnabled) {
+        String storedString = stored ? "yes" : "no";
+        String createIndexSource = "{\n" +
+                "  \"settings\": {\n" +
+                "    \"index.translog.disable_flush\": true,\n" +
+                "    \"refresh_interval\": \"-1\"\n" +
+                "  },\n" +
+                "  \"mappings\": {\n" +
+                "    \"parentdoc\": {},\n" +
+                "    \"doc\": {\n" +
+                "      \"_timestamp\": {\n" +
+                "        \"store\": \"" + storedString + "\",\n" +
+                "        \"enabled\": true\n" +
+                "      },\n" +
+                "      \"_routing\": {\n" +
+                "        \"store\": \"" + storedString + "\"\n" +
+                "      },\n" +
+                "      \"_size\": {\n" +
+                "        \"store\": \"" + storedString + "\",\n" +
+                "        \"enabled\": true\n" +
+                "      }\n" +
+                "    }\n" +
+                "  }\n" +
+                "}";
+
+        assertAcked(prepareCreate("testidx").setSource(createIndexSource));
+        ensureGreen();
+        String doc = "{\n" +
+                "  \"text\": \"some text.\"\n" +
+                "}\n";
+        client().prepareIndex("testidx", "doc").setId("1").setSource(doc).setRouting("1").execute().actionGet();
+    }
+
+
+    @Test
+    public void testGeneratedStringFieldsUnstored() throws IOException {
+        indexSingleDocumentWithStringFieldsGeneratedFromText(false, randomBoolean());
+        String[] fieldsList = {"_all", "_field_names"};
+        // before refresh - document is only in translog
+        assertGetFieldsAlwaysNull("testidx", "doc", "1", fieldsList);
+        refresh();
+        //after refresh - document is in translog and also indexed
+        assertGetFieldsAlwaysNull("testidx", "doc", "1", fieldsList);
+        flush();
+        //after flush - document is in not anymore translog - only indexed
+        assertGetFieldsAlwaysNull("testidx", "doc", "1", fieldsList);
+    }
+
+    @Test
+    public void testGeneratedStringFieldsStored() throws IOException {
+        indexSingleDocumentWithStringFieldsGeneratedFromText(true, randomBoolean());
+        String[] fieldsList = {"_all", "_field_names"};
+        // before refresh - document is only in translog
+        assertGetFieldsNull("testidx", "doc", "1", fieldsList);
+        assertGetFieldsException("testidx", "doc", "1", fieldsList);
+        refresh();
+        //after refresh - document is in translog and also indexed
+        assertGetFieldsAlwaysWorks("testidx", "doc", "1", fieldsList);
+        flush();
+        //after flush - document is in not anymore translog - only indexed
+        assertGetFieldsAlwaysWorks("testidx", "doc", "1", fieldsList);
+    }
+
+    void indexSingleDocumentWithStringFieldsGeneratedFromText(boolean stored, boolean sourceEnabled) {
+
+        String storedString = stored ? "yes" : "no";
+        String createIndexSource = "{\n" +
+                "  \"settings\": {\n" +
+                "    \"index.translog.disable_flush\": true,\n" +
+                "    \"refresh_interval\": \"-1\"\n" +
+                "  },\n" +
+                "  \"mappings\": {\n" +
+                "    \"doc\": {\n" +
+                "      \"_source\" : {\"enabled\" : " + sourceEnabled + "}," +
+                "      \"_all\" : {\"enabled\" : true, \"store\":\"" + storedString + "\" }," +
+                "      \"_field_names\" : {\"store\":\"" + storedString + "\" }" +
+                "    }\n" +
+                "  }\n" +
+                "}";
+
+        assertAcked(prepareCreate("testidx").setSource(createIndexSource));
+        ensureGreen();
+        String doc = "{\n" +
+                "  \"text1\": \"some text.\"\n," +
+                "  \"text2\": \"more text.\"\n" +
+                "}\n";
+        index("testidx", "doc", "1", doc);
+    }
+
+
+    @Test
+    public void testGeneratedNumberFieldsUnstored() throws IOException {
+        indexSingleDocumentWithNumericFieldsGeneratedFromText(false, randomBoolean());
+        String[] fieldsList = {"token_count", "text.token_count", "murmur", "text.murmur"};
+        // before refresh - document is only in translog
+        assertGetFieldsAlwaysNull("testidx", "doc", "1", fieldsList);
+        refresh();
+        //after refresh - document is in translog and also indexed
+        assertGetFieldsAlwaysNull("testidx", "doc", "1", fieldsList);
+        flush();
+        //after flush - document is in not anymore translog - only indexed
+        assertGetFieldsAlwaysNull("testidx", "doc", "1", fieldsList);
+    }
+
+    @Test
+    public void testGeneratedNumberFieldsStored() throws IOException {
+        indexSingleDocumentWithNumericFieldsGeneratedFromText(true, randomBoolean());
+        String[] fieldsList = {"token_count", "text.token_count", "murmur", "text.murmur"};
+        // before refresh - document is only in translog
+        assertGetFieldsNull("testidx", "doc", "1", fieldsList);
+        assertGetFieldsException("testidx", "doc", "1", fieldsList);
+        refresh();
+        //after refresh - document is in translog and also indexed
+        assertGetFieldsAlwaysWorks("testidx", "doc", "1", fieldsList);
+        flush();
+        //after flush - document is in not anymore translog - only indexed
+        assertGetFieldsAlwaysWorks("testidx", "doc", "1", fieldsList);
+    }
+
+    void indexSingleDocumentWithNumericFieldsGeneratedFromText(boolean stored, boolean sourceEnabled) {
+        String storedString = stored ? "yes" : "no";
+        String createIndexSource = "{\n" +
+                "  \"settings\": {\n" +
+                "    \"index.translog.disable_flush\": true,\n" +
+                "    \"refresh_interval\": \"-1\"\n" +
+                "  },\n" +
+                "  \"mappings\": {\n" +
+                "    \"doc\": {\n" +
+                "      \"_source\" : {\"enabled\" : " + sourceEnabled + "}," +
+                "      \"properties\": {\n" +
+                "        \"token_count\": {\n" +
+                "          \"type\": \"token_count\",\n" +
+                "          \"analyzer\": \"standard\",\n" +
+                "          \"store\": \"" + storedString + "\"" +
+                "        },\n" +
+                "        \"murmur\": {\n" +
+                "          \"type\": \"murmur3\",\n" +
+                "          \"store\": \"" + storedString + "\"" +
+                "        },\n" +
+                "        \"text\": {\n" +
+                "          \"type\": \"string\",\n" +
+                "          \"fields\": {\n" +
+                "            \"token_count\": {\n" +
+                "              \"type\": \"token_count\",\n" +
+                "              \"analyzer\": \"standard\",\n" +
+                "              \"store\": \"" + storedString + "\"" +
+                "            },\n" +
+                "            \"murmur\": {\n" +
+                "              \"type\": \"murmur3\",\n" +
+                "              \"store\": \"" + storedString + "\"" +
+                "            }\n" +
+                "          }\n" +
+                "        }" +
+                "      }\n" +
+                "    }\n" +
+                "  }\n" +
+                "}";
+
+        assertAcked(prepareCreate("testidx").setSource(createIndexSource));
+        ensureGreen();
+        String doc = "{\n" +
+                "  \"murmur\": \"Some value that can be hashed\",\n" +
+                "  \"token_count\": \"A text with five words.\",\n" +
+                "  \"text\": \"A text with five words.\"\n" +
+                "}\n";
+        index("testidx", "doc", "1", doc);
+    }
+
+    private void assertGetFieldsAlwaysWorks(String index, String type, String docId, String[] fields) {
+        assertGetFieldsAlwaysWorks(index, type, docId, fields, null);
+    }
+
+    private void assertGetFieldsAlwaysWorks(String index, String type, String docId, String[] fields, @Nullable String routing) {
+        for (String field : fields) {
+            assertGetFieldWorks(index, type, docId, field, false, routing);
+            assertGetFieldWorks(index, type, docId, field, true, routing);
+        }
+    }
+
+    private void assertGetFieldWorks(String index, String type, String docId, String field, boolean ignoreErrors, @Nullable String routing) {
+        GetResponse response = getDocument(index, type, docId, field, ignoreErrors, routing);
+        assertThat(response.getId(), equalTo(docId));
+        assertTrue(response.isExists());
+        assertNotNull(response.getField(field));
+        response = multiGetDocument(index, type, docId, field, ignoreErrors, routing);
+        assertThat(response.getId(), equalTo(docId));
+        assertTrue(response.isExists());
+        assertNotNull(response.getField(field));
+    }
+
+    protected void assertGetFieldsException(String index, String type, String docId, String[] fields) {
+        for (String field : fields) {
+            assertGetFieldException(index, type, docId, field);
+        }
+    }
+
+    private void assertGetFieldException(String index, String type, String docId, String field) {
+        try {
+            client().prepareGet().setIndex(index).setType(type).setId(docId).setFields(field).setIgnoreErrorsOnGeneratedFields(false).get();
+            fail();
+        } catch (ElasticsearchException e) {
+            assertTrue(e.getMessage().contains("You can only get this field after refresh() has been called."));
+        }
+        MultiGetResponse multiGetResponse = client().prepareMultiGet().add(new MultiGetRequest.Item(index, type, docId).fields(field)).setIgnoreErrorsOnGeneratedFields(false).get();
+        assertNull(multiGetResponse.getResponses()[0].getResponse());
+        assertTrue(multiGetResponse.getResponses()[0].getFailure().getMessage().contains("You can only get this field after refresh() has been called."));
+    }
+
+    protected void assertGetFieldsNull(String index, String type, String docId, String[] fields) {
+        assertGetFieldsNull(index, type, docId, fields, null);
+    }
+
+    protected void assertGetFieldsNull(String index, String type, String docId, String[] fields, @Nullable String routing) {
+        for (String field : fields) {
+            assertGetFieldNull(index, type, docId, field, true, routing);
+        }
+    }
+
+    protected void assertGetFieldsAlwaysNull(String index, String type, String docId, String[] fields) {
+        assertGetFieldsAlwaysNull(index, type, docId, fields, null);
+    }
+
+    protected void assertGetFieldsAlwaysNull(String index, String type, String docId, String[] fields, @Nullable String routing) {
+        for (String field : fields) {
+            assertGetFieldNull(index, type, docId, field, true, routing);
+            assertGetFieldNull(index, type, docId, field, false, routing);
+        }
+    }
+
+    protected void assertGetFieldNull(String index, String type, String docId, String field, boolean ignoreErrors, @Nullable String routing) {
+        //for get
+        GetResponse response = getDocument(index, type, docId, field, ignoreErrors, routing);
+        assertTrue(response.isExists());
+        assertNull(response.getField(field));
+        assertThat(response.getId(), equalTo(docId));
+        //same for multi get
+        response = multiGetDocument(index, type, docId, field, ignoreErrors, routing);
+        assertNull(response.getField(field));
+        assertThat(response.getId(), equalTo(docId));
+        assertTrue(response.isExists());
+    }
+
+    private GetResponse multiGetDocument(String index, String type, String docId, String field, boolean ignoreErrors, @Nullable String routing) {
+        MultiGetRequest.Item getItem = new MultiGetRequest.Item(index, type, docId).fields(field);
+        if (routing != null) {
+            getItem.routing(routing);
+        }
+        MultiGetRequestBuilder multiGetRequestBuilder = client().prepareMultiGet().add(getItem).setIgnoreErrorsOnGeneratedFields(ignoreErrors);
+        MultiGetResponse multiGetResponse = multiGetRequestBuilder.get();
+        assertThat(multiGetResponse.getResponses().length, equalTo(1));
+        return multiGetResponse.getResponses()[0].getResponse();
+    }
+
+    private GetResponse getDocument(String index, String type, String docId, String field, boolean ignoreErrors, @Nullable String routing) {
+        GetRequestBuilder getRequestBuilder = client().prepareGet().setIndex(index).setType(type).setId(docId).setFields(field).setIgnoreErrorsOnGeneratedFields(ignoreErrors);
+        if (routing != null) {
+            getRequestBuilder.setRouting(routing);
+        }
+        return getRequestBuilder.get();
+    }
 }

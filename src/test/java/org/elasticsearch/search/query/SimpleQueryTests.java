@@ -83,7 +83,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         SearchHit[] hits = searchResponse.getHits().hits();
         assertThat(hits.length, equalTo(3));
         assertThat(hits[0].score(), allOf(equalTo(hits[1].getScore()), equalTo(hits[2].getScore())));
-        immutableCluster().wipeIndices("test");
+        cluster().wipeIndices("test");
 
         createIndex("test");
         indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("field1", "the quick brown fox jumps"),
@@ -321,7 +321,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
 
         searchResponse = client().prepareSearch().setQuery(commonTerms("field1", "the quick brown").cutoffFrequency(3).analyzer("stop")).get();
         assertHitCount(searchResponse, 3l);
-        // standard drops "the" since its a stopword
+        // stop drops "the" since its a stopword
         assertFirstHit(searchResponse, hasId("1"));
         assertSecondHit(searchResponse, hasId("3"));
         assertThirdHit(searchResponse, hasId("2"));
@@ -340,7 +340,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
 
         searchResponse = client().prepareSearch().setQuery(matchQuery("field1", "the quick brown").cutoffFrequency(3).operator(MatchQueryBuilder.Operator.AND).analyzer("stop")).get();
         assertHitCount(searchResponse, 3l);
-        // standard drops "the" since its a stopword
+        // stop drops "the" since its a stopword
         assertFirstHit(searchResponse, hasId("1"));
         assertSecondHit(searchResponse, hasId("3"));
         assertThirdHit(searchResponse, hasId("2"));
@@ -354,7 +354,107 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    public void testCommonTermsQueryStackedTokens() throws Exception {
+        assertAcked(prepareCreate("test")
+                .setSettings(settingsBuilder()
+                        .put(indexSettings())
+                        .put(SETTING_NUMBER_OF_SHARDS,1)
+                        .put("index.analysis.filter.syns.type","synonym")
+                        .putArray("index.analysis.filter.syns.synonyms","quick,fast")
+                        .put("index.analysis.analyzer.syns.tokenizer","whitespace")
+                        .put("index.analysis.analyzer.syns.filter","syns")
+                        )
+                .addMapping("type1", "field1", "type=string,analyzer=syns", "field2", "type=string,analyzer=syns"));
+        ensureGreen();
+
+        indexRandom(true, client().prepareIndex("test", "type1", "3").setSource("field1", "quick lazy huge brown pidgin", "field2", "the quick lazy huge brown fox jumps over the tree"),
+                client().prepareIndex("test", "type1", "1").setSource("field1", "the quick brown fox"),
+                client().prepareIndex("test", "type1", "2").setSource("field1", "the quick lazy huge brown fox jumps over the tree") );
+
+        SearchResponse searchResponse = client().prepareSearch().setQuery(commonTerms("field1", "the fast brown").cutoffFrequency(3).lowFreqOperator(Operator.OR)).get();
+        assertHitCount(searchResponse, 3l);
+        assertFirstHit(searchResponse, hasId("1"));
+        assertSecondHit(searchResponse, hasId("2"));
+        assertThirdHit(searchResponse, hasId("3"));
+
+        searchResponse = client().prepareSearch().setQuery(commonTerms("field1", "the fast brown").cutoffFrequency(3).lowFreqOperator(Operator.AND)).get();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
+        assertFirstHit(searchResponse, hasId("1"));
+        assertSecondHit(searchResponse, hasId("2"));
+
+        // Default
+        searchResponse = client().prepareSearch().setQuery(commonTerms("field1", "the fast brown").cutoffFrequency(3)).get();
+        assertHitCount(searchResponse, 3l);
+        assertFirstHit(searchResponse, hasId("1"));
+        assertSecondHit(searchResponse, hasId("2"));
+        assertThirdHit(searchResponse, hasId("3"));
+
+
+        searchResponse = client().prepareSearch().setQuery(commonTerms("field1", "the fast huge fox").lowFreqMinimumShouldMatch("3")).get();
+        assertHitCount(searchResponse, 1l);
+        assertFirstHit(searchResponse, hasId("2"));
+
+        searchResponse = client().prepareSearch().setQuery(commonTerms("field1", "the fast lazy fox brown").cutoffFrequency(1).highFreqMinimumShouldMatch("5")).get();
+        assertHitCount(searchResponse, 2l);
+        assertFirstHit(searchResponse, hasId("1"));
+        assertSecondHit(searchResponse, hasId("2"));
+
+        searchResponse = client().prepareSearch().setQuery(commonTerms("field1", "the fast lazy fox brown").cutoffFrequency(1).highFreqMinimumShouldMatch("6")).get();
+        assertHitCount(searchResponse, 1l);
+        assertFirstHit(searchResponse, hasId("2"));
+
+        searchResponse = client().prepareSearch().setQuery("{ \"common\" : { \"field1\" : { \"query\" : \"the fast lazy fox brown\", \"cutoff_frequency\" : 1, \"minimum_should_match\" : { \"high_freq\" : 6 } } } }").get();
+        assertHitCount(searchResponse, 1l);
+        assertFirstHit(searchResponse, hasId("2"));
+
+        // Default
+        searchResponse = client().prepareSearch().setQuery(commonTerms("field1", "the fast lazy fox brown").cutoffFrequency(1)).get();
+        assertHitCount(searchResponse, 1l);
+        assertFirstHit(searchResponse, hasId("2"));
+
+        searchResponse = client().prepareSearch().setQuery(commonTerms("field1", "the quick brown").cutoffFrequency(3).analyzer("stop")).get();
+        assertHitCount(searchResponse, 3l);
+        // stop drops "the" since its a stopword
+        assertFirstHit(searchResponse, hasId("1"));
+        assertSecondHit(searchResponse, hasId("3"));
+        assertThirdHit(searchResponse, hasId("2"));
+
+        // try the same with match query
+        searchResponse = client().prepareSearch().setQuery(matchQuery("field1", "the fast brown").cutoffFrequency(3).operator(MatchQueryBuilder.Operator.AND)).get();
+        assertHitCount(searchResponse, 2l);
+        assertFirstHit(searchResponse, hasId("1"));
+        assertSecondHit(searchResponse, hasId("2"));
+
+        searchResponse = client().prepareSearch().setQuery(matchQuery("field1", "the fast brown").cutoffFrequency(3).operator(MatchQueryBuilder.Operator.OR)).get();
+        assertHitCount(searchResponse, 3l);
+        assertFirstHit(searchResponse, hasId("1"));
+        assertSecondHit(searchResponse, hasId("2"));
+        assertThirdHit(searchResponse, hasId("3"));
+
+        searchResponse = client().prepareSearch().setQuery(matchQuery("field1", "the fast brown").cutoffFrequency(3).operator(MatchQueryBuilder.Operator.AND).analyzer("stop")).get();
+        assertHitCount(searchResponse, 3l);
+        // stop drops "the" since its a stopword
+        assertFirstHit(searchResponse, hasId("1"));
+        assertSecondHit(searchResponse, hasId("3"));
+        assertThirdHit(searchResponse, hasId("2"));
+
+        searchResponse = client().prepareSearch().setQuery(matchQuery("field1", "the fast brown").cutoffFrequency(3).minimumShouldMatch("3")).get();
+        assertHitCount(searchResponse, 2l);
+        assertFirstHit(searchResponse, hasId("1"));
+        assertSecondHit(searchResponse, hasId("2"));
+
+        // try the same with multi match query
+        searchResponse = client().prepareSearch().setQuery(multiMatchQuery("the fast brown", "field1", "field2").cutoffFrequency(3).operator(MatchQueryBuilder.Operator.AND)).get();
+        assertHitCount(searchResponse, 3l);
+        assertFirstHit(searchResponse, hasId("3")); // better score due to different query stats
+        assertSecondHit(searchResponse, hasId("1"));
+        assertThirdHit(searchResponse, hasId("2"));
+    }
+
+    @Test
     public void testOmitTermFreqsAndPositions() throws Exception {
+        cluster().wipeTemplates(); // no randomized template for this test -- we are testing bwc compat and set version explicitly this might cause failures if an unsupported feature
+                                   // is added randomly via an index template.
         Version version = Version.CURRENT;
         int iters = scaledRandomIntBetween(10, 20);
         for (int i = 0; i < iters; i++) {
@@ -375,7 +475,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
                 } catch (SearchPhaseExecutionException e) {
                     assertTrue(e.getMessage().endsWith("IllegalStateException[field \"field1\" was indexed without position data; cannot run PhraseQuery (term=quick)]; }"));
                 }
-                immutableCluster().wipeIndices("test");
+                cluster().wipeIndices("test");
             } catch (MapperParsingException ex) {
                 assertThat(version.toString(), version.onOrAfter(Version.V_1_0_0_RC2), equalTo(true));
                 assertThat(ex.getCause().getMessage(), equalTo("'omit_term_freq_and_positions' is not supported anymore - use ['index_options' : 'DOCS_ONLY']  instead"));
@@ -1988,10 +2088,11 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         assertFirstHit(searchResponse, hasId("4"));
 
         searchResponse = client().prepareSearch().setQuery(
-                simpleQueryString("spaghetti").field("body", 10.0f).field("otherbody", 2.0f)).get();
+                simpleQueryString("spaghetti").field("body", 10.0f).field("otherbody", 2.0f).queryName("myquery")).get();
         assertHitCount(searchResponse, 2l);
         assertFirstHit(searchResponse, hasId("5"));
         assertSearchHits(searchResponse, "5", "6");
+        assertThat(searchResponse.getHits().getAt(0).getMatchedQueries()[0], equalTo("myquery"));
     }
 
     @Test
@@ -2245,6 +2346,200 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    public void testRangeFilterWithTimeZone() throws Exception {
+        assertAcked(prepareCreate("test")
+                .addMapping("type1", "date", "type=date"));
+        ensureGreen();
+
+        index("test", "type1", "1", "date", "2014-01-01", "num", 1);
+        index("test", "type1", "2", "date", "2013-12-31T23:00:00", "num", 2);
+        index("test", "type1", "3", "date", "2014-01-01T01:00:00", "num", 3);
+        // Now in UTC+1
+        index("test", "type1", "4", "date", DateTime.now(DateTimeZone.forOffsetHours(1)).getMillis(), "num", 4);
+
+        refresh();
+
+        SearchResponse searchResponse = client().prepareSearch("test")
+                .setQuery(QueryBuilders.filteredQuery(matchAllQuery(), FilterBuilders.rangeFilter("date").from("2014-01-01T00:00:00").to("2014-01-01T00:59:00")))
+                .get();
+        assertHitCount(searchResponse, 1l);
+        assertThat(searchResponse.getHits().getAt(0).getId(), is("1"));
+        searchResponse = client().prepareSearch("test")
+                .setQuery(QueryBuilders.filteredQuery(matchAllQuery(), FilterBuilders.rangeFilter("date").from("2013-12-31T23:00:00").to("2013-12-31T23:59:00")))
+                .get();
+        assertHitCount(searchResponse, 1l);
+        assertThat(searchResponse.getHits().getAt(0).getId(), is("2"));
+        searchResponse = client().prepareSearch("test")
+                .setQuery(QueryBuilders.filteredQuery(matchAllQuery(), FilterBuilders.rangeFilter("date").from("2014-01-01T01:00:00").to("2014-01-01T01:59:00")))
+                .get();
+        assertHitCount(searchResponse, 1l);
+        assertThat(searchResponse.getHits().getAt(0).getId(), is("3"));
+
+        // We explicitly define a time zone in the from/to dates so whatever the time zone is, it won't be used
+        searchResponse = client().prepareSearch("test")
+                .setQuery(QueryBuilders.filteredQuery(matchAllQuery(), FilterBuilders.rangeFilter("date").from("2014-01-01T00:00:00Z").to("2014-01-01T00:59:00Z").timeZone("+10:00")))
+                .get();
+        assertHitCount(searchResponse, 1l);
+        assertThat(searchResponse.getHits().getAt(0).getId(), is("1"));
+        searchResponse = client().prepareSearch("test")
+                .setQuery(QueryBuilders.filteredQuery(matchAllQuery(), FilterBuilders.rangeFilter("date").from("2013-12-31T23:00:00Z").to("2013-12-31T23:59:00Z").timeZone("+10:00")))
+                .get();
+        assertHitCount(searchResponse, 1l);
+        assertThat(searchResponse.getHits().getAt(0).getId(), is("2"));
+        searchResponse = client().prepareSearch("test")
+                .setQuery(QueryBuilders.filteredQuery(matchAllQuery(), FilterBuilders.rangeFilter("date").from("2014-01-01T01:00:00Z").to("2014-01-01T01:59:00Z").timeZone("+10:00")))
+                .get();
+        assertHitCount(searchResponse, 1l);
+        assertThat(searchResponse.getHits().getAt(0).getId(), is("3"));
+
+        // We define a time zone to be applied to the filter and from/to have no time zone
+        searchResponse = client().prepareSearch("test")
+                .setQuery(QueryBuilders.filteredQuery(matchAllQuery(), FilterBuilders.rangeFilter("date").from("2014-01-01T03:00:00").to("2014-01-01T03:59:00").timeZone("+3:00")))
+                .get();
+        assertHitCount(searchResponse, 1l);
+        assertThat(searchResponse.getHits().getAt(0).getId(), is("1"));
+        searchResponse = client().prepareSearch("test")
+                .setQuery(QueryBuilders.filteredQuery(matchAllQuery(), FilterBuilders.rangeFilter("date").from("2014-01-01T02:00:00").to("2014-01-01T02:59:00").timeZone("+3:00")))
+                .get();
+        assertHitCount(searchResponse, 1l);
+        assertThat(searchResponse.getHits().getAt(0).getId(), is("2"));
+        searchResponse = client().prepareSearch("test")
+                .setQuery(QueryBuilders.filteredQuery(matchAllQuery(), FilterBuilders.rangeFilter("date").from("2014-01-01T04:00:00").to("2014-01-01T04:59:00").timeZone("+3:00")))
+                .get();
+        assertHitCount(searchResponse, 1l);
+        assertThat(searchResponse.getHits().getAt(0).getId(), is("3"));
+
+        // When we use long values, it means we have ms since epoch UTC based so we don't apply any transformation
+        try {
+            client().prepareSearch("test")
+                    .setQuery(QueryBuilders.filteredQuery(matchAllQuery(), FilterBuilders.rangeFilter("date").from(1388534400000L).to(1388537940999L).timeZone("+1:00")))
+                    .get();
+            fail("A Range Filter using ms since epoch with a TimeZone should raise a QueryParsingException");
+        } catch (SearchPhaseExecutionException e) {
+            // We expect it
+        }
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(QueryBuilders.filteredQuery(matchAllQuery(), FilterBuilders.rangeFilter("date").from("2014-01-01").to("2014-01-01T00:59:00").timeZone("-1:00")))
+                .get();
+        assertHitCount(searchResponse, 1l);
+        assertThat(searchResponse.getHits().getAt(0).getId(), is("3"));
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(QueryBuilders.filteredQuery(matchAllQuery(), FilterBuilders.rangeFilter("date").from("now/d-1d").timeZone("+1:00")))
+                .get();
+        assertHitCount(searchResponse, 1l);
+        assertThat(searchResponse.getHits().getAt(0).getId(), is("4"));
+
+        // A Range Filter on a numeric field with a TimeZone should raise an exception
+        try {
+            client().prepareSearch("test")
+                    .setQuery(QueryBuilders.filteredQuery(matchAllQuery(), FilterBuilders.rangeFilter("num").from("0").to("4").timeZone("-1:00")))
+                    .get();
+            fail("A Range Filter on a numeric field with a TimeZone should raise a QueryParsingException");
+        } catch (SearchPhaseExecutionException e) {
+            // We expect it
+        }
+    }
+
+    @Test
+    public void testRangeQueryWithTimeZone() throws Exception {
+        assertAcked(prepareCreate("test")
+                .addMapping("type1", "date", "type=date"));
+        ensureGreen();
+
+        index("test", "type1", "1", "date", "2014-01-01", "num", 1);
+        index("test", "type1", "2", "date", "2013-12-31T23:00:00", "num", 2);
+        index("test", "type1", "3", "date", "2014-01-01T01:00:00", "num", 3);
+        // Now in UTC+1
+        index("test", "type1", "4", "date", DateTime.now(DateTimeZone.forOffsetHours(1)).getMillis(), "num", 4);
+
+        refresh();
+
+        SearchResponse searchResponse = client().prepareSearch("test")
+                .setQuery(QueryBuilders.rangeQuery("date").from("2014-01-01T00:00:00").to("2014-01-01T00:59:00"))
+                .get();
+        assertHitCount(searchResponse, 1l);
+        assertThat(searchResponse.getHits().getAt(0).getId(), is("1"));
+        searchResponse = client().prepareSearch("test")
+                .setQuery(QueryBuilders.rangeQuery("date").from("2013-12-31T23:00:00").to("2013-12-31T23:59:00"))
+                .get();
+        assertHitCount(searchResponse, 1l);
+        assertThat(searchResponse.getHits().getAt(0).getId(), is("2"));
+        searchResponse = client().prepareSearch("test")
+                .setQuery(QueryBuilders.rangeQuery("date").from("2014-01-01T01:00:00").to("2014-01-01T01:59:00"))
+                .get();
+        assertHitCount(searchResponse, 1l);
+        assertThat(searchResponse.getHits().getAt(0).getId(), is("3"));
+
+        // We explicitly define a time zone in the from/to dates so whatever the time zone is, it won't be used
+        searchResponse = client().prepareSearch("test")
+                .setQuery(QueryBuilders.rangeQuery("date").from("2014-01-01T00:00:00Z").to("2014-01-01T00:59:00Z").timeZone("+10:00"))
+                .get();
+        assertHitCount(searchResponse, 1l);
+        assertThat(searchResponse.getHits().getAt(0).getId(), is("1"));
+        searchResponse = client().prepareSearch("test")
+                .setQuery(QueryBuilders.rangeQuery("date").from("2013-12-31T23:00:00Z").to("2013-12-31T23:59:00Z").timeZone("+10:00"))
+                .get();
+        assertHitCount(searchResponse, 1l);
+        assertThat(searchResponse.getHits().getAt(0).getId(), is("2"));
+        searchResponse = client().prepareSearch("test")
+                .setQuery(QueryBuilders.rangeQuery("date").from("2014-01-01T01:00:00Z").to("2014-01-01T01:59:00Z").timeZone("+10:00"))
+                .get();
+        assertHitCount(searchResponse, 1l);
+        assertThat(searchResponse.getHits().getAt(0).getId(), is("3"));
+
+        // We define a time zone to be applied to the filter and from/to have no time zone
+        searchResponse = client().prepareSearch("test")
+                .setQuery(QueryBuilders.rangeQuery("date").from("2014-01-01T03:00:00").to("2014-01-01T03:59:00").timeZone("+3:00"))
+                .get();
+        assertHitCount(searchResponse, 1l);
+        assertThat(searchResponse.getHits().getAt(0).getId(), is("1"));
+        searchResponse = client().prepareSearch("test")
+                .setQuery(QueryBuilders.rangeQuery("date").from("2014-01-01T02:00:00").to("2014-01-01T02:59:00").timeZone("+3:00"))
+                .get();
+        assertHitCount(searchResponse, 1l);
+        assertThat(searchResponse.getHits().getAt(0).getId(), is("2"));
+        searchResponse = client().prepareSearch("test")
+                .setQuery(QueryBuilders.rangeQuery("date").from("2014-01-01T04:00:00").to("2014-01-01T04:59:00").timeZone("+3:00"))
+                .get();
+        assertHitCount(searchResponse, 1l);
+        assertThat(searchResponse.getHits().getAt(0).getId(), is("3"));
+
+        // When we use long values, it means we have ms since epoch UTC based so we don't apply any transformation
+        try {
+            client().prepareSearch("test")
+                    .setQuery(QueryBuilders.rangeQuery("date").from(1388534400000L).to(1388537940999L).timeZone("+1:00"))
+                    .get();
+            fail("A Range Filter using ms since epoch with a TimeZone should raise a QueryParsingException");
+        } catch (SearchPhaseExecutionException e) {
+            // We expect it
+        }
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(QueryBuilders.rangeQuery("date").from("2014-01-01").to("2014-01-01T00:59:00").timeZone("-1:00"))
+                .get();
+        assertHitCount(searchResponse, 1l);
+        assertThat(searchResponse.getHits().getAt(0).getId(), is("3"));
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(QueryBuilders.rangeQuery("date").from("now/d-1d").timeZone("+1:00"))
+                .get();
+        assertHitCount(searchResponse, 1l);
+        assertThat(searchResponse.getHits().getAt(0).getId(), is("4"));
+
+        // A Range Filter on a numeric field with a TimeZone should raise an exception
+        try {
+            client().prepareSearch("test")
+                    .setQuery(QueryBuilders.rangeQuery("num").from("0").to("4").timeZone("-1:00"))
+                    .get();
+            fail("A Range Filter on a numeric field with a TimeZone should raise a QueryParsingException");
+        } catch (SearchPhaseExecutionException e) {
+            // We expect it
+        }
+    }
+
+    @Test
     public void testSearchEmptyDoc() {
         assertAcked(prepareCreate("test").setSettings("{\"index.analysis.analyzer.default.type\":\"keyword\"}"));
         client().prepareIndex("test", "type1", "1").setSource("{}").get();
@@ -2354,6 +2649,32 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
             for (String id : oneIds) {
                 assertThat(otherIds.contains(id), is(true));
             }
+        }
+    }
+
+    @Test
+    public void testQueryStringParserCache() throws Exception {
+        createIndex("test");
+        indexRandom(true, false, client().prepareIndex("test", "type", "1").setSource("nameTokens", "xyz"));
+
+        SearchResponse response = client().prepareSearch("test")
+                .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
+                .setQuery(QueryBuilders.queryString("xyz").boost(100))
+                .get();
+        assertThat(response.getHits().totalHits(), equalTo(1l));
+        assertThat(response.getHits().getAt(0).id(), equalTo("1"));
+
+        float first = response.getHits().getAt(0).getScore();
+        for (int i = 0; i < 100; i++) {
+            response = client().prepareSearch("test")
+                    .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
+                    .setQuery(QueryBuilders.queryString("xyz").boost(100))
+                    .get();
+
+            assertThat(response.getHits().totalHits(), equalTo(1l));
+            assertThat(response.getHits().getAt(0).id(), equalTo("1"));
+            float actual = response.getHits().getAt(0).getScore();
+            assertThat(i + " expected: " + first + " actual: " + actual, Float.compare(first, actual), equalTo(0));
         }
     }
 

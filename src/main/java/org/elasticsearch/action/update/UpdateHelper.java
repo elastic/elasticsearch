@@ -84,17 +84,55 @@ public class UpdateHelper extends AbstractComponent {
         long getDate = System.currentTimeMillis();
         final GetResult getResult = indexShard.getService().get(request.type(), request.id(),
                 new String[]{RoutingFieldMapper.NAME, ParentFieldMapper.NAME, TTLFieldMapper.NAME},
-                true, request.version(), request.versionType(), FetchSourceContext.FETCH_SOURCE);
+                true, request.version(), request.versionType(), FetchSourceContext.FETCH_SOURCE, false);
 
         if (!getResult.isExists()) {
             if (request.upsertRequest() == null && !request.docAsUpsert()) {
                 throw new DocumentMissingException(new ShardId(request.index(), request.shardId()), request.type(), request.id());
             }
+            Long ttl = null;
             IndexRequest indexRequest = request.docAsUpsert() ? request.doc() : request.upsertRequest();
+            if (request.scriptedUpsert() && (request.script() != null)) {
+                // Run the script to perform the create logic
+                IndexRequest upsert = request.upsertRequest();               
+                Map<String, Object> upsertDoc = upsert.sourceAsMap();
+                Map<String, Object> ctx = new HashMap<>(2);
+                // Tell the script that this is a create and not an update
+                ctx.put("op", "create");
+                ctx.put("_source", upsertDoc);
+                try {
+                    ExecutableScript script = scriptService.executable(request.scriptLang, request.script, request.scriptType, request.scriptParams);
+                    script.setNextVar("ctx", ctx);
+                    script.run();
+                    // we need to unwrap the ctx...
+                    ctx = (Map<String, Object>) script.unwrap(ctx);
+                } catch (Exception e) {
+                    throw new ElasticsearchIllegalArgumentException("failed to execute script", e);
+                }                
+                //Allow the script to set TTL using ctx._ttl
+                ttl = getTTLFromScriptContext(ctx);
+                //Allow the script to abort the create by setting "op" to "none"
+                String scriptOpChoice = (String) ctx.get("op");
+                
+                // Only valid options for an upsert script are "create"
+                // (the default) or "none", meaning abort upsert
+                if (!"create".equals(scriptOpChoice)) {
+                    if (!"none".equals(scriptOpChoice)) {
+                        logger.warn("Used upsert operation [{}] for script [{}], doing nothing...", scriptOpChoice, request.script);
+                    }
+                    UpdateResponse update = new UpdateResponse(getResult.getIndex(), getResult.getType(), getResult.getId(),
+                            getResult.getVersion(), false);
+                    update.setGetResult(getResult);
+                    return new Result(update, Operation.NONE, upsertDoc, XContentType.JSON);
+                }
+                indexRequest.source((Map)ctx.get("_source"));
+            }
+
             indexRequest.index(request.index()).type(request.type()).id(request.id())
                     // it has to be a "create!"
-                    .create(true)
+                    .create(true)                    
                     .routing(request.routing())
+                    .ttl(ttl)
                     .refresh(request.refresh())
                     .replicationType(request.replicationType()).consistencyLevel(request.consistencyLevel());
             indexRequest.operationThreaded(false);
@@ -121,7 +159,6 @@ public class UpdateHelper extends AbstractComponent {
         String operation = null;
         String timestamp = null;
         Long ttl = null;
-        Object fetchedTTL = null;
         final Map<String, Object> updatedSourceAsMap;
         final XContentType updateSourceContentType = sourceAndContent.v1();
         String routing = getResult.getFields().containsKey(RoutingFieldMapper.NAME) ? getResult.field(RoutingFieldMapper.NAME).getValue().toString() : null;
@@ -140,13 +177,19 @@ public class UpdateHelper extends AbstractComponent {
             if (indexRequest.parent() != null) {
                 parent = indexRequest.parent();
             }
-            XContentHelper.update(updatedSourceAsMap, indexRequest.sourceAsMap());
+            boolean noop = !XContentHelper.update(updatedSourceAsMap, indexRequest.sourceAsMap(), request.detectNoop());
+            // noop could still be true even if detectNoop isn't because update detects empty maps as noops.  BUT we can only
+            // actually turn the update into a noop if detectNoop is true to preserve backwards compatibility and to handle
+            // cases where users repopulating multi-fields or adding synonyms, etc.
+            if (request.detectNoop() && noop) {
+                operation = "none";
+            }
         } else {
             Map<String, Object> ctx = new HashMap<>(2);
             ctx.put("_source", sourceAndContent.v2());
 
             try {
-                ExecutableScript script = scriptService.executable(request.scriptLang, request.script, request.scriptParams);
+                ExecutableScript script = scriptService.executable(request.scriptLang, request.script, request.scriptType, request.scriptParams);
                 script.setNextVar("ctx", ctx);
                 script.run();
                 // we need to unwrap the ctx...
@@ -158,15 +201,8 @@ public class UpdateHelper extends AbstractComponent {
             operation = (String) ctx.get("op");
             timestamp = (String) ctx.get("_timestamp");
 
-            fetchedTTL = ctx.get("_ttl");
-            if (fetchedTTL != null) {
-                if (fetchedTTL instanceof Number) {
-                    ttl = ((Number) fetchedTTL).longValue();
-                } else {
-                    ttl = TimeValue.parseTimeValue((String) fetchedTTL, null).millis();
-                }
-            }
-
+            ttl = getTTLFromScriptContext(ctx);
+            
             updatedSourceAsMap = (Map<String, Object>) ctx.get("_source");
         }
 
@@ -196,13 +232,26 @@ public class UpdateHelper extends AbstractComponent {
             return new Result(deleteRequest, Operation.DELETE, updatedSourceAsMap, updateSourceContentType);
         } else if ("none".equals(operation)) {
             UpdateResponse update = new UpdateResponse(getResult.getIndex(), getResult.getType(), getResult.getId(), getResult.getVersion(), false);
-            update.setGetResult(extractGetResult(request, getResult.getVersion(), updatedSourceAsMap, updateSourceContentType, null));
+            update.setGetResult(extractGetResult(request, getResult.getVersion(), updatedSourceAsMap, updateSourceContentType, getResult.internalSourceRef()));
             return new Result(update, Operation.NONE, updatedSourceAsMap, updateSourceContentType);
         } else {
             logger.warn("Used update operation [{}] for script [{}], doing nothing...", operation, request.script);
             UpdateResponse update = new UpdateResponse(getResult.getIndex(), getResult.getType(), getResult.getId(), getResult.getVersion(), false);
             return new Result(update, Operation.NONE, updatedSourceAsMap, updateSourceContentType);
         }
+    }
+
+    private Long getTTLFromScriptContext(Map<String, Object> ctx) {
+        Long ttl = null;
+        Object fetchedTTL = ctx.get("_ttl");
+        if (fetchedTTL != null) {
+            if (fetchedTTL instanceof Number) {
+                ttl = ((Number) fetchedTTL).longValue();
+            } else {
+                ttl = TimeValue.parseTimeValue((String) fetchedTTL, null).millis();
+            }
+        }
+        return ttl;
     }
 
     /**

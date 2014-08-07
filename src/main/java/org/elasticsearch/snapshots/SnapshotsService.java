@@ -87,6 +87,8 @@ import static com.google.common.collect.Sets.newHashSet;
  */
 public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsService> implements ClusterStateListener {
 
+    public static final String UPDATE_SNAPSHOT_ACTION_NAME = "internal:cluster/snapshot/update_snapshot";
+
     private final ClusterService clusterService;
 
     private final RepositoriesService repositoriesService;
@@ -116,7 +118,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
         this.indicesService = indicesService;
         this.transportService = transportService;
 
-        transportService.registerHandler(UpdateSnapshotStateRequestHandler.ACTION, new UpdateSnapshotStateRequestHandler());
+        transportService.registerHandler(UPDATE_SNAPSHOT_ACTION_NAME, new UpdateSnapshotStateRequestHandler());
 
         // addLast to make sure that Repository will be created before snapshot
         clusterService.addLast(this);
@@ -853,7 +855,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
                 innerUpdateSnapshotState(request);
             } else {
                 transportService.sendRequest(clusterService.state().nodes().masterNode(),
-                        UpdateSnapshotStateRequestHandler.ACTION, request, EmptyTransportResponseHandler.INSTANCE_SAME);
+                        UPDATE_SNAPSHOT_ACTION_NAME, request, EmptyTransportResponseHandler.INSTANCE_SAME);
             }
         } catch (Throwable t) {
             logger.warn("[{}] [{}] failed to update snapshot state", t, request.snapshotId(), request.status());
@@ -1540,8 +1542,6 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
      * Transport request handler that is used to send changes in snapshot status to master
      */
     private class UpdateSnapshotStateRequestHandler extends BaseTransportRequestHandler<UpdateIndexShardSnapshotStatusRequest> {
-
-        static final String ACTION = "cluster/snapshot/update_snapshot";
 
         @Override
         public UpdateIndexShardSnapshotStatusRequest newInstance() {

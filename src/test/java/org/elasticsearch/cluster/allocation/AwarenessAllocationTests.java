@@ -64,7 +64,7 @@ public class AwarenessAllocationTests extends ElasticsearchIntegrationTest {
 
 
         logger.info("--> starting 2 nodes on the same rack");
-        cluster().startNodesAsync(2, ImmutableSettings.settingsBuilder().put(commonSettings).put("node.rack_id", "rack_1").build()).get();
+        internalCluster().startNodesAsync(2, ImmutableSettings.settingsBuilder().put(commonSettings).put("node.rack_id", "rack_1").build()).get();
 
         createIndex("test1");
         createIndex("test2");
@@ -77,7 +77,7 @@ public class AwarenessAllocationTests extends ElasticsearchIntegrationTest {
         ensureGreen();
 
         logger.info("--> starting 1 node on a different rack");
-        final String node3 = cluster().startNode(ImmutableSettings.settingsBuilder().put(commonSettings).put("node.rack_id", "rack_2").build());
+        final String node3 = internalCluster().startNode(ImmutableSettings.settingsBuilder().put(commonSettings).put("node.rack_id", "rack_2").build());
 
         // On slow machines the initial relocation might be delayed
         assertThat(awaitBusy(new Predicate<Object>() {
@@ -115,7 +115,7 @@ public class AwarenessAllocationTests extends ElasticsearchIntegrationTest {
                 .build();
 
         logger.info("--> starting 4 nodes on different zones");
-        List<String> nodes = cluster().startNodesAsync(
+        List<String> nodes = internalCluster().startNodesAsync(
                 ImmutableSettings.settingsBuilder().put(commonSettings).put("node.zone", "a").build(),
                 ImmutableSettings.settingsBuilder().put(commonSettings).put("node.zone", "b").build(),
                 ImmutableSettings.settingsBuilder().put(commonSettings).put("node.zone", "b").build(),
@@ -155,7 +155,7 @@ public class AwarenessAllocationTests extends ElasticsearchIntegrationTest {
                 .build();
 
         logger.info("--> starting 2 nodes on zones 'a' & 'b'");
-        List<String> nodes = cluster().startNodesAsync(
+        List<String> nodes = internalCluster().startNodesAsync(
                 ImmutableSettings.settingsBuilder().put(commonSettings).put("node.zone", "a").build(),
                 ImmutableSettings.settingsBuilder().put(commonSettings).put("node.zone", "b").build()
         ).get();
@@ -180,7 +180,7 @@ public class AwarenessAllocationTests extends ElasticsearchIntegrationTest {
         assertThat(counts.get(B_0), equalTo(5));
         logger.info("--> starting another node in zone 'b'");
 
-        String B_1 = cluster().startNode(ImmutableSettings.settingsBuilder().put(commonSettings).put("node.zone", "b").build());
+        String B_1 = internalCluster().startNode(ImmutableSettings.settingsBuilder().put(commonSettings).put("node.zone", "b").build());
         health = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("3").execute().actionGet();
         assertThat(health.isTimedOut(), equalTo(false));
         client().admin().cluster().prepareReroute().get();
@@ -202,7 +202,7 @@ public class AwarenessAllocationTests extends ElasticsearchIntegrationTest {
         assertThat(counts.get(B_0), equalTo(3));
         assertThat(counts.get(B_1), equalTo(2));
         
-        String noZoneNode = cluster().startNode();
+        String noZoneNode = internalCluster().startNode();
         health = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("4").execute().actionGet();
         assertThat(health.isTimedOut(), equalTo(false));
         client().admin().cluster().prepareReroute().get();

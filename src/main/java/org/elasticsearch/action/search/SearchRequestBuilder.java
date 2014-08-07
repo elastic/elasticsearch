@@ -24,13 +24,13 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.internal.InternalClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -46,12 +46,12 @@ import java.util.Map;
 /**
  * A search action request builder.
  */
-public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, SearchResponse, SearchRequestBuilder> {
+public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, SearchResponse, SearchRequestBuilder, Client> {
 
     private SearchSourceBuilder sourceBuilder;
 
     public SearchRequestBuilder(Client client) {
-        super((InternalClient) client, new SearchRequest());
+        super(client, new SearchRequest());
     }
 
     /**
@@ -126,6 +126,15 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      */
     public SearchRequestBuilder setTimeout(String timeout) {
         sourceBuilder().timeout(timeout);
+        return this;
+    }
+
+    /**
+     * An optional document count, upon collecting which the search
+     * query will early terminate
+     */
+    public SearchRequestBuilder setTerminateAfter(int terminateAfter) {
+        sourceBuilder().terminateAfter(terminateAfter);
         return this;
     }
 
@@ -1039,6 +1048,11 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
         return this;
     }
 
+    public SearchRequestBuilder setTemplateType(ScriptService.ScriptType templateType) {
+        request.templateType(templateType);
+        return this;
+    }
+
     public SearchRequestBuilder setTemplateParams(Map<String,String> templateParams) {
         request.templateParams(templateParams);
         return this;
@@ -1051,6 +1065,16 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
 
     public SearchRequestBuilder setTemplateSource(BytesReference source) {
         request.templateSource(source, true);
+        return this;
+    }
+
+    /**
+     * Sets if this request should use the query cache or not, assuming that it can (for
+     * example, if "now" is used, it will never be cached). By default (not set, or null,
+     * will default to the index level setting if query cache is enabled or not).
+     */
+    public SearchRequestBuilder setQueryCache(Boolean queryCache) {
+        request.queryCache(queryCache);
         return this;
     }
 
@@ -1089,7 +1113,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
         if (sourceBuilder != null) {
             request.source(sourceBuilder());
         }
-        ((Client) client).search(request, listener);
+        client.search(request, listener);
     }
 
     private SearchSourceBuilder sourceBuilder() {

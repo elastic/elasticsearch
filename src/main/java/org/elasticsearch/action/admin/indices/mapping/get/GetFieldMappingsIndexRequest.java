@@ -20,6 +20,8 @@
 package org.elasticsearch.action.admin.indices.mapping.get;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.single.custom.SingleCustomOperationRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -27,7 +29,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-class GetFieldMappingsIndexRequest extends SingleCustomOperationRequest<GetFieldMappingsIndexRequest> {
+class GetFieldMappingsIndexRequest extends SingleCustomOperationRequest<GetFieldMappingsIndexRequest> implements IndicesRequest {
 
     private String index;
 
@@ -45,11 +47,22 @@ class GetFieldMappingsIndexRequest extends SingleCustomOperationRequest<GetField
         this.includeDefaults = other.includeDefaults();
         this.types = other.types();
         this.fields = other.fields();
+        assert index != null;
         this.index = index;
     }
 
     public String index() {
         return index;
+    }
+
+    @Override
+    public IndicesOptions indicesOptions() {
+        return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
+    }
+
+    @Override
+    public String[] indices() {
+        return new String[]{index};
     }
 
     public String[] types() {

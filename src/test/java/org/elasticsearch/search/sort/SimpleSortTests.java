@@ -21,6 +21,7 @@ package org.elasticsearch.search.sort;
 
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticsearchException;
@@ -29,10 +30,14 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.geo.GeoDistance;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.text.StringAndBytesText;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -51,6 +56,7 @@ import java.util.concurrent.ExecutionException;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
+import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
@@ -59,6 +65,66 @@ import static org.hamcrest.Matchers.*;
  *
  */
 public class SimpleSortTests extends ElasticsearchIntegrationTest {
+
+
+    @LuceneTestCase.AwaitsFix(bugUrl = "simon is working on this")
+    public void testIssue6614() throws ExecutionException, InterruptedException {
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+        boolean strictTimeBasedIndices = randomBoolean();
+        final int numIndices = randomIntBetween(2, 25); // at most 25 days in the month
+        for (int i = 0; i < numIndices; i++) {
+          final String indexId = strictTimeBasedIndices ? "idx_" + i : "idx";
+          if (strictTimeBasedIndices || i == 0) {
+            createIndex(indexId);
+          }
+          final int numDocs = randomIntBetween(1, 23);  // hour of the day
+          for (int j = 0; j < numDocs; j++) {
+            builders.add(client().prepareIndex(indexId, "type").setSource("foo", "bar", "timeUpdated", "2014/07/" + String.format(Locale.ROOT, "%02d", i+1)+" " + String.format(Locale.ROOT, "%02d", j+1) + ":00:00"));
+          }
+        }
+        int docs = builders.size();
+        indexRandom(true, builders);
+        ensureYellow();
+        SearchResponse allDocsResponse = client().prepareSearch().setQuery(QueryBuilders.filteredQuery(matchAllQuery(),
+                FilterBuilders.boolFilter().must(FilterBuilders.termFilter("foo", "bar"),
+                        FilterBuilders.rangeFilter("timeUpdated").gte("2014/0" + randomIntBetween(1, 7) + "/01").cache(randomBoolean()))))
+                .addSort(new FieldSortBuilder("timeUpdated").order(SortOrder.ASC).ignoreUnmapped(true))
+                .setSize(docs).get();
+        assertSearchResponse(allDocsResponse);
+
+        final int numiters = randomIntBetween(1, 20);
+        for (int i = 0; i < numiters; i++) {
+            SearchResponse searchResponse = client().prepareSearch().setQuery(QueryBuilders.filteredQuery(matchAllQuery(),
+                    FilterBuilders.boolFilter().must(FilterBuilders.termFilter("foo", "bar"),
+                            FilterBuilders.rangeFilter("timeUpdated").gte("2014/" + String.format(Locale.ROOT, "%02d", randomIntBetween(1, 7)) + "/01").cache(randomBoolean()))))
+                    .addSort(new FieldSortBuilder("timeUpdated").order(SortOrder.ASC).ignoreUnmapped(true))
+                    .setSize(scaledRandomIntBetween(1, docs)).get();
+            assertSearchResponse(searchResponse);
+            for (int j = 0; j < searchResponse.getHits().hits().length; j++) {
+                assertThat(searchResponse.toString() + "\n vs. \n" + allDocsResponse.toString(), searchResponse.getHits().hits()[j].getId(), equalTo(allDocsResponse.getHits().hits()[j].getId()));
+            }
+        }
+
+    }
+
+    public void testIssue6639() throws ExecutionException, InterruptedException {
+        assertAcked(prepareCreate("$index")
+                .addMapping("$type","{\"$type\": {\"_boost\": {\"name\": \"boost\", \"null_value\": 1.0}, \"properties\": {\"grantee\": {\"index\": \"not_analyzed\", \"term_vector\": \"with_positions_offsets\", \"type\": \"string\", \"analyzer\": \"snowball\", \"boost\": 1.0, \"store\": \"yes\"}}}}"));
+        indexRandom(true,
+                client().prepareIndex("$index", "$type", "data.activity.5").setSource("{\"django_ct\": \"data.activity\", \"grantee\": \"Grantee 1\"}"),
+                client().prepareIndex("$index", "$type", "data.activity.6").setSource("{\"django_ct\": \"data.activity\", \"grantee\": \"Grantee 2\"}"));
+        ensureYellow();
+        SearchResponse searchResponse = client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .addSort("grantee", SortOrder.ASC)
+                .execute().actionGet();
+        assertOrderedSearchHits(searchResponse, "data.activity.5", "data.activity.6");
+        searchResponse = client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .addSort("grantee", SortOrder.DESC)
+                .execute().actionGet();
+        assertOrderedSearchHits(searchResponse, "data.activity.6", "data.activity.5");
+    }
 
     @Test
     public void testTrackScores() throws Exception {
@@ -687,7 +753,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
         // test the long values
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .addScriptField("min", "var retval = Long.MAX_VALUE; for (v : doc['lvalue'].values){  retval = Math.min(v, retval);} return retval;")
+                .addScriptField("min", "retval = Long.MAX_VALUE; for (v in doc['lvalue'].values){ retval = min(v, retval) }; retval")
                 .addSort("ord", SortOrder.ASC).setSize(10)
                 .execute().actionGet();
 
@@ -700,7 +766,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
         // test the double values
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .addScriptField("min", "var retval = Double.MAX_VALUE; for (v : doc['dvalue'].values){  retval = Math.min(v, retval);} return retval;")
+                .addScriptField("min", "retval = Double.MAX_VALUE; for (v in doc['dvalue'].values){ retval = min(v, retval) }; retval")
                 .addSort("ord", SortOrder.ASC).setSize(10)
                 .execute().actionGet();
 
@@ -714,7 +780,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
         // test the string values
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .addScriptField("min", "var retval = Integer.MAX_VALUE; for (v : doc['svalue'].values){  retval = Math.min(Integer.parseInt(v), retval);} return retval;")
+                .addScriptField("min", "retval = Integer.MAX_VALUE; for (v in doc['svalue'].values){ retval = min(Integer.parseInt(v), retval) }; retval")
                 .addSort("ord", SortOrder.ASC).setSize(10)
                 .execute().actionGet();
 
@@ -728,7 +794,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
         // test the geopoint values
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .addScriptField("min", "var retval = Double.MAX_VALUE; for (v : doc['gvalue'].values){  retval = Math.min(v.lon, retval);} return retval;")
+                .addScriptField("min", "retval = Double.MAX_VALUE; for (v in doc['gvalue'].values){ retval = min(v.lon, retval) }; retval")
                 .addSort("ord", SortOrder.ASC).setSize(10)
                 .execute().actionGet();
 
@@ -1614,5 +1680,234 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
         }
     }
 
+    public void testManyToManyGeoPoints() throws ExecutionException, InterruptedException, IOException {
+        /**
+         * | q  |  d1    |   d2
+         * |    |        |
+         * |    |        |
+         * |    |        |
+         * |2  o|  x     |     x
+         * |    |        |
+         * |1  o|      x | x
+         * |___________________________
+         * 1   2   3   4   5   6   7
+         */
+        assertAcked(prepareCreate("index").addMapping("type", "location", "type=geo_point"));
+        XContentBuilder d1Builder = jsonBuilder();
+        GeoPoint[] d1Points = {new GeoPoint(3, 2), new GeoPoint(4, 1)};
+        createShuffeldJSONArray(d1Builder, d1Points);
+
+        XContentBuilder d2Builder = jsonBuilder();
+        GeoPoint[] d2Points = {new GeoPoint(5, 1), new GeoPoint(6, 2)};
+        createShuffeldJSONArray(d2Builder, d2Points);
+
+        logger.info(d1Builder.string());
+        logger.info(d2Builder.string());
+        indexRandom(true,
+                client().prepareIndex("index", "type", "d1").setSource(d1Builder),
+                client().prepareIndex("index", "type", "d2").setSource(d2Builder));
+        ensureYellow();
+        GeoPoint[] q = new GeoPoint[2];
+        if (randomBoolean()) {
+            q[0] = new GeoPoint(2, 1);
+            q[1] = new GeoPoint(2, 2);
+        } else {
+            q[1] = new GeoPoint(2, 2);
+            q[0] = new GeoPoint(2, 1);
+        }
+
+        SearchResponse searchResponse = client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .addSort(new GeoDistanceSortBuilder("location").points(q).sortMode("min").order(SortOrder.ASC).geoDistance(GeoDistance.PLANE).unit(DistanceUnit.KILOMETERS))
+                .execute().actionGet();
+        assertOrderedSearchHits(searchResponse, "d1", "d2");
+        assertThat((Double) searchResponse.getHits().getAt(0).getSortValues()[0], equalTo(GeoDistance.PLANE.calculate(2, 2, 3, 2, DistanceUnit.KILOMETERS)));
+        assertThat((Double) searchResponse.getHits().getAt(1).getSortValues()[0], equalTo(GeoDistance.PLANE.calculate(2, 1, 5, 1, DistanceUnit.KILOMETERS)));
+
+        searchResponse = client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .addSort(new GeoDistanceSortBuilder("location").points(q).sortMode("min").order(SortOrder.DESC).geoDistance(GeoDistance.PLANE).unit(DistanceUnit.KILOMETERS))
+                .execute().actionGet();
+        assertOrderedSearchHits(searchResponse, "d2", "d1");
+        assertThat((Double) searchResponse.getHits().getAt(0).getSortValues()[0], equalTo(GeoDistance.PLANE.calculate(2, 1, 5, 1, DistanceUnit.KILOMETERS)));
+        assertThat((Double) searchResponse.getHits().getAt(1).getSortValues()[0], equalTo(GeoDistance.PLANE.calculate(2, 2, 3, 2, DistanceUnit.KILOMETERS)));
+
+        searchResponse = client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .addSort(new GeoDistanceSortBuilder("location").points(q).sortMode("max").order(SortOrder.ASC).geoDistance(GeoDistance.PLANE).unit(DistanceUnit.KILOMETERS))
+                .execute().actionGet();
+        assertOrderedSearchHits(searchResponse, "d1", "d2");
+        assertThat((Double) searchResponse.getHits().getAt(0).getSortValues()[0], equalTo(GeoDistance.PLANE.calculate(2, 2, 4, 1, DistanceUnit.KILOMETERS)));
+        assertThat((Double) searchResponse.getHits().getAt(1).getSortValues()[0], equalTo(GeoDistance.PLANE.calculate(2, 1, 6, 2, DistanceUnit.KILOMETERS)));
+
+        searchResponse = client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .addSort(new GeoDistanceSortBuilder("location").points(q).sortMode("max").order(SortOrder.DESC).geoDistance(GeoDistance.PLANE).unit(DistanceUnit.KILOMETERS))
+                .execute().actionGet();
+        assertOrderedSearchHits(searchResponse, "d2", "d1");
+        assertThat((Double) searchResponse.getHits().getAt(0).getSortValues()[0], equalTo(GeoDistance.PLANE.calculate(2, 1, 6, 2, DistanceUnit.KILOMETERS)));
+        assertThat((Double) searchResponse.getHits().getAt(1).getSortValues()[0], equalTo(GeoDistance.PLANE.calculate(2, 2, 4, 1, DistanceUnit.KILOMETERS)));
+    }
+
+    protected void createShuffeldJSONArray(XContentBuilder builder, GeoPoint[] pointsArray) throws IOException {
+        List<GeoPoint> points = new ArrayList<>();
+        points.addAll(Arrays.asList(pointsArray));
+        builder.startObject();
+        builder.startArray("location");
+        int numPoints = points.size();
+        for (int i = 0; i < numPoints; i++) {
+            builder.value(points.remove(randomInt(points.size() - 1)));
+        }
+        builder.endArray();
+        builder.endObject();
+    }
+
+    public void testManyToManyGeoPointsWithDifferentFormats() throws ExecutionException, InterruptedException, IOException {
+        /**   q     d1       d2
+         * |4  o|   x    |   x
+         * |    |        |
+         * |3  o|  x     |  x
+         * |    |        |
+         * |2  o| x      | x
+         * |    |        |
+         * |1  o|x       |x
+         * |______________________
+         * 1   2   3   4   5   6
+         */
+        assertAcked(prepareCreate("index").addMapping("type", "location", "type=geo_point"));
+        XContentBuilder d1Builder = jsonBuilder();
+        GeoPoint[] d1Points = {new GeoPoint(2.5, 1), new GeoPoint(2.75, 2), new GeoPoint(3, 3), new GeoPoint(3.25, 4)};
+        createShuffeldJSONArray(d1Builder, d1Points);
+
+        XContentBuilder d2Builder = jsonBuilder();
+        GeoPoint[] d2Points = {new GeoPoint(4.5, 1), new GeoPoint(4.75, 2), new GeoPoint(5, 3), new GeoPoint(5.25, 4)};
+        createShuffeldJSONArray(d2Builder, d2Points);
+
+        indexRandom(true,
+                client().prepareIndex("index", "type", "d1").setSource(d1Builder),
+                client().prepareIndex("index", "type", "d2").setSource(d2Builder));
+        ensureYellow();
+
+        List<String> qHashes = new ArrayList<>();
+        List<GeoPoint> qPoints = new ArrayList<>();
+        createQPoints(qHashes, qPoints);
+
+        GeoDistanceSortBuilder geoDistanceSortBuilder = new GeoDistanceSortBuilder("location");
+        for (int i = 0; i < 4; i++) {
+            int at = randomInt(3 - i);
+            if (randomBoolean()) {
+                geoDistanceSortBuilder.geohashes(qHashes.get(at));
+            } else {
+                geoDistanceSortBuilder.points(qPoints.get(at));
+            }
+            qHashes.remove(at);
+            qPoints.remove(at);
+        }
+
+        SearchResponse searchResponse = client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .addSort(geoDistanceSortBuilder.sortMode("min").order(SortOrder.ASC).geoDistance(GeoDistance.PLANE).unit(DistanceUnit.KILOMETERS))
+                .execute().actionGet();
+        assertOrderedSearchHits(searchResponse, "d1", "d2");
+        assertThat((Double) searchResponse.getHits().getAt(0).getSortValues()[0], closeTo(GeoDistance.PLANE.calculate(2.5, 1, 2, 1, DistanceUnit.KILOMETERS), 1.e-5));
+        assertThat((Double) searchResponse.getHits().getAt(1).getSortValues()[0], closeTo(GeoDistance.PLANE.calculate(4.5, 1, 2, 1, DistanceUnit.KILOMETERS), 1.e-5));
+
+        searchResponse = client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .addSort(geoDistanceSortBuilder.sortMode("max").order(SortOrder.ASC).geoDistance(GeoDistance.PLANE).unit(DistanceUnit.KILOMETERS))
+                .execute().actionGet();
+        assertOrderedSearchHits(searchResponse, "d1", "d2");
+        assertThat((Double) searchResponse.getHits().getAt(0).getSortValues()[0], closeTo(GeoDistance.PLANE.calculate(3.25, 4, 2, 1, DistanceUnit.KILOMETERS), 1.e-5));
+        assertThat((Double) searchResponse.getHits().getAt(1).getSortValues()[0], closeTo(GeoDistance.PLANE.calculate(5.25, 4, 2, 1, DistanceUnit.KILOMETERS), 1.e-5));
+
+        //test all the different formats in one
+        createQPoints(qHashes, qPoints);
+        XContentBuilder searchSourceBuilder = jsonBuilder();
+        searchSourceBuilder.startObject().startArray("sort").startObject().startObject("_geo_distance").startArray("location");
+
+        for (int i = 0; i < 4; i++) {
+            int at = randomInt(qPoints.size() - 1);
+            int format = randomInt(3);
+            switch (format) {
+                case 0: {
+                    searchSourceBuilder.value(qHashes.get(at));
+                    break;
+                }
+                case 1: {
+                    searchSourceBuilder.value(qPoints.get(at).lat() + "," + qPoints.get(at).lon());
+                    break;
+                }
+                case 2: {
+                    searchSourceBuilder.value(qPoints.get(at));
+                    break;
+                }
+                case 3: {
+                    searchSourceBuilder.startArray().value(qPoints.get(at).lon()).value(qPoints.get(at).lat()).endArray();
+                    break;
+                }
+            }
+            qHashes.remove(at);
+            qPoints.remove(at);
+        }
+
+        searchSourceBuilder.endArray();
+        searchSourceBuilder.field("order", "asc");
+        searchSourceBuilder.field("unit", "km");
+        searchSourceBuilder.field("sort_mode", "min");
+        searchSourceBuilder.field("distance_type", "plane");
+        searchSourceBuilder.endObject();
+        searchSourceBuilder.endObject();
+        searchSourceBuilder.endArray();
+        searchSourceBuilder.endObject();
+
+        searchResponse = client().prepareSearch().setSource(searchSourceBuilder).execute().actionGet();
+        assertOrderedSearchHits(searchResponse, "d1", "d2");
+        assertThat((Double) searchResponse.getHits().getAt(0).getSortValues()[0], closeTo(GeoDistance.PLANE.calculate(2.5, 1, 2, 1, DistanceUnit.KILOMETERS), 1.e-5));
+        assertThat((Double) searchResponse.getHits().getAt(1).getSortValues()[0], closeTo(GeoDistance.PLANE.calculate(4.5, 1, 2, 1, DistanceUnit.KILOMETERS), 1.e-5));
+    }
+
+    protected void createQPoints(List<String> qHashes, List<GeoPoint> qPoints) {
+        GeoPoint[] qp = {new GeoPoint(2, 1), new GeoPoint(2, 2), new GeoPoint(2, 3), new GeoPoint(2, 4)};
+        qPoints.addAll(Arrays.asList(qp));
+        String[] qh = {"s02equ04ven0", "s037ms06g7h0", "s065kk0dc540", "s06g7h0dyg00"};
+        qHashes.addAll(Arrays.asList(qh));
+    }
+
+    public void testCrossIndexIgnoreUnmapped() throws Exception {
+        assertAcked(prepareCreate("test1").addMapping(
+                "type", "str_field1", "type=string",
+                "long_field", "type=long",
+                "double_field", "type=double").get());
+        assertAcked(prepareCreate("test2").get());
+
+        indexRandom(true,
+                client().prepareIndex("test1", "type").setSource("str_field", "bcd", "long_field", 3, "double_field", 0.65),
+                client().prepareIndex("test2", "type").setSource());
+
+        ensureYellow("test1", "test2");
+
+        SearchResponse resp = client().prepareSearch("test1", "test2")
+                .addSort(fieldSort("str_field").order(SortOrder.ASC).unmappedType("string"))
+                .addSort(fieldSort("str_field2").order(SortOrder.DESC).unmappedType("string")).get();
+
+        final StringAndBytesText maxTerm = new StringAndBytesText(IndexFieldData.XFieldComparatorSource.MAX_TERM.utf8ToString());
+        assertSortValues(resp,
+                new Object[] {new StringAndBytesText("bcd"), null},
+                new Object[] {maxTerm, null});
+
+        resp = client().prepareSearch("test1", "test2")
+                .addSort(fieldSort("long_field").order(SortOrder.ASC).unmappedType("long"))
+                .addSort(fieldSort("long_field2").order(SortOrder.DESC).unmappedType("long")).get();
+        assertSortValues(resp,
+                new Object[] {3L, Long.MIN_VALUE},
+                new Object[] {Long.MAX_VALUE, Long.MIN_VALUE});
+
+        resp = client().prepareSearch("test1", "test2")
+                .addSort(fieldSort("double_field").order(SortOrder.ASC).unmappedType("double"))
+                .addSort(fieldSort("double_field2").order(SortOrder.DESC).unmappedType("double")).get();
+        assertSortValues(resp,
+                new Object[] {0.65, Double.NEGATIVE_INFINITY},
+                new Object[] {Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY});
+    }
 
 }

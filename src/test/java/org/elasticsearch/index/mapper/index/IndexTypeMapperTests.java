@@ -21,26 +21,25 @@ package org.elasticsearch.index.mapper.index;
 
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.MapperTestUtils;
+import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.internal.IndexFieldMapper;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
 /**
  *
  */
-public class IndexTypeMapperTests extends ElasticsearchTestCase {
+public class IndexTypeMapperTests extends ElasticsearchSingleNodeTest {
 
     @Test
     public void simpleIndexMapperTests() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_index").field("enabled", true).field("store", "yes").endObject()
                 .endObject().endObject().string();
-        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
         IndexFieldMapper indexMapper = docMapper.rootMapper(IndexFieldMapper.class);
         assertThat(indexMapper.enabled(), equalTo(true));
         assertThat(indexMapper.fieldType().stored(), equalTo(true));
@@ -61,7 +60,7 @@ public class IndexTypeMapperTests extends ElasticsearchTestCase {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_index").field("enabled", false).field("store", "yes").endObject()
                 .endObject().endObject().string();
-        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
         IndexFieldMapper indexMapper = docMapper.rootMapper(IndexFieldMapper.class);
         assertThat(indexMapper.enabled(), equalTo(false));
         assertThat(indexMapper.fieldType().stored(), equalTo(true));
@@ -80,7 +79,7 @@ public class IndexTypeMapperTests extends ElasticsearchTestCase {
     public void defaultDisabledIndexMapperTests() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .endObject().endObject().string();
-        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
         IndexFieldMapper indexMapper = docMapper.rootMapper(IndexFieldMapper.class);
         assertThat(indexMapper.enabled(), equalTo(false));
         assertThat(indexMapper.fieldType().stored(), equalTo(false));
@@ -100,13 +99,14 @@ public class IndexTypeMapperTests extends ElasticsearchTestCase {
         String mappingWithIndexEnabled = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_index").field("enabled", true).field("store", "yes").endObject()
                 .endObject().endObject().string();
-        DocumentMapper mapperEnabled = MapperTestUtils.newParser().parse(mappingWithIndexEnabled);
+        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+        DocumentMapper mapperEnabled = parser.parse(mappingWithIndexEnabled);
 
 
         String mappingWithIndexDisabled = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_index").field("enabled", false).field("store", "yes").endObject()
                 .endObject().endObject().string();
-        DocumentMapper mapperDisabled = MapperTestUtils.newParser().parse(mappingWithIndexDisabled);
+        DocumentMapper mapperDisabled = parser.parse(mappingWithIndexDisabled);
 
         mapperEnabled.merge(mapperDisabled, DocumentMapper.MergeFlags.mergeFlags().simulate(false));
         assertThat(mapperEnabled.IndexFieldMapper().enabled(), is(false));

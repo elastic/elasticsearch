@@ -55,7 +55,7 @@ import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
-@ClusterScope(scope = Scope.TEST, numDataNodes = 0)
+@ClusterScope(scope = Scope.TEST, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0)
 public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
 
     @Override
@@ -71,7 +71,7 @@ public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
     @Test
     @Slow
     public void testRestartNodePercolator1() throws Exception {
-        cluster().startNode();
+        internalCluster().startNode();
         createIndex("test");
 
         logger.info("--> register a query");
@@ -91,7 +91,7 @@ public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
                 .get();
         assertThat(percolate.getMatches(), arrayWithSize(1));
 
-        cluster().rollingRestart();
+        internalCluster().rollingRestart();
 
         logger.info("Running Cluster Health (wait for the shards to startup)");
         ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
@@ -111,7 +111,7 @@ public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
     @Test
     @Slow
     public void testRestartNodePercolator2() throws Exception {
-        cluster().startNode();
+        internalCluster().startNode();
         createIndex("test");
 
         logger.info("--> register a query");
@@ -134,7 +134,7 @@ public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
         assertMatchCount(percolate, 1l);
         assertThat(percolate.getMatches(), arrayWithSize(1));
 
-        cluster().rollingRestart();
+        internalCluster().rollingRestart();
 
         logger.info("Running Cluster Health (wait for the shards to startup)");
         ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
@@ -185,8 +185,8 @@ public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
     @Slow
     @TestLogging("index.percolator:TRACE,percolator:TRACE")
     public void testLoadingPercolateQueriesDuringCloseAndOpen() throws Exception {
-        cluster().startNode();
-        cluster().startNode();
+        internalCluster().startNode();
+        internalCluster().startNode();
 
         assertAcked(client().admin().indices().prepareCreate("test")
                 .setSettings(settingsBuilder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 2)
@@ -196,6 +196,7 @@ public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
         logger.info("--> Add dummy docs");
         client().prepareIndex("test", "type1", "1").setSource("field1", 0).get();
         client().prepareIndex("test", "type2", "1").setSource("field1", "0").get();
+        waitForConcreteMappingsOnAll("test", "type1", "field1");
 
         logger.info("--> register a queries");
         for (int i = 1; i <= 100; i++) {
@@ -208,6 +209,7 @@ public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
                             .endObject())
                     .get();
         }
+        waitForConcreteMappingsOnAll("test", PercolatorService.TYPE_NAME);
 
         logger.info("--> Percolate doc with field1=95");
         PercolateResponse response = client().preparePercolate()
@@ -248,9 +250,9 @@ public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
     // 3 nodes, 2 primary + 2 replicas per primary, so each node should have a copy of the data.
     // We only start and stop nodes 2 and 3, so all requests should succeed and never be partial.
     private void percolatorRecovery(final boolean multiPercolate) throws Exception {
-        cluster().startNode(settingsBuilder().put("node.stay", true));
-        cluster().startNode(settingsBuilder().put("node.stay", false));
-        cluster().startNode(settingsBuilder().put("node.stay", false));
+        internalCluster().startNode(settingsBuilder().put("node.stay", true));
+        internalCluster().startNode(settingsBuilder().put("node.stay", false));
+        internalCluster().startNode(settingsBuilder().put("node.stay", false));
         ensureGreen();
         client().admin().indices().prepareCreate("test")
                 .setSettings(settingsBuilder()
@@ -260,7 +262,7 @@ public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
                 .get();
         ensureGreen();
 
-        final Client client = cluster().client(new Predicate<Settings>() {
+        final Client client = internalCluster().client(new Predicate<Settings>() {
             @Override
             public boolean apply(Settings input) {
                 return input.getAsBoolean("node.stay", true);
@@ -384,7 +386,7 @@ public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
         try {
             // 1 index, 2 primaries, 2 replicas per primary
             for (int i = 0; i < 4; i++) {
-                cluster().stopRandomNode(nodePredicate);
+                internalCluster().stopRandomNode(nodePredicate);
                 client.admin().cluster().prepareHealth("test")
                         .setWaitForEvents(Priority.LANGUID)
                         .setTimeout(TimeValue.timeValueMinutes(2))
@@ -392,7 +394,7 @@ public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
                         .setWaitForActiveShards(4) // 2 nodes, so 4 shards (2 primaries, 2 replicas)
                         .get();
                 assertThat(error.get(), nullValue());
-                cluster().stopRandomNode(nodePredicate);
+                internalCluster().stopRandomNode(nodePredicate);
                 client.admin().cluster().prepareHealth("test")
                         .setWaitForEvents(Priority.LANGUID)
                         .setTimeout(TimeValue.timeValueMinutes(2))
@@ -400,7 +402,7 @@ public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
                         .setWaitForActiveShards(2) // 1 node, so 2 shards (2 primaries, 0 replicas)
                         .get();
                 assertThat(error.get(), nullValue());
-                cluster().startNode();
+                internalCluster().startNode();
                 client.admin().cluster().prepareHealth("test")
                         .setWaitForEvents(Priority.LANGUID)
                         .setTimeout(TimeValue.timeValueMinutes(2))
@@ -408,7 +410,7 @@ public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
                         .setWaitForActiveShards(4)  // 2 nodes, so 4 shards (2 primaries, 2 replicas)
                         .get();
                 assertThat(error.get(), nullValue());
-                cluster().startNode();
+                internalCluster().startNode();
                 client.admin().cluster().prepareHealth("test")
                         .setWaitForEvents(Priority.LANGUID)
                         .setTimeout(TimeValue.timeValueMinutes(2))

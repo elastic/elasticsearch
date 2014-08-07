@@ -51,7 +51,7 @@ public class RestIndicesStatsAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
         indicesStatsRequest.listenerThreaded(false);
         indicesStatsRequest.indicesOptions(IndicesOptions.fromRequest(request, indicesStatsRequest.indicesOptions()));
@@ -80,6 +80,7 @@ public class RestIndicesStatsAction extends BaseRestHandler {
             indicesStatsRequest.fieldData(metrics.contains("fielddata"));
             indicesStatsRequest.completion(metrics.contains("completion"));
             indicesStatsRequest.suggest(metrics.contains("suggest"));
+            indicesStatsRequest.queryCache(metrics.contains("query_cache"));
         }
 
         if (request.hasParam("groups")) {

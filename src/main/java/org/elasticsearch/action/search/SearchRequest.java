@@ -24,6 +24,7 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Nullable;
@@ -35,6 +36,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
@@ -57,7 +59,7 @@ import static org.elasticsearch.search.Scroll.readScroll;
  * @see org.elasticsearch.client.Client#search(SearchRequest)
  * @see SearchResponse
  */
-public class SearchRequest extends ActionRequest<SearchRequest> {
+public class SearchRequest extends ActionRequest<SearchRequest> implements IndicesRequest {
 
     private SearchType searchType = SearchType.DEFAULT;
 
@@ -71,6 +73,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
     private BytesReference templateSource;
     private boolean templateSourceUnsafe;
     private String templateName;
+    private ScriptService.ScriptType templateType;
     private Map<String, String> templateParams = Collections.emptyMap();
 
     private BytesReference source;
@@ -78,12 +81,15 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
 
     private BytesReference extraSource;
     private boolean extraSourceUnsafe;
+    private Boolean queryCache;
 
     private Scroll scroll;
 
     private String[] types = Strings.EMPTY_ARRAY;
 
-    private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
+    public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpenAndForbidClosed();
+
+    private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
 
     public SearchRequest() {
     }
@@ -140,7 +146,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
         } else {
             for (int i = 0; i < indices.length; i++) {
                 if (indices[i] == null) {
-                    throw new ElasticsearchIllegalArgumentException("indices[" + i +"] must not be null");
+                    throw new ElasticsearchIllegalArgumentException("indices[" + i + "] must not be null");
                 }
             }
         }
@@ -148,6 +154,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
         return this;
     }
 
+    @Override
     public IndicesOptions indicesOptions() {
         return indicesOptions;
     }
@@ -400,8 +407,12 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
     /**
      * The name of the stored template
      */
-    public void templateName(String name) {
-        this.templateName = name;
+    public void templateName(String templateName) {
+        this.templateName = templateName;
+    }
+
+    public void templateType(ScriptService.ScriptType templateType) {
+        this.templateType = templateType;
     }
 
     /**
@@ -416,6 +427,13 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
      */
     public String templateName() {
         return templateName;
+    }
+
+    /**
+     * The name of the stored template
+     */
+    public ScriptService.ScriptType templateType() {
+        return templateType;
     }
 
     /**
@@ -442,6 +460,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
     /**
      * The indices
      */
+    @Override
     public String[] indices() {
         return indices;
     }
@@ -473,6 +492,20 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
      */
     public SearchRequest scroll(String keepAlive) {
         return scroll(new Scroll(TimeValue.parseTimeValue(keepAlive, null)));
+    }
+
+    /**
+     * Sets if this request should use the query cache or not, assuming that it can (for
+     * example, if "now" is used, it will never be cached). By default (not set, or null,
+     * will default to the index level setting if query cache is enabled or not).
+     */
+    public SearchRequest queryCache(Boolean queryCache) {
+        this.queryCache = queryCache;
+        return this;
+    }
+
+    public Boolean queryCache() {
+        return this.queryCache;
     }
 
     @Override
@@ -507,10 +540,17 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
         if (in.getVersion().onOrAfter(Version.V_1_1_0)) {
             templateSourceUnsafe = false;
             templateSource = in.readBytesReference();
-            templateName =  in.readOptionalString();
+            templateName = in.readOptionalString();
+            if (in.getVersion().onOrAfter(Version.V_1_3_0)) {
+                templateType = ScriptService.ScriptType.readFrom(in);
+            }
             if (in.readBoolean()) {
                 templateParams = (Map<String, String>) in.readGenericValue();
             }
+        }
+
+        if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
+            queryCache = in.readOptionalBoolean();
         }
     }
 
@@ -544,12 +584,18 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
         if (out.getVersion().onOrAfter(Version.V_1_1_0)) {
             out.writeBytesReference(templateSource);
             out.writeOptionalString(templateName);
-
+            if (out.getVersion().onOrAfter(Version.V_1_3_0)) {
+                ScriptService.ScriptType.writeTo(templateType, out);
+            }
             boolean existTemplateParams = templateParams != null;
             out.writeBoolean(existTemplateParams);
             if (existTemplateParams) {
                 out.writeGenericValue(templateParams);
             }
+        }
+
+        if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
+            out.writeOptionalBoolean(queryCache);
         }
     }
 }

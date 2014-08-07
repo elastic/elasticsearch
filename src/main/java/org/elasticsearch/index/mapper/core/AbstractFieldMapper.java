@@ -50,8 +50,8 @@ import org.elasticsearch.index.codec.postingsformat.PostingFormats;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatService;
 import org.elasticsearch.index.fielddata.FieldDataType;
-import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -491,7 +491,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
      * A terms filter based on the field data cache
      */
     @Override
-    public Filter termsFilter(IndexFieldDataService fieldDataService, List values, @Nullable QueryParseContext context) {
+    public Filter fieldDataTermsFilter(List values, @Nullable QueryParseContext context) {
         // create with initial size large enough to avoid rehashing
         ObjectOpenHashSet<BytesRef> terms =
                 new ObjectOpenHashSet<>((int) (values.size() * (1 + ObjectOpenHashSet.DEFAULT_LOAD_FACTOR)));
@@ -499,7 +499,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
             terms.add(indexedValueForSearch(values.get(i)));
         }
 
-        return FieldDataTermsFilter.newBytes(fieldDataService.getForField(this), terms);
+        return FieldDataTermsFilter.newBytes(context.getForField(this), terms);
     }
 
     @Override
@@ -762,7 +762,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         if (similarity() != null) {
             builder.field("similarity", similarity().name());
         } else if (includeDefaults) {
-            builder.field("similariry", SimilarityLookupService.DEFAULT_SIMILARITY);
+            builder.field("similarity", SimilarityLookupService.DEFAULT_SIMILARITY);
         }
 
         if (customFieldDataSettings != null) {
@@ -842,6 +842,11 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         return true;
     }
 
+    @Override
+    public boolean supportsNullValue() {
+        return true;
+    }
+
     public boolean hasDocValues() {
         return docValues;
     }
@@ -917,7 +922,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
                 return;
             }
 
-            context.setWithinMultiFields();
+            context = context.createMultiFieldContext();
 
             ContentPath.Type origPathType = context.path().pathType();
             context.path().pathType(pathType);
@@ -928,8 +933,6 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
             }
             context.path().remove();
             context.path().pathType(origPathType);
-
-            context.clearWithinMultiFields();
         }
 
         // No need for locking, because locking is taken care of in ObjectMapper#merge and DocumentMapper#merge
@@ -1017,9 +1020,26 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
          * Creates instances of the fields that the current field should be copied to
          */
         public void parse(ParseContext context) throws IOException {
-            if (!context.isWithinCopyTo()) {
+            if (!context.isWithinCopyTo() && copyToFields.isEmpty() == false) {
+                context = context.createCopyToContext();
                 for (String field : copyToFields) {
-                    parse(field, context);
+                    // In case of a hierarchy of nested documents, we need to figure out
+                    // which document the field should go to
+                    Document targetDoc = null;
+                    for (Document doc = context.doc(); doc != null; doc = doc.getParent()) {
+                        if (field.startsWith(doc.getPrefix())) {
+                            targetDoc = doc;
+                            break;
+                        }
+                    }
+                    assert targetDoc != null;
+                    final ParseContext copyToContext;
+                    if (targetDoc == context.doc()) {
+                        copyToContext = context;
+                    } else {
+                        copyToContext = context.switchDoc(targetDoc);
+                    }
+                    parse(field, copyToContext);
                 }
             }
         }
@@ -1056,11 +1076,13 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
          * Creates an copy of the current field with given field name and boost
          */
         public void parse(String field, ParseContext context) throws IOException {
-            context.setWithinCopyTo();
             FieldMappers mappers = context.docMapper().mappers().indexName(field);
             if (mappers != null && !mappers.isEmpty()) {
                 mappers.mapper().parse(context);
             } else {
+                // The path of the dest field might be completely different from the current one so we need to reset it
+                context = context.overridePath(new ContentPath(0));
+
                 int posDot = field.lastIndexOf('.');
                 if (posDot > 0) {
                     // Compound name
@@ -1072,8 +1094,6 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
                         throw new MapperParsingException("attempt to copy value to non-existing object [" + field + "]");
                     }
 
-                    ContentPath.Type origPathType = context.path().pathType();
-                    context.path().pathType(ContentPath.Type.FULL);
                     context.path().add(objectPath);
 
                     // We might be in dynamically created field already, so need to clean withinNewMapper flag
@@ -1089,8 +1109,6 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
                         } else {
                             context.clearWithinNewMapper();
                         }
-                        context.path().remove();
-                        context.path().pathType(origPathType);
                     }
 
                 } else {
@@ -1110,10 +1128,16 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
 
                 }
             }
-            context.clearWithinCopyTo();
         }
 
 
+    }
+
+    /**
+     * Returns if this field is only generated when indexing. For example, the field of type token_count
+     */
+    public boolean isGenerated() {
+        return false;
     }
 
 }

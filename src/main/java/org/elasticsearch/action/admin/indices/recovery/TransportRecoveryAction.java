@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.recovery;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationRequest;
@@ -35,21 +36,21 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.gateway.IndexShardGatewayService;
+import org.elasticsearch.index.service.InternalIndexService;
+import org.elasticsearch.index.shard.service.InternalIndexShard;
+import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.indices.recovery.RecoveryStatus;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.index.service.InternalIndexService;
-import org.elasticsearch.index.gateway.IndexShardGatewayService;
-import org.elasticsearch.index.shard.service.InternalIndexShard;
-import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.indices.recovery.RecoveryStatus;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.HashMap;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
@@ -64,16 +65,11 @@ public class TransportRecoveryAction extends
 
     @Inject
     public TransportRecoveryAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                                   TransportService transportService, IndicesService indicesService, RecoveryTarget recoveryTarget) {
+                                   TransportService transportService, IndicesService indicesService, RecoveryTarget recoveryTarget, ActionFilters actionFilters) {
 
-        super(settings, threadPool, clusterService, transportService);
+        super(settings, RecoveryAction.NAME, threadPool, clusterService, transportService, actionFilters);
         this.indicesService = indicesService;
         this.recoveryTarget = recoveryTarget;
-    }
-
-    @Override
-    protected String transportAction() {
-        return RecoveryAction.NAME;
     }
 
     @Override
@@ -157,7 +153,7 @@ public class TransportRecoveryAction extends
         RecoveryStatus recoveryStatus = indexShard.recoveryStatus();
 
         if (recoveryStatus == null) {
-            recoveryStatus = recoveryTarget.recoveryStatus(indexShard.shardId());
+            recoveryStatus = recoveryTarget.recoveryStatus(indexShard);
         }
 
         if (recoveryStatus != null) {
@@ -174,7 +170,7 @@ public class TransportRecoveryAction extends
 
     @Override
     protected GroupShardsIterator shards(ClusterState state, RecoveryRequest request, String[] concreteIndices) {
-        return state.routingTable().allAssignedShardsGrouped(concreteIndices, true);
+        return state.routingTable().allAssignedShardsGrouped(concreteIndices, true, true);
     }
 
     @Override

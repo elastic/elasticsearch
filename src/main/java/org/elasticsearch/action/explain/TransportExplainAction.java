@@ -24,6 +24,7 @@ import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.RoutingMissingException;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportShardSingleOperationAction;
 import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
@@ -73,8 +74,8 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
     public TransportExplainAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                   TransportService transportService, IndicesService indicesService,
                                   ScriptService scriptService, CacheRecycler cacheRecycler,
-                                  PageCacheRecycler pageCacheRecycler, BigArrays bigArrays) {
-        super(settings, threadPool, clusterService, transportService);
+                                  PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, ActionFilters actionFilters) {
+        super(settings, ExplainAction.NAME, threadPool, clusterService, transportService, actionFilters);
         this.indicesService = indicesService;
         this.scriptService = scriptService;
         this.cacheRecycler = cacheRecycler;
@@ -88,19 +89,15 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
         super.doExecute(request, listener);
     }
 
-    protected String transportAction() {
-        return ExplainAction.NAME;
-    }
-
     protected String executor() {
         return ThreadPool.Names.GET; // Or use Names.SEARCH?
     }
 
     @Override
     protected void resolveRequest(ClusterState state, ExplainRequest request) {
-        String concreteIndex = state.metaData().concreteSingleIndex(request.index());
+        String concreteIndex = state.metaData().concreteSingleIndex(request.index(), request.indicesOptions());
         request.filteringAlias(state.metaData().filteringAliases(concreteIndex, request.index()));
-        request.index(state.metaData().concreteSingleIndex(request.index()));
+        request.index(state.metaData().concreteSingleIndex(request.index(), request.indicesOptions()));
 
         // Fail fast on the node that received the request.
         if (request.routing() == null && state.getMetaData().routingRequired(request.index(), request.type())) {
@@ -141,7 +138,7 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
                 // Advantage is that we're not opening a second searcher to retrieve the _source. Also
                 // because we are working in the same searcher in engineGetResult we can be sure that a
                 // doc isn't deleted between the initial get and this call.
-                GetResult getResult = indexShard.getService().get(result, request.id(), request.type(), request.fields(), request.fetchSourceContext());
+                GetResult getResult = indexShard.getService().get(result, request.id(), request.type(), request.fields(), request.fetchSourceContext(), false);
                 return new ExplainResponse(true, explanation, getResult);
             } else {
                 return new ExplainResponse(true, explanation);

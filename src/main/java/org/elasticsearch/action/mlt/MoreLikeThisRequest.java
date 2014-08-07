@@ -19,13 +19,14 @@
 
 package org.elasticsearch.action.mlt;
 
+import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.ValidateActions;
+import org.elasticsearch.action.*;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -38,6 +39,7 @@ import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.search.Scroll.readScroll;
@@ -52,7 +54,7 @@ import static org.elasticsearch.search.Scroll.readScroll;
  * @see org.elasticsearch.client.Requests#moreLikeThisRequest(String)
  * @see org.elasticsearch.action.search.SearchResponse
  */
-public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
+public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> implements CompositeIndicesRequest {
 
     private String index;
 
@@ -113,6 +115,43 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
 
     void index(String index) {
         this.index = index;
+    }
+
+    public IndicesOptions indicesOptions() {
+        return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
+    }
+
+    @Override
+    public List<? extends IndicesRequest> subRequests() {
+        //we create two fake indices subrequests as we don't have the actual ones yet
+        //since they get created later on in TransportMoreLikeThisAction
+        List<IndicesRequest> requests = Lists.newArrayList();
+        requests.add(new IndicesRequest() {
+            @Override
+            public String[] indices() {
+                return new String[]{index};
+            }
+
+            @Override
+            public IndicesOptions indicesOptions() {
+                return MoreLikeThisRequest.this.indicesOptions();
+            }
+        });
+        requests.add(new IndicesRequest() {
+            @Override
+            public String[] indices() {
+                if (searchIndices != null) {
+                    return searchIndices;
+                }
+                return new String[]{index};
+            }
+
+            @Override
+            public IndicesOptions indicesOptions() {
+                return SearchRequest.DEFAULT_INDICES_OPTIONS;
+            }
+        });
+        return requests;
     }
 
     /**

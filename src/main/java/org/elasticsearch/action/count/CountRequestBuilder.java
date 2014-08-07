@@ -23,19 +23,18 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.internal.InternalClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.query.QueryBuilder;
 
 /**
  * A count action request builder.
  */
-public class CountRequestBuilder extends BroadcastOperationRequestBuilder<CountRequest, CountResponse, CountRequestBuilder> {
+public class CountRequestBuilder extends BroadcastOperationRequestBuilder<CountRequest, CountResponse, CountRequestBuilder, Client> {
 
     private QuerySourceBuilder sourceBuilder;
 
     public CountRequestBuilder(Client client) {
-        super((InternalClient) client, new CountRequest());
+        super(client, new CountRequest());
     }
 
     /**
@@ -93,6 +92,14 @@ public class CountRequestBuilder extends BroadcastOperationRequestBuilder<CountR
     }
 
     /**
+     * The query binary to execute
+     */
+    public CountRequestBuilder setQuery(BytesReference queryBinary) {
+        sourceBuilder().setQuery(queryBinary);
+        return this;
+    }
+
+    /**
      * The source to execute.
      */
     public CountRequestBuilder setSource(BytesReference source) {
@@ -116,13 +123,18 @@ public class CountRequestBuilder extends BroadcastOperationRequestBuilder<CountR
         return this;
     }
 
+    public CountRequestBuilder setTerminateAfter(int terminateAfter) {
+        request().terminateAfter(terminateAfter);
+        return this;
+    }
+
     @Override
     protected void doExecute(ActionListener<CountResponse> listener) {
         if (sourceBuilder != null) {
             request.source(sourceBuilder);
         }
 
-        ((InternalClient) client).count(request, listener);
+        client.count(request, listener);
     }
 
     private QuerySourceBuilder sourceBuilder() {

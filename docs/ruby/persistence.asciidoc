@@ -1,0 +1,226 @@
+== Persistence
+
+The `elasticsearch-persistence` http://rubygems.org/gems/elasticsearch-persistence[Rubygem]
+provides persistence layer for Ruby domain objects.
+
+It supports two design patterns for integrating with your objects: _repository_ and _active record_.
+
+=== Repository
+
+The `Elasticsearch::Persistence::Repository` module provides an implementation of the repository pattern and allows to save, delete, find and search objects stored in Elasticsearch, as well as configure mappings and settings for the index.
+
+==== Features At a Glance
+
+* Access to the Elasticsearch client
+* Setting the index name, document type, and object class for deserialization
+* Composing mappings and settings for the index
+* Creating, deleting or refreshing the index
+* Finding or searching for documents
+* Providing access both to domain objects and hits for search results
+* Providing access to the Elasticsearch response for search results (aggregations, total, ...)
+* Defining the methods for serialization and deserialization
+
+==== Usage
+
+Let's have a simple plain old Ruby object (PORO):
+
+[source,ruby]
+------------------------------------
+class Note
+  attr_reader :attributes
+
+  def initialize(attributes={})
+    @attributes = attributes
+  end
+
+  def to_hash
+    @attributes
+  end
+end
+------------------------------------
+
+
+Let's create a default, "dumb" repository, as a first step:
+
+[source,ruby]
+------------------------------------
+require 'elasticsearch/persistence'
+repository = Elasticsearch::Persistence::Repository.new
+------------------------------------
+
+We can save a `Note` instance into the repository, find it, search it, delete it:
+
+[source,ruby]
+------------------------------------
+note = Note.new id: 1, text: 'Test'
+
+repository.save(note)
+# PUT http://localhost:9200/repository/note/1
+# > {"id":1,"text":"Test"}
+# < {"_index":"repository","_type":"note","_id":"1","_version":1,"created":true}
+
+n = repository.find(1)
+# GET http://localhost:9200/repository/_all/1
+# < {"_index":"repository","_type":"note","_id":"1","_version":2,"found":true, "_source" : {"id":1,"text":"Test"}}
+=> <Note:0x007fcbfc0c4980 @attributes={"id"=>1, "text"=>"Test"}>
+
+repository.search(query: { match: { text: 'test' } }).first
+# GET http://localhost:9200/repository/_search
+# > {"query":{"match":{"text":"test"}}}
+# < {"took":2, ... "hits":{"total":1, ... "hits":[{ ... "_source" : {"id":1,"text":"Test"}}]}}
+=> <Note:0x007fcbfc1c7b70 @attributes={"id"=>1, "text"=>"Test"}>
+
+repository.delete(note)
+# DELETE http://localhost:9200/repository/note/1
+# < {"found":true,"_index":"repository","_type":"note","_id":"1","_version":3}
+=> {"found"=>true, "_index"=>"repository", "_type"=>"note", "_id"=>"1", "_version"=>2}
+------------------------------------
+
+The repository module provides a number of features and facilities to configure and customize the behaviour,
+as well as support for extending your own, custom repository class.
+
+Please refer to the
+https://github.com/elasticsearch/elasticsearch-rails/tree/master/elasticsearch-persistence#the-repository-pattern[documentation]
+for more information.
+
+Also, check out the
+https://github.com/elasticsearch/elasticsearch-rails/tree/master/elasticsearch-persistence#example-application[example application] which demonstrates the usage patterns of the _repository_ approach to persistence.
+
+=== Active Record
+
+The `Elasticsearch::Persistence::Model` module provides an implementation of the active record pattern, with
+a familiar interface for using Elasticsearch as a persistence layer in Ruby on Rails applications. The model
+is fully compatible with Rails' conventions and helpers, such as `url_for`.
+
+All the methods are documented with comprehensive examples in the source code, available also
+http://rubydoc.info/gems/elasticsearch-persistence/Elasticsearch/Persistence/Model[online].
+
+==== Features At a Glance
+
+* Familiar interface for persistence methods from ActiveRecord
+* Common model features such as validations and callbacks
+* Methods for defining model attributes, including Elasticsearch mappings
+* Support for fetching data in bulk (`find_in_batches`, `find_each`)
+* Decorated search results for easy access to model instances and meta data (such as highlights or aggregations)
+* Easy access to the underlying gateway and client
+
+==== Usage
+
+To use the library in a Rails application, add it to your Gemfile with a require statement:
+
+[source,ruby]
+------------------------------------
+gem "elasticsearch-persistence", require: 'elasticsearch/persistence/model'
+------------------------------------
+
+Include the module in a plain Ruby class, and set up the properties, mappings, etc:
+
+[source,ruby]
+------------------------------------
+class Article
+  include Elasticsearch::Persistence::Model
+
+  # Define a plain `title` attribute
+  #
+  attribute :title,  String
+
+  # Define an `author` attribute, with multiple analyzers for this field
+  #
+  attribute :author, String, mapping: { fields: {
+                               author: { type: 'string'},
+                               raw:    { type: 'string', analyzer: 'keyword' }
+                             } }
+
+
+  # Define a `views` attribute, with default value
+  #
+  attribute :views,  Integer, default: 0, mapping: { type: 'integer' }
+
+  # Validate the presence of the `title` attribute
+  #
+  validates :title, presence: true
+
+  # Execute code after saving the model.
+  #
+  after_save { puts "Successfuly saved: #{self}" }
+end
+------------------------------------
+
+The model attribute definition support is implemented with the https://github.com/solnic/virtus[_Virtus_] Rubygem,
+and the naming, validation, etc. features with the https://github.com/rails/rails/tree/master/activemodel[_ActiveModel_] Rubygem.
+
+Attribute validations work like for any other ActiveModel-compatible implementation:
+
+[source,ruby]
+------------------------------------
+article = Article.new                                                                                             # => #<Article { ... }>
+
+article.valid?
+# => false
+
+article.errors.to_a
+# => ["Title can't be blank"]
+------------------------------------
+
+We can create a new article in the database and find it:
+
+[source,ruby]
+------------------------------------
+Article.create id: 1, title: 'Test', author: 'John'
+# PUT http://localhost:9200/articles/article/1 [status:201, request:0.015s, query:n/a]
+
+article = Article.find(1)
+# => #<Article { ... }>
+
+article._index
+# => "articles"
+
+article.id
+# => "1"
+
+article.title
+# => "Test"
+------------------------------------
+
+To update the model, either update the attribute and save the model or use the `update_attributes` method:
+
+[source,ruby]
+------------------------------------
+article.title = 'Updated'
+
+article.save
+# => {"_index"=>"articles", "_type"=>"article", "_id"=>"1", "_version"=>2, "created"=>false}
+
+article.update_attributes title: 'Test', author: 'Mary'
+# => {"_index"=>"articles", "_type"=>"article", "_id"=>"1", "_version"=>3}
+------------------------------------
+
+The implementation supports the familiar interface for updating model timestamps and numeric attributes:
+
+[source,ruby]
+------------------------------------
+article.touch
+# => => { ... "_version"=>4}
+
+article.views
+# => 0
+
+article.increment :views
+article.views
+# => 1
+------------------------------------
+
+Any callbacks defined in the model will be triggered during the persistence operations:
+
+[source,ruby]
+------------------------------------
+article.save
+# Successfuly saved: #<Article {...}>
+------------------------------------
+
+Please see the extensive documentation in the library
+https://github.com/elasticsearch/elasticsearch-rails/tree/master/elasticsearch-persistence#the-activerecord-pattern[README]
+for detailed information.
+
+Also, check out the
+https://github.com/elasticsearch/elasticsearch-rails/tree/master/elasticsearch-persistence#example-application-1[example application] which demonstrates the usage patterns of the _active record_ approach to persistence.

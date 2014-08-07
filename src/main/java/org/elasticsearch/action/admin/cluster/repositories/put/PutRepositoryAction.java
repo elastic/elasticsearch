@@ -28,7 +28,7 @@ import org.elasticsearch.client.ClusterAdminClient;
 public class PutRepositoryAction extends ClusterAction<PutRepositoryRequest, PutRepositoryResponse, PutRepositoryRequestBuilder> {
 
     public static final PutRepositoryAction INSTANCE = new PutRepositoryAction();
-    public static final String NAME = "cluster/repository/put";
+    public static final String NAME = "cluster:admin/repository/put";
 
     private PutRepositoryAction() {
         super(NAME);

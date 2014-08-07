@@ -25,7 +25,6 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.internal.InternalClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -156,7 +155,7 @@ public class BulkProcessor implements Closeable {
 
     private final int concurrentRequests;
     private final int bulkActions;
-    private final int bulkSize;
+    private final long bulkSize;
     private final TimeValue flushInterval;
 
     private final Semaphore semaphore;
@@ -175,14 +174,14 @@ public class BulkProcessor implements Closeable {
         this.name = name;
         this.concurrentRequests = concurrentRequests;
         this.bulkActions = bulkActions;
-        this.bulkSize = bulkSize.bytesAsInt();
+        this.bulkSize = bulkSize.bytes();
 
         this.semaphore = new Semaphore(concurrentRequests);
         this.bulkRequest = new BulkRequest();
 
         this.flushInterval = flushInterval;
         if (flushInterval != null) {
-            this.scheduler = (ScheduledThreadPoolExecutor) Executors.newScheduledThreadPool(1, EsExecutors.daemonThreadFactory(((InternalClient) client).settings(), (name != null ? "[" + name + "]" : "") + "bulk_processor"));
+            this.scheduler = (ScheduledThreadPoolExecutor) Executors.newScheduledThreadPool(1, EsExecutors.daemonThreadFactory(client.settings(), (name != null ? "[" + name + "]" : "") + "bulk_processor"));
             this.scheduler.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
             this.scheduler.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
             this.scheduledFuture = this.scheduler.scheduleWithFixedDelay(new Flush(), flushInterval.millis(), flushInterval.millis(), TimeUnit.MILLISECONDS);
@@ -192,13 +191,33 @@ public class BulkProcessor implements Closeable {
         }
     }
 
-    @Override
     /**
-     * Closes the processor. If flushing by time is enabled, then its shutdown. Any remaining bulk actions are flushed.
+     * Closes the processor. If flushing by time is enabled, then it's shutdown. Any remaining bulk actions are flushed.
      */
-    public synchronized void close() {
+    @Override
+    public void close() {
+        try {
+            awaitClose(0, TimeUnit.NANOSECONDS);
+        } catch(InterruptedException exc) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    /**
+     * Closes the processor. If flushing by time is enabled, then it's shutdown. Any remaining bulk actions are flushed.
+     *
+     * If concurrent requests are not enabled, returns {@code true} immediately.
+     * If concurrent requests are enabled, waits for up to the specified timeout for all bulk requests to complete then returns {@code true},
+     * If the specified waiting time elapses before all bulk requests complete, {@code false} is returned.
+     *
+     * @param timeout The maximum time to wait for the bulk requests to complete
+     * @param unit The time unit of the {@code timeout} argument
+     * @return {@code true} if all bulk requests completed and {@code false} if the waiting time elapsed before all the bulk requests completed
+     * @throws InterruptedException If the current thread is interrupted
+     */
+    public synchronized boolean awaitClose(long timeout, TimeUnit unit) throws InterruptedException {
         if (closed) {
-            return;
+            return true;
         }
         closed = true;
         if (this.scheduledFuture != null) {
@@ -208,6 +227,14 @@ public class BulkProcessor implements Closeable {
         if (bulkRequest.numberOfActions() > 0) {
             execute();
         }
+        if (this.concurrentRequests < 1) {
+            return true;
+        }
+        if (semaphore.tryAcquire(this.concurrentRequests, timeout, unit)) {
+            semaphore.release(this.concurrentRequests);
+            return true;
+        }
+        return false;
     }
 
     /**
@@ -237,7 +264,11 @@ public class BulkProcessor implements Closeable {
         return this;
     }
 
-    public void ensureOpen() {
+    boolean isOpen() {
+        return closed == false;
+    }
+
+    protected void ensureOpen() {
         if (closed) {
             throw new ElasticsearchIllegalStateException("bulk process already closed");
         }

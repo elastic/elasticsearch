@@ -32,6 +32,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
 import java.io.IOException;
+import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 
 /**
@@ -51,14 +52,21 @@ public class MockTransportService extends TransportService {
      * Clears all the registered rules.
      */
     public void clearAllRules() {
-        ((LookupTestTransport) transport).transports.clear();
+        transport().transports.clear();
     }
 
     /**
      * Clears the rule associated with the provided node.
      */
     public void clearRule(DiscoveryNode node) {
-        ((LookupTestTransport) transport).transports.remove(node);
+        transport().transports.remove(node.getAddress());
+    }
+
+    /**
+     * Returns the original Transport service wrapped by this mock transport service.
+     */
+    public Transport original() {
+        return original;
     }
 
     /**
@@ -66,7 +74,7 @@ public class MockTransportService extends TransportService {
      * is added to fail as well.
      */
     public void addFailToSendNoConnectRule(DiscoveryNode node) {
-        ((LookupTestTransport) transport).transports.put(node, new DelegateTransport(original) {
+        addDelegate(node, new DelegateTransport(original) {
             @Override
             public void connectToNode(DiscoveryNode node) throws ConnectTransportException {
                 throw new ConnectTransportException(node, "DISCONNECT: simulated");
@@ -85,12 +93,39 @@ public class MockTransportService extends TransportService {
     }
 
     /**
+     * Adds a rule that will cause matching operations to throw ConnectTransportExceptions
+     */
+    public void addFailToSendNoConnectRule(DiscoveryNode node, final Set<String> blockedActions) {
+
+        ((LookupTestTransport) transport).transports.put(node.getAddress(), new DelegateTransport(original) {
+            @Override
+            public void connectToNode(DiscoveryNode node) throws ConnectTransportException {
+                original.connectToNode(node);
+            }
+
+            @Override
+            public void connectToNodeLight(DiscoveryNode node) throws ConnectTransportException {
+                original.connectToNodeLight(node);
+            }
+
+            @Override
+            public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {
+                if (blockedActions.contains(action)) {
+                    logger.info("--> preventing {} request", action);
+                    throw new ConnectTransportException(node, "DISCONNECT: prevented " + action + " request");
+                }
+                original.sendRequest(node, requestId, action, request, options);
+            }
+        });
+    }
+
+    /**
      * Adds a rule that will cause ignores each send request, simulating an unresponsive node
      * and failing to connect once the rule was added.
      */
     public void addUnresponsiveRule(DiscoveryNode node) {
         // TODO add a parameter to delay the connect timeout?
-        ((LookupTestTransport) transport).transports.put(node, new DelegateTransport(original) {
+        addDelegate(node, new DelegateTransport(original) {
             @Override
             public void connectToNode(DiscoveryNode node) throws ConnectTransportException {
                 throw new ConnectTransportException(node, "UNRESPONSIVE: simulated");
@@ -109,23 +144,34 @@ public class MockTransportService extends TransportService {
     }
 
     /**
+     * Adds a new delegate transport that is used for communication with the given node.
+     * @return <tt>true</tt> iff no other delegate was registered for this node before, otherwise <tt>false</tt>
+     */
+    public boolean addDelegate(DiscoveryNode node, DelegateTransport transport) {
+        return transport().transports.put(node.getAddress(), transport) == null;
+    }
+
+    private LookupTestTransport transport() {
+        return (LookupTestTransport) transport;
+    }
+
+    /**
      * A lookup transport that has a list of potential Transport implementations to delegate to for node operations,
      * if none is registered, then the default one is used.
      */
     private static class LookupTestTransport extends DelegateTransport {
 
-        final ConcurrentMap<DiscoveryNode, Transport> transports = ConcurrentCollections.newConcurrentMap();
+        final ConcurrentMap<TransportAddress, Transport> transports = ConcurrentCollections.newConcurrentMap();
 
         LookupTestTransport(Transport transport) {
             super(transport);
         }
 
         private Transport getTransport(DiscoveryNode node) {
-            Transport transport = transports.get(node);
+            Transport transport = transports.get(node.getAddress());
             if (transport != null) {
                 return transport;
             }
-            // TODO, if we miss on node by UID, we should have an option to lookup based on address?
             return this.transport;
         }
 
@@ -159,13 +205,15 @@ public class MockTransportService extends TransportService {
      * A pure delegate transport.
      * Can be extracted to a common class if needed in other places in the codebase.
      */
-    private static class DelegateTransport implements Transport {
+    public static class DelegateTransport implements Transport {
 
         protected final Transport transport;
 
-        DelegateTransport(Transport transport) {
+        public DelegateTransport(Transport transport) {
             this.transport = transport;
         }
+
+
 
         @Override
         public void transportServiceAdapter(TransportServiceAdapter service) {

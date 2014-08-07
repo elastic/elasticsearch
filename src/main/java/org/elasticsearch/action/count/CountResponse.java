@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.count;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -33,15 +34,17 @@ import java.util.List;
  */
 public class CountResponse extends BroadcastOperationResponse {
 
+    private boolean terminatedEarly;
     private long count;
 
     CountResponse() {
 
     }
 
-    CountResponse(long count, int totalShards, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures) {
+    CountResponse(long count, boolean hasTerminatedEarly, int totalShards, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures) {
         super(totalShards, successfulShards, failedShards, shardFailures);
         this.count = count;
+        this.terminatedEarly = hasTerminatedEarly;
     }
 
     /**
@@ -49,6 +52,13 @@ public class CountResponse extends BroadcastOperationResponse {
      */
     public long getCount() {
         return count;
+    }
+
+    /**
+     * True if the request has been terminated early due to enough count
+     */
+    public boolean terminatedEarly() {
+        return this.terminatedEarly;
     }
 
     public RestStatus status() {
@@ -76,11 +86,17 @@ public class CountResponse extends BroadcastOperationResponse {
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         count = in.readVLong();
+        if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
+            terminatedEarly = in.readBoolean();
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeVLong(count);
+        if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
+            out.writeBoolean(terminatedEarly);
+        }
     }
 }

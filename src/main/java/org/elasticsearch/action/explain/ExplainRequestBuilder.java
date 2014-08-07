@@ -23,7 +23,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.action.support.single.shard.SingleShardOperationRequestBuilder;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.internal.InternalClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -38,11 +37,11 @@ public class ExplainRequestBuilder extends SingleShardOperationRequestBuilder<Ex
     private QuerySourceBuilder sourceBuilder;
 
     ExplainRequestBuilder(Client client) {
-        super((InternalClient) client, new ExplainRequest());
+        super(client, new ExplainRequest());
     }
 
     public ExplainRequestBuilder(Client client, String index, String type, String id) {
-        super((InternalClient) client, new ExplainRequest().index(index).type(type).id(id));
+        super(client, new ExplainRequest().index(index).type(type).id(id));
     }
 
     /**
@@ -111,10 +110,6 @@ public class ExplainRequestBuilder extends SingleShardOperationRequestBuilder<Ex
 
     /**
      * Indicates whether the response should contain the stored _source
-     *
-     *
-     * @param fetch
-     * @return
      */
     public ExplainRequestBuilder setFetchSource(boolean fetch) {
         FetchSourceContext context = request.fetchSourceContext();
@@ -168,20 +163,12 @@ public class ExplainRequestBuilder extends SingleShardOperationRequestBuilder<Ex
         return this;
     }
 
-    /**
-     * Sets whether the actual explain action should occur in a different thread if executed locally.
-     */
-    public ExplainRequestBuilder operationThreaded(boolean threadedOperation) {
-        request().operationThreaded(threadedOperation);
-        return this;
-    }
-
     protected void doExecute(ActionListener<ExplainResponse> listener) {
         if (sourceBuilder != null) {
             request.source(sourceBuilder);
         }
 
-        ((Client) client).explain(request, listener);
+        client.explain(request, listener);
     }
 
     private QuerySourceBuilder sourceBuilder() {

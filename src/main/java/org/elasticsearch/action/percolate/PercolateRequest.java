@@ -18,8 +18,11 @@
  */
 package org.elasticsearch.action.percolate;
 
+import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.CompositeIndicesRequest;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
 import org.elasticsearch.client.Requests;
@@ -32,6 +35,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -39,7 +43,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  *
  */
-public class PercolateRequest extends BroadcastOperationRequest<PercolateRequest> {
+public class PercolateRequest extends BroadcastOperationRequest<PercolateRequest> implements CompositeIndicesRequest {
 
     private String documentType;
     private String routing;
@@ -68,6 +72,16 @@ public class PercolateRequest extends BroadcastOperationRequest<PercolateRequest
         this.docSource = docSource;
         this.onlyCount = request.onlyCount;
         this.startTime = request.startTime;
+    }
+
+    @Override
+    public List<? extends IndicesRequest> subRequests() {
+        List<IndicesRequest> requests = Lists.newArrayList();
+        requests.add(this);
+        if (getRequest != null) {
+            requests.add(getRequest);
+        }
+        return requests;
     }
 
     public String documentType() {

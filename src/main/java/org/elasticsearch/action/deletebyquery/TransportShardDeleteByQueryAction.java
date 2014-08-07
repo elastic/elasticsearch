@@ -22,6 +22,7 @@ package org.elasticsearch.action.deletebyquery;
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.search.Filter;
 import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.TransportShardReplicationOperationAction;
 import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
@@ -54,6 +55,8 @@ public class TransportShardDeleteByQueryAction extends TransportShardReplication
 
     public final static String DELETE_BY_QUERY_API = "delete_by_query";
 
+    private static final String ACTION_NAME = DeleteByQueryAction.NAME + "[s]";
+
     private final ScriptService scriptService;
     private final CacheRecycler cacheRecycler;
     private final PageCacheRecycler pageCacheRecycler;
@@ -63,8 +66,8 @@ public class TransportShardDeleteByQueryAction extends TransportShardReplication
     public TransportShardDeleteByQueryAction(Settings settings, TransportService transportService,
                                              ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool,
                                              ShardStateAction shardStateAction, ScriptService scriptService, CacheRecycler cacheRecycler,
-                                             PageCacheRecycler pageCacheRecycler, BigArrays bigArrays) {
-        super(settings, transportService, clusterService, indicesService, threadPool, shardStateAction);
+                                             PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, ActionFilters actionFilters) {
+        super(settings, ACTION_NAME, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters);
         this.scriptService = scriptService;
         this.cacheRecycler = cacheRecycler;
         this.pageCacheRecycler = pageCacheRecycler;
@@ -94,11 +97,6 @@ public class TransportShardDeleteByQueryAction extends TransportShardReplication
     @Override
     protected ShardDeleteByQueryResponse newResponseInstance() {
         return new ShardDeleteByQueryResponse();
-    }
-
-    @Override
-    protected String transportAction() {
-        return DeleteByQueryAction.NAME + "/shard";
     }
 
     @Override

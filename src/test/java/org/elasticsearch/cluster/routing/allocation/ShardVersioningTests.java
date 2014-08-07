@@ -41,7 +41,8 @@ public class ShardVersioningTests extends ElasticsearchAllocationTestCase {
 
     @Test
     public void simple() {
-        AllocationService strategy = createAllocationService(settingsBuilder().put("cluster.routing.allocation.allow_rebalance", ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString()).build());
+        AllocationService strategy = createAllocationService(settingsBuilder().put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE,
+                ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString()).build());
 
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder("test1").numberOfShards(1).numberOfReplicas(1))

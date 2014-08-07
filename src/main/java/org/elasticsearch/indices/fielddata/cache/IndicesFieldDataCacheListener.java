@@ -19,12 +19,13 @@
 
 package org.elasticsearch.indices.fielddata.cache;
 
+import org.apache.lucene.util.Accountable;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
-import org.elasticsearch.index.fielddata.RamUsage;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 
 /**
  * A {@link IndexFieldDataCache.Listener} implementation that updates indices (node) level statistics / service about
@@ -42,13 +43,13 @@ public class IndicesFieldDataCacheListener implements IndexFieldDataCache.Listen
     }
 
     @Override
-    public void onLoad(FieldMapper.Names fieldNames, FieldDataType fieldDataType, RamUsage fieldData) {
+    public void onLoad(FieldMapper.Names fieldNames, FieldDataType fieldDataType, Accountable fieldData) {
     }
 
     @Override
     public void onUnload(FieldMapper.Names fieldNames, FieldDataType fieldDataType, boolean wasEvicted, long sizeInBytes) {
         assert sizeInBytes >= 0 : "When reducing circuit breaker, it should be adjusted with a number higher or equal to 0 and not [" + sizeInBytes + "]";
-        circuitBreakerService.getBreaker().addWithoutBreaking(-sizeInBytes);
+        circuitBreakerService.getBreaker(CircuitBreaker.Name.FIELDDATA).addWithoutBreaking(-sizeInBytes);
     }
 
 }

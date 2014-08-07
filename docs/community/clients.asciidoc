@@ -70,7 +70,7 @@ See the {client}/php-api/current/index.html[official Elasticsearch PHP client].
 
 * https://github.com/searchbox-io/Jest[Jest]:
   Java Rest client.
-* There is of course the [native ES Java client](http://www.elasticsearch.org/guide/en/elasticsearch/client/java-api/current/index.html)
+* There is of course the http://www.elasticsearch.org/guide/en/elasticsearch/client/java-api/current/index.html[native ES Java client]
 
 [[community-javascript]]
 === JavaScript
@@ -90,12 +90,11 @@ See the {client}/javascript-api/current/index.html[official Elasticsearch JavaSc
 
 
 [[community-dotnet]]
-=== .Net
+=== .NET
+
+See the {client}/net-api/current/index.html[official Elasticsearch .NET client].
 
 * https://github.com/Yegoroff/PlainElastic.Net[PlainElastic.Net]:
-  .NET client.
-
-* https://github.com/Mpdreamz/NEST[NEST]:
   .NET client.
 
 * https://github.com/medcl/ElasticSearch.Net[ElasticSearch.NET]:

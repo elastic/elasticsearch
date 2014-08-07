@@ -48,7 +48,7 @@ public class RestGetSettingsAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         final String[] names = request.paramAsStringArrayOrEmptyIfAll("name");
         GetSettingsRequest getSettingsRequest = new GetSettingsRequest()
                 .indices(Strings.splitStringByCommaToArray(request.param("index")))
@@ -79,8 +79,6 @@ public class RestGetSettingsAction extends BaseRestHandler {
     }
 
     static class Fields {
-
         static final XContentBuilderString SETTINGS = new XContentBuilderString("settings");
-
     }
 }

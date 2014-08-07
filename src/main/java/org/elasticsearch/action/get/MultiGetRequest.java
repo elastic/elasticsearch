@@ -22,9 +22,9 @@ package org.elasticsearch.action.get;
 import com.google.common.collect.Iterators;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.ValidateActions;
+import org.elasticsearch.Version;
+import org.elasticsearch.action.*;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -44,12 +44,12 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 
-public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements Iterable<MultiGetRequest.Item> {
+public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements Iterable<MultiGetRequest.Item>, CompositeIndicesRequest {
 
     /**
      * A single get item.
      */
-    public static class Item implements Streamable {
+    public static class Item implements Streamable, IndicesRequest {
         private String index;
         private String type;
         private String id;
@@ -78,6 +78,16 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
 
         public String index() {
             return this.index;
+        }
+
+        @Override
+        public String[] indices() {
+            return new String[]{index};
+        }
+
+        @Override
+        public IndicesOptions indicesOptions() {
+            return GetRequest.INDICES_OPTIONS;
         }
 
         public Item index(String index) {
@@ -241,6 +251,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
     String preference;
     Boolean realtime;
     boolean refresh;
+    public boolean ignoreErrorsOnGeneratedFields = false;
 
     List<Item> items = new ArrayList<>();
 
@@ -277,6 +288,11 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
         return validationException;
     }
 
+    @Override
+    public List<? extends IndicesRequest> subRequests() {
+        return items;
+    }
+
     /**
      * Sets the preference to execute the search. Defaults to randomize across shards. Can be set to
      * <tt>_local</tt> to prefer local shards, <tt>_primary</tt> to execute only on primary shards, or
@@ -306,6 +322,12 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
 
     public MultiGetRequest refresh(boolean refresh) {
         this.refresh = refresh;
+        return this;
+    }
+
+
+    public MultiGetRequest ignoreErrorsOnGeneratedFields(boolean ignoreErrorsOnGeneratedFields) {
+        this.ignoreErrorsOnGeneratedFields = ignoreErrorsOnGeneratedFields;
         return this;
     }
 
@@ -481,6 +503,9 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
         } else if (realtime == 1) {
             this.realtime = true;
         }
+        if(in.getVersion().onOrAfter(Version.V_1_4_0)) {
+            ignoreErrorsOnGeneratedFields = in.readBoolean();
+        }
 
         int size = in.readVInt();
         items = new ArrayList<>(size);
@@ -500,6 +525,9 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
             out.writeByte((byte) 0);
         } else {
             out.writeByte((byte) 1);
+        }
+        if(out.getVersion().onOrAfter(Version.V_1_4_0)) {
+            out.writeBoolean(ignoreErrorsOnGeneratedFields);
         }
 
         out.writeVInt(items.size());

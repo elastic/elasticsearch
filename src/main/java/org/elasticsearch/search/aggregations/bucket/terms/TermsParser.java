@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.bucket.BucketUtils;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
 import org.elasticsearch.search.internal.SearchContext;
@@ -32,7 +33,6 @@ import java.io.IOException;
  */
 public class TermsParser implements Aggregator.Parser {
 
-    
     @Override
     public String type() {
         return StringTerms.TYPE.name();
@@ -41,19 +41,21 @@ public class TermsParser implements Aggregator.Parser {
     @Override
     public AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
         TermsParametersParser aggParser = new TermsParametersParser();
-        ValuesSourceParser vsParser = ValuesSourceParser.any(aggregationName, StringTerms.TYPE, context)
-                .scriptable(true)
-                .formattable(true)
-                .requiresSortedValues(true)
-                .requiresUniqueValues(true)
-                .build();
+        ValuesSourceParser vsParser = ValuesSourceParser.any(aggregationName, StringTerms.TYPE, context).scriptable(true).formattable(true)
+                .requiresSortedValues(true).requiresUniqueValues(true).build();
         IncludeExclude.Parser incExcParser = new IncludeExclude.Parser(aggregationName, StringTerms.TYPE, context);
         aggParser.parse(aggregationName, parser, context, vsParser, incExcParser);
 
-        TermsAggregator.BucketCountThresholds bucketCountThresholds = aggParser.getBucketCountThresholds();
-        bucketCountThresholds.ensureValidity();
         InternalOrder order = resolveOrder(aggParser.getOrderKey(), aggParser.isOrderAsc());
-        return new TermsAggregatorFactory(aggregationName, vsParser.config(), order, bucketCountThresholds, aggParser.getIncludeExclude(), aggParser.getExecutionHint(), aggParser.getCollectionMode());
+        TermsAggregator.BucketCountThresholds bucketCountThresholds = aggParser.getBucketCountThresholds();
+        if (!(order == InternalOrder.TERM_ASC || order == InternalOrder.TERM_DESC)
+                && bucketCountThresholds.getShardSize() == aggParser.getDefaultBucketCountThresholds().getShardSize()) {
+            // The user has not made a shardSize selection. Use default heuristic to avoid any wrong-ranking caused by distributed counting
+            bucketCountThresholds.setShardSize(BucketUtils.suggestShardSideQueueSize(bucketCountThresholds.getRequiredSize(),
+                    context.numberOfShards()));
+        }
+        bucketCountThresholds.ensureValidity();
+        return new TermsAggregatorFactory(aggregationName, vsParser.config(), order, bucketCountThresholds, aggParser.getIncludeExclude(), aggParser.getExecutionHint(), aggParser.getCollectionMode(), aggParser.showTermDocCountError());
     }
 
     static InternalOrder resolveOrder(String key, boolean asc) {

@@ -26,6 +26,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.WriteConsistencyLevel;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.ClusterService;
@@ -45,7 +46,6 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.index.engine.DocumentAlreadyExistsException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.service.IndexShard;
@@ -71,26 +71,24 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
     protected final WriteConsistencyLevel defaultWriteConsistencyLevel;
     protected final TransportRequestOptions transportOptions;
 
-    final String transportAction;
     final String transportReplicaAction;
     final String executor;
     final boolean checkWriteConsistency;
 
-    protected TransportShardReplicationOperationAction(Settings settings, TransportService transportService,
+    protected TransportShardReplicationOperationAction(Settings settings, String actionName, TransportService transportService,
                                                        ClusterService clusterService, IndicesService indicesService,
-                                                       ThreadPool threadPool, ShardStateAction shardStateAction) {
-        super(settings, threadPool);
+                                                       ThreadPool threadPool, ShardStateAction shardStateAction, ActionFilters actionFilters) {
+        super(settings, actionName, threadPool, actionFilters);
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.indicesService = indicesService;
         this.shardStateAction = shardStateAction;
 
-        this.transportAction = transportAction();
         this.transportReplicaAction = transportReplicaAction();
         this.executor = executor();
         this.checkWriteConsistency = checkWriteConsistency();
 
-        transportService.registerHandler(transportAction, new OperationTransportHandler());
+        transportService.registerHandler(actionName, new OperationTransportHandler());
         transportService.registerHandler(transportReplicaAction, new ReplicaOperationTransportHandler());
 
         this.transportOptions = transportOptions();
@@ -109,8 +107,6 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
     protected abstract ReplicaRequest newReplicaRequestInstance();
 
     protected abstract Response newResponseInstance();
-
-    protected abstract String transportAction();
 
     protected abstract String executor();
 
@@ -138,7 +134,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
      * means a different execution, then return false here to indicate not to continue and execute this request.
      */
     protected boolean resolveRequest(ClusterState state, Request request, ActionListener<Response> listener) {
-        request.index(state.metaData().concreteSingleIndex(request.index()));
+        request.index(state.metaData().concreteSingleIndex(request.index(), request.indicesOptions()));
         return true;
     }
 
@@ -155,7 +151,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
     }
 
     private String transportReplicaAction() {
-        return transportAction() + "/replica";
+        return actionName + "[r]";
     }
 
     protected boolean retryPrimaryException(Throwable e) {
@@ -170,16 +166,9 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             return true;
         }
         Throwable cause = ExceptionsHelper.unwrapCause(e);
-        if (cause instanceof ConnectTransportException) {
-            return true;
-        }
         // on version conflict or document missing, it means
-        // that a news change has crept into the replica, and its fine
+        // that a new change has crept into the replica, and it's fine
         if (cause instanceof VersionConflictEngineException) {
-            return true;
-        }
-        // same here
-        if (cause instanceof DocumentAlreadyExistsException) {
             return true;
         }
         return false;
@@ -218,7 +207,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                     try {
                         channel.sendResponse(e);
                     } catch (Throwable e1) {
-                        logger.warn("Failed to send response for " + transportAction, e1);
+                        logger.warn("Failed to send response for " + actionName, e1);
                     }
                 }
             });
@@ -444,7 +433,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                     }
                 } else {
                     DiscoveryNode node = observer.observedState().nodes().get(shard.currentNodeId());
-                    transportService.sendRequest(node, transportAction, request, transportOptions, new BaseTransportResponseHandler<Response>() {
+                    transportService.sendRequest(node, actionName, request, transportOptions, new BaseTransportResponseHandler<Response>() {
 
                         @Override
                         public Response newInstance() {
@@ -696,10 +685,11 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
                     @Override
                     public void handleException(TransportException exp) {
-                        if (!ignoreReplicaException(exp.unwrapCause())) {
-                            logger.warn("Failed to perform " + transportAction + " on remote replica " + node + shardIt.shardId(), exp);
+                        logger.trace("[{}] Transport failure during replica request [{}] ", exp, node, request);
+                        if (!ignoreReplicaException(exp)) {
+                            logger.warn("Failed to perform " + actionName + " on remote replica " + node + shardIt.shardId(), exp);
                             shardStateAction.shardFailed(shard, indexMetaData.getUUID(),
-                                    "Failed to perform [" + transportAction + "] on replica, message [" + ExceptionsHelper.detailedMessage(exp) + "]");
+                                    "Failed to perform [" + actionName + "] on replica, message [" + ExceptionsHelper.detailedMessage(exp) + "]");
                         }
                         finishIfPossible();
                     }
@@ -757,6 +747,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
     }
 
     private void failReplicaIfNeeded(String index, int shardId, Throwable t) {
+        logger.trace("failure on replica [{}][{}]", t, index, shardId);
         if (!ignoreReplicaException(t)) {
             IndexService indexService = indicesService.indexService(index);
             if (indexService == null) {
@@ -768,7 +759,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 logger.debug("ignoring failed replica [{}][{}] because index was already removed.", index, shardId);
                 return;
             }
-            indexShard.failShard(transportAction + " failed on replica", t);
+            indexShard.failShard(actionName + " failed on replica", t);
         }
     }
 

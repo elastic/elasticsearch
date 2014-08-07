@@ -20,9 +20,10 @@
 package org.elasticsearch.http.netty;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.netty.NettyStaticSetup;
+import org.elasticsearch.common.netty.NettyUtils;
 import org.elasticsearch.common.netty.OpenChannelsHandler;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.NetworkUtils;
@@ -61,8 +62,15 @@ import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadF
 public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpServerTransport> implements HttpServerTransport {
 
     static {
-        NettyStaticSetup.setup();
+        NettyUtils.setup();
     }
+
+    public static final String SETTING_CORS_ENABLED = "http.cors.enabled";
+    public static final String SETTING_CORS_ALLOW_ORIGIN = "http.cors.allow-origin";
+    public static final String SETTING_CORS_MAX_AGE = "http.cors.max-age";
+    public static final String SETTING_CORS_ALLOW_METHODS = "http.cors.allow-methods";
+    public static final String SETTING_CORS_ALLOW_HEADERS = "http.cors.allow-headers";
+    public static final String SETTING_CORS_ALLOW_CREDENTIALS = "http.cors.allow-credentials";
 
     private final NetworkService networkService;
     final BigArrays bigArrays;
@@ -88,10 +96,8 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
 
     private final String publishHost;
 
-    private final Boolean tcpNoDelay;
-
-    private final Boolean tcpKeepAlive;
-
+    private final String tcpNoDelay;
+    private final String tcpKeepAlive;
     private final Boolean reuseAddress;
 
     private final ByteSizeValue tcpSendBufferSize;
@@ -135,8 +141,8 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
         this.port = componentSettings.get("port", settings.get("http.port", "9200-9300"));
         this.bindHost = componentSettings.get("bind_host", settings.get("http.bind_host", settings.get("http.host")));
         this.publishHost = componentSettings.get("publish_host", settings.get("http.publish_host", settings.get("http.host")));
-        this.tcpNoDelay = componentSettings.getAsBoolean("tcp_no_delay", settings.getAsBoolean(TCP_NO_DELAY, true));
-        this.tcpKeepAlive = componentSettings.getAsBoolean("tcp_keep_alive", settings.getAsBoolean(TCP_KEEP_ALIVE, true));
+        this.tcpNoDelay = componentSettings.get("tcp_no_delay", settings.get(TCP_NO_DELAY, "true"));
+        this.tcpKeepAlive = componentSettings.get("tcp_keep_alive", settings.get(TCP_KEEP_ALIVE, "true"));
         this.reuseAddress = componentSettings.getAsBoolean("reuse_address", settings.getAsBoolean(TCP_REUSE_ADDRESS, NetworkUtils.defaultReuseAddress()));
         this.tcpSendBufferSize = componentSettings.getAsBytesSize("tcp_send_buffer_size", settings.getAsBytesSize(TCP_SEND_BUFFER_SIZE, TCP_DEFAULT_SEND_BUFFER_SIZE));
         this.tcpReceiveBufferSize = componentSettings.getAsBytesSize("tcp_receive_buffer_size", settings.getAsBytesSize(TCP_RECEIVE_BUFFER_SIZE, TCP_DEFAULT_RECEIVE_BUFFER_SIZE));
@@ -195,13 +201,13 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
                     workerCount));
         }
 
-        serverBootstrap.setPipelineFactory(new MyChannelPipelineFactory(this));
+        serverBootstrap.setPipelineFactory(configureServerChannelPipelineFactory());
 
-        if (tcpNoDelay != null) {
-            serverBootstrap.setOption("child.tcpNoDelay", tcpNoDelay);
+        if (!"default".equals(tcpNoDelay)) {
+            serverBootstrap.setOption("child.tcpNoDelay", Booleans.parseBoolean(tcpNoDelay, null));
         }
-        if (tcpKeepAlive != null) {
-            serverBootstrap.setOption("child.keepAlive", tcpKeepAlive);
+        if (!"default".equals(tcpKeepAlive)) {
+            serverBootstrap.setOption("child.keepAlive", Booleans.parseBoolean(tcpKeepAlive, null));
         }
         if (tcpSendBufferSize != null && tcpSendBufferSize.bytes() > 0) {
             serverBootstrap.setOption("child.sendBufferSize", tcpSendBufferSize.bytes());
@@ -281,7 +287,11 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
 
     @Override
     public HttpInfo info() {
-        return new HttpInfo(boundAddress(), maxContentLength.bytes());
+        BoundTransportAddress boundTransportAddress = boundAddress();
+        if (boundTransportAddress == null) {
+            return null;
+        }
+        return new HttpInfo(boundTransportAddress, maxContentLength.bytes());
     }
 
     @Override
@@ -315,13 +325,16 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
         }
     }
 
-    static class MyChannelPipelineFactory implements ChannelPipelineFactory {
+    public ChannelPipelineFactory configureServerChannelPipelineFactory() {
+        return new HttpChannelPipelineFactory(this);
+    }
 
-        private final NettyHttpServerTransport transport;
+    protected static class HttpChannelPipelineFactory implements ChannelPipelineFactory {
 
-        private final HttpRequestHandler requestHandler;
+        protected final NettyHttpServerTransport transport;
+        protected final HttpRequestHandler requestHandler;
 
-        MyChannelPipelineFactory(NettyHttpServerTransport transport) {
+        public HttpChannelPipelineFactory(NettyHttpServerTransport transport) {
             this.transport = transport;
             this.requestHandler = new HttpRequestHandler(transport);
         }

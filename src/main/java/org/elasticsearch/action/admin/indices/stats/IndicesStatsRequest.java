@@ -256,6 +256,15 @@ public class IndicesStatsRequest extends BroadcastOperationRequest<IndicesStatsR
         return flags.isSet(Flag.Suggest);
     }
 
+    public IndicesStatsRequest queryCache(boolean queryCache) {
+        flags.set(Flag.QueryCache, queryCache);
+        return this;
+    }
+
+    public boolean queryCache() {
+        return flags.isSet(Flag.QueryCache);
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);

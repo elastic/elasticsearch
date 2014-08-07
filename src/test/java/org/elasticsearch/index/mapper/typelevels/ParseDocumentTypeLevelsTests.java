@@ -21,9 +21,8 @@ package org.elasticsearch.index.mapper.typelevels;
 
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.MapperTestUtils;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -31,13 +30,13 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class ParseDocumentTypeLevelsTests extends ElasticsearchTestCase {
+public class ParseDocumentTypeLevelsTests extends ElasticsearchSingleNodeTest {
 
     @Test
     public void testNoLevel() throws Exception {
         String defaultMapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(defaultMapping);
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(defaultMapping);
 
         ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -56,7 +55,7 @@ public class ParseDocumentTypeLevelsTests extends ElasticsearchTestCase {
     public void testTypeLevel() throws Exception {
         String defaultMapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(defaultMapping);
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(defaultMapping);
 
         ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject().startObject("type")
@@ -75,7 +74,7 @@ public class ParseDocumentTypeLevelsTests extends ElasticsearchTestCase {
     public void testNoLevelWithFieldTypeAsValue() throws Exception {
         String defaultMapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(defaultMapping);
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(defaultMapping);
 
         ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -96,7 +95,7 @@ public class ParseDocumentTypeLevelsTests extends ElasticsearchTestCase {
     public void testTypeLevelWithFieldTypeAsValue() throws Exception {
         String defaultMapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(defaultMapping);
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(defaultMapping);
 
         ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject().startObject("type")
@@ -117,7 +116,7 @@ public class ParseDocumentTypeLevelsTests extends ElasticsearchTestCase {
     public void testNoLevelWithFieldTypeAsObject() throws Exception {
         String defaultMapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(defaultMapping);
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(defaultMapping);
 
         ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -138,7 +137,7 @@ public class ParseDocumentTypeLevelsTests extends ElasticsearchTestCase {
     public void testTypeLevelWithFieldTypeAsObject() throws Exception {
         String defaultMapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(defaultMapping);
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(defaultMapping);
 
         ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject().startObject("type")
@@ -159,7 +158,7 @@ public class ParseDocumentTypeLevelsTests extends ElasticsearchTestCase {
     public void testNoLevelWithFieldTypeAsValueNotFirst() throws Exception {
         String defaultMapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(defaultMapping);
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(defaultMapping);
 
         ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject().startObject("type")
@@ -180,7 +179,7 @@ public class ParseDocumentTypeLevelsTests extends ElasticsearchTestCase {
     public void testTypeLevelWithFieldTypeAsValueNotFirst() throws Exception {
         String defaultMapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(defaultMapping);
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(defaultMapping);
 
         ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject().startObject("type")
@@ -201,7 +200,7 @@ public class ParseDocumentTypeLevelsTests extends ElasticsearchTestCase {
     public void testNoLevelWithFieldTypeAsObjectNotFirst() throws Exception {
         String defaultMapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(defaultMapping);
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(defaultMapping);
 
         ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -223,7 +222,7 @@ public class ParseDocumentTypeLevelsTests extends ElasticsearchTestCase {
     public void testTypeLevelWithFieldTypeAsObjectNotFirst() throws Exception {
         String defaultMapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(defaultMapping);
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(defaultMapping);
 
         ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject().startObject("type")

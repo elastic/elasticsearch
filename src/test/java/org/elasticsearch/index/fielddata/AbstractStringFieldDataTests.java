@@ -24,27 +24,20 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Field.Store;
 import org.apache.lucene.document.StringField;
-import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.index.*;
 import org.apache.lucene.queries.TermFilter;
 import org.apache.lucene.search.*;
 import org.apache.lucene.search.join.FixedBitSetCachingWrapperFilter;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.join.ToParentBlockJoinQuery;
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.OpenBitSet;
-import org.apache.lucene.util.TestUtil;
-import org.apache.lucene.util.UnicodeUtil;
+import org.apache.lucene.util.*;
 import org.elasticsearch.common.lucene.search.NotFilter;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource;
+import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsIndexFieldData;
-import org.elasticsearch.index.fielddata.ordinals.Ordinals;
-import org.elasticsearch.index.search.nested.NestedFieldComparatorSource;
 import org.elasticsearch.search.MultiValueMode;
 import org.junit.Test;
 
@@ -244,7 +237,7 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
         final IndexFieldData indexFieldData = getForField("value");
         final String missingValue = values[1];
         IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer, true));
-        XFieldComparatorSource comparator = indexFieldData.comparatorSource(missingValue, MultiValueMode.MIN);
+        XFieldComparatorSource comparator = indexFieldData.comparatorSource(missingValue, MultiValueMode.MIN, null);
         TopFieldDocs topDocs = searcher.search(new MatchAllDocsQuery(), randomBoolean() ? numDocs : randomIntBetween(10, numDocs), new Sort(new SortField("value", comparator, reverse)));
         assertEquals(numDocs, topDocs.totalHits);
         BytesRef previousValue = reverse ? UnicodeUtil.BIG_TERM : new BytesRef();
@@ -300,7 +293,7 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
         }
         final IndexFieldData indexFieldData = getForField("value");
         IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer, true));
-        XFieldComparatorSource comparator = indexFieldData.comparatorSource(first ? "_first" : "_last", MultiValueMode.MIN);
+        XFieldComparatorSource comparator = indexFieldData.comparatorSource(first ? "_first" : "_last", MultiValueMode.MIN, null);
         TopFieldDocs topDocs = searcher.search(new MatchAllDocsQuery(), randomBoolean() ? numDocs : randomIntBetween(10, numDocs), new Sort(new SortField("value", comparator, reverse)));
         assertEquals(numDocs, topDocs.totalHits);
         BytesRef previousValue = first ? null : reverse ? UnicodeUtil.BIG_TERM : new BytesRef();
@@ -367,13 +360,13 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
         }
         IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer, true));
         IndexFieldData<?> fieldData = getForField("text");
-        final BytesRef missingValue;
+        final Object missingValue;
         switch (randomInt(4)) {
         case 0:
-            missingValue = new BytesRef();
+            missingValue = "_first";
             break;
         case 1:
-            missingValue = BytesRefFieldComparatorSource.MAX_TERM;
+            missingValue = "_last";
             break;
         case 2:
             missingValue = new BytesRef(RandomPicks.randomFrom(getRandom(), values));
@@ -382,10 +375,10 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
             missingValue = new BytesRef(TestUtil.randomSimpleString(getRandom()));
             break;
         }
-        BytesRefFieldComparatorSource innerSource = new BytesRefFieldComparatorSource(fieldData, missingValue, sortMode);
         Filter parentFilter = new TermFilter(new Term("type", "parent"));
         Filter childFilter = new NotFilter(parentFilter);
-        NestedFieldComparatorSource nestedComparatorSource = new NestedFieldComparatorSource(sortMode, innerSource, parentFilter, childFilter);
+        Nested nested = new Nested(parentFilter, childFilter);
+        BytesRefFieldComparatorSource nestedComparatorSource = new BytesRefFieldComparatorSource(fieldData, missingValue, sortMode, nested);
         ToParentBlockJoinQuery query = new ToParentBlockJoinQuery(new XFilteredQuery(new MatchAllDocsQuery(), childFilter), new FixedBitSetCachingWrapperFilter(parentFilter), ScoreMode.None);
         Sort sort = new Sort(new SortField("text", nestedComparatorSource));
         TopFieldDocs topDocs = searcher.search(query, randomIntBetween(1, numParents), sort);
@@ -396,26 +389,36 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
             assertTrue("expected " + docID + " to be a parent", parents.get(docID));
             BytesRef cmpValue = null;
             for (int child = parents.prevSetBit(docID - 1) + 1; child < docID; ++child) {
-                String[] vals = searcher.doc(child).getValues("text");
-                if (vals.length == 0) {
-                    vals = new String[] {missingValue.utf8ToString()};
+                String[] sVals = searcher.doc(child).getValues("text");
+                final BytesRef[] vals;
+                if (sVals.length == 0) {
+                    vals = new BytesRef[0];
+                } else {
+                    vals = new BytesRef[sVals.length];
+                    for (int j = 0; j < vals.length; ++j) {
+                        vals[j] = new BytesRef(sVals[j]);
+                    }
                 }
-                for (String value : vals) {
-                    final BytesRef bytesValue = new BytesRef(value);
+                for (BytesRef value : vals) {
                     if (cmpValue == null) {
-                        cmpValue = bytesValue;
-                    } else if (sortMode == MultiValueMode.MIN && bytesValue.compareTo(cmpValue) < 0) {
-                        cmpValue = bytesValue;
-                    } else if (sortMode == MultiValueMode.MAX && bytesValue.compareTo(cmpValue) > 0) {
-                        cmpValue = bytesValue;
+                        cmpValue = value;
+                    } else if (sortMode == MultiValueMode.MIN && value.compareTo(cmpValue) < 0) {
+                        cmpValue = value;
+                    } else if (sortMode == MultiValueMode.MAX && value.compareTo(cmpValue) > 0) {
+                        cmpValue = value;
                     }
                 }
             }
             if (cmpValue == null) {
-                cmpValue = missingValue;
+                if ("_first".equals(missingValue)) {
+                    cmpValue = new BytesRef();
+                } else if ("_last".equals(missingValue)) {
+                    cmpValue = XFieldComparatorSource.MAX_TERM;
+                } else {
+                    cmpValue = (BytesRef) missingValue;
+                }
             }
             if (previous != null) {
-                assertNotNull(cmpValue);
                 assertTrue(previous.utf8ToString() + "   /   " + cmpValue.utf8ToString(), previous.compareTo(cmpValue) <= 0);
             }
             previous = cmpValue;
@@ -427,79 +430,85 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
     public void testGlobalOrdinals() throws Exception {
         fillExtendedMvSet();
         refreshReader();
-        FieldDataType fieldDataType = new FieldDataType("string", ImmutableSettings.builder().put("global_ordinals", "fixed"));
-        IndexFieldData.WithOrdinals ifd = getForField(fieldDataType, "value");
-        IndexFieldData.WithOrdinals globalOrdinals = ifd.loadGlobal(topLevelReader);
+        FieldDataType fieldDataType = new FieldDataType("string", ImmutableSettings.builder().put("global_values", "fixed"));
+        IndexOrdinalsFieldData ifd = getForField(fieldDataType, "value");
+        IndexOrdinalsFieldData globalOrdinals = ifd.loadGlobal(topLevelReader);
         assertThat(topLevelReader.leaves().size(), equalTo(3));
 
         // First segment
         assertThat(globalOrdinals, instanceOf(GlobalOrdinalsIndexFieldData.class));
-        AtomicFieldData.WithOrdinals afd = globalOrdinals.load(topLevelReader.leaves().get(0));
-        BytesValues.WithOrdinals values = afd.getBytesValues();
-        Ordinals.Docs ordinals = afd.getBytesValues().ordinals();
-        assertThat(ordinals.setDocument(0), equalTo(2));
-        long ord = ordinals.nextOrd();
+        AtomicOrdinalsFieldData afd = globalOrdinals.load(topLevelReader.leaves().get(0));
+        RandomAccessOrds values = afd.getOrdinalsValues();
+        values.setDocument(0);
+        assertThat(values.cardinality(), equalTo(2));
+        long ord = values.nextOrd();
         assertThat(ord, equalTo(3l));
-        assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("02"));
-        ord = ordinals.nextOrd();
+        assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("02"));
+        ord = values.nextOrd();
         assertThat(ord, equalTo(5l));
-        assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("04"));
-        assertThat(ordinals.setDocument(1), equalTo(0));
-        assertThat(ordinals.setDocument(2), equalTo(1));
-        ord = ordinals.nextOrd();
+        assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("04"));
+        values.setDocument(1);
+        assertThat(values.cardinality(), equalTo(0));
+        values.setDocument(2);
+        assertThat(values.cardinality(), equalTo(1));
+        ord = values.nextOrd();
         assertThat(ord, equalTo(4l));
-        assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("03"));
+        assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("03"));
 
         // Second segment
         afd = globalOrdinals.load(topLevelReader.leaves().get(1));
-        values = afd.getBytesValues();
-        ordinals = afd.getBytesValues().ordinals();
-        assertThat(ordinals.setDocument(0), equalTo(3));
-        ord = ordinals.nextOrd();
+        values = afd.getOrdinalsValues();
+        values.setDocument(0);
+        assertThat(values.cardinality(), equalTo(3));
+        ord = values.nextOrd();
         assertThat(ord, equalTo(5l));
-        assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("04"));
-        ord = ordinals.nextOrd();
+        assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("04"));
+        ord = values.nextOrd();
         assertThat(ord, equalTo(6l));
-        assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("05"));
-        ord = ordinals.nextOrd();
+        assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("05"));
+        ord = values.nextOrd();
         assertThat(ord, equalTo(7l));
-        assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("06"));
-        assertThat(ordinals.setDocument(1), equalTo(3));
-        ord = ordinals.nextOrd();
+        assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("06"));
+        values.setDocument(1);
+        assertThat(values.cardinality(), equalTo(3));
+        ord = values.nextOrd();
         assertThat(ord, equalTo(7l));
-        assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("06"));
-        ord = ordinals.nextOrd();
+        assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("06"));
+        ord = values.nextOrd();
         assertThat(ord, equalTo(8l));
-        assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("07"));
-        ord = ordinals.nextOrd();
+        assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("07"));
+        ord = values.nextOrd();
         assertThat(ord, equalTo(9l));
-        assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("08"));
-        assertThat(ordinals.setDocument(2), equalTo(0));
-        assertThat(ordinals.setDocument(3), equalTo(3));
-        ord = ordinals.nextOrd();
+        assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("08"));
+        values.setDocument(2);
+        assertThat(values.cardinality(), equalTo(0));
+        values.setDocument(3);
+        assertThat(values.cardinality(), equalTo(3));
+        ord = values.nextOrd();
         assertThat(ord, equalTo(9l));
-        assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("08"));
-        ord = ordinals.nextOrd();
+        assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("08"));
+        ord = values.nextOrd();
         assertThat(ord, equalTo(10l));
-        assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("09"));
-        ord = ordinals.nextOrd();
+        assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("09"));
+        ord = values.nextOrd();
         assertThat(ord, equalTo(11l));
-        assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("10"));
+        assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("10"));
 
         // Third segment
         afd = globalOrdinals.load(topLevelReader.leaves().get(2));
-        values = afd.getBytesValues();
-        ordinals = afd.getBytesValues().ordinals();
-        assertThat(ordinals.setDocument(0), equalTo(3));
-        ord = ordinals.nextOrd();
+        values = afd.getOrdinalsValues();
+        values.setDocument(0);
+        values.setDocument(0);
+        assertThat(values.cardinality(), equalTo(3));
+        ord = values.nextOrd();
         assertThat(ord, equalTo(0l));
-        assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("!08"));
-        ord = ordinals.nextOrd();
+        assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("!08"));
+        ord = values.nextOrd();
         assertThat(ord, equalTo(1l));
-        assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("!09"));
-        ord = ordinals.nextOrd();
+        assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("!09"));
+        ord = values.nextOrd();
         assertThat(ord, equalTo(2l));
-        assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("!10"));
+        assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("!10"));
     }
 
     @Test
@@ -507,10 +516,10 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
         fillExtendedMvSet();
         AtomicReaderContext atomicReaderContext = refreshReader();
 
-        IndexFieldData.WithOrdinals ifd = getForField("value");
-        AtomicFieldData.WithOrdinals afd = ifd.load(atomicReaderContext);
+        IndexOrdinalsFieldData ifd = getForField("value");
+        AtomicOrdinalsFieldData afd = ifd.load(atomicReaderContext);
 
-        TermsEnum termsEnum = afd.getTermsEnum();
+        TermsEnum termsEnum = afd.getOrdinalsValues().termsEnum();
         int size = 0;
         while (termsEnum.next() != null) {
             size++;
@@ -542,17 +551,17 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
     public void testGlobalOrdinalsGetRemovedOnceIndexReaderCloses() throws Exception {
         fillExtendedMvSet();
         refreshReader();
-        FieldDataType fieldDataType = new FieldDataType("string", ImmutableSettings.builder().put("global_ordinals", "fixed"));
-        IndexFieldData.WithOrdinals ifd = getForField(fieldDataType, "value");
-        IndexFieldData.WithOrdinals globalOrdinals = ifd.loadGlobal(topLevelReader);
+        FieldDataType fieldDataType = new FieldDataType("string", ImmutableSettings.builder().put("global_values", "fixed").put("cache", "node"));
+        IndexOrdinalsFieldData ifd = getForField(fieldDataType, "value");
+        IndexOrdinalsFieldData globalOrdinals = ifd.loadGlobal(topLevelReader);
         assertThat(ifd.loadGlobal(topLevelReader), sameInstance(globalOrdinals));
         // 3 b/c 1 segment level caches and 1 top level cache
         assertThat(indicesFieldDataCache.getCache().size(), equalTo(4l));
 
-        IndexFieldData.WithOrdinals cachedInstace = null;
-        for (RamUsage ramUsage : indicesFieldDataCache.getCache().asMap().values()) {
-            if (ramUsage instanceof IndexFieldData.WithOrdinals) {
-                cachedInstace = (IndexFieldData.WithOrdinals) ramUsage;
+        IndexOrdinalsFieldData cachedInstace = null;
+        for (Accountable ramUsage : indicesFieldDataCache.getCache().asMap().values()) {
+            if (ramUsage instanceof IndexOrdinalsFieldData) {
+                cachedInstace = (IndexOrdinalsFieldData) ramUsage;
                 break;
             }
         }

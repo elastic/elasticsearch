@@ -22,9 +22,9 @@ package org.elasticsearch.search.facet.geodistance;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.unit.DistanceUnit;
-import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -62,7 +62,7 @@ public class ValueGeoDistanceFacetExecutor extends GeoDistanceFacetExecutor {
 
     public static class Aggregator extends  GeoDistanceFacetExecutor.Aggregator {
 
-        DoubleValues valueValues;
+        SortedNumericDoubleValues valueValues;
 
         public Aggregator(GeoDistance.FixedSourceDistance fixedSourceDistance, GeoDistanceFacet.Entry[] entries) {
             super(fixedSourceDistance, entries);
@@ -73,9 +73,10 @@ public class ValueGeoDistanceFacetExecutor extends GeoDistanceFacetExecutor {
         protected void collectGeoPoint(GeoDistanceFacet.Entry entry, int docId, double distance) {
             entry.foundInDoc = true;
             entry.count++;
-            int seek = valueValues.setDocument(docId);
+            valueValues.setDocument(docId);
+            int seek = valueValues.count();
             for (int i = 0; i < seek; i++) {
-                double value = valueValues.nextValue();
+                double value = valueValues.valueAt(i);
                 entry.totalCount++;
                 entry.total += value;
                 if (value < entry.min) {

@@ -18,7 +18,10 @@
  */
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.aggregations.support.ValuesSource;
 
 import java.io.IOException;
 import java.util.Map;
@@ -33,19 +36,45 @@ public class TemplateQueryBuilder extends BaseQueryBuilder {
     /** Template to fill.*/
     private String template;
 
+    private ScriptService.ScriptType templateType;
+
     /**
      * @param template the template to use for that query.
      * @param vars the parameters to fill the template with.
      * */
     public TemplateQueryBuilder(String template, Map<String, Object> vars) {
+        this(template, ScriptService.ScriptType.INLINE, vars);
+    }
+
+    /**
+     * @param template the template to use for that query.
+     * @param vars the parameters to fill the template with.
+     * @param templateType what kind of template (INLINE,FILE,ID)
+     * */
+    public TemplateQueryBuilder(String template, ScriptService.ScriptType templateType, Map<String, Object> vars) {
         this.template = template;
-        this.vars = vars;
+        this.vars =vars;
+        this.templateType = templateType;
     }
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(TemplateQueryParser.NAME);
-        builder.field(TemplateQueryParser.QUERY, template);
+        String fieldname;
+        switch(templateType){
+            case FILE:
+                fieldname = "file";
+                break;
+            case INDEXED:
+                fieldname = "id";
+                break;
+            case INLINE:
+                fieldname = TemplateQueryParser.QUERY;
+                break;
+            default:
+                throw new ElasticsearchIllegalArgumentException("Unknown template type " + templateType);
+        }
+        builder.field(fieldname, template);
         builder.field(TemplateQueryParser.PARAMS, vars);
         builder.endObject();
     }

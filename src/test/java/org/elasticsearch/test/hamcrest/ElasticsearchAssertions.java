@@ -38,11 +38,13 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.node.info.PluginInfo;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsInfo;
+import org.elasticsearch.action.admin.indices.alias.exists.AliasesExistResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.count.CountResponse;
+import org.elasticsearch.action.exists.ExistsResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -77,15 +79,14 @@ import static com.google.common.base.Predicates.isNull;
 import static org.elasticsearch.test.ElasticsearchTestCase.*;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
+import static org.junit.Assert.*;
 
 /**
  *
  */
 public class ElasticsearchAssertions {
 
-    public static void assertAcked(AcknowledgedRequestBuilder<?, ?, ?> builder) {
+    public static void assertAcked(AcknowledgedRequestBuilder<?, ?, ?, ?> builder) {
         assertAcked(builder.get());
     }
 
@@ -94,7 +95,7 @@ public class ElasticsearchAssertions {
     }
 
     public static void assertNoTimeout(ClusterHealthResponse response) {
-        assertThat("ClusterHealthResponse has timed out - returned status: [" + response.getStatus() + "]", response.isTimedOut(), is(false));
+        assertThat("ClusterHealthResponse has timed out - returned: [" + response + "]", response.isTimedOut(), is(false));
     }
 
     public static void assertAcked(AcknowledgedResponse response) {
@@ -154,6 +155,17 @@ public class ElasticsearchAssertions {
         assertVersionSerializable(searchResponse);
     }
 
+    public static void assertSortValues(SearchResponse searchResponse, Object[]... sortValues) {
+        assertSearchResponse(searchResponse);
+        SearchHit[] hits = searchResponse.getHits().getHits();
+        assertEquals(sortValues.length, hits.length);
+        for (int i = 0; i < sortValues.length; ++i) {
+            final Object[] hitsSortValues = hits[i].getSortValues();
+            assertArrayEquals("Offset " + Integer.toString(i) + ", id " + hits[i].getId(), sortValues[i], hitsSortValues);
+        }
+        assertVersionSerializable(searchResponse);
+    }
+
     public static void assertOrderedSearchHits(SearchResponse searchResponse, String... ids) {
         String shardStatus = formatShardStatus(searchResponse);
         assertThat("Expected different hit count. " + shardStatus, searchResponse.getHits().hits().length, equalTo(ids.length));
@@ -169,6 +181,12 @@ public class ElasticsearchAssertions {
             fail("Count is " + countResponse.getCount() + " but " + expectedHitCount + " was expected. " + formatShardStatus(countResponse));
         }
         assertVersionSerializable(countResponse);
+    }
+    public static void assertExists(ExistsResponse existsResponse, boolean expected) {
+        if (existsResponse.exists() != expected) {
+            fail("Exist is " + existsResponse.exists() + " but " + expected + " was expected " + formatShardStatus(existsResponse));
+        }
+        assertVersionSerializable(existsResponse);
     }
 
     public static void assertMatchCount(PercolateResponse percolateResponse, long expectedHitCount) {
@@ -313,6 +331,22 @@ public class ElasticsearchAssertions {
         assertVersionSerializable(searchSuggest);
     }
 
+    public static void assertSuggestionPhraseCollateMatchExists(Suggest searchSuggest, String key, int numberOfPhraseExists) {
+        int counter = 0;
+        assertThat(searchSuggest, notNullValue());
+        String msg = "Suggest result: " + searchSuggest.toString();
+        assertThat(msg, searchSuggest.size(), greaterThanOrEqualTo(1));
+        assertThat(msg, searchSuggest.getSuggestion(key).getName(), equalTo(key));
+
+        for (Suggest.Suggestion.Entry.Option option : searchSuggest.getSuggestion(key).getEntries().get(0).getOptions()) {
+            if (option.collateMatch()) {
+                counter++;
+            }
+        }
+
+        assertThat(counter, equalTo(numberOfPhraseExists));
+    }
+
     public static void assertSuggestion(Suggest searchSuggest, int entry, int ord, String key, String text) {
         assertThat(searchSuggest, notNullValue());
         String msg = "Suggest result: " + searchSuggest.toString();
@@ -364,6 +398,20 @@ public class ElasticsearchAssertions {
         assertThat(templateNames, hasItem(name));
     }
 
+    /**
+     * Assert that aliases are missing
+     */
+    public static void assertAliasesMissing(AliasesExistResponse aliasesExistResponse) {
+        assertFalse("Aliases shouldn't exist", aliasesExistResponse.exists());
+    }
+
+    /**
+     * Assert that aliases exist
+     */
+    public static void assertAliasesExist(AliasesExistResponse aliasesExistResponse) {
+        assertTrue("Aliases should exist", aliasesExistResponse.exists());
+    }
+
     /*
      * matchers
      */
@@ -391,11 +439,11 @@ public class ElasticsearchAssertions {
         return (T) q.getClauses()[i].getQuery();
     }
 
-    public static <E extends Throwable> void assertThrows(ActionRequestBuilder<?, ?, ?> builder, Class<E> exceptionClass) {
+    public static <E extends Throwable> void assertThrows(ActionRequestBuilder<?, ?, ?, ?> builder, Class<E> exceptionClass) {
         assertThrows(builder.execute(), exceptionClass);
     }
 
-    public static <E extends Throwable> void assertThrows(ActionRequestBuilder<?, ?, ?> builder, Class<E> exceptionClass, String extraInfo) {
+    public static <E extends Throwable> void assertThrows(ActionRequestBuilder<?, ?, ?, ?> builder, Class<E> exceptionClass, String extraInfo) {
         assertThrows(builder.execute(), exceptionClass, extraInfo);
     }
 
@@ -423,11 +471,11 @@ public class ElasticsearchAssertions {
         }
     }
 
-    public static <E extends Throwable> void assertThrows(ActionRequestBuilder<?, ?, ?> builder, RestStatus status) {
+    public static <E extends Throwable> void assertThrows(ActionRequestBuilder<?, ?, ?, ?> builder, RestStatus status) {
         assertThrows(builder.execute(), status);
     }
 
-    public static <E extends Throwable> void assertThrows(ActionRequestBuilder<?, ?, ?> builder, RestStatus status, String extraInfo) {
+    public static <E extends Throwable> void assertThrows(ActionRequestBuilder<?, ?, ?, ?> builder, RestStatus status, String extraInfo) {
         assertThrows(builder.execute(), status, extraInfo);
     }
 
@@ -554,12 +602,7 @@ public class ElasticsearchAssertions {
         try {
             for (final MockDirectoryHelper.ElasticsearchMockDirectoryWrapper w : MockDirectoryHelper.wrappers) {
                 try {
-                    awaitBusy(new Predicate<Object>() {
-                        @Override
-                        public boolean apply(Object input) {
-                            return !w.isOpen();
-                        }
-                    });
+                    w.awaitClosed(5000);
                 } catch (InterruptedException e) {
                     Thread.interrupted();
                 }

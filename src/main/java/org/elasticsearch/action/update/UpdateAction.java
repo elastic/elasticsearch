@@ -19,15 +19,15 @@
 
 package org.elasticsearch.action.update;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ClientAction;
 import org.elasticsearch.client.Client;
 
 /**
  */
-public class UpdateAction extends Action<UpdateRequest, UpdateResponse, UpdateRequestBuilder> {
+public class UpdateAction extends ClientAction<UpdateRequest, UpdateResponse, UpdateRequestBuilder> {
 
     public static final UpdateAction INSTANCE = new UpdateAction();
-    public static final String NAME = "update";
+    public static final String NAME = "indices:data/write/update";
 
     private UpdateAction() {
         super(NAME);

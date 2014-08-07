@@ -24,8 +24,8 @@ import org.apache.lucene.analysis.Token;
 import org.apache.lucene.analysis.TokenStream;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.MapperTestUtils;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.index.mapper.DocumentMapperParser;
+import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * Test for {@link TokenCountFieldMapper}.
  */
-public class TokenCountFieldMapperTests extends ElasticsearchTestCase {
+public class TokenCountFieldMapperTests extends ElasticsearchSingleNodeTest {
     @Test
     public void testMerge() throws IOException {
         String stage1Mapping = XContentFactory.jsonBuilder().startObject()
@@ -50,7 +50,8 @@ public class TokenCountFieldMapperTests extends ElasticsearchTestCase {
                         .endObject()
                     .endObject()
                 .endObject().endObject().string();
-        DocumentMapper stage1 = MapperTestUtils.newParser().parse(stage1Mapping);
+        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+        DocumentMapper stage1 = parser.parse(stage1Mapping);
 
         String stage2Mapping = XContentFactory.jsonBuilder().startObject()
                 .startObject("person")
@@ -61,7 +62,7 @@ public class TokenCountFieldMapperTests extends ElasticsearchTestCase {
                         .endObject()
                     .endObject()
                 .endObject().endObject().string();
-        DocumentMapper stage2 = MapperTestUtils.newParser().parse(stage2Mapping);
+        DocumentMapper stage2 = parser.parse(stage2Mapping);
 
         DocumentMapper.MergeResult mergeResult = stage1.merge(stage2, mergeFlags().simulate(true));
         assertThat(mergeResult.hasConflicts(), equalTo(false));

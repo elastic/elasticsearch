@@ -42,8 +42,8 @@ import org.elasticsearch.index.engine.IndexEngineModule;
 import org.elasticsearch.index.query.functionscore.FunctionScoreModule;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.similarity.SimilarityModule;
-import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
-import org.elasticsearch.indices.fielddata.breaker.DummyCircuitBreakerService;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.query.IndicesQueriesModule;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -56,6 +56,7 @@ import java.io.IOException;
 /**
  * Test parsing and executing a template request.
  */
+// NOTE: this can't be migrated to ElasticsearchSingleNodeTest because of the custom path.conf
 public class TemplateQueryParserTest extends ElasticsearchTestCase {
 
     private Injector injector;
@@ -63,7 +64,10 @@ public class TemplateQueryParserTest extends ElasticsearchTestCase {
 
     @Before
     public void setup() throws IOException {
-        Settings settings = ImmutableSettings.settingsBuilder().put("path.conf", this.getResource("config").getPath()).build();
+        Settings settings = ImmutableSettings.settingsBuilder()
+                .put("path.conf", this.getResource("config").getPath())
+                .put("name", getClass().getName())
+                .build();
 
         Index index = new Index("test");
         injector = new ModulesBuilder().add(
@@ -86,7 +90,7 @@ public class TemplateQueryParserTest extends ElasticsearchTestCase {
                     @Override
                     protected void configure() {
                         bind(ClusterService.class).toProvider(Providers.of((ClusterService) null));
-                        bind(CircuitBreakerService.class).to(DummyCircuitBreakerService.class);
+                        bind(CircuitBreakerService.class).to(NoneCircuitBreakerService.class);
                     }
                 }
         ).createInjector();
@@ -111,7 +115,7 @@ public class TemplateQueryParserTest extends ElasticsearchTestCase {
 
     @Test
     public void testParserCanExtractTemplateNames() throws Exception {
-        String templateString = "{ \"template\": { \"query\": \"storedTemplate\" ,\"params\":{\"template\":\"all\" } } } ";
+        String templateString = "{ \"template\": { \"file\": \"storedTemplate\" ,\"params\":{\"template\":\"all\" } } } ";
 
         XContentParser templateSourceParser = XContentFactory.xContent(templateString).createParser(templateString);
         context.reset(templateSourceParser);

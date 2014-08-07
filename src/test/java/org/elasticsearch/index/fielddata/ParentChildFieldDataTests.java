@@ -27,15 +27,11 @@ import org.apache.lucene.search.*;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.compress.CompressedString;
-import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MapperTestUtils;
+import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.search.MultiValueMode;
-import org.elasticsearch.test.index.service.StubIndexService;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -51,15 +47,12 @@ public class ParentChildFieldDataTests extends AbstractFieldDataTests {
 
     @Before
     public void before() throws Exception {
-        MapperService mapperService = MapperTestUtils.newMapperService(ifdService.index(), ImmutableSettings.Builder.EMPTY_SETTINGS);
         mapperService.merge(
                 childType, new CompressedString(PutMappingRequest.buildFromSimplifiedDef(childType, "_parent", "type=" + parentType).string()), true
         );
         mapperService.merge(
                 grandChildType, new CompressedString(PutMappingRequest.buildFromSimplifiedDef(grandChildType, "_parent", "type=" + childType).string()), true
         );
-        IndexService indexService = new StubIndexService(mapperService);
-        ifdService.setIndexService(indexService);
 
         Document d = new Document();
         d.add(new StringField(UidFieldMapper.NAME, Uid.createUid(parentType, "1"), Field.Store.NO));
@@ -105,42 +98,50 @@ public class ParentChildFieldDataTests extends AbstractFieldDataTests {
     public void testGetBytesValues() throws Exception {
         IndexFieldData indexFieldData = getForField(childType);
         AtomicFieldData fieldData = indexFieldData.load(refreshReader());
-        assertThat(fieldData.getMemorySizeInBytes(), greaterThan(0l));
+        assertThat(fieldData.ramBytesUsed(), greaterThan(0l));
 
-        BytesValues bytesValues = fieldData.getBytesValues();
-        assertThat(bytesValues.setDocument(0), equalTo(1));
-        assertThat(bytesValues.nextValue().utf8ToString(), equalTo("1"));
+        SortedBinaryDocValues bytesValues = fieldData.getBytesValues();
+        bytesValues.setDocument(0);
+        assertThat(bytesValues.count(), equalTo(1));
+        assertThat(bytesValues.valueAt(0).utf8ToString(), equalTo("1"));
 
-        assertThat(bytesValues.setDocument(1), equalTo(2));
-        assertThat(bytesValues.nextValue().utf8ToString(), equalTo("1"));
-        assertThat(bytesValues.nextValue().utf8ToString(), equalTo("2"));
+        bytesValues.setDocument(1);
+        assertThat(bytesValues.count(), equalTo(2));
+        assertThat(bytesValues.valueAt(0).utf8ToString(), equalTo("1"));
+        assertThat(bytesValues.valueAt(1).utf8ToString(), equalTo("2"));
 
-        assertThat(bytesValues.setDocument(2), equalTo(2));
-        assertThat(bytesValues.nextValue().utf8ToString(), equalTo("1"));
-        assertThat(bytesValues.nextValue().utf8ToString(), equalTo("3"));
+        bytesValues.setDocument(2);
+        assertThat(bytesValues.count(), equalTo(2));
+        assertThat(bytesValues.valueAt(0).utf8ToString(), equalTo("1"));
+        assertThat(bytesValues.valueAt(1).utf8ToString(), equalTo("3"));
 
-        assertThat(bytesValues.setDocument(3), equalTo(1));
-        assertThat(bytesValues.nextValue().utf8ToString(), equalTo("2"));
+        bytesValues.setDocument(3);
+        assertThat(bytesValues.count(), equalTo(1));
+        assertThat(bytesValues.valueAt(0).utf8ToString(), equalTo("2"));
 
-        assertThat(bytesValues.setDocument(4), equalTo(2));
-        assertThat(bytesValues.nextValue().utf8ToString(), equalTo("2"));
-        assertThat(bytesValues.nextValue().utf8ToString(), equalTo("4"));
+        bytesValues.setDocument(4);
+        assertThat(bytesValues.count(), equalTo(2));
+        assertThat(bytesValues.valueAt(0).utf8ToString(), equalTo("2"));
+        assertThat(bytesValues.valueAt(1).utf8ToString(), equalTo("4"));
 
-        assertThat(bytesValues.setDocument(5), equalTo(2));
-        assertThat(bytesValues.nextValue().utf8ToString(), equalTo("1"));
-        assertThat(bytesValues.nextValue().utf8ToString(), equalTo("5"));
+        bytesValues.setDocument(5);
+        assertThat(bytesValues.count(), equalTo(2));
+        assertThat(bytesValues.valueAt(0).utf8ToString(), equalTo("1"));
+        assertThat(bytesValues.valueAt(1).utf8ToString(), equalTo("5"));
 
-        assertThat(bytesValues.setDocument(6), equalTo(1));
-        assertThat(bytesValues.nextValue().utf8ToString(), equalTo("2"));
+        bytesValues.setDocument(6);
+        assertThat(bytesValues.count(), equalTo(1));
+        assertThat(bytesValues.valueAt(0).utf8ToString(), equalTo("2"));
 
-        assertThat(bytesValues.setDocument(7), equalTo(0));
+        bytesValues.setDocument(7);
+        assertThat(bytesValues.count(), equalTo(0));
     }
 
     @Test
     public void testSorting() throws Exception {
         IndexFieldData indexFieldData = getForField(childType);
         IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer, true));
-        IndexFieldData.XFieldComparatorSource comparator = indexFieldData.comparatorSource("_last", MultiValueMode.MIN);
+        IndexFieldData.XFieldComparatorSource comparator = indexFieldData.comparatorSource("_last", MultiValueMode.MIN, null);
 
         TopFieldDocs topDocs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(new SortField(ParentFieldMapper.NAME, comparator, false)));
         assertThat(topDocs.totalHits, equalTo(8));
@@ -160,7 +161,7 @@ public class ParentChildFieldDataTests extends AbstractFieldDataTests {
         assertThat(topDocs.scoreDocs[6].doc, equalTo(6));
         assertThat(((BytesRef) ((FieldDoc) topDocs.scoreDocs[6]).fields[0]).utf8ToString(), equalTo("2"));
         assertThat(topDocs.scoreDocs[7].doc, equalTo(7));
-        assertThat(((BytesRef) ((FieldDoc) topDocs.scoreDocs[7]).fields[0]), equalTo(IndexFieldData.XFieldComparatorSource.MAX_TERM));
+        assertThat(((BytesRef) ((FieldDoc) topDocs.scoreDocs[7]).fields[0]), equalTo(XFieldComparatorSource.MAX_TERM));
 
         topDocs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(new SortField(ParentFieldMapper.NAME, comparator, true)));
         assertThat(topDocs.totalHits, equalTo(8));

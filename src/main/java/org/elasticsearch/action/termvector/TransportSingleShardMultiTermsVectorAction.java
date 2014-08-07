@@ -21,6 +21,7 @@ package org.elasticsearch.action.termvector;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.single.shard.TransportShardSingleOperationAction;
 import org.elasticsearch.cluster.ClusterService;
@@ -40,21 +41,18 @@ public class TransportSingleShardMultiTermsVectorAction extends TransportShardSi
 
     private final IndicesService indicesService;
 
+    private static final String ACTION_NAME = MultiTermVectorsAction.NAME + "[shard]";
+
     @Inject
     public TransportSingleShardMultiTermsVectorAction(Settings settings, ClusterService clusterService, TransportService transportService,
-                                                      IndicesService indicesService, ThreadPool threadPool) {
-        super(settings, threadPool, clusterService, transportService);
+                                                      IndicesService indicesService, ThreadPool threadPool, ActionFilters actionFilters) {
+        super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters);
         this.indicesService = indicesService;
     }
 
     @Override
     protected String executor() {
         return ThreadPool.Names.GET;
-    }
-
-    @Override
-    protected String transportAction() {
-        return MultiTermVectorsAction.NAME + "/shard";
     }
 
     @Override

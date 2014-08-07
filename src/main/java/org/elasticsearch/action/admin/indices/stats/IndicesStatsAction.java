@@ -27,7 +27,7 @@ import org.elasticsearch.client.IndicesAdminClient;
 public class IndicesStatsAction extends IndicesAction<IndicesStatsRequest, IndicesStatsResponse, IndicesStatsRequestBuilder> {
 
     public static final IndicesStatsAction INSTANCE = new IndicesStatsAction();
-    public static final String NAME = "indices/stats";
+    public static final String NAME = "indices:monitor/stats";
 
     private IndicesStatsAction() {
         super(NAME);

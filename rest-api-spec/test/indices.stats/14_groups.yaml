@@ -1,17 +1,17 @@
 ---
-  setup:
+setup:
 
-    - do:
-        index:
-            index: test1
-            type:  bar
-            id:    1
-            body:  { "bar": "bar", "baz": "baz" }
+  - do:
+      index:
+          index: test1
+          type:  bar
+          id:    1
+          body:  { "bar": "bar", "baz": "baz" }
 
-    - do:
-        search:
-            body:
-                stats:  [ bar, baz ]
+  - do:
+      search:
+          body:
+              stats:  [ bar, baz ]
 
 ---
 "Groups - blank":

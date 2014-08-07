@@ -27,7 +27,7 @@ import org.elasticsearch.client.IndicesAdminClient;
 public class OpenIndexAction extends IndicesAction<OpenIndexRequest, OpenIndexResponse, OpenIndexRequestBuilder> {
 
     public static final OpenIndexAction INSTANCE = new OpenIndexAction();
-    public static final String NAME = "indices/open";
+    public static final String NAME = "indices:admin/open";
 
     private OpenIndexAction() {
         super(NAME);

@@ -25,27 +25,62 @@ example, can be set to `5m` for a 5 minute expiry.
 |=======================================================================
 
 [float]
+[[circuit-breaker]]
+=== Circuit Breaker
+
+coming[1.4.0,Prior to 1.4.0 there was only a single circuit breaker for fielddata]
+
+Elasticsearch contains multiple circuit breakers used to prevent operations from
+causing an OutOfMemoryError. Each breaker specifies a limit for how much memory
+it can use. Additionally, there is a parent-level breaker that specifies the
+total amount of memory that can be used across all breakers.
+
+The parent-level breaker can be configured with the following setting:
+
+`indices.breaker.total.limit`::
+    Starting limit for overall parent breaker, defaults to 70% of JVM heap
+
+All circuit breaker settings can be changed dynamically using the cluster update
+settings API.
+
+[float]
 [[fielddata-circuit-breaker]]
-=== Field data circuit breaker
+==== Field data circuit breaker
 The field data circuit breaker allows Elasticsearch to estimate the amount of
 memory a field will required to be loaded into memory. It can then prevent the
 field data loading by raising an exception. By default the limit is configured
 to 60% of the maximum JVM heap. It can be configured with the following
 parameters:
 
-[cols="<,<",options="header",]
-|=======================================================================
-|Setting |Description
-|`indices.fielddata.breaker.limit` |Maximum size of estimated field data
-to allow loading. Defaults to 60% of the maximum JVM heap.
-|`indices.fielddata.breaker.overhead` |A constant that all field data
-estimations are multiplied with to determine a final estimation. Defaults to
-1.03
-|=======================================================================
+`indices.breaker.fielddata.limit`::
+    Limit for fielddata breaker, defaults to 60% of JVM heap
 
-Both the `indices.fielddata.breaker.limit` and
-`indices.fielddata.breaker.overhead` can be changed dynamically using the
-cluster update settings API.
+`indices.breaker.fielddata.overhead`::
+    A constant that all field data estimations are multiplied with to determine a
+    final estimation. Defaults to 1.03
+
+`indices.fielddata.breaker.limit`::
+    deprecated[1.4.0,Replaced by `indices.breaker.fielddata.limit`]
+
+`indices.fielddata.breaker.overhead`::
+    deprecated[1.4.0,Replaced by `indices.breaker.fielddata.overhead`]
+
+[float]
+[[request-circuit-breaker]]
+==== Request circuit breaker
+
+coming[1.4.0]
+
+The request circuit breaker allows Elasticsearch to prevent per-request data
+structures (for example, memory used for calculating aggregations during a
+request) from exceeding a certain amount of memory.
+
+`indices.breaker.request.limit`::
+    Limit for request breaker, defaults to 40% of JVM heap
+
+`indices.breaker.request.overhead`::
+    A constant that all request estimations are multiplied with to determine a
+    final estimation. Defaults to 1
 
 [float]
 [[fielddata-monitoring]]
@@ -73,10 +108,10 @@ data format.
 [source,js]
 --------------------------------------------------
 {
-    tag: {
-        type:      "string",
-        fielddata: {
-            format: "fst"
+    "tag": {
+        "type":      "string",
+        "fielddata": {
+            "format": "fst"
         }
     }
 }
@@ -173,10 +208,10 @@ It is possible to force field data to be loaded and cached eagerly through the
 [source,js]
 --------------------------------------------------
 {
-    category: {
-        type:      "string",
-        fielddata: {
-            loading: "eager"
+    "category": {
+        "type":      "string",
+        "fielddata": {
+            "loading": "eager"
         }
     }
 }
@@ -187,10 +222,10 @@ Global ordinals can also be eagerly loaded:
 [source,js]
 --------------------------------------------------
 {
-    category: {
-        type:      "string",
-        fielddata: {
-            loading: "eager_global_ordinals"
+    "category": {
+        "type":      "string",
+        "fielddata": {
+            "loading": "eager_global_ordinals"
         }
     }
 }
@@ -212,10 +247,10 @@ will return an error.
 [source,js]
 --------------------------------------------------
 {
-    text: {
-        type:      "string",
-        fielddata: {
-            format: "disabled"
+    "text": {
+        "type":      "string",
+        "fielddata": {
+            "format": "disabled"
         }
     }
 }
@@ -253,14 +288,14 @@ number of docs that the segment should contain with `min_segment_size`:
 [source,js]
 --------------------------------------------------
 {
-    tag: {
-        type:      "string",
-        fielddata: {
-            filter: {
-                frequency: {
-                    min:              0.001,
-                    max:              0.1,
-                    min_segment_size: 500
+    "tag": {
+        "type":      "string",
+        "fielddata": {
+            "filter": {
+                "frequency": {
+                    "min":              0.001,
+                    "max":              0.1,
+                    "min_segment_size": 500
                 }
             }
         }
@@ -280,13 +315,13 @@ expression which matches terms beginning with `#`:
 [source,js]
 --------------------------------------------------
 {
-    tweet: {
-        type:      "string",
-        analyzer:  "whitespace"
-        fielddata: {
-            filter: {
-                regex: {
-                    pattern: "^#.*"
+    "tweet": {
+        "type":      "string",
+        "analyzer":  "whitespace"
+        "fielddata": {
+            "filter": {
+                "regex": {
+                    "pattern": "^#.*"
                 }
             }
         }
@@ -302,18 +337,18 @@ The `frequency` and `regex` filters can be combined:
 [source,js]
 --------------------------------------------------
 {
-    tweet: {
-        type:      "string",
-        analyzer:  "whitespace"
-        fielddata: {
-            filter: {
-                regex: {
-                    pattern:          "^#.*",
+    "tweet": {
+        "type":      "string",
+        "analyzer":  "whitespace"
+        "fielddata": {
+            "filter": {
+                "regex": {
+                    "pattern":          "^#.*",
                 },
-                frequency: {
-                    min:              0.001,
-                    max:              0.1,
-                    min_segment_size: 500
+                "frequency": {
+                    "min":              0.001,
+                    "max":              0.1,
+                    "min_segment_size": 500
                 }
             }
         }

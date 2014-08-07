@@ -21,16 +21,18 @@ package org.elasticsearch.action.support.master;
 
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.client.internal.InternalGenericClient;
+import org.elasticsearch.client.ClusterAdminClient;
+import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.common.unit.TimeValue;
 
 /**
  * Base request builder for master node operations
  */
-public abstract class MasterNodeOperationRequestBuilder<Request extends MasterNodeOperationRequest<Request>, Response extends ActionResponse, RequestBuilder extends MasterNodeOperationRequestBuilder<Request, Response, RequestBuilder>>
-        extends ActionRequestBuilder<Request, Response, RequestBuilder> {
+public abstract class MasterNodeOperationRequestBuilder<Request extends MasterNodeOperationRequest<Request>, Response extends ActionResponse, RequestBuilder extends MasterNodeOperationRequestBuilder<Request, Response, RequestBuilder, Client>, Client extends ElasticsearchClient>
+        extends ActionRequestBuilder<Request, Response, RequestBuilder, Client> {
 
-    protected MasterNodeOperationRequestBuilder(InternalGenericClient client, Request request) {
+    protected MasterNodeOperationRequestBuilder(Client client, Request request) {
         super(client, request);
     }
 

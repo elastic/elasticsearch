@@ -21,14 +21,13 @@ package org.elasticsearch.action.admin.indices.warmer.get;
 
 import org.elasticsearch.action.admin.indices.IndicesAction;
 import org.elasticsearch.client.IndicesAdminClient;
-import org.elasticsearch.client.internal.InternalGenericClient;
 
 /**
  */
 public class GetWarmersAction extends IndicesAction<GetWarmersRequest, GetWarmersResponse, GetWarmersRequestBuilder> {
 
     public static final GetWarmersAction INSTANCE = new GetWarmersAction();
-    public static final String NAME = "warmers/get";
+    public static final String NAME = "indices:admin/warmers/get";
 
     private GetWarmersAction() {
         super(NAME);
@@ -36,7 +35,7 @@ public class GetWarmersAction extends IndicesAction<GetWarmersRequest, GetWarmer
 
     @Override
     public GetWarmersRequestBuilder newRequestBuilder(IndicesAdminClient client) {
-        return new GetWarmersRequestBuilder((InternalGenericClient) client);
+        return new GetWarmersRequestBuilder(client);
     }
 
     @Override

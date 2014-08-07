@@ -24,10 +24,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.MapperTestUtils;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
 
 import java.util.Map;
@@ -37,13 +36,13 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class RoutingTypeMapperTests extends ElasticsearchTestCase {
+public class RoutingTypeMapperTests extends ElasticsearchSingleNodeTest {
 
     @Test
     public void simpleRoutingMapperTests() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .endObject().endObject().string();
-        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
 
         ParsedDocument doc = docMapper.parse(SourceToParse.source(XContentFactory.jsonBuilder()
                 .startObject()
@@ -64,7 +63,7 @@ public class RoutingTypeMapperTests extends ElasticsearchTestCase {
                 .field("path", "route")
                 .endObject()
                 .endObject().endObject().string();
-        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
         assertThat(docMapper.routingFieldMapper().fieldType().stored(), equalTo(false));
         assertThat(docMapper.routingFieldMapper().fieldType().indexed(), equalTo(false));
         assertThat(docMapper.routingFieldMapper().path(), equalTo("route"));
@@ -75,7 +74,7 @@ public class RoutingTypeMapperTests extends ElasticsearchTestCase {
         String enabledMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_routing").field("store", "no").field("index", "no").endObject()
                 .endObject().endObject().string();
-        DocumentMapper enabledMapper = MapperTestUtils.newParser().parse(enabledMapping);
+        DocumentMapper enabledMapper = createIndex("test").mapperService().documentMapperParser().parse(enabledMapping);
 
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
         enabledMapper.routingFieldMapper().toXContent(builder, ToXContent.EMPTY_PARAMS).endObject();

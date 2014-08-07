@@ -69,7 +69,7 @@ public class RestBulkAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) throws Exception {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) throws Exception {
         BulkRequest bulkRequest = Requests.bulkRequest();
         bulkRequest.listenerThreaded(false);
         String defaultIndex = request.param("index");

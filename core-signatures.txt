@@ -18,8 +18,6 @@ java.util.Collections#sort(java.util.List,java.util.Comparator)
 
 java.io.StringReader#<init>(java.lang.String) @ Use FastStringReader instead
 
-org.apache.lucene.util.RamUsageEstimator#sizeOf(java.lang.Object) @ This can be a perfromance trap 
-
 @defaultMessage Reference management is tricky, leave it to SearcherManager
 org.apache.lucene.index.IndexReader#decRef()
 org.apache.lucene.index.IndexReader#incRef()
@@ -53,11 +51,21 @@ java.lang.Object#notifyAll()
 java.lang.Math#abs(int)
 java.lang.Math#abs(long)
 
+@defaultMessage Please do not try to stop the world
+java.lang.System#gc()
+
 @defaultMessage Use Long.compare instead we are on Java7
 com.google.common.primitives.Longs#compare(long,long)
 
-@defaultMessage we have an optimized XStringField to reduce analysis creation overhead
-org.apache.lucene.document.Field#<init>(java.lang.String,java.lang.String,org.apache.lucene.document.FieldType)
+@defaultMessage Use Channels.* methods to write to channels. Do not write directly.
+java.nio.channels.WritableByteChannel#write(java.nio.ByteBuffer)
+java.nio.channels.FileChannel#write(java.nio.ByteBuffer, long)
+java.nio.channels.GatheringByteChannel#write(java.nio.ByteBuffer[], int, int)
+java.nio.channels.GatheringByteChannel#write(java.nio.ByteBuffer[])
+java.nio.channels.ReadableByteChannel#read(java.nio.ByteBuffer)
+java.nio.channels.ScatteringByteChannel#read(java.nio.ByteBuffer[])
+java.nio.channels.ScatteringByteChannel#read(java.nio.ByteBuffer[], int, int)
+java.nio.channels.FileChannel#read(java.nio.ByteBuffer, long)
 
-@defaultMessage Use XNativeFSLockFactory instead of the buggy NativeFSLockFactory see LUCENE-5738 - remove once Lucene 4.9 is released
-org.apache.lucene.store.NativeFSLockFactory
+@defaultMessage Use Lucene.parseLenient instead it strips off minor version
+org.apache.lucene.util.Version#parseLeniently(java.lang.String)

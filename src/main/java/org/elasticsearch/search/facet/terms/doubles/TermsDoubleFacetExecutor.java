@@ -28,9 +28,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.common.collect.BoundedTreeSet;
 import org.elasticsearch.common.recycler.Recycler;
-import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.fielddata.ordinals.Ordinals;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.facet.DoubleFacetAggregatorBase;
 import org.elasticsearch.search.facet.FacetExecutor;
@@ -73,20 +72,13 @@ public class TermsDoubleFacetExecutor extends FacetExecutor {
         if (allTerms) {
             for (AtomicReaderContext readerContext : context.searcher().getTopReaderContext().leaves()) {
                 int maxDoc = readerContext.reader().maxDoc();
-                DoubleValues values = indexFieldData.load(readerContext).getDoubleValues();
-                if (values instanceof DoubleValues.WithOrdinals) {
-                    DoubleValues.WithOrdinals valuesWithOrds = (DoubleValues.WithOrdinals) values;
-                    Ordinals.Docs ordinals = valuesWithOrds.ordinals();
-                    for (long ord = Ordinals.MIN_ORDINAL; ord < ordinals.getMaxOrd(); ord++) {
-                        facets.v().putIfAbsent(valuesWithOrds.getValueByOrd(ord), 0);
-                    }
-                } else {
-                    for (int docId = 0; docId < maxDoc; docId++) {
-                        int numValues = values.setDocument(docId);
-                        DoubleIntOpenHashMap map = facets.v();
-                        for (int i = 0; i < numValues; i++) {
-                            map.putIfAbsent(values.nextValue(), 0);
-                        }
+                SortedNumericDoubleValues values = indexFieldData.load(readerContext).getDoubleValues();
+                for (int docId = 0; docId < maxDoc; docId++) {
+                    values.setDocument(docId);
+                    int numValues = values.count();
+                    DoubleIntOpenHashMap map = facets.v();
+                    for (int i = 0; i < numValues; i++) {
+                        map.putIfAbsent(values.valueAt(i), 0);
                     }
                 }
             }
@@ -136,7 +128,7 @@ public class TermsDoubleFacetExecutor extends FacetExecutor {
     class Collector extends FacetExecutor.Collector {
 
         private final StaticAggregatorValueProc aggregator;
-        private DoubleValues values;
+        private SortedNumericDoubleValues values;
 
         public Collector() {
             if (script == null && excluded.isEmpty()) {

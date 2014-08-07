@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.indices.stats;
 import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationRequest;
@@ -56,19 +57,14 @@ public class TransportIndicesStatsAction extends TransportBroadcastOperationActi
 
     @Inject
     public TransportIndicesStatsAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
-                                       IndicesService indicesService) {
-        super(settings, threadPool, clusterService, transportService);
+                                       IndicesService indicesService, ActionFilters actionFilters) {
+        super(settings, IndicesStatsAction.NAME, threadPool, clusterService, transportService, actionFilters);
         this.indicesService = indicesService;
     }
 
     @Override
     protected String executor() {
         return ThreadPool.Names.MANAGEMENT;
-    }
-
-    @Override
-    protected String transportAction() {
-        return IndicesStatsAction.NAME;
     }
 
     @Override
@@ -195,6 +191,9 @@ public class TransportIndicesStatsAction extends TransportBroadcastOperationActi
         }
         if (request.request.suggest()) {
             flags.set(CommonStatsFlags.Flag.Suggest);
+        }
+        if (request.request.queryCache()) {
+            flags.set(CommonStatsFlags.Flag.QueryCache);
         }
 
         return new ShardStats(indexShard, flags);

@@ -43,7 +43,6 @@ import java.util.Collection;
 import java.util.List;
 
 import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfNeeded;
-import static org.elasticsearch.common.lucene.search.Queries.optimizeQuery;
 import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameQuery;
 
 /**
@@ -839,7 +838,7 @@ public class MapperQueryParser extends QueryParser {
         if (q == null) {
             return null;
         }
-        return optimizeQuery(fixNegativeQueryIfNeeded(q));
+        return fixNegativeQueryIfNeeded(q);
     }
 
     private void applyBoost(String field, Query q) {

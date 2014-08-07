@@ -25,7 +25,6 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
-import org.apache.lucene.document.XStringField;
 import org.apache.lucene.search.suggest.analyzing.XAnalyzingSuggester;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
@@ -47,7 +46,6 @@ import org.elasticsearch.search.suggest.context.ContextMapping;
 import org.elasticsearch.search.suggest.context.ContextMapping.ContextConfig;
 
 import java.io.IOException;
-import java.io.Reader;
 import java.util.*;
 
 import static org.elasticsearch.index.mapper.MapperBuilders.completionField;
@@ -388,7 +386,7 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
                 surfaceForm, weight, payload);
     }
 
-    private static final class SuggestField extends XStringField {
+    private static final class SuggestField extends Field {
         private final BytesRef payload;
         private final CompletionTokenStream.ToFiniteStrings toFiniteStrings;
         private final ContextMapping.Context ctx;
@@ -401,8 +399,8 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
         }
 
         @Override
-        public TokenStream tokenStream(Analyzer analyzer) throws IOException {
-            TokenStream ts = ctx.wrapTokenStream(super.tokenStream(analyzer));
+        public TokenStream tokenStream(Analyzer analyzer, TokenStream previous) throws IOException {
+            TokenStream ts = ctx.wrapTokenStream(super.tokenStream(analyzer, previous));
             return new CompletionTokenStream(ts, payload, toFiniteStrings);
         }
     }
@@ -450,6 +448,11 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
 
     @Override
     public boolean hasDocValues() {
+        return false;
+    }
+
+    @Override
+    public boolean supportsNullValue() {
         return false;
     }
 

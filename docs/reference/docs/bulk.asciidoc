@@ -2,8 +2,26 @@
 == Bulk API
 
 The bulk API makes it possible to perform many index/delete operations
-in a single API call. This can greatly increase the indexing speed. The
-REST API endpoint is `/_bulk`, and it expects the following JSON
+in a single API call. This can greatly increase the indexing speed.
+
+.Client support for bulk requests
+*********************************************
+
+Some of the officially supported clients provide helpers to assist with
+bulk requests and reindexing of documents from one index to another:
+
+Perl::
+
+    See https://metacpan.org/pod/Search::Elasticsearch::Bulk[Search::Elasticsearch::Bulk]
+    and https://metacpan.org/pod/Search::Elasticsearch::Scroll[Search::Elasticsearch::Scroll]
+
+Python::
+
+    See http://elasticsearch-py.readthedocs.org/en/master/helpers.html[elasticsearch.helpers.*]
+
+*********************************************
+
+The REST API endpoint is `/_bulk`, and it expects the following JSON
 structure:
 
 [source,js]
@@ -19,7 +37,7 @@ optional_source\n
 
 *NOTE*: the final line of data must end with a newline character `\n`.
 
-The possible actions are `index`, `create`, `delete` and `update`. 
+The possible actions are `index`, `create`, `delete` and `update`.
 `index` and `create` expect a source on the next
 line, and have the same semantics as the `op_type` parameter to the
 standard index API (i.e. create will fail if a document with the same

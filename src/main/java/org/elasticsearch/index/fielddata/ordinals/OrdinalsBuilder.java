@@ -41,6 +41,11 @@ import java.util.Comparator;
 public final class OrdinalsBuilder implements Closeable {
 
     /**
+     * Whether to for the use of {@link MultiOrdinals} to store the ordinals for testing purposes.
+     */
+    public static final String FORCE_MULTI_ORDINALS = "force_multi_ordinals";
+
+    /**
      * Default acceptable overhead ratio. {@link OrdinalsBuilder} memory usage is mostly transient so it is likely a better trade-off to
      * trade memory for speed in order to resize less often.
      */
@@ -259,7 +264,7 @@ public final class OrdinalsBuilder implements Closeable {
     }
 
     private final int maxDoc;
-    private long currentOrd = Ordinals.MIN_ORDINAL - 1;
+    private long currentOrd = -1;
     private int numDocsWithValue = 0;
     private int numMultiValuedDocs = 0;
     private int totalNumOrds = 0;
@@ -369,7 +374,7 @@ public final class OrdinalsBuilder implements Closeable {
     /**
      * Returns the number of distinct ordinals in this builder.
      */
-    public long getMaxOrd() {
+    public long getValueCount() {
         return currentOrd + 1;
     }
 
@@ -395,7 +400,8 @@ public final class OrdinalsBuilder implements Closeable {
      */
     public Ordinals build(Settings settings) {
         final float acceptableOverheadRatio = settings.getAsFloat("acceptable_overhead_ratio", PackedInts.FASTEST);
-        if (numMultiValuedDocs > 0 || MultiOrdinals.significantlySmallerThanSinglePackedOrdinals(maxDoc, numDocsWithValue, getMaxOrd(), acceptableOverheadRatio)) {
+        final boolean forceMultiOrdinals = settings.getAsBoolean(FORCE_MULTI_ORDINALS, false);
+        if (forceMultiOrdinals || numMultiValuedDocs > 0 || MultiOrdinals.significantlySmallerThanSinglePackedOrdinals(maxDoc, numDocsWithValue, getValueCount(), acceptableOverheadRatio)) {
             // MultiOrdinals can be smaller than SinglePackedOrdinals for sparse fields
             return new MultiOrdinals(this, acceptableOverheadRatio);
         } else {

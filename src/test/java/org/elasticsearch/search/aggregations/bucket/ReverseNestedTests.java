@@ -130,6 +130,29 @@ public class ReverseNestedTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    public void simple_nested1ToRootToNested2() throws Exception {
+        SearchResponse response = client().prepareSearch("idx").setTypes("type2")
+                .addAggregation(nested("nested1").path("nested1")
+                                .subAggregation(
+                                        reverseNested("nested1_to_root")
+                                                .subAggregation(nested("root_to_nested2").path("nested1.nested2"))
+                                        )
+                                )
+                .get();
+
+        assertSearchResponse(response);
+        Nested nested = response.getAggregations().get("nested1");
+        assertThat(nested.getName(), equalTo("nested1"));
+        assertThat(nested.getDocCount(), equalTo(9l));
+        ReverseNested reverseNested = nested.getAggregations().get("nested1_to_root");
+        assertThat(reverseNested.getName(), equalTo("nested1_to_root"));
+        assertThat(reverseNested.getDocCount(), equalTo(9l));
+        nested = reverseNested.getAggregations().get("root_to_nested2");
+        assertThat(nested.getName(), equalTo("root_to_nested2"));
+        assertThat(nested.getDocCount(), equalTo(25l));
+    }
+
+    @Test
     public void simple_reverseNestedToNested1() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(nested("nested1").path("nested1.nested2")

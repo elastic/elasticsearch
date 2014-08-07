@@ -23,10 +23,10 @@ import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateListener;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -52,8 +52,8 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeOperationA
 
     @Inject
     public TransportIndicesAliasesAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                         ThreadPool threadPool, MetaDataIndexAliasesService indexAliasesService) {
-        super(settings, transportService, clusterService, threadPool);
+                                         ThreadPool threadPool, MetaDataIndexAliasesService indexAliasesService, ActionFilters actionFilters) {
+        super(settings, IndicesAliasesAction.NAME, transportService, clusterService, threadPool, actionFilters);
         this.indexAliasesService = indexAliasesService;
     }
 
@@ -61,11 +61,6 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeOperationA
     protected String executor() {
         // we go async right away...
         return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected String transportAction() {
-        return IndicesAliasesAction.NAME;
     }
 
     @Override
@@ -123,7 +118,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeOperationA
                 .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
                 .actions(finalActions.toArray(new AliasAction[finalActions.size()]));
 
-        indexAliasesService.indicesAliases(updateRequest, new ClusterStateUpdateListener() {
+        indexAliasesService.indicesAliases(updateRequest, new ActionListener<ClusterStateUpdateResponse>() {
             @Override
             public void onResponse(ClusterStateUpdateResponse response) {
                 listener.onResponse(new IndicesAliasesResponse(response.isAcknowledged()));

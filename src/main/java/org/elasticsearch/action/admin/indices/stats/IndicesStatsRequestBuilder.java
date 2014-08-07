@@ -22,7 +22,6 @@ package org.elasticsearch.action.admin.indices.stats;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
-import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 
 /**
  * A request to get indices level stats. Allow to enable different stats to be returned.
@@ -33,10 +32,10 @@ import org.elasticsearch.client.internal.InternalIndicesAdminClient;
  * <p>All the stats to be returned can be cleared using {@link #clear()}, at which point, specific
  * stats can be enabled.
  */
-public class IndicesStatsRequestBuilder extends BroadcastOperationRequestBuilder<IndicesStatsRequest, IndicesStatsResponse, IndicesStatsRequestBuilder> {
+public class IndicesStatsRequestBuilder extends BroadcastOperationRequestBuilder<IndicesStatsRequest, IndicesStatsResponse, IndicesStatsRequestBuilder, IndicesAdminClient> {
 
     public IndicesStatsRequestBuilder(IndicesAdminClient indicesClient) {
-        super((InternalIndicesAdminClient) indicesClient, new IndicesStatsRequest());
+        super(indicesClient, new IndicesStatsRequest());
     }
 
     /**
@@ -164,8 +163,13 @@ public class IndicesStatsRequestBuilder extends BroadcastOperationRequestBuilder
         return this;
     }
 
+    public IndicesStatsRequestBuilder setQueryCache(boolean queryCache) {
+        request.queryCache(queryCache);
+        return this;
+    }
+
     @Override
     protected void doExecute(ActionListener<IndicesStatsResponse> listener) {
-        ((IndicesAdminClient) client).stats(request, listener);
+        client.stats(request, listener);
     }
 }

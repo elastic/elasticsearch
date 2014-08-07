@@ -20,24 +20,23 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.AnalyzerWrapper;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.apache.lucene.analysis.SimpleAnalyzerWrapper;
+import org.elasticsearch.common.collect.UpdateInPlaceMap;
 
 /**
  *
  */
-public final class FieldNameAnalyzer extends AnalyzerWrapper {
+public final class FieldNameAnalyzer extends SimpleAnalyzerWrapper {
 
-    private final ImmutableOpenMap<String, Analyzer> analyzers;
-
+    private final UpdateInPlaceMap<String, Analyzer> analyzers;
     private final Analyzer defaultAnalyzer;
 
-    public FieldNameAnalyzer(ImmutableOpenMap<String, Analyzer> analyzers, Analyzer defaultAnalyzer) {
+    public FieldNameAnalyzer(UpdateInPlaceMap<String, Analyzer> analyzers, Analyzer defaultAnalyzer) {
         this.analyzers = analyzers;
         this.defaultAnalyzer = defaultAnalyzer;
     }
 
-    public ImmutableOpenMap<String, Analyzer> analyzers() {
+    public UpdateInPlaceMap<String, Analyzer> analyzers() {
         return analyzers;
     }
 
@@ -48,11 +47,6 @@ public final class FieldNameAnalyzer extends AnalyzerWrapper {
     @Override
     protected Analyzer getWrappedAnalyzer(String fieldName) {
         return getAnalyzer(fieldName);
-    }
-
-    @Override
-    protected TokenStreamComponents wrapComponents(String fieldName, TokenStreamComponents components) {
-        return components;
     }
 
     private Analyzer getAnalyzer(String name) {

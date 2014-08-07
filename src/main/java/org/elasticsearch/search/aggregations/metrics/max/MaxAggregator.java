@@ -21,7 +21,9 @@ package org.elasticsearch.search.aggregations.metrics.max;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.DoubleArray;
-import org.elasticsearch.index.fielddata.DoubleValues;
+import org.elasticsearch.index.fielddata.NumericDoubleValues;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
@@ -38,7 +40,7 @@ import java.io.IOException;
 public class MaxAggregator extends NumericMetricsAggregator.SingleValue {
 
     private final ValuesSource.Numeric valuesSource;
-    private DoubleValues values;
+    private NumericDoubleValues values;
 
     private DoubleArray maxes;
 
@@ -59,7 +61,8 @@ public class MaxAggregator extends NumericMetricsAggregator.SingleValue {
 
     @Override
     public void setNextReader(AtomicReaderContext reader) {
-        values = valuesSource.doubleValues();
+        final SortedNumericDoubleValues values = valuesSource.doubleValues();
+        this.values = MultiValueMode.MAX.select(values, Double.NEGATIVE_INFINITY);
     }
 
     @Override
@@ -69,12 +72,9 @@ public class MaxAggregator extends NumericMetricsAggregator.SingleValue {
             maxes = bigArrays.grow(maxes, owningBucketOrdinal + 1);
             maxes.fill(from, maxes.size(), Double.NEGATIVE_INFINITY);
         }
-
-        final int valueCount = values.setDocument(doc);
+        final double value = values.get(doc);
         double max = maxes.get(owningBucketOrdinal);
-        for (int i = 0; i < valueCount; i++) {
-            max = Math.max(max, values.nextValue());
-        }
+        max = Math.max(max, value);
         maxes.set(owningBucketOrdinal, max);
     }
 

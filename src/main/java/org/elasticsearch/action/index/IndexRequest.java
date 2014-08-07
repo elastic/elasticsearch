@@ -23,6 +23,7 @@ import com.google.common.base.Charsets;
 import org.elasticsearch.*;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.RoutingMissingException;
+import org.elasticsearch.action.TimestampParsingException;
 import org.elasticsearch.action.support.replication.ShardReplicationOperationRequest;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
@@ -110,6 +111,19 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
                 throw new ElasticsearchIllegalArgumentException("No type match for [" + id + "]");
             }
         }
+
+        public static OpType fromString(String sOpType) throws ElasticsearchIllegalArgumentException {
+            String lowersOpType = sOpType.toLowerCase(Locale.ROOT);
+            switch(lowersOpType){
+                case "create":
+                    return OpType.CREATE;
+                case "index":
+                    return OpType.INDEX;
+                default:
+                    throw new ElasticsearchIllegalArgumentException("opType [" + sOpType + "] not allowed, either [index] or [create] are allowed");
+            }
+        }
+
     }
 
     private String type;
@@ -470,20 +484,6 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
     }
 
     /**
-     * Sets a string representation of the {@link #opType(org.elasticsearch.action.index.IndexRequest.OpType)}. Can
-     * be either "index" or "create".
-     */
-    public IndexRequest opType(String opType) throws ElasticsearchIllegalArgumentException {
-        if ("create".equals(opType)) {
-            return opType(OpType.CREATE);
-        } else if ("index".equals(opType)) {
-            return opType(OpType.INDEX);
-        } else {
-            throw new ElasticsearchIllegalArgumentException("No index opType matching [" + opType + "]");
-        }
-    }
-
-    /**
      * Set to <tt>true</tt> to force this index to use {@link OpType#CREATE}.
      */
     public IndexRequest create(boolean create) {
@@ -575,7 +575,9 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
                     }
                     if (parseContext.shouldParseTimestamp()) {
                         timestamp = parseContext.timestamp();
-                        timestamp = MappingMetaData.Timestamp.parseStringTimestamp(timestamp, mappingMd.timestamp().dateTimeFormatter());
+                        if (timestamp != null) {
+                            timestamp = MappingMetaData.Timestamp.parseStringTimestamp(timestamp, mappingMd.timestamp().dateTimeFormatter());
+                        }
                     }
                 } catch (MapperParsingException e) {
                     throw e;
@@ -614,7 +616,18 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
 
         // generate timestamp if not provided, we always have one post this stage...
         if (timestamp == null) {
-            timestamp = Long.toString(System.currentTimeMillis());
+            String defaultTimestamp = TimestampFieldMapper.Defaults.DEFAULT_TIMESTAMP;
+            if (mappingMd != null && mappingMd.timestamp() != null) {
+                defaultTimestamp = mappingMd.timestamp().defaultTimestamp();
+            }
+            if (!Strings.hasText(defaultTimestamp)) {
+                throw new TimestampParsingException("timestamp is required by mapping");
+            }
+            if (defaultTimestamp.equals(TimestampFieldMapper.Defaults.DEFAULT_TIMESTAMP)) {
+                timestamp = Long.toString(System.currentTimeMillis());
+            } else {
+                timestamp = MappingMetaData.Timestamp.parseStringTimestamp(defaultTimestamp, mappingMd.timestamp().dateTimeFormatter());
+            }
         }
     }
 

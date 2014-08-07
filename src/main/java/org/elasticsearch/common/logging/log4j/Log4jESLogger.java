@@ -35,6 +35,10 @@ public class Log4jESLogger extends AbstractESLogger {
         this.logger = logger;
     }
 
+    public Logger logger() {
+        return logger;
+    }
+
     public void setLevel(String level) {
         if (level == null) {
             logger.setLevel(null);

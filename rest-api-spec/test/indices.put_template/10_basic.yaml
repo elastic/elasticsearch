@@ -12,6 +12,7 @@
   - do:
       indices.get_template:
         name: test
+        flat_settings: true
 
   - match: {test.template: "test-*"}
   - match: {test.settings: {index.number_of_shards: '1', index.number_of_replicas: '0'}}
@@ -54,6 +55,7 @@
   - do:
       indices.get_template:
         name: test
+        flat_settings: true
 
   - match: {test.template: "test-*"}
   - match: {test.settings: {index.number_of_shards: '1', index.number_of_replicas: '0'}}

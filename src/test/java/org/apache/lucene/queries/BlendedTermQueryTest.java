@@ -108,14 +108,15 @@ public class BlendedTermQueryTest extends ElasticsearchLuceneTestCase {
         String[] song = new String[]{
                 "generator", "foo fighers - generator", "foo fighters generator"
         };
+        final boolean omitNorms = random().nextBoolean();
         FieldType ft = new FieldType(TextField.TYPE_NOT_STORED);
         ft.setIndexOptions(random().nextBoolean() ? FieldInfo.IndexOptions.DOCS_ONLY : FieldInfo.IndexOptions.DOCS_AND_FREQS);
-        ft.setOmitNorms(random().nextBoolean());
+        ft.setOmitNorms(omitNorms);
         ft.freeze();
 
         FieldType ft1 = new FieldType(TextField.TYPE_NOT_STORED);
         ft1.setIndexOptions(random().nextBoolean() ? FieldInfo.IndexOptions.DOCS_ONLY : FieldInfo.IndexOptions.DOCS_AND_FREQS);
-        ft1.setOmitNorms(random().nextBoolean());
+        ft1.setOmitNorms(omitNorms);
         ft1.freeze();
         for (int i = 0; i < username.length; i++) {
             Document d = new Document();

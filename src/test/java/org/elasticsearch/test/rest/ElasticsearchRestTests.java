@@ -183,7 +183,7 @@ public class ElasticsearchRestTests extends ElasticsearchIntegrationTest {
             assumeFalse("[" + testCandidate.getTestPath() + "] skipped, reason: blacklisted", blacklistedPathMatcher.matches(Paths.get(testPath)));
         }
 
-        restTestExecutionContext.resetClient(immutableCluster().httpAddresses());
+        restTestExecutionContext.resetClient(cluster().httpAddresses());
         restTestExecutionContext.clear();
 
         //skip test if the whole suite (yaml file) is disabled
@@ -206,7 +206,7 @@ public class ElasticsearchRestTests extends ElasticsearchIntegrationTest {
 
     @Override
     protected boolean randomizeNumberOfShardsAndReplicas() {
-        return COMPATIBILITY_VERSION.onOrAfter(Version.V_1_2_0);
+        return compatibilityVersion().onOrAfter(Version.V_1_2_0);
     }
 
     @Test

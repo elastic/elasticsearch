@@ -117,6 +117,14 @@ public class SearchResponse extends ActionResponse implements StatusToXContent {
     }
 
     /**
+     * Has the search operation terminated early due to reaching
+     * <code>terminateAfter</code>
+     */
+    public Boolean isTerminatedEarly() {
+        return internalResponse.terminatedEarly();
+    }
+
+    /**
      * How long the search took.
      */
     public TimeValue getTook() {
@@ -181,6 +189,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContent {
         static final XContentBuilderString REASON = new XContentBuilderString("reason");
         static final XContentBuilderString TOOK = new XContentBuilderString("took");
         static final XContentBuilderString TIMED_OUT = new XContentBuilderString("timed_out");
+        static final XContentBuilderString TERMINATED_EARLY = new XContentBuilderString("terminated_early");
     }
 
     @Override
@@ -190,6 +199,9 @@ public class SearchResponse extends ActionResponse implements StatusToXContent {
         }
         builder.field(Fields.TOOK, tookInMillis);
         builder.field(Fields.TIMED_OUT, isTimedOut());
+        if (isTerminatedEarly() != null) {
+            builder.field(Fields.TERMINATED_EARLY, isTerminatedEarly());
+        }
         builder.startObject(Fields._SHARDS);
         builder.field(Fields.TOTAL, getTotalShards());
         builder.field(Fields.SUCCESSFUL, getSuccessfulShards());

@@ -19,15 +19,15 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ClientAction;
 import org.elasticsearch.client.Client;
 
 /**
  */
-public class ClearScrollAction extends Action<ClearScrollRequest, ClearScrollResponse, ClearScrollRequestBuilder> {
+public class ClearScrollAction extends ClientAction<ClearScrollRequest, ClearScrollResponse, ClearScrollRequestBuilder> {
 
     public static final ClearScrollAction INSTANCE = new ClearScrollAction();
-    public static final String NAME = "clear_sc";
+    public static final String NAME = "indices:data/read/scroll/clear";
 
     private ClearScrollAction() {
         super(NAME);

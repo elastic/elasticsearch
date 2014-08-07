@@ -20,6 +20,8 @@
 package org.elasticsearch.action.delete.index;
 
 import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.action.delete.DeleteAction;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.TransportIndexReplicationOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -38,10 +40,12 @@ import java.util.List;
  */
 public class TransportIndexDeleteAction extends TransportIndexReplicationOperationAction<IndexDeleteRequest, IndexDeleteResponse, ShardDeleteRequest, ShardDeleteRequest, ShardDeleteResponse> {
 
+    private static final String ACTION_NAME = DeleteAction.NAME + "[index]";
+
     @Inject
     public TransportIndexDeleteAction(Settings settings, ClusterService clusterService, TransportService transportService,
-                                      ThreadPool threadPool, TransportShardDeleteAction deleteAction) {
-        super(settings, transportService, clusterService, threadPool, deleteAction);
+                                      ThreadPool threadPool, TransportShardDeleteAction deleteAction, ActionFilters actionFilters) {
+        super(settings, ACTION_NAME, transportService, clusterService, threadPool, deleteAction, actionFilters);
     }
 
     @Override
@@ -57,11 +61,6 @@ public class TransportIndexDeleteAction extends TransportIndexReplicationOperati
     @Override
     protected boolean accumulateExceptions() {
         return false;
-    }
-
-    @Override
-    protected String transportAction() {
-        return "indices/index/delete";
     }
 
     @Override

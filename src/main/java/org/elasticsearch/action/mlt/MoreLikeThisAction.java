@@ -19,16 +19,16 @@
 
 package org.elasticsearch.action.mlt;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ClientAction;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 
 /**
  */
-public class MoreLikeThisAction extends Action<MoreLikeThisRequest, SearchResponse, MoreLikeThisRequestBuilder> {
+public class MoreLikeThisAction extends ClientAction<MoreLikeThisRequest, SearchResponse, MoreLikeThisRequestBuilder> {
 
     public static final MoreLikeThisAction INSTANCE = new MoreLikeThisAction();
-    public static final String NAME = "mlt";
+    public static final String NAME = "indices:data/read/mlt";
 
     private MoreLikeThisAction() {
         super(NAME);

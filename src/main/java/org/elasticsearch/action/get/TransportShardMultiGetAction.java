@@ -21,6 +21,7 @@ package org.elasticsearch.action.get;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.single.shard.TransportShardSingleOperationAction;
 import org.elasticsearch.cluster.ClusterService;
@@ -42,14 +43,16 @@ import org.elasticsearch.transport.TransportService;
 
 public class TransportShardMultiGetAction extends TransportShardSingleOperationAction<MultiGetShardRequest, MultiGetShardResponse> {
 
+    private static final String ACTION_NAME = MultiGetAction.NAME + "[shard]";
+
     private final IndicesService indicesService;
 
     private final boolean realtime;
 
     @Inject
     public TransportShardMultiGetAction(Settings settings, ClusterService clusterService, TransportService transportService,
-                                        IndicesService indicesService, ThreadPool threadPool) {
-        super(settings, threadPool, clusterService, transportService);
+                                        IndicesService indicesService, ThreadPool threadPool, ActionFilters actionFilters) {
+        super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters);
         this.indicesService = indicesService;
 
         this.realtime = settings.getAsBoolean("action.get.realtime", true);
@@ -58,11 +61,6 @@ public class TransportShardMultiGetAction extends TransportShardSingleOperationA
     @Override
     protected String executor() {
         return ThreadPool.Names.GET;
-    }
-
-    @Override
-    protected String transportAction() {
-        return MultiGetAction.NAME + "/shard";
     }
 
     @Override
@@ -123,7 +121,7 @@ public class TransportShardMultiGetAction extends TransportShardSingleOperationA
 
             FetchSourceContext fetchSourceContext = request.fetchSourceContexts.get(i);
             try {
-                GetResult getResult = indexShard.getService().get(type, id, fields, request.realtime(), version, versionType, fetchSourceContext);
+                GetResult getResult = indexShard.getService().get(type, id, fields, request.realtime(), version, versionType, fetchSourceContext, request.ignoreErrorsOnGeneratedFields());
                 response.add(request.locations.get(i), new GetResponse(getResult));
             } catch (Throwable t) {
                 if (TransportActions.isShardNotAvailableException(t)) {

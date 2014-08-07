@@ -8,7 +8,7 @@ index and make it searchable.
 [[generate]]
 === Generate JSON document
 
-There are different way of generating a JSON document:
+There are several different ways of generating a JSON document:
 
 * Manually (aka do it yourself) using native `byte[]` or as a `String`
 

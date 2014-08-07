@@ -20,6 +20,7 @@
 package org.elasticsearch.index.translog.fs;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FileSystemUtils;
@@ -108,6 +109,7 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
         this.bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
 
         this.type = FsTranslogFile.Type.fromString(componentSettings.get("type", FsTranslogFile.Type.BUFFERED.name()));
+        this.bufferSize = (int) componentSettings.getAsBytesSize("buffer_size", ByteSizeValue.parseBytesSizeValue("64k")).bytes();
     }
 
     @Override
@@ -180,7 +182,7 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
     }
 
     @Override
-    public long memorySizeInBytes() {
+    public long ramBytesUsed() {
         return 0;
     }
 
@@ -360,6 +362,9 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
             if (syncOnEachOperation) {
                 current.sync();
             }
+
+            assert new BytesArray(current.read(location)).equals(bytes);
+
             FsTranslogFile trans = this.trans;
             if (trans != null) {
                 try {

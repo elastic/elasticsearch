@@ -128,6 +128,108 @@ public abstract class Rounding implements Streamable {
         }
     }
 
+    public static class FactorRounding extends Rounding {
+
+        final static byte ID = 7;
+
+        private Rounding rounding;
+
+        private float factor;
+
+        FactorRounding() { // for serialization
+        }
+
+        FactorRounding(Rounding rounding, float factor) {
+            this.rounding = rounding;
+            this.factor = factor;
+        }
+
+        @Override
+        public byte id() {
+            return ID;
+        }
+
+        @Override
+        public long roundKey(long utcMillis) {
+            return rounding.roundKey((long) (factor * utcMillis));
+        }
+
+        @Override
+        public long valueForKey(long key) {
+            return rounding.valueForKey(key);
+        }
+
+        @Override
+        public long nextRoundingValue(long value) {
+            return rounding.nextRoundingValue(value);
+        }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            rounding = (TimeZoneRounding) Rounding.Streams.read(in);
+            factor = in.readFloat();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            Rounding.Streams.write(rounding, out);
+            out.writeFloat(factor);
+        }
+    }
+    
+    public static class PrePostRounding extends Rounding {
+
+        final static byte ID = 8;
+
+        private Rounding rounding;
+
+        private long preOffset;
+        private long postOffset;
+
+        PrePostRounding() { // for serialization
+        }
+
+        public PrePostRounding(Rounding intervalRounding, long preOffset, long postOffset) {
+            this.rounding = intervalRounding;
+            this.preOffset = preOffset;
+            this.postOffset = postOffset;
+        }
+
+        @Override
+        public byte id() {
+            return ID;
+        }
+
+        @Override
+        public long roundKey(long value) {
+            return rounding.roundKey(value + preOffset);
+        }
+
+        @Override
+        public long valueForKey(long key) {
+            return postOffset + rounding.valueForKey(key);
+        }
+
+        @Override
+        public long nextRoundingValue(long value) {
+            return postOffset + rounding.nextRoundingValue(value - postOffset);
+        }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            rounding = Rounding.Streams.read(in);
+            preOffset = in.readVLong();
+            postOffset = in.readVLong();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            Rounding.Streams.write(rounding, out);
+            out.writeVLong(preOffset);
+            out.writeVLong(postOffset);
+        }
+    }
+
     public static class Streams {
 
         public static void write(Rounding rounding, StreamOutput out) throws IOException {
@@ -146,8 +248,8 @@ public abstract class Rounding implements Streamable {
                 case TimeZoneRounding.UTCIntervalTimeZoneRounding.ID: rounding = new TimeZoneRounding.UTCIntervalTimeZoneRounding(); break;
                 case TimeZoneRounding.TimeIntervalTimeZoneRounding.ID: rounding = new TimeZoneRounding.TimeIntervalTimeZoneRounding(); break;
                 case TimeZoneRounding.DayIntervalTimeZoneRounding.ID: rounding = new TimeZoneRounding.DayIntervalTimeZoneRounding(); break;
-                case TimeZoneRounding.FactorTimeZoneRounding.ID: rounding = new TimeZoneRounding.FactorTimeZoneRounding(); break;
-                case TimeZoneRounding.PrePostTimeZoneRounding.ID: rounding = new TimeZoneRounding.PrePostTimeZoneRounding(); break;
+                case TimeZoneRounding.FactorRounding.ID: rounding = new FactorRounding(); break;
+                case PrePostRounding.ID: rounding = new PrePostRounding(); break;
                 default: throw new ElasticsearchException("unknown rounding id [" + id + "]");
             }
             rounding.readFrom(in);

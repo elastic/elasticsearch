@@ -22,15 +22,14 @@ package org.elasticsearch.action.bench;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.internal.InternalClient;
 
 /**
  * Request builder for aborting a benchmark
  */
-public class AbortBenchmarkRequestBuilder extends ActionRequestBuilder<AbortBenchmarkRequest, AbortBenchmarkResponse, AbortBenchmarkRequestBuilder> {
+public class AbortBenchmarkRequestBuilder extends ActionRequestBuilder<AbortBenchmarkRequest, AbortBenchmarkResponse, AbortBenchmarkRequestBuilder, Client> {
 
     public AbortBenchmarkRequestBuilder(Client client) {
-        super((InternalClient) client, new AbortBenchmarkRequest());
+        super(client, new AbortBenchmarkRequest());
     }
 
     public AbortBenchmarkRequestBuilder setBenchmarkNames(String... benchmarkNames) {
@@ -40,7 +39,7 @@ public class AbortBenchmarkRequestBuilder extends ActionRequestBuilder<AbortBenc
 
     @Override
     protected void doExecute(ActionListener<AbortBenchmarkResponse> listener) {
-        ((Client) client).abortBench(request, listener);
+        client.abortBench(request, listener);
     }
 
 }

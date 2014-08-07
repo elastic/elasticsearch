@@ -35,6 +35,7 @@ public class RangeFilterBuilder extends BaseFilterBuilder {
     private Object from;
 
     private Object to;
+    private String timeZone;
 
     private boolean includeLower = true;
 
@@ -371,6 +372,14 @@ public class RangeFilterBuilder extends BaseFilterBuilder {
         return this;
     }
 
+    /**
+     * In case of date field, we can adjust the from/to fields using a timezone
+     */
+    public RangeFilterBuilder timeZone(String timeZone) {
+        this.timeZone = timeZone;
+        return this;
+    }
+
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(RangeFilterParser.NAME);
@@ -378,6 +387,9 @@ public class RangeFilterBuilder extends BaseFilterBuilder {
         builder.startObject(name);
         builder.field("from", from);
         builder.field("to", to);
+        if (timeZone != null) {
+            builder.field("time_zone", timeZone);
+        }
         builder.field("include_lower", includeLower);
         builder.field("include_upper", includeUpper);
         builder.endObject();

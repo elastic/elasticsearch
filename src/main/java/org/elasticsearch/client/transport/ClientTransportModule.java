@@ -19,6 +19,7 @@
 
 package org.elasticsearch.client.transport;
 
+import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.client.transport.support.InternalTransportAdminClient;
 import org.elasticsearch.client.transport.support.InternalTransportClient;
 import org.elasticsearch.client.transport.support.InternalTransportClusterAdminClient;
@@ -32,6 +33,7 @@ public class ClientTransportModule extends AbstractModule {
 
     @Override
     protected void configure() {
+        bind(Headers.class).asEagerSingleton();
         bind(InternalTransportClient.class).asEagerSingleton();
         bind(InternalTransportAdminClient.class).asEagerSingleton();
         bind(InternalTransportIndicesAdminClient.class).asEagerSingleton();

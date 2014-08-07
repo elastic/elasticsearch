@@ -20,13 +20,13 @@ mvn clean package -DskipTests
 
 To disable and enable network transport, set the `Des.node.mode`.
 
-Use network transport (default):
+Use network transport:
 
 ------------------------------------
 -Des.node.mode=network
 ------------------------------------
 
-Use local transport:
+Use local transport (default since 1.3):
 
 -------------------------------------
 -Des.node.mode=local
@@ -61,6 +61,29 @@ Run any test methods that contain 'esi' (like: ...r*esi*ze...).
 -------------------------------
 mvn test "-Dtests.method=*esi*"
 -------------------------------
+
+You can also filter tests by certain annotations ie:
+
+  * `@Slow` - tests that are know to take a long time to execute
+  * `@Nightly` - tests that only run in nightly builds (disabled by default)
+  * `@Integration` - integration tests
+  * `@Backwards` - backwards compatibility tests (disabled by default)
+  * `@AwaitsFix` - tests that are waiting for a bugfix (disabled by default)
+  * `@BadApple` - tests that are known to fail randomly (disabled by default)
+
+Those annotation names can be combined into a filter expression like:
+
+------------------------------------------------
+mvn test -Dtests.filter="@nightly and not @slow" 
+------------------------------------------------
+
+to run all nightly test but not the ones that are slow. `tests.filter` supports
+the boolean operators `and, or, not` and grouping ie:
+
+
+---------------------------------------------------------------
+mvn test -Dtests.filter="@nightly and not(@slow or @backwards)" 
+---------------------------------------------------------------
 
 === Seed and repetitions.
 
@@ -176,6 +199,33 @@ even if tests are passing.
 mvn test -Dtests.output=always
 ------------------------------
 
+== Backwards Compatibility Tests
+
+Running backwards compatibility tests is disabled by default since it
+requires a release version of elasticsearch to be present on the test system.
+To run backwards compatibiilty tests untar or unzip a release and run the tests
+with the following command:
+
+---------------------------------------------------------------------------
+mvn test -Dtests.filter="@backwards" -Dtests.bwc.version=x.y.z -Dtests.bwc.path=/path/to/elasticsearch
+---------------------------------------------------------------------------
+
+If the elasticsearch release is placed under `./backwards/elasticsearch-x.y.z` the path
+can be omitted:
+ 
+---------------------------------------------------------------------------
+mvn test -Dtests.filter="@backwards" -Dtests.bwc.version=x.y.z
+---------------------------------------------------------------------------
+
+To setup the bwc test environment execute the following steps (provided you are
+already in your elasticsearch clone):
+
+---------------------------------------------------------------------------
+$ mkdir backwards && cd backwards
+$ curl -O https://download.elasticsearch.org/elasticsearch/elasticsearch/elasticsearch-1.2.1.tar.gz
+$ tar -xzf elasticsearch-1.2.1.tar.gz 
+---------------------------------------------------------------------------
+
 == Testing the REST layer
 
 The available integration tests make use of the java API to communicate with
@@ -213,3 +263,5 @@ cluster by specifying the `tests.cluster` property, which if present needs to co
 comma separated list of nodes to connect to (e.g. localhost:9300). A transport client will
 be created based on that and used for all the before|after test operations, and to extract
 the http addresses of the nodes so that REST requests can be sent to them.
+
+

@@ -175,10 +175,6 @@ public class TermsAggregationSearchBenchmark {
                 .endObject()
               .endObject())).actionGet();
 
-            long[] lValues = new long[NUMBER_OF_TERMS];
-            for (int i = 0; i < NUMBER_OF_TERMS; i++) {
-                lValues[i] = ThreadLocalRandom.current().nextLong();
-            }
             ObjectOpenHashSet<String> uniqueTerms = ObjectOpenHashSet.newInstance();
             for (int i = 0; i < NUMBER_OF_TERMS; i++) {
                 boolean added;
@@ -203,7 +199,7 @@ public class TermsAggregationSearchBenchmark {
                     XContentBuilder builder = jsonBuilder().startObject();
                     builder.field("id", Integer.toString(counter));
                     final String sValue = sValues[ThreadLocalRandom.current().nextInt(sValues.length)];
-                    final long lValue = lValues[ThreadLocalRandom.current().nextInt(lValues.length)];
+                    final long lValue = ThreadLocalRandom.current().nextInt(NUMBER_OF_TERMS);
                     builder.field("s_value", sValue);
                     builder.field("l_value", lValue);
                     builder.field("s_value_dv", sValue);
@@ -220,7 +216,7 @@ public class TermsAggregationSearchBenchmark {
                     for (String field : new String[] {"lm_value", "lm_value_dv"}) {
                         builder.startArray(field);
                         for (int k = 0; k < NUMBER_OF_MULTI_VALUE_TERMS; k++) {
-                            builder.value(lValues[ThreadLocalRandom.current().nextInt(sValues.length)]);
+                            builder.value(ThreadLocalRandom.current().nextInt(NUMBER_OF_TERMS));
                         }
                         builder.endArray();
                     }
@@ -242,7 +238,7 @@ public class TermsAggregationSearchBenchmark {
             System.out.println("--> Indexing took " + stopWatch.totalTime() + ", TPS " + (((double) (COUNT)) / stopWatch.totalTime().secondsFrac()));
         } catch (Exception e) {
             System.out.println("--> Index already exists, ignoring indexing phase, waiting for green");
-            ClusterHealthResponse clusterHealthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().setTimeout("10m").execute().actionGet();
+            ClusterHealthResponse clusterHealthResponse = client.admin().cluster().prepareHealth().setWaitForYellowStatus().setTimeout("10m").execute().actionGet();
             if (clusterHealthResponse.isTimedOut()) {
                 System.err.println("--> Timed out waiting for cluster health");
             }
@@ -258,15 +254,11 @@ public class TermsAggregationSearchBenchmark {
         stats.add(terms("terms_facet_map_s", Method.FACET, "s_value", "map"));
         stats.add(terms("terms_facet_map_s_dv", Method.FACET, "s_value_dv", "map"));
         stats.add(terms("terms_agg_s", Method.AGGREGATION, "s_value", null));
-        stats.add(terms("terms_agg_s_local_ordinals", Method.AGGREGATION, "s_value", "ordinals"));
         stats.add(terms("terms_agg_s_dv", Method.AGGREGATION, "s_value_dv", null));
-        stats.add(terms("terms_agg_s_dv_local_ordinals", Method.AGGREGATION, "s_value_dv", "ordinals"));
         stats.add(terms("terms_agg_map_s", Method.AGGREGATION, "s_value", "map"));
         stats.add(terms("terms_agg_map_s_dv", Method.AGGREGATION, "s_value_dv", "map"));
         stats.add(terms("terms_agg_def_s", Method.AGGREGATION_DEFERRED, "s_value", null));
-        stats.add(terms("terms_agg_def_s_local_ordinals", Method.AGGREGATION_DEFERRED, "s_value", "ordinals"));
         stats.add(terms("terms_agg_def_s_dv", Method.AGGREGATION_DEFERRED, "s_value_dv", null));
-        stats.add(terms("terms_agg_def_s_dv_local_ordinals", Method.AGGREGATION_DEFERRED, "s_value_dv", "ordinals"));
         stats.add(terms("terms_agg_def_map_s", Method.AGGREGATION_DEFERRED, "s_value", "map"));
         stats.add(terms("terms_agg_def_map_s_dv", Method.AGGREGATION_DEFERRED, "s_value_dv", "map"));
         stats.add(terms("terms_facet_l", Method.FACET, "l_value", null));
@@ -280,15 +272,11 @@ public class TermsAggregationSearchBenchmark {
         stats.add(terms("terms_facet_map_sm", Method.FACET, "sm_value", "map"));
         stats.add(terms("terms_facet_map_sm_dv", Method.FACET, "sm_value_dv", "map"));
         stats.add(terms("terms_agg_sm", Method.AGGREGATION, "sm_value", null));
-        stats.add(terms("terms_agg_sm_local_ordinals", Method.AGGREGATION, "sm_value", "ordinals"));
         stats.add(terms("terms_agg_sm_dv", Method.AGGREGATION, "sm_value_dv", null));
-        stats.add(terms("terms_agg_sm_dv_local_ordinals", Method.AGGREGATION, "sm_value_dv", "ordinals"));
         stats.add(terms("terms_agg_map_sm", Method.AGGREGATION, "sm_value", "map"));
         stats.add(terms("terms_agg_map_sm_dv", Method.AGGREGATION, "sm_value_dv", "map"));
         stats.add(terms("terms_agg_def_sm", Method.AGGREGATION_DEFERRED, "sm_value", null));
-        stats.add(terms("terms_agg_def_sm_local_ordinals", Method.AGGREGATION_DEFERRED, "sm_value", "ordinals"));
         stats.add(terms("terms_agg_def_sm_dv", Method.AGGREGATION_DEFERRED, "sm_value_dv", null));
-        stats.add(terms("terms_agg_def_sm_dv_local_ordinals", Method.AGGREGATION_DEFERRED, "sm_value_dv", "ordinals"));
         stats.add(terms("terms_agg_def_map_sm", Method.AGGREGATION_DEFERRED, "sm_value", "map"));
         stats.add(terms("terms_agg_def_map_sm_dv", Method.AGGREGATION_DEFERRED, "sm_value_dv", "map"));
         stats.add(terms("terms_facet_lm", Method.FACET, "lm_value", null));
@@ -335,7 +323,7 @@ public class TermsAggregationSearchBenchmark {
         stats.add(termsStats("terms_stats_agg_sm_l_dv", Method.AGGREGATION, "sm_value_dv", "l_value_dv", null));
         stats.add(termsStats("terms_stats_agg_def_sm_l", Method.AGGREGATION_DEFERRED, "sm_value", "l_value", null));
         stats.add(termsStats("terms_stats_agg_def_sm_l_dv", Method.AGGREGATION_DEFERRED, "sm_value_dv", "l_value_dv", null));
-        
+
         System.out.println("------------------ SUMMARY ----------------------------------------------");
         System.out.format(Locale.ENGLISH, "%35s%10s%10s%15s\n", "name", "took", "millis", "fieldata size");
         for (StatsResult stat : stats) {

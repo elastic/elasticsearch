@@ -9,9 +9,9 @@ associated with one ore more indices.
 $ curl -XPOST 'http://localhost:9200/twitter/_cache/clear'
 --------------------------------------------------
 
-The API, by default, will clear all caches. Specific caches can be
-cleaned explicitly by setting `filter`, `field_data` or `id_cache` to
-`true`.
+The API, by default, will clear all caches. Specific caches can be cleaned
+explicitly by setting `filter`, `field_data`, `query_cache` coming[1.4.0],
+or `id_cache` to `true`.
 
 All caches relating to a specific field(s) can also be cleared by
 specifying `fields` parameter with a comma delimited list of the

@@ -34,10 +34,10 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
-import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
+import org.elasticsearch.index.cache.query.parser.QueryParserCache;
 import org.elasticsearch.index.engine.IndexEngine;
-import org.elasticsearch.index.fielddata.IndexFieldDataService;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.MapperService;
@@ -88,10 +88,17 @@ public class QueryParseContext {
 
     private EnumSet<ParseField.Flag> parseFlags = ParseField.EMPTY_FLAGS;
 
+    private final boolean disableFilterCaching;
 
     public QueryParseContext(Index index, IndexQueryParserService indexQueryParser) {
+        this(index, indexQueryParser, false);
+    }
+
+    public QueryParseContext(Index index, IndexQueryParserService indexQueryParser, boolean disableFilterCaching) {
         this.index = index;
         this.indexQueryParser = indexQueryParser;
+        this.propagateNoCache = disableFilterCaching;
+        this.disableFilterCaching = disableFilterCaching;
     }
 
     public  void parseFlags(EnumSet<ParseField.Flag> parseFlags) {
@@ -150,12 +157,8 @@ public class QueryParseContext {
         return indexQueryParser.similarityService != null ? indexQueryParser.similarityService.similarity() : null;
     }
 
-    public IndexCache indexCache() {
-        return indexQueryParser.indexCache;
-    }
-
-    public IndexFieldDataService fieldData() {
-        return indexQueryParser.fieldDataService;
+    public QueryParserCache queryParserCache() {
+        return indexQueryParser.indexCache.queryParserCache();
     }
 
     public String defaultField() {
@@ -175,13 +178,17 @@ public class QueryParseContext {
         if (filter == null) {
             return null;
         }
-        if (this.propagateNoCache || filter instanceof NoCacheFilter) {
+        if (this.disableFilterCaching || this.propagateNoCache || filter instanceof NoCacheFilter) {
             return filter;
         }
         if (cacheKey != null) {
             filter = new CacheKeyFilter.Wrapper(filter, cacheKey);
         }
         return indexQueryParser.indexCache.filter().cache(filter);
+    }
+
+    public <IFD extends IndexFieldData<?>> IFD getForField(FieldMapper<?> mapper) {
+        return indexQueryParser.fieldDataService.getForField(mapper);
     }
 
     public void addNamedFilter(String name, Filter filter) {
@@ -342,7 +349,7 @@ public class QueryParseContext {
             return current.lookup();
         }
         if (lookup == null) {
-            lookup = new SearchLookup(mapperService(), fieldData(), null);
+            lookup = new SearchLookup(mapperService(), indexQueryParser.fieldDataService, null);
         }
         return lookup;
     }

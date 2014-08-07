@@ -19,12 +19,14 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.apache.lucene.util.Version;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
@@ -32,26 +34,22 @@ import java.io.IOException;
 /**
  *
  */
-class RecoveryFileChunkRequest extends TransportRequest {
+public final class RecoveryFileChunkRequest extends TransportRequest {  // public for testing
 
     private long recoveryId;
     private ShardId shardId;
-    private String name;
     private long position;
-    private long length;
-    private String checksum;
     private BytesReference content;
+    private StoreFileMetaData metaData;
 
     RecoveryFileChunkRequest() {
     }
 
-    RecoveryFileChunkRequest(long recoveryId, ShardId shardId, String name, long position, long length, String checksum, BytesArray content) {
+    public RecoveryFileChunkRequest(long recoveryId, ShardId shardId, StoreFileMetaData metaData, long position, BytesReference content) {
         this.recoveryId = recoveryId;
         this.shardId = shardId;
-        this.name = name;
+        this.metaData = metaData;
         this.position = position;
-        this.length = length;
-        this.checksum = checksum;
         this.content = content;
     }
 
@@ -64,7 +62,7 @@ class RecoveryFileChunkRequest extends TransportRequest {
     }
 
     public String name() {
-        return name;
+        return metaData.name();
     }
 
     public long position() {
@@ -73,11 +71,11 @@ class RecoveryFileChunkRequest extends TransportRequest {
 
     @Nullable
     public String checksum() {
-        return this.checksum;
+        return metaData.checksum();
     }
 
     public long length() {
-        return length;
+        return metaData.length();
     }
 
     public BytesReference content() {
@@ -95,11 +93,17 @@ class RecoveryFileChunkRequest extends TransportRequest {
         super.readFrom(in);
         recoveryId = in.readLong();
         shardId = ShardId.readShardId(in);
-        name = in.readString();
+        String name = in.readString();
         position = in.readVLong();
-        length = in.readVLong();
-        checksum = in.readOptionalString();
+        long length = in.readVLong();
+        String checksum = in.readOptionalString();
         content = in.readBytesReference();
+        Version writtenBy = null;
+        if (in.getVersion().onOrAfter(org.elasticsearch.Version.V_1_3_0)) {
+            String versionString = in.readOptionalString();
+            writtenBy = Lucene.parseVersionLenient(versionString, null);
+        }
+        metaData = new StoreFileMetaData(name, length, checksum, writtenBy);
     }
 
     @Override
@@ -107,17 +111,24 @@ class RecoveryFileChunkRequest extends TransportRequest {
         super.writeTo(out);
         out.writeLong(recoveryId);
         shardId.writeTo(out);
-        out.writeString(name);
+        out.writeString(metaData.name());
         out.writeVLong(position);
-        out.writeVLong(length);
-        out.writeOptionalString(checksum);
+        out.writeVLong(metaData.length());
+        out.writeOptionalString(metaData.checksum());
         out.writeBytesReference(content);
+        if (out.getVersion().onOrAfter(org.elasticsearch.Version.V_1_3_0)) {
+            out.writeOptionalString(metaData.writtenBy() == null ? null : metaData.writtenBy().name());
+        }
     }
 
     @Override
     public String toString() {
-        return shardId + ": name='" + name + '\'' +
+        return shardId + ": name='" + name() + '\'' +
                 ", position=" + position +
-                ", length=" + length;
+                ", length=" + length();
+    }
+
+    public StoreFileMetaData metadata() {
+        return metaData;
     }
 }

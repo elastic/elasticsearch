@@ -28,6 +28,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.functionscore.script.ScriptScoreFunctionBuilder;
+import org.elasticsearch.script.groovy.GroovyScriptEngineService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.After;
 import org.junit.Before;
@@ -66,14 +67,14 @@ public class BenchmarkIntegrationTest extends ElasticsearchIntegrationTest {
 
     protected synchronized Settings nodeSettings(int nodeOrdinal) {
         if (nodeOrdinal == 0) { // at least one
-            return ImmutableSettings.builder().put("node.bench", true).build();
+            return ImmutableSettings.builder().put("node.bench", true).put(GroovyScriptEngineService.GROOVY_SCRIPT_SANDBOX_ENABLED, false).build();
         } else {
             if (benchNodes.containsKey(nodeOrdinal)) {
-                return ImmutableSettings.builder().put("node.bench", benchNodes.get(nodeOrdinal)).build();
+                return ImmutableSettings.builder().put("node.bench", benchNodes.get(nodeOrdinal)).put(GroovyScriptEngineService.GROOVY_SCRIPT_SANDBOX_ENABLED, false).build();
             } else {
                 boolean b = randomBoolean();
                 benchNodes.put(nodeOrdinal, b);
-                return ImmutableSettings.builder().put("node.bench", b).build();
+                return ImmutableSettings.builder().put("node.bench", b).put(GroovyScriptEngineService.GROOVY_SCRIPT_SANDBOX_ENABLED, false).build();
             }
 
         }
@@ -89,7 +90,7 @@ public class BenchmarkIntegrationTest extends ElasticsearchIntegrationTest {
     public void beforeBenchmarkIntegrationTests() throws Exception {
         waitForTestLatch = null;
         waitForQuery = null;
-        numExecutorNodes = cluster().numBenchNodes();
+        numExecutorNodes = internalCluster().numBenchNodes();
         competitionSettingsMap = new HashMap<>();
         logger.info("--> indexing random data");
         indices = randomData();
@@ -166,7 +167,7 @@ public class BenchmarkIntegrationTest extends ElasticsearchIntegrationTest {
            without doing busy waiting etc. This Script calls the two static latches above and this test
            will not work if somebody messes around with them but it's much faster and less resource intensive / hardware
            dependent to run massive benchmarks and do busy waiting. */
-        cluster(); // mark that we need a JVM local cluster!
+        internalCluster(); // mark that we need a JVM local cluster!
         waitForQuery = new CountDownLatch(1);
         waitForTestLatch = new CountDownLatch(1);
         String className = "BenchmarkIntegrationTest";

@@ -23,13 +23,16 @@ import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.rounding.DateTimeUnit;
+import org.elasticsearch.common.rounding.Rounding;
 import org.elasticsearch.common.rounding.TimeZoneRounding;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.FacetParser;
@@ -94,6 +97,7 @@ public class DateHistogramFacetParser extends AbstractComponent implements Facet
         String keyField = null;
         String valueField = null;
         String valueScript = null;
+        ScriptService.ScriptType valueScriptType = null;
         String scriptLang = null;
         Map<String, Object> params = null;
         String interval = null;
@@ -137,11 +141,18 @@ public class DateHistogramFacetParser extends AbstractComponent implements Facet
                     postOffset = parseOffset(parser.text());
                 } else if ("factor".equals(fieldName)) {
                     factor = parser.floatValue();
-                } else if ("value_script".equals(fieldName) || "valueScript".equals(fieldName)) {
+                } else if (ScriptService.VALUE_SCRIPT_INLINE.match(fieldName)) {
                     valueScript = parser.text();
+                    valueScriptType = ScriptService.ScriptType.INLINE;
+                } else if (ScriptService.VALUE_SCRIPT_ID.match(fieldName)) {
+                    valueScript = parser.text();
+                    valueScriptType = ScriptService.ScriptType.INDEXED;
+                } else if (ScriptService.VALUE_SCRIPT_FILE.match(fieldName)) {
+                    valueScript = parser.text();
+                    valueScriptType = ScriptService.ScriptType.FILE;
                 } else if ("order".equals(fieldName) || "comparator".equals(fieldName)) {
                     comparatorType = DateHistogramFacet.ComparatorType.fromString(parser.text());
-                } else if ("lang".equals(fieldName)) {
+                } else if (ScriptService.SCRIPT_LANG.match(fieldName)) {
                     scriptLang = parser.text();
                 }
             }
@@ -170,7 +181,7 @@ public class DateHistogramFacetParser extends AbstractComponent implements Facet
             tzRoundingBuilder = TimeZoneRounding.builder(TimeValue.parseTimeValue(interval, null));
         }
 
-        TimeZoneRounding tzRounding = tzRoundingBuilder
+        Rounding tzRounding = tzRoundingBuilder
                 .preZone(preZone).postZone(postZone)
                 .preZoneAdjustLargeInterval(preZoneAdjustLargeInterval)
                 .preOffset(preOffset).postOffset(postOffset)
@@ -178,7 +189,7 @@ public class DateHistogramFacetParser extends AbstractComponent implements Facet
                 .build();
 
         if (valueScript != null) {
-            SearchScript script = context.scriptService().search(context.lookup(), scriptLang, valueScript, params);
+            SearchScript script = context.scriptService().search(context.lookup(), scriptLang, valueScript, valueScriptType, params);
             return new ValueScriptDateHistogramFacetExecutor(keyIndexFieldData, script, tzRounding, comparatorType, context.cacheRecycler());
         } else if (valueField != null) {
             FieldMapper valueMapper = context.smartNameFieldMapper(valueField);
@@ -204,19 +215,7 @@ public class DateHistogramFacetParser extends AbstractComponent implements Facet
         if (token == XContentParser.Token.VALUE_NUMBER) {
             return DateTimeZone.forOffsetHours(parser.intValue());
         } else {
-            String text = parser.text();
-            int index = text.indexOf(':');
-            if (index != -1) {
-                int beginIndex = text.charAt(0) == '+' ? 1 : 0;
-                // format like -02:30
-                return DateTimeZone.forOffsetHoursMinutes(
-                        Integer.parseInt(text.substring(beginIndex, index)),
-                        Integer.parseInt(text.substring(index + 1))
-                );
-            } else {
-                // id, listed here: http://joda-time.sourceforge.net/timezones.html
-                return DateTimeZone.forID(text);
-            }
+            return DateMathParser.parseZone(parser.text());
         }
     }
 

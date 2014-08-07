@@ -22,23 +22,30 @@ package org.elasticsearch.test;
 import com.google.common.collect.Lists;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 
+import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.Iterator;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.junit.Assert.assertThat;
 
 /**
  * External cluster to run the tests against.
  * It is a pure immutable test cluster that allows to send requests to a pre-existing cluster
  * and supports by nature all the needed test operations like wipeIndices etc.
  */
-public final class ExternalTestCluster extends ImmutableTestCluster {
+public final class ExternalTestCluster extends TestCluster {
 
     private final ESLogger logger = Loggers.getLogger(getClass());
 
@@ -46,15 +53,20 @@ public final class ExternalTestCluster extends ImmutableTestCluster {
 
     private final InetSocketAddress[] httpAddresses;
 
+    private final String clusterName;
+
     private final int numDataNodes;
     private final int numBenchNodes;
 
     public ExternalTestCluster(TransportAddress... transportAddresses) {
-        this.client = new TransportClient(ImmutableSettings.settingsBuilder().put("client.transport.ignore_cluster_name", true))
+        this.client = new TransportClient(ImmutableSettings.settingsBuilder()
+                .put("client.transport.ignore_cluster_name", true)
+                .put("node.mode", "network")) // we require network here!
                 .addTransportAddresses(transportAddresses);
 
         NodesInfoResponse nodeInfos = this.client.admin().cluster().prepareNodesInfo().clear().setSettings(true).setHttp(true).get();
         httpAddresses = new InetSocketAddress[nodeInfos.getNodes().length];
+        this.clusterName = nodeInfos.getClusterName().value();
         int dataNodes = 0;
         int benchNodes = 0;
         for (int i = 0; i < nodeInfos.getNodes().length; i++) {
@@ -103,8 +115,26 @@ public final class ExternalTestCluster extends ImmutableTestCluster {
     }
 
     @Override
-    public void close() {
+    public void close() throws IOException {
         client.close();
+    }
+
+    @Override
+    public void ensureEstimatedStats() {
+        if (size() > 0) {
+            NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats()
+                    .clear().setBreaker(true).setIndices(true).execute().actionGet();
+            for (NodeStats stats : nodeStats.getNodes()) {
+                assertThat("Fielddata breaker not reset to 0 on node: " + stats.getNode(),
+                        stats.getBreaker().getStats(CircuitBreaker.Name.FIELDDATA).getEstimated(), equalTo(0L));
+                // ExternalTestCluster does not check the request breaker,
+                // because checking it requires a network request, which in
+                // turn increments the breaker, making it non-0
+
+                assertThat("Fielddata size must be 0 on node: " + stats.getNode(), stats.getIndices().getFieldData().getMemorySizeInBytes(), equalTo(0l));
+                assertThat("Filter cache size must be 0 on node: " + stats.getNode(), stats.getIndices().getFilterCache().getMemorySizeInBytes(), equalTo(0l));
+            }
+        }
     }
 
     @Override
@@ -115,5 +145,10 @@ public final class ExternalTestCluster extends ImmutableTestCluster {
     @Override
     public boolean hasFilterCache() {
         return true; // default
+    }
+
+    @Override
+    public String getClusterName() {
+        return clusterName;
     }
 }

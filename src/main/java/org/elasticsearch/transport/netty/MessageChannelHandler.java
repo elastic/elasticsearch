@@ -28,6 +28,7 @@ import org.elasticsearch.common.io.ThrowableObjectInputStream;
 import org.elasticsearch.common.io.stream.CachedStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
@@ -36,6 +37,7 @@ import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.channel.*;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
 
 /**
  * A handler (must be the last one!) that does size based frame decoding and forwards the actual message
@@ -43,10 +45,10 @@ import java.io.IOException;
  */
 public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
 
-    private final ESLogger logger;
-    private final ThreadPool threadPool;
-    private final TransportServiceAdapter transportServiceAdapter;
-    private final NettyTransport transport;
+    protected final ESLogger logger;
+    protected final ThreadPool threadPool;
+    protected final TransportServiceAdapter transportServiceAdapter;
+    protected final NettyTransport transport;
 
     public MessageChannelHandler(NettyTransport transport, ESLogger logger) {
         this.threadPool = transport.threadPool();
@@ -122,7 +124,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
                 if (TransportStatus.isError(status)) {
                     handlerResponseError(wrappedStream, handler);
                 } else {
-                    handleResponse(wrappedStream, handler);
+                    handleResponse(ctx.getChannel(), wrappedStream, handler);
                 }
             } else {
                 // if its null, skip those bytes
@@ -140,8 +142,10 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
         wrappedStream.close();
     }
 
-    private void handleResponse(StreamInput buffer, final TransportResponseHandler handler) {
+    protected void handleResponse(Channel channel, StreamInput buffer, final TransportResponseHandler handler) {
         final TransportResponse response = handler.newInstance();
+        response.remoteAddress(new InetSocketTransportAddress((InetSocketAddress) channel.getRemoteAddress()));
+        response.remoteAddress();
         try {
             response.readFrom(buffer);
         } catch (Throwable e) {
@@ -196,16 +200,17 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
         }
     }
 
-    private String handleRequest(Channel channel, StreamInput buffer, long requestId, Version version) throws IOException {
+    protected String handleRequest(Channel channel, StreamInput buffer, long requestId, Version version) throws IOException {
         final String action = buffer.readString();
 
         final NettyTransportChannel transportChannel = new NettyTransportChannel(transport, action, channel, requestId, version);
         try {
-            final TransportRequestHandler handler = transportServiceAdapter.handler(action);
+            final TransportRequestHandler handler = transportServiceAdapter.handler(action, version);
             if (handler == null) {
                 throw new ActionNotFoundTransportException(action);
             }
             final TransportRequest request = handler.newInstance();
+            request.remoteAddress(new InetSocketTransportAddress((InetSocketAddress) channel.getRemoteAddress()));
             request.readFrom(buffer);
             if (handler.executor() == ThreadPool.Names.SAME) {
                 //noinspection unchecked

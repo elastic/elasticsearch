@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.action.support.master;
 
+import org.elasticsearch.cluster.ack.AckedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
@@ -31,7 +32,7 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
  * Abstract class that allows to mark action requests that support acknowledgements.
  * Facilitates consistency across different api.
  */
-public abstract class AcknowledgedRequest<T extends MasterNodeOperationRequest> extends MasterNodeOperationRequest<T> {
+public abstract class AcknowledgedRequest<T extends MasterNodeOperationRequest> extends MasterNodeOperationRequest<T> implements AckedRequest {
 
     public static final TimeValue DEFAULT_ACK_TIMEOUT = timeValueSeconds(30);
 
@@ -82,5 +83,10 @@ public abstract class AcknowledgedRequest<T extends MasterNodeOperationRequest> 
      */
     protected void writeTimeout(StreamOutput out) throws IOException {
         timeout.writeTo(out);
+    }
+
+    @Override
+    public TimeValue ackTimeout() {
+        return timeout;
     }
 }

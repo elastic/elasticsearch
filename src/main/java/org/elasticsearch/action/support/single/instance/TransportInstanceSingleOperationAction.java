@@ -23,6 +23,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.UnavailableShardsException;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -51,18 +52,16 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
 
     protected final TransportService transportService;
 
-    final String transportAction;
     final String executor;
 
-    protected TransportInstanceSingleOperationAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService) {
-        super(settings, threadPool);
+    protected TransportInstanceSingleOperationAction(Settings settings, String actionName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, ActionFilters actionFilters) {
+        super(settings, actionName, threadPool, actionFilters);
         this.clusterService = clusterService;
         this.transportService = transportService;
 
-        this.transportAction = transportAction();
         this.executor = executor();
 
-        transportService.registerHandler(transportAction, new TransportHandler());
+        transportService.registerHandler(actionName, new TransportHandler());
     }
 
     @Override
@@ -71,8 +70,6 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
     }
 
     protected abstract String executor();
-
-    protected abstract String transportAction();
 
     protected abstract void shardOperation(Request request, ActionListener<Response> listener) throws ElasticsearchException;
 
@@ -89,7 +86,7 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
      * means a different execution, then return false here to indicate not to continue and execute this request.
      */
     protected boolean resolveRequest(ClusterState state, Request request, ActionListener<Response> listener) {
-        request.index(state.metaData().concreteSingleIndex(request.index()));
+        request.index(state.metaData().concreteSingleIndex(request.index(), request.indicesOptions()));
         return true;
     }
 
@@ -212,7 +209,7 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
                 }
             } else {
                 DiscoveryNode node = nodes.get(shard.currentNodeId());
-                transportService.sendRequest(node, transportAction, request, transportOptions(), new BaseTransportResponseHandler<Response>() {
+                transportService.sendRequest(node, actionName, request, transportOptions(), new BaseTransportResponseHandler<Response>() {
 
                     @Override
                     public Response newInstance() {

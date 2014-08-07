@@ -20,15 +20,18 @@
 package org.elasticsearch.index.mapper.copyto;
 
 import com.google.common.collect.ImmutableList;
+import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.*;
-import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
+import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
 
 import java.util.Arrays;
@@ -42,7 +45,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class CopyToMapperTests extends ElasticsearchTestCase {
+public class CopyToMapperTests extends ElasticsearchSingleNodeTest {
 
     @SuppressWarnings("unchecked")
     @Test
@@ -68,7 +71,7 @@ public class CopyToMapperTests extends ElasticsearchTestCase {
                 .endObject()
                 .endObject().endObject().endObject().string();
 
-        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
         FieldMapper fieldMapper = docMapper.mappers().name("copy_test").mapper();
         assertThat(fieldMapper, instanceOf(StringFieldMapper.class));
 
@@ -136,7 +139,7 @@ public class CopyToMapperTests extends ElasticsearchTestCase {
 
                 .endObject().endObject().endObject().string();
 
-        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
 
         BytesReference json = jsonBuilder().startObject()
                 .field("copy_test", "foo")
@@ -164,7 +167,7 @@ public class CopyToMapperTests extends ElasticsearchTestCase {
 
                 .endObject().endObject().endObject().string();
 
-        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
 
         BytesReference json = jsonBuilder().startObject()
                 .field("copy_test", "foo")
@@ -199,7 +202,8 @@ public class CopyToMapperTests extends ElasticsearchTestCase {
 
                 .endObject().endObject().endObject().string();
 
-        DocumentMapper docMapperBefore = MapperTestUtils.newParser().parse(mappingBefore);
+        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+        DocumentMapper docMapperBefore = parser.parse(mappingBefore);
 
         ImmutableList<String> fields = docMapperBefore.mappers().name("copy_test").mapper().copyTo().copyToFields();
 
@@ -208,7 +212,7 @@ public class CopyToMapperTests extends ElasticsearchTestCase {
         assertThat(fields.get(1), equalTo("bar"));
 
 
-        DocumentMapper docMapperAfter = MapperTestUtils.newParser().parse(mappingAfter);
+        DocumentMapper docMapperAfter = parser.parse(mappingAfter);
 
         DocumentMapper.MergeResult mergeResult = docMapperBefore.merge(docMapperAfter, mergeFlags().simulate(true));
 
@@ -221,6 +225,107 @@ public class CopyToMapperTests extends ElasticsearchTestCase {
         assertThat(fields.size(), equalTo(2));
         assertThat(fields.get(0), equalTo("baz"));
         assertThat(fields.get(1), equalTo("bar"));
+    }
+
+    public void testCopyToNestedField() throws Exception {
+        IndexService indexService = createIndex("test");
+        DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
+        for (boolean mapped : new boolean[] {true, false}) {
+            XContentBuilder mapping = jsonBuilder().startObject()
+                    .startObject("type")
+                        .startObject("properties")
+                            .startObject("n1")
+                                .field("type", "nested")
+                                .startObject("properties")
+                                    .startObject("n2")
+                                        .field("type", "nested")
+                                        .startObject("properties")
+                                            .startObject("source")
+                                                .field("type", "long")
+                                                .startArray("copy_to")
+                                                    .value("target") // should go to the root doc
+                                                    .value("n1.target") // should go to the parent doc
+                                                    .value("n1.n2.target") // should go to the current doc
+                                                .endArray()
+                                            .endObject();
+            for (int i = 0; i < 3; ++i) {
+                if (mapped) {
+                    mapping = mapping.startObject("target").field("type", "long").endObject();
+                }
+                mapping = mapping.endObject().endObject();
+            }
+            mapping = mapping.endObject();
+
+            DocumentMapper mapper = parser.parse(mapping.string());
+
+            XContentBuilder jsonDoc = XContentFactory.jsonBuilder()
+                    .startObject()
+                        .startArray("n1")
+                            .startObject()
+                                .startArray("n2")
+                                    .startObject()
+                                        .field("source", 3)
+                                    .endObject()
+                                    .startObject()
+                                        .field("source", 5)
+                                    .endObject()
+                                .endArray()
+                            .endObject()
+                            .startObject()
+                                .startArray("n2")
+                                    .startObject()
+                                        .field("source", 7)
+                                    .endObject()
+                                .endArray()
+                            .endObject()
+                        .endArray()
+                    .endObject();
+
+            ParsedDocument doc = mapper.parse("type", "1", jsonDoc.bytes());
+            assertEquals(6, doc.docs().size());
+
+            Document nested = doc.docs().get(0);
+            assertFieldValue(nested, "n1.n2.target", 7L);
+            assertFieldValue(nested, "n1.target");
+            assertFieldValue(nested, "target");
+
+            nested = doc.docs().get(2);
+            assertFieldValue(nested, "n1.n2.target", 5L);
+            assertFieldValue(nested, "n1.target");
+            assertFieldValue(nested, "target");
+
+            nested = doc.docs().get(3);
+            assertFieldValue(nested, "n1.n2.target", 3L);
+            assertFieldValue(nested, "n1.target");
+            assertFieldValue(nested, "target");
+
+            Document parent = doc.docs().get(1);
+            assertFieldValue(parent, "target");
+            assertFieldValue(parent, "n1.target", 7L);
+            assertFieldValue(parent, "n1.n2.target");
+
+            parent = doc.docs().get(4);
+            assertFieldValue(parent, "target");
+            assertFieldValue(parent, "n1.target", 3L, 5L);
+            assertFieldValue(parent, "n1.n2.target");
+
+            Document root = doc.docs().get(5);
+            assertFieldValue(root, "target", 3L, 5L, 7L);
+            assertFieldValue(root, "n1.target");
+            assertFieldValue(root, "n1.n2.target");
+        }
+    }
+
+    private void assertFieldValue(Document doc, String field, Number... expected) {
+        IndexableField[] values = doc.getFields(field);
+        if (values == null) {
+            values = new IndexableField[0];
+        }
+        Number[] actual = new Number[values.length];
+        for (int i = 0; i < values.length; ++i) {
+            actual[i] = values[i].numericValue();
+        }
+        assertArrayEquals(expected, actual);
     }
 
 }

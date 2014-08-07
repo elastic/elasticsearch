@@ -31,11 +31,12 @@
     </parent>
 
     <properties>
-        <lucene.version>4.8.1</lucene.version>
+        <lucene.version>4.9.0</lucene.version>
         <tests.jvms>auto</tests.jvms>
         <tests.shuffle>true</tests.shuffle>
         <tests.output>onerror</tests.output>
         <tests.client.ratio></tests.client.ratio>
+        <tests.bwc.path>${project.basedir}/backwards</tests.bwc.path>
         <es.logger.level>INFO</es.logger.level>
         <tests.heap.size>512m</tests.heap.size>
         <tests.topn>5</tests.topn>
@@ -59,7 +60,7 @@
         <dependency>
             <groupId>com.carrotsearch.randomizedtesting</groupId>
             <artifactId>randomizedtesting-runner</artifactId>
-            <version>2.1.2</version>
+            <version>2.1.6</version>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -149,6 +150,13 @@
             <scope>compile</scope>
         </dependency>
         <dependency>
+            <groupId>org.apache.lucene</groupId>
+            <artifactId>lucene-expressions</artifactId>
+            <version>${lucene.version}</version>
+            <scope>compile</scope>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
             <groupId>com.spatial4j</groupId>
             <artifactId>spatial4j</artifactId>
             <version>0.4.1</version>
@@ -208,37 +216,30 @@
         </dependency>
 
         <dependency>
-            <groupId>org.mvel</groupId>
-            <artifactId>mvel2</artifactId>
-            <version>2.2.0.Final</version>
-            <scope>compile</scope>
-        </dependency>
-
-        <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-core</artifactId>
-            <version>2.3.3</version>
+            <version>2.4.1.1</version>
             <scope>compile</scope>
         </dependency>
 
         <dependency>
             <groupId>com.fasterxml.jackson.dataformat</groupId>
             <artifactId>jackson-dataformat-smile</artifactId>
-            <version>2.3.3</version>
+            <version>2.4.1</version>
             <scope>compile</scope>
         </dependency>
 
         <dependency>
             <groupId>com.fasterxml.jackson.dataformat</groupId>
             <artifactId>jackson-dataformat-yaml</artifactId>
-            <version>2.3.3</version>
+            <version>2.4.1</version>
             <scope>compile</scope>
         </dependency>
 
         <dependency>
             <groupId>com.fasterxml.jackson.dataformat</groupId>
             <artifactId>jackson-dataformat-cbor</artifactId>
-            <version>2.3.3</version>
+            <version>2.4.1</version>
             <scope>compile</scope>
         </dependency>
 
@@ -262,7 +263,22 @@
             <version>3.0</version>
             <scope>compile</scope>
         </dependency>
+
+        <dependency>
+            <groupId>commons-cli</groupId>
+            <artifactId>commons-cli</artifactId>
+            <version>1.2</version>
+        </dependency>
+
         <!-- END: dependencies that are shaded -->
+
+        <dependency>
+            <groupId>org.codehaus.groovy</groupId>
+            <artifactId>groovy-all</artifactId>
+            <version>2.3.2</version>
+            <scope>compile</scope>
+            <optional>true</optional>
+        </dependency>
 
         <dependency>
             <groupId>log4j</groupId>
@@ -468,6 +484,9 @@
                             <systemProperties>
                                 <java.io.tmpdir>.</java.io.tmpdir> <!-- we use '.' since this is different per JVM-->
                                 <!-- RandomizedTesting library system properties -->
+                                <tests.bwc>${tests.bwc}</tests.bwc>
+                                <tests.bwc.path>${tests.bwc.path}</tests.bwc.path>
+                                <tests.bwc.version>${tests.bwc.version}</tests.bwc.version>
                                 <tests.jvm.argline>${tests.jvm.argline}</tests.jvm.argline>
                                 <tests.processors>${tests.processors}</tests.processors>
                                 <tests.appendseed>${tests.appendseed}</tests.appendseed>
@@ -496,6 +515,7 @@
                                 <tests.network>${tests.network}</tests.network>
                                 <tests.cluster>${tests.cluster}</tests.cluster>
                                 <tests.heap.size>${tests.heap.size}</tests.heap.size>
+                                <tests.filter>${tests.filter}</tests.filter>
                                 <es.node.local>${env.ES_TEST_LOCAL}</es.node.local>
                                 <es.node.mode>${es.node.mode}</es.node.mode>
                                 <es.logger.level>${es.logger.level}</es.logger.level>
@@ -544,6 +564,7 @@
                                         <include name="**/*.pl"/>
                                         <exclude name="**/org/elasticsearch/cluster/routing/shard_routes.txt"/>
                                         <exclude name="target/**/*"/>
+                                        <exclude name=".metadata/**/*"/>
                                         <or>
                                             <containsregexp expression="\bno(n|)commit\b" casesensitive="no"/>
                                             <containsregexp expression="\t" casesensitive="no"/>
@@ -643,7 +664,6 @@
                         <includes>
                             <include>com.google.guava:guava</include>
                             <include>com.carrotsearch:hppc</include>
-                            <include>org.mvel:mvel2</include>
                             <include>com.fasterxml.jackson.core:jackson-core</include>
                             <include>com.fasterxml.jackson.dataformat:jackson-dataformat-smile</include>
                             <include>com.fasterxml.jackson.dataformat:jackson-dataformat-yaml</include>
@@ -654,6 +674,7 @@
                             <include>com.ning:compress-lzf</include>
                             <include>com.github.spullara.mustache.java:compiler</include>
                             <include>com.tdunning:t-digest</include>
+                            <include>commons-cli:commons-cli</include>
                         </includes>
                     </artifactSet>
                     <relocations>
@@ -668,10 +689,6 @@
                         <relocation>
                             <pattern>jsr166e</pattern>
                             <shadedPattern>org.elasticsearch.common.util.concurrent.jsr166e</shadedPattern>
-                        </relocation>
-                        <relocation>
-                            <pattern>org.mvel2</pattern>
-                            <shadedPattern>org.elasticsearch.common.mvel2</shadedPattern>
                         </relocation>
                         <relocation>
                             <pattern>com.fasterxml.jackson</pattern>
@@ -697,6 +714,10 @@
                             <pattern>com.tdunning.math.stats</pattern>
                             <shadedPattern>org.elasticsearch.common.stats</shadedPattern>
                         </relocation>
+                        <relocation>
+                            <pattern>org.apache.commons.cli</pattern>
+                            <shadedPattern>org.elasticsearch.common.cli.commons</shadedPattern>
+                        </relocation>
                     </relocations>
                     <filters>
                         <filter>
@@ -710,6 +731,12 @@
                                 <exclude>/*.txt</exclude>
                                 <exclude>build.properties</exclude>
                             </excludes>
+                        </filter>
+                        <filter>
+                            <artifact>io.netty:netty</artifact>
+                            <includes>
+                                <include>org/jboss/netty/**</include>
+                            </includes>
                         </filter>
                     </filters>
                 </configuration>
@@ -865,7 +892,7 @@
                                 </data>
                                 <data>
                                     <src>${project.build.directory}/lib</src>
-                                    <includes>lucene*, log4j*, jna*, spatial4j*, jts*</includes>
+                                    <includes>lucene*, log4j*, jna*, spatial4j*, jts*, groovy*</includes>
                                     <type>directory</type>
                                     <mapper>
                                         <type>perm</type>
@@ -1065,6 +1092,7 @@
                                         <include>jna*</include>
                                         <include>spatial4j*</include>
                                         <include>jts*</include>
+                                        <include>groovy*</include>
                                     </includes>
                                 </source>
                                 <source>
@@ -1137,14 +1165,14 @@
                                 <exclude>jsr166e/**</exclude>
                                 <!-- start excludes for valid system-out -->
                                 <exclude>org/elasticsearch/common/logging/log4j/ConsoleAppender*</exclude>
+                                <exclude>org/elasticsearch/common/http/client/HttpDownloadHelper*</exclude>
+                                <exclude>org/elasticsearch/common/cli/Terminal*</exclude>
                                 <exclude>org/elasticsearch/plugins/PluginManager.class</exclude>
+                                <exclude>org/elasticsearch/common/http/client/HttpDownloadHelper.class</exclude>
                                 <exclude>org/elasticsearch/bootstrap/Bootstrap.class</exclude>
                                 <exclude>org/elasticsearch/Version.class</exclude>
                                 <exclude>org/elasticsearch/common/lucene/search/Queries$QueryWrapperFilterFactory.class</exclude>
                                 <!-- end excludes for valid system-out -->
-                                <!-- start excludes for Unsafe -->
-                                <exclude>org/elasticsearch/common/util/UnsafeUtils.class</exclude>
-                                <!-- end excludes for Unsafe -->
                                 <!-- start excludes for Math.abs -->
                                 <exclude>org/elasticsearch/common/util/MathUtils.class</exclude>
                                 <exclude>org/elasticsearch/common/math/UnboxedMathUtils.class</exclude>
@@ -1153,6 +1181,12 @@
                                 <!-- start exclude for FilteredQuery -->
                                 <exclude>org/elasticsearch/common/lucene/search/XFilteredQuery.class</exclude>
                                 <!-- end exclude for FilteredQuery -->
+                                <!-- start exclude for Channels utility class -->
+                                <exclude>org/elasticsearch/common/io/Channels.class</exclude>
+                                <!-- end exclude for Channels -->
+                                <!-- start exclude for Lucene utility class -->
+                                <exclude>org/elasticsearch/common/lucene/Lucene$LenientParser.class</exclude>
+                                <!-- end exclude for Lucene -->
                             </excludes>
                             <bundledSignatures>
                                 <!-- This will automatically choose the right signatures based on 'targetVersion': -->
@@ -1213,6 +1247,8 @@
                                 <include>org/elasticsearch/cache/recycler/MockPageCacheRecycler.class</include>
                                 <include>org/apache/lucene/util/AbstractRandomizedTest.class</include>
                                 <include>org/apache/lucene/util/AbstractRandomizedTest$*.class</include>
+                                <include>org/elasticsearch/common/cli/CliToolTestCase.class</include>
+                                <include>org/elasticsearch/common/cli/CliToolTestCase$*.class</include>
                             </includes>
                             <excludes>
                                 <!-- unit tests for yaml suite parser & rest spec parser need to be excluded -->
@@ -1359,6 +1395,32 @@
           </plugins>
         </build>
       </profile>
+      <!-- profile for development that doesn't check forbidden-apis, no-commit validation or license headers run with mvn -Pdev -->
+      <profile>
+        <id>dev</id>
+        <properties>
+          <validate.skip>true</validate.skip>
+        </properties>
+          <build>
+        <plugins>
+          <plugin>
+              <groupId>de.thetaphi</groupId>
+              <artifactId>forbiddenapis</artifactId>
+              <version>1.5.1</version>
+              <executions>
+                <execution>
+                    <id>check-forbidden-apis</id>
+                    <phase>none</phase>
+                </execution>
+                <execution>
+                    <id>check-forbidden-test-apis</id>
+                    <phase>none</phase>
+                </execution>
+              </executions>
+          </plugin>
+          </plugins>
+          </build>
+      </profile>
       <!-- license profile, to generate third party license file -->
       <profile>
         <id>license</id>
@@ -1388,7 +1450,7 @@
             <version>0.6.4.201312101107</version>
             <scope>test</scope>
           </dependency>
-        </dependencies>        
+        </dependencies>
         <build>
           <plugins>
             <plugin>
@@ -1413,7 +1475,7 @@
                   <id>default-check</id>
                   <goals>
                     <goal>check</goal>
-                  </goals>                  
+                  </goals>
                 </execution>
               </executions>
               <configuration>

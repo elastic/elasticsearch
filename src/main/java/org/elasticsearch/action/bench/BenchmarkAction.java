@@ -18,17 +18,17 @@
  */
 package org.elasticsearch.action.bench;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ClientAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 
 /**
  * Benchmark action
  */
-public class BenchmarkAction extends Action<BenchmarkRequest, BenchmarkResponse, BenchmarkRequestBuilder> {
+public class BenchmarkAction extends ClientAction<BenchmarkRequest, BenchmarkResponse, BenchmarkRequestBuilder> {
 
     public static final BenchmarkAction INSTANCE = new BenchmarkAction();
-    public static final String NAME = "benchmark/start";
+    public static final String NAME = "indices:data/benchmark/start";
 
     private BenchmarkAction() {
         super(NAME);

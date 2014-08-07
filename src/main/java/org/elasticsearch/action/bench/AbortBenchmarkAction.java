@@ -19,16 +19,16 @@
 
 package org.elasticsearch.action.bench;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ClientAction;
 import org.elasticsearch.client.Client;
 
 /**
  * Abort benchmark action
  */
-public class AbortBenchmarkAction extends Action<AbortBenchmarkRequest, AbortBenchmarkResponse, AbortBenchmarkRequestBuilder> {
+public class AbortBenchmarkAction extends ClientAction<AbortBenchmarkRequest, AbortBenchmarkResponse, AbortBenchmarkRequestBuilder> {
 
     public static final AbortBenchmarkAction INSTANCE = new AbortBenchmarkAction();
-    public static final String NAME = "benchmark/abort";
+    public static final String NAME = "indices:data/benchmark/abort";
 
     private AbortBenchmarkAction() {
         super(NAME);

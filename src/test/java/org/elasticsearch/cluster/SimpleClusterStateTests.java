@@ -19,18 +19,23 @@
 
 package org.elasticsearch.cluster;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.hamcrest.CollectionAssertions;
 import org.junit.Before;
 import org.junit.Test;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertIndexTemplateExists;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.*;
 
 /**
  * Checking simple filtering capabilites of the cluster state
@@ -64,7 +69,7 @@ public class SimpleClusterStateTests extends ElasticsearchIntegrationTest {
     @Test
     public void testNodes() throws Exception {
         ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().clear().setNodes(true).get();
-        assertThat(clusterStateResponse.getState().nodes().nodes().size(), is(immutableCluster().size()));
+        assertThat(clusterStateResponse.getState().nodes().nodes().size(), is(cluster().size()));
 
         ClusterStateResponse clusterStateResponseFiltered = client().admin().cluster().prepareState().clear().get();
         assertThat(clusterStateResponseFiltered.getState().nodes().nodes().size(), is(0));
@@ -119,5 +124,32 @@ public class SimpleClusterStateTests extends ElasticsearchIntegrationTest {
         assertThat(clusterStateResponseFiltered.getState().routingTable().hasIndex("foo"), is(true));
         assertThat(clusterStateResponseFiltered.getState().routingTable().hasIndex("fuu"), is(true));
         assertThat(clusterStateResponseFiltered.getState().routingTable().hasIndex("baz"), is(false));
+    }
+
+    @Test
+    public void testLargeClusterStatePublishing() throws Exception {
+        int estimatedBytesSize = scaledRandomIntBetween(ByteSizeValue.parseBytesSizeValue("10k").bytesAsInt(), ByteSizeValue.parseBytesSizeValue("256k").bytesAsInt());
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties");
+        int counter = 0;
+        int numberOfFields = 0;
+        while (true) {
+            mapping.startObject(Strings.randomBase64UUID()).field("type", "string").endObject();
+            counter += 10; // each field is about 10 bytes, assuming compression in place
+            numberOfFields++;
+            if (counter > estimatedBytesSize) {
+                break;
+            }
+        }
+        logger.info("number of fields [{}], estimated bytes [{}]", numberOfFields, estimatedBytesSize);
+        mapping.endObject().endObject().endObject();
+        // if the create index is ack'ed, then all nodes have successfully processed the cluster state
+        assertAcked(client().admin().indices().prepareCreate("test").addMapping("type", mapping).setTimeout("60s").get());
+        ensureGreen(); // wait for green state, so its both green, and there are no more pending events
+        MappingMetaData masterMappingMetaData = client().admin().indices().prepareGetMappings("test").setTypes("type").get().getMappings().get("test").get("type");
+        for (Client client : clients()) {
+            MappingMetaData mappingMetadata = client.admin().indices().prepareGetMappings("test").setTypes("type").setLocal(true).get().getMappings().get("test").get("type");
+            assertThat(mappingMetadata.source().string(), equalTo(masterMappingMetaData.source().string()));
+            assertThat(mappingMetadata, equalTo(masterMappingMetaData));
+        }
     }
 }

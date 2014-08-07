@@ -19,6 +19,7 @@
 
 package org.elasticsearch.http.netty;
 
+import com.google.common.base.Strings;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -40,6 +41,10 @@ import org.jboss.netty.handler.codec.http.*;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
+
+import static org.elasticsearch.http.netty.NettyHttpServerTransport.*;
+import static org.jboss.netty.handler.codec.http.HttpHeaders.Names.*;
 
 /**
  *
@@ -57,12 +62,14 @@ public class NettyHttpChannel extends HttpChannel {
     private final NettyHttpServerTransport transport;
     private final Channel channel;
     private final org.jboss.netty.handler.codec.http.HttpRequest nettyRequest;
+    private Pattern corsPattern;
 
-    public NettyHttpChannel(NettyHttpServerTransport transport, Channel channel, NettyHttpRequest request) {
+    public NettyHttpChannel(NettyHttpServerTransport transport, Channel channel, NettyHttpRequest request, Pattern corsPattern) {
         super(request);
         this.transport = transport;
         this.channel = channel;
         this.nettyRequest = request.request();
+        this.corsPattern = corsPattern;
     }
 
     @Override
@@ -90,15 +97,25 @@ public class NettyHttpChannel extends HttpChannel {
         } else {
             resp = new DefaultHttpResponse(HttpVersion.HTTP_1_1, status);
         }
-        if (RestUtils.isBrowser(nettyRequest.headers().get(HttpHeaders.Names.USER_AGENT))) {
-            if (transport.settings().getAsBoolean("http.cors.enabled", true)) {
-                // Add support for cross-origin Ajax requests (CORS)
-                resp.headers().add("Access-Control-Allow-Origin", transport.settings().get("http.cors.allow-origin", "*"));
+        if (RestUtils.isBrowser(nettyRequest.headers().get(USER_AGENT))) {
+            if (transport.settings().getAsBoolean(SETTING_CORS_ENABLED, true)) {
+                String originHeader = request.header(ORIGIN);
+                if (!Strings.isNullOrEmpty(originHeader)) {
+                    if (corsPattern == null) {
+                        resp.headers().add(ACCESS_CONTROL_ALLOW_ORIGIN, transport.settings().get(SETTING_CORS_ALLOW_ORIGIN, "*"));
+                    } else {
+                        resp.headers().add(ACCESS_CONTROL_ALLOW_ORIGIN, corsPattern.matcher(originHeader).matches() ? originHeader : "null");
+                    }
+                }
                 if (nettyRequest.getMethod() == HttpMethod.OPTIONS) {
                     // Allow Ajax requests based on the CORS "preflight" request
-                    resp.headers().add("Access-Control-Max-Age", transport.settings().getAsInt("http.cors.max-age", 1728000));
-                    resp.headers().add("Access-Control-Allow-Methods", transport.settings().get("http.cors.allow-methods", "OPTIONS, HEAD, GET, POST, PUT, DELETE"));
-                    resp.headers().add("Access-Control-Allow-Headers", transport.settings().get("http.cors.allow-headers", "X-Requested-With, Content-Type, Content-Length"));
+                    resp.headers().add(ACCESS_CONTROL_MAX_AGE, transport.settings().getAsInt(SETTING_CORS_MAX_AGE, 1728000));
+                    resp.headers().add(ACCESS_CONTROL_ALLOW_METHODS, transport.settings().get(SETTING_CORS_ALLOW_METHODS, "OPTIONS, HEAD, GET, POST, PUT, DELETE"));
+                    resp.headers().add(ACCESS_CONTROL_ALLOW_HEADERS, transport.settings().get(SETTING_CORS_ALLOW_HEADERS, "X-Requested-With, Content-Type, Content-Length"));
+                }
+
+                if (transport.settings().getAsBoolean(SETTING_CORS_ALLOW_CREDENTIALS, false)) {
+                    resp.headers().add(ACCESS_CONTROL_ALLOW_CREDENTIALS, "true");
                 }
             }
         }
@@ -139,10 +156,20 @@ public class NettyHttpChannel extends HttpChannel {
                         buffer,
                         ChannelBuffers.wrappedBuffer(END_JSONP)
                 );
+                // Add content-type header of "application/javascript"
+                resp.headers().add(HttpHeaders.Names.CONTENT_TYPE, "application/javascript");
             }
             resp.setContent(buffer);
-            resp.headers().add(HttpHeaders.Names.CONTENT_TYPE, response.contentType());
-            resp.headers().add(HttpHeaders.Names.CONTENT_LENGTH, String.valueOf(buffer.readableBytes()));
+
+            // If our response doesn't specify a content-type header, set one
+            if (!resp.headers().contains(HttpHeaders.Names.CONTENT_TYPE)) {
+                resp.headers().add(HttpHeaders.Names.CONTENT_TYPE, response.contentType());
+            }
+
+            // If our response has no content-length, calculate and set one
+            if (!resp.headers().contains(HttpHeaders.Names.CONTENT_LENGTH)) {
+                resp.headers().add(HttpHeaders.Names.CONTENT_LENGTH, String.valueOf(buffer.readableBytes()));
+            }
 
             if (transport.resetCookies) {
                 String cookieString = nettyRequest.headers().get(HttpHeaders.Names.COOKIE);
@@ -174,6 +201,8 @@ public class NettyHttpChannel extends HttpChannel {
             }
         }
     }
+
+    private static final HttpResponseStatus TOO_MANY_REQUESTS = new HttpResponseStatus(429, "Too Many Requests");
 
     private HttpResponseStatus getStatus(RestStatus status) {
         switch (status) {
@@ -254,6 +283,8 @@ public class NettyHttpChannel extends HttpChannel {
                 return HttpResponseStatus.BAD_REQUEST;
             case FAILED_DEPENDENCY:
                 return HttpResponseStatus.BAD_REQUEST;
+            case TOO_MANY_REQUESTS:
+                return TOO_MANY_REQUESTS;
             case INTERNAL_SERVER_ERROR:
                 return HttpResponseStatus.INTERNAL_SERVER_ERROR;
             case NOT_IMPLEMENTED:

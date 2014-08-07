@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.filters.FiltersAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGridBuilder;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramBuilder;
@@ -39,6 +40,7 @@ import org.elasticsearch.search.aggregations.metrics.geobounds.GeoBoundsBuilder;
 import org.elasticsearch.search.aggregations.metrics.max.MaxBuilder;
 import org.elasticsearch.search.aggregations.metrics.min.MinBuilder;
 import org.elasticsearch.search.aggregations.metrics.percentiles.PercentilesBuilder;
+import org.elasticsearch.search.aggregations.metrics.percentiles.PercentileRanksBuilder;
 import org.elasticsearch.search.aggregations.metrics.stats.StatsBuilder;
 import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStatsBuilder;
 import org.elasticsearch.search.aggregations.metrics.sum.SumBuilder;
@@ -82,6 +84,10 @@ public class AggregationBuilders {
 
     public static FilterAggregationBuilder filter(String name) {
         return new FilterAggregationBuilder(name);
+    }
+
+    public static FiltersAggregationBuilder filters(String name) {
+        return new FiltersAggregationBuilder(name);
     }
 
     public static GlobalBuilder global(String name) {
@@ -138,6 +144,10 @@ public class AggregationBuilders {
 
     public static PercentilesBuilder percentiles(String name) {
         return new PercentilesBuilder(name);
+    }
+
+    public static PercentileRanksBuilder percentileRanks(String name) {
+        return new PercentileRanksBuilder(name);
     }
 
     public static CardinalityBuilder cardinality(String name) {

@@ -39,6 +39,11 @@ public final class StoreUtils {
             SimpleFSDirectory simpleFSDirectory = (SimpleFSDirectory)directory;
             return "simplefs(" + simpleFSDirectory.getDirectory() + ")";
         }
+        if (directory instanceof FileSwitchDirectory) {
+            FileSwitchDirectory fileSwitchDirectory = (FileSwitchDirectory) directory;
+            return "default(" + toString(fileSwitchDirectory.getPrimaryDir()) + "," + toString(fileSwitchDirectory.getSecondaryDir()) + ")";
+        }
+
         return directory.toString();
     }
 }

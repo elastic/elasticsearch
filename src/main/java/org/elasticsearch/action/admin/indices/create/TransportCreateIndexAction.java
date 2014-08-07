@@ -21,10 +21,10 @@ package org.elasticsearch.action.admin.indices.create;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateListener;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -44,8 +44,8 @@ public class TransportCreateIndexAction extends TransportMasterNodeOperationActi
 
     @Inject
     public TransportCreateIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                      ThreadPool threadPool, MetaDataCreateIndexService createIndexService) {
-        super(settings, transportService, clusterService, threadPool);
+                                      ThreadPool threadPool, MetaDataCreateIndexService createIndexService, ActionFilters actionFilters) {
+        super(settings, CreateIndexAction.NAME, transportService, clusterService, threadPool, actionFilters);
         this.createIndexService = createIndexService;
     }
 
@@ -53,11 +53,6 @@ public class TransportCreateIndexAction extends TransportMasterNodeOperationActi
     protected String executor() {
         // we go async right away
         return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected String transportAction() {
-        return CreateIndexAction.NAME;
     }
 
     @Override
@@ -87,7 +82,7 @@ public class TransportCreateIndexAction extends TransportMasterNodeOperationActi
                 .settings(request.settings()).mappings(request.mappings())
                 .aliases(request.aliases()).customs(request.customs());
 
-        createIndexService.createIndex(updateRequest, new ClusterStateUpdateListener() {
+        createIndexService.createIndex(updateRequest, new ActionListener<ClusterStateUpdateResponse>() {
 
             @Override
             public void onResponse(ClusterStateUpdateResponse response) {

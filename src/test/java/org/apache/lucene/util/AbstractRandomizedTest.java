@@ -31,6 +31,7 @@ import com.carrotsearch.randomizedtesting.rules.NoInstanceHooksOverridesRule;
 import com.carrotsearch.randomizedtesting.rules.StaticFieldsInvariantRule;
 import com.carrotsearch.randomizedtesting.rules.SystemPropertiesInvariantRule;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -67,6 +68,32 @@ import java.util.logging.Logger;
 // NOTE: this class is in o.a.lucene.util since it uses some classes that are related
 // to the test framework that didn't make sense to copy but are package private access
 public abstract class AbstractRandomizedTest extends RandomizedTest {
+
+
+    /**
+     * Annotation for backwards compat tests
+     */
+    @Inherited
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target(ElementType.TYPE)
+    @TestGroup(enabled = false, sysProperty = TESTS_BACKWARDS_COMPATIBILITY)
+    public @interface Backwards {
+    }
+
+    /**
+     * Key used to set the path for the elasticsearch executable used to run backwards compatibility tests from
+     * via the commandline -D{@value #TESTS_BACKWARDS_COMPATIBILITY}
+     */
+    public static final String TESTS_BACKWARDS_COMPATIBILITY = "tests.bwc";
+
+    public static final String TESTS_BACKWARDS_COMPATIBILITY_VERSION = "tests.bwc.version";
+
+    /**
+     * Key used to set the path for the elasticsearch executable used to run backwards compatibility tests from
+     * via the commandline -D{@value #TESTS_BACKWARDS_COMPATIBILITY_PATH}
+     */
+    public static final String TESTS_BACKWARDS_COMPATIBILITY_PATH = "tests.bwc.path";
+
     /**
      * Annotation for integration tests
      */
@@ -74,7 +101,7 @@ public abstract class AbstractRandomizedTest extends RandomizedTest {
     @Retention(RetentionPolicy.RUNTIME)
     @Target(ElementType.TYPE)
     @TestGroup(enabled = true, sysProperty = SYSPROP_INTEGRATION)
-    public @interface IntegrationTests {
+    public @interface Integration {
     }
 
     // --------------------------------------------------------------------
@@ -376,5 +403,4 @@ public abstract class AbstractRandomizedTest extends RandomizedTest {
     public String getTestName() {
         return threadAndTestNameRule.testMethodName;
     }
-
 }

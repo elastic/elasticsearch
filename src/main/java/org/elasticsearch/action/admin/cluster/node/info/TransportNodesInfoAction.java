@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.cluster.node.info;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.NodeOperationRequest;
 import org.elasticsearch.action.support.nodes.TransportNodesOperationAction;
 import org.elasticsearch.cluster.ClusterName;
@@ -47,19 +48,14 @@ public class TransportNodesInfoAction extends TransportNodesOperationAction<Node
     @Inject
     public TransportNodesInfoAction(Settings settings, ClusterName clusterName, ThreadPool threadPool,
                                     ClusterService clusterService, TransportService transportService,
-                                    NodeService nodeService) {
-        super(settings, clusterName, threadPool, clusterService, transportService);
+                                    NodeService nodeService, ActionFilters actionFilters) {
+        super(settings, NodesInfoAction.NAME, clusterName, threadPool, clusterService, transportService, actionFilters);
         this.nodeService = nodeService;
     }
 
     @Override
     protected String executor() {
         return ThreadPool.Names.MANAGEMENT;
-    }
-
-    @Override
-    protected String transportAction() {
-        return NodesInfoAction.NAME;
     }
 
     @Override

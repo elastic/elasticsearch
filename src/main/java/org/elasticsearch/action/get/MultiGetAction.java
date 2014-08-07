@@ -19,15 +19,15 @@
 
 package org.elasticsearch.action.get;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ClientAction;
 import org.elasticsearch.client.Client;
 
 /**
  */
-public class MultiGetAction extends Action<MultiGetRequest, MultiGetResponse, MultiGetRequestBuilder> {
+public class MultiGetAction extends ClientAction<MultiGetRequest, MultiGetResponse, MultiGetRequestBuilder> {
 
     public static final MultiGetAction INSTANCE = new MultiGetAction();
-    public static final String NAME = "mget";
+    public static final String NAME = "indices:data/read/mget";
 
     private MultiGetAction() {
         super(NAME);

@@ -65,8 +65,8 @@ public class CompressedStreamTests extends ElasticsearchTestCase {
     
     public void testRepetitionsL() throws IOException {
         Random r = getRandom();
-        for (int i = 0; i < 1000; i++) {
-            int numLongs = TestUtil.nextInt(r, 1, 1000);
+        for (int i = 0; i < 200; i++) {
+            int numLongs = TestUtil.nextInt(r, 1, 10000);
             ByteArrayOutputStream bos = new ByteArrayOutputStream();
             long theValue = r.nextLong();
             for (int j = 0; j < numLongs; j++) {
@@ -88,8 +88,8 @@ public class CompressedStreamTests extends ElasticsearchTestCase {
     
     public void testRepetitionsI() throws IOException {
         Random r = getRandom();
-        for (int i = 0; i < 1000; i++) {
-            int numInts = TestUtil.nextInt(r, 1, 1000);
+        for (int i = 0; i < 200; i++) {
+            int numInts = TestUtil.nextInt(r, 1, 20000);
             ByteArrayOutputStream bos = new ByteArrayOutputStream();
             int theValue = r.nextInt();
             for (int j = 0; j < numInts; j++) {
@@ -107,8 +107,8 @@ public class CompressedStreamTests extends ElasticsearchTestCase {
     
     public void testRepetitionsS() throws IOException {
         Random r = getRandom();
-        for (int i = 0; i < 1000; i++) {
-            int numShorts = TestUtil.nextInt(r, 1, 1000);
+        for (int i = 0; i < 200; i++) {
+            int numShorts = TestUtil.nextInt(r, 1, 40000);
             ByteArrayOutputStream bos = new ByteArrayOutputStream();
             short theValue = (short) r.nextInt(65535);
             for (int j = 0; j < numShorts; j++) {

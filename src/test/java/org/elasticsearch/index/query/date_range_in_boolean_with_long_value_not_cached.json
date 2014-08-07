@@ -2,7 +2,6 @@
     "constant_score": {
         "filter": {
             "bool": {
-                "_cache" : true,
                 "must": [
                     {
                         "term": {
@@ -13,9 +12,10 @@
                     },
                     {
                         "range" : {
+                            "_cache" : false,
                             "born" : {
-                                "gte": "2012-01-01",
-                                "lte": "2013-01-01"
+                                "gte": 1325376000,
+                                "lte": 1577836800
                             }
                         }
                     }

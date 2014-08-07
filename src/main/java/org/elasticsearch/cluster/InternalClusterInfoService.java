@@ -120,8 +120,6 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
         this.clusterService.add((LocalNodeMasterListener)this);
         // Add to listen for state changes (when nodes are added)
         this.clusterService.add((ClusterStateListener)this);
-
-        enabledChanged();
     }
 
     class ApplySettings implements NodeSettingsService.Listener {
@@ -178,9 +176,6 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        if (!this.enabled) {
-            return;
-        }
         metaData = event.state().metaData();
 
         // Check whether it was a data node that was added
@@ -263,7 +258,7 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
                 logger.trace("Performing ClusterInfoUpdateJob");
             }
 
-            if (this.reschedule) {
+            if (isMaster && this.reschedule) {
                 if (logger.isTraceEnabled()) {
                     logger.trace("Scheduling next run for updating cluster info in: {}", updateFrequency.toString());
                 }
@@ -272,13 +267,6 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
                 } catch (EsRejectedExecutionException ex) {
                     logger.debug("Reschedule cluster info service was rejected", ex);
                 }
-            }
-            if (!enabled) {
-                // Short-circuit if not enabled
-                if (logger.isTraceEnabled()) {
-                    logger.trace("Skipping ClusterInfoUpdatedJob since it is disabled");
-                }
-                return;
             }
 
             NodesStatsRequest nodesStatsRequest = new NodesStatsRequest("data:true");

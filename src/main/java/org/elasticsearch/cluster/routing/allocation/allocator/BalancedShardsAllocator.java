@@ -514,7 +514,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
          */
         private boolean readyToBalance() {
             // Is size balance required but not ready?
-            return weight.shardSizeBalance != 0 && allocation.clusterInfo().getShardSizeBinToShard().size() == 0;
+            return weight.shardSizeBalance == 0 || allocation.clusterInfo().getShardSizeBinToShard().size() != 0;
         }
 
         /**

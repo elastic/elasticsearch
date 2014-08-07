@@ -646,8 +646,7 @@ public class XAnalyzingSuggester extends Lookup {
 
   private LookupResult getLookupResult(Long output1, BytesRef output2, CharsRef spare) {
     XPayLoadProcessor.PayloadMetaData metaData = XPayLoadProcessor.parse(output2, hasPayloads, payloadSep, spare);
-    LookupResult result = new LookupResult(spare.toString(), decodeWeight(output1), metaData.payload);
-    return result;
+    return new LookupResult(spare.toString(), decodeWeight(output1), metaData.payload);
   }
 
   private boolean sameSurfaceForm(BytesRef key, BytesRef output2) {
@@ -663,8 +662,9 @@ public class XAnalyzingSuggester extends Lookup {
       }
       return output2.bytes[output2.offset + key.length] == payloadSep;
     } else {
-      if (output2.length - 5 > 0 && output2.bytes[output2.length - 5] == payloadSep) {
-        BytesRef spare = new BytesRef(output2.bytes, output2.offset, output2.length - 5);
+      int docIDSepIndex = XPayLoadProcessor.getDocIDSepIndex(output2, false, payloadSep);
+      if (docIDSepIndex != -1) {
+        BytesRef spare = new BytesRef(output2.bytes, output2.offset, output2.length - 1 - docIDSepIndex);
         return key.bytesEquals(spare);
       }
       return key.bytesEquals(output2);
@@ -974,44 +974,80 @@ public class XAnalyzingSuggester extends Lookup {
           }
       }
 
+      private static int getDocIDSepIndex(final BytesRef output, final int payloadSep, final int payloadSepIndex) {
+          int docSepIndex = -1;
+          int start = (payloadSepIndex < output.length - 5) ? output.length - 5 : payloadSepIndex + 1;
+          for (int i = start; i < output.length; i++) {
+              if (output.bytes[output.offset + i] == payloadSep) {
+                  docSepIndex = i;
+                  break;
+              }
+          }
+          return docSepIndex;
+      }
+
+      static int getDocIDSepIndex(final BytesRef output, final boolean hasPayloads, final int payloadSep) {
+          int docSepIndex = -1;
+          if (hasPayloads) {
+              int sepIndex = getPayloadSepIndex(output, payloadSep);
+              docSepIndex = getDocIDSepIndex(output, payloadSep, sepIndex);
+          } else {
+              int start = (output.length - 5 < 0) ? 0 : output.length - 5;
+              for (int i = start; i < output.length; i++) {
+                  if (output.bytes[output.offset + i] == payloadSep) {
+                      docSepIndex = i;
+                      break;
+                  }
+              }
+          }
+          return docSepIndex;
+      }
+
+      static int getPayloadSepIndex(final BytesRef output, final int payloadSep) {
+          int sepIndex = -1;
+          for (int i = 0; i < output.length; i++) {
+              if (output.bytes[output.offset + i] == payloadSep) {
+                  sepIndex = i;
+                  break;
+              }
+          }
+          return sepIndex;
+      }
+
       static PayloadMetaData parse(final BytesRef output, final boolean hasPayloads, final int payloadSep, CharsRef spare) {
           BytesRef payload = null;
           BytesRef surfaceForm;
           int docID = -1;
 
           boolean docIDExists = false;
+          int docSepIndex = -1;
           if (hasPayloads) {
-              int sepIndex = -1;
-              for (int i = 0; i < output.length; i++) {
-                  if (output.bytes[output.offset + i] == payloadSep) {
-                      sepIndex = i;
-                      break;
-                  }
-              }
+              int sepIndex = getPayloadSepIndex(output, payloadSep);
               assert sepIndex != -1;
+              docSepIndex = getDocIDSepIndex(output, payloadSep, sepIndex);
               spare.grow(sepIndex);
-              if (output.length - 5 > 0 && sepIndex < (output.length - 5)) {
-                  docIDExists = output.bytes[output.length - 5] == payloadSep;
+              docIDExists = docSepIndex != -1;
+              int payloadLen = output.length - sepIndex - 1;
+              if (docIDExists) {
+                  payloadLen = docSepIndex - sepIndex - 1;
               }
-              final int payloadLen = output.length - sepIndex - 1 - (docIDExists ? 5 : 0);
               UnicodeUtil.UTF8toUTF16(output.bytes, output.offset, sepIndex, spare);
               payload = new BytesRef(payloadLen);
               System.arraycopy(output.bytes, sepIndex + 1, payload.bytes, 0, payloadLen);
               payload.length = payloadLen;
               surfaceForm = new BytesRef(spare);
           } else {
-              if (output.length - 5 >= 0) {
-                  docIDExists = output.bytes[output.length - 5] == payloadSep;
-              }
-              int len = output.length - (docIDExists ? 5 : 0);
+              docSepIndex = getDocIDSepIndex(output, false, payloadSep);
+              docIDExists = docSepIndex != -1;
+              int len = (docIDExists) ? docSepIndex : output.length;
               spare.grow(len);
               UnicodeUtil.UTF8toUTF16(output.bytes, output.offset, len, spare);
               surfaceForm = new BytesRef(spare);
           }
 
           if (docIDExists) {
-              ByteArrayDataInput input = new ByteArrayDataInput(output.bytes, output.length - 4, 4);
-              docID = input.readInt();
+              ByteArrayDataInput input = new ByteArrayDataInput(output.bytes, docSepIndex + 1, output.length - docSepIndex);
+              docID = input.readVInt();
           }
           return new PayloadMetaData(surfaceForm, payload, docID);
       }
@@ -1026,9 +1062,9 @@ public class XAnalyzingSuggester extends Lookup {
               output.writeBytes(payload.bytes, payload.length - payload.offset);
           }
           output.writeByte((byte) payloadSep);
-          output.writeInt(docID);
+          output.writeVInt(docID);
 
-          return new BytesRef(buffer, 0, len);
+          return new BytesRef(buffer, 0, output.getPosition());
       }
   }
 

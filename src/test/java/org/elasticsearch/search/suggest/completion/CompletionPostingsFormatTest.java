@@ -48,7 +48,10 @@ import org.elasticsearch.search.suggest.context.ContextMapping;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
+import java.io.BufferedWriter;
+import java.io.FileWriter;
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.util.*;
 
 import static org.hamcrest.Matchers.*;
@@ -126,7 +129,7 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
     }
 
     @Test
-    public void testRTDeletedDocFiltering() throws IOException {
+    public void testNRTDeletedDocFiltering() throws IOException {
         final boolean preserveSeparators = getRandom().nextBoolean();
         final boolean preservePositionIncrements = getRandom().nextBoolean();
         final boolean usePayloads = getRandom().nextBoolean();
@@ -142,9 +145,6 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
         String suffix = generateRandomSuggestions(randomIntBetween(4, scaledRandomIntBetween(30, 100)));
         for (int i = 0; i < titles.length; i++) {
             boolean duplicate = rarely() && i != 0;
-            if (duplicate) {
-                int xxx =0 ;
-            }
             suffix = (duplicate) ? suffix : generateRandomSuggestions(randomIntBetween(4, scaledRandomIntBetween(30, 100)));
             titles[i] = prefixStr + suffix;
             weights[i] = between(0, 100);

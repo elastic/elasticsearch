@@ -8,11 +8,11 @@
     <fileSets>
         <fileSet>
             <filtered>false</filtered>
-            <directory>bin</directory>
+            <directory>bin/shield</directory>
             <outputDirectory>bin</outputDirectory>
         </fileSet>
         <fileSet>
-            <directory>config</directory>
+            <directory>config/shield</directory>
             <outputDirectory>config</outputDirectory>
         </fileSet>
     </fileSets>

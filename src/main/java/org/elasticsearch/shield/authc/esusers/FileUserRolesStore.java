@@ -16,6 +16,7 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.authc.support.UserRolesStore;
+import org.elasticsearch.shield.plugin.SecurityPlugin;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -67,7 +68,8 @@ public class FileUserRolesStore extends AbstractComponent implements UserRolesSt
     public static Path resolveFile(Settings settings, Environment env) {
         String location = settings.get("shield.authc.esusers.files.users_roles");
         if (location == null) {
-            return env.configFile().toPath().resolve(".users_roles");
+            File shieldDirectory = new File(env.configFile(), SecurityPlugin.NAME);
+            return shieldDirectory.toPath().resolve(".users_roles");
         }
         return Paths.get(location);
     }

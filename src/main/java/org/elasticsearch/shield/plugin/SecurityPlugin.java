@@ -17,9 +17,11 @@ import java.util.Collection;
  */
 public class SecurityPlugin extends AbstractPlugin {
 
+    public static final String NAME = "shield";
+
     @Override
     public String name() {
-        return "shield";
+        return NAME;
     }
 
     @Override

@@ -34,6 +34,10 @@ public class ESUsersTool extends CliTool {
             .cmds(Useradd.CMD, Userdel.CMD, Passwd.CMD)
             .build();
 
+    public static void main(String[] args) {
+        new ESUsersTool().execute(args);
+    }
+
     public ESUsersTool() {
         super(CONFIG);
     }

@@ -41,7 +41,7 @@ public class ShieldPluginTests extends ElasticsearchIntegrationTest {
         logger.info("--> Checking nodes info");
         for (NodeInfo nodeInfo : nodeInfos.getNodes()) {
             assertThat(nodeInfo.getPlugins().getInfos(), hasSize(1));
-            assertThat(nodeInfo.getPlugins().getInfos().get(0).getName(), is("shield"));
+            assertThat(nodeInfo.getPlugins().getInfos().get(0).getName(), is(SecurityPlugin.NAME));
         }
     }
 

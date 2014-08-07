@@ -66,7 +66,6 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
  * are used to re-balance shards based on global as well as per-index factors.
  */
 public class BalancedShardsAllocator extends AbstractComponent implements ShardsAllocator {
-
     public static final String SETTING_THRESHOLD = "cluster.routing.allocation.balance.threshold";
     public static final String SETTING_INDEX_BALANCE_FACTOR = "cluster.routing.allocation.balance.index";
     public static final String SETTING_SHARD_BALANCE_FACTOR = "cluster.routing.allocation.balance.shard";

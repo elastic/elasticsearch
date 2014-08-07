@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.settings;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.unit.TimeValue;
 
 import static org.elasticsearch.common.unit.ByteSizeValue.parseBytesSizeValue;
@@ -37,6 +38,18 @@ public interface Validator {
     public static final Validator EMPTY = new Validator() {
         @Override
         public String validate(String setting, String value) {
+            return null;
+        }
+    };
+
+    public static final Validator DATE = new Validator() {
+        @Override
+        public String validate(String setting, String value) {
+            try {
+                ImmutableSettings.DATE_FORMAT.parser().parseDateTime(value);
+            } catch (IllegalArgumentException ex) {
+                return "cannot parse value [" + value + "] as date";
+            }
             return null;
         }
     };

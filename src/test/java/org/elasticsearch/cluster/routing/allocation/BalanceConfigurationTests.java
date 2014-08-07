@@ -143,7 +143,7 @@ public class BalanceConfigurationTests extends ElasticsearchAllocationTestCase {
         settings.put(BalancedShardsAllocator.SETTING_PRIMARY_BALANCE_FACTOR, primaryBalance);
         settings.put(BalancedShardsAllocator.SETTING_SHARD_SIZE_BALANCE_FACTOR, sizeBalance);
         settings.put(BalancedShardsAllocator.SETTING_THRESHOLD, balanceThreshold);
-        settings.put(InternalClusterInfoService.SMALL_SHARD_LIMIT_NAME, smallShardLimit);
+        settings.put(InternalClusterInfoService.SMALL_SHARD_LIMIT, smallShardLimit);
 
         AllocationService strategy = createAllocationService(settings.build(), getRandom(), new ClusterInfoService() {
             @Override

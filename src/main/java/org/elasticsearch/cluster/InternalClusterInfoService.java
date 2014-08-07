@@ -31,6 +31,8 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.admin.indices.stats.TransportIndicesStatsAction;
 import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.collect.Tuple;
@@ -43,6 +45,7 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.monitor.fs.FsStats;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.joda.time.DateTime;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -63,10 +66,16 @@ import static java.lang.Math.log10;
  * shard sizes across the cluster.
  */
 public final class InternalClusterInfoService extends AbstractComponent implements ClusterInfoService, ClusterStateListener {
-    public static final ByteSizeValue DEFAULT_SMALL_SHARD_LIMIT = ByteSizeValue.parseBytesSizeValue("10mb");
-
+    // Cluster settings
     public static final String INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL = "cluster.info.update.interval";
-    public static final String SMALL_SHARD_LIMIT_NAME = "cluster.info.small_shard_size";
+    public static final String SMALL_SHARD_LIMIT = "cluster.info.small_shard_size";
+
+    // Index settings
+    public static final String INDEX_SETTING_MINIMUM_SHARD_SIZE = "index.minimum_shard_size.size";
+    public static final String INDEX_SETTING_MINIMUM_SHARD_SIZE_TIMEOUT = "index.minimum_shard_size.timeout";
+
+    // Cluster settings defaults
+    public static final ByteSizeValue DEFAULT_SMALL_SHARD_LIMIT = ByteSizeValue.parseBytesSizeValue("10mb");
 
     private volatile TimeValue updateFrequency;
 
@@ -74,6 +83,7 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
     private volatile ImmutableMap<String, Long> shardSizes;
     private volatile ImmutableMap<String, Long> indexToAverageShardSize;
     private volatile ImmutableSetMultimap<Integer, String> shardSizeBinToShard;
+    private volatile MetaData metaData;
 
     private volatile boolean enabled;
     private final TransportNodesStatsAction transportNodesStatsAction;
@@ -118,7 +128,7 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
         @Override
         public void onRefreshSettings(Settings settings) {
             TimeValue newUpdateFrequency = settings.getAsTime(INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL, null);
-            ByteSizeValue newSmallShardLimit = settings.getAsBytesSize(SMALL_SHARD_LIMIT_NAME, null);
+            ByteSizeValue newSmallShardLimit = settings.getAsBytesSize(SMALL_SHARD_LIMIT, null);
 
             // only collect the cluster info if the node is a potential master
             Boolean newEnabled = settings.getAsBoolean("node.master", null);
@@ -133,7 +143,7 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
                 }
             }
             if (newSmallShardLimit != null && !newSmallShardLimit.equals(smallShardLimit)) {
-                logger.info("updating [{}] from [{}] to [{}]", SMALL_SHARD_LIMIT_NAME, smallShardLimit, newSmallShardLimit);
+                logger.info("updating [{}] from [{}] to [{}]", SMALL_SHARD_LIMIT, smallShardLimit, newSmallShardLimit);
                 smallShardLimit = newSmallShardLimit;
             }
 
@@ -164,6 +174,7 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
         if (!this.enabled) {
             return;
         }
+        metaData = event.state().metaData();
 
         // Check whether it was a data node that was added
         boolean dataNodeAdded = false;
@@ -316,7 +327,13 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
                     Map<String, Long> newShardSizes = new HashMap<>();
                     ImmutableSetMultimap.Builder<Integer, String> newShardSizeBinToShard = ImmutableSetMultimap.builder();
                     for (ShardStats s : stats) {
-                        long size = s.getStats().getStore().sizeInBytes();
+                        // Default to the configured "default" size if there is
+                        // one that isn't expired and is larger then the actual
+                        // size.
+                        long size = shardSizeFromMetaData(s.getIndex());
+                        if (size < s.getStats().getStore().sizeInBytes()) {
+                            size = s.getStats().getStore().sizeInBytes();
+                        }
                         String sid = shardIdentifierFromRouting(s.getShardRouting());
                         if (logger.isTraceEnabled()) {
                             logger.trace("shard: {} size: {}", sid, size);
@@ -357,6 +374,32 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
             if (logger.isTraceEnabled()) {
                 logger.trace("Finished ClusterInfoUpdateJob");
             }
+        }
+
+        /**
+         * Load the shard size from its metadata if it has any configured.
+         * @param index index name
+         * @return -1 if there isn't any metadata or it has expired.  0 or more if there was a size in the metadata.
+         */
+        private long shardSizeFromMetaData(String index) {
+            IndexMetaData meta = metaData.index(index);
+            if (meta == null) {
+                return -1;
+            }
+            ByteSizeValue minimumSize = meta.getSettings().getAsBytesSize(INDEX_SETTING_MINIMUM_SHARD_SIZE, null);
+            if (minimumSize == null) {
+                return -1;
+            }
+            DateTime minimumSizeTimeout = meta.getSettings().getAsDateTime(INDEX_SETTING_MINIMUM_SHARD_SIZE_TIMEOUT, null);
+            if (minimumSizeTimeout == null) {
+                logger.warn("Default size was specified [{}] without a timeout for index [{}].  Ignoring.", minimumSize, index);
+                return -1;
+            }
+            if (minimumSizeTimeout.compareTo(DateTime.now()) <   0) {
+                return -1;
+            }
+
+            return minimumSize.bytes();
         }
     }
 

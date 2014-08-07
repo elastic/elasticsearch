@@ -22,7 +22,6 @@ package org.elasticsearch.cluster.settings;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -38,6 +37,11 @@ public class SettingsValidatorTests extends ElasticsearchTestCase {
         assertThat(Validator.TIME.validate("", "10m"), nullValue());
         assertThat(Validator.TIME.validate("", "10g"), notNullValue());
         assertThat(Validator.TIME.validate("", "bad timing"), notNullValue());
+
+        assertThat(Validator.DATE.validate("", "2014-01-01"), nullValue());
+        assertThat(Validator.DATE.validate("", "2014-01-01t19:00:00z"), nullValue());
+        assertThat(Validator.DATE.validate("", "2014-01-01t19:00:00"), nullValue());
+        assertThat(Validator.DATE.validate("", "bad date"), notNullValue());
 
         assertThat(Validator.BYTES_SIZE.validate("", "10m"), nullValue());
         assertThat(Validator.BYTES_SIZE.validate("", "10g"), nullValue());

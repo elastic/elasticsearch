@@ -159,6 +159,22 @@ added[1.0.0.RC1]
 `index.warmer.enabled`::
     See <<indices-warmers>>. Defaults to `true`.
 
+
+added[1.4.0]
+`index.minimum_shard_size.size`::
+    If a shard of the index is smaller then this size it is considered to be
+    this size for the purposes of the disk aware allocation decider and the
+    shard size allocation function.  Invalid if not specified with
+    `index.minimum_shard_size.timeout`.  This should prevent the shard size
+    allocation funciton from causing many index moves when an index is being
+    built quickly.
+`index.minimum_shard_size.timeout`::
+    Time after which the `index.minimum_shard_size.size` is no longer used.
+    Specified as an https://en.wikipedia.org/wiki/ISO_8601[ISO 8601] date with
+    optional time and time zone.  The default time zone is UTC.  Stay sane.
+    Specify it as YYYY-MM-DDThh:mm:ssZ.
+
+
 [float]
 [[bulk]]
 === Bulk Indexing Usage

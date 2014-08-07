@@ -31,11 +31,14 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.joda.FormatDateTimeFormatter;
+import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.property.PropertyPlaceholder;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.settings.loader.SettingsLoaderFactory;
 import org.elasticsearch.common.unit.*;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.joda.time.DateTime;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -53,8 +56,9 @@ import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
  * An immutable implementation of {@link Settings}.
  */
 public class ImmutableSettings implements Settings {
-
     public static final Settings EMPTY = new Builder().build();
+
+    public static final FormatDateTimeFormatter DATE_FORMAT = Joda.forPattern("dateOptionalTime", Locale.ROOT);
 
     private ImmutableMap<String, String> settings;
     private final ImmutableMap<String, String> forcedUnderscoreSettings;
@@ -381,6 +385,16 @@ public class ImmutableSettings implements Settings {
     }
 
     @Override
+    public DateTime getAsDateTime(String setting, DateTime defaultValue) {
+        return parseDateTime(get(setting), defaultValue);
+    }
+
+    @Override
+    public DateTime getAsDateTime(String[] settings, DateTime defaultValue) {
+        return parseDateTime(get(settings), defaultValue);
+    }
+
+    @Override
     public ByteSizeValue getAsBytesSize(String setting, ByteSizeValue defaultValue) throws SettingsException {
         return parseBytesSizeValue(get(setting), defaultValue);
     }
@@ -653,6 +667,12 @@ public class ImmutableSettings implements Settings {
         return builder;
     }
 
+    private DateTime parseDateTime(String value, DateTime defaultValue) {
+        if (value == null) {
+            return defaultValue;
+        }
+        return DATE_FORMAT.parser().parseDateTime(value);
+    }
     /**
      * A builder allowing to put different settings and then {@link #build()} an immutable
      * settings implementation. Use {@link ImmutableSettings#settingsBuilder()} in order to

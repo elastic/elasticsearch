@@ -38,6 +38,7 @@ import java.nio.charset.CharsetDecoder;
 import java.nio.charset.CoderResult;
 
 /**
+ * Note: this is only used by one lone test method.
  */
 public class ByteBufferBytesReference implements BytesReference {
 

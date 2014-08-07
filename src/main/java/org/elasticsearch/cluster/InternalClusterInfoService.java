@@ -64,7 +64,7 @@ import static java.lang.Math.log10;
  * Every time the timer runs, gathers information about the disk usage and
  * shard sizes across the cluster.
  */
-public final class InternalClusterInfoService extends AbstractComponent implements ClusterInfoService, ClusterStateListener {
+public final class InternalClusterInfoService extends AbstractComponent implements ClusterInfoService, LocalNodeMasterListener, ClusterStateListener {
     // Cluster settings
     public static final String INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL = "cluster.info.update.interval";
     public static final String SMALL_SHARD_LIMIT = "cluster.info.small_shard_size";
@@ -84,7 +84,7 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
     private volatile ImmutableSetMultimap<Integer, String> shardSizeBinToShard;
     private volatile MetaData metaData;
 
-    private volatile boolean enabled;
+    private volatile boolean isMaster = false;
     private final TransportNodesStatsAction transportNodesStatsAction;
     private final TransportIndicesStatsAction transportIndicesStatsAction;
     private final ClusterService clusterService;
@@ -114,10 +114,10 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
         // class on startup
         this.updateFrequency = TimeValue.timeValueSeconds(30);
         smallShardLimit = DEFAULT_SMALL_SHARD_LIMIT;
-        // Enable cluster info collection if the node is master eligible
-        this.enabled = settings.getAsBoolean("node.master", true);
         nodeSettingsService.addListener(new ApplySettings());
 
+        // Add InternalClusterInfoService to listen for Master changes
+        this.clusterService.add((LocalNodeMasterListener)this);
         // Add to listen for state changes (when nodes are added)
         this.clusterService.add((ClusterStateListener)this);
 
@@ -129,9 +129,6 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
         public void onRefreshSettings(Settings settings) {
             TimeValue newUpdateFrequency = settings.getAsTime(INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL, null);
             ByteSizeValue newSmallShardLimit = settings.getAsBytesSize(SMALL_SHARD_LIMIT, null);
-
-            // only collect the cluster info if the node is a potential master
-            Boolean newEnabled = settings.getAsBoolean("node.master", null);
 
             if (newUpdateFrequency != null) {
                 if (newUpdateFrequency.getMillis() < TimeValue.timeValueSeconds(10).getMillis()) {
@@ -146,23 +143,33 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
                 logger.info("updating [{}] from [{}] to [{}]", SMALL_SHARD_LIMIT, smallShardLimit, newSmallShardLimit);
                 smallShardLimit = newSmallShardLimit;
             }
-
-            if (newEnabled != null) {
-                InternalClusterInfoService.this.enabled = newEnabled;
-                enabledChanged();
-            }
         }
     }
 
-    private void enabledChanged() {
-        if (enabled) {
-            // Submit a job that will start after DEFAULT_STARTING_INTERVAL, and reschedule itself after running
+    @Override
+    public void onMaster() {
+        this.isMaster = true;
+        if (logger.isTraceEnabled()) {
+            logger.trace("I have been elected master, scheduling a ClusterInfoUpdateJob");
+        }
+        try {
+            // Submit a job that will start after DEFAULT_STARTING_INTERVAL, and
+            // reschedule itself after running
             threadPool.schedule(updateFrequency, executorName(), new SubmitReschedulingClusterInfoUpdatedJob());
             if (clusterService.state().getNodes().getDataNodes().size() > 1) {
                 // Submit an info update job to be run immediately
                 threadPool.executor(executorName()).execute(new ClusterInfoUpdateJob(false));
             }
+        } catch (EsRejectedExecutionException ex) {
+            if (logger.isDebugEnabled()) {
+                logger.debug("Couldn't schedule cluster info update task - node might be shutting down", ex);
+            }
         }
+    }
+
+    @Override
+    public void offMaster() {
+        this.isMaster = false;
     }
 
     public String executorName() {
@@ -185,14 +192,14 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
             }
         }
 
-        if (dataNodeAdded && clusterService.state().getNodes().getDataNodes().size() > 1) {
+        if (isMaster && dataNodeAdded && clusterService.state().getNodes().getDataNodes().size() > 1) {
             if (logger.isDebugEnabled()) {
                 logger.debug("data node was added, retrieving new cluster info");
             }
             threadPool.executor(executorName()).execute(new ClusterInfoUpdateJob(false));
         }
 
-        if (event.nodesRemoved()) {
+        if (isMaster && event.nodesRemoved()) {
             for (DiscoveryNode removedNode : event.nodesDelta().removedNodes()) {
                 if (removedNode.dataNode()) {
                     if (logger.isTraceEnabled()) {

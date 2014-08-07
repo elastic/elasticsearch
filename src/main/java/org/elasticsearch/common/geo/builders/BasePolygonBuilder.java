@@ -417,7 +417,7 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
                 in.next = new Edge(in.intersect, out.next, in.intersect);
             }
             out.next = new Edge(out.intersect, e1, out.intersect);
-        } else {
+        } else if (in.next != out){
             // first edge intersects with dateline
             Edge e2 = new Edge(out.intersect, in.next, out.intersect);
 

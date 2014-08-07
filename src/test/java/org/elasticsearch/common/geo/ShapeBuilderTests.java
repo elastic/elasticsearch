@@ -308,4 +308,66 @@ public class ShapeBuilderTests extends ElasticsearchTestCase {
 
          assertPolygon(shape);
      }
+
+    @Test
+    public void testShapeWithHoleAtEdgeEndPoints() {
+        PolygonBuilder builder = ShapeBuilder.newPolygon()
+                .point(-4, 2)
+                .point(4, 2)
+                .point(6, 0)
+                .point(4, -2)
+                .point(-4, -2)
+                .point(-6, 0)
+                .point(-4, 2);
+
+        builder.hole()
+            .point(4, 1)
+            .point(4, -1)
+            .point(-4, -1)
+            .point(-4, 1)
+            .point(4, 1);
+
+        Shape shape = builder.close().build();
+
+         assertPolygon(shape);
+     }
+
+    @Test
+    public void testShapeWithPointOnDateline() {
+        PolygonBuilder builder = ShapeBuilder.newPolygon()
+                .point(180, 0)
+                .point(176, 4)
+                .point(176, -4)
+                .point(180, 0);
+
+        Shape shape = builder.close().build();
+
+         assertPolygon(shape);
+     }
+
+    @Test
+    public void testShapeWithEdgeAlongDateline() {
+        PolygonBuilder builder = ShapeBuilder.newPolygon()
+                .point(180, 0)
+                .point(176, 4)
+                .point(180, -4)
+                .point(180, 0);
+
+        Shape shape = builder.close().build();
+
+         assertPolygon(shape);
+     }
+
+    @Test
+    public void testShapeWithEdgeAcrossDateline() {
+        PolygonBuilder builder = ShapeBuilder.newPolygon()
+                .point(180, 0)
+                .point(176, 4)
+                .point(-176, 4)
+                .point(180, 0);
+
+        Shape shape = builder.close().build();
+
+         assertPolygon(shape);
+     }
 }

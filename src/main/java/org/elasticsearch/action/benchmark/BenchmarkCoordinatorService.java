@@ -706,10 +706,8 @@ public class BenchmarkCoordinatorService extends AbstractBenchmarkService<Benchm
         for (Map.Entry<String, BenchmarkMetaData.Entry.NodeState> e : entry.nodeStateMap().entrySet()) {
             if (e.getValue() == BenchmarkMetaData.Entry.NodeState.INITIALIZING ||
                 e.getValue() == BenchmarkMetaData.Entry.NodeState.READY ||
-                e.getValue() == BenchmarkMetaData.Entry.NodeState.RUNNING) {
-
-                // XXX - does this cover all appropriate states? what about PAUSED?
-
+                e.getValue() == BenchmarkMetaData.Entry.NodeState.RUNNING ||
+                e.getValue() == BenchmarkMetaData.Entry.NodeState.PAUSED) {
                 return false;
             }
         }

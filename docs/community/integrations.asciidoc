@@ -92,3 +92,5 @@
 * https://doc.tiki.org/Elasticsearch[Tiki Wiki CMS Groupware]
   Tiki has native support for Elasticsearch. This provides faster & better search (facets, etc), along with some Natural Language Processing features (ex.: More like this)
 
+* https://github.com/reachkrishnaraj/kafka-elasticsearch-standalone-consumer[Kafka Standalone Consumer]
+  Easily Scaleable & Extendable, Kafka Standalone Consumer that will read the messages from Kafka, processes and index them in ElasticSearch

@@ -45,7 +45,6 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.monitor.fs.FsStats;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.joda.time.DateTime;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -330,7 +329,7 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
                         // Default to the configured "default" size if there is
                         // one that isn't expired and is larger then the actual
                         // size.
-                        long size = shardSizeFromMetaData(s.getIndex());
+                        long size = minimumShardSizeFromMetaData(s.getIndex());
                         if (size < s.getStats().getStore().sizeInBytes()) {
                             size = s.getStats().getStore().sizeInBytes();
                         }
@@ -379,9 +378,9 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
         /**
          * Load the shard size from its metadata if it has any configured.
          * @param index index name
-         * @return -1 if there isn't any metadata or it has expired.  0 or more if there was a size in the metadata.
+         * @return -1 if there isn't any shard size in the metadata.  0 or more if there was a size in the metadata.
          */
-        private long shardSizeFromMetaData(String index) {
+        private long minimumShardSizeFromMetaData(String index) {
             IndexMetaData meta = metaData.index(index);
             if (meta == null) {
                 return -1;
@@ -390,15 +389,6 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
             if (minimumSize == null) {
                 return -1;
             }
-            DateTime minimumSizeTimeout = meta.getSettings().getAsDateTime(INDEX_SETTING_MINIMUM_SHARD_SIZE_TIMEOUT, null);
-            if (minimumSizeTimeout == null) {
-                logger.warn("Default size was specified [{}] without a timeout for index [{}].  Ignoring.", minimumSize, index);
-                return -1;
-            }
-            if (minimumSizeTimeout.compareTo(DateTime.now()) <   0) {
-                return -1;
-            }
-
             return minimumSize.bytes();
         }
     }

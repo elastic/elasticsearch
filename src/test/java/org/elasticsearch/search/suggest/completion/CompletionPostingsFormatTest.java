@@ -48,10 +48,7 @@ import org.elasticsearch.search.suggest.context.ContextMapping;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
-import java.io.BufferedWriter;
-import java.io.FileWriter;
 import java.io.IOException;
-import java.io.PrintWriter;
 import java.util.*;
 
 import static org.hamcrest.Matchers.*;

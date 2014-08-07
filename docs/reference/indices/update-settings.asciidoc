@@ -166,7 +166,7 @@ added[1.4.0]
     this size for the purposes of the disk aware allocation decider and the
     shard size allocation function.  Invalid if not specified with
     `index.minimum_shard_size.timeout`.  This should prevent the shard size
-    allocation funciton from causing many index moves when an index is being
+    allocation function from causing many index moves when an index is being
     built quickly.
 `index.minimum_shard_size.timeout`::
     Time after which the `index.minimum_shard_size.size` is no longer used.

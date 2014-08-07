@@ -1,5 +1,5 @@
 [[search-aggregations-bucket-filters-aggregation]]
-=== Filters
+=== Filters Aggregation
 
 coming[1.4.0]
 

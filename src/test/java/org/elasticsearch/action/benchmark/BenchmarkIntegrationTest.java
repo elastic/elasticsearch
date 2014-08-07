@@ -21,10 +21,8 @@ package org.elasticsearch.action.benchmark;
 import org.apache.lucene.util.English;
 
 import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.benchmark.abort.BenchmarkAbortRequest;
 import org.elasticsearch.action.benchmark.abort.BenchmarkAbortResponse;
 import org.elasticsearch.action.benchmark.competition.*;
-import org.elasticsearch.action.benchmark.exception.*;
 import org.elasticsearch.action.benchmark.pause.*;
 import org.elasticsearch.action.benchmark.resume.*;
 import org.elasticsearch.action.benchmark.start.*;
@@ -264,6 +262,7 @@ public class BenchmarkIntegrationTest extends ElasticsearchIntegrationTest {
         for (final ActionFuture<BenchmarkStartResponse> future : futures) {
 
             final BenchmarkStartResponse startResponse = future.get();
+            logger.info("--> Got future response for benchmark [{}]", startResponse.benchmarkId());
 
             assertNotNull(startResponse);
             assertThat(startResponse.state(), equalTo(BenchmarkStartResponse.State.COMPLETED));
@@ -396,27 +395,21 @@ public class BenchmarkIntegrationTest extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @Ignore
-    public void testAbortByPattern() throws Exception {
-
-        // XXX - Finish
-    }
-
-    @Test
-    @Ignore
     public void testBenchmarkWithErrors() {
+
         List<SearchRequest> reqList = new ArrayList<>();
-        int numQueries = scaledRandomIntBetween(20, 100);
+        int numQueries = scaledRandomIntBetween(3, 11);
         int numErrors = scaledRandomIntBetween(1, numQueries);
         final boolean containsFatal = randomBoolean();
+
         if (containsFatal) {
             ScriptScoreFunctionBuilder scriptFunction = scriptFunction("DOES NOT COMPILE - fails on any shard");
             SearchRequest searchRequest = searchRequest().source(
                     searchSource()
                             .query(functionScoreQuery(FilterBuilders.matchAllFilter(), scriptFunction)));
             reqList.add(searchRequest);
-
         }
+
         for (int i = 0; reqList.size() < numErrors; i++) {
             ScriptScoreFunctionBuilder scriptFunction = scriptFunction("throw new RuntimeException();");
             SearchRequest searchRequest = searchRequest().source(
@@ -424,11 +417,12 @@ public class BenchmarkIntegrationTest extends ElasticsearchIntegrationTest {
                             .query(functionScoreQuery(FilterBuilders.matchAllFilter(), scriptFunction)));
             reqList.add(searchRequest);
         }
+
         logger.info("--> run with [{}] errors ", numErrors);
         for (int i = 0; reqList.size() < numQueries; i++) {
-
             reqList.add(BenchmarkTestUtil.randomSearch(client(), indices));
         }
+
         Collections.shuffle(reqList, getRandom());
 
         final BenchmarkStartRequest request =
@@ -564,7 +558,7 @@ public class BenchmarkIntegrationTest extends ElasticsearchIntegrationTest {
             final Semaphore             semaphore = new Semaphore(1);
 
             final MockBenchmarkExecutor.FlowControl control =
-                    new MockBenchmarkExecutor.FlowControl(request.competitors().get(competitorToPause).name(),
+                    new MockBenchmarkExecutor.FlowControl(request.benchmarkId(), request.competitors().get(competitorToPause).name(),
                                                           iterationToPauseBefore,
                                                           semaphore, barrier);
 

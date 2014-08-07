@@ -37,9 +37,9 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Semaphore;
 
 /**
- *
+ * Mock benchmark executor for testing
  */
-public class MockBenchmarkExecutorService extends BenchmarkExecutorService {
+public final class MockBenchmarkExecutorService extends BenchmarkExecutorService {
 
     @Inject
     public MockBenchmarkExecutorService(Settings settings, ClusterService clusterService, ThreadPool threadPool,
@@ -74,13 +74,15 @@ public class MockBenchmarkExecutorService extends BenchmarkExecutorService {
         }
 
         static final class FlowControl {
+            String        benchmarkId;
             String        competitor;
             int           current;
             int           iteration;
             Semaphore     control;
             CyclicBarrier initialization;
 
-            FlowControl(final String competitor, final int iteration, final Semaphore control, final CyclicBarrier initialization) {
+            FlowControl(final String benchmarkId, final String competitor, final int iteration, final Semaphore control, final CyclicBarrier initialization) {
+                this.benchmarkId    = benchmarkId;
                 this.competitor     = competitor;
                 this.iteration      = iteration;
                 this.control        = control;
@@ -89,7 +91,9 @@ public class MockBenchmarkExecutorService extends BenchmarkExecutorService {
 
             void acquire() throws InterruptedException {
                 if (current == iteration) {
+                    logger.debug("benchmark [{}] blocking on acquire()", benchmarkId);
                     control.acquire();
+                    logger.debug("benchmark [{}] released from acquire()", benchmarkId);
                 }
             }
 
@@ -130,17 +134,17 @@ public class MockBenchmarkExecutorService extends BenchmarkExecutorService {
                     try {
                         flow.initialization.await();
                         logger.debug("benchmark [{}] passed initialization barrier on node [{}]", benchmarkId, clusterService.localNode().name());
+                        flow.initialization = null;
                     } catch (BrokenBarrierException e) {
                         flow.clear();
                         throw new RuntimeException("Failed to wait for shared initialization", e);
                     }
                 }
 
-                if (flow.competitor.equals(competitor.name())) {
+                if (flow.benchmarkId.equals(benchmarkId) && flow.competitor.equals(competitor.name())) {
                     flow.acquire();
+                    flow.current++;
                 }
-
-                flow.current++;
             }
 
             return super.iterate(benchmarkId, competitor, searchRequests, timeBuckets, docBuckets, semaphore);

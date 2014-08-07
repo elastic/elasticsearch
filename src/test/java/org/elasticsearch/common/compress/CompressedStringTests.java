@@ -19,13 +19,14 @@
 
 package org.elasticsearch.common.compress;
 
+import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.Random;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
@@ -51,5 +52,16 @@ public class CompressedStringTests extends ElasticsearchTestCase {
         assertThat(cstr2.string(), not(equalTo(str)));
         assertThat(new CompressedString(str2), not(equalTo(cstr)));
         assertThat(new CompressedString(str2), equalTo(cstr2));
+    }
+    
+    public void testRandom() throws IOException {
+        String compressor = "lzf";
+        CompressorFactory.configure(ImmutableSettings.settingsBuilder().put("compress.default.type", compressor).build());
+        Random r = getRandom();
+        for (int i = 0; i < 2000; i++) {
+            String string = TestUtil.randomUnicodeString(r, 10000);
+            CompressedString compressedString = new CompressedString(string);
+            assertThat(compressedString.string(), equalTo(string));
+        }
     }
 }

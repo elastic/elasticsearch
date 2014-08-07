@@ -40,9 +40,9 @@ import java.util.Random;
 public class CompressedStreamTests extends ElasticsearchTestCase {
 
     public void testRandom() throws IOException {
-        for (int i = 0; i < 2000; i++) {
-            Random r = getRandom();
-            byte bytes[] = new byte[TestUtil.nextInt(r, 1, 10000)];
+        Random r = getRandom();
+        for (int i = 0; i < 100; i++) {
+            byte bytes[] = new byte[TestUtil.nextInt(r, 1, 100000)];
             r.nextBytes(bytes);
             doTest("lzf", bytes);
         }
@@ -51,8 +51,8 @@ public class CompressedStreamTests extends ElasticsearchTestCase {
     public void testLineDocs() throws IOException {
         Random r = getRandom();
         LineFileDocs lineFileDocs = new LineFileDocs(r);
-        for (int i = 0; i < 200; i++) {
-            int numDocs = TestUtil.nextInt(r, 1, 100);
+        for (int i = 0; i < 100; i++) {
+            int numDocs = TestUtil.nextInt(r, 1, 200);
             ByteArrayOutputStream bos = new ByteArrayOutputStream();
             for (int j = 0; j < numDocs; j++) {
                 String s = lineFileDocs.nextDoc().get("body");
@@ -61,6 +61,65 @@ public class CompressedStreamTests extends ElasticsearchTestCase {
             doTest("lzf", bos.toByteArray());
         }
         lineFileDocs.close();
+    }
+    
+    public void testRepetitionsL() throws IOException {
+        Random r = getRandom();
+        for (int i = 0; i < 1000; i++) {
+            int numLongs = TestUtil.nextInt(r, 1, 1000);
+            ByteArrayOutputStream bos = new ByteArrayOutputStream();
+            long theValue = r.nextLong();
+            for (int j = 0; j < numLongs; j++) {
+                if (r.nextInt(10) == 0) {
+                    theValue = r.nextLong();
+                }
+                bos.write((byte) (theValue >>> 56));
+                bos.write((byte) (theValue >>> 48));
+                bos.write((byte) (theValue >>> 40));
+                bos.write((byte) (theValue >>> 32));
+                bos.write((byte) (theValue >>> 24));
+                bos.write((byte) (theValue >>> 16));
+                bos.write((byte) (theValue >>> 8));
+                bos.write((byte) theValue);
+            }
+            doTest("lzf", bos.toByteArray());
+        }
+    }
+    
+    public void testRepetitionsI() throws IOException {
+        Random r = getRandom();
+        for (int i = 0; i < 1000; i++) {
+            int numInts = TestUtil.nextInt(r, 1, 1000);
+            ByteArrayOutputStream bos = new ByteArrayOutputStream();
+            int theValue = r.nextInt();
+            for (int j = 0; j < numInts; j++) {
+                if (r.nextInt(10) == 0) {
+                    theValue = r.nextInt();
+                }
+                bos.write((byte) (theValue >>> 24));
+                bos.write((byte) (theValue >>> 16));
+                bos.write((byte) (theValue >>> 8));
+                bos.write((byte) theValue);
+            }
+            doTest("lzf", bos.toByteArray());
+        }
+    }
+    
+    public void testRepetitionsS() throws IOException {
+        Random r = getRandom();
+        for (int i = 0; i < 1000; i++) {
+            int numShorts = TestUtil.nextInt(r, 1, 1000);
+            ByteArrayOutputStream bos = new ByteArrayOutputStream();
+            short theValue = (short) r.nextInt(65535);
+            for (int j = 0; j < numShorts; j++) {
+                if (r.nextInt(10) == 0) {
+                    theValue = (short) r.nextInt(65535);
+                }
+                bos.write((byte) (theValue >>> 8));
+                bos.write((byte) theValue);
+            }
+            doTest("lzf", bos.toByteArray());
+        }
     }
     
     private void doTest(String compressor, byte bytes[]) throws IOException {
@@ -73,7 +132,8 @@ public class CompressedStreamTests extends ElasticsearchTestCase {
         OutputStreamStreamOutput rawOs = new OutputStreamStreamOutput(bos);
         StreamOutput os = c.streamOutput(rawOs);
         
-        int bufferSize = TestUtil.nextInt(getRandom(), 1, 2048);
+        Random r = getRandom();
+        int bufferSize = r.nextBoolean() ? 65535 : TestUtil.nextInt(getRandom(), 1, 70000);
         byte buffer[] = new byte[bufferSize];
         int len;
         while ((len = rawIn.read(buffer)) != -1) {

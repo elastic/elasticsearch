@@ -28,7 +28,6 @@ public class ShieldPluginTests extends ElasticsearchIntegrationTest {
     protected Settings nodeSettings(int nodeOrdinal) {
         return ImmutableSettings.settingsBuilder()
                 .put("plugin.types", SecurityPlugin.class.getName())
-                .put("node.mode", "network")
                 .put(super.nodeSettings(nodeOrdinal))
                 .build();
     }

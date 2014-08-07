@@ -227,9 +227,13 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
         final String[] titles = new String[num];
         final long[] weights = new long[num];
         final String suffix = generateRandomSuggestions(randomIntBetween(4, scaledRandomIntBetween(30, 100)));
+        long topScore = -1l;
         for (int i = 0; i < titles.length; i++) {
             titles[i] = prefixStr + suffix;
             weights[i] = between(0, 100);
+            if (weights[i] > topScore) {
+                topScore = weights[i];
+            }
         }
 
         CompletionProvider completionProvider = new CompletionProvider(mapper);
@@ -265,6 +269,9 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
             assertThat(lookupResults.size(), equalTo(1));
             for (LookupResult result : lookupResults) {
                 String key = result.key.toString();
+                // check weight should be highest to lowest
+                assertThat(result.value, lessThanOrEqualTo(topScore));
+                topScore = result.value;
                 IndexReader indexReader = completionProvider.getReader();
                 completionProvider.deleteDoc(indexReader, key);
                 indexReader.close();

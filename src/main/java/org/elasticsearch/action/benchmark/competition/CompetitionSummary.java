@@ -19,10 +19,8 @@
 
 package org.elasticsearch.action.benchmark.competition;
 
+import com.google.common.collect.ImmutableList;
 import org.elasticsearch.action.benchmark.SinglePassStatistics;
-import org.elasticsearch.action.benchmark.competition.CompetitionIteration;
-import org.elasticsearch.action.benchmark.competition.CompetitionIterationData;
-import org.elasticsearch.action.benchmark.competition.CompetitionNodeResult;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -48,7 +46,6 @@ import java.util.*;
 public class CompetitionSummary implements ToXContent {
 
     private List<CompetitionNodeResult> nodeResults;
-    private boolean computed = false;
 
     private long min = 0;
     private long max = 0;
@@ -92,14 +89,12 @@ public class CompetitionSummary implements ToXContent {
      */
     public void computeSummaryStatistics() {
 
-        if (computed) {
-            return;
-        }
-
         long totalWarmupTime = 0;
         final SinglePassStatistics single = new SinglePassStatistics();
 
-        for (CompetitionNodeResult nodeResult : nodeResults) {
+        final List<CompetitionNodeResult> results = ImmutableList.copyOf(nodeResults);
+
+        for (CompetitionNodeResult nodeResult : results) {
 
             totalWarmupTime += nodeResult.warmUpTime();
             totalIterations += nodeResult.totalIterations();
@@ -135,7 +130,7 @@ public class CompetitionSummary implements ToXContent {
         max = single.max();
         mean = single.mean();
         stdDeviation = single.stddev();
-        avgWarmupTime = (nodeResults.size() > 0) ? totalWarmupTime / nodeResults.size() : 0.0;
+        avgWarmupTime = (results.size() > 0) ? totalWarmupTime / results.size() : 0.0;
         queriesPerSecond = (single.sum() > 0) ? (totalQueries * (1000.0 / (double) single.sum())) : 0.0;
         millisPerHit = (sumTotalHits > 0) ? (totalTime / (double) sumTotalHits) : 0.0;
 
@@ -149,7 +144,6 @@ public class CompetitionSummary implements ToXContent {
                 return Long.compare(o2.v2().maxTimeTaken(), o1.v2().maxTimeTaken());
             }
         });
-        computed = true;
     }
 
     @Override

@@ -1,0 +1,21 @@
+NAME
+
+    roles - Edit roles of an existing user
+
+SYNOPSIS
+
+    esusers roles <username> [-a roles] [-r roles]
+
+DESCRIPTION
+
+    The roles command allows to edit roles for an existing user.
+    corresponding roles. Alternatively you can also list just a
+    single users roles, if you do not specify the -a or the -r parameter.
+
+OPTIONS
+
+    -h,--help                    Shows this message
+
+    -a,--add <roles>             Adds supplied roles for the specified user
+
+    -r,--remove <roles>             Adds supplied roles for the specified user

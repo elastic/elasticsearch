@@ -38,8 +38,8 @@ import org.elasticsearch.common.xcontent.XContentType;
  * A request to get suggestions for corrections of phrases. Best created with
  * {@link org.elasticsearch.client.Requests#suggestRequest(String...)}.
  * <p/>
- * <p>The request requires the query source to be set either using {@link #query(org.elasticsearch.index.query.QueryBuilder)},
- * or {@link #query(byte[])}.
+ * <p>The request requires the suggest query source to be set either using {@link #suggest(org.elasticsearch.common.bytes.BytesReference)},
+ * or {@link #suggest(org.elasticsearch.common.bytes.BytesReference, boolean)}.
  *
  * @see SuggestResponse
  * @see org.elasticsearch.client.Client#suggest(SuggestRequest)

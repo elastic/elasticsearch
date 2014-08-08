@@ -37,7 +37,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
@@ -76,79 +75,6 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
                         .endObject()
                         .endObject())
                 .execute().actionGet();
-    }
-
-    @Test
-    public void testUpdateRequest() throws Exception {
-        UpdateRequest request = new UpdateRequest("test", "type", "1");
-        // simple script
-        request.source(XContentFactory.jsonBuilder().startObject()
-                .field("script", "script1")
-                .endObject());
-        assertThat(request.script(), equalTo("script1"));
-
-        // script with params
-        request = new UpdateRequest("test", "type", "1");
-        request.source(XContentFactory.jsonBuilder().startObject()
-                .field("script", "script1")
-                .startObject("params").field("param1", "value1").endObject()
-                .endObject());
-        assertThat(request.script(), equalTo("script1"));
-        assertThat(request.scriptParams().get("param1").toString(), equalTo("value1"));
-
-        request = new UpdateRequest("test", "type", "1");
-        request.source(XContentFactory.jsonBuilder().startObject()
-                .startObject("params").field("param1", "value1").endObject()
-                .field("script", "script1")
-                .endObject());
-        assertThat(request.script(), equalTo("script1"));
-        assertThat(request.scriptParams().get("param1").toString(), equalTo("value1"));
-
-        // script with params and upsert
-        request = new UpdateRequest("test", "type", "1");
-        request.source(XContentFactory.jsonBuilder().startObject()
-                .startObject("params").field("param1", "value1").endObject()
-                .field("script", "script1")
-                .startObject("upsert").field("field1", "value1").startObject("compound").field("field2", "value2").endObject().endObject()
-                .endObject());
-        assertThat(request.script(), equalTo("script1"));
-        assertThat(request.scriptParams().get("param1").toString(), equalTo("value1"));
-        Map<String, Object> upsertDoc = XContentHelper.convertToMap(request.upsertRequest().source(), true).v2();
-        assertThat(upsertDoc.get("field1").toString(), equalTo("value1"));
-        assertThat(((Map) upsertDoc.get("compound")).get("field2").toString(), equalTo("value2"));
-
-        request = new UpdateRequest("test", "type", "1");
-        request.source(XContentFactory.jsonBuilder().startObject()
-                .startObject("upsert").field("field1", "value1").startObject("compound").field("field2", "value2").endObject().endObject()
-                .startObject("params").field("param1", "value1").endObject()
-                .field("script", "script1")
-                .endObject());
-        assertThat(request.script(), equalTo("script1"));
-        assertThat(request.scriptParams().get("param1").toString(), equalTo("value1"));
-        upsertDoc = XContentHelper.convertToMap(request.upsertRequest().source(), true).v2();
-        assertThat(upsertDoc.get("field1").toString(), equalTo("value1"));
-        assertThat(((Map) upsertDoc.get("compound")).get("field2").toString(), equalTo("value2"));
-
-        request = new UpdateRequest("test", "type", "1");
-        request.source(XContentFactory.jsonBuilder().startObject()
-                .startObject("params").field("param1", "value1").endObject()
-                .startObject("upsert").field("field1", "value1").startObject("compound").field("field2", "value2").endObject().endObject()
-                .field("script", "script1")
-                .endObject());
-        assertThat(request.script(), equalTo("script1"));
-        assertThat(request.scriptParams().get("param1").toString(), equalTo("value1"));
-        upsertDoc = XContentHelper.convertToMap(request.upsertRequest().source(), true).v2();
-        assertThat(upsertDoc.get("field1").toString(), equalTo("value1"));
-        assertThat(((Map) upsertDoc.get("compound")).get("field2").toString(), equalTo("value2"));
-
-        // script with doc
-        request = new UpdateRequest("test", "type", "1");
-        request.source(XContentFactory.jsonBuilder().startObject()
-                .startObject("doc").field("field1", "value1").startObject("compound").field("field2", "value2").endObject().endObject()
-                .endObject());
-        Map<String, Object> doc = request.doc().sourceAsMap();
-        assertThat(doc.get("field1").toString(), equalTo("value1"));
-        assertThat(((Map) doc.get("compound")).get("field2").toString(), equalTo("value2"));
     }
 
     @Test

@@ -980,10 +980,6 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         indexRandom(forceRefresh, Arrays.asList(builders));
     }
 
-    public void indexRandom(boolean forceRefresh, boolean dummyDocuments, IndexRequestBuilder... builders) throws InterruptedException, ExecutionException {
-        indexRandom(forceRefresh, dummyDocuments, Arrays.asList(builders));
-    }
-
 
     private static final String RANDOM_BOGUS_TYPE = "RANDOM_BOGUS_TYPE______";
 

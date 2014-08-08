@@ -44,5 +44,9 @@ public class UsernamePasswordTokenTests extends ElasticsearchTestCase {
         assertThat(token, notNullValue());
         assertThat(token.principal(), equalTo("user1"));
         assertThat(new String(token.credentials()), equalTo("test123"));
+
+        // making sure that indeed, once resolved the instance is reused across multiple resolve calls
+        UsernamePasswordToken token2 = UsernamePasswordToken.extractToken(request, null);
+        assertThat(token, is(token2));
     }
 }

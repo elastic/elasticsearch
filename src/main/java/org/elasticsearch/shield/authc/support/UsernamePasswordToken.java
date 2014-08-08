@@ -19,7 +19,8 @@ import java.util.regex.Pattern;
  */
 public class UsernamePasswordToken implements AuthenticationToken {
 
-    private static final String TOKEN_HEADER = "X-ES-UsernamePasswordToken";
+    private static final String TOKEN_KEY = "X-ES-UsernamePasswordToken";
+
     static final String BASIC_AUTH_HEADER = "Authorization";
     private static final Pattern BASIC_AUTH_PATTERN = Pattern.compile("Basic\\s(.+)");
 
@@ -42,17 +43,17 @@ public class UsernamePasswordToken implements AuthenticationToken {
     }
 
     public static UsernamePasswordToken extractToken(TransportRequest request, UsernamePasswordToken defaultToken) {
-        UsernamePasswordToken token = (UsernamePasswordToken) request.getHeader(TOKEN_HEADER);
+        UsernamePasswordToken token = (UsernamePasswordToken) request.context().get(TOKEN_KEY);
         if (token != null) {
             return token;
         }
 
-        String authStr = (String) request.getHeader(BASIC_AUTH_HEADER);
+        String authStr = request.getHeader(BASIC_AUTH_HEADER);
         if (authStr == null) {
             if (defaultToken == null) {
                 return null;
             }
-            request.putHeader(TOKEN_HEADER, defaultToken);
+            request.context().put(TOKEN_KEY, defaultToken);
             return defaultToken;
         }
 
@@ -64,7 +65,7 @@ public class UsernamePasswordToken implements AuthenticationToken {
         String userpasswd = new String(Base64.decodeBase64(matcher.group(1)), Charsets.UTF_8);
         int i = userpasswd.indexOf(':');
         token = new UsernamePasswordToken(userpasswd.substring(0, i), userpasswd.substring(i+1).toCharArray());
-        request.putHeader(TOKEN_HEADER, token);
+        request.context().put(TOKEN_KEY, token);
         return token;
     }
 

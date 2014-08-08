@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.delete.index;
+package org.elasticsearch.action.delete;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;

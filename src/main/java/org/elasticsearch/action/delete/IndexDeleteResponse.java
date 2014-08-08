@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.delete.index;
+package org.elasticsearch.action.delete;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -40,10 +40,6 @@ public class IndexDeleteResponse extends ActionResponse {
         this.successfulShards = deleteResponses.length;
         this.failedShards = failedShards;
         this.deleteResponses = deleteResponses;
-    }
-
-    IndexDeleteResponse() {
-
     }
 
     /**
@@ -80,26 +76,11 @@ public class IndexDeleteResponse extends ActionResponse {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        index = in.readString();
-        successfulShards = in.readVInt();
-        failedShards = in.readVInt();
-        deleteResponses = new ShardDeleteResponse[in.readVInt()];
-        for (int i = 0; i < deleteResponses.length; i++) {
-            deleteResponses[i] = new ShardDeleteResponse();
-            deleteResponses[i].readFrom(in);
-        }
+        throw new UnsupportedOperationException("IndexDeleteResponse is not supposed to be sent over the transport");
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeString(index);
-        out.writeVInt(successfulShards);
-        out.writeVInt(failedShards);
-        out.writeVInt(deleteResponses.length);
-        for (ShardDeleteResponse deleteResponse : deleteResponses) {
-            deleteResponse.writeTo(out);
-        }
+        throw new UnsupportedOperationException("IndexDeleteResponse is not supposed to be sent over the transport");
     }
 }

@@ -10,7 +10,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.AuthenticationToken;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportMessage;
 
 import java.util.Set;
 
@@ -28,30 +28,30 @@ public class AuditTrailService extends AbstractComponent implements AuditTrail {
     }
 
     @Override
-    public void anonymousAccess(String action, TransportRequest request) {
+    public void anonymousAccess(String action, TransportMessage<?> message) {
         for (int i = 0; i < auditTrails.length; i++) {
-            auditTrails[i].anonymousAccess(action, request);
+            auditTrails[i].anonymousAccess(action, message);
         }
     }
 
     @Override
-    public void authenticationFailed(String realm, AuthenticationToken token, String action, TransportRequest request) {
+    public void authenticationFailed(String realm, AuthenticationToken token, String action, TransportMessage<?> message) {
         for (int i = 0; i < auditTrails.length; i++) {
-            auditTrails[i].authenticationFailed(realm, token, action, request);
+            auditTrails[i].authenticationFailed(realm, token, action, message);
         }
     }
 
     @Override
-    public void accessGranted(User user, String action, TransportRequest request) {
+    public void accessGranted(User user, String action, TransportMessage<?> message) {
         for (int i = 0; i < auditTrails.length; i++) {
-            auditTrails[i].accessGranted(user, action, request);
+            auditTrails[i].accessGranted(user, action, message);
         }
     }
 
     @Override
-    public void accessDenied(User user, String action, TransportRequest request) {
+    public void accessDenied(User user, String action, TransportMessage<?> message) {
         for (int i = 0; i < auditTrails.length; i++) {
-            auditTrails[i].accessDenied(user, action, request);
+            auditTrails[i].accessDenied(user, action, message);
         }
     }
 

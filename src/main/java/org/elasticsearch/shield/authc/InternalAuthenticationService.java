@@ -11,7 +11,7 @@ import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.audit.AuditTrail;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportMessage;
 
 /**
  * An authentication service that delegates the authentication process to its configured {@link Realm realms}.
@@ -38,26 +38,26 @@ public class InternalAuthenticationService extends AbstractComponent implements 
      * The order by which the realms are ran is based on the order by which they were set in the
      * constructor.
      *
-     * @param request   The executed request
+     * @param message   The executed request
      * @return          The authenticated user
      * @throws AuthenticationException If none of the configured realms successfully authenticated the
      *                                 request
      */
     @Override
-    public User authenticate(String action, TransportRequest request) throws AuthenticationException {
+    public User authenticate(String action, TransportMessage<?> message) throws AuthenticationException {
         for (Realm realm : realms) {
-            AuthenticationToken token = realm.token(request);
+            AuthenticationToken token = realm.token(message);
             if (token != null) {
                 User user = realm.authenticate(token);
                 if (user != null) {
                     return user;
                 } else if (auditTrail != null) {
-                    auditTrail.authenticationFailed(realm.type(), token, action, request);
+                    auditTrail.authenticationFailed(realm.type(), token, action, message);
                 }
             }
         }
         if (auditTrail != null) {
-            auditTrail.anonymousAccess(action, request);
+            auditTrail.anonymousAccess(action, message);
         }
         throw new AuthenticationException("Unable to authenticate user for request");
     }

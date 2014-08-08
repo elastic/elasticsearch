@@ -9,6 +9,7 @@ import org.apache.commons.codec.binary.Base64;
 import org.elasticsearch.common.base.Charsets;
 import org.elasticsearch.shield.authc.AuthenticationException;
 import org.elasticsearch.shield.authc.AuthenticationToken;
+import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.util.regex.Matcher;
@@ -42,18 +43,18 @@ public class UsernamePasswordToken implements AuthenticationToken {
         return password;
     }
 
-    public static UsernamePasswordToken extractToken(TransportRequest request, UsernamePasswordToken defaultToken) {
-        UsernamePasswordToken token = (UsernamePasswordToken) request.context().get(TOKEN_KEY);
+    public static UsernamePasswordToken extractToken(TransportMessage<?> message, UsernamePasswordToken defaultToken) {
+        UsernamePasswordToken token = (UsernamePasswordToken) message.context().get(TOKEN_KEY);
         if (token != null) {
             return token;
         }
 
-        String authStr = request.getHeader(BASIC_AUTH_HEADER);
+        String authStr = message.getHeader(BASIC_AUTH_HEADER);
         if (authStr == null) {
             if (defaultToken == null) {
                 return null;
             }
-            request.context().put(TOKEN_KEY, defaultToken);
+            message.context().put(TOKEN_KEY, defaultToken);
             return defaultToken;
         }
 
@@ -65,7 +66,7 @@ public class UsernamePasswordToken implements AuthenticationToken {
         String userpasswd = new String(Base64.decodeBase64(matcher.group(1)), Charsets.UTF_8);
         int i = userpasswd.indexOf(':');
         token = new UsernamePasswordToken(userpasswd.substring(0, i), userpasswd.substring(i+1).toCharArray());
-        request.context().put(TOKEN_KEY, token);
+        message.context().put(TOKEN_KEY, token);
         return token;
     }
 

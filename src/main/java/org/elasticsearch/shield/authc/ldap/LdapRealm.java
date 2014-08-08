@@ -11,7 +11,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.Realm;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportMessage;
 
 /**
  *
@@ -31,8 +31,8 @@ public class LdapRealm extends AbstractComponent implements Realm<UsernamePasswo
     }
 
     @Override
-    public UsernamePasswordToken token(TransportRequest request) {
-        return UsernamePasswordToken.extractToken(request, null);
+    public UsernamePasswordToken token(TransportMessage<?> message) {
+        return UsernamePasswordToken.extractToken(message, null);
     }
 
     @Override

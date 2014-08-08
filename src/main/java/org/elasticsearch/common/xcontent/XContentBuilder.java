@@ -1027,7 +1027,7 @@ public final class XContentBuilder implements BytesStream, Releasable {
         return this;
     }
 
-    public XContentBuilder map(Map<String, Object> map) throws IOException {
+    public XContentBuilder map(Map<String, ?> map) throws IOException {
         if (map == null) {
             return nullValue();
         }
@@ -1113,10 +1113,10 @@ public final class XContentBuilder implements BytesStream, Releasable {
     }
 
 
-    private void writeMap(Map<String, Object> map) throws IOException {
+    private void writeMap(Map<String, ?> map) throws IOException {
         generator.writeStartObject();
 
-        for (Map.Entry<String, Object> entry : map.entrySet()) {
+        for (Map.Entry<String, ?> entry : map.entrySet()) {
             field(entry.getKey());
             Object value = entry.getValue();
             if (value == null) {

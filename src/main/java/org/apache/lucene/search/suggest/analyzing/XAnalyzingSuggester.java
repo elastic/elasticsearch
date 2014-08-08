@@ -33,6 +33,7 @@ import org.apache.lucene.util.fst.FST.BytesReader;
 import org.apache.lucene.util.fst.PairOutputs.Pair;
 import org.apache.lucene.util.fst.Util.Result;
 import org.apache.lucene.util.fst.Util.TopResults;
+import org.elasticsearch.common.bytes.BytesReference;
 
 import java.io.*;
 import java.util.*;
@@ -733,7 +734,19 @@ public class XAnalyzingSuggester extends Lookup {
         // Searcher just to find the single exact only
         // match, if present:
         Util.TopNSearcher<Pair<Long,BytesRef>> searcher;
-        searcher = new Util.TopNSearcher<>(fst, count * maxSurfaceFormsPerAnalyzedForm, getMaxTopNSearcherQueueSize(count, liveDocs), weightComparator);
+        searcher = new Util.TopNSearcher<Pair<Long, BytesRef>>(fst, count * maxSurfaceFormsPerAnalyzedForm, getMaxTopNSearcherQueueSize(count, liveDocs), weightComparator) {
+
+            @Override
+            protected boolean acceptResult(IntsRef input, Pair<Long,BytesRef> output) {
+                XPayLoadProcessor.PayloadMetaData metaData = XPayLoadProcessor.parse(output.output2, hasPayloads, payloadSep, spare);
+                if (liveDocs != null && metaData.hasDocID()) {
+                    if (!liveDocs.get(metaData.docID)) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+        };
 
         // NOTE: we could almost get away with only using
         // the first start node.  The only catch is if

@@ -277,7 +277,7 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
                 indexReader.close();
                 Integer counter = deletedTerms.get(key);
                 assertThat(counter, notNullValue());
-                assertThat(counter, greaterThanOrEqualTo(1));
+                assertThat(counter, greaterThan(0));
                 deletedTerms.put(key, --counter);
             }
         }

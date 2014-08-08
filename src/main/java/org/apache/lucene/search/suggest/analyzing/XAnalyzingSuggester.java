@@ -718,6 +718,7 @@ public class XAnalyzingSuggester extends Lookup {
 
       List<FSTUtil.Path<Pair<Long,BytesRef>>> prefixPaths = FSTUtil.intersectPrefixPaths(convertAutomaton(lookupAutomaton), fst);
 
+
       if (exactFirst) {
 
         int count = 0;
@@ -732,7 +733,7 @@ public class XAnalyzingSuggester extends Lookup {
         // Searcher just to find the single exact only
         // match, if present:
         Util.TopNSearcher<Pair<Long,BytesRef>> searcher;
-        searcher = new Util.TopNSearcher<>(fst, count * maxSurfaceFormsPerAnalyzedForm, count * maxSurfaceFormsPerAnalyzedForm, weightComparator);
+        searcher = new Util.TopNSearcher<>(fst, count * maxSurfaceFormsPerAnalyzedForm, getMaxTopNSearcherQueueSize(count, liveDocs), weightComparator);
 
         // NOTE: we could almost get away with only using
         // the first start node.  The only catch is if
@@ -778,7 +779,7 @@ public class XAnalyzingSuggester extends Lookup {
       Util.TopNSearcher<Pair<Long,BytesRef>> searcher;
       searcher = new Util.TopNSearcher<Pair<Long,BytesRef>>(fst,
                                                             num - results.size(),
-                                                            num * maxAnalyzedPathsForOneInput,
+                                                            getMaxTopNSearcherQueueSize(num, liveDocs),
                                                             weightComparator) {
         private final Set<BytesRef> seen = new HashSet<>();
         private CharsRef spare = new CharsRef();
@@ -824,7 +825,9 @@ public class XAnalyzingSuggester extends Lookup {
       }
 
       TopResults<Pair<Long,BytesRef>> completions = searcher.search();
-      assert completions.isComplete;
+      // search admissibility is not guaranteed
+      // see comment on getMaxTopNSearcherQueueSize
+      //assert completions.isComplete;
 
       for(Result<Pair<Long,BytesRef>> completion : completions) {
 
@@ -847,6 +850,38 @@ public class XAnalyzingSuggester extends Lookup {
     } catch (IOException bogus) {
       throw new RuntimeException(bogus);
     }
+  }
+
+  /**
+   * Simple heuristics to try to avoid over-pruning potential suggestions by the
+   * TopNSearcher. Since suggestion entries can be rejected if they belong
+   * to a deleted document, the length of the TopNSearcher queue has to
+   * be increased by some factor, to account for the filtered out suggestions.
+   * This heuristic will try to make the searcher admissible, but the search
+   * can still lead to over-pruning
+   */
+  private int getMaxTopNSearcherQueueSize(int num, Bits liveDocs) {
+    int maxQueueSize = num * maxAnalyzedPathsForOneInput;
+    if (liveDocs != null) {
+      int docs = liveDocs.length();
+      int deletedDocCount = 0;
+      for (int i = 0; i < docs; i++) {
+        if (!liveDocs.get(i)) {
+          deletedDocCount++;
+        }
+      }
+      int deletedDocPercentage = (deletedDocCount * 100) / docs;
+
+      if (deletedDocPercentage >= 50) {
+        maxQueueSize *= 2;
+      } else if (deletedDocPercentage >= 75) {
+        maxQueueSize *= 4;
+      }
+      if (deletedDocCount < (maxQueueSize - (num * maxAnalyzedPathsForOneInput))) {
+        maxQueueSize = deletedDocCount + (num * maxAnalyzedPathsForOneInput);
+      }
+    }
+    return maxQueueSize;
   }
 
   @Override

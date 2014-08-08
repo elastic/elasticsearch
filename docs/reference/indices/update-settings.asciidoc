@@ -59,7 +59,6 @@ settings API:
 
 `index.codec.bloom.load`::
     Whether to load the bloom filter. Defaults to `false`.
-    See <<codec-bloom-load>>.
 
 `index.fail_on_merge_failure`::
     Default to `true`.

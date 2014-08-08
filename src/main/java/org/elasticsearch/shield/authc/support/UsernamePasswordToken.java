@@ -42,12 +42,12 @@ public class UsernamePasswordToken implements AuthenticationToken {
     }
 
     public static UsernamePasswordToken extractToken(TransportRequest request, UsernamePasswordToken defaultToken) {
-        UsernamePasswordToken token = (UsernamePasswordToken) request.getHeaders().get(TOKEN_HEADER);
+        UsernamePasswordToken token = (UsernamePasswordToken) request.getHeader(TOKEN_HEADER);
         if (token != null) {
             return token;
         }
 
-        String authStr = (String) request.getHeaders().get(BASIC_AUTH_HEADER);
+        String authStr = (String) request.getHeader(BASIC_AUTH_HEADER);
         if (authStr == null) {
             if (defaultToken == null) {
                 return null;

@@ -17,40 +17,31 @@
  * under the License.
  */
 
-package org.elasticsearch.action.delete.index;
+package org.elasticsearch.action.delete;
 
 import org.elasticsearch.action.ShardOperationFailedException;
-import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.TransportIndexReplicationOperationAction;
 import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
 
 /**
- *
+ * Internal transport action that broadcasts a delete request to all of the shards that belongs to an index.
+ * Used when routing is required but not specified within the delete request.
  */
 public class TransportIndexDeleteAction extends TransportIndexReplicationOperationAction<IndexDeleteRequest, IndexDeleteResponse, ShardDeleteRequest, ShardDeleteRequest, ShardDeleteResponse> {
 
     private static final String ACTION_NAME = DeleteAction.NAME + "[index]";
 
     @Inject
-    public TransportIndexDeleteAction(Settings settings, ClusterService clusterService, TransportService transportService,
+    public TransportIndexDeleteAction(Settings settings, ClusterService clusterService,
                                       ThreadPool threadPool, TransportShardDeleteAction deleteAction, ActionFilters actionFilters) {
-        super(settings, ACTION_NAME, transportService, clusterService, threadPool, deleteAction, actionFilters);
-    }
-
-    @Override
-    protected IndexDeleteRequest newRequestInstance() {
-        return new IndexDeleteRequest();
+        super(settings, ACTION_NAME, clusterService, threadPool, deleteAction, actionFilters);
     }
 
     @Override
@@ -61,16 +52,6 @@ public class TransportIndexDeleteAction extends TransportIndexReplicationOperati
     @Override
     protected boolean accumulateExceptions() {
         return false;
-    }
-
-    @Override
-    protected ClusterBlockException checkGlobalBlock(ClusterState state, IndexDeleteRequest request) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.WRITE);
-    }
-
-    @Override
-    protected ClusterBlockException checkRequestBlock(ClusterState state, IndexDeleteRequest request) {
-        return state.blocks().indexBlockedException(ClusterBlockLevel.WRITE, request.index());
     }
 
     @Override

@@ -17,38 +17,59 @@
  * under the License.
  */
 
-package org.elasticsearch.action.delete.index;
+package org.elasticsearch.action.delete;
 
-import org.elasticsearch.action.delete.DeleteRequest;
-import org.elasticsearch.action.support.replication.IndexReplicationOperationRequest;
+import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.support.replication.ShardReplicationOperationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
 
 import java.io.IOException;
 
-/**
- *
- */
-public class IndexDeleteRequest extends IndexReplicationOperationRequest<IndexDeleteRequest> {
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 
+/**
+ * Delete by query request to execute on a specific shard.
+ */
+public class ShardDeleteRequest extends ShardReplicationOperationRequest<ShardDeleteRequest> {
+
+    private int shardId;
     private String type;
     private String id;
     private boolean refresh = false;
     private long version;
 
-    IndexDeleteRequest() {
-    }
-
-    public IndexDeleteRequest(DeleteRequest request) {
-        this.timeout = request.timeout();
-        this.consistencyLevel = request.consistencyLevel();
-        this.replicationType = request.replicationType();
+    ShardDeleteRequest(IndexDeleteRequest request, int shardId) {
+        super(request);
         this.index = request.index();
+        this.shardId = shardId;
         this.type = request.type();
         this.id = request.id();
+        replicationType(request.replicationType());
+        consistencyLevel(request.consistencyLevel());
+        timeout = request.timeout();
         this.refresh = request.refresh();
         this.version = request.version();
+    }
+
+    ShardDeleteRequest() {
+    }
+
+    @Override
+    public ActionRequestValidationException validate() {
+        ActionRequestValidationException validationException = super.validate();
+        if (type == null) {
+            addValidationError("type is missing", validationException);
+        }
+        if (id == null) {
+            addValidationError("id is missing", validationException);
+        }
+        return validationException;
+    }
+
+    public int shardId() {
+        return this.shardId;
     }
 
     public String type() {
@@ -63,6 +84,10 @@ public class IndexDeleteRequest extends IndexReplicationOperationRequest<IndexDe
         return this.refresh;
     }
 
+    public void version(long version) {
+        this.version = version;
+    }
+
     public long version() {
         return this.version;
     }
@@ -70,6 +95,7 @@ public class IndexDeleteRequest extends IndexReplicationOperationRequest<IndexDe
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
+        shardId = in.readVInt();
         type = in.readString();
         id = in.readString();
         refresh = in.readBoolean();
@@ -79,6 +105,7 @@ public class IndexDeleteRequest extends IndexReplicationOperationRequest<IndexDe
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        out.writeVInt(shardId);
         out.writeString(type);
         out.writeString(id);
         out.writeBoolean(refresh);

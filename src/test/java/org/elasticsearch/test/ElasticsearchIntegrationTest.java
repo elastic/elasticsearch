@@ -982,45 +982,22 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
 
 
     private static final String RANDOM_BOGUS_TYPE = "RANDOM_BOGUS_TYPE______";
-
     /**
      * Indexes the given {@link IndexRequestBuilder} instances randomly. It shuffles the given builders and either
      * indexes they in a blocking or async fashion. This is very useful to catch problems that relate to internal document
      * ids or index segment creations. Some features might have bug when a given document is the first or the last in a
      * segment or if only one document is in a segment etc. This method prevents issues like this by randomizing the index
      * layout.
-     *
-     * @param forceRefresh if <tt>true</tt> all involved indices are refreshed once the documents are indexed. Additionally if <tt>true</tt>
-     *                     some empty dummy documents are may be randomly inserted into the document list and deleted once all documents are indexed.
-     *                     This is useful to produce deleted documents on the server side.
-     * @param builders the documents to index.
-     *
-     * @see #indexRandom(boolean, boolean, java.util.List)
      */
     public void indexRandom(boolean forceRefresh, List<IndexRequestBuilder> builders) throws InterruptedException, ExecutionException {
-        indexRandom(forceRefresh, forceRefresh, builders);
-    }
-
-    /**
-     * Indexes the given {@link IndexRequestBuilder} instances randomly. It shuffles the given builders and either
-     * indexes they in a blocking or async fashion. This is very useful to catch problems that relate to internal document
-     * ids or index segment creations. Some features might have bug when a given document is the first or the last in a
-     * segment or if only one document is in a segment etc. This method prevents issues like this by randomizing the index
-     * layout.
-     *
-     * @param forceRefresh if <tt>true</tt> all involved indices are refreshed once the documents are indexed.
-     * @param dummyDocuments if <tt>true</tt> some empty dummy documents are may be randomly inserted into the document list and deleted once
-     *                       all documents are indexed. This is useful to produce deleted documents on the server side.
-     * @param builders the documents to index.
-     */
-    public void indexRandom(boolean forceRefresh, boolean dummyDocuments, List<IndexRequestBuilder> builders) throws InterruptedException, ExecutionException {
         Random random = getRandom();
         Set<String> indicesSet = new HashSet<>();
         for (IndexRequestBuilder builder : builders) {
             indicesSet.add(builder.request().index());
         }
         Set<Tuple<String, String>> bogusIds = new HashSet<>();
-        if (random.nextBoolean() && !builders.isEmpty() && dummyDocuments) {
+        if (random.nextBoolean() && !builders.isEmpty() && forceRefresh) {
+            // we only do this if we forceRefresh=true since we need to refresh to reflect the deletes
             builders = new ArrayList<>(builders);
             final String[] indices = indicesSet.toArray(new String[0]);
             // inject some bogus docs

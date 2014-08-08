@@ -1096,6 +1096,7 @@ public class XAnalyzingSuggester extends Lookup {
    * Helper to encode/decode payload with surface + PAYLOAD_SEP + payload + PAYLOAD_SEP + docID
    */
   static final class XPayLoadProcessor {
+      final static private int MAX_DOC_ID_LEN_WITH_SEP = 6; // vint takes at most 5 bytes
       static class PayloadMetaData {
           BytesRef payload;
           BytesRef surfaceForm;
@@ -1114,7 +1115,8 @@ public class XAnalyzingSuggester extends Lookup {
 
       private static int getDocIDSepIndex(final BytesRef output, final int payloadSep, final int payloadSepIndex) {
           int docSepIndex = -1;
-          int start = (payloadSepIndex < output.length - 5) ? output.length - 5 : payloadSepIndex + 1;
+          int start = (payloadSepIndex < output.length - MAX_DOC_ID_LEN_WITH_SEP) ? output.length - MAX_DOC_ID_LEN_WITH_SEP : payloadSepIndex + 1;
+          // have to iterate forward, or else it will break if docID = PAYLOAD_SEP (31)
           for (int i = start; i < output.length; i++) {
               if (output.bytes[output.offset + i] == payloadSep) {
                   docSepIndex = i;
@@ -1130,7 +1132,7 @@ public class XAnalyzingSuggester extends Lookup {
               int sepIndex = getPayloadSepIndex(output, payloadSep);
               docSepIndex = getDocIDSepIndex(output, payloadSep, sepIndex);
           } else {
-              int start = (output.length - 5 < 0) ? 0 : output.length - 5;
+              int start = (output.length - MAX_DOC_ID_LEN_WITH_SEP < 0) ? 0 : output.length - MAX_DOC_ID_LEN_WITH_SEP;
               for (int i = start; i < output.length; i++) {
                   if (output.bytes[output.offset + i] == payloadSep) {
                       docSepIndex = i;
@@ -1191,7 +1193,7 @@ public class XAnalyzingSuggester extends Lookup {
       }
 
       static BytesRef make(BytesRef surface, final BytesRef payload, final int docID, final int payloadSep, final boolean hasPayloads) throws IOException {
-          int len = surface.length + ((hasPayloads) ? 1 + payload.length : 0) + (1 + 4);
+          int len = surface.length + ((hasPayloads) ? 1 + payload.length : 0) + MAX_DOC_ID_LEN_WITH_SEP;
           byte[] buffer = new byte[len];
           ByteArrayDataOutput output = new ByteArrayDataOutput(buffer);
           output.writeBytes(surface.bytes, surface.length - surface.offset);

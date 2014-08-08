@@ -719,7 +719,6 @@ public class XAnalyzingSuggester extends Lookup {
 
       List<FSTUtil.Path<Pair<Long,BytesRef>>> prefixPaths = FSTUtil.intersectPrefixPaths(convertAutomaton(lookupAutomaton), fst);
 
-
       if (exactFirst) {
 
         int count = 0;
@@ -736,16 +735,16 @@ public class XAnalyzingSuggester extends Lookup {
         Util.TopNSearcher<Pair<Long,BytesRef>> searcher;
         searcher = new Util.TopNSearcher<Pair<Long, BytesRef>>(fst, count * maxSurfaceFormsPerAnalyzedForm, getMaxTopNSearcherQueueSize(count, liveDocs), weightComparator) {
 
-            @Override
-            protected boolean acceptResult(IntsRef input, Pair<Long,BytesRef> output) {
-                XPayLoadProcessor.PayloadMetaData metaData = XPayLoadProcessor.parse(output.output2, hasPayloads, payloadSep, spare);
-                if (liveDocs != null && metaData.hasDocID()) {
-                    if (!liveDocs.get(metaData.docID)) {
-                        return false;
-                    }
-                }
-                return true;
+          @Override
+          protected boolean acceptResult(IntsRef input, Pair<Long,BytesRef> output) {
+            XPayLoadProcessor.PayloadMetaData metaData = XPayLoadProcessor.parse(output.output2, hasPayloads, payloadSep, spare);
+            if (liveDocs != null && metaData.hasDocID()) {
+              if (!liveDocs.get(metaData.docID)) {
+                  return false;
+              }
             }
+            return true;
+          }
         };
 
         // NOTE: we could almost get away with only using

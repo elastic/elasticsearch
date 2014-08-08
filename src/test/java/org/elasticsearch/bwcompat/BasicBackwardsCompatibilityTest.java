@@ -28,6 +28,9 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRes
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.count.CountResponse;
+import org.elasticsearch.action.delete.DeleteResponse;
+import org.elasticsearch.action.deletebyquery.DeleteByQueryResponse;
+import org.elasticsearch.action.deletebyquery.IndexDeleteByQueryResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -43,6 +46,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -528,5 +532,75 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
         }
     }
 
+    @Test
+    public void testDeleteByQuery() throws ExecutionException, InterruptedException {
+        createIndex("test");
+        ensureYellow("test");
 
+        int numDocs = iterations(10, 50);
+        IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[numDocs + 1];
+        for (int i = 0; i < numDocs; i++) {
+            indexRequestBuilders[i] = client().prepareIndex("test", "test", Integer.toString(i)).setSource("field", "value");
+        }
+        indexRequestBuilders[numDocs] = client().prepareIndex("test", "test", Integer.toString(numDocs)).setSource("field", "other_value");
+        indexRandom(true, indexRequestBuilders);
+
+        SearchResponse searchResponse = client().prepareSearch("test").get();
+        assertThat(searchResponse.getHits().totalHits(), equalTo((long)numDocs + 1));
+
+        DeleteByQueryResponse deleteByQueryResponse = client().prepareDeleteByQuery("test").setQuery(QueryBuilders.termQuery("field", "value")).get();
+        assertThat(deleteByQueryResponse.getIndices().size(), equalTo(1));
+        for (IndexDeleteByQueryResponse indexDeleteByQueryResponse : deleteByQueryResponse) {
+            assertThat(indexDeleteByQueryResponse.getIndex(), equalTo("test"));
+            assertThat(indexDeleteByQueryResponse.getFailures().length, equalTo(0));
+        }
+
+        refresh();
+        searchResponse = client().prepareSearch("test").get();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+    }
+
+    @Test
+    public void testDeleteRoutingRequired() throws ExecutionException, InterruptedException, IOException {
+        assertAcked(prepareCreate("test").addMapping("test",
+                XContentFactory.jsonBuilder().startObject().startObject("test").startObject("_routing").field("required", true).endObject().endObject().endObject()));
+        ensureYellow("test");
+
+        int numDocs = iterations(10, 50);
+        IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[numDocs];
+        for (int i = 0; i < numDocs - 2; i++) {
+            indexRequestBuilders[i] =  client().prepareIndex("test", "test", Integer.toString(i))
+                    .setRouting(randomAsciiOfLength(randomIntBetween(1, 10))).setSource("field", "value");
+        }
+        String firstDocId = Integer.toString(numDocs - 2);
+        indexRequestBuilders[numDocs - 2] = client().prepareIndex("test", "test", firstDocId)
+                .setRouting("routing").setSource("field", "value");
+        String secondDocId = Integer.toString(numDocs - 1);
+        String secondRouting = randomAsciiOfLength(randomIntBetween(1, 10));
+        indexRequestBuilders[numDocs - 1] = client().prepareIndex("test", "test", secondDocId)
+                .setRouting(secondRouting).setSource("field", "value");
+
+        indexRandom(true, indexRequestBuilders);
+
+        SearchResponse searchResponse = client().prepareSearch("test").get();
+        assertThat(searchResponse.getHits().totalHits(), equalTo((long)numDocs));
+
+        //use routing
+        DeleteResponse deleteResponse = client().prepareDelete("test", "test", firstDocId).setRouting("routing").get();
+        assertThat(deleteResponse.isFound(), equalTo(true));
+        GetResponse getResponse = client().prepareGet("test", "test", firstDocId).setRouting("routing").get();
+        assertThat(getResponse.isExists(), equalTo(false));
+        refresh();
+        searchResponse = client().prepareSearch("test").get();
+        assertThat(searchResponse.getHits().totalHits(), equalTo((long)numDocs - 1));
+
+        //don't use routing and trigger a broadcast delete
+        deleteResponse = client().prepareDelete("test", "test", secondDocId).get();
+        assertThat(deleteResponse.isFound(), equalTo(true));
+        getResponse = client().prepareGet("test", "test", secondDocId).setRouting(secondRouting).get();
+        assertThat(getResponse.isExists(), equalTo(false));
+        refresh();
+        searchResponse = client().prepareSearch("test").get();
+        assertThat(searchResponse.getHits().totalHits(), equalTo((long)numDocs - 2));
+    }
 }

@@ -39,7 +39,6 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class ExplainActionTests extends ElasticsearchIntegrationTest {
 
-
     @Test
     public void testSimple() throws Exception {
         client().admin().indices().prepareCreate("test").setSettings(
@@ -56,6 +55,9 @@ public class ExplainActionTests extends ElasticsearchIntegrationTest {
                 .execute().actionGet();
         assertNotNull(response);
         assertFalse(response.isExists()); // not a match b/c not realtime
+        assertThat(response.getIndex(), equalTo("test"));
+        assertThat(response.getType(), equalTo("test"));
+        assertThat(response.getId(), equalTo("1"));
         assertFalse(response.isMatch()); // not a match b/c not realtime
 
         client().admin().indices().prepareRefresh("test").execute().actionGet();
@@ -66,6 +68,9 @@ public class ExplainActionTests extends ElasticsearchIntegrationTest {
         assertTrue(response.isMatch());
         assertNotNull(response.getExplanation());
         assertTrue(response.getExplanation().isMatch());
+        assertThat(response.getIndex(), equalTo("test"));
+        assertThat(response.getType(), equalTo("test"));
+        assertThat(response.getId(), equalTo("1"));
         assertThat(response.getExplanation().getValue(), equalTo(1.0f));
 
         client().admin().indices().prepareRefresh("test").execute().actionGet();
@@ -75,6 +80,9 @@ public class ExplainActionTests extends ElasticsearchIntegrationTest {
         assertNotNull(response);
         assertTrue(response.isExists());
         assertFalse(response.isMatch());
+        assertThat(response.getIndex(), equalTo("test"));
+        assertThat(response.getType(), equalTo("test"));
+        assertThat(response.getId(), equalTo("1"));
         assertNotNull(response.getExplanation());
         assertFalse(response.getExplanation().isMatch());
 
@@ -88,6 +96,9 @@ public class ExplainActionTests extends ElasticsearchIntegrationTest {
         assertNotNull(response);
         assertTrue(response.isExists());
         assertFalse(response.isMatch());
+        assertThat(response.getIndex(), equalTo("test"));
+        assertThat(response.getType(), equalTo("test"));
+        assertThat(response.getId(), equalTo("1"));
         assertNotNull(response.getExplanation());
         assertFalse(response.getExplanation().isMatch());
         assertThat(response.getExplanation().getDetails().length, equalTo(2));
@@ -98,6 +109,9 @@ public class ExplainActionTests extends ElasticsearchIntegrationTest {
         assertNotNull(response);
         assertFalse(response.isExists());
         assertFalse(response.isMatch());
+        assertThat(response.getIndex(), equalTo("test"));
+        assertThat(response.getType(), equalTo("test"));
+        assertThat(response.getId(), equalTo("2"));
     }
 
     @SuppressWarnings("unchecked")
@@ -218,6 +232,9 @@ public class ExplainActionTests extends ElasticsearchIntegrationTest {
         assertNotNull(response);
         assertTrue(response.isExists());
         assertFalse(response.isMatch());
+        assertThat(response.getIndex(), equalTo("test"));
+        assertThat(response.getType(), equalTo("test"));
+        assertThat(response.getId(), equalTo("1"));
     }
 
     @Test

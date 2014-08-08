@@ -980,8 +980,6 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         indexRandom(forceRefresh, Arrays.asList(builders));
     }
 
-
-    private static final String RANDOM_BOGUS_TYPE = "RANDOM_BOGUS_TYPE______";
     /**
      * Indexes the given {@link IndexRequestBuilder} instances randomly. It shuffles the given builders and either
      * indexes they in a blocking or async fashion. This is very useful to catch problems that relate to internal document
@@ -994,21 +992,6 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         Set<String> indicesSet = new HashSet<>();
         for (IndexRequestBuilder builder : builders) {
             indicesSet.add(builder.request().index());
-        }
-        Set<Tuple<String, String>> bogusIds = new HashSet<>();
-        if (random.nextBoolean() && !builders.isEmpty() && forceRefresh) {
-            // we only do this if we forceRefresh=true since we need to refresh to reflect the deletes
-            builders = new ArrayList<>(builders);
-            final String[] indices = indicesSet.toArray(new String[0]);
-            // inject some bogus docs
-            final int numBogusDocs = scaledRandomIntBetween(1, builders.size()*2);
-            final int unicodeLen = between(1, 10);
-            for (int i = 0; i < numBogusDocs; i++) {
-                String id = randomRealisticUnicodeOfLength(unicodeLen);
-                String index = RandomPicks.randomFrom(random, indices);
-                bogusIds.add(new Tuple<String, String>(index, id));
-                builders.add(client().prepareIndex(index, RANDOM_BOGUS_TYPE, id).setSource("{}"));
-            }
         }
         final String[] indices = indicesSet.toArray(new String[indicesSet.size()]);
         Collections.shuffle(builders, random);
@@ -1052,16 +1035,9 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             }
         }
         assertThat(actualErrors, emptyIterable());
-        if (!bogusIds.isEmpty()) {
-           // delete the bogus types again - it might trigger merges or at least holes in the segments and enforces deleted docs!
-           for (Tuple<String, String> doc : bogusIds) {
-               client().prepareDelete(doc.v1(), RANDOM_BOGUS_TYPE, doc.v2()).get();
-           }
-        }
         if (forceRefresh) {
             assertNoFailures(client().admin().indices().prepareRefresh(indices).setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute().get());
         }
-
     }
 
     private static CountDownLatch newLatch(List<CountDownLatch> latches) {

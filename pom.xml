@@ -83,9 +83,14 @@
             <version>1.2.17</version>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>com.google.guava</groupId>
+            <artifactId>guava</artifactId>
+            <version>17.0</version>
+            <scope>test</scope>
+        </dependency>
 
-
-       <!-- real dependencies -->
+        <!-- real dependencies -->
 
         <dependency>
             <groupId>org.elasticsearch</groupId>
@@ -97,19 +102,6 @@
             <groupId>commons-codec</groupId>
             <artifactId>commons-codec</artifactId>
             <version>1.9</version>
-        </dependency>
-
-        <dependency>
-            <groupId>commons-cli</groupId>
-            <artifactId>commons-cli</artifactId>
-            <version>1.2</version>
-        </dependency>
-
-        <!-- needed for forbidden APIs, embarassing, need to fix -->
-        <dependency>
-            <groupId>com.google.guava</groupId>
-            <artifactId>guava</artifactId>
-            <version>17.0</version>
         </dependency>
 
     </dependencies>
@@ -286,7 +278,7 @@
             <plugin>
                 <groupId>de.thetaphi</groupId>
                 <artifactId>forbiddenapis</artifactId>
-                <version>1.5.1</version>
+                <version>1.6.1</version>
 
                 <executions>
                     <execution>

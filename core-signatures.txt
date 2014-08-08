@@ -54,9 +54,6 @@ java.lang.Math#abs(long)
 @defaultMessage Please do not try to stop the world
 java.lang.System#gc()
 
-@defaultMessage Use Long.compare instead we are on Java7
-com.google.common.primitives.Longs#compare(long,long)
-
 @defaultMessage Use Channels.* methods to write to channels. Do not write directly.
 java.nio.channels.WritableByteChannel#write(java.nio.ByteBuffer)
 java.nio.channels.FileChannel#write(java.nio.ByteBuffer, long)

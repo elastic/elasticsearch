@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.shield.authz;
 
-import com.google.common.collect.Sets;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.base.Predicate;
+import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.shield.support.AutomatonPredicate;
 import org.elasticsearch.transport.TransportRequest;
 

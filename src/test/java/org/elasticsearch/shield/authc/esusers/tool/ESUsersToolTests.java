@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.shield.authc.esusers.tool;
 
-import com.google.common.base.Charsets;
+import org.elasticsearch.common.base.Charsets;
 import org.elasticsearch.common.cli.CliTool;
 import org.elasticsearch.common.cli.CliToolTestCase;
 import org.elasticsearch.common.cli.Terminal;

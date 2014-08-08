@@ -5,16 +5,13 @@
  */
 package org.elasticsearch.shield.n2n;
 
-import com.google.common.net.InetAddresses;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.base.Charsets;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.elasticsearch.common.net.InetAddresses;
 import org.elasticsearch.common.netty.handler.ipfilter.IpFilterRule;
 import org.elasticsearch.common.netty.handler.ipfilter.IpSubnetFilterRule;
 import org.elasticsearch.common.netty.handler.ipfilter.PatternRule;

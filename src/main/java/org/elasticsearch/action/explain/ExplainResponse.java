@@ -20,6 +20,7 @@
 package org.elasticsearch.action.explain;
 
 import org.apache.lucene.search.Explanation;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -35,6 +36,9 @@ import static org.elasticsearch.common.lucene.Lucene.writeExplanation;
  */
 public class ExplainResponse extends ActionResponse {
 
+    private String index;
+    private String type;
+    private String id;
     private boolean exists;
     private Explanation explanation;
     private GetResult getResult;
@@ -42,19 +46,33 @@ public class ExplainResponse extends ActionResponse {
     ExplainResponse() {
     }
 
-    public ExplainResponse(boolean exists) {
+    public ExplainResponse(String index, String type, String id, boolean exists) {
+        this.index = index;
+        this.type = type;
+        this.id = id;
         this.exists = exists;
     }
 
-    public ExplainResponse(boolean exists, Explanation explanation) {
-        this.exists = exists;
+    public ExplainResponse(String index, String type, String id, boolean exists, Explanation explanation) {
+        this(index, type, id, exists);
         this.explanation = explanation;
     }
 
-    public ExplainResponse(boolean exists, Explanation explanation, GetResult getResult) {
-        this.exists = exists;
-        this.explanation = explanation;
+    public ExplainResponse(String index, String type, String id, boolean exists, Explanation explanation, GetResult getResult) {
+        this(index, type, id, exists, explanation);
         this.getResult = getResult;
+    }
+
+    public String getIndex() {
+        return index;
+    }
+
+    public String getType() {
+        return type;
+    }
+
+    public String getId() {
+        return id;
     }
 
     public Explanation getExplanation() {
@@ -79,6 +97,11 @@ public class ExplainResponse extends ActionResponse {
 
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
+        if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
+            index = in.readString();
+            type = in.readString();
+            id = in.readString();
+        }
         exists = in.readBoolean();
         if (in.readBoolean()) {
             explanation = readExplanation(in);
@@ -90,6 +113,11 @@ public class ExplainResponse extends ActionResponse {
 
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
+            out.writeString(index);
+            out.writeString(type);
+            out.writeString(id);
+        }
         out.writeBoolean(exists);
         if (explanation == null) {
             out.writeBoolean(false);

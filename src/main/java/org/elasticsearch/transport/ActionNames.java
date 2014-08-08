@@ -275,12 +275,10 @@ final class ActionNames {
 
         builder.put(DeleteAction.NAME, "delete");
         builder.put(DeleteAction.NAME + "[r]", "delete/replica");
-        builder.put(DeleteAction.NAME + "[index]", "indices/index/delete");
         builder.put(DeleteAction.NAME + "[s]", "indices/index/b_shard/delete");
         builder.put(DeleteAction.NAME + "[s][r]", "indices/index/b_shard/delete/replica");
 
         builder.put(DeleteByQueryAction.NAME, "deleteByQuery");
-        builder.put(DeleteByQueryAction.NAME + "[index]", "deleteByQuery/index");
         builder.put(DeleteByQueryAction.NAME + "[s]", "deleteByQuery/shard");
         builder.put(DeleteByQueryAction.NAME + "[s][r]", "deleteByQuery/shard/replica");
 

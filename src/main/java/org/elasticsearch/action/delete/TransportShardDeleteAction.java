@@ -17,10 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.action.delete.index;
+package org.elasticsearch.action.delete;
 
 import org.elasticsearch.ElasticsearchIllegalStateException;
-import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.TransportShardReplicationOperationAction;
 import org.elasticsearch.cluster.ClusterService;

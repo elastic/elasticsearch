@@ -35,7 +35,7 @@ public class BytesStreamInput extends StreamInput {
 
     protected int pos;
 
-    protected int count;
+    protected int end;
 
     private final boolean unsafe;
 
@@ -45,7 +45,7 @@ public class BytesStreamInput extends StreamInput {
         }
         this.buf = bytes.array();
         this.pos = bytes.arrayOffset();
-        this.count = bytes.length();
+        this.end = pos + bytes.length();
         this.unsafe = false;
     }
 
@@ -56,7 +56,7 @@ public class BytesStreamInput extends StreamInput {
     public BytesStreamInput(byte buf[], int offset, int length, boolean unsafe) {
         this.buf = buf;
         this.pos = offset;
-        this.count = Math.min(offset + length, buf.length);
+        this.end = offset + length;
         this.unsafe = unsafe;
     }
 
@@ -82,8 +82,8 @@ public class BytesStreamInput extends StreamInput {
 
     @Override
     public long skip(long n) throws IOException {
-        if (pos + n > count) {
-            n = count - pos;
+        if (pos + n > end) {
+            n = end - pos;
         }
         if (n < 0) {
             return 0;
@@ -98,7 +98,7 @@ public class BytesStreamInput extends StreamInput {
 
     @Override
     public int read() throws IOException {
-        return (pos < count) ? (buf[pos++] & 0xff) : -1;
+        return (pos < end) ? (buf[pos++] & 0xff) : -1;
     }
 
     @Override
@@ -108,11 +108,11 @@ public class BytesStreamInput extends StreamInput {
         } else if (off < 0 || len < 0 || len > b.length - off) {
             throw new IndexOutOfBoundsException();
         }
-        if (pos >= count) {
+        if (pos >= end) {
             return -1;
         }
-        if (pos + len > count) {
-            len = count - pos;
+        if (pos + len > end) {
+            len = end - pos;
         }
         if (len <= 0) {
             return 0;
@@ -128,7 +128,7 @@ public class BytesStreamInput extends StreamInput {
 
     @Override
     public byte readByte() throws IOException {
-        if (pos >= count) {
+        if (pos >= end) {
             throw new EOFException();
         }
         return buf[pos++];
@@ -139,11 +139,11 @@ public class BytesStreamInput extends StreamInput {
         if (len == 0) {
             return;
         }
-        if (pos >= count) {
+        if (pos >= end) {
             throw new EOFException();
         }
-        if (pos + len > count) {
-            len = count - pos;
+        if (pos + len > end) {
+            len = end - pos;
         }
         if (len <= 0) {
             throw new EOFException();

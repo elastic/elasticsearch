@@ -35,9 +35,9 @@ public class AuditTrailService extends AbstractComponent implements AuditTrail {
     }
 
     @Override
-    public void authenticationFailed(AuthenticationToken token, String action, TransportRequest request) {
+    public void authenticationFailed(String realm, AuthenticationToken token, String action, TransportRequest request) {
         for (int i = 0; i < auditTrails.length; i++) {
-            auditTrails[i].authenticationFailed(token, action, request);
+            auditTrails[i].authenticationFailed(realm, token, action, request);
         }
     }
 

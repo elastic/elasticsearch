@@ -11,8 +11,6 @@ import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.audit.AuditTrail;
-import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
-import org.elasticsearch.shield.authc.ldap.LdapRealm;
 import org.elasticsearch.transport.TransportRequest;
 
 /**
@@ -24,11 +22,9 @@ public class InternalAuthenticationService extends AbstractComponent implements 
     private final AuditTrail auditTrail;
 
     @Inject
-    public InternalAuthenticationService(Settings settings, ESUsersRealm esUsersRealm, @Nullable LdapRealm ldapRealm, @Nullable AuditTrail auditTrail) {
+    public InternalAuthenticationService(Settings settings, Realms realms, @Nullable AuditTrail auditTrail) {
         super(settings);
-        this.realms = ldapRealm != null ?
-                new Realm[] { esUsersRealm, ldapRealm } :
-                new Realm[] { esUsersRealm };
+        this.realms = realms.realms();
         this.auditTrail = auditTrail;
     }
 
@@ -49,14 +45,14 @@ public class InternalAuthenticationService extends AbstractComponent implements 
      */
     @Override
     public User authenticate(String action, TransportRequest request) throws AuthenticationException {
-        for (int i = 0; i < realms.length; i++) {
-            AuthenticationToken token = realms[i].token(request);
+        for (Realm realm : realms) {
+            AuthenticationToken token = realm.token(request);
             if (token != null) {
-                User user = realms[i].authenticate(token);
+                User user = realm.authenticate(token);
                 if (user != null) {
                     return user;
                 } else if (auditTrail != null) {
-                    auditTrail.authenticationFailed(token, action, request);
+                    auditTrail.authenticationFailed(realm.type(), token, action, request);
                 }
             }
         }

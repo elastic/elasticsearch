@@ -20,7 +20,7 @@ public interface AuditTrail {
         }
 
         @Override
-        public void authenticationFailed(AuthenticationToken token, String action, TransportRequest request) {
+        public void authenticationFailed(String realm, AuthenticationToken token, String action, TransportRequest request) {
         }
 
         @Override
@@ -34,7 +34,7 @@ public interface AuditTrail {
 
     void anonymousAccess(String action, TransportRequest request);
 
-    void authenticationFailed(AuthenticationToken token, String action, TransportRequest request);
+    void authenticationFailed(String realm, AuthenticationToken token, String action, TransportRequest request);
 
     void accessGranted(User user, String action, TransportRequest request);
 

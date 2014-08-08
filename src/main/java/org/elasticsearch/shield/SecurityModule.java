@@ -29,8 +29,14 @@ public class SecurityModule extends AbstractModule implements SpawnModules {
 
     @Override
     public Iterable<? extends Module> spawnModules() {
-        // dont spawn module in client mode
+
+        // don't spawn module in client mode
         if (settings.getAsBoolean("node.client", false)) {
+            return ImmutableList.of();
+        }
+
+        // don't spawn modules if shield is explicitly disabled
+        if (!settings.getComponentSettings(SecurityModule.class).getAsBoolean("enabled", true)) {
             return ImmutableList.of();
         }
 

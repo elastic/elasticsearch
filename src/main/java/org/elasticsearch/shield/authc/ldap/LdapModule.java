@@ -15,7 +15,7 @@ public class LdapModule extends AbstractModule {
 
     public static boolean enabled(Settings settings) {
         Settings ldapSettings = settings.getComponentSettings(LdapModule.class);
-        return ldapSettings != null;
+        return ldapSettings != null && ldapSettings.getAsBoolean("enabled", true);
     }
 
     @Override

@@ -33,11 +33,11 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail {
     }
 
     @Override
-    public void authenticationFailed(AuthenticationToken token, String action, TransportRequest request) {
+    public void authenticationFailed(String realm, AuthenticationToken token, String action, TransportRequest request) {
         if (logger.isDebugEnabled()) {
-            logger.info("AUTHENTICATION_FAILED\thost=[{}], action=[{}], principal=[{}], request=[{}]", request.remoteAddress(), action, token.principal(), request);
+            logger.info("AUTHENTICATION_FAILED\thost=[{}], realm=[{}], action=[{}], principal=[{}], request=[{}]", request.remoteAddress(), realm, action, token.principal(), request);
         } else {
-            logger.info("AUTHENTICATION_FAILED\thost=[{}], action=[{}], principal=[{}]", request.remoteAddress(), action, token.principal());
+            logger.info("AUTHENTICATION_FAILED\thost=[{}], realm=[{}], action=[{}], principal=[{}]", request.remoteAddress(), realm, action, token.principal());
         }
     }
 

@@ -47,6 +47,19 @@ public class ESUsersModuleTests extends ElasticsearchTestCase {
         assertThat(realm.userRolesStore, instanceOf(FileUserRolesStore.class));
     }
 
+    @Test
+    public void testEnabled() throws Exception {
+        assertThat(ESUsersModule.enabled(ImmutableSettings.EMPTY), is(true));
+        Settings settings = ImmutableSettings.builder()
+                .put("shield.authc.esusers.enabled", false)
+                .build();
+        assertThat(ESUsersModule.enabled(settings), is(false));
+        settings = ImmutableSettings.builder()
+                .put("shield.authc.esusers.enabled", true)
+                .build();
+        assertThat(ESUsersModule.enabled(settings), is(true));
+    }
+
     public static class TestModule extends AbstractModule {
 
         final Path users;
@@ -70,4 +83,5 @@ public class ESUsersModuleTests extends ElasticsearchTestCase {
             bind(ResourceWatcherService.class).asEagerSingleton();
         }
     }
+
 }

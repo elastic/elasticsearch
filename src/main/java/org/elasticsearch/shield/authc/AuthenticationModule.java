@@ -28,9 +28,11 @@ public class AuthenticationModule extends AbstractModule implements SpawnModules
     @Override
     public Iterable<? extends Module> spawnModules() {
         ImmutableList.Builder<? extends Module> modules = ImmutableList.builder();
-        modules.add(Modules.createModule(ESUsersModule.class, settings));
+        if (ESUsersModule.enabled(settings)) {
+            modules.add(new ESUsersModule());
+        }
         if (LdapModule.enabled(settings)) {
-            modules.add(Modules.createModule(LdapModule.class, settings));
+            modules.add(new LdapModule());
         }
         return modules.build();
     }

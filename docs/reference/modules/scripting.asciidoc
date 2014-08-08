@@ -179,6 +179,7 @@ following setting to the `config/elasticsearch.yml` file on every node:
 -----------------------------------
 script.disable_dynamic: false
 -----------------------------------
+deprecated[1.4.0,Replaced by `script.enable_dynamic`]
 
 While this still allows execution of named scripts provided in the config, or
 _native_ Java scripts registered through plugins, it also allows users to run
@@ -198,8 +199,33 @@ setting, the default value is `sandbox`:
 
 [source,yaml]
 -----------------------------------
+script.enable_dynamic: false
+-----------------------------------
+added[1.4.0]
+
+While this still allows execution of named scripts provided in the config, or
+_native_ Java scripts registered through plugins, it also allows users to run
+arbitrary scripts via the API. Instead of sending the name of the file as the
+script, the body of the script can be sent instead.
+
+There are three possible configuration values for the `script.enable_dynamic`
+setting, the default value is `sandbox`:
+
+[cols="<,<",options="header",]
+|=======================================================================
+|Value |Description
+| `true` |all dynamic scripting is enabled, scripts may be sent as strings in requests.
+| `false` |all dynamic scripting is disabled, scripts must be placed in the `config/scripts` directory.
+| `sandbox` |scripts may be sent as strings for languages that are sandboxed.
+|=======================================================================
+
+[source,yaml]
+-----------------------------------
 script.disable_indexed: false
 -----------------------------------
+added[1.4.0]
+deprecated[1.4.0,Replaced by `script.enable_indexed`]
+
 
 While this still allows execution of indexed scripts using _native_ Java scripts
 registered through plugins, it also allows users to store and run aribtary scripts
@@ -217,6 +243,30 @@ setting, the default value is `sandbox`:
 |Value |Description
 | `true` |all indexed scripting is disabled, scripts may not be registered via the API, or referenced from queries by id.
 | `false` |all indexed scripting is enabled, scripts may be registered via the API and referenced from queries by id.
+| `sandbox` |scripts may be registered via the API and referenced from queries only for languages that are sandboxed.
+|=======================================================================
+
+[source,yaml]
+-----------------------------------
+script.enable_indexed: false
+-----------------------------------
+added[1.4.0]
+
+This allows users to store and run aribtary scriptsv ia the indexed scripts API. 
+This setting is independent of the dynamic script setting. This can be used in 
+conjunction with a proxy to restrict access to script creation but still allow script
+usage at query time. Note that if access to elasticsearch
+is not controlled setting `script.enabled_indexed` to `true` may expose the elasticsearch
+server to malicious attacks.
+
+There are three possible configuration values for the `script.enable_indexed`
+setting, the default value is `sandbox`:
+
+[cols="<,<",options="header",]
+|=======================================================================
+|Value |Description
+| `true` |all indexed scripting is enabled, scripts may be registered via the API and referenced from queries by id.
+| `false` |all indexed scripting is disabled, scripts may not be registered via the API, or referenced from queries by id.
 | `sandbox` |scripts may be registered via the API and referenced from queries only for languages that are sandboxed.
 |=======================================================================
 

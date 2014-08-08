@@ -296,13 +296,16 @@ public class ScriptService extends AbstractComponent {
             this.dynamicScriptingDisabled = DynamicScriptDisabling.parseEnabled(settings.get(ENABLE_DYNAMIC_SCRIPTING_SETTING, DISABLE_DYNAMIC_SCRIPTING_DEFAULT));
         } else {
             this.dynamicScriptingDisabled = DynamicScriptDisabling.parse(settings.get(DISABLE_DYNAMIC_SCRIPTING_SETTING, DISABLE_DYNAMIC_SCRIPTING_DEFAULT));
+            logger.warn("Used [{}], this setting is deprecated please use [{}] instead.", DISABLE_DYNAMIC_SCRIPTING_SETTING, ENABLE_DYNAMIC_SCRIPTING_SETTING);
         }
+
         if (settings.names().contains(ENABLE_INDEXED_SCRIPTING_SETTING) ) {
             this.indexedScriptDisabled = IndexedScriptDisabling.parseEnabled(settings.get(ENABLE_INDEXED_SCRIPTING_SETTING,
                     DISABLE_INDEXED_SCRIPTING_DEFAULT));
         } else {
             this.indexedScriptDisabled = IndexedScriptDisabling.parse(settings.get(DISABLE_INDEXED_SCRIPTING_SETTING,
                     DISABLE_INDEXED_SCRIPTING_DEFAULT));
+            logger.warn("Used [{}], this setting is deprecated please use [{}] instead.", DISABLE_INDEXED_SCRIPTING_SETTING, ENABLE_INDEXED_SCRIPTING_SETTING);
         }
 
 

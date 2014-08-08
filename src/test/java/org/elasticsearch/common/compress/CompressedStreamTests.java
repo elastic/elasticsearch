@@ -49,7 +49,7 @@ public class CompressedStreamTests extends ElasticsearchTestCase {
     public void testRandom() throws IOException {
         Random r = getRandom();
         for (int i = 0; i < 100; i++) {
-            byte bytes[] = new byte[TestUtil.nextInt(r, 1, 100000)];
+            byte bytes[] = new byte[TestUtil.nextInt(r, 1, 4000000)];
             r.nextBytes(bytes);
             doTest(bytes);
         }
@@ -281,6 +281,72 @@ public class CompressedStreamTests extends ElasticsearchTestCase {
             }
             doTest(bos.toByteArray());
         }
+    }
+
+    public void testMixed() throws IOException {
+        Random r = getRandom();
+        LineFileDocs lineFileDocs = new LineFileDocs(r);
+        for (int i = 0; i < 100; ++i) {
+            ByteArrayOutputStream bos = new ByteArrayOutputStream();
+            int prevInt = r.nextInt();
+            long prevLong = r.nextLong();
+            while (bos.size() < 4000000) {
+                switch (r.nextInt(4)) {
+                case 0:
+                    addInt(r, prevInt, bos);
+                    break;
+                case 1:
+                    addLong(r, prevLong, bos);
+                    break;
+                case 2:
+                    addString(lineFileDocs, bos);
+                    break;
+                case 3:
+                    addBytes(r, bos);
+                    break;
+                default:
+                    throw new IllegalStateException("Random is broken");
+                }
+            }
+            doTest(bos.toByteArray());
+        }
+    }
+
+    private void addLong(Random r, long prev, ByteArrayOutputStream bos) {
+        long theValue = prev;
+        if (r.nextInt(10) != 0) {
+            theValue = r.nextLong();
+        }
+        bos.write((byte) (theValue >>> 56));
+        bos.write((byte) (theValue >>> 48));
+        bos.write((byte) (theValue >>> 40));
+        bos.write((byte) (theValue >>> 32));
+        bos.write((byte) (theValue >>> 24));
+        bos.write((byte) (theValue >>> 16));
+        bos.write((byte) (theValue >>> 8));
+        bos.write((byte) theValue);
+    }
+
+    private void addInt(Random r, int prev, ByteArrayOutputStream bos) {
+        int theValue = prev;
+        if (r.nextInt(10) != 0) {
+            theValue = r.nextInt();
+        }
+        bos.write((byte) (theValue >>> 24));
+        bos.write((byte) (theValue >>> 16));
+        bos.write((byte) (theValue >>> 8));
+        bos.write((byte) theValue);
+    }
+
+    private void addString(LineFileDocs lineFileDocs, ByteArrayOutputStream bos) throws IOException {
+        String s = lineFileDocs.nextDoc().get("body");
+        bos.write(s.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private void addBytes(Random r, ByteArrayOutputStream bos) throws IOException {
+        byte bytes[] = new byte[TestUtil.nextInt(r, 1, 10000)];
+        r.nextBytes(bytes);
+        bos.write(bytes);
     }
     
     public void testRepetitionsSThreads() throws Exception {

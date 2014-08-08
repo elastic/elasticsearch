@@ -33,18 +33,56 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Random;
+import java.util.concurrent.CountDownLatch;
 
 /**
  * Test streaming compression (e.g. used for recovery)
  */
 public class CompressedStreamTests extends ElasticsearchTestCase {
+    
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        CompressorFactory.configure(ImmutableSettings.settingsBuilder().put("compress.default.type", "lzf").build());
+    }
 
     public void testRandom() throws IOException {
         Random r = getRandom();
         for (int i = 0; i < 100; i++) {
             byte bytes[] = new byte[TestUtil.nextInt(r, 1, 100000)];
             r.nextBytes(bytes);
-            doTest("lzf", bytes);
+            doTest(bytes);
+        }
+    }
+    
+    public void testRandomThreads() throws Exception {
+        final Random r = getRandom();
+        int threadCount = TestUtil.nextInt(r, 2, 10);
+        Thread[] threads = new Thread[threadCount];
+        final CountDownLatch startingGun = new CountDownLatch(1);
+        for (int tid=0; tid < threadCount; tid++) {
+            final long seed = r.nextLong();
+            threads[tid] = new Thread() {
+                @Override
+                public void run() {
+                    try {
+                        Random r = new Random(seed);
+                        startingGun.await();
+                        for (int i = 0; i < 100; i++) {
+                            byte bytes[] = new byte[TestUtil.nextInt(r, 1, 100000)];
+                            r.nextBytes(bytes);
+                            doTest(bytes);
+                        }
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+            };
+            threads[tid].start();
+        }
+        startingGun.countDown();
+        for (Thread t : threads) {
+            t.join();
         }
     }
     
@@ -58,9 +96,46 @@ public class CompressedStreamTests extends ElasticsearchTestCase {
                 String s = lineFileDocs.nextDoc().get("body");
                 bos.write(s.getBytes(StandardCharsets.UTF_8));
             }
-            doTest("lzf", bos.toByteArray());
+            doTest(bos.toByteArray());
         }
         lineFileDocs.close();
+    }
+    
+    public void testLineDocsThreads() throws Exception {
+        final Random r = getRandom();
+        int threadCount = TestUtil.nextInt(r, 2, 10);
+        Thread[] threads = new Thread[threadCount];
+        final CountDownLatch startingGun = new CountDownLatch(1);
+        for (int tid=0; tid < threadCount; tid++) {
+            final long seed = r.nextLong();
+            threads[tid] = new Thread() {
+                @Override
+                public void run() {
+                    try {
+                        Random r = new Random(seed);
+                        startingGun.await();
+                        LineFileDocs lineFileDocs = new LineFileDocs(r);
+                        for (int i = 0; i < 100; i++) {
+                            int numDocs = TestUtil.nextInt(r, 1, 200);
+                            ByteArrayOutputStream bos = new ByteArrayOutputStream();
+                            for (int j = 0; j < numDocs; j++) {
+                                String s = lineFileDocs.nextDoc().get("body");
+                                bos.write(s.getBytes(StandardCharsets.UTF_8));
+                            }
+                            doTest(bos.toByteArray());
+                        }
+                        lineFileDocs.close();
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+            };
+            threads[tid].start();
+        }
+        startingGun.countDown();
+        for (Thread t : threads) {
+            t.join();
+        }
     }
     
     public void testRepetitionsL() throws IOException {
@@ -82,7 +157,52 @@ public class CompressedStreamTests extends ElasticsearchTestCase {
                 bos.write((byte) (theValue >>> 8));
                 bos.write((byte) theValue);
             }
-            doTest("lzf", bos.toByteArray());
+            doTest(bos.toByteArray());
+        }
+    }
+    
+    public void testRepetitionsLThreads() throws Exception {
+        final Random r = getRandom();
+        int threadCount = TestUtil.nextInt(r, 2, 10);
+        Thread[] threads = new Thread[threadCount];
+        final CountDownLatch startingGun = new CountDownLatch(1);
+        for (int tid=0; tid < threadCount; tid++) {
+            final long seed = r.nextLong();
+            threads[tid] = new Thread() {
+                @Override
+                public void run() {
+                    try {
+                        Random r = new Random(seed);
+                        startingGun.await();
+                        for (int i = 0; i < 200; i++) {
+                            int numLongs = TestUtil.nextInt(r, 1, 10000);
+                            ByteArrayOutputStream bos = new ByteArrayOutputStream();
+                            long theValue = r.nextLong();
+                            for (int j = 0; j < numLongs; j++) {
+                                if (r.nextInt(10) == 0) {
+                                    theValue = r.nextLong();
+                                }
+                                bos.write((byte) (theValue >>> 56));
+                                bos.write((byte) (theValue >>> 48));
+                                bos.write((byte) (theValue >>> 40));
+                                bos.write((byte) (theValue >>> 32));
+                                bos.write((byte) (theValue >>> 24));
+                                bos.write((byte) (theValue >>> 16));
+                                bos.write((byte) (theValue >>> 8));
+                                bos.write((byte) theValue);
+                            }
+                            doTest(bos.toByteArray());
+                        }
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+            };
+            threads[tid].start();
+        }
+        startingGun.countDown();
+        for (Thread t : threads) {
+            t.join();
         }
     }
     
@@ -101,7 +221,48 @@ public class CompressedStreamTests extends ElasticsearchTestCase {
                 bos.write((byte) (theValue >>> 8));
                 bos.write((byte) theValue);
             }
-            doTest("lzf", bos.toByteArray());
+            doTest(bos.toByteArray());
+        }
+    }
+    
+    public void testRepetitionsIThreads() throws Exception {
+        final Random r = getRandom();
+        int threadCount = TestUtil.nextInt(r, 2, 10);
+        Thread[] threads = new Thread[threadCount];
+        final CountDownLatch startingGun = new CountDownLatch(1);
+        for (int tid=0; tid < threadCount; tid++) {
+            final long seed = r.nextLong();
+            threads[tid] = new Thread() {
+                @Override
+                public void run() {
+                    try {
+                        Random r = new Random(seed);
+                        startingGun.await();
+                        for (int i = 0; i < 200; i++) {
+                            int numInts = TestUtil.nextInt(r, 1, 20000);
+                            ByteArrayOutputStream bos = new ByteArrayOutputStream();
+                            int theValue = r.nextInt();
+                            for (int j = 0; j < numInts; j++) {
+                                if (r.nextInt(10) == 0) {
+                                    theValue = r.nextInt();
+                                }
+                                bos.write((byte) (theValue >>> 24));
+                                bos.write((byte) (theValue >>> 16));
+                                bos.write((byte) (theValue >>> 8));
+                                bos.write((byte) theValue);
+                            }
+                            doTest(bos.toByteArray());
+                        }
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+            };
+            threads[tid].start();
+        }
+        startingGun.countDown();
+        for (Thread t : threads) {
+            t.join();
         }
     }
     
@@ -118,12 +279,50 @@ public class CompressedStreamTests extends ElasticsearchTestCase {
                 bos.write((byte) (theValue >>> 8));
                 bos.write((byte) theValue);
             }
-            doTest("lzf", bos.toByteArray());
+            doTest(bos.toByteArray());
         }
     }
     
-    private void doTest(String compressor, byte bytes[]) throws IOException {
-        CompressorFactory.configure(ImmutableSettings.settingsBuilder().put("compress.default.type", compressor).build());           
+    public void testRepetitionsSThreads() throws Exception {
+        final Random r = getRandom();
+        int threadCount = TestUtil.nextInt(r, 2, 10);
+        Thread[] threads = new Thread[threadCount];
+        final CountDownLatch startingGun = new CountDownLatch(1);
+        for (int tid=0; tid < threadCount; tid++) {
+            final long seed = r.nextLong();
+            threads[tid] = new Thread() {
+                @Override
+                public void run() {
+                    try {
+                        Random r = new Random(seed);
+                        startingGun.await();
+                        for (int i = 0; i < 200; i++) {
+                            int numShorts = TestUtil.nextInt(r, 1, 40000);
+                            ByteArrayOutputStream bos = new ByteArrayOutputStream();
+                            short theValue = (short) r.nextInt(65535);
+                            for (int j = 0; j < numShorts; j++) {
+                                if (r.nextInt(10) == 0) {
+                                    theValue = (short) r.nextInt(65535);
+                                }
+                                bos.write((byte) (theValue >>> 8));
+                                bos.write((byte) theValue);
+                            }
+                            doTest(bos.toByteArray());
+                        }
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+            };
+            threads[tid].start();
+        }
+        startingGun.countDown();
+        for (Thread t : threads) {
+            t.join();
+        }
+    }
+       
+    private void doTest(byte bytes[]) throws IOException {
         ByteBuffer bb = ByteBuffer.wrap(bytes);
         StreamInput rawIn = new ByteBufferStreamInput(bb);
         Compressor c = CompressorFactory.defaultCompressor();

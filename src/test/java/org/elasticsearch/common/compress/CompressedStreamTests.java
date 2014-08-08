@@ -399,10 +399,13 @@ public class CompressedStreamTests extends ElasticsearchTestCase {
         
         Random r = getRandom();
         int bufferSize = r.nextBoolean() ? 65535 : TestUtil.nextInt(getRandom(), 1, 70000);
-        byte buffer[] = new byte[bufferSize];
+        int prepadding = r.nextInt(70000);
+        int postpadding = r.nextInt(70000);
+        byte buffer[] = new byte[prepadding + bufferSize + postpadding];
+        r.nextBytes(buffer); // fill block completely with junk
         int len;
-        while ((len = rawIn.read(buffer)) != -1) {
-            os.write(buffer, 0, len);
+        while ((len = rawIn.read(buffer, prepadding, bufferSize)) != -1) {
+            os.write(buffer, prepadding, len);
         }
         os.close();
         rawIn.close();
@@ -414,9 +417,16 @@ public class CompressedStreamTests extends ElasticsearchTestCase {
         StreamInput compressedIn = new ByteBufferStreamInput(bb2);
         StreamInput in = c.streamInput(compressedIn);
         
+        // randomize constants again
+        bufferSize = r.nextBoolean() ? 65535 : TestUtil.nextInt(getRandom(), 1, 70000);
+        prepadding = r.nextInt(70000);
+        postpadding = r.nextInt(70000);
+        buffer = new byte[prepadding + bufferSize + postpadding];
+        r.nextBytes(buffer); // fill block completely with junk
+        
         ByteArrayOutputStream uncompressedOut = new ByteArrayOutputStream();
-        while ((len = in.read(buffer)) != -1) {
-            uncompressedOut.write(buffer, 0, len);
+        while ((len = in.read(buffer, prepadding, bufferSize)) != -1) {
+            uncompressedOut.write(buffer, prepadding, len);
         }
         uncompressedOut.close();
         

@@ -168,7 +168,7 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
     }
 
     /**
-     * @returns <code>true</code> if term offsets should be returned. Otherwise
+     * @return <code>true</code> if term offsets should be returned. Otherwise
      * <code>false</code>
      */
     public boolean offsets() {
@@ -192,7 +192,7 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
     }
 
     /**
-     * @returns <code>true</code> if term payloads should be returned. Otherwise
+     * @return <code>true</code> if term payloads should be returned. Otherwise
      * <code>false</code>
      */
     public boolean payloads() {
@@ -208,7 +208,7 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
     }
 
     /**
-     * @returns <code>true</code> if term statistics should be returned.
+     * @return <code>true</code> if term statistics should be returned.
      * Otherwise <code>false</code>
      */
     public boolean termStatistics() {
@@ -224,7 +224,7 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
     }
 
     /**
-     * @returns <code>true</code> if field statistics should be returned.
+     * @return <code>true</code> if field statistics should be returned.
      * Otherwise <code>false</code>
      */
     public boolean fieldStatistics() {
@@ -267,10 +267,7 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
 
     @Override
     public ActionRequestValidationException validate() {
-        ActionRequestValidationException validationException = null;
-        if (index == null) {
-            validationException = ValidateActions.addValidationError("index is missing", validationException);
-        }
+        ActionRequestValidationException validationException = super.validate();
         if (type == null) {
             validationException = ValidateActions.addValidationError("type is missing", validationException);
         }
@@ -339,15 +336,11 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
     public static enum Flag {
         // Do not change the order of these flags we use
         // the ordinal for encoding! Only append to the end!
-        Positions, Offsets, Payloads, FieldStatistics, TermStatistics;
+        Positions, Offsets, Payloads, FieldStatistics, TermStatistics
     }
 
     /**
      * populates a request object (pre-populated with defaults) based on a parser.
-     *
-     * @param termVectorRequest
-     * @param parser
-     * @throws IOException
      */
     public static void parseRequest(TermVectorRequest termVectorRequest, XContentParser parser) throws IOException {
         XContentParser.Token token;

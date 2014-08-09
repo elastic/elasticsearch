@@ -27,6 +27,7 @@ import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -40,7 +41,8 @@ import org.elasticsearch.transport.*;
 import java.io.IOException;
 
 /**
- *
+ * Transport action used to send a read request to one of the shards that belong to an index.
+ * Supports retrying another shard in case of failure.
  */
 public abstract class TransportSingleCustomOperationAction<Request extends SingleCustomOperationRequest, Response extends ActionResponse> extends TransportAction<Request, Response> {
 
@@ -59,7 +61,6 @@ public abstract class TransportSingleCustomOperationAction<Request extends Singl
         this.transportShardAction = actionName + "[s]";
         this.executor = executor();
 
-        transportService.registerHandler(actionName, new TransportHandler());
         transportService.registerHandler(transportShardAction, new ShardTransportHandler());
     }
 
@@ -81,9 +82,13 @@ public abstract class TransportSingleCustomOperationAction<Request extends Singl
 
     protected abstract Response newResponse();
 
-    protected abstract ClusterBlockException checkGlobalBlock(ClusterState state, Request request);
+    protected ClusterBlockException checkGlobalBlock(ClusterState state) {
+        return state.blocks().globalBlockedException(ClusterBlockLevel.READ);
+    }
 
-    protected abstract ClusterBlockException checkRequestBlock(ClusterState state, Request request);
+    protected ClusterBlockException checkRequestBlock(ClusterState state, Request request) {
+        return state.blocks().indexBlockedException(ClusterBlockLevel.READ, request.index());
+    }
 
     private class AsyncSingleAction {
 
@@ -101,7 +106,7 @@ public abstract class TransportSingleCustomOperationAction<Request extends Singl
 
             ClusterState clusterState = clusterService.state();
             nodes = clusterState.nodes();
-            ClusterBlockException blockException = checkGlobalBlock(clusterState, request);
+            ClusterBlockException blockException = checkGlobalBlock(clusterState);
             if (blockException != null) {
                 throw blockException;
             }
@@ -264,46 +269,6 @@ public abstract class TransportSingleCustomOperationAction<Request extends Singl
                     });
                 }
             }
-        }
-    }
-
-    private class TransportHandler extends BaseTransportRequestHandler<Request> {
-
-        @Override
-        public Request newInstance() {
-            return newRequest();
-        }
-
-        @Override
-        public void messageReceived(Request request, final TransportChannel channel) throws Exception {
-            // no need to have a threaded listener since we just send back a response
-            request.listenerThreaded(false);
-            // if we have a local operation, execute it on a thread since we don't spawn
-            request.operationThreaded(true);
-            execute(request, new ActionListener<Response>() {
-                @Override
-                public void onResponse(Response result) {
-                    try {
-                        channel.sendResponse(result);
-                    } catch (Throwable e) {
-                        onFailure(e);
-                    }
-                }
-
-                @Override
-                public void onFailure(Throwable e) {
-                    try {
-                        channel.sendResponse(e);
-                    } catch (Exception e1) {
-                        logger.warn("Failed to send response for get", e1);
-                    }
-                }
-            });
-        }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.SAME;
         }
     }
 

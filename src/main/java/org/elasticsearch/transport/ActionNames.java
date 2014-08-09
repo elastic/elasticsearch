@@ -205,7 +205,6 @@ final class ActionNames {
         builder.put(DeleteMappingAction.NAME, "indices/mapping/delete");
         builder.put(PutMappingAction.NAME, "indices/mapping/put");
         builder.put(GetFieldMappingsAction.NAME, "mappings/fields/get");
-        builder.put(GetFieldMappingsAction.NAME + "[index]", "mappings/fields/get/index");
         builder.put(GetFieldMappingsAction.NAME + "[index][s]", "mappings/fields/get/index/s");
         builder.put(GetMappingsAction.NAME, "mappings/get");
 

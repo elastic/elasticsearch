@@ -19,9 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.mapping.get;
 
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.single.custom.SingleCustomOperationRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -29,9 +27,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-class GetFieldMappingsIndexRequest extends SingleCustomOperationRequest<GetFieldMappingsIndexRequest> implements IndicesRequest {
-
-    private String index;
+class GetFieldMappingsIndexRequest extends SingleCustomOperationRequest<GetFieldMappingsIndexRequest> {
 
     private boolean probablySingleFieldRequest;
     private boolean includeDefaults;
@@ -48,21 +44,7 @@ class GetFieldMappingsIndexRequest extends SingleCustomOperationRequest<GetField
         this.types = other.types();
         this.fields = other.fields();
         assert index != null;
-        this.index = index;
-    }
-
-    public String index() {
-        return index;
-    }
-
-    @Override
-    public IndicesOptions indicesOptions() {
-        return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
-    }
-
-    @Override
-    public String[] indices() {
-        return new String[]{index};
+        this.index(index);
     }
 
     public String[] types() {
@@ -81,21 +63,12 @@ class GetFieldMappingsIndexRequest extends SingleCustomOperationRequest<GetField
         return includeDefaults;
     }
 
-    /** Indicates whether default mapping settings should be returned */
-    public GetFieldMappingsIndexRequest includeDefaults(boolean includeDefaults) {
-        this.includeDefaults = includeDefaults;
-        return this;
-    }
-
-    @Override
-    public ActionRequestValidationException validate() {
-        return null;
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(index);
+        if (out.getVersion().before(Version.V_1_4_0)) {
+            out.writeString(index());
+        }
         out.writeStringArray(types);
         out.writeStringArray(fields);
         out.writeBoolean(includeDefaults);
@@ -105,7 +78,9 @@ class GetFieldMappingsIndexRequest extends SingleCustomOperationRequest<GetField
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        index = in.readString();
+        if (in.getVersion().before(Version.V_1_4_0)) {
+            index(in.readString());
+        }
         types = in.readStringArray();
         fields = in.readStringArray();
         includeDefaults = in.readBoolean();

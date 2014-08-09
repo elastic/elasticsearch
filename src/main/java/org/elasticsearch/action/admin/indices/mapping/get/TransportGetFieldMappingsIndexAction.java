@@ -28,8 +28,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.custom.TransportSingleCustomOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
@@ -53,6 +51,7 @@ import java.util.Collection;
 import java.util.List;
 
 /**
+ * Transport action used to retrieve the mappings related to fields that belong to a specific index
  */
 public class TransportGetFieldMappingsIndexAction extends TransportSingleCustomOperationAction<GetFieldMappingsIndexRequest, GetFieldMappingsResponse> {
 
@@ -123,16 +122,6 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleCustomO
     @Override
     protected GetFieldMappingsResponse newResponse() {
         return new GetFieldMappingsResponse();
-    }
-
-    @Override
-    protected ClusterBlockException checkGlobalBlock(ClusterState state, GetFieldMappingsIndexRequest request) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.READ);
-    }
-
-    @Override
-    protected ClusterBlockException checkRequestBlock(ClusterState state, GetFieldMappingsIndexRequest request) {
-        return state.blocks().indexBlockedException(ClusterBlockLevel.READ, request.index());
     }
 
     private static final ToXContent.Params includeDefaultsParams = new ToXContent.Params() {

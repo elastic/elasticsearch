@@ -20,8 +20,6 @@ package org.elasticsearch.action.admin.indices.analyze;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.single.custom.SingleCustomOperationRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -36,9 +34,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * A request to analyze a text associated with a specific index. Allow to provide
  * the actual analyzer name to perform the analysis with.
  */
-public class AnalyzeRequest extends SingleCustomOperationRequest<AnalyzeRequest> implements IndicesRequest {
-
-    private String index;
+public class AnalyzeRequest extends SingleCustomOperationRequest<AnalyzeRequest> {
 
     private String text;
 
@@ -72,34 +68,12 @@ public class AnalyzeRequest extends SingleCustomOperationRequest<AnalyzeRequest>
      * @param text  The text to analyze
      */
     public AnalyzeRequest(@Nullable String index, String text) {
-        this.index = index;
+        this.index(index);
         this.text = text;
     }
 
     public String text() {
         return this.text;
-    }
-
-    public AnalyzeRequest index(String index) {
-        this.index = index;
-        return this;
-    }
-
-    public String index() {
-        return this.index;
-    }
-
-    @Override
-    public String[] indices() {
-        if (index == null) {
-            return Strings.EMPTY_ARRAY;
-        }
-        return new String[]{index};
-    }
-
-    @Override
-    public IndicesOptions indicesOptions() {
-        return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
     }
 
     public AnalyzeRequest analyzer(String analyzer) {
@@ -165,7 +139,9 @@ public class AnalyzeRequest extends SingleCustomOperationRequest<AnalyzeRequest>
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        index = in.readOptionalString();
+        if (in.getVersion().before(Version.V_1_4_0)) {
+            index(in.readOptionalString());
+        }
         text = in.readString();
         analyzer = in.readOptionalString();
         tokenizer = in.readOptionalString();
@@ -179,7 +155,9 @@ public class AnalyzeRequest extends SingleCustomOperationRequest<AnalyzeRequest>
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeOptionalString(index);
+        if (out.getVersion().before(Version.V_1_4_0)) {
+            out.writeOptionalString(index());
+        }
         out.writeString(text);
         out.writeOptionalString(analyzer);
         out.writeOptionalString(tokenizer);

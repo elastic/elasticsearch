@@ -18,8 +18,12 @@
  */
 package org.elasticsearch.action.support.single.custom;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -28,10 +32,11 @@ import java.io.IOException;
 /**
  *
  */
-public abstract class SingleCustomOperationRequest<T extends SingleCustomOperationRequest> extends ActionRequest<T> {
+public abstract class SingleCustomOperationRequest<T extends SingleCustomOperationRequest> extends ActionRequest<T> implements IndicesRequest {
 
     private boolean threadedOperation = true;
     private boolean preferLocal = true;
+    private String index;
 
     protected SingleCustomOperationRequest() {
     }
@@ -67,6 +72,29 @@ public abstract class SingleCustomOperationRequest<T extends SingleCustomOperati
         return (T) this;
     }
 
+    @SuppressWarnings("unchecked")
+    public T index(String index) {
+        this.index = index;
+        return (T)this;
+    }
+
+    public String index() {
+        return index;
+    }
+
+    @Override
+    public IndicesOptions indicesOptions() {
+        return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
+    }
+
+    @Override
+    public String[] indices() {
+        if (index == null) {
+            return Strings.EMPTY_ARRAY;
+        }
+        return new String[]{index};
+    }
+
     /**
      * if this operation hits a node with a local relevant shard, should it be preferred
      * to be executed on, or just do plain round robin. Defaults to <tt>true</tt>
@@ -83,12 +111,18 @@ public abstract class SingleCustomOperationRequest<T extends SingleCustomOperati
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         preferLocal = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
+            index = in.readOptionalString();
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeBoolean(preferLocal);
+        if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
+            out.writeOptionalString(index);
+        }
     }
 }
 

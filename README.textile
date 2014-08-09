@@ -37,6 +37,8 @@ First of all, DON'T PANIC. It will take 5 minutes to get the gist of what Elasti
 h3. Installation
 
 * "Download":http://www.elasticsearch.org/download and unzip the Elasticsearch official distribution.
+* Build using Maven: Run @mvn compile@
+    Note: you will need java jdk 1.7 or greater and JAVA_HOME defined.
 * Run @bin/elasticsearch@ on unix, or @bin\elasticsearch.bat@ on windows.
 * Run @curl -X GET http://localhost:9200/@.
 * Start more servers ...

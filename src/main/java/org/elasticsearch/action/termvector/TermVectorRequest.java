@@ -21,6 +21,7 @@ package org.elasticsearch.action.termvector;
 
 import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.single.shard.SingleShardOperationRequest;
@@ -287,7 +288,10 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        index = in.readString();
+        if (in.getVersion().before(Version.V_1_4_0)) {
+            //term vector used to read & write the index twice, here and in the parent class
+            in.readString();
+        }
         type = in.readString();
         id = in.readString();
         routing = in.readOptionalString();
@@ -312,7 +316,10 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(index);
+        if (out.getVersion().before(Version.V_1_4_0)) {
+            //term vector used to read & write the index twice, here and in the parent class
+            out.writeString(index);
+        }
         out.writeString(type);
         out.writeString(id);
         out.writeOptionalString(routing);
@@ -330,7 +337,6 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
         } else {
             out.writeVInt(0);
         }
-
     }
 
     public static enum Flag {

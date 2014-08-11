@@ -25,5 +25,13 @@
                 <exclude>org.elasticsearch:elasticsearch</exclude>
             </excludes>
         </dependencySet>
+        <dependencySet>
+            <outputDirectory>/</outputDirectory>
+            <useProjectArtifact>true</useProjectArtifact>
+            <useTransitiveFiltering>true</useTransitiveFiltering>
+            <includes>
+                <include>commons-codec:commons-codec</include>
+            </includes>
+        </dependencySet>
     </dependencySets>
 </assembly>

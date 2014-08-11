@@ -21,8 +21,6 @@ package org.elasticsearch.common.cli;
 
 import org.junit.Test;
 
-import java.util.concurrent.atomic.AtomicReference;
-
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -32,58 +30,31 @@ public class TerminalTests extends CliToolTestCase {
 
     @Test
     public void testVerbosity() throws Exception {
-        final AtomicReference<Boolean> printed = new AtomicReference<>(false);
+        CaptureOutputTerminal terminal = new CaptureOutputTerminal(Terminal.Verbosity.SILENT);
+        assertPrinted(terminal, Terminal.Verbosity.SILENT, "text");
+        assertNotPrinted(terminal, Terminal.Verbosity.NORMAL, "text");
+        assertNotPrinted(terminal, Terminal.Verbosity.VERBOSE, "text");
 
-        Terminal terminal = new TerminalMock(Terminal.Verbosity.SILENT) {
-            @Override
-            protected void doPrint(String msg, Object... args) {
-                printed.set(true);
-                assertThat(msg, equalTo("text"));
-            }
-        };
-        terminal.print(Terminal.Verbosity.SILENT, "text");
-        assertPrinted(printed);
-        terminal.print(Terminal.Verbosity.NORMAL, "text");
-        assertNotPrinted(printed);
-        terminal.print(Terminal.Verbosity.VERBOSE, "text");
-        assertNotPrinted(printed);
+        terminal = new CaptureOutputTerminal(Terminal.Verbosity.NORMAL);
+        assertPrinted(terminal, Terminal.Verbosity.SILENT, "text");
+        assertPrinted(terminal, Terminal.Verbosity.NORMAL, "text");
+        assertNotPrinted(terminal, Terminal.Verbosity.VERBOSE, "text");
 
-        terminal = new TerminalMock(Terminal.Verbosity.NORMAL) {
-            @Override
-            protected void doPrint(String msg, Object... args) {
-                printed.set(true);
-                assertThat(msg, equalTo("text"));
-            }
-        };
-        terminal.print(Terminal.Verbosity.SILENT, "text");
-        assertPrinted(printed);
-        terminal.print(Terminal.Verbosity.NORMAL, "text");
-        assertPrinted(printed);
-        terminal.print(Terminal.Verbosity.VERBOSE, "text");
-        assertNotPrinted(printed);
-
-        terminal = new TerminalMock(Terminal.Verbosity.VERBOSE) {
-            @Override
-            protected void doPrint(String msg, Object... args) {
-                printed.set(true);
-                assertThat(msg, equalTo("text"));
-            }
-        };
-        terminal.print(Terminal.Verbosity.SILENT, "text");
-        assertPrinted(printed);
-        terminal.print(Terminal.Verbosity.NORMAL, "text");
-        assertPrinted(printed);
-        terminal.print(Terminal.Verbosity.VERBOSE, "text");
-        assertPrinted(printed);
+        terminal = new CaptureOutputTerminal(Terminal.Verbosity.VERBOSE);
+        assertPrinted(terminal, Terminal.Verbosity.SILENT, "text");
+        assertPrinted(terminal, Terminal.Verbosity.NORMAL, "text");
+        assertPrinted(terminal, Terminal.Verbosity.VERBOSE, "text");
     }
 
-    private static void assertPrinted(AtomicReference<Boolean> actual) {
-        assertThat(actual.get(), is(true));
-        actual.set(false); // resetting
+    private void assertPrinted(CaptureOutputTerminal logTerminal, Terminal.Verbosity verbosity, String text) {
+        logTerminal.print(verbosity, text);
+        assertThat(logTerminal.getTerminalOutput(), hasSize(1));
+        assertThat(logTerminal.getTerminalOutput(), hasItem(is("text")));
+        logTerminal.terminalOutput.clear();
     }
 
-    private static void assertNotPrinted(AtomicReference<Boolean> actual) {
-        assertThat(actual.get(), is(false));
+    private void assertNotPrinted(CaptureOutputTerminal logTerminal, Terminal.Verbosity verbosity, String text) {
+        logTerminal.print(verbosity, text);
+        assertThat(logTerminal.getTerminalOutput(), hasSize(0));
     }
-
 }

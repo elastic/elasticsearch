@@ -22,6 +22,9 @@ package org.elasticsearch.index.mapper.multifield;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -31,6 +34,9 @@ import org.elasticsearch.index.mapper.core.*;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
+
+import java.util.Arrays;
+import java.util.Map;
 
 import static org.elasticsearch.common.io.Streams.copyToBytesFromClasspath;
 import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
@@ -404,5 +410,36 @@ public class MultiFieldTests extends ElasticsearchTestCase {
         assertThat(f.stringValue(), equalTo("complete me"));
         assertThat(f.fieldType().stored(), equalTo(false));
         assertThat(f.fieldType().indexed(), equalTo(true));
+    }
+
+    @Test
+    // The underlying order of the fields in multi fields in the mapping source should always be consistent, if not this
+    // can to unnecessary re-syncing of the mappings between the local instance and cluster state
+    public void testMultiFieldsInConsistentOrder() throws Exception {
+        String[] multiFieldNames = new String[randomIntBetween(2, 10)];
+        for (int i = 0; i < multiFieldNames.length; i++) {
+            multiFieldNames[i] = randomAsciiOfLength(4);
+        }
+
+        XContentBuilder builder = jsonBuilder().startObject().startObject("type").startObject("properties")
+                .startObject("my_field").field("type", "string").startObject("fields");
+        for (String multiFieldName : multiFieldNames) {
+            builder = builder.startObject(multiFieldName).field("type", "string").endObject();
+        }
+        builder = builder.endObject().endObject().endObject().endObject().endObject();
+        String mapping = builder.string();
+        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
+        Arrays.sort(multiFieldNames);
+
+        Map<String, Object> sourceAsMap = XContentHelper.convertToMap(docMapper.mappingSource().compressed(), true).v2();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> multiFields = (Map<String, Object>) XContentMapValues.extractValue("type.properties.my_field.fields", sourceAsMap);
+        assertThat(multiFields.size(), equalTo(multiFieldNames.length));
+
+        int i = 0;
+        // underlying map is LinkedHashMap, so this ok:
+        for (String field : multiFields.keySet()) {
+            assertThat(field, equalTo(multiFieldNames[i++]));
+        }
     }
 }

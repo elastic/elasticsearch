@@ -21,6 +21,7 @@ package org.elasticsearch.common.cli;
 
 import com.google.common.collect.ImmutableMap;
 import org.apache.commons.cli.CommandLine;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.junit.Test;
@@ -222,6 +223,34 @@ public class CliToolTests extends CliToolTestCase {
         assertStatus(status, CliTool.ExitStatus.OK);
         assertThat(terminal.getTerminalOutput(), hasSize(3));
         assertThat(terminal.getTerminalOutput(), hasItem(containsString("cmd1 help")));
+    }
+
+    @Test
+    public void testThatThrowExceptionCanBeLogged() throws Exception {
+        CaptureOutputTerminal terminal = new CaptureOutputTerminal();
+        NamedCommand cmd = new NamedCommand("cmd", terminal) {
+            @Override
+            public CliTool.ExitStatus execute(Settings settings, Environment env) throws Exception {
+                throw new ElasticsearchException("error message");
+            }
+        };
+        SingleCmdTool tool = new SingleCmdTool("tool", terminal, cmd);
+        assertStatus(tool.execute(), CliTool.ExitStatus.CODE_ERROR);
+        assertThat(terminal.getTerminalOutput(), hasSize(1));
+        assertThat(terminal.getTerminalOutput(), hasItem(containsString("error message")));
+
+        // set env... and log stack trace
+        try {
+            System.setProperty(Terminal.DEBUG_SYSTEM_PROPERTY, "true");
+            terminal = new CaptureOutputTerminal();
+            assertStatus(new SingleCmdTool("tool", terminal, cmd).execute(), CliTool.ExitStatus.CODE_ERROR);
+            assertThat(terminal.getTerminalOutput(), hasSize(2));
+            assertThat(terminal.getTerminalOutput(), hasItem(containsString("error message")));
+            // This class must be part of the stack strace
+            assertThat(terminal.getTerminalOutput(), hasItem(containsString(getClass().getName())));
+        } finally {
+            System.clearProperty(Terminal.DEBUG_SYSTEM_PROPERTY);
+        }
     }
 
     private void assertStatus(int status, CliTool.ExitStatus expectedStatus) {

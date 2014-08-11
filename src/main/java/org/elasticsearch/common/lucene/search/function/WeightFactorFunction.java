@@ -57,7 +57,7 @@ public class WeightFactorFunction extends ScoreFunction {
 
         WeightFactorFunction that = (WeightFactorFunction) o;
 
-        if (Double.compare(that.getWeight(), getWeight()) != 0)
+        if (that.getWeight() != getWeight())
             return false;
 
         return true;

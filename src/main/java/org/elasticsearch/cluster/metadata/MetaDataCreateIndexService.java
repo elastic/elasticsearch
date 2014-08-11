@@ -36,6 +36,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.metadata.IndexMetaData.Custom;
+import org.elasticsearch.cluster.metadata.IndexMetaData.State;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -324,6 +326,11 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                         final Version createdVersion = Version.smallest(version, nodes.smallestNonClientNodeVersion());
                         indexSettingsBuilder.put(SETTING_VERSION_CREATED, createdVersion);
                     }
+
+                    if (indexSettingsBuilder.get(SETTING_CREATION_DATE) == null) {
+                        indexSettingsBuilder.put(SETTING_CREATION_DATE, System.currentTimeMillis());
+                    }
+
                     indexSettingsBuilder.put(SETTING_UUID, Strings.randomBase64UUID());
 
                     Settings actualIndexSettings = indexSettingsBuilder.build();

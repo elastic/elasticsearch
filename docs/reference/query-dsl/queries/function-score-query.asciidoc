@@ -74,7 +74,7 @@ First, each document is scored by the defined functions. The parameter
 `max`::         maximum score is used
 `min`::         minimum score is used
 
-Because scores can be on different scales (for example, between 0 and 1 for decay functions but arbitrary for `random_score`), the score of each function can be adjusted with a user defined `weight` (added[1.4.0]). The `weight` can be defined per function in the `functions` array (example above) and is multiplied with the score computed by the respective function.
+Because scores can be on different scales (for example, between 0 and 1 for decay functions but arbitrary for `field_value_factor`) and also because sometimes a different impact of functions on the score is desirable, the score of each function can be adjusted with a user defined `weight` (added[1.4.0]). The `weight` can be defined per function in the `functions` array (example above) and is multiplied with the score computed by the respective function.
 If weight is given without any other function declaration, `weight` acts as a function that simply returns the `weight`.
 
 The new score can be restricted to not exceed a certain limit by setting

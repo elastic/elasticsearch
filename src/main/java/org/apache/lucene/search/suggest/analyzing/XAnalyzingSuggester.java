@@ -21,6 +21,7 @@ package org.apache.lucene.search.suggest.analyzing;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.TokenStreamToAutomaton;
+import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.search.suggest.InputIterator;
 import org.apache.lucene.search.suggest.Lookup;
 import org.apache.lucene.store.*;
@@ -166,7 +167,7 @@ public class XAnalyzingSuggester extends Lookup {
 
   public static final int PAYLOAD_SEP = '\u001F';
   public static final int HOLE_CHARACTER = '\u001E';
-  
+  private static final int MAX_TOP_N_QUEUE_SIZE = 1000;
   private final Automaton queryPrefix;
 
   /** Whether position holes should appear in the automaton. */
@@ -674,10 +675,20 @@ public class XAnalyzingSuggester extends Lookup {
 
   @Override
   public List<LookupResult> lookup(final CharSequence key, Set<BytesRef> contexts, boolean onlyMorePopular, int num) {
-      return lookup(key, contexts, onlyMorePopular, num, null);
+      return lookup(key, contexts, onlyMorePopular, num, null, 1.0d);
   }
 
-  public List<LookupResult> lookup(final CharSequence key, Set<BytesRef> contexts, boolean onlyMorePopular, int num, final Bits liveDocs) {
+  public List<LookupResult> lookup(final CharSequence key, final int num, final AtomicReader reader) {
+      double liveDocRatio = 1.0d;
+      if (reader.numDocs() > 0) {
+        liveDocRatio = (double) reader.numDocs() / reader.maxDoc();
+      } else {
+        return Collections.emptyList();
+      }
+      return lookup(key, null, false, num, reader.getLiveDocs(), liveDocRatio);
+  }
+
+  public List<LookupResult> lookup(final CharSequence key, Set<BytesRef> contexts, boolean onlyMorePopular, int num, final Bits liveDocs, final double liveDocsRatio) {
     assert num > 0;
 
     if (onlyMorePopular) {
@@ -733,7 +744,7 @@ public class XAnalyzingSuggester extends Lookup {
         // Searcher just to find the single exact only
         // match, if present:
         Util.TopNSearcher<Pair<Long,BytesRef>> searcher;
-        searcher = new Util.TopNSearcher<Pair<Long, BytesRef>>(fst, count * maxSurfaceFormsPerAnalyzedForm, getMaxTopNSearcherQueueSize(count, liveDocs), weightComparator) {
+        searcher = new Util.TopNSearcher<Pair<Long, BytesRef>>(fst, count * maxSurfaceFormsPerAnalyzedForm, getMaxTopNSearcherQueueSize(count, liveDocsRatio), weightComparator) {
 
           @Override
           protected boolean acceptResult(IntsRef input, Pair<Long,BytesRef> output) {
@@ -791,7 +802,7 @@ public class XAnalyzingSuggester extends Lookup {
       Util.TopNSearcher<Pair<Long,BytesRef>> searcher;
       searcher = new Util.TopNSearcher<Pair<Long,BytesRef>>(fst,
                                                             num - results.size(),
-                                                            getMaxTopNSearcherQueueSize(num, liveDocs),
+                                                            getMaxTopNSearcherQueueSize(num, liveDocsRatio),
                                                             weightComparator) {
         private final Set<BytesRef> seen = new HashSet<>();
         private CharsRef spare = new CharsRef();
@@ -872,28 +883,12 @@ public class XAnalyzingSuggester extends Lookup {
    * This heuristic will try to make the searcher admissible, but the search
    * can still lead to over-pruning
    */
-  private int getMaxTopNSearcherQueueSize(int num, Bits liveDocs) {
+  private int getMaxTopNSearcherQueueSize(int num, final double liveDocRatio) {
     int maxQueueSize = num * maxAnalyzedPathsForOneInput;
-    if (liveDocs != null) {
-      int docs = liveDocs.length();
-      int deletedDocCount = 0;
-      for (int i = 0; i < docs; i++) {
-        if (!liveDocs.get(i)) {
-          deletedDocCount++;
-        }
-      }
-      int deletedDocPercentage = (deletedDocCount * 100) / docs;
-
-      if (deletedDocPercentage >= 50) {
-        maxQueueSize *= 2;
-      } else if (deletedDocPercentage >= 75) {
-        maxQueueSize *= 4;
-      }
-      if (deletedDocCount < (maxQueueSize - (num * maxAnalyzedPathsForOneInput))) {
-        maxQueueSize = deletedDocCount + (num * maxAnalyzedPathsForOneInput);
-      }
+    if (liveDocRatio == 1.0d) {
+      return maxQueueSize;
     }
-    return maxQueueSize;
+    return Math.min(MAX_TOP_N_QUEUE_SIZE, (int) (maxQueueSize / liveDocRatio));
   }
 
   @Override

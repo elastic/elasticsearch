@@ -171,7 +171,7 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
         assertTrue(lookup instanceof XAnalyzingSuggester);
         XAnalyzingSuggester suggester = (XAnalyzingSuggester) lookup;
 
-        List<LookupResult> lookupResults = suggester.lookup(prefix, null, false, res, null);
+        List<LookupResult> lookupResults = suggester.lookup(prefix, null, false, res);
 
         for (LookupResult result : lookupResults) {
             if (randomBoolean()) {
@@ -189,14 +189,14 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
 
         // check if deleted suggestions are suggested
         reader = completionProvider.getReader();
-        Tuple<Lookup, Bits> lookupAndLiveBitsTuple = completionProvider.getLookup(reader);
-        lookup = lookupAndLiveBitsTuple.v1();
-        Bits liveDocs = lookupAndLiveBitsTuple.v2();
+        Tuple<Lookup, AtomicReader> lookupAndReaderTuple = completionProvider.getLookup(reader);
+        lookup = lookupAndReaderTuple.v1();
+        AtomicReader atomicReader = lookupAndReaderTuple.v2();
 
         assertTrue(lookup instanceof XAnalyzingSuggester);
         XAnalyzingSuggester suggesterWithDeletes = (XAnalyzingSuggester) lookup;
 
-        lookupResults = suggesterWithDeletes.lookup(prefix, null, false, res, liveDocs);
+        lookupResults = suggesterWithDeletes.lookup(prefix, res, atomicReader);
 
         if (lookupResults.size() > 0) {
             for(LookupResult result : lookupResults) {
@@ -259,12 +259,12 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
         for (int i = 0; i < num; i++) {
             int res = between(1, num);
             IndexReader reader = completionProvider.getReader();
-            final Tuple<Lookup, Bits> lookupAndLiveBits = completionProvider.getLookup(reader);
-            Lookup lookup = lookupAndLiveBits.v1();
-            Bits liveDocs = lookupAndLiveBits.v2();
+            final Tuple<Lookup, AtomicReader> lookupAndReader = completionProvider.getLookup(reader);
+            Lookup lookup = lookupAndReader.v1();
+            AtomicReader atomicReader = lookupAndReader.v2();
             assertTrue(lookup instanceof XAnalyzingSuggester);
             XAnalyzingSuggester suggester = (XAnalyzingSuggester) lookup;
-            List<LookupResult> lookupResults = suggester.lookup(prefix, null, false, res, liveDocs);
+            List<LookupResult> lookupResults = suggester.lookup(prefix, res, atomicReader);
             reader.close();
             assertThat(lookupResults.size(), equalTo(1));
             for (LookupResult result : lookupResults) {
@@ -281,7 +281,7 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
                 deletedTerms.put(key, --counter);
             }
         }
-        assertThat(deletedTerms.get(prefixStr+suffix), equalTo(0));
+        assertThat(deletedTerms.get(prefixStr + suffix), equalTo(0));
         completionProvider.close();
     }
 
@@ -600,7 +600,7 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
             }
         }
 
-        public Tuple<Lookup, Bits> getLookup(IndexReader reader) throws IOException {
+        public Tuple<Lookup, AtomicReader> getLookup(IndexReader reader) throws IOException {
             assertThat(reader.leaves().size(), equalTo(1));
             AtomicReader atomicReader = reader.leaves().get(0).reader();
             Terms luceneTerms = atomicReader.terms(mapper.name());
@@ -609,7 +609,7 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
                 lookup = ((Completion090PostingsFormat.CompletionTerms) luceneTerms).getLookup(mapper, new CompletionSuggestionContext(null));
             }
             assertFalse(lookup == null);
-            return new Tuple<>(lookup, atomicReader.getLiveDocs());
+            return new Tuple<>(lookup, atomicReader);
         }
 
         public void close() throws IOException {

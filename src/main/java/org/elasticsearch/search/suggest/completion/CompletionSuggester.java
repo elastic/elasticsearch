@@ -76,7 +76,7 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
                 }
                 List<Lookup.LookupResult> lookupResults;
                 if (lookup instanceof XAnalyzingSuggester) {
-                    lookupResults = ((XAnalyzingSuggester) lookup).lookup(spare, null, false, suggestionContext.getSize(), atomicReader.getLiveDocs());
+                    lookupResults = ((XAnalyzingSuggester) lookup).lookup(spare, suggestionContext.getSize(), atomicReader);
                 } else {
                     lookupResults = lookup.lookup(spare, false, suggestionContext.getSize());
                 }

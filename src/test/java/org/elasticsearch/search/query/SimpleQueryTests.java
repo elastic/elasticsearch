@@ -182,11 +182,11 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
                 constantScoreQuery(matchQuery("field1", "quick")).boost(1.0f + getRandom().nextFloat()))).get();
         assertHitCount(searchResponse, 2l);
         assertFirstHit(searchResponse, hasScore(searchResponse.getHits().getAt(1).score()));
-        
+
         client().prepareSearch("test").setQuery(constantScoreQuery(matchQuery("field1", "quick")).boost(1.0f + getRandom().nextFloat())).get();
         assertHitCount(searchResponse, 2l);
         assertFirstHit(searchResponse, hasScore(searchResponse.getHits().getAt(1).score()));
-        
+
         searchResponse = client().prepareSearch("test").setQuery(
                 constantScoreQuery(boolQuery().must(matchAllQuery()).must(
                 constantScoreQuery(matchQuery("field1", "quick")).boost(1.0f + (random.nextBoolean()? 0.0f : random.nextFloat()))))).get();
@@ -245,7 +245,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         for (int i = 0; i < iters; i++) {
             SearchResponse searchResponse = client().prepareSearch("test").setQuery(queryString("*:*^10.0").boost(10.0f)).get();
             assertHitCount(searchResponse, 2l);
-            
+
             searchResponse = client().prepareSearch("test").setQuery(
                     boolQuery().must(matchAllQuery()).must(constantScoreQuery(matchAllQuery()))).get();
             assertHitCount(searchResponse, 2l);
@@ -1608,7 +1608,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         assertHitCount(searchResponse, 1);
         searchResponse = client().prepareSearch("test").setQuery(matchQuery("text", "fast").operator(MatchQueryBuilder.Operator.AND)).get();
         assertHitCount(searchResponse, 1);
-        
+
         client().prepareIndex("test", "test", "2").setSource("text", "fast brown fox").get();
         refresh();
         searchResponse = client().prepareSearch("test").setQuery(matchQuery("text", "quick").operator(MatchQueryBuilder.Operator.AND)).get();
@@ -1666,7 +1666,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         assertHitCount(searchResponse, 1);
         searchResponse = client().prepareSearch().setQuery(queryString("fast").defaultField("text").defaultOperator(QueryStringQueryBuilder.Operator.AND)).get();
         assertHitCount(searchResponse, 1);
-        
+
         client().prepareIndex("test", "test", "2").setSource("text", "fast brown fox").get();
         refresh();
 
@@ -2348,16 +2348,17 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
     @Test
     public void testRangeFilterWithTimeZone() throws Exception {
         assertAcked(prepareCreate("test")
-                .addMapping("type1", "date", "type=date"));
+                .addMapping("type1", "date", "type=date", "num", "type=integer"));
         ensureGreen();
 
-        index("test", "type1", "1", "date", "2014-01-01", "num", 1);
-        index("test", "type1", "2", "date", "2013-12-31T23:00:00", "num", 2);
-        index("test", "type1", "3", "date", "2014-01-01T01:00:00", "num", 3);
-        // Now in UTC+1
-        index("test", "type1", "4", "date", DateTime.now(DateTimeZone.forOffsetHours(1)).getMillis(), "num", 4);
+        indexRandom(true,
+                client().prepareIndex("test", "type1", "1").setSource("date", "2014-01-01", "num", 1),
+                client().prepareIndex("test", "type1", "2").setSource("date", "2013-12-31T23:00:00", "num", 2),
+                client().prepareIndex("test", "type1", "3").setSource("date", "2014-01-01T01:00:00", "num", 3),
+                // Now in UTC+1
+                client().prepareIndex("test", "type1", "4").setSource("date", DateTime.now(DateTimeZone.forOffsetHours(1)).getMillis(), "num", 4));
 
-        refresh();
+
 
         SearchResponse searchResponse = client().prepareSearch("test")
                 .setQuery(QueryBuilders.filteredQuery(matchAllQuery(), FilterBuilders.rangeFilter("date").from("2014-01-01T00:00:00").to("2014-01-01T00:59:00")))
@@ -2445,16 +2446,15 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
     @Test
     public void testRangeQueryWithTimeZone() throws Exception {
         assertAcked(prepareCreate("test")
-                .addMapping("type1", "date", "type=date"));
+                .addMapping("type1", "date", "type=date", "num", "type=integer"));
         ensureGreen();
 
-        index("test", "type1", "1", "date", "2014-01-01", "num", 1);
-        index("test", "type1", "2", "date", "2013-12-31T23:00:00", "num", 2);
-        index("test", "type1", "3", "date", "2014-01-01T01:00:00", "num", 3);
-        // Now in UTC+1
-        index("test", "type1", "4", "date", DateTime.now(DateTimeZone.forOffsetHours(1)).getMillis(), "num", 4);
-
-        refresh();
+        indexRandom(true,
+                client().prepareIndex("test", "type1", "1").setSource("date", "2014-01-01", "num", 1),
+                client().prepareIndex("test", "type1", "2").setSource("date", "2013-12-31T23:00:00", "num", 2),
+                client().prepareIndex("test", "type1", "3").setSource("date", "2014-01-01T01:00:00", "num", 3),
+                // Now in UTC+1
+                client().prepareIndex("test", "type1", "4").setSource("date", DateTime.now(DateTimeZone.forOffsetHours(1)).getMillis(), "num", 4));
 
         // Ensure all shards have our mappings, otherwise we can sometimes fail to hit the expected exceptions below, because some shards
         // will succeed in running a query (that returns 0 hits) instead of throwing the expected exception:

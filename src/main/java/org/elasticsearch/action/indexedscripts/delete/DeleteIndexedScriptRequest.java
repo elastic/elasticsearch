@@ -23,7 +23,6 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -47,7 +46,6 @@ public class DeleteIndexedScriptRequest extends ActionRequest<DeleteIndexedScrip
 
     private String scriptLang;
     private String id;
-    @Nullable
     private long version = Versions.MATCH_ANY;
     private VersionType versionType = VersionType.INTERNAL;
 

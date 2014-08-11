@@ -20,7 +20,9 @@
 package org.elasticsearch.common.lucene.search.function;
 
 import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.search.ComplexExplanation;
 import org.apache.lucene.search.Explanation;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 
 /**
  *
@@ -28,24 +30,52 @@ import org.apache.lucene.search.Explanation;
 public class WeightFactorFunction extends ScoreFunction {
 
 
+    private final ScoreFunction scoreFunction;
+    private double weight = 1.0;
+
+    public WeightFactorFunction(double weight, ScoreFunction scoreFunction) {
+        super(CombineFunction.MULT);
+        if (scoreFunction instanceof BoostScoreFunction) {
+            throw new ElasticsearchIllegalArgumentException(BoostScoreFunction.BOOST_WEIGHT_ERROR_MESSAGE_PARSER);
+        }
+        this.scoreFunction = scoreFunction;
+        this.weight = weight;
+    }
+
     public WeightFactorFunction(double weight) {
         super(CombineFunction.MULT);
-        this.setWeight(weight);
+        this.scoreFunction = null;
+        this.weight = weight;
     }
 
     @Override
     public void setNextReader(AtomicReaderContext context) {
-        // nothing to do here...
+        if (scoreFunction != null ) {
+            scoreFunction.setNextReader(context);
+        }
     }
 
     @Override
     public double score(int docId, float subQueryScore) {
-        return 1.0;
+        if (scoreFunction != null ) {
+            return scoreFunction.score(docId, subQueryScore) * getWeight();
+        } else {
+            return getWeight();
+        }
     }
 
     @Override
     public Explanation explainScore(int docId, float score) {
-        return new Explanation(score, "weight");
+        Explanation functionScoreExplanation;
+        if (scoreFunction != null) {
+            Explanation functionExplanation = scoreFunction.explainScore(docId, score);
+             functionScoreExplanation = new ComplexExplanation(true, functionExplanation.getValue() * (float) getWeight(), "product of:");
+            functionScoreExplanation.addDetail(functionExplanation);
+            functionScoreExplanation.addDetail(explainWeight());
+        } else {
+            functionScoreExplanation = explainWeight();
+        }
+        return functionScoreExplanation;
     }
 
     @Override
@@ -56,6 +86,9 @@ public class WeightFactorFunction extends ScoreFunction {
             return false;
 
         WeightFactorFunction that = (WeightFactorFunction) o;
+        if (! scoreFunction.equals(that.scoreFunction)) {
+            return false;
+        }
 
         if (that.getWeight() != getWeight())
             return false;
@@ -71,5 +104,14 @@ public class WeightFactorFunction extends ScoreFunction {
     @Override
     public String toString() {
         return "weight[" + getWeight() + "]";
+    }
+
+    public Explanation explainWeight() {
+        return new Explanation((float) getWeight(), "weight");
+    }
+
+
+    public double getWeight() {
+        return weight;
     }
 }

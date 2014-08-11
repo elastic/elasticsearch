@@ -181,15 +181,11 @@ public class FiltersFunctionScoreQuery extends Query {
                 if (docSet.get(doc)) {
                     filterFunction.function.setNextReader(context);
                     Explanation functionExplanation = filterFunction.function.explainScore(doc, subQueryExpl.getValue());
-                    double functionScore = functionExplanation.getValue();
-                    float finalScore =  CombineFunction.toFloat(functionScore * filterFunction.function.getWeight());
-                    ComplexExplanation functionScoreExplanation = new  ComplexExplanation(true, finalScore, "product of:");
-                    functionScoreExplanation.addDetail(functionExplanation);
-                    functionScoreExplanation.addDetail(filterFunction.function.explainWeight());
-
-                    ComplexExplanation filterExplanation = new ComplexExplanation(true, finalScore, "function score, product of:");
+                    double factor = functionExplanation.getValue();
+                    float sc = CombineFunction.toFloat(factor);
+                    ComplexExplanation filterExplanation = new ComplexExplanation(true, sc, "function score, product of:");
                     filterExplanation.addDetail(new Explanation(1.0f, "match filter: " + filterFunction.filter.toString()));
-                    filterExplanation.addDetail(functionScoreExplanation);
+                    filterExplanation.addDetail(functionExplanation);
                     filterExplanations.add(filterExplanation);
                 }
             }
@@ -294,7 +290,7 @@ public class FiltersFunctionScoreQuery extends Query {
             if (scoreMode == ScoreMode.First) {
                 for (int i = 0; i < filterFunctions.length; i++) {
                     if (docSets[i].get(docId)) {
-                        factor = score(filterFunctions[i].function, docId, subQueryScore);
+                        factor = filterFunctions[i].function.score(docId, subQueryScore);
                         break;
                     }
                 }
@@ -302,7 +298,7 @@ public class FiltersFunctionScoreQuery extends Query {
                 double maxFactor = Double.NEGATIVE_INFINITY;
                 for (int i = 0; i < filterFunctions.length; i++) {
                     if (docSets[i].get(docId)) {
-                        maxFactor = Math.max(score(filterFunctions[i].function, docId, subQueryScore), maxFactor);
+                        maxFactor = Math.max(filterFunctions[i].function.score(docId, subQueryScore), maxFactor);
                     }
                 }
                 if (maxFactor != Float.NEGATIVE_INFINITY) {
@@ -312,7 +308,7 @@ public class FiltersFunctionScoreQuery extends Query {
                 double minFactor = Double.POSITIVE_INFINITY;
                 for (int i = 0; i < filterFunctions.length; i++) {
                     if (docSets[i].get(docId)) {
-                        minFactor = Math.min(score(filterFunctions[i].function, docId, subQueryScore), minFactor);
+                        minFactor = Math.min(filterFunctions[i].function.score(docId, subQueryScore), minFactor);
                     }
                 }
                 if (minFactor != Float.POSITIVE_INFINITY) {
@@ -321,7 +317,7 @@ public class FiltersFunctionScoreQuery extends Query {
             } else if (scoreMode == ScoreMode.Multiply) {
                 for (int i = 0; i < filterFunctions.length; i++) {
                     if (docSets[i].get(docId)) {
-                        factor *= score(filterFunctions[i].function, docId, subQueryScore);
+                        factor *= filterFunctions[i].function.score(docId, subQueryScore);
                     }
                 }
             } else { // Avg / Total
@@ -329,7 +325,7 @@ public class FiltersFunctionScoreQuery extends Query {
                 int count = 0;
                 for (int i = 0; i < filterFunctions.length; i++) {
                     if (docSets[i].get(docId)) {
-                        totalFactor += score(filterFunctions[i].function, docId, subQueryScore);
+                        totalFactor += filterFunctions[i].function.score(docId, subQueryScore);
                         count++;
                     }
                 }
@@ -341,10 +337,6 @@ public class FiltersFunctionScoreQuery extends Query {
                 }
             }
             return scoreCombiner.combine(subQueryBoost, subQueryScore, factor, maxBoost);
-        }
-
-        protected double score(ScoreFunction function, int docId, float subQueryScore) {
-            return function.score(docId, subQueryScore) * function.getWeight();
         }
 
         @Override

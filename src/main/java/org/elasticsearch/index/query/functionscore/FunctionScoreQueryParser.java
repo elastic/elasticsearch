@@ -209,7 +209,9 @@ public class FunctionScoreQueryParser implements QueryParser {
                     if (scoreFunction == null) {
                         scoreFunction = new WeightFactorFunction(functionWeight.doubleValue());
                     } else {
-                        scoreFunction.setWeight(functionWeight);
+                        if (functionWeight != 1.0) {
+                            scoreFunction = new WeightFactorFunction(functionWeight, scoreFunction);
+                        }
                     }
                 }
             }

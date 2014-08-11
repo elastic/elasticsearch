@@ -85,8 +85,4 @@ public class BoostScoreFunction extends ScoreFunction {
         return "boost[" + boost + "]";
     }
 
-    @Override
-    public ScoreFunction setWeight(double weight) {
-        throw new ElasticsearchIllegalArgumentException(BOOST_WEIGHT_ERROR_MESSAGE_PARSER);
-    }
 }

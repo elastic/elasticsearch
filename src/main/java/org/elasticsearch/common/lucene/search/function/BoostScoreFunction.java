@@ -29,7 +29,8 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 @Deprecated
 public class BoostScoreFunction extends ScoreFunction {
 
-    public static final String BOOST_WEIGHT_ERROR_MESSAGE = "boost_factor/weight defined together does not make sense. Use one of them only. weight is preferable because boost_factor is deprecated. If you are using the java API, use either FactorBuilder#boostFactor(..) or a WeightFactorBuilder. WeightFactorBuilder is preferable because FactorBuilder is deprecated.";
+    public static final String BOOST_WEIGHT_ERROR_MESSAGE_PARSER = "boost_factor/weight defined together does not make sense. Use one of them only. weight is preferable because boost_factor is deprecated.";
+    public static final String BOOST_WEIGHT_ERROR_MESSAGE_JAVA_API = "boost_factor/weight defined together does not make sense. Use either FactorBuilder#boostFactor(..) or a WeightFactorBuilder. WeightFactorBuilder is preferable because FactorBuilder is deprecated.";
 
     private final float boost;
 
@@ -86,6 +87,6 @@ public class BoostScoreFunction extends ScoreFunction {
 
     @Override
     public ScoreFunction setWeight(double weight) {
-        throw new ElasticsearchIllegalArgumentException(BOOST_WEIGHT_ERROR_MESSAGE);
+        throw new ElasticsearchIllegalArgumentException(BOOST_WEIGHT_ERROR_MESSAGE_PARSER);
     }
 }

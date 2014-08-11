@@ -2339,13 +2339,13 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
             queryParser.parse(query).query();
             fail();
         } catch (QueryParsingException e) {
-            assertThat(e.getDetailedMessage(), containsString("boost_factor/weight defined together does not make sense. Use one of them only. weight is preferable because boost_factor is deprecated. If you are using the java API, use either FactorBuilder#boostFactor(..) or a WeightFactorBuilder. WeightFactorBuilder is preferable because FactorBuilder is deprecated."));
+            assertThat(e.getDetailedMessage(), containsString(BoostScoreFunction.BOOST_WEIGHT_ERROR_MESSAGE_PARSER));
         }
         try {
             functionScoreQuery().add(factorFunction(2.0f).setWeight(2.0));
             fail();
         } catch (ElasticsearchIllegalArgumentException e) {
-            assertThat(e.getDetailedMessage(), containsString("boost_factor/weight defined together does not make sense. Use one of them only. weight is preferable because boost_factor is deprecated. If you are using the java API, use either FactorBuilder#boostFactor(..) or a WeightFactorBuilder. WeightFactorBuilder is preferable because FactorBuilder is deprecated."));
+            assertThat(e.getDetailedMessage(), containsString(BoostScoreFunction.BOOST_WEIGHT_ERROR_MESSAGE_JAVA_API));
         }
         query = copyToStringFromClasspath("/org/elasticsearch/index/query/function-score-query-with-functions-and-weight-in-body.json");
         try {

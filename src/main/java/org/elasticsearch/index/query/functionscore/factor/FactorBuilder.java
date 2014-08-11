@@ -59,7 +59,7 @@ public class FactorBuilder extends ScoreFunctionBuilder {
 
     @Override
     public ScoreFunctionBuilder setWeight(double weight) {
-        throw new ElasticsearchIllegalArgumentException(BoostScoreFunction.BOOST_WEIGHT_ERROR_MESSAGE);
+        throw new ElasticsearchIllegalArgumentException(BoostScoreFunction.BOOST_WEIGHT_ERROR_MESSAGE_JAVA_API);
     }
 
     @Override

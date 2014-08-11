@@ -688,7 +688,7 @@ public class XAnalyzingSuggester extends Lookup {
       return lookup(key, null, false, num, reader.getLiveDocs(), liveDocRatio);
   }
 
-  public List<LookupResult> lookup(final CharSequence key, Set<BytesRef> contexts, boolean onlyMorePopular, int num, final Bits liveDocs, final double liveDocsRatio) {
+  private List<LookupResult> lookup(final CharSequence key, Set<BytesRef> contexts, boolean onlyMorePopular, int num, final Bits liveDocs, final double liveDocsRatio) {
     assert num > 0;
 
     if (onlyMorePopular) {

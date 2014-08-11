@@ -160,6 +160,7 @@ public class IndexMetaData {
     public static final String SETTING_BLOCKS_WRITE = "index.blocks.write";
     public static final String SETTING_BLOCKS_METADATA = "index.blocks.metadata";
     public static final String SETTING_VERSION_CREATED = "index.version.created";
+    public static final String SETTING_CREATION_DATE = "index.creation_date";
     public static final String SETTING_UUID = "index.uuid";
     public static final String INDEX_UUID_NA_VALUE = "_na_";
 
@@ -249,6 +250,14 @@ public class IndexMetaData {
 
     public long getVersion() {
         return this.version;
+    }
+
+    public long creationDate() {
+        return settings.getAsLong(SETTING_CREATION_DATE, -1l);
+    }
+
+    public long getCreationDate() {
+        return creationDate();
     }
 
     public State state() {
@@ -456,6 +465,15 @@ public class IndexMetaData {
 
         public int numberOfReplicas() {
             return settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, -1);
+        }
+        
+        public Builder creationDate(long creationDate) {
+            settings = settingsBuilder().put(settings).put(SETTING_CREATION_DATE, creationDate).build();
+            return this;
+        }
+
+        public long creationDate() {
+            return settings.getAsLong(SETTING_CREATION_DATE, -1l);
         }
 
         public Builder settings(Settings.Builder settings) {

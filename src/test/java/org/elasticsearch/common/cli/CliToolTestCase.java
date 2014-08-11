@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.cli;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ElasticsearchTestCase;
 
@@ -75,6 +76,11 @@ public class CliToolTestCase extends ElasticsearchTestCase {
         }
 
         @Override
+        public void printStackTrace(Throwable t) {
+            return;
+        }
+
+        @Override
         public PrintWriter writer() {
             return DEV_NULL;
         }
@@ -118,6 +124,11 @@ public class CliToolTestCase extends ElasticsearchTestCase {
         @Override
         public void print(String msg, Object... args) {
             doPrint(msg, args);
+        }
+
+        @Override
+        public void printStackTrace(Throwable t) {
+            terminalOutput.add(ExceptionsHelper.stackTrace(t));
         }
 
         public List<String> getTerminalOutput() {

@@ -144,13 +144,13 @@ public abstract class CliTool {
             return command.execute(settings, env).status;
 
         } catch (IOException ioe) {
-            terminal.printError(ioe.getMessage());
+            terminal.printError(ioe);
             return ExitStatus.IO_ERROR.status;
         } catch (IllegalArgumentException | ElasticsearchIllegalArgumentException ilae) {
-            terminal.printError(ilae.getMessage());
+            terminal.printError(ilae);
             return ExitStatus.USAGE.status;
         } catch (Throwable t) {
-            terminal.printError(t.getMessage());
+            terminal.printError(t);
             if (command == null) {
                 return ExitStatus.USAGE.status;
             }

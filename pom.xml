@@ -260,7 +260,7 @@
         <dependency>
             <groupId>com.ning</groupId>
             <artifactId>compress-lzf</artifactId>
-            <version>0.9.6</version>
+            <version>1.0.2</version>
             <scope>compile</scope>
         </dependency>
 

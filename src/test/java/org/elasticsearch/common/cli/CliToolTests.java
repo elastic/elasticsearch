@@ -27,12 +27,10 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.common.cli.CliToolConfig.Builder.cmd;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
@@ -41,7 +39,7 @@ public class CliToolTests extends CliToolTestCase {
 
     @Test
     public void testOK() throws Exception {
-        Terminal terminal = new TerminalMock();
+        Terminal terminal = new MockTerminal();
         final AtomicReference<Boolean> executed = new AtomicReference<>(false);
         final NamedCommand cmd = new NamedCommand("cmd", terminal) {
             @Override
@@ -52,12 +50,13 @@ public class CliToolTests extends CliToolTestCase {
         };
         SingleCmdTool tool = new SingleCmdTool("tool", terminal, cmd);
         int status = tool.execute();
-        assertExecuted(status, CliTool.ExitStatus.OK, executed, true);
+        assertStatus(status, CliTool.ExitStatus.OK);
+        assertCommandHasBeenExecuted(executed);
     }
 
     @Test
     public void testUsageError() throws Exception {
-        Terminal terminal = new TerminalMock();
+        Terminal terminal = new MockTerminal();
         final AtomicReference<Boolean> executed = new AtomicReference<>(false);
         final NamedCommand cmd = new NamedCommand("cmd", terminal) {
             @Override
@@ -68,12 +67,13 @@ public class CliToolTests extends CliToolTestCase {
         };
         SingleCmdTool tool = new SingleCmdTool("tool", terminal, cmd);
         int status = tool.execute();
-        assertExecuted(status, CliTool.ExitStatus.USAGE, executed, true);
+        assertStatus(status, CliTool.ExitStatus.USAGE);
+        assertCommandHasBeenExecuted(executed);
     }
 
     @Test
     public void testIOError() throws Exception {
-        Terminal terminal = new TerminalMock();
+        Terminal terminal = new MockTerminal();
         final AtomicReference<Boolean> executed = new AtomicReference<>(false);
         final NamedCommand cmd = new NamedCommand("cmd", terminal) {
             @Override
@@ -84,12 +84,13 @@ public class CliToolTests extends CliToolTestCase {
         };
         SingleCmdTool tool = new SingleCmdTool("tool", terminal, cmd);
         int status = tool.execute();
-        assertExecuted(status, CliTool.ExitStatus.IO_ERROR, executed, true);
+        assertStatus(status, CliTool.ExitStatus.IO_ERROR);
+        assertCommandHasBeenExecuted(executed);
     }
 
     @Test
     public void testCodeError() throws Exception {
-        Terminal terminal = new TerminalMock();
+        Terminal terminal = new MockTerminal();
         final AtomicReference<Boolean> executed = new AtomicReference<>(false);
         final NamedCommand cmd = new NamedCommand("cmd", terminal) {
             @Override
@@ -100,12 +101,13 @@ public class CliToolTests extends CliToolTestCase {
         };
         SingleCmdTool tool = new SingleCmdTool("tool", terminal, cmd);
         int status = tool.execute();
-        assertExecuted(status, CliTool.ExitStatus.CODE_ERROR, executed, true);
+        assertStatus(status, CliTool.ExitStatus.CODE_ERROR);
+        assertCommandHasBeenExecuted(executed);
     }
 
     @Test
     public void testMultiCommand() {
-        Terminal terminal = new TerminalMock();
+        Terminal terminal = new MockTerminal();
         int count = randomIntBetween(2, 7);
         final AtomicReference<Boolean>[] executed = new AtomicReference[count];
         for (int i = 0; i < executed.length; i++) {
@@ -133,7 +135,7 @@ public class CliToolTests extends CliToolTestCase {
 
     @Test
     public void testMultiCommand_UnknownCommand() {
-        Terminal terminal = new TerminalMock();
+        Terminal terminal = new MockTerminal();
         int count = randomIntBetween(2, 7);
         final AtomicReference<Boolean>[] executed = new AtomicReference[count];
         for (int i = 0; i < executed.length; i++) {
@@ -160,26 +162,7 @@ public class CliToolTests extends CliToolTestCase {
 
     @Test
     public void testSingleCommand_ToolHelp() throws Exception {
-        final AtomicInteger writeCounter = new AtomicInteger(0);
-        Terminal terminal = new TerminalMock() {
-            @Override
-            public void doPrint(String msg, Object... args) {
-                int count = writeCounter.incrementAndGet();
-                switch (count) {
-                    case 1:
-                        assertThat(msg, equalTo(System.lineSeparator()));
-                        break;
-                    case 2:
-                        assertThat(msg, equalTo("cmd1 help" + System.lineSeparator()));
-                        break;
-                    case 3:
-                        assertThat(msg, equalTo(System.lineSeparator()));
-                        break;
-                    default:
-                        fail("written more than expected");
-                }
-            }
-        };
+        CaptureOutputTerminal terminal = new CaptureOutputTerminal();
         final AtomicReference<Boolean> executed = new AtomicReference<>(false);
         final NamedCommand cmd = new NamedCommand("cmd1", terminal) {
             @Override
@@ -190,31 +173,14 @@ public class CliToolTests extends CliToolTestCase {
         };
         SingleCmdTool tool = new SingleCmdTool("tool", terminal, cmd);
         int status = tool.execute(args("-h"));
-        assertExecuted(status, CliTool.ExitStatus.OK, writeCounter, 3);
+        assertStatus(status, CliTool.ExitStatus.OK);
+        assertThat(terminal.getTerminalOutput(), hasSize(3));
+        assertThat(terminal.getTerminalOutput(), hasItem(containsString("cmd1 help")));
     }
 
     @Test
     public void testMultiCommand_ToolHelp() {
-        final AtomicInteger writeCounter = new AtomicInteger(0);
-        Terminal terminal = new TerminalMock() {
-            @Override
-            public void doPrint(String msg, Object... args) {
-                int count = writeCounter.incrementAndGet();
-                switch (count) {
-                    case 1:
-                        assertThat(msg, equalTo(System.lineSeparator()));
-                        break;
-                    case 2:
-                        assertThat(msg, equalTo("tool help"+System.lineSeparator()));
-                        break;
-                    case 3:
-                        assertThat(msg, equalTo(System.lineSeparator()));
-                        break;
-                    default:
-                        fail("written more than expected");
-                }
-            }
-        };
+        CaptureOutputTerminal terminal = new CaptureOutputTerminal();
         NamedCommand[] cmds = new NamedCommand[2];
         cmds[0] = new NamedCommand("cmd0", terminal) {
             @Override
@@ -230,31 +196,14 @@ public class CliToolTests extends CliToolTestCase {
         };
         MultiCmdTool tool = new MultiCmdTool("tool", terminal, cmds);
         int status = tool.execute(args("-h"));
-        assertExecuted(status, CliTool.ExitStatus.OK, writeCounter, 3);
+        assertStatus(status, CliTool.ExitStatus.OK);
+        assertThat(terminal.getTerminalOutput(), hasSize(3));
+        assertThat(terminal.getTerminalOutput(), hasItem(containsString("tool help")));
     }
 
     @Test
     public void testMultiCommand_CmdHelp() {
-        final AtomicInteger writeCounter = new AtomicInteger(0);
-        Terminal terminal = new TerminalMock() {
-            @Override
-            public void doPrint(String msg, Object... args) {
-                int count = writeCounter.incrementAndGet();
-                switch (count) {
-                    case 1:
-                        assertThat(msg, equalTo(System.lineSeparator()));
-                        break;
-                    case 2:
-                        assertThat(msg, equalTo("cmd1 help" + System.lineSeparator()));
-                        break;
-                    case 3:
-                        assertThat(msg, equalTo(System.lineSeparator()));
-                        break;
-                    default:
-                        fail("written more than expected");
-                }
-            }
-        };
+        CaptureOutputTerminal terminal = new CaptureOutputTerminal();
         NamedCommand[] cmds = new NamedCommand[2];
         cmds[0] = new NamedCommand("cmd0", terminal) {
             @Override
@@ -270,17 +219,17 @@ public class CliToolTests extends CliToolTestCase {
         };
         MultiCmdTool tool = new MultiCmdTool("tool", terminal, cmds);
         int status = tool.execute(args("cmd1 -h"));
-        assertExecuted(status, CliTool.ExitStatus.OK, writeCounter, 3);
+        assertStatus(status, CliTool.ExitStatus.OK);
+        assertThat(terminal.getTerminalOutput(), hasSize(3));
+        assertThat(terminal.getTerminalOutput(), hasItem(containsString("cmd1 help")));
     }
 
-    private static void assertExecuted(int actualStatus, CliTool.ExitStatus expectedStatus, AtomicReference<Boolean> actualExecuted, boolean expectedExecuted) {
-        assertThat(actualExecuted.get(), is(expectedExecuted));
-        assertThat(actualStatus, is(expectedStatus.status()));
+    private void assertStatus(int status, CliTool.ExitStatus expectedStatus) {
+        assertThat(status, is(expectedStatus.status()));
     }
 
-    private static void assertExecuted(int actualStatus, CliTool.ExitStatus expectedStatus, AtomicInteger actualExecuted, int expectedExecuted) {
-        assertThat(actualExecuted.get(), is(expectedExecuted));
-        assertThat(actualStatus, is(expectedStatus.status()));
+    private void assertCommandHasBeenExecuted(AtomicReference<Boolean> executed) {
+        assertThat("Expected command atomic reference counter to be set to true", executed.get(), is(Boolean.TRUE));
     }
 
     private static class SingleCmdTool extends CliTool {
@@ -338,6 +287,4 @@ public class CliToolTests extends CliToolTestCase {
             this.name = name;
         }
     }
-
-
 }

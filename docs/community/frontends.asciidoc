@@ -15,3 +15,6 @@
 
 * https://github.com/romansanchez/Calaca[Calaca]: 
   Simple search client for Elasticsearch
+
+* https://github.com/rdpatil4/ESClient[ESClient]: 
+  Simple search, update, delete client for Elasticsearch

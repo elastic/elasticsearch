@@ -45,10 +45,10 @@ import java.io.IOException;
  */
 public class GetRequest extends SingleShardOperationRequest<GetRequest> {
 
-    protected String type;
-    protected String id;
-    protected String routing;
-    protected String preference;
+    private String type;
+    private String id;
+    private String routing;
+    private String preference;
 
     private String[] fields;
 
@@ -305,7 +305,7 @@ public class GetRequest extends SingleShardOperationRequest<GetRequest> {
         }
         if (realtime == null) {
             out.writeByte((byte) -1);
-        } else if (realtime == false) {
+        } else if (!realtime) {
             out.writeByte((byte) 0);
         } else {
             out.writeByte((byte) 1);

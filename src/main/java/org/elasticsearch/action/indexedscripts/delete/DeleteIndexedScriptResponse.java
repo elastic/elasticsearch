@@ -26,10 +26,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 
 /**
- * The response of the delete action.
+ * The response of the delete indexed script action.
  *
  * @see DeleteIndexedScriptRequest
- * @see org.elasticsearch.client.Client#delete(DeleteIndexedScriptRequest)
+ * @see org.elasticsearch.client.Client#deleteIndexedScript(DeleteIndexedScriptRequest)
  */
 public class DeleteIndexedScriptResponse extends ActionResponse {
 

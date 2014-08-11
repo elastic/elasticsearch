@@ -235,6 +235,7 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
     // forces QUERY_THEN_FETCH because of https://github.com/elasticsearch/elasticsearch/issues/4829
     public void testEquivalence() throws Exception {
         int numDocs = indexRandomNumbers("whitespace");
+        client().admin().indices().prepareOptimize("test").setMaxNumSegments(1).get();
 
         final int iters = scaledRandomIntBetween(50, 100);
         for (int i = 0; i < iters; i++) {

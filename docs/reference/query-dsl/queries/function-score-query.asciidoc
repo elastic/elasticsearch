@@ -136,6 +136,8 @@ you wish to inhibit this, set `"boost_mode": "replace"`
 
 ===== Weight
 
+added[1.4.0]
+
 The `weight` score allows you to multiply the score by the provided
 `weight`. This can sometimes be desired since boost value set on
 specific queries gets normalized, while for this score function it does

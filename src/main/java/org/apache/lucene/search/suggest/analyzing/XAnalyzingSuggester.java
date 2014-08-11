@@ -885,9 +885,8 @@ public class XAnalyzingSuggester extends Lookup {
    */
   private int getMaxTopNSearcherQueueSize(int num, final double liveDocRatio) {
     int maxQueueSize = num * maxAnalyzedPathsForOneInput;
-    if (liveDocRatio == 1.0d) {
-      return maxQueueSize;
-    }
+    // liveDocRatio can be at most 1.0 (if no docs were deleted)
+    assert liveDocRatio <= 1.0d;
     return Math.min(MAX_TOP_N_QUEUE_SIZE, (int) (maxQueueSize / liveDocRatio));
   }
 

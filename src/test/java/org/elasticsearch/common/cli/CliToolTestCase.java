@@ -25,6 +25,9 @@ import org.elasticsearch.test.ElasticsearchTestCase;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.Writer;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
 
 /**
  *
@@ -38,15 +41,18 @@ public class CliToolTestCase extends ElasticsearchTestCase {
         return command.split("\\s+");
     }
 
-    public static class TerminalMock extends Terminal {
+    /**
+     * A terminal implementation that discards everything
+     */
+    public static class MockTerminal extends Terminal {
 
         private static final PrintWriter DEV_NULL = new PrintWriter(new DevNullWriter());
 
-        public TerminalMock() {
+        public MockTerminal() {
             super(Verbosity.NORMAL);
         }
 
-        public TerminalMock(Verbosity verbosity) {
+        public MockTerminal(Verbosity verbosity) {
             super(verbosity);
         }
 
@@ -89,4 +95,33 @@ public class CliToolTestCase extends ElasticsearchTestCase {
         }
     }
 
+    /**
+     * A terminal implementation that captures everything written to it
+     */
+    public static class CaptureOutputTerminal extends MockTerminal {
+
+        List<String> terminalOutput = new ArrayList();
+
+        public CaptureOutputTerminal() {
+            super(Verbosity.NORMAL);
+        }
+
+        public CaptureOutputTerminal(Verbosity verbosity) {
+            super(verbosity);
+        }
+
+        @Override
+        protected void doPrint(String msg, Object... args) {
+            terminalOutput.add(String.format(Locale.ROOT, msg, args));
+        }
+
+        @Override
+        public void print(String msg, Object... args) {
+            doPrint(msg, args);
+        }
+
+        public List<String> getTerminalOutput() {
+            return terminalOutput;
+        }
+    }
 }

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.mapping.get;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.single.custom.SingleCustomOperationRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -66,9 +65,6 @@ class GetFieldMappingsIndexRequest extends SingleCustomOperationRequest<GetField
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().before(Version.V_1_4_0)) {
-            out.writeString(index());
-        }
         out.writeStringArray(types);
         out.writeStringArray(fields);
         out.writeBoolean(includeDefaults);
@@ -76,14 +72,21 @@ class GetFieldMappingsIndexRequest extends SingleCustomOperationRequest<GetField
     }
 
     @Override
+    protected void writeIndex(StreamOutput out) throws IOException {
+        out.writeString(index());
+    }
+
+    @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        if (in.getVersion().before(Version.V_1_4_0)) {
-            index(in.readString());
-        }
         types = in.readStringArray();
         fields = in.readStringArray();
         includeDefaults = in.readBoolean();
         probablySingleFieldRequest = in.readBoolean();
+    }
+
+    @Override
+    protected void readIndex(StreamInput in) throws IOException {
+        index(in.readString());
     }
 }

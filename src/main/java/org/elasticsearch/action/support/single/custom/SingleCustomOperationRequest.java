@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.action.support.single.custom;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -111,18 +110,22 @@ public abstract class SingleCustomOperationRequest<T extends SingleCustomOperati
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         preferLocal = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
-            index = in.readOptionalString();
-        }
+        readIndex(in);
+    }
+
+    protected void readIndex(StreamInput in) throws IOException {
+        index = in.readOptionalString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeBoolean(preferLocal);
-        if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
-            out.writeOptionalString(index);
-        }
+        writeIndex(out);
+    }
+
+    protected void writeIndex(StreamOutput out) throws IOException {
+        out.writeOptionalString(index);
     }
 }
 

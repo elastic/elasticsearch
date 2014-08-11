@@ -139,9 +139,6 @@ public class AnalyzeRequest extends SingleCustomOperationRequest<AnalyzeRequest>
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        if (in.getVersion().before(Version.V_1_4_0)) {
-            index(in.readOptionalString());
-        }
         text = in.readString();
         analyzer = in.readOptionalString();
         tokenizer = in.readOptionalString();
@@ -155,9 +152,6 @@ public class AnalyzeRequest extends SingleCustomOperationRequest<AnalyzeRequest>
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().before(Version.V_1_4_0)) {
-            out.writeOptionalString(index());
-        }
         out.writeString(text);
         out.writeOptionalString(analyzer);
         out.writeOptionalString(tokenizer);

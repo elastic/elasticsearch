@@ -27,7 +27,7 @@ public class ShieldVersion implements Serializable {
     // the (internal) format of the id is there so we can easily do after/before checks on the id
 
     public static final int V_1_0_0_ID = /*00*/1000099;
-    public static final ShieldVersion V_1_0_0 = new ShieldVersion(V_1_0_0_ID, false, Version.V_1_4_0);
+    public static final ShieldVersion V_1_0_0 = new ShieldVersion(V_1_0_0_ID, true, Version.V_1_4_0);
 
     public static final ShieldVersion CURRENT = V_1_0_0;
 

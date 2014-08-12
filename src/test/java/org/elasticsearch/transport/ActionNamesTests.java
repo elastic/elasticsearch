@@ -20,6 +20,7 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.bench.AbortBenchmarkAction;
 import org.elasticsearch.action.bench.BenchmarkAction;
 import org.elasticsearch.action.bench.BenchmarkService;
@@ -131,5 +132,6 @@ public class ActionNamesTests extends ElasticsearchIntegrationTest {
         post_1_4_actions.add(AbortBenchmarkAction.NAME);
         post_1_4_actions.add(ExistsAction.NAME);
         post_1_4_actions.add(ExistsAction.NAME + "[s]");
+        post_1_4_actions.add(GetIndexAction.NAME);
     }
 }

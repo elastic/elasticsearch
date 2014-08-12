@@ -13,6 +13,7 @@ and warmers.
 
 * <<indices-create-index>>
 * <<indices-delete-index>>
+* <<indices-get-index>>
 * <<indices-exists>>
 * <<indices-open-close>>
 
@@ -60,6 +61,8 @@ and warmers.
 include::indices/create-index.asciidoc[]
 
 include::indices/delete-index.asciidoc[]
+
+include::indices/get-index.asciidoc[]
 
 include::indices/indices-exists.asciidoc[]
 

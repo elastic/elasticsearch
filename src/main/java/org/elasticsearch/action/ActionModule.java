@@ -83,6 +83,8 @@ import org.elasticsearch.action.admin.indices.exists.types.TransportTypesExistsA
 import org.elasticsearch.action.admin.indices.exists.types.TypesExistsAction;
 import org.elasticsearch.action.admin.indices.flush.FlushAction;
 import org.elasticsearch.action.admin.indices.flush.TransportFlushAction;
+import org.elasticsearch.action.admin.indices.get.GetIndexAction;
+import org.elasticsearch.action.admin.indices.get.TransportGetIndexAction;
 import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.delete.TransportDeleteMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.get.*;
@@ -246,6 +248,7 @@ public class ActionModule extends AbstractModule {
         registerAction(IndicesSegmentsAction.INSTANCE, TransportIndicesSegmentsAction.class);
         registerAction(CreateIndexAction.INSTANCE, TransportCreateIndexAction.class);
         registerAction(DeleteIndexAction.INSTANCE, TransportDeleteIndexAction.class);
+        registerAction(GetIndexAction.INSTANCE, TransportGetIndexAction.class);
         registerAction(OpenIndexAction.INSTANCE, TransportOpenIndexAction.class);
         registerAction(CloseIndexAction.INSTANCE, TransportCloseIndexAction.class);
         registerAction(IndicesExistsAction.INSTANCE, TransportIndicesExistsAction.class);

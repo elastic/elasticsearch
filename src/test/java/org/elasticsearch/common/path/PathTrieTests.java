@@ -105,10 +105,14 @@ public class PathTrieTests extends ElasticsearchTestCase {
         trie.insert("b", "test2");
         trie.insert("{test}/a", "test3");
         trie.insert("b/a", "test4");
+        trie.insert("{test}/{testB}", "test5");
+        trie.insert("{test}/x/{testC}", "test6");
 
         Map<String, String> params = newHashMap();
         assertThat(trie.retrieve("/b", params), equalTo("test2"));
         assertThat(trie.retrieve("/b/a", params), equalTo("test4"));
+        assertThat(trie.retrieve("/v/x", params), equalTo("test5"));
+        assertThat(trie.retrieve("/v/x/c", params), equalTo("test6"));
     }
 
     @Test

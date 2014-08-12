@@ -36,3 +36,25 @@ pointed to by the alias.
 Add or update a mapping via the <<indices-create-index,create index>> or
 <<indices-put-mapping,put mapping>> apis.
 
+==== Indices APIs
+
+The <<warmer-retrieving, get warmer api>> will return a section for `warmers` even if there are 
+no warmers.  This ensures that the following two examples are equivalent:
+
+[source,js]
+--------------------------------------------------
+curl -XGET 'http://localhost:9200/_all/_warmers'
+
+curl -XGET 'http://localhost:9200/_warmers'
+--------------------------------------------------
+
+Similarly, the <<alias-retrieving, get alias api>> will return a section for `aliases` even if there are 
+no aliases.  This ensures that the following two examples are equivalent:
+
+[source,js]
+--------------------------------------------------
+curl -XGET 'http://localhost:9200/_all/_aliases'
+
+curl -XGET 'http://localhost:9200/_aliases'
+--------------------------------------------------
+

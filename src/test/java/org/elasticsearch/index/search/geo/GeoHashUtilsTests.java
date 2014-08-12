@@ -24,7 +24,9 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
-import static org.junit.Assert.assertEquals;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 
 /**
  *
@@ -85,5 +87,22 @@ public class GeoHashUtilsTests extends ElasticsearchTestCase {
         assertEquals(4.8909343d, decode.lon(), 0.000001d);
 
         assertEquals(geoHash, GeoHashUtils.encode(decode.lat(), decode.lon()));
+    }
+
+    @Test
+    public void testNeighbours() {
+        String geohash = "gcpv";
+        List<String> expectedNeighbors = new ArrayList<>();
+        expectedNeighbors.add("gcpw");
+        expectedNeighbors.add("gcpy");
+        expectedNeighbors.add("u10n");
+        expectedNeighbors.add("gcpt");
+        expectedNeighbors.add("u10j");
+        expectedNeighbors.add("gcps");
+        expectedNeighbors.add("gcpu");
+        expectedNeighbors.add("u10h");
+        Collection<? super String> neighbors = new ArrayList<>();
+        GeoHashUtils.addNeighbors(geohash, neighbors );
+        assertEquals(expectedNeighbors, neighbors);
     }
 }

@@ -187,7 +187,6 @@ public class RandomScoreFunctionTests extends ElasticsearchTestCase {
 
         // Original seed should be there
         assertThat(randomExplanation.getDescription(), containsString("" + seed));
-        assertThat(randomExplanation.getDetails(), arrayContaining(subExplanation));
     }
 
 

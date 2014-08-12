@@ -47,7 +47,6 @@ public class RandomScoreFunction extends ScoreFunction {
     public Explanation explainScore(int docId, Explanation subQueryExpl) {
         Explanation exp = new Explanation();
         exp.setDescription("random score function (seed: " + prng.originalSeed + ")");
-        exp.addDetail(subQueryExpl);
         return exp;
     }
 

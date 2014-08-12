@@ -110,8 +110,11 @@ public class ScriptScoreFunction extends ScoreFunction {
             exp = ((ExplainableSearchScript) script).explain(subQueryExpl);
         } else {
             double score = score(docId, subQueryExpl.getValue());
-            exp = new Explanation(CombineFunction.toFloat(score), "script score function: composed of:");
-            exp.addDetail(subQueryExpl);
+            String explanation = "script score function, computed with script:\"" + sScript;
+            if (params != null) {
+                explanation += "\" and parameters: \n" + params.toString();
+            }
+            exp = new Explanation(CombineFunction.toFloat(score), explanation);
         }
         return exp;
     }

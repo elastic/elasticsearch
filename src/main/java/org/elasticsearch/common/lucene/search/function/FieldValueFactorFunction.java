@@ -77,7 +77,6 @@ public class FieldValueFactorFunction extends ScoreFunction {
         exp.setValue(CombineFunction.toFloat(score));
         exp.setDescription("field value function: " +
                 modifierStr + "(" + "doc['" + field + "'].value * factor=" + boostFactor + ")");
-        exp.addDetail(subQueryExpl);
         return exp;
     }
 

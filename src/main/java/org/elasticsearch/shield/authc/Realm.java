@@ -32,6 +32,11 @@ public interface Realm<T extends AuthenticationToken> {
     T token(TransportMessage<?> message);
 
     /**
+     * @return  {@code true} if this realm supports the given authentication token, {@code false} otherwise.
+     */
+    boolean supports(AuthenticationToken token);
+
+    /**
      * Authenticates the given token. A successful authentication will return the User associated
      * with the given token. An unsuccessful authentication returns {@code null}.
      *

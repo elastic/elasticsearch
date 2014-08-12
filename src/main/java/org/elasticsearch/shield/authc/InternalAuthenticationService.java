@@ -28,27 +28,39 @@ public class InternalAuthenticationService extends AbstractComponent implements 
         this.auditTrail = auditTrail;
     }
 
+    @Override
+    public AuthenticationToken token(TransportMessage<?> message) {
+        for (Realm realm : realms) {
+            AuthenticationToken token = realm.token(message);
+            if (token != null) {
+                return token;
+            }
+        }
+        return null;
+    }
+
     /**
      * Authenticates the user associated with the given request by delegating the authentication to
-     * the configured realms. Each realm will be asked to authenticate the request, the first realm that
-     * successfully authenticates will "win" and its authenticated user will be returned. If none of the
-     * configured realms successfully authenticates the request, an {@link AuthenticationException} will
+     * the configured realms. Each realm that supports the given token will be asked to perform authentication,
+     * the first realm that successfully authenticates will "win" and its authenticated user will be returned.
+     * If none of the configured realms successfully authenticates the request, an {@link AuthenticationException} will
      * be thrown.
      *
-     * The order by which the realms are ran is based on the order by which they were set in the
-     * constructor.
+     * The order by which the realms are checked is defined in {@link Realms}.
      *
+     * @param action    The executed action
      * @param message   The executed request
+     * @param token     The authentication token
      * @return          The authenticated user
      * @throws AuthenticationException If none of the configured realms successfully authenticated the
      *                                 request
      */
     @Override
     @SuppressWarnings("unchecked")
-    public User authenticate(String action, TransportMessage<?> message) throws AuthenticationException {
+    public User authenticate(String action, TransportMessage<?> message, AuthenticationToken token) throws AuthenticationException {
+        assert token != null : "cannot authenticate null tokens";
         for (Realm realm : realms) {
-            AuthenticationToken token = realm.token(message);
-            if (token != null) {
+            if (realm.supports(token)) {
                 User user = realm.authenticate(token);
                 if (user != null) {
                     return user;

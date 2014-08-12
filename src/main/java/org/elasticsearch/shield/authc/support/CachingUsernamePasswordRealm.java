@@ -12,6 +12,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.AuthenticationException;
+import org.elasticsearch.shield.authc.AuthenticationToken;
 import org.elasticsearch.shield.authc.Realm;
 import org.elasticsearch.transport.TransportMessage;
 
@@ -42,6 +43,11 @@ public abstract class CachingUsernamePasswordRealm extends AbstractComponent imp
     @Override
     public UsernamePasswordToken token(TransportMessage<?> message) {
         return UsernamePasswordToken.extractToken(message, null);
+    }
+
+    @Override
+    public boolean supports(AuthenticationToken token) {
+        return token instanceof UsernamePasswordToken;
     }
 
     protected final void expire(String username) {

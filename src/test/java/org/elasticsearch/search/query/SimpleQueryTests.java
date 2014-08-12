@@ -2456,10 +2456,6 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
                 // Now in UTC+1
                 client().prepareIndex("test", "type1", "4").setSource("date", DateTime.now(DateTimeZone.forOffsetHours(1)).getMillis(), "num", 4));
 
-        // Ensure all shards have our mappings, otherwise we can sometimes fail to hit the expected exceptions below, because some shards
-        // will succeed in running a query (that returns 0 hits) instead of throwing the expected exception:
-        waitForConcreteMappingsOnAll("test", "type1", "date", "num");
-
         SearchResponse searchResponse = client().prepareSearch("test")
                 .setQuery(QueryBuilders.rangeQuery("date").from("2014-01-01T00:00:00").to("2014-01-01T00:59:00"))
                 .get();

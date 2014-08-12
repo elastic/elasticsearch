@@ -314,6 +314,8 @@ Possible options:
 
 The rest endpoint is: `/{index}/_alias/{alias}`.
 
+coming[1.4.0,The API will always include an `aliases` section, even if there aren't any aliases. Previous versions would not return the `aliases` section]
+
 [float]
 ==== Examples:
 

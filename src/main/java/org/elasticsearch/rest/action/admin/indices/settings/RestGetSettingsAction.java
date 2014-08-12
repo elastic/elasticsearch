@@ -40,8 +40,6 @@ public class RestGetSettingsAction extends BaseRestHandler {
     @Inject
     public RestGetSettingsAction(Settings settings, RestController controller, RestClientFactory restClientFactory) {
         super(settings, restClientFactory);
-        controller.registerHandler(GET, "/_settings", this);
-        controller.registerHandler(GET, "/{index}/_settings", this);
         controller.registerHandler(GET, "/{index}/_settings/{name}", this);
         controller.registerHandler(GET, "/_settings/{name}", this);
         controller.registerHandler(GET, "/{index}/_setting/{name}", this);

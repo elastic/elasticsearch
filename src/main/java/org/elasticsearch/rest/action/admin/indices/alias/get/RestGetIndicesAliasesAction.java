@@ -47,8 +47,6 @@ public class RestGetIndicesAliasesAction extends BaseRestHandler {
     @Inject
     public RestGetIndicesAliasesAction(Settings settings, RestController controller, RestClientFactory restClientFactory) {
         super(settings, restClientFactory);
-        controller.registerHandler(GET, "/_aliases", this);
-        controller.registerHandler(GET, "/{index}/_aliases", this);
         controller.registerHandler(GET, "/{index}/_aliases/{name}", this);
         controller.registerHandler(GET, "/_aliases/{name}", this);
     }

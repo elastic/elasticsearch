@@ -329,11 +329,12 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
 
     @Override
     public Filter rangeFilter(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
-        return rangeFilter(lowerTerm, upperTerm, includeLower, includeUpper, context, false);
+        return rangeFilter(lowerTerm, upperTerm, includeLower, includeUpper, context, null);
     }
 
-    public Filter rangeFilter(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context, boolean explicitCaching) {
-        boolean cache = explicitCaching;
+    public Filter rangeFilter(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context, @Nullable Boolean explicitCaching) {
+        boolean cache;
+        boolean cacheable = true;
         Long lowerVal = null;
         Long upperVal = null;
         if (lowerTerm != null) {
@@ -341,7 +342,7 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
                 lowerVal = ((Number) lowerTerm).longValue();
             } else {
                 String value = convertToString(lowerTerm);
-                cache = explicitCaching || !hasNowExpressionWithNoRounding(value);
+                cacheable = !hasDateExpressionWithNoRounding(value);
                 lowerVal = parseToMilliseconds(value, context, false);
             }
         }
@@ -350,14 +351,25 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
                 upperVal = ((Number) upperTerm).longValue();
             } else {
                 String value = convertToString(upperTerm);
-                cache = explicitCaching || !hasNowExpressionWithNoRounding(value);
+                cacheable = cacheable && !hasDateExpressionWithNoRounding(value);
                 upperVal = parseToMilliseconds(value, context, includeUpper);
             }
         }
 
+        if (explicitCaching != null) {
+            if (explicitCaching) {
+                cache = cacheable;
+            } else {
+                cache = false;
+            }
+        } else {
+            cache = cacheable;
+        }
+
         Filter filter =  NumericRangeFilter.newLongRange(
-            names.indexName(), precisionStep, lowerVal, upperVal, includeLower, includeUpper
+                names.indexName(), precisionStep, lowerVal, upperVal, includeLower, includeUpper
         );
+
         if (!cache) {
             // We don't cache range filter if `now` date expression is used and also when a compound filter wraps
             // a range filter with a `now` date expressions.
@@ -369,45 +381,65 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
 
     @Override
     public Filter rangeFilter(QueryParseContext parseContext, Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
-        return rangeFilter(parseContext, lowerTerm, upperTerm, includeLower, includeUpper, context, false);
+        return rangeFilter(parseContext, lowerTerm, upperTerm, includeLower, includeUpper, context, null);
     }
 
-    public Filter rangeFilter(QueryParseContext parseContext, Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context, boolean explicitCaching) {
-        boolean cache = explicitCaching;
-        Long lowerVal = null;
-        Long upperVal = null;
-        if (lowerTerm != null) {
-            if (lowerTerm instanceof Number) {
-                lowerVal = ((Number) lowerTerm).longValue();
-            } else {
-                String value = convertToString(lowerTerm);
-                cache = explicitCaching || !hasNowExpressionWithNoRounding(value);
-                lowerVal = parseToMilliseconds(value, context, false);
+    public Filter rangeFilter(QueryParseContext parseContext, Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context, @Nullable Boolean explicitCaching) {
+            boolean cache;
+            boolean cacheable = true;
+            Long lowerVal = null;
+            Long upperVal = null;
+            if (lowerTerm != null) {
+                if (lowerTerm instanceof Number) {
+                    lowerVal = ((Number) lowerTerm).longValue();
+                } else {
+                    String value = convertToString(lowerTerm);
+                    cacheable = !hasDateExpressionWithNoRounding(value);
+                    lowerVal = parseToMilliseconds(value, context, false);
+                }
             }
-        }
-        if (upperTerm != null) {
-            if (upperTerm instanceof Number) {
-                upperVal = ((Number) upperTerm).longValue();
+            if (upperTerm != null) {
+                if (upperTerm instanceof Number) {
+                    upperVal = ((Number) upperTerm).longValue();
+                } else {
+                    String value = convertToString(upperTerm);
+                    cacheable = cacheable && !hasDateExpressionWithNoRounding(value);
+                    upperVal = parseToMilliseconds(value, context, includeUpper);
+                }
+            }
+
+            if (explicitCaching != null) {
+                if (explicitCaching) {
+                    cache = cacheable;
+                } else {
+                    cache = false;
+                }
             } else {
-                String value = convertToString(upperTerm);
-                cache = explicitCaching || !hasNowExpressionWithNoRounding(value);
-                upperVal = parseToMilliseconds(value, context, includeUpper);
+                cache = cacheable;
+            }
+
+            Filter filter;
+            if (parseContext != null) {
+                filter =  NumericRangeFieldDataFilter.newLongRange(
+                        (IndexNumericFieldData) parseContext.getForField(this), lowerVal,upperVal, includeLower, includeUpper
+                );
+            } else {
+                filter =  NumericRangeFilter.newLongRange(
+                        names.indexName(), precisionStep, lowerVal, upperVal, includeLower, includeUpper
+                );
+            }
+
+            if (!cache) {
+                // We don't cache range filter if `now` date expression is used and also when a compound filter wraps
+                // a range filter with a `now` date expressions.
+                return NoCacheFilter.wrap(filter);
+            } else {
+                return filter;
             }
         }
 
-        Filter filter =  NumericRangeFieldDataFilter.newLongRange(
-            (IndexNumericFieldData<?>) parseContext.getForField(this), lowerVal,upperVal, includeLower, includeUpper
-        );
-        if (!cache) {
-            // We don't cache range filter if `now` date expression is used and also when a compound filter wraps
-            // a range filter with a `now` date expressions.
-            return NoCacheFilter.wrap(filter);
-        } else {
-            return filter;
-        }
-    }
+    private boolean hasDateExpressionWithNoRounding(String value) {
 
-    private boolean hasNowExpressionWithNoRounding(String value) {
         int index = value.indexOf("now");
         if (index != -1) {
             if (value.length() == 3) {

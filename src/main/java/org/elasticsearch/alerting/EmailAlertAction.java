@@ -56,10 +56,11 @@ public class EmailAlertAction implements AlertAction {
                     InternetAddress.parse(emailAddresses.get(0)));
             message.setSubject("Elasticsearch Alert!");
             message.setText(result.searchResponse.toString());
+            Transport.send(message);
         } catch (Exception e){
             throw new ElasticsearchException("Failed to send mail", e);
         }
-        //Email here
+
         return true;
     }
 

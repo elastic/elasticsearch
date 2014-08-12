@@ -10,23 +10,23 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchHitField;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 
 public class AlertManager extends AbstractLifecycleComponent {
@@ -42,23 +42,65 @@ public class AlertManager extends AbstractLifecycleComponent {
     public final ParseField ACTION_FIELD = new ParseField("action");
     public final ParseField LASTRAN_FIELD = new ParseField("lastRan");
 
-    public final Client client;
+    private final Client client;
+    private AlertScheduler scheduler;
 
     private final Map<String,Alert> alertMap;
+
+    private AtomicBoolean started = new AtomicBoolean(false);
+    private final Thread starter;
+
+
+    class StarterThread implements Runnable {
+        @Override
+        public void run() {
+            logger.warn("Starting thread to get alerts");
+            int attempts = 0;
+            while (attempts < 2) {
+                try {
+                    logger.warn("Sleeping [{}]", attempts);
+                    Thread.sleep(10000);
+                    logger.warn("Slept");
+                    break;
+                } catch (InterruptedException ie) {
+                    ++attempts;
+                }
+            }
+            logger.warn("Loading alerts");
+            try {
+                loadAlerts();
+                started.set(true);
+            } catch (Throwable t) {
+                logger.error("Failed to load alerts", t);
+            }
+            //Build the mapping for the scheduler
+            Map<String,String> alertNameToSchedule = new HashMap();
+            synchronized (alertMap) {
+                for (Map.Entry<String, Alert> entry : alertMap.entrySet()) {
+                    scheduler.addAlert(entry.getKey(), entry.getValue());
+                }
+            }
+        }
+    }
+
+
 
     @Override
     protected void doStart() throws ElasticsearchException {
         logger.warn("STARTING");
-        try {
-            loadAlerts();
-        } catch (Throwable t){
-            logger.error("Failed to load alerts", t);
-        }
+        starter.start();
     }
 
     @Override
     protected void doStop() throws ElasticsearchException {
         logger.warn("STOPPING");
+        /*
+        try {
+            starter.join();
+        } catch (InterruptedException ie) {
+            logger.warn("Interrupted on joining start thread.", ie);
+        }
+        */
     }
 
     @Override
@@ -70,20 +112,21 @@ public class AlertManager extends AbstractLifecycleComponent {
     @Inject
     public AlertManager(Settings settings, Client client) {
         super(settings);
-        logger.warn("Starting AlertManager");
+        logger.warn("Initing AlertManager");
         this.client = client;
         alertMap = new HashMap();
+        starter = new Thread(new StarterThread());
         //scheduleAlerts();
     }
 
-    private ClusterHealthStatus clusterHealth() throws InterruptedException, ExecutionException {
-        ClusterHealthResponse actionGet = client.admin().cluster()
-                .health(Requests.clusterHealthRequest(ALERT_INDEX).waitForGreenStatus().waitForEvents(Priority.LANGUID).waitForRelocatingShards(0)).actionGet();
-        return actionGet.getStatus();
+    @Inject
+    public void setAlertScheduler(AlertScheduler scheduler){
+        this.scheduler = scheduler;
     }
 
     private ClusterHealthStatus createAlertsIndex() throws InterruptedException, ExecutionException {
-        client.admin().indices().prepareCreate(ALERT_INDEX).addMapping(ALERT_TYPE).execute().get(); //TODO FIX MAPPINGS
+        CreateIndexResponse cir = client.admin().indices().prepareCreate(ALERT_INDEX).addMapping(ALERT_TYPE).execute().get(); //TODO FIX MAPPINGS
+        logger.warn(cir.toString());
         ClusterHealthResponse actionGet = client.admin().cluster()
                 .health(Requests.clusterHealthRequest(ALERT_INDEX).waitForGreenStatus().waitForEvents(Priority.LANGUID).waitForRelocatingShards(0)).actionGet();
         return actionGet.getStatus();
@@ -96,20 +139,29 @@ public class AlertManager extends AbstractLifecycleComponent {
 
         synchronized (alertMap) {
             SearchResponse searchResponse = client.prepareSearch().setSource(
-                    "{ 'query' : " +
-                            "{ 'match_all' :  {}}" +
-                            "'size' : 100" +
+                    "{ \"query\" : " +
+                            "{ \"match_all\" :  {}}," +
+                            "\"size\" : \"100\"" +
                     "}"
             ).setTypes(ALERT_TYPE).setIndices(ALERT_INDEX).execute().get();
             for (SearchHit sh : searchResponse.getHits()) {
                 String alertId = sh.getId();
-                Map<String,SearchHitField> fields = sh.getFields();
-                String query = fields.get(QUERY_FIELD.toString()).toString();
-                String schedule = fields.get(SCHEDULE_FIELD.toString()).toString();
-                AlertTrigger trigger = TriggerManager.parseTriggerFromSearchField(fields.get(TRIGGER_FIELD.toString()));
-                TimeValue timePeriod = new TimeValue(Long.valueOf(fields.get(TIMEPERIOD_FIELD).toString()));
-                AlertAction action = AlertActionManager.parseActionFromSearchField(fields.get(ACTION_FIELD.toString()));
-                DateTime lastRan = new DateTime(fields.get(LASTRAN_FIELD.toString().toString()));
+                logger.warn("Found : [{}]", alertId);
+                Map<String,Object> fields = sh.sourceAsMap();
+                //Map<String,SearchHitField> fields = sh.getFields();
+
+                for (String field : fields.keySet() ) {
+                    logger.warn("Field : [{}]", field);
+                }
+
+                String query = fields.get(QUERY_FIELD.getPreferredName()).toString();
+                String schedule = fields.get(SCHEDULE_FIELD.getPreferredName()).toString();
+                //AlertTrigger trigger = TriggerManager.parseTriggerFromSearchField(fields.get(TRIGGER_FIELD.toString()));
+                AlertTrigger trigger = new AlertTrigger(AlertTrigger.SimpleTrigger.GREATER_THAN, AlertTrigger.TriggerType.NUMBER_OF_EVENTS, 1);
+                TimeValue timePeriod = new TimeValue(Long.valueOf(fields.get(TIMEPERIOD_FIELD.getPreferredName()).toString()));
+                //AlertAction action = AlertActionManager.parseActionFromSearchField(fields.get(ACTION_FIELD.toString()));
+                AlertAction action = new EmailAlertAction("brian.murphy@elasticsearch.com");
+                DateTime lastRan = new DateTime(fields.get("lastRan").toString());
 
                 Alert alert = new Alert(alertId, query, trigger, timePeriod, action, schedule, lastRan);
                 alertMap.put(alertId, alert);

@@ -23,8 +23,45 @@
             <version>${elasticsearch.version}</version>
             <scope>compile</scope>
         </dependency>
+	<dependency>
+	  <groupId>org.quartz-scheduler</groupId>
+	  <artifactId>quartz</artifactId>
+	  <version>2.2.1</version>
+	</dependency>
+	<dependency>
+	  <groupId>org.quartz-scheduler</groupId>
+	  <artifactId>quartz-jobs</artifactId>
+	  <version>2.2.1</version>
+	</dependency>
+	<dependency>
+	  <groupId>log4j</groupId>
+	  <artifactId>log4j</artifactId>
+	  <version>1.2.16</version>
+	</dependency> 
+	<dependency>
+	  <groupId>org.slf4j</groupId>
+	  <artifactId>slf4j-api</artifactId>
+	  <version>1.7.7</version>
+	</dependency> 
+	<dependency>
+	  <groupId>javax.mail</groupId>
+	  <artifactId>mail</artifactId>
+	  <version>1.4.4</version>
+	</dependency>
+	<dependency>
+	  <groupId>javax.activation</groupId>
+	  <artifactId>activation</artifactId>
+	  <version>1.1.1</version>
+	</dependency>
     </dependencies>
-
+      <repositories>
+        <repository>
+          <id>maven2-repository.dev.java.net</id>
+          <name>Java.net Repository for Maven</name>
+          <url>http://download.java.net/maven/2/</url>
+          <layout>default</layout>
+        </repository>
+      </repositories>
     <build>
         <plugins>
             <plugin>

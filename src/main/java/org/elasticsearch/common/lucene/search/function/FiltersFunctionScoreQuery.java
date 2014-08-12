@@ -180,7 +180,7 @@ public class FiltersFunctionScoreQuery extends Query {
                         filterFunction.filter.getDocIdSet(context, context.reader().getLiveDocs()));
                 if (docSet.get(doc)) {
                     filterFunction.function.setNextReader(context);
-                    Explanation functionExplanation = filterFunction.function.explainScore(doc, subQueryExpl);
+                    Explanation functionExplanation = filterFunction.function.explainScore(doc, subQueryExpl.getValue());
                     double factor = functionExplanation.getValue();
                     float sc = CombineFunction.toFloat(factor);
                     ComplexExplanation filterExplanation = new ComplexExplanation(true, sc, "function score, product of:");

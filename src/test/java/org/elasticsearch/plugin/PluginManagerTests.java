@@ -123,6 +123,30 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
         }
     }
 
+    // For #7152
+    @Test
+    public void testLocalPluginInstallWithBinOnly_7152() throws Exception {
+        String pluginName = "plugin-test";
+        Tuple<Settings, Environment> initialSettings = InternalSettingsPreparer.prepareSettings(
+                ImmutableSettings.settingsBuilder().build(), false);
+        Environment env = initialSettings.v2();
+        File binDir = new File(env.homeFile(), "bin");
+        if (!binDir.exists() && !FileSystemUtils.mkdirs(binDir)) {
+            throw new IOException("Could not create bin directory [" + binDir.getAbsolutePath() + "]");
+        }
+        File pluginBinDir = new File(binDir, pluginName);
+        try {
+            PluginManager pluginManager = pluginManager(getPluginUrlForResource("plugin_with_bin_only.zip"), initialSettings);
+            pluginManager.downloadAndExtract(pluginName);
+            File[] plugins = pluginManager.getListInstalledPlugins();
+            assertThat(plugins.length, is(1));
+            assertTrue(pluginBinDir.exists());
+        } finally {
+            // we need to clean up the copied dirs
+            FileSystemUtils.deleteRecursively(pluginBinDir);
+        }
+    }
+
     @Test
     public void testLocalPluginInstallSiteFolder() throws Exception {
         //When we have only a folder in top-level (no files either) but it's called _site, we make it work

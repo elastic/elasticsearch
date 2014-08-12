@@ -23,6 +23,7 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
@@ -32,31 +33,27 @@ import java.io.IOException;
  */
 public abstract class BroadcastShardOperationRequest extends TransportRequest implements IndicesRequest {
 
-    private String index;
-    private int shardId;
+    private ShardId shardId;
 
     protected BroadcastShardOperationRequest() {
     }
 
-    protected BroadcastShardOperationRequest(String index, int shardId, BroadcastOperationRequest request) {
+    protected BroadcastShardOperationRequest(ShardId shardId, BroadcastOperationRequest request) {
         super(request);
-        assert index != null;
-        this.index = index;
         this.shardId = shardId;
     }
 
-    public BroadcastShardOperationRequest(String index, int shardId) {
-        this.index = index;
+    protected BroadcastShardOperationRequest(ShardId shardId) {
         this.shardId = shardId;
     }
 
     public String index() {
-        return this.index;
+        return this.shardId.getIndex();
     }
 
     @Override
     public String[] indices() {
-        return new String[]{index};
+        return new String[]{shardId.getIndex()};
     }
 
     @Override
@@ -65,20 +62,18 @@ public abstract class BroadcastShardOperationRequest extends TransportRequest im
     }
 
     public int shardId() {
-        return this.shardId;
+        return this.shardId.id();
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        index = in.readString();
-        shardId = in.readVInt();
+        shardId = ShardId.readShardId(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(index);
-        out.writeVInt(shardId);
+        shardId.writeTo(out);
     }
 }

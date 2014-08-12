@@ -90,7 +90,7 @@ public class TransportSuggestAction extends TransportBroadcastOperationAction<Su
 
     @Override
     protected ShardSuggestRequest newShardRequest(int numShards, ShardRouting shard, SuggestRequest request) {
-        return new ShardSuggestRequest(shard.index(), shard.id(), request);
+        return new ShardSuggestRequest(shard.shardId(), request);
     }
 
     @Override

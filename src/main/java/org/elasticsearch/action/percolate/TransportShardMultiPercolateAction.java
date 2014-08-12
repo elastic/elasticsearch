@@ -152,7 +152,7 @@ public class TransportShardMultiPercolateAction extends TransportShardSingleOper
             items = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
                 int slot = in.readVInt();
-                PercolateShardRequest shardRequest = new PercolateShardRequest(index(), shardId);
+                PercolateShardRequest shardRequest = new PercolateShardRequest(new ShardId(index, shardId));
                 shardRequest.documentType(in.readString());
                 shardRequest.source(in.readBytesReference());
                 shardRequest.docSource(in.readBytesReference());

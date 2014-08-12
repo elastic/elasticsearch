@@ -136,12 +136,12 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
      */
     @Test
     public void testIndexAndSearch() throws Exception {
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
+        createIndex("test");
         int numDocs = randomIntBetween(10, 20);
         List<IndexRequestBuilder> builder = new ArrayList<>();
         for (int i = 0; i < numDocs; i++) {
             String id = Integer.toString(i);
-            builder.add(client().prepareIndex(indexOrAlias(), "type1", id).setSource("field1", English.intToEnglish(i), "the_id", id));
+            builder.add(client().prepareIndex("test", "type1", id).setSource("field1", English.intToEnglish(i), "the_id", id));
         }
         indexRandom(true, builder);
         for (int i = 0; i < numDocs; i++) {

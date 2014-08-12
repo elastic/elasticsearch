@@ -120,10 +120,10 @@ public class RangeFilterParser implements FilterParser {
         }
 
         Filter filter = null;
+        Boolean explicitlyCached = cache;
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
         if (smartNameFieldMappers != null) {
             if (smartNameFieldMappers.hasMapper()) {
-                boolean explicitlyCached = cache != null && cache;
                 if (execution.equals("index")) {
                     if (cache == null) {
                         cache = true;
@@ -160,8 +160,10 @@ public class RangeFilterParser implements FilterParser {
             filter = new TermRangeFilter(fieldName, BytesRefs.toBytesRef(from), BytesRefs.toBytesRef(to), includeLower, includeUpper);
         }
 
-        if (cache) {
-            filter = parseContext.cacheFilter(filter, cacheKey);
+        if (explicitlyCached == null || explicitlyCached) {
+            if (cache) {
+                filter = parseContext.cacheFilter(filter, cacheKey);
+            }
         }
 
         filter = wrapSmartNameFilter(filter, smartNameFieldMappers, parseContext);

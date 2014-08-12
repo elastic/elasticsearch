@@ -2337,9 +2337,9 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
                 .get();
         assertHitCount(searchResponse, 1l);
 
-        // The range filter is now explicitly cached, so it now it is in the filter cache.
+        // The range filter is now explicitly cached but we don't want to cache now even if the user asked for it
         statsResponse = client().admin().indices().prepareStats("test").clear().setFilterCache(true).get();
-        assertThat(statsResponse.getIndex("test").getTotal().getFilterCache().getMemorySizeInBytes(), cluster().hasFilterCache() ? greaterThan(filtercacheSize) : is(filtercacheSize));
+        assertThat(statsResponse.getIndex("test").getTotal().getFilterCache().getMemorySizeInBytes(), is(filtercacheSize));
     }
 
     @Test

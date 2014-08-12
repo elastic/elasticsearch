@@ -131,7 +131,7 @@ public class FunctionScoreQuery extends Query {
                 return subQueryExpl;
             }
             function.setNextReader(context);
-            Explanation functionExplanation = function.explainScore(doc, subQueryExpl);
+            Explanation functionExplanation = function.explainScore(doc, subQueryExpl.getValue());
             return combineFunction.explain(getBoost(), subQueryExpl, functionExplanation, maxBoost);
         }
     }

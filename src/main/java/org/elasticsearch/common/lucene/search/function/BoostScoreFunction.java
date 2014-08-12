@@ -49,7 +49,7 @@ public class BoostScoreFunction extends ScoreFunction {
     }
 
     @Override
-    public Explanation explainScore(int docId, Explanation subQueryExpl) {
+    public Explanation explainScore(int docId, float subQueryScore) {
         Explanation exp = new Explanation(boost, "static boost factor");
         exp.addDetail(new Explanation(boost, "boostFactor"));
         return exp;

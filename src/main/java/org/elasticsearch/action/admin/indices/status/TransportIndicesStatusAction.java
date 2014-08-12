@@ -42,6 +42,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.gateway.IndexShardGatewayService;
 import org.elasticsearch.index.service.InternalIndexService;
 import org.elasticsearch.index.shard.IndexShardState;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
@@ -135,7 +136,7 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
 
     @Override
     protected IndexShardStatusRequest newShardRequest(int numShards, ShardRouting shard, IndicesStatusRequest request) {
-        return new IndexShardStatusRequest(shard.index(), shard.id(), request);
+        return new IndexShardStatusRequest(shard.shardId(), request);
     }
 
     @Override
@@ -247,8 +248,8 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
         IndexShardStatusRequest() {
         }
 
-        IndexShardStatusRequest(String index, int shardId, IndicesStatusRequest request) {
-            super(index, shardId, request);
+        IndexShardStatusRequest(ShardId shardId, IndicesStatusRequest request) {
+            super(shardId, request);
             recovery = request.recovery();
             snapshot = request.snapshot();
         }

@@ -25,7 +25,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.TransportBroadcastOperationAction;
-import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -106,7 +105,7 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastOperatio
 
     @Override
     protected ShardClearIndicesCacheRequest newShardRequest(int numShards, ShardRouting shard, ClearIndicesCacheRequest request) {
-        return new ShardClearIndicesCacheRequest(shard.index(), shard.id(), request);
+        return new ShardClearIndicesCacheRequest(shard.shardId(), request);
     }
 
     @Override

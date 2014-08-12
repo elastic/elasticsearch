@@ -15,9 +15,15 @@ public interface AuthenticationService {
 
     /**
      * Extracts the authenticate token from the given message. If no recognized auth token is associated
-     * with the message, {@code null} is returned.
+     * with the message, an AuthenticationException is thrown.
      */
-    AuthenticationToken token(TransportMessage<?> message);
+    AuthenticationToken token(String action, TransportMessage<?> message);
+
+    /**
+     * Extracts the authenticate token from the given message. If no recognized auth token is associated
+     * with the message, the given default token is returned.
+     */
+    AuthenticationToken token(String action, TransportMessage<?> message, AuthenticationToken defaultToken);
 
     /**
      * Authenticates the user associated with the given request based on the given authentication token.

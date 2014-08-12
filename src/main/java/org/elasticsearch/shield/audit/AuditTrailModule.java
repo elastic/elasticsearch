@@ -26,11 +26,11 @@ public class AuditTrailModule extends AbstractModule {
 
     @Override
     protected void configure() {
-        if (settings.getAsBoolean("shield.audit.enabled", false)) {
+        if (!settings.getAsBoolean("shield.audit.enabled", false)) {
             bind(AuditTrail.class).toInstance(AuditTrail.NOOP);
             return;
         }
-        String[] outputs = settings.getAsArray("shield.audit.outputs", new String[] { "logfile" });
+        String[] outputs = settings.getAsArray("shield.audit.outputs", new String[] { LoggingAuditTrail.NAME });
         if (outputs.length == 0) {
             bind(AuditTrail.class).toInstance(AuditTrail.NOOP);
             return;
@@ -41,7 +41,7 @@ public class AuditTrailModule extends AbstractModule {
         Set<String> uniqueOutputs = Sets.newHashSet(outputs);
         for (String output : uniqueOutputs) {
             switch (output) {
-                case "logfile":
+                case LoggingAuditTrail.NAME:
                     binder.addBinding().to(LoggingAuditTrail.class);
                     break;
             }

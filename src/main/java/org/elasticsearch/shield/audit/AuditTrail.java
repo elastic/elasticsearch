@@ -15,8 +15,20 @@ import org.elasticsearch.transport.TransportMessage;
 public interface AuditTrail {
 
     public static final AuditTrail NOOP = new AuditTrail() {
+
+        static final String NAME = "noop";
+
+        @Override
+        public String name() {
+            return NAME;
+        }
+
         @Override
         public void anonymousAccess(String action, TransportMessage<?> message) {
+        }
+
+        @Override
+        public void authenticationFailed(AuthenticationToken token, String action, TransportMessage<?> message) {
         }
 
         @Override
@@ -32,7 +44,11 @@ public interface AuditTrail {
         }
     };
 
+    String name();
+
     void anonymousAccess(String action, TransportMessage<?> message);
+
+    void authenticationFailed(AuthenticationToken token, String action, TransportMessage<?> message);
 
     void authenticationFailed(String realm, AuthenticationToken token, String action, TransportMessage<?> message);
 

@@ -29,14 +29,27 @@ public class InternalAuthenticationService extends AbstractComponent implements 
     }
 
     @Override
-    public AuthenticationToken token(TransportMessage<?> message) {
+    public AuthenticationToken token(String action, TransportMessage<?> message) {
+        AuthenticationToken token = token(action, message, null);
+        if (token == null) {
+            if (auditTrail != null) {
+                auditTrail.anonymousAccess(action, message);
+            }
+            throw new AuthenticationException("Missing authentication token for request [" + action + "]");
+        }
+        return token;
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public AuthenticationToken token(String action, TransportMessage<?> message, AuthenticationToken defaultToken) {
         for (Realm realm : realms) {
             AuthenticationToken token = realm.token(message);
             if (token != null) {
                 return token;
             }
         }
-        return null;
+        return defaultToken;
     }
 
     /**
@@ -70,7 +83,7 @@ public class InternalAuthenticationService extends AbstractComponent implements 
             }
         }
         if (auditTrail != null) {
-            auditTrail.anonymousAccess(action, message);
+            auditTrail.authenticationFailed(token, action, message);
         }
         throw new AuthenticationException("Unable to authenticate user for request");
     }

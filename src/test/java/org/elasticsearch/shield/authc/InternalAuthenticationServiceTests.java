@@ -6,120 +6,101 @@
 package org.elasticsearch.shield.authc;
 
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.User;
+import org.elasticsearch.shield.audit.AuditTrail;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.transport.TransportMessage;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import static org.hamcrest.Matchers.*;
+import static org.mockito.Mockito.*;
+
 
 /**
  *
  */
 public class InternalAuthenticationServiceTests extends ElasticsearchTestCase {
 
-    final Settings settings = ImmutableSettings.EMPTY;
-    final MockRealm goodRealm = new MockRealm("good", true);
-    final MockRealm badRealm = new MockRealm("bad", false);
-
     InternalAuthenticationService service;
+    TransportMessage message;
+    Realm firstRealm;
+    Realm secondRealm;
+    AuditTrail auditTrail;
+    AuthenticationToken token;
 
     @Before
     public void init() throws Exception {
-        Realms realms = new Realms(null, null) {
-            @Override
-            Realm[] realms() {
-                return new Realm[] { badRealm, goodRealm };
-            }
-        };
-        service = new InternalAuthenticationService(settings, realms, null);
+        token = mock(AuthenticationToken.class);
+        message = mock(TransportMessage.class);
+        firstRealm = mock(Realm.class);
+        when(firstRealm.type()).thenReturn("first");
+        secondRealm = mock(Realm.class);
+        when(secondRealm.type()).thenReturn("second");
+        Realms realms = mock(Realms.class);
+        when(realms.realms()).thenReturn(new Realm[] {firstRealm, secondRealm});
+
+        auditTrail = mock(AuditTrail.class);
+        service = new InternalAuthenticationService(ImmutableSettings.EMPTY, realms, auditTrail);
+    }
+
+    @Test @SuppressWarnings("unchecked")
+    public void testToken_FirstMissing_SecondFound() throws Exception {
+        when(firstRealm.token(message)).thenReturn(null);
+        when(secondRealm.token(message)).thenReturn(token);
+
+        AuthenticationToken result = service.token("_action", message);
+        assertThat(result, notNullValue());
+        assertThat(result, is(token));
+        verifyZeroInteractions(auditTrail);
     }
 
     @Test
-    public void testToken() throws Exception {
-        AuthenticationToken token = service.token(new MockMessage().putHeader("token", "good"));
-        assertThat(token, notNullValue());
-        assertThat(token, instanceOf(MockRealm.Token.class));
-        assertThat(token.principal(), equalTo("good"));
-        assertThat(badRealm.tokenCalls, equalTo(1));
-        assertThat(goodRealm.tokenCalls, equalTo(1));
+    public void testToken_Missing() throws Exception {
+        try {
+            service.token("_action", message);
+            fail("expected authentication exception with missing auth token");
+        } catch (AuthenticationException ae) {
+            assertThat(ae.getMessage(), equalTo("Missing authentication token for request [_action]"));
+        }
+        verify(auditTrail).anonymousAccess("_action", message);
+        verifyNoMoreInteractions(auditTrail);
     }
 
     @Test
-    public void testAuthenticate() throws Exception {
-        User user = service.authenticate("action", new MockMessage(), new MockRealm.Token("good"));
-        assertThat(user, notNullValue());
-        assertThat(user, instanceOf(User.Simple.class));
-        assertThat(user.principal(), equalTo("good"));
-        assertThat(badRealm.supportsCallPrincipals.size(), equalTo(1));
-        assertThat(badRealm.supportsCallPrincipals.get(0), equalTo("good"));
-        assertThat(goodRealm.supportsCallPrincipals.size(), equalTo(1));
-        assertThat(goodRealm.supportsCallPrincipals.get(0), equalTo("good"));
-
+    public void testToken_MissingWithDefault() throws Exception {
+        AuthenticationToken result = service.token("_action", message, token);
+        assertThat(result, notNullValue());
+        assertThat(result, is(token));
+        verifyZeroInteractions(auditTrail);
     }
 
-    static class MockRealm implements Realm<MockRealm.Token> {
+    @Test @SuppressWarnings("unchecked")
+    public void testAuthenticate_BothSupport_SecondSucceeds() throws Exception {
+        User user = new User.Simple("_username", "r1");
+        when(firstRealm.supports(token)).thenReturn(true);
+        when(firstRealm.authenticate(token)).thenReturn(null); // first fails
+        when(secondRealm.supports(token)).thenReturn(true);
+        when(secondRealm.authenticate(token)).thenReturn(user);
 
-        static class Token implements AuthenticationToken {
-
-            private final String principal;
-
-            Token(String principal) {
-                this.principal = principal;
-            }
-
-            @Override
-            public String principal() {
-                return principal;
-            }
-
-            @Override
-            public String credentials() {
-                return "changeme";
-            }
-        }
-
-        private final List<String> supportsCallPrincipals = new ArrayList<>();
-
-        private int tokenCalls = 0;
-
-        private final String tokenType;
-        private final boolean good;
-
-        MockRealm(String tokenType, boolean good) {
-            this.tokenType = tokenType;
-            this.good = good;
-        }
-
-        @Override
-        public String type() {
-            return "mock";
-        }
-
-        @Override
-        public MockRealm.Token token(TransportMessage<?> message) {
-            tokenCalls++;
-            return good ? new Token(tokenType) : null;
-        }
-
-        @Override
-        public boolean supports(AuthenticationToken token) {
-            assertThat(token, instanceOf(Token.class));
-            supportsCallPrincipals.add(token.principal());
-            return tokenType.equals(token.principal());
-        }
-
-        @Override
-        public User authenticate(MockRealm.Token token) {
-            return new User.Simple(tokenType);
-        }
+        User result = service.authenticate("_action", message, token);
+        assertThat(result, notNullValue());
+        assertThat(result, is(user));
+        verify(auditTrail).authenticationFailed("first", token, "_action", message);
     }
 
-    static class MockMessage extends TransportMessage<MockMessage> {
+    @Test @SuppressWarnings("unchecked")
+    public void testAuthenticate_FirstNotSupporting_SecondSucceeds() throws Exception {
+        User user = new User.Simple("_username", "r1");
+        when(firstRealm.supports(token)).thenReturn(false);
+        when(secondRealm.supports(token)).thenReturn(true);
+        when(secondRealm.authenticate(token)).thenReturn(user);
+
+        User result = service.authenticate("_action", message, token);
+        assertThat(result, notNullValue());
+        assertThat(result, is(user));
+        verifyZeroInteractions(auditTrail);
+        verify(firstRealm, never()).authenticate(token);
     }
+
 }

@@ -5,8 +5,10 @@
  */
 package org.elasticsearch.shield.audit.logfile;
 
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.inject.name.Named;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.audit.AuditTrail;
@@ -16,35 +18,55 @@ import org.elasticsearch.transport.TransportMessage;
 /**
  *
  */
-public class LoggingAuditTrail extends AbstractComponent implements AuditTrail {
+public class LoggingAuditTrail implements AuditTrail {
+
+    public static final String NAME = "logfile";
+
+    private final ESLogger logger;
+
+    @Override
+    public String name() {
+        return NAME;
+    }
 
     @Inject
     public LoggingAuditTrail(Settings settings) {
-        super(settings);
+        this(Loggers.getLogger(LoggingAuditTrail.class, settings));
+    }
+
+    LoggingAuditTrail(ESLogger logger) {
+        this.logger = logger;
     }
 
     @Override
     public void anonymousAccess(String action, TransportMessage<?> message) {
         if (logger.isDebugEnabled()) {
-            logger.info("ANONYMOUS_ACCESS\thost=[{}], action=[{}], request=[{}]", message.remoteAddress(), action, message);
+            logger.debug("ANONYMOUS_ACCESS\thost=[{}], action=[{}], request=[{}]", message.remoteAddress(), action, message);
         } else {
-            logger.info("ANONYMOUS_ACCESS\thost=[{}], action=[{}]", message.remoteAddress(), action);
+            logger.warn("ANONYMOUS_ACCESS\thost=[{}], action=[{}]", message.remoteAddress(), action);
+        }
+    }
+
+    @Override
+    public void authenticationFailed(AuthenticationToken token, String action, TransportMessage<?> message) {
+        if (logger.isDebugEnabled()) {
+            logger.debug("AUTHENTICATION_FAILED\thost=[{}], action=[{}], principal=[{}], request=[{}]", message.remoteAddress(), action, token.principal(), message);
+        } else {
+            logger.error("AUTHENTICATION_FAILED\thost=[{}], action=[{}], principal=[{}]", message.remoteAddress(), action, token.principal());
         }
     }
 
     @Override
     public void authenticationFailed(String realm, AuthenticationToken token, String action, TransportMessage<?> message) {
-        if (logger.isDebugEnabled()) {
-            logger.info("AUTHENTICATION_FAILED\thost=[{}], realm=[{}], action=[{}], principal=[{}], request=[{}]", message.remoteAddress(), realm, action, token.principal(), message);
-        } else {
-            logger.info("AUTHENTICATION_FAILED\thost=[{}], realm=[{}], action=[{}], principal=[{}]", message.remoteAddress(), realm, action, token.principal());
+        if (logger.isTraceEnabled()) {
+            logger.trace("AUTHENTICATION_FAILED[{}]\thost=[{}], action=[{}], principal=[{}], request=[{}]", realm, message.remoteAddress(), action, token.principal(), message);
         }
     }
 
     @Override
     public void accessGranted(User user, String action, TransportMessage<?> message) {
         if (logger.isDebugEnabled()) {
-            logger.info("ACCESS_GRANTED\thost=[{}], action=[{}], principal=[{}], request=[{}]", message.remoteAddress(), action, user.principal(), message);
+            logger.debug("ACCESS_GRANTED\thost=[{}], action=[{}], principal=[{}], request=[{}]", message.remoteAddress(), action, user.principal(), message);
         } else {
             logger.info("ACCESS_GRANTED\thost=[{}], action=[{}], principal=[{}]", message.remoteAddress(), action, user.principal());
         }
@@ -53,9 +75,9 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail {
     @Override
     public void accessDenied(User user, String action, TransportMessage<?> message) {
         if (logger.isDebugEnabled()) {
-            logger.info("ACCESS_DENIED\thost=[{}], action=[{}], principal=[{}], request=[{}]", message.remoteAddress(), action, user.principal(), message);
+            logger.debug("ACCESS_DENIED\thost=[{}], action=[{}], principal=[{}], request=[{}]", message.remoteAddress(), action, user.principal(), message);
         } else {
-            logger.info("ACCESS_DENIED\thost=[{}], action=[{}], principal=[{}]", message.remoteAddress(), action, user.principal());
+            logger.error("ACCESS_DENIED\thost=[{}], action=[{}], principal=[{}]", message.remoteAddress(), action, user.principal());
         }
     }
 

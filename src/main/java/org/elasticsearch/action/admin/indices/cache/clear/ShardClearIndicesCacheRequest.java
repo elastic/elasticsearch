@@ -23,6 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 
@@ -43,8 +44,8 @@ class ShardClearIndicesCacheRequest extends BroadcastShardOperationRequest {
     ShardClearIndicesCacheRequest() {
     }
 
-    public ShardClearIndicesCacheRequest(String index, int shardId, ClearIndicesCacheRequest request) {
-        super(index, shardId, request);
+    ShardClearIndicesCacheRequest(ShardId shardId, ClearIndicesCacheRequest request) {
+        super(shardId, request);
         filterCache = request.filterCache();
         fieldDataCache = request.fieldDataCache();
         idCache = request.idCache();

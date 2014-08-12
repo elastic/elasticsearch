@@ -111,7 +111,7 @@ public class TransportCountAction extends TransportBroadcastOperationAction<Coun
     @Override
     protected ShardCountRequest newShardRequest(int numShards, ShardRouting shard, CountRequest request) {
         String[] filteringAliases = clusterService.state().metaData().filteringAliases(shard.index(), request.indices());
-        return new ShardCountRequest(shard.index(), shard.id(), filteringAliases, request);
+        return new ShardCountRequest(shard.shardId(), filteringAliases, request);
     }
 
     @Override

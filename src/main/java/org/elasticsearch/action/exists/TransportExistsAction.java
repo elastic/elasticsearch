@@ -111,7 +111,7 @@ public class TransportExistsAction extends TransportBroadcastOperationAction<Exi
     @Override
     protected ShardExistsRequest newShardRequest(int numShards, ShardRouting shard, ExistsRequest request) {
         String[] filteringAliases = clusterService.state().metaData().filteringAliases(shard.index(), request.indices());
-        return new ShardExistsRequest(shard.index(), shard.id(), filteringAliases, request);
+        return new ShardExistsRequest(shard.shardId(), filteringAliases, request);
     }
 
     @Override

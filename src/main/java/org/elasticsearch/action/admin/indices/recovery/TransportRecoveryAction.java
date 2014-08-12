@@ -33,11 +33,10 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.gateway.IndexShardGatewayService;
 import org.elasticsearch.index.service.InternalIndexService;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState;
@@ -46,7 +45,6 @@ import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -133,7 +131,7 @@ public class TransportRecoveryAction extends
 
     @Override
     protected ShardRecoveryRequest newShardRequest(int numShards, ShardRouting shard, RecoveryRequest request) {
-        return new ShardRecoveryRequest(shard.index(), shard.id(), request);
+        return new ShardRecoveryRequest(shard.shardId(), request);
     }
 
     @Override
@@ -183,22 +181,12 @@ public class TransportRecoveryAction extends
         return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, concreteIndices);
     }
 
-    public static class ShardRecoveryRequest extends BroadcastShardOperationRequest {
+    static class ShardRecoveryRequest extends BroadcastShardOperationRequest {
 
         ShardRecoveryRequest() { }
 
-        ShardRecoveryRequest(String index, int shardId, RecoveryRequest request) {
-            super(index, shardId, request);
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
+        ShardRecoveryRequest(ShardId shardId, RecoveryRequest request) {
+            super(shardId, request);
         }
     }
 }

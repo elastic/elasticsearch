@@ -25,6 +25,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 
@@ -45,8 +46,8 @@ class ShardValidateQueryRequest extends BroadcastShardOperationRequest {
 
     }
 
-    public ShardValidateQueryRequest(String index, int shardId, @Nullable String[] filteringAliases, ValidateQueryRequest request) {
-        super(index, shardId, request);
+    ShardValidateQueryRequest(ShardId shardId, @Nullable String[] filteringAliases, ValidateQueryRequest request) {
+        super(shardId, request);
         this.source = request.source();
         this.types = request.types();
         this.explain = request.explain();

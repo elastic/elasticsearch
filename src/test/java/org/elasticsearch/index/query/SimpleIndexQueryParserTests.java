@@ -757,40 +757,9 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
     }
 
     @Test
-    public void testNumericRangeFilteredQueryBuilder() throws IOException {
-        IndexQueryParserService queryParser = queryParser();
-        Query parsedQuery = queryParser.parse(filteredQuery(termQuery("name.first", "shay"), numericRangeFilter("age").from(23).to(54).includeLower(true).includeUpper(false))).query();
-        assertThat(parsedQuery, instanceOf(XFilteredQuery.class));
-        Filter filter = ((XFilteredQuery) parsedQuery).getFilter();
-        assertThat(filter, instanceOf(NumericRangeFieldDataFilter.class));
-        NumericRangeFieldDataFilter<Number> rangeFilter = (NumericRangeFieldDataFilter<Number>) filter;
-        assertThat(rangeFilter.getField(), equalTo("age"));
-        assertThat(rangeFilter.getLowerVal().intValue(), equalTo(23));
-        assertThat(rangeFilter.getUpperVal().intValue(), equalTo(54));
-        assertThat(rangeFilter.isIncludeLower(), equalTo(true));
-        assertThat(rangeFilter.isIncludeUpper(), equalTo(false));
-    }
-
-    @Test
     public void testRangeFilteredQueryBuilder_executionFieldData() throws IOException {
         IndexQueryParserService queryParser = queryParser();
         Query parsedQuery = queryParser.parse(filteredQuery(termQuery("name.first", "shay"), rangeFilter("age").from(23).to(54).includeLower(true).includeUpper(false).setExecution("fielddata"))).query();
-        assertThat(parsedQuery, instanceOf(XFilteredQuery.class));
-        Filter filter = ((XFilteredQuery) parsedQuery).getFilter();
-        assertThat(filter, instanceOf(NumericRangeFieldDataFilter.class));
-        NumericRangeFieldDataFilter<Number> rangeFilter = (NumericRangeFieldDataFilter<Number>) filter;
-        assertThat(rangeFilter.getField(), equalTo("age"));
-        assertThat(rangeFilter.getLowerVal().intValue(), equalTo(23));
-        assertThat(rangeFilter.getUpperVal().intValue(), equalTo(54));
-        assertThat(rangeFilter.isIncludeLower(), equalTo(true));
-        assertThat(rangeFilter.isIncludeUpper(), equalTo(false));
-    }
-
-    @Test
-    public void testNumericRangeFilteredQuery() throws IOException {
-        IndexQueryParserService queryParser = queryParser();
-        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/numeric_range-filter.json");
-        Query parsedQuery = queryParser.parse(query).query();
         assertThat(parsedQuery, instanceOf(XFilteredQuery.class));
         Filter filter = ((XFilteredQuery) parsedQuery).getFilter();
         assertThat(filter, instanceOf(NumericRangeFieldDataFilter.class));

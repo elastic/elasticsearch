@@ -2048,13 +2048,9 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
 
     private static FilterBuilder rangeFilter(String field, Object from, Object to) {
         if (randomBoolean()) {
-            if (randomBoolean()) {
-                return FilterBuilders.rangeFilter(field).from(from).to(to);
-            } else {
-                return FilterBuilders.rangeFilter(field).from(from).to(to).setExecution("fielddata");
-            }
+            return FilterBuilders.rangeFilter(field).from(from).to(to);
         } else {
-            return FilterBuilders.numericRangeFilter(field).from(from).to(to);
+            return FilterBuilders.rangeFilter(field).from(from).to(to).setExecution("fielddata");
         }
     }
 

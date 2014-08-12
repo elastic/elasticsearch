@@ -191,6 +191,9 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      * @param source The mapping source
      */
     public CreateIndexRequest mapping(String type, String source) {
+        if (mappings.containsKey(type)) {
+            throw new IllegalStateException("mappings for type \"" + type + "\" were already defined");
+        }
         mappings.put(type, source);
         return this;
     }
@@ -210,6 +213,9 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      * @param source The mapping source
      */
     public CreateIndexRequest mapping(String type, XContentBuilder source) {
+        if (mappings.containsKey(type)) {
+            throw new IllegalStateException("mappings for type \"" + type + "\" were already defined");
+        }
         try {
             mappings.put(type, source.string());
         } catch (IOException e) {
@@ -226,6 +232,9 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      */
     @SuppressWarnings("unchecked")
     public CreateIndexRequest mapping(String type, Map source) {
+        if (mappings.containsKey(type)) {
+            throw new IllegalStateException("mappings for type \"" + type + "\" were already defined");
+        }
         // wrap it in a type map if its not
         if (source.size() != 1 || !source.containsKey(type)) {
             source = MapBuilder.<String, Object>newMapBuilder().put(type, source).map();

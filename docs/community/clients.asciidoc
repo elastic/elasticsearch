@@ -88,6 +88,10 @@ See the {client}/javascript-api/current/index.html[official Elasticsearch JavaSc
 
 * https://github.com/printercu/elastics[elastics]: Simple tiny client that just works
 
+[[community-groovy]]
+=== Groovy
+
+See the {client}/groovy-api/current/index.html[official Elasticsearch Groovy client]
 
 [[community-dotnet]]
 === .NET

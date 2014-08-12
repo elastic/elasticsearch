@@ -23,6 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 
@@ -38,8 +39,8 @@ class ShardFlushRequest extends BroadcastShardOperationRequest {
     ShardFlushRequest() {
     }
 
-    public ShardFlushRequest(String index, int shardId, FlushRequest request) {
-        super(index, shardId, request);
+    ShardFlushRequest(ShardId shardId, FlushRequest request) {
+        super(shardId, request);
         this.full = request.full();
         this.force = request.force();
         this.waitIfOngoing = request.waitIfOngoing();

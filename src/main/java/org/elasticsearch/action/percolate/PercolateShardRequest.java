@@ -38,15 +38,15 @@ public class PercolateShardRequest extends BroadcastShardOperationRequest {
     private boolean onlyCount;
     private int numberOfShards;
 
-    public PercolateShardRequest() {
+    PercolateShardRequest() {
     }
 
-    public PercolateShardRequest(String index, int shardId) {
-        super(index, shardId);
+    PercolateShardRequest(ShardId shardId) {
+        super(shardId);
     }
 
-    public PercolateShardRequest(String index, int shardId, int numberOfShards, PercolateRequest request) {
-        super(index, shardId, request);
+    PercolateShardRequest(ShardId shardId, int numberOfShards, PercolateRequest request) {
+        super(shardId, request);
         this.documentType = request.documentType();
         this.source = request.source();
         this.docSource = request.docSource();
@@ -54,8 +54,8 @@ public class PercolateShardRequest extends BroadcastShardOperationRequest {
         this.numberOfShards = numberOfShards;
     }
 
-    public PercolateShardRequest(ShardId shardId, PercolateRequest request) {
-        super(shardId.index().name(), shardId.id());
+    PercolateShardRequest(ShardId shardId, PercolateRequest request) {
+        super(shardId, request);
         this.documentType = request.documentType();
         this.source = request.source();
         this.docSource = request.docSource();

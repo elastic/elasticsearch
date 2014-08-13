@@ -36,8 +36,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.metadata.IndexMetaData.Custom;
-import org.elasticsearch.cluster.metadata.IndexMetaData.State;
+import org.elasticsearch.cluster.metadata.IndexMetaData.*;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -72,6 +71,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStreamReader;
+import java.io.UnsupportedEncodingException;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
@@ -86,6 +86,8 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
  * Service responsible for submitting create index requests
  */
 public class MetaDataCreateIndexService extends AbstractComponent {
+
+    public final static int MAX_INDEX_NAME_BYTES = 100;
 
     private final Environment environment;
     private final ThreadPool threadPool;
@@ -171,6 +173,18 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         }
         if (!index.toLowerCase(Locale.ROOT).equals(index)) {
             throw new InvalidIndexNameException(new Index(index), index, "must be lowercase");
+        }
+        int byteCount = 0;
+        try {
+            byteCount = index.getBytes("UTF-8").length;
+        } catch (UnsupportedEncodingException e) {
+            // UTF-8 should always be supported, but rethrow this if it is not for some reason
+            throw new ElasticsearchException("Unable to determine length of index name", e);
+        }
+        if (byteCount > MAX_INDEX_NAME_BYTES) {
+            throw new InvalidIndexNameException(new Index(index), index,
+                    "index name is too long, (" + byteCount +
+                    " > " + MAX_INDEX_NAME_BYTES + ")");
         }
         if (state.metaData().aliases().containsKey(index)) {
             throw new InvalidIndexNameException(new Index(index), index, "already exists as alias");

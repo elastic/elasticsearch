@@ -146,8 +146,8 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
 
     @Override
     protected ShardStatus shardOperation(IndexShardStatusRequest request) throws ElasticsearchException {
-        InternalIndexService indexService = (InternalIndexService) indicesService.indexServiceSafe(request.index());
-        InternalIndexShard indexShard = (InternalIndexShard) indexService.shardSafe(request.shardId());
+        InternalIndexService indexService = (InternalIndexService) indicesService.indexServiceSafe(request.shardId().getIndex());
+        InternalIndexShard indexShard = (InternalIndexShard) indexService.shardSafe(request.shardId().id());
         ShardStatus shardStatus = new ShardStatus(indexShard.routingEntry());
         shardStatus.state = indexShard.state();
         final Store store = indexShard.store();
@@ -212,7 +212,7 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
                         peerRecoveryStatus.recoveryState().getIndex().recoveredByteCount(), peerRecoveryStatus.recoveryState().getTranslog().currentTranslogOperations());
             }
 
-            IndexShardGatewayService gatewayService = indexService.shardInjector(request.shardId()).getInstance(IndexShardGatewayService.class);
+            IndexShardGatewayService gatewayService = indexService.shardInjector(request.shardId().id()).getInstance(IndexShardGatewayService.class);
             RecoveryState gatewayRecoveryState = gatewayService.recoveryState();
             if (gatewayRecoveryState != null) {
                 GatewayRecoveryStatus.Stage stage;

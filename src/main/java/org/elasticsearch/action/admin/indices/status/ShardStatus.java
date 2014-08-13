@@ -69,7 +69,7 @@ public class ShardStatus extends BroadcastShardOperationResponse {
     }
 
     ShardStatus(ShardRouting shardRouting) {
-        super(shardRouting.index(), shardRouting.id());
+        super(shardRouting.shardId());
         this.shardRouting = shardRouting;
     }
 

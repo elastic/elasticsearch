@@ -170,22 +170,22 @@ public class PercolatorService extends AbstractComponent {
     }
 
     public PercolateShardResponse percolate(PercolateShardRequest request) {
-        IndexService percolateIndexService = indicesService.indexServiceSafe(request.index());
-        IndexShard indexShard = percolateIndexService.shardSafe(request.shardId());
+        IndexService percolateIndexService = indicesService.indexServiceSafe(request.shardId().getIndex());
+        IndexShard indexShard = percolateIndexService.shardSafe(request.shardId().id());
         indexShard.readAllowed(); // check if we can read the shard...
 
         ShardPercolateService shardPercolateService = indexShard.shardPercolateService();
         shardPercolateService.prePercolate();
         long startTime = System.nanoTime();
 
-        SearchShardTarget searchShardTarget = new SearchShardTarget(clusterService.localNode().id(), request.index(), request.shardId());
+        SearchShardTarget searchShardTarget = new SearchShardTarget(clusterService.localNode().id(), request.shardId().getIndex(), request.shardId().id());
         final PercolateContext context = new PercolateContext(
                 request, searchShardTarget, indexShard, percolateIndexService, cacheRecycler, pageCacheRecycler, bigArrays, scriptService
         );
         try {
             ParsedDocument parsedDocument = parseRequest(percolateIndexService, request, context);
             if (context.percolateQueries().isEmpty()) {
-                return new PercolateShardResponse(context, request.index(), request.shardId());
+                return new PercolateShardResponse(context, request.shardId());
             }
 
             if (request.docSource() != null && request.docSource().length() != 0) {
@@ -280,7 +280,7 @@ public class PercolatorService extends AbstractComponent {
                         Tuple<DocumentMapper, Boolean> docMapper = mapperService.documentMapperWithAutoCreate(request.documentType());
                         doc = docMapper.v1().parse(source(parser).type(request.documentType()).flyweight(true)).setMappingsModified(docMapper);
                         if (doc.mappingsModified()) {
-                            mappingUpdatedAction.updateMappingOnMaster(request.index(), docMapper.v1(), documentIndexService.indexUUID());
+                            mappingUpdatedAction.updateMappingOnMaster(request.shardId().getIndex(), docMapper.v1(), documentIndexService.indexUUID());
                         }
                         // the document parsing exists the "doc" object, so we need to set the new current field.
                         currentFieldName = parser.currentName();
@@ -409,7 +409,7 @@ public class PercolatorService extends AbstractComponent {
     }
 
     public void close() {
-        cache.close();;
+        cache.close();
     }
 
     interface PercolatorType {
@@ -463,7 +463,7 @@ public class PercolatorService extends AbstractComponent {
                     count++;
                 }
             }
-            return new PercolateShardResponse(count, context, request.index(), request.shardId());
+            return new PercolateShardResponse(count, context, request.shardId());
         }
 
     };
@@ -493,7 +493,7 @@ public class PercolatorService extends AbstractComponent {
             } finally {
                 percolatorSearcher.close();
             }
-            return new PercolateShardResponse(count, context, request.index(), request.shardId());
+            return new PercolateShardResponse(count, context, request.shardId());
         }
 
     };
@@ -573,7 +573,7 @@ public class PercolatorService extends AbstractComponent {
             }
 
             BytesRef[] finalMatches = matches.toArray(new BytesRef[matches.size()]);
-            return new PercolateShardResponse(finalMatches, hls, count, context, request.index(), request.shardId());
+            return new PercolateShardResponse(finalMatches, hls, count, context, request.shardId());
         }
     };
 
@@ -600,7 +600,7 @@ public class PercolatorService extends AbstractComponent {
                 long count = match.counter();
 
                 BytesRef[] finalMatches = matches.toArray(new BytesRef[matches.size()]);
-                return new PercolateShardResponse(finalMatches, hls, count, context, request.index(), request.shardId());
+                return new PercolateShardResponse(finalMatches, hls, count, context, request.shardId());
             } catch (Throwable e) {
                 logger.debug("failed to execute", e);
                 throw new PercolateException(context.indexShard().shardId(), "failed to execute", e);
@@ -634,7 +634,7 @@ public class PercolatorService extends AbstractComponent {
                 long count = matchAndScore.counter();
 
                 BytesRef[] finalMatches = matches.toArray(new BytesRef[matches.size()]);
-                return new PercolateShardResponse(finalMatches, hls, count, scores, context, request.index(), request.shardId());
+                return new PercolateShardResponse(finalMatches, hls, count, scores, context, request.shardId());
             } catch (Throwable e) {
                 logger.debug("failed to execute", e);
                 throw new PercolateException(context.indexShard().shardId(), "failed to execute", e);
@@ -774,9 +774,9 @@ public class PercolatorService extends AbstractComponent {
                     scores[i++] = scoreDoc.score;
                 }
                 if (hls != null) {
-                    return new PercolateShardResponse(matches.toArray(new BytesRef[matches.size()]), hls, count, scores, context, request.index(), request.shardId());
+                    return new PercolateShardResponse(matches.toArray(new BytesRef[matches.size()]), hls, count, scores, context, request.shardId());
                 } else {
-                    return new PercolateShardResponse(matches.toArray(new BytesRef[matches.size()]), count, scores, context, request.index(), request.shardId());
+                    return new PercolateShardResponse(matches.toArray(new BytesRef[matches.size()]), count, scores, context, request.shardId());
                 }
             } catch (Throwable e) {
                 logger.debug("failed to execute", e);

@@ -20,7 +20,8 @@
 package org.elasticsearch.search.lookup;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.IntsRef;
+import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.IntsRefBuilder;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -36,17 +37,19 @@ public class CachedPositionIterator extends PositionIterator {
 
     // all payloads of the term in the current document in one bytes array.
     // payloadStarts and payloadLength mark the start and end of one payload.
-    final BytesRef payloads = new BytesRef();
+    final BytesRefBuilder payloads = new BytesRefBuilder();
 
-    final IntsRef payloadsLengths = new IntsRef(0);
+    final IntsRefBuilder payloadsLengths = new IntsRefBuilder();
 
-    final IntsRef payloadsStarts = new IntsRef(0);
+    final IntsRefBuilder payloadsStarts = new IntsRefBuilder();
 
-    final IntsRef positions = new IntsRef(0);
+    final IntsRefBuilder positions = new IntsRefBuilder();
 
-    final IntsRef startOffsets = new IntsRef(0);
+    final IntsRefBuilder startOffsets = new IntsRefBuilder();
 
-    final IntsRef endOffsets = new IntsRef(0);
+    final IntsRefBuilder endOffsets = new IntsRefBuilder();
+
+    final BytesRef payload = new BytesRef();
 
     @Override
     public Iterator<TermPosition> reset() {
@@ -61,12 +64,13 @@ public class CachedPositionIterator extends PositionIterator {
 
             @Override
             public TermPosition next() {
-                termPosition.position = positions.ints[pos];
-                termPosition.startOffset = startOffsets.ints[pos];
-                termPosition.endOffset = endOffsets.ints[pos];
-                termPosition.payload = payloads;
-                payloads.offset = payloadsStarts.ints[pos];
-                payloads.length = payloadsLengths.ints[pos];
+                termPosition.position = positions.intAt(pos);
+                termPosition.startOffset = startOffsets.intAt(pos);
+                termPosition.endOffset = endOffsets.intAt(pos);
+                termPosition.payload = payload;
+                payload.bytes = payloads.bytes();
+                payload.offset = payloadsStarts.intAt(pos);
+                payload.length = payloadsLengths.intAt(pos);
                 pos++;
                 return termPosition;
             }
@@ -82,44 +86,34 @@ public class CachedPositionIterator extends PositionIterator {
         TermPosition termPosition;
         for (int i = 0; i < freq; i++) {
             termPosition = super.next();
-            positions.ints[i] = termPosition.position;
+            positions.setIntAt(i, termPosition.position);
             addPayload(i, termPosition.payload);
-            startOffsets.ints[i] = termPosition.startOffset;
-            endOffsets.ints[i] = termPosition.endOffset;
+            startOffsets.setIntAt(i, termPosition.startOffset);
+            endOffsets.setIntAt(i, termPosition.endOffset);
         }
     }
     private void ensureSize(int freq) {
         if (freq == 0) {
             return;
         }
-        if (startOffsets.ints.length < freq) {
-            startOffsets.grow(freq);
-            endOffsets.grow(freq);
-            positions.grow(freq);
-            payloadsLengths.grow(freq);
-            payloadsStarts.grow(freq);
-        }
-        payloads.offset = 0;
-        payloadsLengths.offset = 0;
-        payloadsStarts.offset = 0;
+        startOffsets.grow(freq);
+        endOffsets.grow(freq);
+        positions.grow(freq);
+        payloadsLengths.grow(freq);
+        payloadsStarts.grow(freq);
         payloads.grow(freq * 8);// this is just a guess....
 
     }
 
     private void addPayload(int i, BytesRef currPayload) {
         if (currPayload != null) {
-            payloadsLengths.ints[i] = currPayload.length;
-            payloadsStarts.ints[i] = i == 0 ? 0 : payloadsStarts.ints[i - 1] + payloadsLengths.ints[i - 1];
-            if (payloads.bytes.length < payloadsStarts.ints[i] + payloadsLengths.ints[i]) {
-                payloads.offset = 0; // the offset serves no purpose here. but
-                                     // we must assure that it is 0 before
-                                     // grow() is called
-                payloads.grow(payloads.bytes.length * 2); // just a guess
-            }
-            System.arraycopy(currPayload.bytes, currPayload.offset, payloads.bytes, payloadsStarts.ints[i], currPayload.length);
+            payloadsLengths.setIntAt(i, currPayload.length);
+            payloadsStarts.setIntAt(i, i == 0 ? 0 : payloadsStarts.intAt(i - 1) + payloadsLengths.intAt(i - 1));
+            payloads.grow(payloadsStarts.intAt(i) + currPayload.length);
+            System.arraycopy(currPayload.bytes, currPayload.offset, payloads.bytes(), payloadsStarts.intAt(i), currPayload.length);
         } else {
-            payloadsLengths.ints[i] = 0;
-            payloadsStarts.ints[i] = i == 0 ? 0 : payloadsStarts.ints[i - 1] + payloadsLengths.ints[i - 1];
+            payloadsLengths.setIntAt(i, 0);
+            payloadsStarts.setIntAt(i, i == 0 ? 0 : payloadsStarts.intAt(i - 1) + payloadsLengths.intAt(i - 1));
         }
     }
 

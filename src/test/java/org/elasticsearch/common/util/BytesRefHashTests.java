@@ -151,7 +151,7 @@ public class BytesRefHashTests extends ElasticsearchSingleNodeTest {
             }
             for (Entry<String, Long> entry : strings.entrySet()) {
                 ref.copyChars(entry.getKey());
-                assertEquals(ref, hash.get(entry.getValue().longValue(), scratch));
+                assertEquals(ref.get(), hash.get(entry.getValue().longValue(), scratch));
             }
             newHash();
         }

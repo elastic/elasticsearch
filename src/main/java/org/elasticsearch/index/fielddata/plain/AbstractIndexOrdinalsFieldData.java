@@ -20,8 +20,7 @@ package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.*;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.CharsRef;
-import org.apache.lucene.util.UnicodeUtil;
+import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
@@ -31,8 +30,8 @@ import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.N
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsBuilder;
 import org.elasticsearch.index.mapper.FieldMapper.Names;
-import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
 import java.util.Map;
@@ -138,7 +137,7 @@ public abstract class AbstractIndexOrdinalsFieldData extends AbstractIndexFieldD
     private static final class RegexFilter extends FilteredTermsEnum {
 
         private final Matcher matcher;
-        private final CharsRef spare = new CharsRef();
+        private final CharsRefBuilder spare = new CharsRefBuilder();
 
         public RegexFilter(TermsEnum delegate, Matcher matcher) {
             super(delegate, false);
@@ -155,8 +154,8 @@ public abstract class AbstractIndexOrdinalsFieldData extends AbstractIndexFieldD
 
         @Override
         protected AcceptStatus accept(BytesRef arg0) throws IOException {
-            UnicodeUtil.UTF8toUTF16(arg0, spare);
-            matcher.reset(spare);
+            spare.copyUTF8Bytes(arg0);
+            matcher.reset(spare.get());
             if (matcher.matches()) {
                 return AcceptStatus.YES;
             }

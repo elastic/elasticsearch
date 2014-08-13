@@ -23,9 +23,8 @@ import com.google.common.collect.ImmutableSet;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.CharsRef;
+import org.apache.lucene.util.CharsRefBuilder;
 import org.apache.lucene.util.PriorityQueue;
-import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.common.collect.BoundedTreeSet;
 import org.elasticsearch.common.lease.Releasable;
@@ -100,7 +99,7 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
 
     @Override
     public InternalFacet buildFacet(String facetName) {
-        final CharsRef spare = new CharsRef();
+        final CharsRefBuilder spare = new CharsRefBuilder();
         AggregatorPriorityQueue queue = new AggregatorPriorityQueue(aggregators.size());
         for (ReaderAggregator aggregator : aggregators) {
             if (aggregator.nextPosition()) {
@@ -133,9 +132,9 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
                         continue;
                     }
                     if (matcher != null) {
-                        UnicodeUtil.UTF8toUTF16(value, spare);
+                        spare.copyUTF8Bytes(value);
                         assert spare.toString().equals(value.utf8ToString());
-                        if (!matcher.reset(spare).matches()) {
+                        if (!matcher.reset(spare.get()).matches()) {
                             continue;
                         }
                     }
@@ -175,9 +174,9 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
                     continue;
                 }
                 if (matcher != null) {
-                    UnicodeUtil.UTF8toUTF16(value, spare);
+                    spare.copyUTF8Bytes(value);
                     assert spare.toString().equals(value.utf8ToString());
-                    if (!matcher.reset(spare).matches()) {
+                    if (!matcher.reset(spare.get()).matches()) {
                         continue;
                     }
                 }

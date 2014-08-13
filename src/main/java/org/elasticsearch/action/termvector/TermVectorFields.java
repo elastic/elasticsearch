@@ -22,14 +22,12 @@ package org.elasticsearch.action.termvector;
 import com.carrotsearch.hppc.ObjectLongOpenHashMap;
 import com.carrotsearch.hppc.cursors.ObjectLongCursor;
 import org.apache.lucene.index.*;
-import org.apache.lucene.util.ArrayUtil;
-import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.RamUsageEstimator;
+import org.apache.lucene.util.*;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Iterator;
 
@@ -199,8 +197,8 @@ public final class TermVectorFields extends Fields {
                     int[] positions = new int[1];
                     int[] startOffsets = new int[1];
                     int[] endOffsets = new int[1];
-                    BytesRef[] payloads = new BytesRef[1];
-                    final BytesRef spare = new BytesRef();
+                    BytesRefBuilder[] payloads = new BytesRefBuilder[1];
+                    final BytesRefBuilder spare = new BytesRefBuilder();
 
                     @Override
                     public BytesRef next() throws IOException {
@@ -209,8 +207,8 @@ public final class TermVectorFields extends Fields {
                             int termVectorSize = perFieldTermVectorInput.readVInt();
                             spare.grow(termVectorSize);
                             // ...then the value.
-                            perFieldTermVectorInput.readBytes(spare.bytes, 0, termVectorSize);
-                            spare.length = termVectorSize;
+                            perFieldTermVectorInput.readBytes(spare.bytes(), 0, termVectorSize);
+                            spare.setLength(termVectorSize);
                             if (hasTermStatistic) {
                                 docFreq = readPotentiallyNegativeVInt(perFieldTermVectorInput);
                                 totalTermFrequency = readPotentiallyNegativeVLong(perFieldTermVectorInput);
@@ -226,7 +224,7 @@ public final class TermVectorFields extends Fields {
                             // curentPosition etc. so that we can just iterate
                             // later
                             writeInfos(perFieldTermVectorInput);
-                            return spare;
+                            return spare.get();
 
                         } else {
                             return null;
@@ -246,13 +244,11 @@ public final class TermVectorFields extends Fields {
                             if (hasPayloads) {
                                 int payloadLength = input.readVInt();
                                 if (payloads[i] == null) {
-                                    payloads[i] = new BytesRef(payloadLength);
-                                } else {
-                                    payloads[i].grow(payloadLength);
+                                    payloads[i] = new BytesRefBuilder();
                                 }
-                                input.readBytes(payloads[i].bytes, 0, payloadLength);
-                                payloads[i].length = payloadLength;
-                                payloads[i].offset = 0;
+                                payloads[i].grow(payloadLength);
+                                input.readBytes(payloads[i].bytes(), 0, payloadLength);
+                                payloads[i].setLength(payloadLength);
                             }
                         }
                     }
@@ -268,9 +264,7 @@ public final class TermVectorFields extends Fields {
                         }
                         if (hasPayloads) {
                             if (payloads.length < freq) {
-                                final BytesRef[] newArray = new BytesRef[ArrayUtil.oversize(freq, RamUsageEstimator.NUM_BYTES_OBJECT_REF)];
-                                System.arraycopy(payloads, 0, newArray, 0, payloads.length);
-                                payloads = newArray;
+                                payloads = Arrays.copyOf(payloads, ArrayUtil.oversize(freq, RamUsageEstimator.NUM_BYTES_OBJECT_REF));
                             }
                         }
                     }
@@ -292,7 +286,7 @@ public final class TermVectorFields extends Fields {
 
                     @Override
                     public BytesRef term() throws IOException {
-                        return spare;
+                        return spare.get();
                     }
 
                     @Override
@@ -388,10 +382,10 @@ public final class TermVectorFields extends Fields {
         private int freq;
         private int[] startOffsets;
         private int[] positions;
-        private BytesRef[] payloads;
+        private BytesRefBuilder[] payloads;
         private int[] endOffsets;
 
-        private DocsAndPositionsEnum reset(int[] positions, int[] startOffsets, int[] endOffsets, BytesRef[] payloads, int freq) {
+        private DocsAndPositionsEnum reset(int[] positions, int[] startOffsets, int[] endOffsets, BytesRefBuilder[] payloads, int freq) {
             curPos = -1;
             doc = -1;
             this.hasPositions = positions != null;
@@ -450,7 +444,13 @@ public final class TermVectorFields extends Fields {
         @Override
         public BytesRef getPayload() throws IOException {
             assert curPos < freq && curPos >= 0;
-            return hasPayloads ? payloads[curPos] : null;
+            if (hasPayloads) {
+                final BytesRefBuilder payload = payloads[curPos];
+                if (payload != null) {
+                    return payload.get();
+                }
+            }
+            return null;
         }
 
         @Override

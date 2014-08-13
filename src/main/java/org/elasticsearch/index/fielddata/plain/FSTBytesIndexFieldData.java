@@ -20,7 +20,7 @@ package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.*;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.IntsRef;
+import org.apache.lucene.util.IntsRefBuilder;
 import org.apache.lucene.util.fst.FST;
 import org.apache.lucene.util.fst.FST.INPUT_TYPE;
 import org.apache.lucene.util.fst.PositiveIntOutputs;
@@ -72,7 +72,7 @@ public class FSTBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
         }
         PositiveIntOutputs outputs = PositiveIntOutputs.getSingleton();
         org.apache.lucene.util.fst.Builder<Long> fstBuilder = new org.apache.lucene.util.fst.Builder<>(INPUT_TYPE.BYTE1, outputs);
-        final IntsRef scratch = new IntsRef();
+        final IntsRefBuilder scratch = new IntsRefBuilder();
 
         final long numTerms;
         if (regex == null && frequency == null) {

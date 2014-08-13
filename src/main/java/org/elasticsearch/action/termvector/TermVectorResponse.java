@@ -26,8 +26,7 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.CharsRef;
-import org.apache.lucene.util.UnicodeUtil;
+import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.termvector.TermVectorRequest.Flag;
@@ -174,7 +173,7 @@ public class TermVectorResponse extends ActionResponse implements ToXContent {
             return builder;
         }
         builder.startObject(FieldStrings.TERM_VECTORS);
-        final CharsRef spare = new CharsRef();
+        final CharsRefBuilder spare = new CharsRefBuilder();
         Fields theFields = getFields();
         Iterator<String> fieldIter = theFields.iterator();
         while (fieldIter.hasNext()) {
@@ -185,7 +184,7 @@ public class TermVectorResponse extends ActionResponse implements ToXContent {
 
     }
 
-    private void buildField(XContentBuilder builder, final CharsRef spare, Fields theFields, Iterator<String> fieldIter) throws IOException {
+    private void buildField(XContentBuilder builder, final CharsRefBuilder spare, Fields theFields, Iterator<String> fieldIter) throws IOException {
         String fieldName = fieldIter.next();
         builder.startObject(fieldName);
         Terms curTerms = theFields.terms(fieldName);
@@ -200,10 +199,10 @@ public class TermVectorResponse extends ActionResponse implements ToXContent {
         builder.endObject();
     }
 
-    private void buildTerm(XContentBuilder builder, final CharsRef spare, Terms curTerms, TermsEnum termIter) throws IOException {
+    private void buildTerm(XContentBuilder builder, final CharsRefBuilder spare, Terms curTerms, TermsEnum termIter) throws IOException {
         // start term, optimized writing
         BytesRef term = termIter.next();
-        UnicodeUtil.UTF8toUTF16(term, spare);
+        spare.copyUTF8Bytes(term);
         builder.startObject(spare.toString());
         buildTermStatistics(builder, termIter);
         // finally write the term vectors

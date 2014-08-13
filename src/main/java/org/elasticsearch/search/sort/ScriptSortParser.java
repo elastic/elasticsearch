@@ -25,6 +25,7 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.*;
@@ -155,12 +156,12 @@ public class ScriptSortParser implements SortParser {
                     protected SortedBinaryDocValues getValues(AtomicReaderContext context) {
                         searchScript.setNextReader(context);
                         final BinaryDocValues values = new BinaryDocValues() {
-                            final BytesRef spare = new BytesRef();
+                            final BytesRefBuilder spare = new BytesRefBuilder();
                             @Override
                             public BytesRef get(int docID) {
                                 searchScript.setNextDocId(docID);
                                 spare.copyChars(searchScript.run().toString());
-                                return spare;
+                                return spare.get();
                             }
                         };
                         return FieldData.singleton(values, null);

@@ -25,8 +25,9 @@ import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.search.spell.*;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.CharsRef;
-import org.apache.lucene.util.UnicodeUtil;
+import org.apache.lucene.util.CharsRefBuilder;
 import org.apache.lucene.util.automaton.LevenshteinAutomata;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.ParseField;
@@ -78,7 +79,7 @@ public final class SuggestUtils {
         return directSpellChecker;
     }
     
-    public static BytesRef join(BytesRef separator, BytesRef result, BytesRef... toJoin) {
+    public static BytesRef join(BytesRef separator, BytesRefBuilder result, BytesRef... toJoin) {
         int len = separator.length * toJoin.length - 1;
         for (BytesRef br : toJoin) {
             len += br.length;
@@ -88,22 +89,21 @@ public final class SuggestUtils {
         return joinPreAllocated(separator, result, toJoin);
     }
     
-    public static BytesRef joinPreAllocated(BytesRef separator, BytesRef result, BytesRef... toJoin) {
-        result.length = 0;
-        result.offset = 0;
+    public static BytesRef joinPreAllocated(BytesRef separator, BytesRefBuilder result, BytesRef... toJoin) {
+        result.clear();
+        int offset = 0;
         for (int i = 0; i < toJoin.length - 1; i++) {
             BytesRef br = toJoin[i];
-            System.arraycopy(br.bytes, br.offset, result.bytes, result.offset, br.length);
-            result.offset += br.length;
-            System.arraycopy(separator.bytes, separator.offset, result.bytes, result.offset, separator.length);
-            result.offset += separator.length;
+            System.arraycopy(br.bytes, br.offset, result.bytes(), 0, br.length);
+            offset += br.length;
+            System.arraycopy(separator.bytes, separator.offset, result.bytes(), offset, separator.length);
+            offset += separator.length;
         }
         final BytesRef br = toJoin[toJoin.length-1];
-        System.arraycopy(br.bytes, br.offset, result.bytes, result.offset, br.length);
+        System.arraycopy(br.bytes, br.offset, result.bytes(), offset, br.length);
         
-        result.length = result.offset + br.length;
-        result.offset = 0;
-        return result;
+        result.setLength(offset + br.length);
+        return result.get();
     }
     
     public static abstract class TokenConsumer {
@@ -117,12 +117,9 @@ public final class SuggestUtils {
             offsetAttr = stream.addAttribute(OffsetAttribute.class);
         }
         
-        protected BytesRef fillBytesRef(BytesRef spare) {
-            spare.offset = 0;
-            spare.length = spare.bytes.length;
-            char[] source = charTermAttr.buffer();
-            UnicodeUtil.UTF16toUTF8(source, 0, charTermAttr.length(), spare);
-            return spare;
+        protected BytesRef fillBytesRef(BytesRefBuilder spare) {
+            spare.copyChars(charTermAttr);
+            return spare.get();
         }
         
         public abstract void nextToken() throws IOException;
@@ -130,9 +127,9 @@ public final class SuggestUtils {
         public void end() {}
     }
     
-    public static int analyze(Analyzer analyzer, BytesRef toAnalyze, String field, TokenConsumer consumer, CharsRef spare) throws IOException {
-        UnicodeUtil.UTF8toUTF16(toAnalyze, spare);
-        return analyze(analyzer, spare, field, consumer);
+    public static int analyze(Analyzer analyzer, BytesRef toAnalyze, String field, TokenConsumer consumer, CharsRefBuilder spare) throws IOException {
+        spare.copyUTF8Bytes(toAnalyze);
+        return analyze(analyzer, spare.get(), field, consumer);
     }
     
     public static int analyze(Analyzer analyzer, CharsRef toAnalyze, String field, TokenConsumer consumer) throws IOException {

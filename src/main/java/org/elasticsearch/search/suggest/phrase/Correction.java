@@ -19,6 +19,7 @@
 package org.elasticsearch.search.suggest.phrase;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.search.suggest.SuggestUtils;
 import org.elasticsearch.search.suggest.phrase.DirectCandidateGenerator.Candidate;
 
@@ -46,10 +47,10 @@ public final class Correction implements Comparable<Correction> {
     }
 
     public BytesRef join(BytesRef separator, BytesRef preTag, BytesRef postTag) {
-        return join(separator, new BytesRef(), preTag, postTag);
+        return join(separator, new BytesRefBuilder(), preTag, postTag);
     }
 
-    public BytesRef join(BytesRef separator, BytesRef result, BytesRef preTag, BytesRef postTag) {
+    public BytesRef join(BytesRef separator, BytesRefBuilder result, BytesRef preTag, BytesRef postTag) {
         BytesRef[] toJoin = new BytesRef[this.candidates.length];
         int len = separator.length * this.candidates.length - 1;
         for (int i = 0; i < toJoin.length; i++) {
@@ -58,7 +59,8 @@ public final class Correction implements Comparable<Correction> {
                 toJoin[i] = candidate.term;
             } else {
                 final int maxLen = preTag.length + postTag.length + candidate.term.length;
-                final BytesRef highlighted = new BytesRef(maxLen);// just allocate once
+                final BytesRefBuilder highlighted = new BytesRefBuilder();// just allocate once
+                highlighted.grow(maxLen);
                 if (i == 0 || candidates[i-1].userInput) {
                     highlighted.append(preTag);
                 }
@@ -66,11 +68,10 @@ public final class Correction implements Comparable<Correction> {
                 if (toJoin.length == i + 1 || candidates[i+1].userInput) {
                     highlighted.append(postTag);
                 }
-                toJoin[i] = highlighted;
+                toJoin[i] = highlighted.get();
             }
             len += toJoin[i].length;
         }
-        result.offset = 0;
         result.grow(len);
         return SuggestUtils.joinPreAllocated(separator, result, toJoin);
     }

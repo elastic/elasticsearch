@@ -20,7 +20,7 @@
 package org.elasticsearch.common.io.stream;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.CharsRef;
+import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -254,15 +254,22 @@ public abstract class StreamInput extends InputStream {
         return null;
     }
 
-    private final CharsRef spare = new CharsRef();
+    private final CharsRefBuilder spare = new CharsRefBuilder();
+
+    // nocommit add CharsRefBuilder.append
+    private static void append(CharsRefBuilder builder, char c) {
+        final int newLength = builder.length() + 1;
+        builder.grow(newLength);
+        builder.setCharAt(builder.length(), c);
+        builder.setLength(newLength);
+    }
 
     public String readString() throws IOException {
         final int charCount = readVInt();
-        spare.offset = 0;
-        spare.length = 0;
+        spare.clear();
         spare.grow(charCount);
         int c = 0;
-        while (spare.length < charCount) {
+        while (spare.length() < charCount) {
             c = readByte() & 0xff;
             switch (c >> 4) {
                 case 0:
@@ -273,14 +280,14 @@ public abstract class StreamInput extends InputStream {
                 case 5:
                 case 6:
                 case 7:
-                    spare.chars[spare.length++] = (char) c;
+                    append(spare, (char) c);
                     break;
                 case 12:
                 case 13:
-                    spare.chars[spare.length++] = (char) ((c & 0x1F) << 6 | readByte() & 0x3F);
+                    append(spare, (char) ((c & 0x1F) << 6 | readByte() & 0x3F));
                     break;
                 case 14:
-                    spare.chars[spare.length++] = (char) ((c & 0x0F) << 12 | (readByte() & 0x3F) << 6 | (readByte() & 0x3F) << 0);
+                    append(spare, (char) ((c & 0x0F) << 12 | (readByte() & 0x3F) << 6 | (readByte() & 0x3F) << 0));
                     break;
             }
         }

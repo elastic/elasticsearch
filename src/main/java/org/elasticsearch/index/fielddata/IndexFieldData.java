@@ -23,8 +23,8 @@ import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.FixedBitSet;
-import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
@@ -114,9 +114,10 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
          *  since {@link Character#MAX_CODE_POINT} is a noncharacter and thus shouldn't appear in an index term. */
         public static final BytesRef MAX_TERM;
         static {
-            MAX_TERM = new BytesRef();
+            BytesRefBuilder builder = new BytesRefBuilder();
             final char[] chars = Character.toChars(Character.MAX_CODE_POINT);
-            UnicodeUtil.UTF16toUTF8(chars, 0, chars.length, MAX_TERM);
+            builder.copyChars(chars, 0, chars.length);
+            MAX_TERM = builder.toBytesRef();
         }
 
         /**

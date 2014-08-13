@@ -23,6 +23,7 @@ package org.elasticsearch.search;
 import org.apache.lucene.index.*;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.index.fielddata.FieldData;
@@ -625,7 +626,7 @@ public enum MultiValueMode {
         }
         return new BinaryDocValues() {
 
-            final BytesRef spare = new BytesRef();
+            final BytesRefBuilder spare = new BytesRefBuilder();
 
             @Override
             public BytesRef get(int rootDoc) {
@@ -637,7 +638,7 @@ public enum MultiValueMode {
                 final int prevRootDoc = rootDocs.prevSetBit(rootDoc - 1);
                 final int firstNestedDoc = innerDocs.nextSetBit(prevRootDoc + 1);
 
-                BytesRef accumulated = null;
+                BytesRefBuilder accumulated = null;
 
                 for (int doc = firstNestedDoc; doc != -1 && doc < rootDoc; doc = innerDocs.nextSetBit(doc + 1)) {
                     values.setDocument(doc);
@@ -647,7 +648,7 @@ public enum MultiValueMode {
                             spare.copyBytes(innerValue);
                             accumulated = spare;
                         } else {
-                            final BytesRef applied = apply(accumulated, innerValue);
+                            final BytesRef applied = apply(accumulated.get(), innerValue);
                             if (applied == innerValue) {
                                 accumulated.copyBytes(innerValue);
                             }
@@ -655,7 +656,7 @@ public enum MultiValueMode {
                     }
                 }
 
-                return accumulated == null ? missingValue : accumulated;
+                return accumulated == null ? missingValue : accumulated.get();
             }
         };
     }

@@ -21,7 +21,6 @@ package org.elasticsearch.http.netty;
 
 import com.google.common.base.Strings;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
@@ -54,8 +53,7 @@ public class NettyHttpChannel extends HttpChannel {
     private static final ChannelBuffer END_JSONP;
 
     static {
-        BytesRef U_END_JSONP = new BytesRef();
-        UnicodeUtil.UTF16toUTF8(");", 0, ");".length(), U_END_JSONP);
+        BytesRef U_END_JSONP = new BytesRef(");");
         END_JSONP = ChannelBuffers.wrappedBuffer(U_END_JSONP.bytes, U_END_JSONP.offset, U_END_JSONP.length);
     }
 
@@ -147,8 +145,7 @@ public class NettyHttpChannel extends HttpChannel {
             // handle JSONP
             String callback = request.param("callback");
             if (callback != null) {
-                final BytesRef callbackBytes = new BytesRef(callback.length() * 4 + 1);
-                UnicodeUtil.UTF16toUTF8(callback, 0, callback.length(), callbackBytes);
+                final BytesRef callbackBytes = new BytesRef(callback);
                 callbackBytes.bytes[callbackBytes.length] = '(';
                 callbackBytes.length++;
                 buffer = ChannelBuffers.wrappedBuffer(

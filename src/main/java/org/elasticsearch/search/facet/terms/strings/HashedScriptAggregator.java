@@ -20,8 +20,8 @@ package org.elasticsearch.search.facet.terms.strings;
 
 import com.google.common.collect.ImmutableSet;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.CharsRef;
-import org.apache.lucene.util.UnicodeUtil;
+import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.script.SearchScript;
 
 import java.util.regex.Matcher;
@@ -32,8 +32,8 @@ public final class HashedScriptAggregator extends HashedAggregator {
     private final ImmutableSet<BytesRef> excluded;
     private final Matcher matcher;
     private final SearchScript script;
-    private final CharsRef spare = new CharsRef();
-    private final BytesRef scriptSpare = new BytesRef();
+    private final CharsRefBuilder spare = new CharsRefBuilder();
+    private final BytesRefBuilder scriptSpare = new BytesRefBuilder();
     private final boolean convert;
     
     public HashedScriptAggregator(ImmutableSet<BytesRef> excluded, Pattern pattern, SearchScript script) {
@@ -56,11 +56,11 @@ public final class HashedScriptAggregator extends HashedAggregator {
         }
         if(convert) {
             // only convert if we need to and only once per doc...
-            UnicodeUtil.UTF8toUTF16(value, spare);
+            spare.copyUTF8Bytes(value);
             if (matcher != null) {
                 assert convert : "regexp: [convert == false] but should be true";
                 assert value.utf8ToString().equals(spare.toString()) : "not converted";
-                return matcher.reset(spare).matches();
+                return matcher.reset(spare.get()).matches();
             }
         }
         return true;
@@ -88,7 +88,7 @@ public final class HashedScriptAggregator extends HashedAggregator {
                 } else {
                     scriptSpare.copyChars(scriptValue.toString());
                     hashCode = scriptSpare.hashCode();
-                    super.onValue(docId, scriptSpare, hashCode);
+                    super.onValue(docId, scriptSpare.get(), hashCode);
                     return;
                 }
             }

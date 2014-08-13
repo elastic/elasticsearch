@@ -23,10 +23,7 @@ import org.apache.lucene.queries.TermFilter;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.FixedBitSet;
-import org.apache.lucene.util.LongBitSet;
+import org.apache.lucene.util.*;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.search.AndFilter;
 import org.elasticsearch.common.util.BytesRefHash;
@@ -131,7 +128,7 @@ final class ParentIdsFilter extends Filter {
         }
 
         TermsEnum termsEnum = terms.iterator(null);
-        BytesRef uidSpare = new BytesRef();
+        BytesRefBuilder uidSpare = new BytesRefBuilder();
         BytesRef idSpare = new BytesRef();
 
         if (acceptDocs == null) {
@@ -148,8 +145,8 @@ final class ParentIdsFilter extends Filter {
         long size = parentIds.size();
         for (int i = 0; i < size; i++) {
             parentIds.get(i, idSpare);
-            Uid.createUidAsBytes(parentTypeBr, idSpare, uidSpare);
-            if (termsEnum.seekExact(uidSpare)) {
+            BytesRef uid = Uid.createUidAsBytes(parentTypeBr, idSpare, uidSpare);
+            if (termsEnum.seekExact(uid)) {
                 int docId;
                 docsEnum = termsEnum.docs(acceptDocs, docsEnum, DocsEnum.FLAG_NONE);
                 if (result == null) {

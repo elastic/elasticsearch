@@ -21,8 +21,7 @@ package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
-import org.apache.lucene.util.CharsRef;
-import org.apache.lucene.util.UnicodeUtil;
+import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -41,12 +40,12 @@ abstract class AbstractIndexGeoPointFieldData extends AbstractIndexFieldData<Ato
 
         private final BytesRefIterator termsEnum;
         private final GeoPoint next;
-        private final CharsRef spare;
+        private final CharsRefBuilder spare;
 
         protected GeoPointEnum(BytesRefIterator termsEnum) {
             this.termsEnum = termsEnum;
             next = new GeoPoint();
-            spare = new CharsRef();
+            spare = new CharsRefBuilder();
         }
 
         public GeoPoint next() throws IOException {
@@ -54,10 +53,10 @@ abstract class AbstractIndexGeoPointFieldData extends AbstractIndexFieldData<Ato
             if (term == null) {
                 return null;
             }
-            UnicodeUtil.UTF8toUTF16(term, spare);
+            spare.copyUTF8Bytes(term);
             int commaIndex = -1;
-            for (int i = 0; i < spare.length; i++) {
-                if (spare.chars[spare.offset + i] == ',') { // saves a string creation
+            for (int i = 0; i < spare.length(); i++) {
+                if (spare.charAt(i) == ',') { // saves a string creation
                     commaIndex = i;
                     break;
                 }
@@ -66,8 +65,8 @@ abstract class AbstractIndexGeoPointFieldData extends AbstractIndexFieldData<Ato
                 assert false;
                 return next.reset(0, 0);
             }
-            final double lat = Double.parseDouble(new String(spare.chars, spare.offset, (commaIndex - spare.offset)));
-            final double lon = Double.parseDouble(new String(spare.chars, (spare.offset + (commaIndex + 1)), spare.length - ((commaIndex + 1) - spare.offset)));
+            final double lat = Double.parseDouble(new String(spare.chars(), 0, commaIndex));
+            final double lon = Double.parseDouble(new String(spare.chars(), commaIndex + 1, spare.length() - (commaIndex + 1)));
             return next.reset(lat, lon);
         }
 

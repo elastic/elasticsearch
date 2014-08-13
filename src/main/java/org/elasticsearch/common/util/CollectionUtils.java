@@ -305,10 +305,10 @@ public enum CollectionUtils {
 
     };
     public static void sort(final BytesRefArray bytes, final int[] indices) {
-        sort(new BytesRef(), new BytesRef(), bytes, indices);
+        sort(new BytesRefBuilder(), new BytesRefBuilder(), bytes, indices);
     }
 
-    private static void sort(final BytesRef scratch, final BytesRef scratch1, final BytesRefArray bytes, final int[] indices) {
+    private static void sort(final BytesRefBuilder scratch, final BytesRefBuilder scratch1, final BytesRefArray bytes, final int[] indices) {
 
         final int numValues = bytes.size();
         assert indices.length >= numValues;
@@ -332,8 +332,8 @@ public enum CollectionUtils {
     }
 
     public static int sortAndDedup(final BytesRefArray bytes, final int[] indices) {
-        final BytesRef scratch = new BytesRef();
-        final BytesRef scratch1 = new BytesRef();
+        final BytesRefBuilder scratch = new BytesRefBuilder();
+        final BytesRefBuilder scratch1 = new BytesRefBuilder();
         final int numValues = bytes.size();
         assert indices.length >= numValues;
         if (numValues <= 1) {
@@ -341,15 +341,15 @@ public enum CollectionUtils {
         }
         sort(scratch, scratch1, bytes, indices);
         int uniqueCount = 1;
-        BytesRef previous = scratch;
-        BytesRef current = scratch1;
+        BytesRefBuilder previous = scratch;
+        BytesRefBuilder current = scratch1;
         bytes.get(previous, indices[0]);
         for (int i = 1; i < numValues; ++i) {
             bytes.get(current, indices[i]);
             if (!previous.equals(current)) {
                 indices[uniqueCount++] = indices[i];
             }
-            BytesRef tmp = previous;
+            BytesRefBuilder tmp = previous;
             previous = current;
             current = tmp;
         }

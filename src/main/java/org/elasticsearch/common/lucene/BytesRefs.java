@@ -20,6 +20,7 @@
 package org.elasticsearch.common.lucene;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 
 /**
  */
@@ -52,7 +53,7 @@ public class BytesRefs {
         return new BytesRef(value.toString());
     }
 
-    public static BytesRef toBytesRef(Object value, BytesRef spare) {
+    public static BytesRef toBytesRef(Object value, BytesRefBuilder spare) {
         if (value == null) {
             return null;
         }
@@ -60,6 +61,6 @@ public class BytesRefs {
             return (BytesRef) value;
         }
         spare.copyChars(value.toString());
-        return spare;
+        return spare.get();
     }
 }

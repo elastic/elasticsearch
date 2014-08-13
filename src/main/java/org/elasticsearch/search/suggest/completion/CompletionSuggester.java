@@ -24,9 +24,8 @@ import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.suggest.Lookup;
-import org.apache.lucene.util.CharsRef;
+import org.apache.lucene.util.CharsRefBuilder;
 import org.apache.lucene.util.CollectionUtil;
-import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.text.StringText;
@@ -49,13 +48,13 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
 
     @Override
     protected Suggest.Suggestion<? extends Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>> innerExecute(String name,
-            CompletionSuggestionContext suggestionContext, IndexReader indexReader, CharsRef spare) throws IOException {
+            CompletionSuggestionContext suggestionContext, IndexReader indexReader, CharsRefBuilder spare) throws IOException {
         if (suggestionContext.mapper() == null || !(suggestionContext.mapper() instanceof CompletionFieldMapper)) {
             throw new ElasticsearchException("Field [" + suggestionContext.getField() + "] is not a completion suggest field");
         }
 
         CompletionSuggestion completionSuggestion = new CompletionSuggestion(name, suggestionContext.getSize());
-        UnicodeUtil.UTF8toUTF16(suggestionContext.getText(), spare);
+        spare.copyUTF8Bytes(suggestionContext.getText());
 
         CompletionSuggestion.Entry completionSuggestEntry = new CompletionSuggestion.Entry(new StringText(spare.toString()), 0, spare.length());
         completionSuggestion.addTerm(completionSuggestEntry);
@@ -73,7 +72,7 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
                     // docs from the segment that had a value in this segment.
                     continue;
                 }
-                List<Lookup.LookupResult> lookupResults = lookup.lookup(spare, false, suggestionContext.getSize());
+                List<Lookup.LookupResult> lookupResults = lookup.lookup(spare.get(), false, suggestionContext.getSize());
                 for (Lookup.LookupResult res : lookupResults) {
 
                     final String key = res.key.toString();

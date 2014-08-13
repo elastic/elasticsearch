@@ -8,11 +8,8 @@ package org.elasticsearch.shield;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import java.io.IOException;
 import java.io.Serializable;

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.shield.authz;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
@@ -104,5 +105,10 @@ public class PrivilegeTests extends ElasticsearchTestCase {
                 assertThat("index privilege [" + index + "] should not imply [" + other + "]", index.implies(other), is(false));
             }
         }
+    }
+
+    @Test @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch-shield/issues/22")
+    public void testIndexTemplateApiIsNotPartOfClusterPrivileg() throws Exception {
+        assertThat(Privilege.Cluster.ALL.predicate().apply("indices:admin/template/get"), is(false));
     }
 }

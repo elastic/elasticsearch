@@ -3,12 +3,11 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.shield.ssl;
+package org.elasticsearch.shield.transport.ssl;
 
 import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.base.Charsets;
 import com.google.common.io.Files;
 import com.google.common.net.InetAddresses;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.client.Client;
@@ -22,19 +21,20 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
-import org.elasticsearch.shield.plugin.SecurityPlugin;
-import org.elasticsearch.shield.ssl.netty.NettySSLHttpServerTransportModule;
-import org.elasticsearch.shield.ssl.netty.NettySSLTransportModule;
+import org.elasticsearch.shield.n2n.N2NPlugin;
+import org.elasticsearch.shield.transport.netty.NettySecuredHttpServerTransportModule;
+import org.elasticsearch.shield.transport.netty.NettySecuredTransportModule;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportModule;
-import org.junit.*;
+import org.junit.BeforeClass;
+import org.junit.ClassRule;
+import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 import javax.net.ssl.*;
 import java.io.File;
-import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -63,7 +63,7 @@ public class SslIntegrationTests extends ElasticsearchIntegrationTest {
     protected Settings nodeSettings(int nodeOrdinal) {
         File testnodeStore;
         try {
-            testnodeStore = new File(getClass().getResource("/certs/simple/testnode.jks").toURI());
+            testnodeStore = new File(getClass().getResource("certs/simple/testnode.jks").toURI());
             assertThat(testnodeStore.exists(), is(true));
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -88,9 +88,10 @@ public class SslIntegrationTests extends ElasticsearchIntegrationTest {
                 .put("shield.http.ssl.truststore", testnodeStore.getPath())
                 .put("shield.http.ssl.truststore_password", "testnode")
                 // SSL SETUP
-                .put("http.type", NettySSLHttpServerTransportModule.class.getName())
-                .put(TransportModule.TRANSPORT_TYPE_KEY, NettySSLTransportModule.class.getName())
-                .put("plugin.types", SecurityPlugin.class.getName())
+                .put("http.type", NettySecuredHttpServerTransportModule.class.getName())
+                .put("plugins.load_classpath_plugins", false)
+                .put("plugin.types", N2NPlugin.class.getName())
+                .put(TransportModule.TRANSPORT_TYPE_KEY, NettySecuredTransportModule.class.getName())
                 .put("shield.n2n.file", ipFilterFile.getPath());
 
         if (OsUtils.MAC) {
@@ -210,8 +211,8 @@ public class SslIntegrationTests extends ElasticsearchIntegrationTest {
         File testClientKeyStore;
         File testClientTrustStore;
         try {
-            testClientKeyStore = new File(getClass().getResource("/certs/simple/testclient.jks").toURI());
-            testClientTrustStore = new File(getClass().getResource("/certs/simple/testclient.jks").toURI());
+            testClientKeyStore = new File(getClass().getResource("certs/simple/testclient.jks").toURI());
+            testClientTrustStore = new File(getClass().getResource("certs/simple/testclient.jks").toURI());
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -220,15 +221,15 @@ public class SslIntegrationTests extends ElasticsearchIntegrationTest {
 
         return ImmutableSettings.settingsBuilder()
                 .put("node.name", name)
+                .put("plugins.load_classpath_plugins", false)
                 .put("shield.transport.ssl", true)
                 .put("shield.transport.ssl.keystore", testClientKeyStore.getPath())
                 .put("shield.transport.ssl.keystore_password", "testclient")
                 .put("shield.transport.ssl.truststore", testClientTrustStore .getPath())
                 .put("shield.transport.ssl.truststore_password", "testclient")
                 .put("discovery.zen.ping.multicast.ping.enabled", false)
-                .put(TransportModule.TRANSPORT_TYPE_KEY, NettySSLTransportModule.class.getName())
+                .put(TransportModule.TRANSPORT_TYPE_KEY, NettySecuredTransportModule.class.getName())
                 .put("shield.n2n.file", ipFilterFile.getPath())
-                //.put("plugin.types", SecurityPlugin.class.getName())
                 .put("cluster.name", internalCluster().getClusterName());
     }
 
@@ -237,4 +238,5 @@ public class SslIntegrationTests extends ElasticsearchIntegrationTest {
         assertNoTimeout(clusterHealthResponse);
         assertThat(clusterHealthResponse.getStatus(), is(ClusterHealthStatus.GREEN));
     }
+
 }

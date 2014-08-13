@@ -17,7 +17,6 @@ import org.elasticsearch.shield.authc.support.UserPasswdStore;
 import org.elasticsearch.shield.authc.support.UserRolesStore;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.transport.TransportMessage;
-import org.elasticsearch.transport.TransportRequest;
 
 /**
  *

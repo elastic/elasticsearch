@@ -10,14 +10,11 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.base.Predicate;
 import org.elasticsearch.common.collect.ImmutableList;
-import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.shield.support.AutomatonPredicate;
 import org.elasticsearch.shield.support.Automatons;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.util.Collection;
-import java.util.Collections;
-import java.util.Set;
 
 /**
  * Represents a permission in the system. There are 3 types of permissions:
@@ -183,8 +180,12 @@ public interface Permission {
 
         @Override
         public boolean check(String action, TransportRequest request, MetaData metaData) {
-            for (int i = 0; i < groups.length; i++) {
-                if (groups[i].check(action, request, metaData)) {
+            boolean isIndicesRequest = request instanceof CompositeIndicesRequest || request instanceof IndicesRequest;
+            if (!isIndicesRequest) {
+                return false;
+            }
+            for (Group group : groups) {
+                if (group.check(action, request, metaData)) {
                     return true;
                 }
             }
@@ -196,14 +197,14 @@ public interface Permission {
             private final Privilege.Index privilege;
             private final Predicate<String> actionMatcher;
             private final String[] indices;
-            private final Predicate<String> indicesMatcher;
+            private final Predicate<String> indexNameMatcher;
 
             public Group(Privilege.Index privilege, String... indices) {
                 assert indices.length != 0;
                 this.privilege = privilege;
                 this.actionMatcher = privilege.predicate();
                 this.indices = indices;
-                this.indicesMatcher = new AutomatonPredicate(Automatons.patterns(indices));
+                this.indexNameMatcher = new AutomatonPredicate(Automatons.patterns(indices));
             }
 
             public Privilege.Index privilege() {
@@ -217,34 +218,30 @@ public interface Permission {
             @Override
             public boolean check(String action, TransportRequest request, MetaData metaData) {
 
+                assert request instanceof IndicesRequest || request instanceof CompositeIndicesRequest :
+                        "the only requests passing the action matcher should be IndicesRequests";
+
                 if (!actionMatcher.apply(action)) {
                     return false;
                 }
 
-                boolean isIndicesRequest = request instanceof CompositeIndicesRequest || request instanceof IndicesRequest;
-
-                assert isIndicesRequest : "the only requests passing the action matcher should be IndicesRequests";
-
-                // if for some reason we are missing an action... just for safety we'll reject
-                if (!isIndicesRequest) {
-                    return false;
-                }
-
-                Set<String> indices = Sets.newHashSet();
                 if (request instanceof CompositeIndicesRequest) {
                     CompositeIndicesRequest compositeIndicesRequest = (CompositeIndicesRequest) request;
                     for (IndicesRequest indicesRequest : compositeIndicesRequest.subRequests()) {
-                        Collections.addAll(indices, explodeWildcards(indicesRequest, metaData));
+                        for (String index : explodeWildcards(indicesRequest, metaData)) {
+                            if (!indexNameMatcher.apply(index)) {
+                                return false;
+                            }
+                        }
                     }
-                } else {
-                    Collections.addAll(indices, explodeWildcards((IndicesRequest) request, metaData));
                 }
 
-                for (String index : indices) {
-                    if (!indicesMatcher.apply(index)) {
+                for (String index : explodeWildcards((IndicesRequest) request, metaData)) {
+                    if (!indexNameMatcher.apply(index)) {
                         return false;
                     }
                 }
+
                 return true;
             }
 

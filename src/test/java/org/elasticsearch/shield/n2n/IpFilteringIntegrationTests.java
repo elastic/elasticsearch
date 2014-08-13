@@ -6,7 +6,6 @@
 package org.elasticsearch.shield.n2n;
 
 import com.google.common.base.Charsets;
-import com.google.common.collect.ImmutableTable;
 import com.google.common.net.InetAddresses;
 import org.elasticsearch.common.os.OsUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -15,8 +14,8 @@ import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.shield.plugin.SecurityPlugin;
-import org.elasticsearch.shield.ssl.netty.NettySSLHttpServerTransportModule;
-import org.elasticsearch.shield.ssl.netty.NettySSLTransportModule;
+import org.elasticsearch.shield.transport.netty.NettySecuredHttpServerTransportModule;
+import org.elasticsearch.shield.transport.netty.NettySecuredTransportModule;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportModule;
@@ -47,9 +46,9 @@ public class IpFilteringIntegrationTests extends ElasticsearchIntegrationTest {
                 .put("node.mode", "network")
                 // todo http tests fail without an explicit IP (needs investigation)
                 .put("network.host", randomBoolean() ? "127.0.0.1" : "::1")
-                .put("http.type", NettySSLHttpServerTransportModule.class.getName())
-                .put(TransportModule.TRANSPORT_TYPE_KEY, NettySSLTransportModule.class.getName())
-                .put("plugin.types", SecurityPlugin.class.getName());
+                .put("http.type", NettySecuredHttpServerTransportModule.class.getName())
+                .put(TransportModule.TRANSPORT_TYPE_KEY, NettySecuredTransportModule.class.getName())
+                .put("plugin.types", N2NPlugin.class.getName());
                 //.put("shield.n2n.file", configFile.getPath())
 
         if (OsUtils.MAC) {

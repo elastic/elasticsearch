@@ -34,7 +34,7 @@ public class InternalAuthenticationServiceTests extends ElasticsearchTestCase {
     @Before
     public void init() throws Exception {
         token = mock(AuthenticationToken.class);
-        message = mock(TransportMessage.class);
+        message = new InternalMessage();
         firstRealm = mock(Realm.class);
         when(firstRealm.type()).thenReturn("first");
         secondRealm = mock(Realm.class);
@@ -68,6 +68,20 @@ public class InternalAuthenticationServiceTests extends ElasticsearchTestCase {
         }
         verify(auditTrail).anonymousAccess("_action", message);
         verifyNoMoreInteractions(auditTrail);
+        assertThat(message.context().get(InternalAuthenticationService.TOKEN_CTX_KEY), nullValue());
+    }
+
+    @Test
+    public void testToken_MissingWithNullDefault() throws Exception {
+        try {
+            service.token("_action", message, null);
+            fail("expected authentication exception with missing auth token and null default token");
+        } catch (AuthenticationException ae) {
+            assertThat(ae.getMessage(), equalTo("Missing authentication token for request [_action]"));
+        }
+        verify(auditTrail).anonymousAccess("_action", message);
+        verifyNoMoreInteractions(auditTrail);
+        assertThat(message.context().get(InternalAuthenticationService.TOKEN_CTX_KEY), nullValue());
     }
 
     @Test
@@ -76,6 +90,21 @@ public class InternalAuthenticationServiceTests extends ElasticsearchTestCase {
         assertThat(result, notNullValue());
         assertThat(result, is(token));
         verifyZeroInteractions(auditTrail);
+        assertThat(message.context().get(InternalAuthenticationService.TOKEN_CTX_KEY), notNullValue());
+        assertThat(message.context().get(InternalAuthenticationService.TOKEN_CTX_KEY), is((Object) token));
+    }
+
+    @Test @SuppressWarnings("unchecked")
+    public void testToken_Cached() throws Exception {
+        message.context().put(InternalAuthenticationService.TOKEN_CTX_KEY, token);
+        AuthenticationToken result = service.token("_action", message, token);
+        assertThat(result, notNullValue());
+        assertThat(result, is(token));
+        verifyZeroInteractions(auditTrail);
+        verifyZeroInteractions(firstRealm);
+        verifyZeroInteractions(secondRealm);
+        assertThat(message.context().get(InternalAuthenticationService.TOKEN_CTX_KEY), notNullValue());
+        assertThat(message.context().get(InternalAuthenticationService.TOKEN_CTX_KEY), is((Object) token));
     }
 
     @Test @SuppressWarnings("unchecked")
@@ -90,6 +119,8 @@ public class InternalAuthenticationServiceTests extends ElasticsearchTestCase {
         assertThat(result, notNullValue());
         assertThat(result, is(user));
         verify(auditTrail).authenticationFailed("first", token, "_action", message);
+        assertThat(message.context().get(InternalAuthenticationService.USER_CTX_KEY), notNullValue());
+        assertThat(message.context().get(InternalAuthenticationService.USER_CTX_KEY), is((Object) user));
     }
 
     @Test @SuppressWarnings("unchecked")
@@ -104,6 +135,25 @@ public class InternalAuthenticationServiceTests extends ElasticsearchTestCase {
         assertThat(result, is(user));
         verifyZeroInteractions(auditTrail);
         verify(firstRealm, never()).authenticate(token);
+        assertThat(message.context().get(InternalAuthenticationService.USER_CTX_KEY), notNullValue());
+        assertThat(message.context().get(InternalAuthenticationService.USER_CTX_KEY), is((Object) user));
+    }
+
+    @Test @SuppressWarnings("unchecked")
+    public void testAuthenticate_Cached() throws Exception {
+        User user = new User.Simple("_username", "r1");
+        message.context().put(InternalAuthenticationService.USER_CTX_KEY, user);
+        User result = service.authenticate("_action", message, token);
+        assertThat(result, notNullValue());
+        assertThat(result, is(user));
+        verifyZeroInteractions(auditTrail);
+        verifyZeroInteractions(firstRealm);
+        verifyZeroInteractions(secondRealm);
+        assertThat(message.context().get(InternalAuthenticationService.USER_CTX_KEY), notNullValue());
+        assertThat(message.context().get(InternalAuthenticationService.USER_CTX_KEY), is((Object) user));
+    }
+
+    private static class InternalMessage extends TransportMessage<InternalMessage> {
     }
 
 }

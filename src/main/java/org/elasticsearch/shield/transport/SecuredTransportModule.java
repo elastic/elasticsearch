@@ -3,26 +3,27 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.shield.ssl.netty;
+package org.elasticsearch.shield.transport;
 
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.transport.Transport;
+import org.elasticsearch.shield.SecurityFilter;
 
 /**
  *
  */
-public class NettySSLTransportModule extends AbstractModule {
+public class SecuredTransportModule extends AbstractModule {
 
     private final Settings settings;
 
-    public NettySSLTransportModule(Settings settings) {
+    public SecuredTransportModule(Settings settings) {
         this.settings = settings;
     }
 
     @Override
     protected void configure() {
-        bind(NettySSLTransport.class).asEagerSingleton();
-        bind(Transport.class).to(NettySSLTransport.class);
+        if (!settings.getAsBoolean("node.client", false)) {
+            bind(TransportFilter.class).to(SecurityFilter.Transport.class).asEagerSingleton();
+        }
     }
 }

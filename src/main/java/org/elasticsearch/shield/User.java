@@ -25,6 +25,10 @@ public abstract class User {
      */
     public abstract String[] roles();
 
+    public final boolean isSystem() {
+        return this == SYSTEM;
+    }
+
     public static class Simple extends User {
 
         private final String username;

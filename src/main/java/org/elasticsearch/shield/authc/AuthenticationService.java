@@ -21,7 +21,8 @@ public interface AuthenticationService {
 
     /**
      * Extracts the authenticate token from the given message. If no recognized auth token is associated
-     * with the message, the given default token is returned.
+     * with the message and the given defaultToken is not {@code null}, the default token will be returned.
+     * Otherwise an AuthenticationException is thrown.
      */
     AuthenticationToken token(String action, TransportMessage<?> message, AuthenticationToken defaultToken);
 

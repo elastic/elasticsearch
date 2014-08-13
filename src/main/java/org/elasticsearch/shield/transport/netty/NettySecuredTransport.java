@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.shield.ssl.netty;
+package org.elasticsearch.shield.transport.netty;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.inject.Inject;
@@ -14,7 +14,7 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.shield.n2n.N2NNettyUpstreamHandler;
-import org.elasticsearch.shield.ssl.SSLConfig;
+import org.elasticsearch.shield.transport.ssl.SSLConfig;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.netty.NettyTransport;
 
@@ -23,14 +23,14 @@ import javax.net.ssl.SSLEngine;
 /**
  *
  */
-public class NettySSLTransport extends NettyTransport {
+public class NettySecuredTransport extends NettyTransport {
 
     private final boolean ssl;
     private final N2NNettyUpstreamHandler shieldUpstreamHandler;
 
     @Inject
-    public NettySSLTransport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays, Version version,
-                             N2NNettyUpstreamHandler shieldUpstreamHandler) {
+    public NettySecuredTransport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays, Version version,
+                                 N2NNettyUpstreamHandler shieldUpstreamHandler) {
         super(settings, threadPool, networkService, bigArrays, version);
         this.shieldUpstreamHandler = shieldUpstreamHandler;
         this.ssl = settings.getAsBoolean("shield.transport.ssl", false);
@@ -70,7 +70,7 @@ public class NettySSLTransport extends NettyTransport {
                 serverEngine.setUseClientMode(false);
 
                 pipeline.addFirst("ssl", new SslHandler(serverEngine));
-                pipeline.replace("dispatcher", "dispatcher", new SecureMessageChannelHandler(nettyTransport, logger));
+                pipeline.replace("dispatcher", "dispatcher", new SecuredMessageChannelHandler(nettyTransport, logger));
             }
             return pipeline;
         }
@@ -99,7 +99,7 @@ public class NettySSLTransport extends NettyTransport {
                 clientEngine.setUseClientMode(true);
 
                 pipeline.addFirst("ssl", new SslHandler(clientEngine));
-                pipeline.replace("dispatcher", "dispatcher", new SecureMessageChannelHandler(nettyTransport, logger));
+                pipeline.replace("dispatcher", "dispatcher", new SecuredMessageChannelHandler(nettyTransport, logger));
             }
             return pipeline;
         }

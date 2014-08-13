@@ -15,8 +15,13 @@ import org.elasticsearch.transport.TransportMessage;
 
 /**
  * An authentication service that delegates the authentication process to its configured {@link Realm realms}.
+ * This service also supports request level caching of authenticated users (i.e. once a user authenticated
+ * successfully, it is set on the request context to avoid subsequent redundant authentication process)
  */
 public class InternalAuthenticationService extends AbstractComponent implements AuthenticationService {
+
+    static final String TOKEN_CTX_KEY = "_shield_token";
+    static final String USER_CTX_KEY = "_shield_user";
 
     private final Realm[] realms;
     private final AuditTrail auditTrail;
@@ -30,25 +35,32 @@ public class InternalAuthenticationService extends AbstractComponent implements 
 
     @Override
     public AuthenticationToken token(String action, TransportMessage<?> message) {
-        AuthenticationToken token = token(action, message, null);
-        if (token == null) {
-            if (auditTrail != null) {
-                auditTrail.anonymousAccess(action, message);
-            }
-            throw new AuthenticationException("Missing authentication token for request [" + action + "]");
-        }
-        return token;
+        return token(action, message, null);
     }
 
     @Override
     @SuppressWarnings("unchecked")
     public AuthenticationToken token(String action, TransportMessage<?> message, AuthenticationToken defaultToken) {
+        AuthenticationToken token = (AuthenticationToken) message.context().get(TOKEN_CTX_KEY);
+        if (token != null) {
+            return token;
+        }
         for (Realm realm : realms) {
-            AuthenticationToken token = realm.token(message);
+            token = realm.token(message);
             if (token != null) {
+                message.context().put(TOKEN_CTX_KEY, token);
                 return token;
             }
         }
+
+        if (defaultToken == null) {
+            if (auditTrail != null) {
+                auditTrail.anonymousAccess(action, message);
+            }
+            throw new AuthenticationException("Missing authentication token for request [" + action + "]");
+        }
+
+        message.context().put(TOKEN_CTX_KEY, defaultToken);
         return defaultToken;
     }
 
@@ -72,10 +84,15 @@ public class InternalAuthenticationService extends AbstractComponent implements 
     @SuppressWarnings("unchecked")
     public User authenticate(String action, TransportMessage<?> message, AuthenticationToken token) throws AuthenticationException {
         assert token != null : "cannot authenticate null tokens";
+        User user = (User) message.context().get(USER_CTX_KEY);
+        if (user != null) {
+            return user;
+        }
         for (Realm realm : realms) {
             if (realm.supports(token)) {
-                User user = realm.authenticate(token);
+                user = realm.authenticate(token);
                 if (user != null) {
+                    message.context().put(USER_CTX_KEY, user);
                     return user;
                 } else if (auditTrail != null) {
                     auditTrail.authenticationFailed(realm.type(), token, action, message);

@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.shield.ssl.netty;
+package org.elasticsearch.shield.transport.netty;
 
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.netty.channel.ChannelPipeline;
@@ -14,22 +14,21 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.http.netty.NettyHttpServerTransport;
 import org.elasticsearch.shield.n2n.N2NNettyUpstreamHandler;
-import org.elasticsearch.shield.ssl.SSLConfig;
-import org.elasticsearch.transport.netty.NettyTransport;
+import org.elasticsearch.shield.transport.ssl.SSLConfig;
 
 import javax.net.ssl.SSLEngine;
 
 /**
  *
  */
-public class NettySSLHttpServerTransport extends NettyHttpServerTransport {
+public class NettySecuredHttpServerTransport extends NettyHttpServerTransport {
 
     private final boolean ssl;
     private final N2NNettyUpstreamHandler shieldUpstreamHandler;
 
     @Inject
-    public NettySSLHttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays,
-                                       N2NNettyUpstreamHandler shieldUpstreamHandler) {
+    public NettySecuredHttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays,
+                                           N2NNettyUpstreamHandler shieldUpstreamHandler) {
         super(settings, networkService, bigArrays);
         this.ssl = settings.getAsBoolean("shield.http.ssl", false);
         this.shieldUpstreamHandler = shieldUpstreamHandler;

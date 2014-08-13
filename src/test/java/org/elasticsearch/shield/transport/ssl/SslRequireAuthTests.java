@@ -3,12 +3,11 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.shield.ssl;
+package org.elasticsearch.shield.transport.ssl;
 
 import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.base.Charsets;
 import com.google.common.io.Files;
 import com.google.common.net.InetAddresses;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.os.OsUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -16,9 +15,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.shield.plugin.SecurityPlugin;
-import org.elasticsearch.shield.ssl.netty.NettySSLHttpServerTransportModule;
-import org.elasticsearch.shield.ssl.netty.NettySSLTransportModule;
+import org.elasticsearch.shield.n2n.N2NPlugin;
+import org.elasticsearch.shield.transport.netty.NettySecuredHttpServerTransportModule;
+import org.elasticsearch.shield.transport.netty.NettySecuredTransportModule;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.TransportModule;
@@ -30,7 +29,6 @@ import org.junit.rules.TemporaryFolder;
 import javax.net.ssl.*;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -68,7 +66,7 @@ public class SslRequireAuthTests extends ElasticsearchIntegrationTest {
     protected Settings nodeSettings(int nodeOrdinal) {
         File testnodeStore;
         try {
-            testnodeStore = new File(getClass().getResource("/certs/simple/testnode.jks").toURI());
+            testnodeStore = new File(getClass().getResource("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks").toURI());
             assertThat(testnodeStore.exists(), is(true));
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -94,9 +92,10 @@ public class SslRequireAuthTests extends ElasticsearchIntegrationTest {
                 .put("shield.http.ssl.truststore", testnodeStore.getPath())
                 .put("shield.http.ssl.truststore_password", "testnode")
                 // SSL SETUP
-                .put("http.type", NettySSLHttpServerTransportModule.class.getName())
-                .put(TransportModule.TRANSPORT_TYPE_KEY, NettySSLTransportModule.class.getName())
-                .put("plugin.types", SecurityPlugin.class.getName())
+                .put("http.type", NettySecuredHttpServerTransportModule.class.getName())
+                .put(TransportModule.TRANSPORT_TYPE_KEY, NettySecuredTransportModule.class.getName())
+                .put("plugins.load_classpath_plugins", false)
+                .put("plugin.types", N2NPlugin.class.getName())
                 .put("shield.n2n.file", ipFilterFile.getPath());
 
         if (OsUtils.MAC) {
@@ -139,7 +138,7 @@ public class SslRequireAuthTests extends ElasticsearchIntegrationTest {
     @Test
     @TestLogging("_root:DEBUG")
     public void testThatConnectionToHTTPWorks() throws Exception {
-        File store = new File(getClass().getResource("/certs/simple/testnode.jks").toURI());
+        File store = new File(getClass().getResource("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks").toURI());
 
         KeyStore ks;
         KeyManagerFactory kmf;

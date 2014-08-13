@@ -71,8 +71,12 @@ public class UsernamePasswordToken implements AuthenticationToken {
     }
 
     public static void putTokenHeader(TransportRequest request, UsernamePasswordToken token) {
-        String basicToken = token.username + ":" + new String(token.password);
+        request.putHeader("Authorization", headerValue(token.username, token.password));
+    }
+
+    public static String headerValue(String username, char[] passwd) {
+        String basicToken = username + ":" + new String(passwd);
         basicToken = new String(Base64.encodeBase64(basicToken.getBytes(Charsets.UTF_8)), Charsets.UTF_8);
-        request.putHeader("Authorization", "Basic " + basicToken);
+        return "Basic " + basicToken;
     }
 }

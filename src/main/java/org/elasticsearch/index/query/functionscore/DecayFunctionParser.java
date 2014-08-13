@@ -381,6 +381,7 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         protected String getDistanceString(int docId) {
 
             StringBuilder values = new StringBuilder(mode.name());
+            values.append("[");
             doubleValues.setDocument(docId);
             final int num = doubleValues.count();
             if (num > 0) {

@@ -45,6 +45,7 @@ import org.junit.Test;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.client.Requests.indexRequest;
 import static org.elasticsearch.client.Requests.searchRequest;
@@ -937,5 +938,34 @@ public class DecayFunctionScoreTests extends ElasticsearchIntegrationTest {
         } catch (ElasticsearchIllegalArgumentException failure) {
             assertTrue(failure.getMessage().contains("function must not be null"));
         }
+    }
+
+    @Test
+    public void testExplainString() throws IOException, ExecutionException, InterruptedException {
+        assertAcked(prepareCreate("test").addMapping(
+                "type1",
+                jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("test").field("type", "string")
+                        .endObject().startObject("num").field("type", "double").endObject().endObject().endObject().endObject()));
+        ensureYellow();
+
+
+        client().prepareIndex().setType("type1").setId("1").setIndex("test")
+                .setSource(jsonBuilder().startObject().field("test", "value").array("num", 0.5, 0.7).endObject()).get();
+
+        refresh();
+
+        SearchResponse response = client().search(
+                searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
+                        searchSource().explain(true)
+                                .query(functionScoreQuery(termQuery("test", "value"))
+                                        .add(gaussDecayFunction("num", 1.0, 5.0).setOffset(1.0))
+                                        .add(linearDecayFunction("num", 1.0, 5.0).setOffset(1.0))
+                                        .add(exponentialDecayFunction("num", 1.0, 5.0).setOffset(1.0))
+                                        .boostMode(CombineFunction.REPLACE.getName())))).get();
+        String explanation = response.getHits().getAt(0).getExplanation().toString();
+        assertThat(explanation, containsString(" 1.0 = -exp(-0.5*pow(MIN[Math.max(Math.abs(0.5(=doc value) - 1.0(=origin))) - 1.0(=offset), 0), Math.max(Math.abs(0.7(=doc value) - 1.0(=origin))) - 1.0(=offset), 0)],2.0)/18.033688011112044)"));
+        assertThat(explanation, containsString("1.0 = max(0.0, ((10.0 - MIN[Math.max(Math.abs(0.5(=doc value) - 1.0(=origin))) - 1.0(=offset), 0), Math.max(Math.abs(0.7(=doc value) - 1.0(=origin))) - 1.0(=offset), 0)])/10.0)"));
+        assertThat(explanation, containsString("1.0 = exp(- MIN[Math.max(Math.abs(0.5(=doc value) - 1.0(=origin))) - 1.0(=offset), 0), Math.max(Math.abs(0.7(=doc value) - 1.0(=origin))) - 1.0(=offset), 0)] * 0.13862943611198905)"));
+
     }
 }

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.suggest.completion;
 
-import com.carrotsearch.randomizedtesting.annotations.Seed;
 import com.google.common.collect.Lists;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.codecs.*;

@@ -22,6 +22,7 @@ package org.elasticsearch.indices;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.service.IndexService;
@@ -62,6 +63,7 @@ public interface IndicesService extends Iterable<IndexService>, LifecycleCompone
      * Even if the index name appeared in {@link #indices()} <code>null</code> can still be returned as an
      * index maybe removed in the meantime, so preferable use the associated {@link IndexService} in order to prevent NPE.
      */
+    @Nullable
     IndexService indexService(String index);
 
     /**

@@ -95,6 +95,14 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
     }
 
     /**
+     * Constructs a new search request starting from the provided request, meaning that it will
+     * inherit its headers and context
+     */
+    public SearchRequest(ActionRequest request) {
+        super(request);
+    }
+
+    /**
      * Constructs a new search request against the indices. No indices provided here means that search
      * will run against all indices.
      */

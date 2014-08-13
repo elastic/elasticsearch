@@ -200,7 +200,7 @@ public class TransportIndicesStatsAction extends TransportBroadcastOperationActi
         return new ShardStats(indexShard, flags);
     }
 
-    static class IndexShardStatsRequest extends BroadcastShardOperationRequest {
+    public static class IndexShardStatsRequest extends BroadcastShardOperationRequest {
 
         // TODO if there are many indices, the request might hold a large indices array..., we don't really need to serialize it
         IndicesStatsRequest request;

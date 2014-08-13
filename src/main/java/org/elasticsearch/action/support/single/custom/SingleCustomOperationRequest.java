@@ -40,6 +40,10 @@ public abstract class SingleCustomOperationRequest<T extends SingleCustomOperati
     protected SingleCustomOperationRequest() {
     }
 
+    protected SingleCustomOperationRequest(ActionRequest request) {
+        super(request);
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         return null;

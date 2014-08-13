@@ -31,13 +31,16 @@ class IndexDeleteRequest extends IndexReplicationOperationRequest<IndexDeleteReq
     private final String id;
     private final boolean refresh;
     private final long version;
+    private final String originalIndex;
 
     IndexDeleteRequest(DeleteRequest request, String concreteIndex) {
-        super(concreteIndex, request.timeout(), request.replicationType(), request.consistencyLevel());
+        super(concreteIndex, request.timeout(), request.replicationType(), request.consistencyLevel(),
+                request.indices(), request.indicesOptions(), request);
         this.type = request.type();
         this.id = request.id();
         this.refresh = request.refresh();
         this.version = request.version();
+        this.originalIndex = request.index();
     }
 
     String type() {
@@ -54,5 +57,9 @@ class IndexDeleteRequest extends IndexReplicationOperationRequest<IndexDeleteReq
 
     long version() {
         return this.version;
+    }
+
+    String originalIndex() {
+        return originalIndex;
     }
 }

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.action.admin.indices.mapping.get;
 
+import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.single.custom.SingleCustomOperationRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -33,10 +35,13 @@ class GetFieldMappingsIndexRequest extends SingleCustomOperationRequest<GetField
     private String[] fields = Strings.EMPTY_ARRAY;
     private String[] types = Strings.EMPTY_ARRAY;
 
+    private OriginalIndices originalIndices;
+
     GetFieldMappingsIndexRequest() {
     }
 
     GetFieldMappingsIndexRequest(GetFieldMappingsRequest other, String index, boolean probablySingleFieldRequest) {
+        super(other);
         this.preferLocal(other.local);
         this.probablySingleFieldRequest = probablySingleFieldRequest;
         this.includeDefaults = other.includeDefaults();
@@ -44,6 +49,7 @@ class GetFieldMappingsIndexRequest extends SingleCustomOperationRequest<GetField
         this.fields = other.fields();
         assert index != null;
         this.index(index);
+        this.originalIndices = new OriginalIndices(other);
     }
 
     public String[] types() {
@@ -63,12 +69,23 @@ class GetFieldMappingsIndexRequest extends SingleCustomOperationRequest<GetField
     }
 
     @Override
+    public String[] indices() {
+        return originalIndices.indices();
+    }
+
+    @Override
+    public IndicesOptions indicesOptions() {
+        return originalIndices.indicesOptions();
+    }
+
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringArray(types);
         out.writeStringArray(fields);
         out.writeBoolean(includeDefaults);
         out.writeBoolean(probablySingleFieldRequest);
+        OriginalIndices.writeOriginalIndices(originalIndices, out);
     }
 
     @Override
@@ -83,6 +100,7 @@ class GetFieldMappingsIndexRequest extends SingleCustomOperationRequest<GetField
         fields = in.readStringArray();
         includeDefaults = in.readBoolean();
         probablySingleFieldRequest = in.readBoolean();
+        originalIndices = OriginalIndices.readOriginalIndices(in);
     }
 
     @Override

@@ -45,7 +45,7 @@ including the default values:
 [float]
 ==== Scope
 
-A `_scope` can be defined on the query allowing to run facets on the
+A `_scope` can be defined on the query allowing to run aggregations on the
 same scope name that will work against the child documents. For example:
 
 [source,js]

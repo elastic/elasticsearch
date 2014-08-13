@@ -20,7 +20,6 @@ package org.elasticsearch.percolator;
 
 import com.carrotsearch.hppc.ByteObjectOpenHashMap;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.index.memory.ExtendedMemoryIndex;
@@ -83,10 +82,6 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.AggregationPhase;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.facet.Facet;
-import org.elasticsearch.search.facet.FacetPhase;
-import org.elasticsearch.search.facet.InternalFacet;
-import org.elasticsearch.search.facet.InternalFacets;
 import org.elasticsearch.search.highlight.HighlightField;
 import org.elasticsearch.search.highlight.HighlightPhase;
 import org.elasticsearch.search.internal.SearchContext;
@@ -117,7 +112,6 @@ public class PercolatorService extends AbstractComponent {
     private final PercolatorIndex single;
     private final PercolatorIndex multi;
 
-    private final FacetPhase facetPhase;
     private final HighlightPhase highlightPhase;
     private final AggregationPhase aggregationPhase;
     private final SortParseElement sortParseElement;
@@ -129,7 +123,7 @@ public class PercolatorService extends AbstractComponent {
     @Inject
     public PercolatorService(Settings settings, IndicesService indicesService, CacheRecycler cacheRecycler,
                              PageCacheRecycler pageCacheRecycler, BigArrays bigArrays,
-                             HighlightPhase highlightPhase, ClusterService clusterService, FacetPhase facetPhase,
+                             HighlightPhase highlightPhase, ClusterService clusterService,
                              AggregationPhase aggregationPhase, ScriptService scriptService,
                              MappingUpdatedAction mappingUpdatedAction) {
         super(settings);
@@ -139,7 +133,6 @@ public class PercolatorService extends AbstractComponent {
         this.bigArrays = bigArrays;
         this.clusterService = clusterService;
         this.highlightPhase = highlightPhase;
-        this.facetPhase = facetPhase;
         this.aggregationPhase = aggregationPhase;
         this.scriptService = scriptService;
         this.mappingUpdatedAction = mappingUpdatedAction;
@@ -195,7 +188,7 @@ public class PercolatorService extends AbstractComponent {
                 throw new ElasticsearchIllegalArgumentException("Nothing to percolate");
             }
 
-            if (context.percolateQuery() == null && (context.trackScores() || context.doSort || context.facets() != null || context.aggregations() != null)) {
+            if (context.percolateQuery() == null && (context.trackScores() || context.doSort || context.aggregations() != null)) {
                 context.percolateQuery(new MatchAllDocsQuery());
             }
 
@@ -251,7 +244,6 @@ public class PercolatorService extends AbstractComponent {
 
         // TODO: combine all feature parse elements into one map
         Map<String, ? extends SearchParseElement> hlElements = highlightPhase.parseElements();
-        Map<String, ? extends SearchParseElement> facetElements = facetPhase.parseElements();
         Map<String, ? extends SearchParseElement> aggregationElements = aggregationPhase.parseElements();
 
         ParsedDocument doc = null;
@@ -289,10 +281,7 @@ public class PercolatorService extends AbstractComponent {
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     SearchParseElement element = hlElements.get(currentFieldName);
                     if (element == null) {
-                        element = facetElements.get(currentFieldName);
-                        if (element == null) {
-                            element = aggregationElements.get(currentFieldName);
-                        }
+                        element = aggregationElements.get(currentFieldName);
                     }
 
                     if ("query".equals(currentFieldName)) {
@@ -439,9 +428,8 @@ public class PercolatorService extends AbstractComponent {
             }
 
             assert !shardResults.isEmpty();
-            InternalFacets reducedFacets = reduceFacets(shardResults);
             InternalAggregations reducedAggregations = reduceAggregations(shardResults);
-            return new ReduceResult(finalCount, reducedFacets, reducedAggregations);
+            return new ReduceResult(finalCount, reducedAggregations);
         }
 
         @Override
@@ -533,9 +521,8 @@ public class PercolatorService extends AbstractComponent {
             }
 
             assert !shardResults.isEmpty();
-            InternalFacets reducedFacets = reduceFacets(shardResults);
             InternalAggregations reducedAggregations = reduceAggregations(shardResults);
-            return new ReduceResult(foundMatches, finalMatches.toArray(new PercolateResponse.Match[finalMatches.size()]), reducedFacets, reducedAggregations);
+            return new ReduceResult(foundMatches, finalMatches.toArray(new PercolateResponse.Match[finalMatches.size()]), reducedAggregations);
         }
 
         @Override
@@ -732,9 +719,8 @@ public class PercolatorService extends AbstractComponent {
             }
 
             assert !shardResults.isEmpty();
-            InternalFacets reducedFacets = reduceFacets(shardResults);
             InternalAggregations reducedAggregations = reduceAggregations(shardResults);
-            return new ReduceResult(foundMatches, finalMatches.toArray(new PercolateResponse.Match[finalMatches.size()]), reducedFacets, reducedAggregations);
+            return new ReduceResult(foundMatches, finalMatches.toArray(new PercolateResponse.Match[finalMatches.size()]), reducedAggregations);
         }
 
         @Override
@@ -794,13 +780,10 @@ public class PercolatorService extends AbstractComponent {
         percolatorTypeFilter = context.indexService().cache().filter().cache(percolatorTypeFilter);
         XFilteredQuery query = new XFilteredQuery(context.percolateQuery(), percolatorTypeFilter);
         percolatorSearcher.searcher().search(query, percolateCollector);
-        for (Collector queryCollector : percolateCollector.facetAndAggregatorCollector) {
+        for (Collector queryCollector : percolateCollector.aggregatorCollector) {
             if (queryCollector instanceof XCollector) {
                 ((XCollector) queryCollector).postCollection();
             }
-        }
-        if (context.facets() != null) {
-            facetPhase.execute(context);
         }
         if (context.aggregations() != null) {
             aggregationPhase.execute(context);
@@ -811,20 +794,17 @@ public class PercolatorService extends AbstractComponent {
 
         private final long count;
         private final PercolateResponse.Match[] matches;
-        private final InternalFacets reducedFacets;
         private final InternalAggregations reducedAggregations;
 
-        ReduceResult(long count, PercolateResponse.Match[] matches, InternalFacets reducedFacets, InternalAggregations reducedAggregations) {
+        ReduceResult(long count, PercolateResponse.Match[] matches, InternalAggregations reducedAggregations) {
             this.count = count;
             this.matches = matches;
-            this.reducedFacets = reducedFacets;
             this.reducedAggregations = reducedAggregations;
         }
 
-        public ReduceResult(long count, InternalFacets reducedFacets, InternalAggregations reducedAggregations) {
+        public ReduceResult(long count, InternalAggregations reducedAggregations) {
             this.count = count;
             this.matches = null;
-            this.reducedFacets = reducedFacets;
             this.reducedAggregations = reducedAggregations;
         }
 
@@ -836,43 +816,9 @@ public class PercolatorService extends AbstractComponent {
             return matches;
         }
 
-        public InternalFacets reducedFacets() {
-            return reducedFacets;
-        }
-
         public InternalAggregations reducedAggregations() {
             return reducedAggregations;
         }
-    }
-
-    private InternalFacets reduceFacets(List<PercolateShardResponse> shardResults) {
-        if (shardResults.get(0).facets() == null) {
-            return null;
-        }
-
-        if (shardResults.size() == 1) {
-            return shardResults.get(0).facets();
-        }
-
-        PercolateShardResponse firstShardResponse = shardResults.get(0);
-        List<Facet> aggregatedFacets = Lists.newArrayList();
-        List<Facet> namedFacets = Lists.newArrayList();
-        for (Facet facet : firstShardResponse.facets()) {
-            // aggregate each facet name into a single list, and aggregate it
-            namedFacets.clear();
-            for (PercolateShardResponse entry : shardResults) {
-                for (Facet facet1 : entry.facets()) {
-                    if (facet.getName().equals(facet1.getName())) {
-                        namedFacets.add(facet1);
-                    }
-                }
-            }
-            if (!namedFacets.isEmpty()) {
-                Facet aggregatedFacet = ((InternalFacet) namedFacets.get(0)).reduce(new InternalFacet.ReduceContext(cacheRecycler, namedFacets));
-                aggregatedFacets.add(aggregatedFacet);
-            }
-        }
-        return new InternalFacets(aggregatedFacets);
     }
 
     private InternalAggregations reduceAggregations(List<PercolateShardResponse> shardResults) {

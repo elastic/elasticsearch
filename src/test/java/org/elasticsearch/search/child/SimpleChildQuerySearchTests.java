@@ -42,7 +42,10 @@ import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.query.*;
 import org.elasticsearch.index.search.child.ScoreType;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.search.facet.terms.TermsFacet;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.bucket.filter.Filter;
+import org.elasticsearch.search.aggregations.bucket.global.Global;
+import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -63,7 +66,6 @@ import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.factorFunction;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
-import static org.elasticsearch.search.facet.FacetBuilders.termsFacet;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
@@ -544,22 +546,22 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         SearchResponse searchResponse = client()
                 .prepareSearch("test")
                 .setQuery(topChildrenQuery("child", boolQuery().should(termQuery("c_field", "red")).should(termQuery("c_field", "yellow"))))
-                .addFacet(
-                        termsFacet("facet1")
-                                .facetFilter(boolFilter().should(termFilter("c_field", "red")).should(termFilter("c_field", "yellow")))
-                                .field("c_field").global(true)).get();
+                .addAggregation(AggregationBuilders.global("global").subAggregation(
+                        AggregationBuilders.filter("filter").filter(boolFilter().should(termFilter("c_field", "red")).should(termFilter("c_field", "yellow"))).subAggregation(
+                                AggregationBuilders.terms("facet1").field("c_field")))).get();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
         assertThat(searchResponse.getHits().getAt(0).id(), anyOf(equalTo("p2"), equalTo("p1")));
         assertThat(searchResponse.getHits().getAt(1).id(), anyOf(equalTo("p2"), equalTo("p1")));
 
-        assertThat(searchResponse.getFacets().facets().size(), equalTo(1));
-        TermsFacet termsFacet = searchResponse.getFacets().facet("facet1");
-        assertThat(termsFacet.getEntries().size(), equalTo(2));
-        assertThat(termsFacet.getEntries().get(0).getTerm().string(), equalTo("red"));
-        assertThat(termsFacet.getEntries().get(0).getCount(), equalTo(2));
-        assertThat(termsFacet.getEntries().get(1).getTerm().string(), equalTo("yellow"));
-        assertThat(termsFacet.getEntries().get(1).getCount(), equalTo(1));
+        Global global = searchResponse.getAggregations().get("global");
+        Filter filter = global.getAggregations().get("filter");
+        Terms termsFacet = filter.getAggregations().get("facet1");
+        assertThat(termsFacet.getBuckets().size(), equalTo(2));
+        assertThat(termsFacet.getBuckets().get(0).getKey(), equalTo("red"));
+        assertThat(termsFacet.getBuckets().get(0).getDocCount(), equalTo(2L));
+        assertThat(termsFacet.getBuckets().get(1).getKey(), equalTo("yellow"));
+        assertThat(termsFacet.getBuckets().get(1).getDocCount(), equalTo(1L));
     }
 
     @Test

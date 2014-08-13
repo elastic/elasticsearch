@@ -29,8 +29,8 @@ Field names with the same name across types are highly recommended to
 have the same type and same mapping characteristics (analysis settings
 for example). There is an effort to allow to explicitly "choose" which
 field to use by using type prefix (`my_type.my_field`), but it's not
-complete, and there are places where it will never work (like faceting
-on the field).
+complete, and there are places where it will never work (like
+aggregations on the field).
 
 In practice though, this restriction is almost never an issue. The field
 name usually ends up being a good indication to its "typeness" (e.g.

@@ -49,9 +49,9 @@ import static org.elasticsearch.search.Scroll.readScroll;
  *  sort : { "name.first" : {}, "name.last" : { reverse : true } }
  *  fields : [ "name.first", "name.last" ]
  *  query : { ... }
- *  facets : {
- *      "facet1" : {
- *          query : { ... }
+ *  aggs : {
+ *      "agg1" : {
+ *          terms : { ... }
  *      }
  *  }
  * }

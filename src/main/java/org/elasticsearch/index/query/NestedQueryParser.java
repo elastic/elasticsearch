@@ -91,8 +91,6 @@ public class NestedQueryParser implements QueryParser {
                         path = parser.text();
                     } else if ("boost".equals(currentFieldName)) {
                         boost = parser.floatValue();
-                    } else if ("_scope".equals(currentFieldName)) {
-                        throw new QueryParsingException(parseContext.index(), "the [_scope] support in [nested] query has been removed, use nested filter as a facet_filter in the relevant facet");
                     } else if ("score_mode".equals(currentFieldName) || "scoreMode".equals(currentFieldName)) {
                         String sScoreMode = parser.text();
                         if ("avg".equals(sScoreMode)) {

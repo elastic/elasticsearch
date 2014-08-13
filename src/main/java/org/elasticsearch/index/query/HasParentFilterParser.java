@@ -90,8 +90,6 @@ public class HasParentFilterParser implements FilterParser {
             } else if (token.isValue()) {
                 if ("type".equals(currentFieldName) || "parent_type".equals(currentFieldName) || "parentType".equals(currentFieldName)) {
                     parentType = parser.text();
-                } else if ("_scope".equals(currentFieldName)) {
-                    throw new QueryParsingException(parseContext.index(), "the [_scope] support in [has_parent] filter has been removed, use a filter as a facet_filter in the relevant global facet");
                 } else if ("_name".equals(currentFieldName)) {
                     filterName = parser.text();
                 } else if ("_cache".equals(currentFieldName)) {

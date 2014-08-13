@@ -21,7 +21,6 @@ package org.elasticsearch.search.controller;
 
 import com.carrotsearch.hppc.IntArrayList;
 import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
-import com.google.common.collect.Lists;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
 import org.elasticsearch.action.search.SearchRequest;
@@ -38,9 +37,6 @@ import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.dfs.DfsSearchResult;
-import org.elasticsearch.search.facet.Facet;
-import org.elasticsearch.search.facet.InternalFacet;
-import org.elasticsearch.search.facet.InternalFacets;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.FetchSearchResultProvider;
 import org.elasticsearch.search.internal.InternalSearchHit;
@@ -71,7 +67,6 @@ public class SearchPhaseController extends AbstractComponent {
 
     public static final ScoreDoc[] EMPTY_DOCS = new ScoreDoc[0];
 
-    private final CacheRecycler cacheRecycler;
     private final BigArrays bigArrays;
     private final boolean optimizeSingleShard;
 
@@ -80,7 +75,6 @@ public class SearchPhaseController extends AbstractComponent {
     @Inject
     public SearchPhaseController(Settings settings, CacheRecycler cacheRecycler, BigArrays bigArrays, ScriptService scriptService) {
         super(settings);
-        this.cacheRecycler = cacheRecycler;
         this.bigArrays = bigArrays;
         this.scriptService = scriptService;
         this.optimizeSingleShard = componentSettings.getAsBoolean("optimize_single_shard", true);
@@ -293,32 +287,6 @@ public class SearchPhaseController extends AbstractComponent {
             }
         }
 
-        // merge facets
-        InternalFacets facets = null;
-        if (!queryResults.isEmpty()) {
-            // we rely on the fact that the order of facets is the same on all query results
-            if (firstResult.facets() != null && firstResult.facets().facets() != null && !firstResult.facets().facets().isEmpty()) {
-                List<Facet> aggregatedFacets = Lists.newArrayList();
-                List<Facet> namedFacets = Lists.newArrayList();
-                for (Facet facet : firstResult.facets()) {
-                    // aggregate each facet name into a single list, and aggregate it
-                    namedFacets.clear();
-                    for (AtomicArray.Entry<? extends QuerySearchResultProvider> entry : queryResults) {
-                        for (Facet facet1 : entry.value.queryResult().facets()) {
-                            if (facet.getName().equals(facet1.getName())) {
-                                namedFacets.add(facet1);
-                            }
-                        }
-                    }
-                    if (!namedFacets.isEmpty()) {
-                        Facet aggregatedFacet = ((InternalFacet) namedFacets.get(0)).reduce(new InternalFacet.ReduceContext(cacheRecycler, namedFacets));
-                        aggregatedFacets.add(aggregatedFacet);
-                    }
-                }
-                facets = new InternalFacets(aggregatedFacets);
-            }
-        }
-
         // count the total (we use the query result provider here, since we might not get any hits (we scrolled past them))
         long totalHits = 0;
         float maxScore = Float.NEGATIVE_INFINITY;
@@ -410,7 +378,7 @@ public class SearchPhaseController extends AbstractComponent {
 
         InternalSearchHits searchHits = new InternalSearchHits(hits.toArray(new InternalSearchHit[hits.size()]), totalHits, maxScore);
 
-        return new InternalSearchResponse(searchHits, facets, aggregations, suggest, timedOut, terminatedEarly);
+        return new InternalSearchResponse(searchHits, aggregations, suggest, timedOut, terminatedEarly);
     }
 
 }

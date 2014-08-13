@@ -30,7 +30,6 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.aggregations.AggregationPhase;
-import org.elasticsearch.search.facet.FacetPhase;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rescore.RescorePhase;
@@ -46,14 +45,12 @@ import java.util.Map;
  */
 public class QueryPhase implements SearchPhase {
 
-    private final FacetPhase facetPhase;
     private final AggregationPhase aggregationPhase;
     private final SuggestPhase suggestPhase;
     private RescorePhase rescorePhase;
 
     @Inject
-    public QueryPhase(FacetPhase facetPhase, AggregationPhase aggregationPhase, SuggestPhase suggestPhase, RescorePhase rescorePhase) {
-        this.facetPhase = facetPhase;
+    public QueryPhase(AggregationPhase aggregationPhase, SuggestPhase suggestPhase, RescorePhase rescorePhase) {
         this.aggregationPhase = aggregationPhase;
         this.suggestPhase = suggestPhase;
         this.rescorePhase = rescorePhase;
@@ -80,7 +77,6 @@ public class QueryPhase implements SearchPhase {
                 .put("minScore", new MinScoreParseElement())
                 .put("timeout", new TimeoutParseElement())
                 .put("terminate_after", new TerminateAfterParseElement())
-                .putAll(facetPhase.parseElements())
                 .putAll(aggregationPhase.parseElements())
                 .putAll(suggestPhase.parseElements())
                 .putAll(rescorePhase.parseElements());
@@ -93,10 +89,9 @@ public class QueryPhase implements SearchPhase {
     }
 
     public void execute(SearchContext searchContext) throws QueryPhaseExecutionException {
-        // Pre-process facets and aggregations as late as possible. In the case of a DFS_Q_T_F
+        // Pre-process aggregations as late as possible. In the case of a DFS_Q_T_F
         // request, preProcess is called on the DFS phase phase, this is why we pre-process them
         // here to make sure it happens during the QUERY phase
-        facetPhase.preProcess(searchContext);
         aggregationPhase.preProcess(searchContext);
 
         searchContext.queryResult().searchTimedOut(false);
@@ -168,7 +163,6 @@ public class QueryPhase implements SearchPhase {
             rescorePhase.execute(searchContext);
         }
         suggestPhase.execute(searchContext);
-        facetPhase.execute(searchContext);
         aggregationPhase.execute(searchContext);
     }
 }

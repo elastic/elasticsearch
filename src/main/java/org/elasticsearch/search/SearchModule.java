@@ -30,7 +30,6 @@ import org.elasticsearch.search.aggregations.AggregationModule;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificantTermsHeuristicModule;
 import org.elasticsearch.search.controller.SearchPhaseController;
 import org.elasticsearch.search.dfs.DfsPhase;
-import org.elasticsearch.search.facet.FacetModule;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.explain.ExplainFetchSubPhase;
 import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsFetchSubPhase;
@@ -51,7 +50,7 @@ public class SearchModule extends AbstractModule implements SpawnModules {
 
     @Override
     public Iterable<? extends Module> spawnModules() {
-        return ImmutableList.of(new TransportSearchModule(), new FacetModule(), new HighlightModule(), new SuggestModule(), new FunctionScoreModule(), new AggregationModule(), new SignificantTermsHeuristicModule());
+        return ImmutableList.of(new TransportSearchModule(), new HighlightModule(), new SuggestModule(), new FunctionScoreModule(), new AggregationModule(), new SignificantTermsHeuristicModule());
     }
 
     @Override

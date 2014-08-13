@@ -39,7 +39,7 @@ import org.elasticsearch.index.query.MatchQueryBuilder.Type;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.facet.FacetBuilders;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -786,7 +786,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
 
         MultiMatchQueryBuilder builder = multiMatchQuery("value1 value2 value4", "field1", "field2");
         SearchResponse searchResponse = client().prepareSearch().setQuery(builder)
-                .addFacet(FacetBuilders.termsFacet("field1").field("field1")).get();
+                .addAggregation(AggregationBuilders.terms("field1").field("field1")).get();
 
         assertHitCount(searchResponse, 2l);
         // this uses dismax so scores are equal and the order can be arbitrary

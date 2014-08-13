@@ -41,10 +41,10 @@ public class TriggerManager extends AbstractComponent {
             logger.warn("Could not find alert named [{}] in alert manager perhaps it has been deleted.", alertName);
             return false;
         }
-        int testValue;
+        long testValue;
         switch (alert.trigger().triggerType()) {
             case NUMBER_OF_EVENTS:
-                testValue = response.getHits().getHits().length;
+                testValue = response.getHits().getTotalHits();
                 break;
             default:
                 throw new ElasticsearchIllegalArgumentException("Bad value for trigger.triggerType [" + alert.trigger().triggerType() + "]");

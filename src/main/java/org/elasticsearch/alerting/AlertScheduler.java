@@ -5,21 +5,15 @@
  */
 package org.elasticsearch.alerting;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.indexedscripts.get.GetIndexedScriptResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.*;
-import org.elasticsearch.script.CompiledScript;
-import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptService;
 import org.quartz.*;
 import org.quartz.impl.StdSchedulerFactory;
@@ -27,25 +21,21 @@ import org.quartz.simpl.SimpleJobFactory;
 
 import java.io.IOException;
 import java.util.Date;
-import java.util.HashMap;
-import java.util.Map;
 
 public class AlertScheduler extends AbstractLifecycleComponent {
 
     Scheduler scheduler = null;
     private final AlertManager alertManager;
     private final Client client;
-    private final ScriptService scriptService;
     private final TriggerManager triggerManager;
     private final AlertActionManager actionManager;
 
     @Inject
-    public AlertScheduler(Settings settings, AlertManager alertManager, ScriptService scriptService, Client client,
+    public AlertScheduler(Settings settings, AlertManager alertManager, Client client,
                           TriggerManager triggerManager, AlertActionManager actionManager) {
         super(settings);
         this.alertManager = alertManager;
         this.client = client;
-        this.scriptService = scriptService;
         this.triggerManager = triggerManager;
         this.actionManager = actionManager;
         try {
@@ -66,18 +56,24 @@ public class AlertScheduler extends AbstractLifecycleComponent {
             logger.warn("Running the following query : [{}]", builder.string());
 
             SearchRequestBuilder srb = client.prepareSearch().setSource(builder);
+            String[] indices = alert.indices().toArray(new String[0]);
             if (alert.indices() != null ){
-                srb.setIndices(alert.indices().toArray(new String[0]));
+                logger.warn("Setting indices to : " + alert.indices());
+                srb.setIndices(indices);
             }
             SearchResponse sr = srb.execute().get();
-            logger.warn("Got search response");
+            logger.warn("Got search response hits : [{}]", sr.getHits().getTotalHits() );
             AlertResult result = new AlertResult();
+            //TODO: move these to ctr
             result.isTriggered = triggerManager.isTriggered(alertName,sr);
-
             result.searchResponse = sr;
+            result.trigger = alert.trigger();
+            result.query = builder;
+            result.indices = indices;
+
             if (result.isTriggered) {
                 logger.warn("We have triggered");
-                //actionManager.doAction(alertName,result);
+                actionManager.doAction(alertName,result);
                 logger.warn("Did action !");
             }else{
                 logger.warn("We didn't trigger");
@@ -94,7 +90,6 @@ public class AlertScheduler extends AbstractLifecycleComponent {
         Date scheduledFireTime = jobExecutionContext.getScheduledFireTime();
         DateTime clampEnd = new DateTime(scheduledFireTime);
         DateTime clampStart = clampEnd.minusSeconds((int)alert.timePeriod().seconds());
-        logger.error("Subtracting : [{}] seconds from [{}] = [{}]", (int)alert.timePeriod().seconds(), clampEnd, clampStart );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         builder.startObject();

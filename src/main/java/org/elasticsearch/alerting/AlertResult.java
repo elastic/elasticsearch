@@ -6,11 +6,16 @@
 package org.elasticsearch.alerting;
 
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+
+import java.util.Arrays;
 
 public class AlertResult {
     public SearchResponse searchResponse;
     public AlertTrigger trigger;
     public boolean isTriggered;
+    public XContentBuilder query;
+    public String[] indices;
 
     @Override
     public boolean equals(Object o) {
@@ -20,17 +25,23 @@ public class AlertResult {
         AlertResult that = (AlertResult) o;
 
         if (isTriggered != that.isTriggered) return false;
-        if (!searchResponse.equals(that.searchResponse)) return false;
-        if (!trigger.equals(that.trigger)) return false;
+        if (!Arrays.equals(indices, that.indices)) return false;
+        if (query != null ? !query.equals(that.query) : that.query != null) return false;
+        if (searchResponse != null ? !searchResponse.equals(that.searchResponse) : that.searchResponse != null)
+            return false;
+        if (trigger != null ? !trigger.equals(that.trigger) : that.trigger != null) return false;
 
         return true;
     }
 
     @Override
     public int hashCode() {
-        int result = searchResponse.hashCode();
-        result = 31 * result + trigger.hashCode();
+        int result = searchResponse != null ? searchResponse.hashCode() : 0;
+        result = 31 * result + (trigger != null ? trigger.hashCode() : 0);
         result = 31 * result + (isTriggered ? 1 : 0);
+        result = 31 * result + (query != null ? query.hashCode() : 0);
+        result = 31 * result + (indices != null ? Arrays.hashCode(indices) : 0);
         return result;
     }
+
 }

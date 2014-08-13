@@ -46,6 +46,10 @@ public class AlertTrigger {
         this.value = value;
     }
 
+    public String toString(){
+        return triggerType + " "  + trigger + " " + value;
+    }
+
     public static enum SimpleTrigger {
         EQUAL,
         NOT_EQUAL,
@@ -54,8 +58,8 @@ public class AlertTrigger {
         RISES_BY,
         FALLS_BY;
 
-        public static SimpleTrigger fromString(final String sAction) {
-            switch (sAction) {
+        public static SimpleTrigger fromString(final String sTrigger) {
+            switch (sTrigger) {
                 case ">":
                     return GREATER_THAN;
                 case "<":
@@ -70,8 +74,31 @@ public class AlertTrigger {
                 case "<-":
                     return FALLS_BY;
                 default:
-                    throw new ElasticsearchIllegalArgumentException("Unknown AlertAction:SimpleAction [" + sAction + "]");
+                    throw new ElasticsearchIllegalArgumentException("Unknown AlertAction:SimpleAction [" + sTrigger + "]");
             }
+        }
+
+        public static String asString(final SimpleTrigger trigger){
+            switch (trigger) {
+                case GREATER_THAN:
+                    return ">";
+                case LESS_THAN:
+                    return "<";
+                case EQUAL:
+                    return "==";
+                case NOT_EQUAL:
+                    return "!=";
+                case RISES_BY:
+                    return "->";
+                case FALLS_BY:
+                    return "<-";
+                default:
+                    return "?";
+            }
+        }
+
+        public String toString(){
+            return asString(this);
         }
     }
 
@@ -85,6 +112,19 @@ public class AlertTrigger {
                 default:
                     throw new ElasticsearchIllegalArgumentException("Unknown AlertTrigger:TriggerType [" + sTriggerType + "]");
             }
+        }
+
+        public static String asString(final TriggerType triggerType){
+            switch (triggerType) {
+                case NUMBER_OF_EVENTS:
+                    return "numberOfEvents";
+                default:
+                    return "unknown";
+            }
+        }
+
+        public String toString(){
+            return asString(this);
         }
     }
 

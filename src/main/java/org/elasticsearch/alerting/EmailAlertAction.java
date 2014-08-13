@@ -6,10 +6,13 @@
 package org.elasticsearch.alerting;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Properties;
 import javax.mail.*;
 import javax.mail.internet.AddressException;
@@ -18,6 +21,7 @@ import javax.mail.internet.MimeMessage;
 
 public class EmailAlertAction implements AlertAction {
     List<Address> emailAddresses = new ArrayList<>();
+    String displayField = null;
 
     String from = "esalertingtest@gmail.com";
     String passwd = "elasticsearchforthewin";
@@ -39,6 +43,10 @@ public class EmailAlertAction implements AlertAction {
         }
     }
 
+    public void displayField(String displayField){
+        this.displayField = displayField;
+    }
+
     @Override
     public boolean doAction(String alertName, AlertResult result) {
         Properties props = new Properties();
@@ -57,13 +65,36 @@ public class EmailAlertAction implements AlertAction {
             message.setFrom(new InternetAddress(from));
             message.setRecipients(Message.RecipientType.TO,
                     emailAddresses.toArray(new Address[1]));
-            message.setSubject("Elasticsearch Alert from " + alertName);
-            message.setText(result.searchResponse.toString());
+            message.setSubject("Elasticsearch Alert " + alertName + " triggered");
+            StringBuffer output = new StringBuffer();
+            output.append("The following query triggered because " + result.trigger.toString() + "\n");
+            output.append("The total number of hits returned : " + result.searchResponse.getHits().getTotalHits() + "\n");
+            output.append("For query : " + XContentHelper.convertToJson(result.query.bytes(),true,true) + "\n");
+            output.append("\n");
+            output.append("Indices : ");
+            for (String index : result.indices) {
+                output.append(index);
+                output.append("/");
+            }
+            output.append("\n");
+            output.append("\n");
+            if (displayField != null) {
+                for (SearchHit sh : result.searchResponse.getHits().getHits()) {
+                    if (sh.sourceAsMap().containsKey(displayField)) {
+                        output.append(sh.sourceAsMap().get(displayField).toString());
+                    } else {
+                        output.append(new String(sh.source()));
+                    }
+                    output.append("\n");
+                }
+            } else {
+                output.append(result.searchResponse.toString());
+            }
+            message.setText(output.toString());
             Transport.send(message);
         } catch (Exception e){
             throw new ElasticsearchException("Failed to send mail", e);
         }
-
         return true;
     }
 }

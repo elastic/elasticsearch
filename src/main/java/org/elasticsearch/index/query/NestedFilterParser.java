@@ -59,7 +59,6 @@ public class NestedFilterParser implements FilterParser {
         Filter filter = null;
         boolean filterFound = false;
         float boost = 1.0f;
-        boolean join = true;
         String path = null;
         boolean cache = false;
         CacheKeyFilter.Key cacheKey = null;
@@ -88,14 +87,10 @@ public class NestedFilterParser implements FilterParser {
                         throw new QueryParsingException(parseContext.index(), "[nested] filter does not support [" + currentFieldName + "]");
                     }
                 } else if (token.isValue()) {
-                    if ("join".equals(currentFieldName)) {
-                        join = parser.booleanValue();
-                    } else if ("path".equals(currentFieldName)) {
+                    if ("path".equals(currentFieldName)) {
                         path = parser.text();
                     } else if ("boost".equals(currentFieldName)) {
                         boost = parser.floatValue();
-                    } else if ("_scope".equals(currentFieldName)) {
-                        throw new QueryParsingException(parseContext.index(), "the [_scope] support in [nested] filter has been removed, use nested filter as a facet_filter in the relevant facet");
                     } else if ("_name".equals(currentFieldName)) {
                         filterName = parser.text();
                     } else if ("_cache".equals(currentFieldName)) {
@@ -155,13 +150,7 @@ public class NestedFilterParser implements FilterParser {
             // expects FixedBitSet instances
             parentFilter = new FixedBitSetCachingWrapperFilter(parentFilter);
 
-            Filter nestedFilter;
-            if (join) {
-                ToParentBlockJoinQuery joinQuery = new ToParentBlockJoinQuery(query, parentFilter, ScoreMode.None);
-                nestedFilter = Queries.wrap(joinQuery);
-            } else {
-                nestedFilter = Queries.wrap(query);
-            }
+            Filter nestedFilter = Queries.wrap(new ToParentBlockJoinQuery(query, parentFilter, ScoreMode.None));
 
             if (cache) {
                 nestedFilter = parseContext.cacheFilter(nestedFilter, cacheKey);

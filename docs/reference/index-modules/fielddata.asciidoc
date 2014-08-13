@@ -1,8 +1,8 @@
 [[index-modules-fielddata]]
 == Field data
 
-The field data cache is used mainly when sorting on or faceting on a
-field. It loads all the field values to memory in order to provide fast
+The field data cache is used mainly when sorting on or computing aggregations
+on a field. It loads all the field values to memory in order to provide fast
 document based access to those values. The field data cache can be
 expensive to build for a field, so its recommended to have enough memory
 to allocate it, and to keep it loaded.

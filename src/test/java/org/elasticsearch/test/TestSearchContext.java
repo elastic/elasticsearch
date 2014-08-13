@@ -45,7 +45,6 @@ import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.dfs.DfsSearchResult;
-import org.elasticsearch.search.facet.SearchContextFacets;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsContext;
 import org.elasticsearch.search.fetch.partial.PartialFieldsContext;
@@ -179,16 +178,6 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public SearchContext scroll(Scroll scroll) {
-        return null;
-    }
-
-    @Override
-    public SearchContextFacets facets() {
-        return null;
-    }
-
-    @Override
-    public SearchContext facets(SearchContextFacets facets) {
         return null;
     }
 

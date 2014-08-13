@@ -27,8 +27,8 @@ complex (and interesting) queries.
 
 Both queries and filters can be used in different APIs. For example,
 within a <<search-request-query,search query>>, or
-as a <<search-facets,facet filter>>. This
-section explains the components (queries and filters) that can form the
+as an <<search-aggregations-bucket-filter-aggregation,aggregation filter>>.
+This section explains the components (queries and filters) that can form the
 AST one can use.
 
 Filters are very handy since they perform an order of magnitude better

@@ -34,9 +34,10 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.script.ScriptScoreFunctionBuilder;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.bucket.filter.Filter;
+import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.facet.FacetBuilders;
-import org.elasticsearch.search.facet.query.QueryFacet;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
@@ -50,6 +51,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.query.FilterBuilders.termFilter;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
@@ -343,15 +345,19 @@ public class TransportTwoNodesSearchTests extends ElasticsearchIntegrationTest {
         SearchSourceBuilder sourceBuilder = searchSource()
                 .query(termQuery("multi", "test"))
                 .from(0).size(20).explain(true)
-                .facet(FacetBuilders.queryFacet("all", termQuery("multi", "test")).global(true))
-                .facet(FacetBuilders.queryFacet("test1", termQuery("name", "test1")));
+                .aggregation(AggregationBuilders.global("global").subAggregation(
+                        AggregationBuilders.filter("all").filter(termFilter("multi", "test"))))
+                .aggregation(AggregationBuilders.filter("test1").filter(termFilter("name", "test1")));
 
         SearchResponse searchResponse = client().search(searchRequest("test").source(sourceBuilder)).actionGet();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(100l));
 
-        assertThat(searchResponse.getFacets().facet(QueryFacet.class, "test1").getCount(), equalTo(1l));
-        assertThat(searchResponse.getFacets().facet(QueryFacet.class, "all").getCount(), equalTo(100l));
+        Global global = searchResponse.getAggregations().get("global");
+        Filter all = global.getAggregations().get("all");
+        Filter test1 = searchResponse.getAggregations().get("test1");
+        assertThat(test1.getDocCount(), equalTo(1l));
+        assertThat(all.getDocCount(), equalTo(100l));
     }
 
     @Test

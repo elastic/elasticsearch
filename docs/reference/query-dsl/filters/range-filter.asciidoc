@@ -71,7 +71,7 @@ In general for small ranges the `index` execution is faster and for longer range
 
 The `fielddata` execution as the same suggests uses field data and therefor requires more memory, so make you have
 sufficient memory on your nodes in order to use this execution mode. It usually makes sense to use it on fields  you're
-already faceting or sorting by.
+already aggregating or sorting by.
 
 [float]
 ==== Caching

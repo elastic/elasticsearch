@@ -53,7 +53,6 @@ import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.dfs.DfsSearchResult;
-import org.elasticsearch.search.facet.SearchContextFacets;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsContext;
@@ -106,7 +105,6 @@ public class PercolateContext extends SearchContext {
     private boolean queryRewritten;
     private Query percolateQuery;
     private FetchSubPhase.HitContext hitContext;
-    private SearchContextFacets facets;
     private SearchContextAggregations aggregations;
     private QuerySearchResult querySearchResult;
     private Sort sort;
@@ -270,17 +268,6 @@ public class PercolateContext extends SearchContext {
     @Override
     public SearchContext aggregations(SearchContextAggregations aggregations) {
         this.aggregations = aggregations;
-        return this;
-    }
-
-    @Override
-    public SearchContextFacets facets() {
-        return facets;
-    }
-
-    @Override
-    public SearchContext facets(SearchContextFacets facets) {
-        this.facets = facets;
         return this;
     }
 

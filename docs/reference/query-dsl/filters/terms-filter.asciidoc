@@ -39,7 +39,7 @@ The `execution` option now has the following options :
     Generates a terms filters that uses the fielddata cache to
     compare terms.  This execution mode is great to use when filtering
     on a field that is already loaded into the fielddata cache from 
-    faceting, sorting, or index warmers.  When filtering on
+    aggregating, sorting, or index warmers.  When filtering on
     a large number of terms, this execution can be considerably faster
     than the other modes.  The total filter is not cached unless
     explicitly configured to do so.

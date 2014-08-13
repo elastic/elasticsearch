@@ -166,10 +166,10 @@ public class TransportExistsAction extends TransportBroadcastOperationAction<Exi
 
     @Override
     protected ShardExistsResponse shardOperation(ShardExistsRequest request) throws ElasticsearchException {
-        IndexService indexService = indicesService.indexServiceSafe(request.index());
-        IndexShard indexShard = indexService.shardSafe(request.shardId());
+        IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
+        IndexShard indexShard = indexService.shardSafe(request.shardId().id());
 
-        SearchShardTarget shardTarget = new SearchShardTarget(clusterService.localNode().id(), request.index(), request.shardId());
+        SearchShardTarget shardTarget = new SearchShardTarget(clusterService.localNode().id(), request.shardId().getIndex(), request.shardId().id());
         SearchContext context = new DefaultSearchContext(0,
                 new ShardSearchRequest().types(request.types())
                         .filteringAliases(request.filteringAliases())
@@ -195,7 +195,7 @@ public class TransportExistsAction extends TransportBroadcastOperationAction<Exi
             try {
                 Lucene.EarlyTerminatingCollector existsCollector = Lucene.createExistsCollector();
                 Lucene.exists(context.searcher(), context.query(), existsCollector);
-                return new ShardExistsResponse(request.index(), request.shardId(), existsCollector.exists());
+                return new ShardExistsResponse(request.shardId(), existsCollector.exists());
             } catch (Exception e) {
                 throw new QueryPhaseExecutionException(context, "failed to execute exists", e);
             }

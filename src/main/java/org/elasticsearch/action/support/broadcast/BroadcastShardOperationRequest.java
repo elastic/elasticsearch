@@ -47,10 +47,6 @@ public abstract class BroadcastShardOperationRequest extends TransportRequest im
         this.shardId = shardId;
     }
 
-    public String index() {
-        return this.shardId.getIndex();
-    }
-
     @Override
     public String[] indices() {
         return new String[]{shardId.getIndex()};
@@ -61,8 +57,8 @@ public abstract class BroadcastShardOperationRequest extends TransportRequest im
         return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
     }
 
-    public int shardId() {
-        return this.shardId.id();
+    public ShardId shardId() {
+        return this.shardId;
     }
 
     @Override

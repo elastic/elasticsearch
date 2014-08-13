@@ -44,7 +44,7 @@ public class ShardStats extends BroadcastShardOperationResponse implements ToXCo
     }
 
     public ShardStats(IndexShard indexShard, CommonStatsFlags flags) {
-        super(indexShard.routingEntry().index(), indexShard.routingEntry().id());
+        super(indexShard.routingEntry().shardId());
         this.shardRouting = indexShard.routingEntry();
         this.stats = new CommonStats(indexShard, flags);
     }

@@ -142,10 +142,10 @@ public class TransportRecoveryAction extends
     @Override
     protected ShardRecoveryResponse shardOperation(ShardRecoveryRequest request) throws ElasticsearchException {
 
-        InternalIndexService indexService = (InternalIndexService) indicesService.indexServiceSafe(request.index());
-        InternalIndexShard indexShard = (InternalIndexShard) indexService.shardSafe(request.shardId());
+        InternalIndexService indexService = (InternalIndexService) indicesService.indexServiceSafe(request.shardId().getIndex());
+        InternalIndexShard indexShard = (InternalIndexShard) indexService.shardSafe(request.shardId().id());
         ShardRouting shardRouting = indexShard.routingEntry();
-        ShardRecoveryResponse shardRecoveryResponse = new ShardRecoveryResponse(shardRouting.index(), shardRouting.id());
+        ShardRecoveryResponse shardRecoveryResponse = new ShardRecoveryResponse(request.shardId());
 
         RecoveryState state;
         RecoveryStatus recoveryStatus = indexShard.recoveryStatus();
@@ -158,7 +158,7 @@ public class TransportRecoveryAction extends
             state = recoveryStatus.recoveryState();
         } else {
             IndexShardGatewayService gatewayService =
-                    indexService.shardInjector(request.shardId()).getInstance(IndexShardGatewayService.class);
+                    indexService.shardInjector(request.shardId().id()).getInstance(IndexShardGatewayService.class);
             state = gatewayService.recoveryState();
         }
 

@@ -42,8 +42,8 @@ public class ShardSegments extends BroadcastShardOperationResponse implements It
     ShardSegments() {
     }
 
-    public ShardSegments(ShardRouting shardRouting, List<Segment> segments) {
-        super(shardRouting.index(), shardRouting.id());
+    ShardSegments(ShardRouting shardRouting, List<Segment> segments) {
+        super(shardRouting.shardId());
         this.shardRouting = shardRouting;
         this.segments = segments;
     }

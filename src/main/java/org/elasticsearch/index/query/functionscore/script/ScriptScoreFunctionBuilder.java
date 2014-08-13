@@ -80,7 +80,7 @@ public class ScriptScoreFunctionBuilder extends ScoreFunctionBuilder {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(getName());
         builder.field("script", script);
         if (lang != null) {
@@ -89,7 +89,7 @@ public class ScriptScoreFunctionBuilder extends ScoreFunctionBuilder {
         if (this.params != null) {
             builder.field("params", this.params);
         }
-        return builder.endObject();
+        builder.endObject();
     }
 
     @Override

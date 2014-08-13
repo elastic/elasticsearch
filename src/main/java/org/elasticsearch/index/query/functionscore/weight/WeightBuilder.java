@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query.functionscore.weight;
 
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 
@@ -29,14 +30,13 @@ import java.io.IOException;
  */
 public class WeightBuilder extends ScoreFunctionBuilder {
 
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        buildWeight(builder);
-        return builder;
-    }
 
     @Override
     public String getName() {
         throw new UnsupportedOperationException("weight factor is never supposed to be parsed");
+    }
+
+    @Override
+    protected void doXContent(XContentBuilder builder, Params params) throws IOException {
     }
 }

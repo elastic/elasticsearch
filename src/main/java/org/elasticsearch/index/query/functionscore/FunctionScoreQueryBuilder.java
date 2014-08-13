@@ -142,7 +142,6 @@ public class FunctionScoreQueryBuilder extends BaseQueryBuilder implements Boost
                 filters.get(i).toXContent(builder, params);
             }
             scoreFunctions.get(i).toXContent(builder, params);
-            scoreFunctions.get(i).buildWeight(builder);
             builder.endObject();
         }
         builder.endArray();

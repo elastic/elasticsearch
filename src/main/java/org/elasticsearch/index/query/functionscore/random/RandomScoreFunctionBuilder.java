@@ -50,12 +50,12 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(getName());
         if (seed != null) {
             builder.field("seed", seed.intValue());
         }
-        return builder.endObject();
+        builder.endObject();
     }
 
 }

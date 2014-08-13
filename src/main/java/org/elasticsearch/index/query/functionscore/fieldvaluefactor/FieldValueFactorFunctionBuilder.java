@@ -55,7 +55,7 @@ public class FieldValueFactorFunctionBuilder extends ScoreFunctionBuilder {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(getName());
         if (field != null) {
             builder.field("field", field);
@@ -69,6 +69,5 @@ public class FieldValueFactorFunctionBuilder extends ScoreFunctionBuilder {
             builder.field("modifier", modifier.toString().toLowerCase(Locale.ROOT));
         }
         builder.endObject();
-        return builder;
     }
 }

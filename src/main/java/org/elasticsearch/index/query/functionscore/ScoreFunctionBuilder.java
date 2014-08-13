@@ -35,9 +35,18 @@ public abstract class ScoreFunctionBuilder implements ToXContent {
 
     public abstract String getName();
 
-    public void buildWeight(XContentBuilder builder) throws IOException {
+    protected void buildWeight(XContentBuilder builder) throws IOException {
         if (weight != null) {
             builder.field(FunctionScoreQueryParser.WEIGHT_FIELD.getPreferredName(), weight);
         }
     }
+
+    @Override
+    public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        buildWeight(builder);
+        doXContent(builder, params);
+        return builder;
+    }
+
+    protected abstract void doXContent(XContentBuilder builder, Params params) throws IOException;
 }

@@ -45,11 +45,10 @@ public class FactorBuilder extends ScoreFunctionBuilder {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    public void doXContent(XContentBuilder builder, Params params) throws IOException {
         if (boostFactor != null) {
             builder.field("boost_factor", boostFactor.floatValue());
         }
-        return builder;
     }
 
     @Override

@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.plugin;
+package org.elasticsearch.plugins;
 
 import com.google.common.base.Predicate;
 import org.apache.http.impl.client.HttpClients;
@@ -33,7 +33,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
-import org.elasticsearch.plugins.PluginManager;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;

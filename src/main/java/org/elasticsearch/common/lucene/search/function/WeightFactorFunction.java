@@ -72,29 +72,6 @@ public class WeightFactorFunction extends ScoreFunction {
         return functionScoreExplanation;
     }
 
-    @Override
-    public boolean equals(Object o) {
-        if (this == o)
-            return true;
-        if (o == null || getClass() != o.getClass())
-            return false;
-
-        WeightFactorFunction that = (WeightFactorFunction) o;
-        if (!scoreFunction.equals(that.scoreFunction)) {
-            return false;
-        }
-
-        if (that.getWeight() != getWeight())
-            return false;
-
-        return true;
-    }
-
-    @Override
-    public int hashCode() {
-        return (getWeight() != +0.0f ? Float.floatToIntBits((float) getWeight()) : 0);
-    }
-
     public Explanation explainWeight() {
         return new Explanation((float) getWeight(), "weight");
     }

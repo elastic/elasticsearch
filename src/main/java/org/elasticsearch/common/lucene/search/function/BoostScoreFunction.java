@@ -61,26 +61,6 @@ public class BoostScoreFunction extends ScoreFunction {
     }
 
     @Override
-    public boolean equals(Object o) {
-        if (this == o)
-            return true;
-        if (o == null || getClass() != o.getClass())
-            return false;
-
-        BoostScoreFunction that = (BoostScoreFunction) o;
-
-        if (Float.compare(that.boost, boost) != 0)
-            return false;
-
-        return true;
-    }
-
-    @Override
-    public int hashCode() {
-        return (boost != +0.0f ? Float.floatToIntBits(boost) : 0);
-    }
-
-    @Override
     public String toString() {
         return "boost[" + boost + "]";
     }

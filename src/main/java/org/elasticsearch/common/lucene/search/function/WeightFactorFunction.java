@@ -101,10 +101,6 @@ public class WeightFactorFunction extends ScoreFunction {
         return (getWeight() != +0.0f ? Float.floatToIntBits((float) getWeight()) : 0);
     }
 
-    @Override
-    public String toString() {
-        return "weight[" + getWeight() + "]";
-    }
 
     public Explanation explainWeight() {
         return new Explanation((float) getWeight(), "weight");

@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.ObjectLongMap;
 import com.carrotsearch.hppc.ObjectLongOpenHashMap;
 import com.carrotsearch.hppc.cursors.ObjectLongCursor;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
@@ -93,7 +94,7 @@ public class BytesRefHashTests extends ElasticsearchSingleNodeTest {
      */
     @Test
     public void testSize() {
-        BytesRef ref = new BytesRef();
+        BytesRefBuilder ref = new BytesRefBuilder();
         int num = scaledRandomIntBetween(2, 20);
         for (int j = 0; j < num; j++) {
             final int mod = 1+randomInt(40);
@@ -104,7 +105,7 @@ public class BytesRefHashTests extends ElasticsearchSingleNodeTest {
                 } while (str.length() == 0);
                 ref.copyChars(str);
                 long count = hash.size();
-                long key = hash.add(ref);
+                long key = hash.add(ref.get());
                 if (key < 0)
                     assertEquals(hash.size(), count);
                 else
@@ -124,7 +125,7 @@ public class BytesRefHashTests extends ElasticsearchSingleNodeTest {
      */
     @Test
     public void testGet() {
-        BytesRef ref = new BytesRef();
+        BytesRefBuilder ref = new BytesRefBuilder();
         BytesRef scratch = new BytesRef();
         int num = scaledRandomIntBetween(2, 20);
         for (int j = 0; j < num; j++) {
@@ -137,7 +138,7 @@ public class BytesRefHashTests extends ElasticsearchSingleNodeTest {
                 } while (str.length() == 0);
                 ref.copyChars(str);
                 long count = hash.size();
-                long key = hash.add(ref);
+                long key = hash.add(ref.get());
                 if (key >= 0) {
                     assertNull(strings.put(str, Long.valueOf(key)));
                     assertEquals(uniqueCount, key);
@@ -164,7 +165,7 @@ public class BytesRefHashTests extends ElasticsearchSingleNodeTest {
      */
     @Test
     public void testAdd() {
-        BytesRef ref = new BytesRef();
+        BytesRefBuilder ref = new BytesRefBuilder();
         BytesRef scratch = new BytesRef();
         int num = scaledRandomIntBetween(2, 20);
         for (int j = 0; j < num; j++) {
@@ -177,7 +178,7 @@ public class BytesRefHashTests extends ElasticsearchSingleNodeTest {
                 } while (str.length() == 0);
                 ref.copyChars(str);
                 long count = hash.size();
-                long key = hash.add(ref);
+                long key = hash.add(ref.get());
 
                 if (key >=0) {
                     assertTrue(strings.add(str));
@@ -200,7 +201,7 @@ public class BytesRefHashTests extends ElasticsearchSingleNodeTest {
 
     @Test
     public void testFind() throws Exception {
-        BytesRef ref = new BytesRef();
+        BytesRefBuilder ref = new BytesRefBuilder();
         BytesRef scratch = new BytesRef();
         int num = scaledRandomIntBetween(2, 20);
         for (int j = 0; j < num; j++) {
@@ -213,14 +214,14 @@ public class BytesRefHashTests extends ElasticsearchSingleNodeTest {
                 } while (str.length() == 0);
                 ref.copyChars(str);
                 long count = hash.size();
-                long key = hash.find(ref); //hash.add(ref);
+                long key = hash.find(ref.get()); //hash.add(ref);
                 if (key >= 0) { // string found in hash
                     assertFalse(strings.add(str));
                     assertTrue(key < count);
                     assertEquals(str, hash.get(key, scratch).utf8ToString());
                     assertEquals(count, hash.size());
                 } else {
-                    key = hash.add(ref);
+                    key = hash.add(ref.get());
                     assertTrue(strings.add(str));
                     assertEquals(uniqueCount, key);
                     assertEquals(hash.size(), count + 1);
@@ -235,12 +236,12 @@ public class BytesRefHashTests extends ElasticsearchSingleNodeTest {
     }
 
     private void assertAllIn(Set<String> strings, BytesRefHash hash) {
-        BytesRef ref = new BytesRef();
+        BytesRefBuilder ref = new BytesRefBuilder();
         BytesRef scratch = new BytesRef();
         long count = hash.size();
         for (String string : strings) {
             ref.copyChars(string);
-            long key  =  hash.add(ref); // add again to check duplicates
+            long key  =  hash.add(ref.get()); // add again to check duplicates
             assertEquals(string, hash.get((-key)-1, scratch).utf8ToString());
             assertEquals(count, hash.size());
             assertTrue("key: " + key + " count: " + count + " string: " + string,

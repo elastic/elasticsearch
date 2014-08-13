@@ -23,6 +23,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefArray;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
@@ -91,7 +92,7 @@ public class CollectionUtilsTests extends ElasticsearchTestCase {
         assertThat(numUnique, equalTo(set.size()));
         Iterator<BytesRef> iterator = set.iterator();
 
-        BytesRef spare = new BytesRef();
+        BytesRefBuilder spare = new BytesRefBuilder();
         for (int i = 0; i < numUnique; i++) {
             assertThat(iterator.hasNext(), is(true));
             assertThat(array.get(spare, indices[i]), equalTo(iterator.next()));
@@ -120,7 +121,7 @@ public class CollectionUtilsTests extends ElasticsearchTestCase {
         Collections.sort(values);
         Iterator<BytesRef> iterator = values.iterator();
 
-        BytesRef spare = new BytesRef();
+        BytesRefBuilder spare = new BytesRefBuilder();
         for (int i = 0; i < values.size(); i++) {
             assertThat(iterator.hasNext(), is(true));
             assertThat(array.get(spare, indices[i]), equalTo(iterator.next()));

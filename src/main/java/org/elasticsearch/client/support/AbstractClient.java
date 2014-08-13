@@ -20,7 +20,6 @@
 package org.elasticsearch.client.support;
 
 import org.elasticsearch.action.*;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.bench.*;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -67,6 +66,9 @@ import org.elasticsearch.action.mlt.MoreLikeThisAction;
 import org.elasticsearch.action.mlt.MoreLikeThisRequest;
 import org.elasticsearch.action.mlt.MoreLikeThisRequestBuilder;
 import org.elasticsearch.action.percolate.*;
+import org.elasticsearch.action.quality.PrecisionAtAction;
+import org.elasticsearch.action.quality.PrecisionAtRequest;
+import org.elasticsearch.action.quality.PrecisionAtResponse;
 import org.elasticsearch.action.search.*;
 import org.elasticsearch.action.suggest.SuggestAction;
 import org.elasticsearch.action.suggest.SuggestRequest;
@@ -527,6 +529,11 @@ public abstract class AbstractClient implements Client {
     }
 
     @Override
+    public void qa(PrecisionAtRequest request, ActionListener<PrecisionAtResponse> listener) {
+        execute(PrecisionAtAction.INSTANCE, request, listener);
+    }
+
+    @Override
     public void bench(BenchmarkRequest request, ActionListener<BenchmarkResponse> listener) {
         execute(BenchmarkAction.INSTANCE, request, listener);
     }
@@ -560,4 +567,5 @@ public abstract class AbstractClient implements Client {
     public BenchmarkStatusRequestBuilder prepareBenchStatus() {
         return new BenchmarkStatusRequestBuilder(this);
     }
+    
 }

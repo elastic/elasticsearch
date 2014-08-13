@@ -19,7 +19,8 @@
 
 package org.elasticsearch.client;
 
-import org.elasticsearch.action.*;
+import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bench.*;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -55,6 +56,8 @@ import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptResponse;
 import org.elasticsearch.action.mlt.MoreLikeThisRequest;
 import org.elasticsearch.action.mlt.MoreLikeThisRequestBuilder;
 import org.elasticsearch.action.percolate.*;
+import org.elasticsearch.action.quality.PrecisionAtRequest;
+import org.elasticsearch.action.quality.PrecisionAtResponse;
 import org.elasticsearch.action.search.*;
 import org.elasticsearch.action.suggest.SuggestRequest;
 import org.elasticsearch.action.suggest.SuggestRequestBuilder;
@@ -688,5 +691,11 @@ public interface Client extends ElasticsearchClient<Client>, Releasable {
      * Returns this clients settings
      */
     Settings settings();
+
+
+    /**
+     * Executes a search request and checks whether the results returned correspond to a set of expected results.
+     * */
+    void qa(PrecisionAtRequest request, ActionListener<PrecisionAtResponse> listener);
 
 }

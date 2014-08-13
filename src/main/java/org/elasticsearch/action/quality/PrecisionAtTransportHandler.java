@@ -19,19 +19,26 @@
 
 package org.elasticsearch.action.quality;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.BaseTransportRequestHandler;
+import org.elasticsearch.transport.TransportChannel;
 
-public class PrecisionAtRequestBuilder extends ActionRequestBuilder<PrecisionAtRequest, PrecisionAtResponse, PrecisionAtRequestBuilder, Client> {
+public class PrecisionAtTransportHandler extends BaseTransportRequestHandler<PrecisionAtRequest> {
 
-    protected PrecisionAtRequestBuilder(Client client) {
-        super(client, new PrecisionAtRequest());
+    @Override
+    public PrecisionAtRequest newInstance() {
+        return new PrecisionAtRequest();
+    }
+
+    // TODO
+    @Override
+    public void messageReceived(PrecisionAtRequest request, TransportChannel channel) throws Exception {
+
     }
 
     @Override
-    protected void doExecute(ActionListener<PrecisionAtResponse> listener) {
-        client.qa(request, listener);
+    public String executor() {
+        return ThreadPool.Names.GENERIC;
     }
 
 }

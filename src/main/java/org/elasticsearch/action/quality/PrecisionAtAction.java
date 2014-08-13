@@ -19,10 +19,10 @@
 
 package org.elasticsearch.action.quality;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ClientAction;
 import org.elasticsearch.client.Client;
 
-public class PrecisionAtAction extends Action<PrecisionAtRequest, PrecisionAtResponse, PrecisionAtRequestBuilder> {
+public class PrecisionAtAction extends ClientAction<PrecisionAtRequest, PrecisionAtResponse, PrecisionAtRequestBuilder> {
 
     public static final PrecisionAtAction INSTANCE = new PrecisionAtAction();
     public static final String NAME = "precision_at";

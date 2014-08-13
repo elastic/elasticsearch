@@ -22,15 +22,14 @@ package org.elasticsearch.action.quality;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.internal.InternalClient;
 import org.elasticsearch.common.bytes.BytesReference;
 
 import java.util.Set;
 
-public class PrecisionAtQueryBuilder extends ActionRequestBuilder<PrecisionAtRequest, PrecisionAtResponse, PrecisionAtQueryBuilder> {
+public class PrecisionAtQueryBuilder extends ActionRequestBuilder<PrecisionAtRequest, PrecisionAtResponse, PrecisionAtQueryBuilder, Client> {
     
     protected PrecisionAtQueryBuilder(Client client) {
-        super((InternalClient) client, new PrecisionAtRequest());
+        super(client, new PrecisionAtRequest());
     }
 
     @Override

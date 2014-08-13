@@ -20,16 +20,22 @@
 package org.elasticsearch.action.quality;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
 
 public class TransportPrecisionAtAction extends TransportAction<PrecisionAtRequest, PrecisionAtResponse> {
 
-    protected TransportPrecisionAtAction(Settings settings, ThreadPool threadPool) {
-        super(settings, threadPool);
+    @Inject
+    public TransportPrecisionAtAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters, TransportService transportService) {
+        super(settings, PrecisionAtAction.NAME, threadPool, actionFilters);
+        transportService.registerHandler(PrecisionAtAction.NAME, new PrecisionAtTransportHandler());
     }
 
+    //TODO
     @Override
     protected void doExecute(PrecisionAtRequest request, ActionListener<PrecisionAtResponse> listener) {
     }

@@ -87,7 +87,7 @@ public class PrecisionAtRequestTest extends ElasticsearchIntegrationTest {
       MatchQueryBuilder query = new MatchQueryBuilder("text", "value2");
       Set<String> relevant = Sets.newHashSet("2", "3", "4", "5");
       PrecisionAtQueryBuilder builder = (new PrecisionAtQueryBuilder(client())).setQuery(query.buildAsBytes()).addRelevantDocs(relevant);
-      PrecisionAtResponse sr = client().execute(PrecisionAtAction.INSTANCE, builder.request()).actionGet(); 
+      client().execute(PrecisionAtAction.INSTANCE, builder.request()).actionGet();
       
     }
 }

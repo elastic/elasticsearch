@@ -23,7 +23,6 @@ import com.carrotsearch.hppc.IntArrayList;
 import com.carrotsearch.hppc.LongArrayList;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.single.shard.SingleShardOperationRequest;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -43,27 +42,21 @@ public class MultiGetShardRequest extends SingleShardOperationRequest<MultiGetSh
     boolean ignoreErrorsOnGeneratedFields = false;
 
     IntArrayList locations;
-    List<String> types;
-    List<String> ids;
-    List<String[]> fields;
-    LongArrayList versions;
-    List<VersionType> versionTypes;
-    List<FetchSourceContext> fetchSourceContexts;
+    List<MultiGetRequest.Item> items;
 
     MultiGetShardRequest() {
 
     }
 
-    MultiGetShardRequest(String index, int shardId) {
-        super(index);
+    MultiGetShardRequest(MultiGetRequest multiGetRequest, String index, int shardId) {
+        super(multiGetRequest, index);
         this.shardId = shardId;
         locations = new IntArrayList();
-        types = new ArrayList<>();
-        ids = new ArrayList<>();
-        fields = new ArrayList<>();
-        versions = new LongArrayList();
-        versionTypes = new ArrayList<>();
-        fetchSourceContexts = new ArrayList<>();
+        items = new ArrayList<>();
+        preference = multiGetRequest.preference;
+        realtime = multiGetRequest.realtime;
+        refresh = multiGetRequest.refresh;
+        ignoreErrorsOnGeneratedFields = multiGetRequest.ignoreErrorsOnGeneratedFields;
     }
 
     public int shardId() {
@@ -107,14 +100,18 @@ public class MultiGetShardRequest extends SingleShardOperationRequest<MultiGetSh
         return this;
     }
 
-    public void add(int location, @Nullable String type, String id, String[] fields, long version, VersionType versionType, FetchSourceContext fetchSourceContext) {
+    void add(int location, MultiGetRequest.Item item) {
         this.locations.add(location);
-        this.types.add(type);
-        this.ids.add(id);
-        this.fields.add(fields);
-        this.versions.add(version);
-        this.versionTypes.add(versionType);
-        this.fetchSourceContexts.add(fetchSourceContext);
+        this.items.add(item);
+    }
+
+    @Override
+    public String[] indices() {
+        String[] indices = new String[items.size()];
+        for (int i = 0; i < indices.length; i++) {
+            indices[i] = items.get(i).index();
+        }
+        return indices;
     }
 
     @Override
@@ -122,34 +119,52 @@ public class MultiGetShardRequest extends SingleShardOperationRequest<MultiGetSh
         super.readFrom(in);
         int size = in.readVInt();
         locations = new IntArrayList(size);
-        types = new ArrayList<>(size);
-        ids = new ArrayList<>(size);
-        fields = new ArrayList<>(size);
-        versions = new LongArrayList(size);
-        versionTypes = new ArrayList<>(size);
-        fetchSourceContexts = new ArrayList<>(size);
-        for (int i = 0; i < size; i++) {
-            locations.add(in.readVInt());
-            if (in.readBoolean()) {
-                types.add(in.readSharedString());
-            } else {
-                types.add(null);
-            }
-            ids.add(in.readString());
-            int size1 = in.readVInt();
-            if (size1 > 0) {
-                String[] fields = new String[size1];
-                for (int j = 0; j < size1; j++) {
-                    fields[j] = in.readString();
-                }
-                this.fields.add(fields);
-            } else {
-                fields.add(null);
-            }
-            versions.add(Versions.readVersionWithVLongForBW(in));
-            versionTypes.add(VersionType.fromValue(in.readByte()));
+        items = new ArrayList<>(size);
 
-            fetchSourceContexts.add(FetchSourceContext.optionalReadFromStream(in));
+        if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
+            for (int i = 0; i < size; i++) {
+                locations.add(in.readVInt());
+                items.add(MultiGetRequest.Item.readItem(in));
+            }
+        } else {
+            List<String> types = new ArrayList<>(size);
+            List<String> ids = new ArrayList<>(size);
+            List<String[]> fields = new ArrayList<>(size);
+            LongArrayList versions = new LongArrayList(size);
+            List<VersionType> versionTypes = new ArrayList<>(size);
+            List<FetchSourceContext> fetchSourceContexts = new ArrayList<>(size);
+
+            for (int i = 0; i < size; i++) {
+                locations.add(in.readVInt());
+                if (in.readBoolean()) {
+                    types.add(in.readSharedString());
+                } else {
+                    types.add(null);
+                }
+                ids.add(in.readString());
+                int size1 = in.readVInt();
+                if (size1 > 0) {
+                    String[] fieldsArray = new String[size1];
+                    for (int j = 0; j < size1; j++) {
+                        fieldsArray[j] = in.readString();
+                    }
+                    fields.add(fieldsArray);
+                } else {
+                    fields.add(null);
+                }
+                versions.add(Versions.readVersionWithVLongForBW(in));
+                versionTypes.add(VersionType.fromValue(in.readByte()));
+
+                fetchSourceContexts.add(FetchSourceContext.optionalReadFromStream(in));
+            }
+
+            for (int i = 0; i < size; i++) {
+                //before 1.4 we have only one index, the concrete one
+                MultiGetRequest.Item item = new MultiGetRequest.Item(index, types.get(i), ids.get(i))
+                        .fields(fields.get(i)).version(versions.get(i)).versionType(versionTypes.get(i))
+                        .fetchSourceContext(fetchSourceContexts.get(i));
+                items.add(item);
+            }
         }
 
         preference = in.readOptionalString();
@@ -168,35 +183,43 @@ public class MultiGetShardRequest extends SingleShardOperationRequest<MultiGetSh
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeVInt(types.size());
-        for (int i = 0; i < types.size(); i++) {
-            out.writeVInt(locations.get(i));
-            if (types.get(i) == null) {
-                out.writeBoolean(false);
-            } else {
-                out.writeBoolean(true);
-                out.writeSharedString(types.get(i));
+        out.writeVInt(locations.size());
+
+        if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
+            for (int i = 0; i < locations.size(); i++) {
+                out.writeVInt(locations.get(i));
+                items.get(i).writeTo(out);
             }
-            out.writeString(ids.get(i));
-            if (fields.get(i) == null) {
-                out.writeVInt(0);
-            } else {
-                out.writeVInt(fields.get(i).length);
-                for (String field : fields.get(i)) {
-                    out.writeString(field);
+        } else {
+            for (int i = 0; i < locations.size(); i++) {
+                out.writeVInt(locations.get(i));
+                MultiGetRequest.Item item = items.get(i);
+                if (item.type() == null) {
+                    out.writeBoolean(false);
+                } else {
+                    out.writeBoolean(true);
+                    out.writeSharedString(item.type());
                 }
+                out.writeString(item.id());
+                if (item.fields() == null) {
+                    out.writeVInt(0);
+                } else {
+                    out.writeVInt(item.fields().length);
+                    for (String field : item.fields()) {
+                        out.writeString(field);
+                    }
+                }
+                Versions.writeVersionWithVLongForBW(item.version(), out);
+                out.writeByte(item.versionType().getValue());
+                FetchSourceContext.optionalWriteToStream(item.fetchSourceContext(), out);
             }
-            Versions.writeVersionWithVLongForBW(versions.get(i), out);
-            out.writeByte(versionTypes.get(i).getValue());
-            FetchSourceContext fetchSourceContext = fetchSourceContexts.get(i);
-            FetchSourceContext.optionalWriteToStream(fetchSourceContext, out);
         }
 
         out.writeOptionalString(preference);
         out.writeBoolean(refresh);
         if (realtime == null) {
             out.writeByte((byte) -1);
-        } else if (realtime == false) {
+        } else if (!realtime) {
             out.writeByte((byte) 0);
         } else {
             out.writeByte((byte) 1);

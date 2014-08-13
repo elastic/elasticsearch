@@ -33,7 +33,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -51,15 +50,15 @@ import org.elasticsearch.index.query.MoreLikeThisFieldQueryBuilder;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.*;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportResponseHandler;
+import org.elasticsearch.transport.TransportService;
 
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.Set;
 
 import static com.google.common.collect.Sets.newHashSet;
-import static org.elasticsearch.client.Requests.getRequest;
-import static org.elasticsearch.client.Requests.searchRequest;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 
@@ -124,7 +123,7 @@ public class TransportMoreLikeThisAction extends HandledTransportAction<MoreLike
         // add the source, in case we need to parse it to get fields
         getFields.add(SourceFieldMapper.NAME);
 
-        GetRequest getRequest = getRequest(concreteIndex)
+        GetRequest getRequest = new GetRequest(request, request.index())
                 .fields(getFields.toArray(new String[getFields.size()]))
                 .type(request.type())
                 .id(request.id())
@@ -204,7 +203,8 @@ public class TransportMoreLikeThisAction extends HandledTransportAction<MoreLike
                 if (searchTypes == null) {
                     searchTypes = new String[]{request.type()};
                 }
-                SearchRequest searchRequest = searchRequest(searchIndices)
+
+                SearchRequest searchRequest = new SearchRequest(request).indices(searchIndices)
                         .types(searchTypes)
                         .searchType(request.searchType())
                         .scroll(request.searchScroll())

@@ -54,11 +54,11 @@ public abstract class ShardReplicationOperationRequest<T extends ShardReplicatio
 
     }
 
-    public ShardReplicationOperationRequest(ActionRequest request) {
+    protected ShardReplicationOperationRequest(ActionRequest request) {
         super(request);
     }
 
-    public ShardReplicationOperationRequest(T request) {
+    protected ShardReplicationOperationRequest(T request) {
         super(request);
         this.timeout = request.timeout();
         this.index = request.index();

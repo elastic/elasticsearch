@@ -20,6 +20,7 @@
 package org.elasticsearch.action.percolate;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -41,10 +42,6 @@ public class PercolateShardRequest extends BroadcastShardOperationRequest {
     PercolateShardRequest() {
     }
 
-    PercolateShardRequest(ShardId shardId) {
-        super(shardId);
-    }
-
     PercolateShardRequest(ShardId shardId, int numberOfShards, PercolateRequest request) {
         super(shardId, request);
         this.documentType = request.documentType();
@@ -52,6 +49,10 @@ public class PercolateShardRequest extends BroadcastShardOperationRequest {
         this.docSource = request.docSource();
         this.onlyCount = request.onlyCount();
         this.numberOfShards = numberOfShards;
+    }
+
+    PercolateShardRequest(ShardId shardId, OriginalIndices originalIndices) {
+        super(shardId, originalIndices);
     }
 
     PercolateShardRequest(ShardId shardId, PercolateRequest request) {
@@ -96,6 +97,10 @@ public class PercolateShardRequest extends BroadcastShardOperationRequest {
 
     public int getNumberOfShards() {
         return numberOfShards;
+    }
+
+    OriginalIndices originalIndices() {
+        return originalIndices;
     }
 
     @Override

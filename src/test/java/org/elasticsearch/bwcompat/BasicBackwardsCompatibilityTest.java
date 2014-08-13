@@ -36,7 +36,7 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.deletebyquery.DeleteByQueryResponse;
 import org.elasticsearch.action.deletebyquery.IndexDeleteByQueryResponse;
 import org.elasticsearch.action.explain.ExplainResponse;
-import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.get.*;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
@@ -752,6 +752,39 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
         IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats().all().get();
         assertThat(indicesStatsResponse.getIndices().size(), equalTo(1));
         assertThat(indicesStatsResponse.getIndices().containsKey("test"), equalTo(true));
+    }
+
+    @Test
+    public void testMultiGet() throws ExecutionException, InterruptedException {
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
+        ensureGreen("test");
+
+        int numDocs = iterations(10, 50);
+        IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[numDocs];
+        for (int i = 0; i < numDocs; i++) {
+            indexRequestBuilders[i] = client().prepareIndex("test", "type", Integer.toString(i)).setSource("field", "value" + Integer.toString(i));
+        }
+        indexRandom(false, indexRequestBuilders);
+
+        int iterations = iterations(1, numDocs);
+        MultiGetRequestBuilder multiGetRequestBuilder = client().prepareMultiGet();
+        for (int i = 0; i < iterations; i++) {
+            multiGetRequestBuilder.add(new MultiGetRequest.Item(indexOrAlias(), "type", Integer.toString(randomInt(numDocs - 1))));
+        }
+        MultiGetResponse multiGetResponse = multiGetRequestBuilder.get();
+        assertThat(multiGetResponse.getResponses().length, equalTo(iterations));
+        for (int i = 0; i < multiGetResponse.getResponses().length; i++) {
+            MultiGetItemResponse multiGetItemResponse = multiGetResponse.getResponses()[i];
+            assertThat(multiGetItemResponse.isFailed(), equalTo(false));
+            assertThat(multiGetItemResponse.getIndex(), equalTo("test"));
+            assertThat(multiGetItemResponse.getType(), equalTo("type"));
+            assertThat(multiGetItemResponse.getId(), equalTo(multiGetRequestBuilder.request().getItems().get(i).id()));
+            assertThat(multiGetItemResponse.getResponse().isExists(), equalTo(true));
+            assertThat(multiGetItemResponse.getResponse().getIndex(), equalTo("test"));
+            assertThat(multiGetItemResponse.getResponse().getType(), equalTo("type"));
+            assertThat(multiGetItemResponse.getResponse().getId(), equalTo(multiGetRequestBuilder.request().getItems().get(i).id()));
+        }
+
     }
 
     private static String indexOrAlias() {

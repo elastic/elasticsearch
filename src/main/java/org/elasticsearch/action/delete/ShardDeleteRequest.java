@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.delete;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.replication.ShardReplicationOperationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -39,6 +40,7 @@ public class ShardDeleteRequest extends ShardReplicationOperationRequest<ShardDe
     private String id;
     private boolean refresh = false;
     private long version;
+    private String originalIndex;
 
     ShardDeleteRequest(IndexDeleteRequest request, int shardId) {
         super(request);
@@ -51,6 +53,7 @@ public class ShardDeleteRequest extends ShardReplicationOperationRequest<ShardDe
         timeout = request.timeout();
         this.refresh = request.refresh();
         this.version = request.version();
+        this.originalIndex = request.originalIndex();
     }
 
     ShardDeleteRequest() {
@@ -93,6 +96,11 @@ public class ShardDeleteRequest extends ShardReplicationOperationRequest<ShardDe
     }
 
     @Override
+    public String[] indices() {
+        return new String[]{originalIndex};
+    }
+
+    @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         shardId = in.readVInt();
@@ -100,6 +108,9 @@ public class ShardDeleteRequest extends ShardReplicationOperationRequest<ShardDe
         id = in.readString();
         refresh = in.readBoolean();
         version = Versions.readVersion(in);
+        if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
+            originalIndex = in.readString();
+        }
     }
 
     @Override
@@ -110,5 +121,8 @@ public class ShardDeleteRequest extends ShardReplicationOperationRequest<ShardDe
         out.writeString(id);
         out.writeBoolean(refresh);
         Versions.writeVersion(version, out);
+        if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
+            out.writeString(originalIndex);
+        }
     }
 }

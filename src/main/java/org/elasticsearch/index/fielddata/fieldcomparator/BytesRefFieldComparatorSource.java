@@ -23,7 +23,6 @@ import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.index.SortedDocValues;
-import org.apache.lucene.search.FieldCache;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.SortField;
@@ -108,7 +107,7 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
 
         final BytesRef nullPlaceHolder = new BytesRef();
         final BytesRef nonNullMissingBytes = missingBytes == null ? nullPlaceHolder : missingBytes;
-        return new TermValComparator(numHits, null, sortMissingLast) {
+        return new FieldComparator.TermValComparator(numHits, null, sortMissingLast) {
 
             @Override
             protected BinaryDocValues getBinaryDocValues(AtomicReaderContext context, String field) throws IOException {
@@ -209,135 +208,4 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
         
         // we let termsenum etc fall back to the default implementation
     }
-
-    // nocommit The comparator below is a raw copy of Lucene's, remove it when upgrading to 4.10
-
-    /** Sorts by field's natural Term sort order.  All
-     *  comparisons are done using BytesRef.compareTo, which is
-     *  slow for medium to large result sets but possibly
-     *  very fast for very small results sets. */
-    public static class TermValComparator extends FieldComparator<BytesRef> {
-
-      private final BytesRef[] values;
-      private final BytesRef[] tempBRs;
-      private BinaryDocValues docTerms;
-      private Bits docsWithField;
-      private final String field;
-      private BytesRef bottom;
-      private BytesRef topValue;
-      private final int missingSortCmp;
-
-      /** Sole constructor. */
-      public TermValComparator(int numHits, String field, boolean sortMissingLast) {
-        values = new BytesRef[numHits];
-        tempBRs = new BytesRef[numHits];
-        this.field = field;
-        missingSortCmp = sortMissingLast ? 1 : -1;
-      }
-
-      @Override
-      public int compare(int slot1, int slot2) {
-        final BytesRef val1 = values[slot1];
-        final BytesRef val2 = values[slot2];
-        return compareValues(val1, val2);
-      }
-
-      @Override
-      public int compareBottom(int doc) {
-        final BytesRef comparableBytes = getComparableBytes(doc, docTerms.get(doc));
-        return compareValues(bottom, comparableBytes);
-      }
-
-      @Override
-      public void copy(int slot, int doc) {
-        final BytesRef comparableBytes = getComparableBytes(doc, docTerms.get(doc));
-        if (comparableBytes == null) {
-          values[slot] = null;
-        } else {
-          if (tempBRs[slot] == null) {
-            tempBRs[slot] = new BytesRef();
-          }
-          values[slot] = tempBRs[slot];
-          values[slot].copyBytes(comparableBytes);
-        }
-      }
-
-      /** Retrieves the BinaryDocValues for the field in this segment */
-      protected BinaryDocValues getBinaryDocValues(AtomicReaderContext context, String field) throws IOException {
-        return FieldCache.DEFAULT.getTerms(context.reader(), field, true);
-      }
-
-      /** Retrieves the set of documents that have a value in this segment */
-      protected Bits getDocsWithField(AtomicReaderContext context, String field) throws IOException {
-        return FieldCache.DEFAULT.getDocsWithField(context.reader(), field);
-      }
-
-      /** Check whether the given value represents <tt>null</tt>. This can be
-       *  useful if the {@link BinaryDocValues} returned by {@link #getBinaryDocValues}
-       *  use a special value as a sentinel. The default implementation checks
-       *  {@link #getDocsWithField}.
-       *  <p>NOTE: The null value can only be an EMPTY {@link BytesRef}. */
-      protected boolean isNull(int doc, BytesRef term) {
-        return docsWithField != null && docsWithField.get(doc) == false;
-      }
-
-      @Override
-      public FieldComparator<BytesRef> setNextReader(AtomicReaderContext context) throws IOException {
-        docTerms = getBinaryDocValues(context, field);
-        docsWithField = getDocsWithField(context, field);
-        if (docsWithField instanceof Bits.MatchAllBits) {
-          docsWithField = null;
-        }
-        return this;
-      }
-
-      @Override
-      public void setBottom(final int bottom) {
-        this.bottom = values[bottom];
-      }
-
-      @Override
-      public void setTopValue(BytesRef value) {
-        // null is fine: it means the last doc of the prior
-        // search was missing this value
-        topValue = value;
-      }
-
-      @Override
-      public BytesRef value(int slot) {
-        return values[slot];
-      }
-
-      @Override
-      public int compareValues(BytesRef val1, BytesRef val2) {
-        // missing always sorts first:
-        if (val1 == null) {
-          if (val2 == null) {
-            return 0;
-          }
-          return missingSortCmp;
-        } else if (val2 == null) {
-          return -missingSortCmp;
-        }
-        return val1.compareTo(val2);
-      }
-
-      @Override
-      public int compareTop(int doc) {
-        final BytesRef comparableBytes = getComparableBytes(doc, docTerms.get(doc));
-        return compareValues(topValue, comparableBytes);
-      }
-
-      /**
-       * Given a document and a term, return the term itself if it exists or
-       * <tt>null</tt> otherwise.
-       */
-      private BytesRef getComparableBytes(int doc, BytesRef term) {
-        if (term.length == 0 && isNull(doc, term)) {
-          return null;
-        }
-        return term;
-      }
-    }
-
 }

@@ -20,6 +20,7 @@
 package org.elasticsearch.action.get;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.single.shard.SingleShardOperationRequest;
@@ -73,6 +74,14 @@ public class GetRequest extends SingleShardOperationRequest<GetRequest> {
     public GetRequest(String index) {
         super(index);
         this.type = "_all";
+    }
+
+    /**
+     * Constructs a new get request starting from the provided request, meaning that it will
+     * inherit its headers and context, and against the specified index.
+     */
+    public GetRequest(ActionRequest request, String index) {
+        super(request, index);
     }
 
     /**

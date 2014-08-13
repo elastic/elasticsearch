@@ -246,8 +246,6 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
         }
     }
 
-    private boolean listenerThreaded = false;
-
     String preference;
     Boolean realtime;
     boolean refresh;

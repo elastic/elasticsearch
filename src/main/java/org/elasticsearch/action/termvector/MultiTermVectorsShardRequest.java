@@ -72,6 +72,15 @@ public class MultiTermVectorsShardRequest extends SingleShardOperationRequest<Mu
     }
 
     @Override
+    public String[] indices() {
+        String[] indices = new String[requests.size()];
+        for (int i = 0; i < indices.length; i++) {
+            indices[i] = requests.get(i).index();
+        }
+        return indices;
+    }
+
+    @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         int size = in.readVInt();

@@ -179,7 +179,7 @@ public class TransportValidateQueryAction extends TransportBroadcastOperationAct
         String error = null;
 
         DefaultSearchContext searchContext = new DefaultSearchContext(0,
-                new ShardSearchRequest().types(request.types()).nowInMillis(request.nowInMillis())
+                new ShardSearchRequest(request).types(request.types()).nowInMillis(request.nowInMillis())
                         .filteringAliases(request.filteringAliases()),
                 null, indexShard.acquireSearcher("validate_query"), indexService, indexShard,
                 scriptService, cacheRecycler, pageCacheRecycler, bigArrays

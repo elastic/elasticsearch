@@ -43,6 +43,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -128,7 +129,11 @@ public class TransportShardMultiPercolateAction extends TransportShardSingleOper
 
         @Override
         public String[] indices() {
-            return new String[]{index};
+            List<String> indices = new ArrayList<>();
+            for (Item item : items) {
+                Collections.addAll(indices, item.request.indices());
+            }
+            return indices.toArray(new String[indices.size()]);
         }
 
         public int shardId() {
@@ -177,7 +182,7 @@ public class TransportShardMultiPercolateAction extends TransportShardSingleOper
             }
         }
 
-        public static class Item {
+        static class Item {
 
             private final int slot;
             private final PercolateShardRequest request;

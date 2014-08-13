@@ -20,6 +20,7 @@
 package org.elasticsearch.action.support.broadcast;
 
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -35,26 +36,19 @@ public abstract class BroadcastShardOperationRequest extends TransportRequest im
 
     private ShardId shardId;
 
+    private OriginalIndices originalIndices;
+
     protected BroadcastShardOperationRequest() {
     }
 
     protected BroadcastShardOperationRequest(ShardId shardId, BroadcastOperationRequest request) {
         super(request);
         this.shardId = shardId;
+        this.originalIndices = new OriginalIndices(request);
     }
 
     protected BroadcastShardOperationRequest(ShardId shardId) {
         this.shardId = shardId;
-    }
-
-    @Override
-    public String[] indices() {
-        return new String[]{shardId.getIndex()};
-    }
-
-    @Override
-    public IndicesOptions indicesOptions() {
-        return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
     }
 
     public ShardId shardId() {
@@ -62,14 +56,26 @@ public abstract class BroadcastShardOperationRequest extends TransportRequest im
     }
 
     @Override
+    public String[] indices() {
+        return originalIndices.indices();
+    }
+
+    @Override
+    public IndicesOptions indicesOptions() {
+        return originalIndices.indicesOptions();
+    }
+
+    @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         shardId = ShardId.readShardId(in);
+        originalIndices = OriginalIndices.readOriginalIndices(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         shardId.writeTo(out);
+        OriginalIndices.writeOriginalIndices(originalIndices, out);
     }
 }

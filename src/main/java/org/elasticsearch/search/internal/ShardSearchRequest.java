@@ -21,6 +21,7 @@ package org.elasticsearch.search.internal;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.type.ParsedScrollId;
@@ -84,7 +85,14 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
 
     private boolean useSlowScroll;
 
+    private OriginalIndices originalIndices;
+
     public ShardSearchRequest() {
+
+    }
+
+    public ShardSearchRequest(TransportRequest request) {
+        super(request);
     }
 
     public ShardSearchRequest(SearchRequest searchRequest, ShardRouting shardRouting, int numberOfShards, boolean useSlowScroll) {
@@ -103,10 +111,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         this.types = searchRequest.types();
         this.useSlowScroll = useSlowScroll;
         this.queryCache = searchRequest.queryCache();
-    }
-
-    public ShardSearchRequest(ShardRouting shardRouting, int numberOfShards, SearchType searchType) {
-        this(shardRouting.index(), shardRouting.id(), numberOfShards, searchType);
+        this.originalIndices = new OriginalIndices(searchRequest);
     }
 
     public ShardSearchRequest(String index, int shardId, int numberOfShards, SearchType searchType) {
@@ -114,6 +119,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         this.shardId = shardId;
         this.numberOfShards = numberOfShards;
         this.searchType = searchType;
+        this.originalIndices = new OriginalIndices();
     }
 
     public String index() {
@@ -122,12 +128,12 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
 
     @Override
     public String[] indices() {
-        return new String[]{index};
+        return originalIndices.indices();
     }
 
     @Override
     public IndicesOptions indicesOptions() {
-        return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
+        return originalIndices.indicesOptions();
     }
 
     public int shardId() {
@@ -265,6 +271,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
             queryCache = in.readOptionalBoolean();
         }
+        originalIndices = OriginalIndices.readOptionalOriginalIndices(in);
     }
 
     @Override
@@ -313,5 +320,6 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
             out.writeOptionalBoolean(queryCache);
         }
+        OriginalIndices.writeOptionalOriginalIndices(originalIndices, out);
     }
 }

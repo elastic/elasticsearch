@@ -170,7 +170,7 @@ public class TransportCountAction extends TransportBroadcastOperationAction<Coun
 
         SearchShardTarget shardTarget = new SearchShardTarget(clusterService.localNode().id(), request.shardId().getIndex(), request.shardId().id());
         SearchContext context = new DefaultSearchContext(0,
-                new ShardSearchRequest().types(request.types())
+                new ShardSearchRequest(request).types(request.types())
                         .filteringAliases(request.filteringAliases())
                         .nowInMillis(request.nowInMillis()),
                 shardTarget, indexShard.acquireSearcher("count"), indexService, indexShard,

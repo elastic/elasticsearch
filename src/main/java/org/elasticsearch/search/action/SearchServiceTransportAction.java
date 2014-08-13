@@ -21,8 +21,11 @@ package org.elasticsearch.search.action;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -547,16 +550,24 @@ public class SearchServiceTransportAction extends AbstractComponent {
         }
     }
 
-    static class SearchFreeContextRequest extends TransportRequest {
+    static class SearchFreeContextRequest extends TransportRequest implements IndicesRequest {
 
         private long id;
+        private OriginalIndices originalIndices;
 
         SearchFreeContextRequest() {
+        }
+
+        SearchFreeContextRequest(SearchRequest request, long id) {
+            super(request);
+            this.id = id;
+            this.originalIndices = new OriginalIndices(request);
         }
 
         SearchFreeContextRequest(TransportRequest request, long id) {
             super(request);
             this.id = id;
+            this.originalIndices = new OriginalIndices();
         }
 
         public long id() {
@@ -564,15 +575,27 @@ public class SearchServiceTransportAction extends AbstractComponent {
         }
 
         @Override
+        public String[] indices() {
+            return originalIndices.indices();
+        }
+
+        @Override
+        public IndicesOptions indicesOptions() {
+            return originalIndices.indicesOptions();
+        }
+
+        @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             id = in.readLong();
+            originalIndices = OriginalIndices.readOptionalOriginalIndices(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeLong(id);
+            OriginalIndices.writeOptionalOriginalIndices(originalIndices, out);
         }
     }
 

@@ -53,6 +53,7 @@ public class AlertManager extends AbstractLifecycleComponent {
     private final Thread starter;
 
     private AlertActionManager actionManager;
+    final TimeValue defaultTimePeriod = new TimeValue(300*1000); //TODO : read from config
 
     class StarterThread implements Runnable {
         @Override
@@ -170,7 +171,9 @@ public class AlertManager extends AbstractLifecycleComponent {
                 } else {
                     throw new ElasticsearchException("Unable to parse trigger [" + triggerObj + "]");
                 }
-                TimeValue timePeriod = new TimeValue(Long.valueOf(fields.get(TIMEPERIOD_FIELD.getPreferredName()).toString()));
+
+                String timeString = fields.get(TIMEPERIOD_FIELD.getPreferredName()).toString();
+                TimeValue timePeriod = TimeValue.parseTimeValue(timeString, defaultTimePeriod);
 
                 Object actionObj = fields.get(ACTION_FIELD.getPreferredName());
                 List<AlertAction> actions = null;

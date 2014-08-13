@@ -17,7 +17,8 @@ public class AlertExecutorJob implements Job {
     @Override
     public void execute(JobExecutionContext jobExecutionContext) throws JobExecutionException {
         String alertName = jobExecutionContext.getJobDetail().getKey().getName();
-        ((AlertScheduler)jobExecutionContext.getJobDetail().getJobDataMap().get("manager")).executeAlert(alertName);
+        ((AlertScheduler)jobExecutionContext.getJobDetail().getJobDataMap().get("manager")).executeAlert(alertName,
+                jobExecutionContext);
     }
 }
 

@@ -5,15 +5,19 @@
  */
 package org.elasticsearch.alerting;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.indexedscripts.get.GetIndexedScriptResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptService;
@@ -21,7 +25,10 @@ import org.quartz.*;
 import org.quartz.impl.StdSchedulerFactory;
 import org.quartz.simpl.SimpleJobFactory;
 
+import java.io.IOException;
+import java.util.Date;
 import java.util.HashMap;
+import java.util.Map;
 
 public class AlertScheduler extends AbstractLifecycleComponent {
 
@@ -50,44 +57,32 @@ public class AlertScheduler extends AbstractLifecycleComponent {
         }
     }
 
-    public void executeAlert(String alertName){
+    public void executeAlert(String alertName, JobExecutionContext jobExecutionContext){
         logger.warn("Running [{}]",alertName);
         Alert alert = alertManager.getAlertForName(alertName);
         //@TODO : claim alert
-        String queryTemplate = null;
         try {
-            logger.warn("Getting the query");
-            GetIndexedScriptResponse scriptResponse = client.prepareGetIndexedScript().setScriptLang("mustache").setId(alert.queryName()).execute().get();
-            logger.warn("Got the query");
-            if (scriptResponse.isExists()) {
-                queryTemplate = scriptResponse.getScript();
+            XContentBuilder builder = createClampedQuery(jobExecutionContext, alert);
+            logger.warn("Running the following query : [{}]", builder.string());
+
+            SearchRequestBuilder srb = client.prepareSearch().setSource(builder);
+            if (alert.indices() != null ){
+                srb.setIndices(alert.indices().toArray(new String[0]));
             }
-            logger.warn("Found : [{}]", queryTemplate);
-            if (queryTemplate != null) {
-                CompiledScript compiledTemplate = scriptService.compile("mustache",queryTemplate);
-                ExecutableScript executable = scriptService.executable(compiledTemplate, new HashMap());
-                BytesReference processedQuery = (BytesReference) executable.run();
-                logger.warn("Compiled to [{}]", processedQuery);
-                SearchRequestBuilder srb = client.prepareSearch().setSource(processedQuery);
-                if (alert.indices() != null ){
-                    srb.setIndices(alert.indices().toArray(new String[0]));
-                }
-                SearchResponse sr = srb.execute().get();
-                logger.warn("Got search response");
-                AlertResult result = new AlertResult();
-                result.isTriggered = triggerManager.isTriggered(alertName,sr);
-                result.searchResponse = sr;
-                if (result.isTriggered) {
-                    logger.warn("We have triggered");
-                    actionManager.doAction(alertName,result);
-                    logger.warn("Did action !");
-                }else{
-                    logger.warn("We didn't trigger");
-                }
-                //@TODO write this back to the alert manager
-            } else {
-                logger.error("Failed to find query named [{}]",alert.queryName());
+            SearchResponse sr = srb.execute().get();
+            logger.warn("Got search response");
+            AlertResult result = new AlertResult();
+            result.isTriggered = triggerManager.isTriggered(alertName,sr);
+
+            result.searchResponse = sr;
+            if (result.isTriggered) {
+                logger.warn("We have triggered");
+                //actionManager.doAction(alertName,result);
+                logger.warn("Did action !");
+            }else{
+                logger.warn("We didn't trigger");
             }
+            //@TODO write this back to the alert manager
         } catch (Exception e) {
             logger.error("Fail", e);
             logger.error("Failed execute alert [{}]",alert.queryName(), e);
@@ -95,18 +90,50 @@ public class AlertScheduler extends AbstractLifecycleComponent {
 
     }
 
+    private XContentBuilder createClampedQuery(JobExecutionContext jobExecutionContext, Alert alert) throws IOException {
+        Date scheduledFireTime = jobExecutionContext.getScheduledFireTime();
+        DateTime clampEnd = new DateTime(scheduledFireTime);
+        DateTime clampStart = clampEnd.minusSeconds((int)alert.timePeriod().seconds());
+        logger.error("Subtracting : [{}] seconds from [{}] = [{}]", (int)alert.timePeriod().seconds(), clampEnd, clampStart );
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        builder.startObject();
+        builder.field("query");
+        builder.startObject();
+        builder.field("filtered");
+        builder.startObject();
+        builder.field("query");
+        builder.startObject();
+        builder.field("template");
+        builder.startObject();
+        builder.field("id");
+        builder.value(alert.queryName());
+        builder.endObject();
+        builder.endObject();
+        builder.field("filter");
+        builder.startObject();
+        builder.field("range");
+        builder.startObject();
+        builder.field("@timestamp");
+        builder.startObject();
+        builder.field("gte");
+        builder.value(clampStart);
+        builder.field("lt");
+        builder.value(clampEnd);
+        builder.endObject();
+        builder.endObject();
+        builder.endObject();
+        builder.endObject();
+        builder.endObject();
+        return builder;
+    }
+
     public void addAlert(String alertName, Alert alert) {
-        try {
-            org.elasticsearch.alerting.AlertExecutorJob.class.newInstance();
-        } catch (Exception e){
-            logger.error("NOOOOO",e);
-        }
         JobDetail job = JobBuilder.newJob(org.elasticsearch.alerting.AlertExecutorJob.class).withIdentity(alertName).build();
         job.getJobDataMap().put("manager",this);
         CronTrigger cronTrigger = TriggerBuilder.newTrigger()
                 .withSchedule(CronScheduleBuilder.cronSchedule(alert.schedule()))
                 .build();
-
         try {
             logger.warn("Scheduling [{}] with schedule [{}]", alertName, alert.schedule());
             scheduler.scheduleJob(job, cronTrigger);

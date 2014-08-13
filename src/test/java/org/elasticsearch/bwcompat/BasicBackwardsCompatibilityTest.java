@@ -30,6 +30,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotR
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.deletebyquery.DeleteByQueryResponse;
@@ -723,6 +724,16 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
         Fields fields = termVectorResponse.getFields();
         assertThat(fields.size(), equalTo(1));
         assertThat(fields.terms("field").size(), equalTo(8l));
+    }
+
+    @Test
+    public void testIndicesStats() {
+        createIndex("test");
+        ensureYellow("test");
+
+        IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats().all().get();
+        assertThat(indicesStatsResponse.getIndices().size(), equalTo(1));
+        assertThat(indicesStatsResponse.getIndices().containsKey("test"), equalTo(true));
     }
 
     private static String indexOrAlias() {

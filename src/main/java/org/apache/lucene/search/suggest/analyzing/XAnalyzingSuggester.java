@@ -28,6 +28,7 @@ import org.apache.lucene.store.*;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.util.*;
+import org.apache.lucene.util.PriorityQueue;
 import org.apache.lucene.util.automaton.*;
 import org.apache.lucene.util.fst.*;
 import org.apache.lucene.util.fst.FST.BytesReader;
@@ -1003,8 +1004,7 @@ public class XAnalyzingSuggester extends Lookup {
         private final PairOutputs<Long, BytesRef> outputs;
         private boolean hasPayloads;
         private BytesRef analyzed = new BytesRef();
-        private final SurfaceFormAndPayload[] surfaceFormsAndPayload;
-        private int count;
+        private SurfaceFormPriorityQueue surfaceFormPriorityQueue;
         private int payloadSep;
         private int docID;
 
@@ -1014,7 +1014,7 @@ public class XAnalyzingSuggester extends Lookup {
             this.builder = new Builder<>(FST.INPUT_TYPE.BYTE1, outputs);
             this.maxSurfaceFormsPerAnalyzedForm = maxSurfaceFormsPerAnalyzedForm;
             this.hasPayloads = hasPayloads;
-            surfaceFormsAndPayload = new SurfaceFormAndPayload[maxSurfaceFormsPerAnalyzedForm];
+            this.surfaceFormPriorityQueue = new SurfaceFormPriorityQueue(maxSurfaceFormsPerAnalyzedForm);
         }
 
         public void startTerm(BytesRef analyzed) {
@@ -1052,33 +1052,54 @@ public class XAnalyzingSuggester extends Lookup {
             }
         }
 
-        public int addSurface(BytesRef surface, BytesRef payload, long cost) throws IOException {
-            int surfaceIndex = -1;
-            long encodedWeight = cost == -1 ? cost : encodeWeight(cost);
-            if (count >= maxSurfaceFormsPerAnalyzedForm) {
-                // More than maxSurfaceFormsPerAnalyzedForm
-                // dups: skip the rest:
-                return count;
+        private final static class SurfaceFormPriorityQueue extends PriorityQueue<SurfaceFormAndPayload> {
+
+            public SurfaceFormPriorityQueue(int maxSize) {
+                super(maxSize);
             }
-            surfaceIndex = count++;
+
+            @Override
+            protected boolean lessThan(SurfaceFormAndPayload a, SurfaceFormAndPayload b) {
+                return a.weight < b.weight;
+            }
+
+            /**
+             * Returns results in descending order followed by sorting <code>SurfaceFormAndPayloads</code>
+             * according to
+             * {@link SurfaceFormAndPayload#compareTo(SurfaceFormAndPayload)}
+             */
+            public SurfaceFormAndPayload[] getResults() {
+                int size = size();
+                SurfaceFormAndPayload[] res = new SurfaceFormAndPayload[size];
+                for (int i = size - 1; i >= 0; i--) {
+                    res[i] = pop();
+                }
+                ArrayUtil.timSort(res, 0, size);
+                return res;
+            }
+        }
+
+        public int addSurface(BytesRef surface, BytesRef payload, long cost) throws IOException {
+            long encodedWeight = cost == -1 ? cost : encodeWeight(cost);
             BytesRef payloadRef = XPayLoadProcessor.make(surface, payload, docID, payloadSep, hasPayloads);
-            surfaceFormsAndPayload[surfaceIndex] = new SurfaceFormAndPayload(this.docID, payloadRef, encodedWeight);
-            return count;
+            surfaceFormPriorityQueue.insertWithOverflow(new SurfaceFormAndPayload(this.docID, payloadRef, encodedWeight));
+            return surfaceFormPriorityQueue.size();
         }
 
         public void finishTerm(long defaultWeight) throws IOException {
-            ArrayUtil.timSort(surfaceFormsAndPayload, 0, count);
+            SurfaceFormAndPayload[] surfaceFormAndPayloads = surfaceFormPriorityQueue.getResults();
+            assert surfaceFormAndPayloads.length <= maxSurfaceFormsPerAnalyzedForm;
             int deduplicator = 0;
             analyzed.bytes[analyzed.offset + analyzed.length] = END_BYTE;
             analyzed.length += 2;
-            for (int i = 0; i < count; i++) {
+            for (int i = 0; i < surfaceFormAndPayloads.length; i++) {
                 analyzed.bytes[analyzed.offset + analyzed.length - 1] = (byte) deduplicator++;
                 Util.toIntsRef(analyzed, scratchInts);
-                SurfaceFormAndPayload candidate = surfaceFormsAndPayload[i];
+                SurfaceFormAndPayload candidate = surfaceFormAndPayloads[i];
                 long cost = candidate.weight == -1 ? encodeWeight(Math.min(Integer.MAX_VALUE, defaultWeight)) : candidate.weight;
                 builder.add(scratchInts, outputs.newPair(cost, candidate.payload));
             }
-            count = 0;
+            surfaceFormPriorityQueue.clear();
         }
 
         public FST<Pair<Long, BytesRef>> build() throws IOException {

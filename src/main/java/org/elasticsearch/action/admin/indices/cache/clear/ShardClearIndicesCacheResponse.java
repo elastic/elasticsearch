@@ -20,10 +20,7 @@
 package org.elasticsearch.action.admin.indices.cache.clear;
 
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-
-import java.io.IOException;
+import org.elasticsearch.index.shard.ShardId;
 
 /**
  *
@@ -33,17 +30,7 @@ class ShardClearIndicesCacheResponse extends BroadcastShardOperationResponse {
     ShardClearIndicesCacheResponse() {
     }
 
-    public ShardClearIndicesCacheResponse(String index, int shardId) {
-        super(index, shardId);
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
+    ShardClearIndicesCacheResponse(ShardId shardId) {
+        super(shardId);
     }
 }

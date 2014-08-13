@@ -152,9 +152,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
                 Store store = indexShard.store();
                 store.incRef();
                 try {
-                    if (indexShard != null) {
-                        return new StoreFilesMetaData(true, shardId, indexShard.store().getMetadata().asMap());
-                    }
+                    return new StoreFilesMetaData(true, shardId, indexShard.store().getMetadata().asMap());
                 } finally {
                     store.decRef();
                 }

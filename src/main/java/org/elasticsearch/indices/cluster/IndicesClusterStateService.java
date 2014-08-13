@@ -542,8 +542,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 continue;
             }
 
-            if (indexService.hasShard(shardId)) {
-                InternalIndexShard indexShard = (InternalIndexShard) indexService.shard(shardId);
+            InternalIndexShard indexShard = (InternalIndexShard) indexService.shard(shardId);
+            if (indexShard != null) {
                 ShardRouting currentRoutingEntry = indexShard.routingEntry();
                 // if the current and global routing are initializing, but are still not the same, its a different "shard" being allocated
                 // for example: a shard that recovers from one node and now needs to recover to another node,
@@ -566,13 +566,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                         }
                     }
                 }
-            }
 
-            if (indexService.hasShard(shardId)) {
-                InternalIndexShard indexShard = (InternalIndexShard) indexService.shard(shardId);
                 if (!shardRouting.equals(indexShard.routingEntry())) {
                     indexShard.routingEntry(shardRouting);
-                    indexService.shardInjector(shardId).getInstance(IndexShardGatewayService.class).routingStateChanged();
+                    indexService.shardInjectorSafe(shardId).getInstance(IndexShardGatewayService.class).routingStateChanged();
                 }
             }
 
@@ -740,7 +737,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             // we are the first primary, recover from the gateway
             // if its post api allocation, the index should exists
             boolean indexShouldExists = indexShardRouting.primaryAllocatedPostApi();
-            IndexShardGatewayService shardGatewayService = indexService.shardInjector(shardId).getInstance(IndexShardGatewayService.class);
+            IndexShardGatewayService shardGatewayService = indexService.shardInjectorSafe(shardId).getInstance(IndexShardGatewayService.class);
             shardGatewayService.recover(indexShouldExists, new IndexShardGatewayService.RecoveryListener() {
                 @Override
                 public void onRecoveryDone() {

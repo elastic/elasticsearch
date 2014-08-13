@@ -21,6 +21,7 @@ package org.elasticsearch.index.service;
 
 import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.index.IndexComponent;
 import org.elasticsearch.index.IndexShardMissingException;
@@ -79,12 +80,26 @@ public interface IndexService extends IndexComponent, Iterable<IndexShard> {
 
     boolean hasShard(int shardId);
 
+    /**
+     * Return the shard with the provided id, or null if there is no such shard.
+     */
+    @Nullable
     IndexShard shard(int shardId);
 
+    /**
+     * Return the shard with the provided id, or throw an exception if it doesn't exist.
+     */
     IndexShard shardSafe(int shardId) throws IndexShardMissingException;
 
+    /**
+     * Return the shard injector for the provided id, or null if there is no such shard.
+     */
+    @Nullable
     Injector shardInjector(int shardId);
 
+    /**
+     * Return the shard injector for the provided id, or throw an exception if there is no such shard.
+     */
     Injector shardInjectorSafe(int shardId) throws IndexShardMissingException;
 
     String indexUUID();

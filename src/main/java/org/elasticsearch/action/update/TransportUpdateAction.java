@@ -273,7 +273,10 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 listener.onResponse(update);
                 IndexService indexServiceOrNull = indicesService.indexService(request.concreteIndex());
                 if (indexServiceOrNull !=  null) {
-                    indexService.shard(request.request().shardId()).indexingService().noopUpdate(request.request().type());
+                    IndexShard shard = indexService.shard(request.request().shardId());
+                    if (shard != null) {
+                        shard.indexingService().noopUpdate(request.request().type());
+                    }
                 }
                 break;
             default:

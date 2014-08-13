@@ -27,6 +27,7 @@ import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.*;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.English;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.geo.GeoDistance;
@@ -489,8 +490,8 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
         int numDocs = context.reader().maxDoc();
         SortedBinaryDocValues leftBytesValues = leftData.getBytesValues();
         SortedBinaryDocValues rightBytesValues = rightData.getBytesValues();
-        BytesRef leftSpare = new BytesRef();
-        BytesRef rightSpare = new BytesRef();
+        BytesRefBuilder leftSpare = new BytesRefBuilder();
+        BytesRefBuilder rightSpare = new BytesRefBuilder();
 
         for (int i = 0; i < numDocs; i++) {
             leftBytesValues.setDocument(i);
@@ -502,12 +503,12 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
                 rightSpare.copyBytes(rightBytesValues.valueAt(j));
                 leftSpare.copyBytes(leftBytesValues.valueAt(j));
                 if (previous != null) {
-                    assertThat(pre.compare(previous, rightSpare), lessThan(0));
+                    assertThat(pre.compare(previous, rightSpare.get()), lessThan(0));
                 }
-                previous = BytesRef.deepCopyOf(rightSpare);
-                pre.toString(rightSpare);
-                pre.toString(leftSpare);
-                assertThat(pre.toString(leftSpare), equalTo(pre.toString(rightSpare)));
+                previous = BytesRef.deepCopyOf(rightSpare.get());
+                pre.toString(rightSpare.get());
+                pre.toString(leftSpare.get());
+                assertThat(pre.toString(leftSpare.get()), equalTo(pre.toString(rightSpare.get())));
             }
         }
     }

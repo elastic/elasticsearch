@@ -73,7 +73,7 @@ public class FreqTermsEnumTests extends ElasticsearchLuceneTestCase {
         referenceFilter = Maps.newHashMap();
 
         Directory dir = newDirectory();
-        IndexWriterConfig conf = newIndexWriterConfig(TEST_VERSION_CURRENT, new KeywordAnalyzer()); // use keyword analyzer we rely on the stored field holding the exact term.
+        IndexWriterConfig conf = newIndexWriterConfig(new KeywordAnalyzer()); // use keyword analyzer we rely on the stored field holding the exact term.
         if (frequently()) {
             // we don't want to do any merges, so we won't expunge deletes
             conf.setMergePolicy(NoMergePolicy.INSTANCE);

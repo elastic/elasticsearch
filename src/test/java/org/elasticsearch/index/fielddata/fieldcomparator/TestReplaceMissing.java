@@ -32,7 +32,7 @@ public class TestReplaceMissing extends ElasticsearchLuceneTestCase {
     
     public void test() throws Exception {
         Directory dir = newDirectory();
-        IndexWriterConfig iwc = newIndexWriterConfig(TEST_VERSION_CURRENT, null);
+        IndexWriterConfig iwc = newIndexWriterConfig(null);
         iwc.setMergePolicy(newLogMergePolicy());
         IndexWriter iw = new IndexWriter(dir, iwc);
         

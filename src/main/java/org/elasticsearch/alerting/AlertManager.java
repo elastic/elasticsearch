@@ -24,6 +24,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.SearchHit;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -41,6 +42,7 @@ public class AlertManager extends AbstractLifecycleComponent {
     public final ParseField TIMEPERIOD_FIELD = new ParseField("timeperiod");
     public final ParseField ACTION_FIELD = new ParseField("action");
     public final ParseField LASTRAN_FIELD = new ParseField("lastRan");
+    public final ParseField INDICES = new ParseField("indices");
 
     private final Client client;
     private AlertScheduler scheduler;
@@ -50,6 +52,7 @@ public class AlertManager extends AbstractLifecycleComponent {
     private AtomicBoolean started = new AtomicBoolean(false);
     private final Thread starter;
 
+    private AlertActionManager actionManager;
 
     class StarterThread implements Runnable {
         @Override
@@ -83,7 +86,10 @@ public class AlertManager extends AbstractLifecycleComponent {
         }
     }
 
-
+    @Inject
+    public void setActionManager(AlertActionManager actionManager){
+        this.actionManager = actionManager;
+    }
 
     @Override
     protected void doStart() throws ElasticsearchException {
@@ -156,14 +162,33 @@ public class AlertManager extends AbstractLifecycleComponent {
 
                 String query = fields.get(QUERY_FIELD.getPreferredName()).toString();
                 String schedule = fields.get(SCHEDULE_FIELD.getPreferredName()).toString();
-                //AlertTrigger trigger = TriggerManager.parseTriggerFromSearchField(fields.get(TRIGGER_FIELD.toString()));
-                AlertTrigger trigger = new AlertTrigger(AlertTrigger.SimpleTrigger.GREATER_THAN, AlertTrigger.TriggerType.NUMBER_OF_EVENTS, 1);
+                Object triggerObj = fields.get(TRIGGER_FIELD.getPreferredName());
+                AlertTrigger trigger = null;
+                if (triggerObj instanceof Map) {
+                    Map<String, Object> triggerMap = (Map<String, Object>) triggerObj;
+                    trigger = TriggerManager.parseTriggerFromMap(triggerMap);
+                } else {
+                    throw new ElasticsearchException("Unable to parse trigger [" + triggerObj + "]");
+                }
                 TimeValue timePeriod = new TimeValue(Long.valueOf(fields.get(TIMEPERIOD_FIELD.getPreferredName()).toString()));
-                //AlertAction action = AlertActionManager.parseActionFromSearchField(fields.get(ACTION_FIELD.toString()));
-                AlertAction action = new EmailAlertAction("brian.murphy@elasticsearch.com");
+
+                Object actionObj = fields.get(ACTION_FIELD.getPreferredName());
+                List<AlertAction> actions = null;
+                if (actionObj instanceof Map) {
+                    Map<String, Object> actionMap = (Map<String, Object>) actionObj;
+                    actions = actionManager.parseActionsFromMap(actionMap);
+                } else {
+                    throw new ElasticsearchException("Unable to parse actions [" + triggerObj + "]");
+                }
+
                 DateTime lastRan = new DateTime(fields.get("lastRan").toString());
 
-                Alert alert = new Alert(alertId, query, trigger, timePeriod, action, schedule, lastRan);
+                List<String> indices = null;
+                if (fields.get(INDICES.getPreferredName()) != null && fields.get(INDICES.getPreferredName()) instanceof List){
+                    indices = (List<String>)fields.get(INDICES.getPreferredName());
+                }
+
+                Alert alert = new Alert(alertId, query, trigger, timePeriod, actions, schedule, lastRan, indices);
                 alertMap.put(alertId, alert);
             }
             logger.warn("Loaded [{}] alerts from the alert index.", alertMap.size());

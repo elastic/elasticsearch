@@ -9,20 +9,24 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.search.SearchHitField;
+
+import java.util.Map;
 
 public class TriggerManager extends AbstractComponent {
 
     private final AlertManager alertManager;
-    //private ESLogger logger = Loggers.getLogger(TriggerManager.class);
 
-    public static AlertTrigger parseTriggerFromSearchField(SearchHitField hitField) {
+    public static AlertTrigger parseTriggerFromMap(Map<String, Object> triggerMap) {
         //For now just trigger on number of events greater than 1
-        return new AlertTrigger(AlertTrigger.SimpleTrigger.GREATER_THAN, AlertTrigger.TriggerType.NUMBER_OF_EVENTS, 1);
-        //return null;
+        for (Map.Entry<String,Object> entry : triggerMap.entrySet()){
+            AlertTrigger.TriggerType type = AlertTrigger.TriggerType.fromString(entry.getKey());
+
+            AlertTrigger.SimpleTrigger simpleTrigger = AlertTrigger.SimpleTrigger.fromString(entry.getValue().toString().substring(0, 1));
+            int value = Integer.valueOf(entry.getValue().toString().substring(1));
+            return new AlertTrigger(simpleTrigger, type, value);
+        }
+        throw new ElasticsearchIllegalArgumentException();
     }
 
     @Inject

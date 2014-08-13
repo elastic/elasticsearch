@@ -11,22 +11,40 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchHitField;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 public class AlertActionManager extends AbstractComponent {
 
     private final AlertManager alertManager;
+    private final Map<String, AlertActionFactory> actionImplemented;
 
     @Inject
     public AlertActionManager(Settings settings, AlertManager alertManager) {
         super(settings);
         this.alertManager = alertManager;
+        this.actionImplemented = new HashMap<>();
+        actionImplemented.put("email", new EmailAlertActionFactory());
     }
 
-    public static AlertAction parseActionFromSearchField(SearchHitField hitField) {
-        return null;
+    public void registerAction(String name, AlertActionFactory actionFactory){
+        actionImplemented.put(name, actionFactory);
+    }
+
+    public List<AlertAction> parseActionsFromMap(Map<String,Object> actionMap) {
+        List<AlertAction> actions = new ArrayList<>();
+        for (Map.Entry<String, Object> actionEntry : actionMap.entrySet() ) {
+            actions.add(actionImplemented.get(actionEntry.getKey()).createAction(actionEntry.getValue()));
+        }
+        return actions;
     }
 
     public void doAction(String alertName, AlertResult alertResult){
         Alert alert = alertManager.getAlertForName(alertName);
-        alert.action().doAction(alertResult);
+        for (AlertAction action : alert.actions()) {
+            action.doAction(alertName, alertResult);
+        }
     }
 }

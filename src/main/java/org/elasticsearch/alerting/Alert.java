@@ -5,12 +5,10 @@
  */
 package org.elasticsearch.alerting;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.unit.TimeValue;
 
-import java.util.Calendar;
-import java.util.Date;
+import java.util.List;
 
 /**
  * Created by brian on 8/12/14.
@@ -20,6 +18,20 @@ public class Alert {
     private String queryName;
     private AlertTrigger trigger;
     private TimeValue timePeriod;
+    private List<AlertAction> actions;
+    private String schedule;
+    private DateTime lastRan;
+
+    public List<String> indices() {
+        return indices;
+    }
+
+    public void indices(List<String> indices) {
+        this.indices = indices;
+    }
+
+    private List<String> indices;
+
 
     public String alertName() {
         return alertName;
@@ -49,12 +61,12 @@ public class Alert {
         this.timePeriod = timePeriod;
     }
 
-    public AlertAction action() {
-        return action;
+    public List<AlertAction> actions() {
+        return actions;
     }
 
-    public void action(AlertAction action) {
-        this.action = action;
+    public void actions(List<AlertAction> action) {
+        this.actions = action;
     }
 
     public String schedule() {
@@ -73,19 +85,17 @@ public class Alert {
         this.lastRan = lastRan;
     }
 
-    private AlertAction action;
-    private String schedule;
-    private DateTime lastRan;
-
     public Alert(String alertName, String queryName, AlertTrigger trigger,
-                 TimeValue timePeriod, AlertAction action, String schedule, DateTime lastRan){
+                 TimeValue timePeriod, List<AlertAction> actions, String schedule, DateTime lastRan,
+                 List<String> indices){
         this.alertName = alertName;
         this.queryName = queryName;
         this.trigger = trigger;
         this.timePeriod = timePeriod;
-        this.action = action;
+        this.actions = actions;
         this.lastRan = lastRan;
         this.schedule = schedule;
+        this.indices = indices;
     }
 
     public String toJSON(){

@@ -5,6 +5,6 @@
  */
 package org.elasticsearch.alerting;
 
-public interface AlertAction {
-    public boolean doAction(String alertName, AlertResult alert);
+public interface AlertActionFactory {
+    AlertAction createAction(Object parameters);
 }

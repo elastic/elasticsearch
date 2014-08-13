@@ -15,6 +15,7 @@ public class AlertingModule extends AbstractModule {
         bind(TriggerManager.class).asEagerSingleton();
         bind(AlertScheduler.class).asEagerSingleton();
         bind(AlertActionManager.class).asEagerSingleton();
+        bind(AlertRestHandler.class).asEagerSingleton();
     }
 
 }

@@ -78,11 +78,14 @@ public class AlertManager extends AbstractLifecycleComponent {
                 logger.error("Failed to load alerts", t);
             }
             //Build the mapping for the scheduler
-            Map<String,String> alertNameToSchedule = new HashMap();
-            synchronized (alertMap) {
-                for (Map.Entry<String, Alert> entry : alertMap.entrySet()) {
-                    scheduler.addAlert(entry.getKey(), entry.getValue());
-                }
+            sendAlertsToScheduler();
+        }
+    }
+
+    private void sendAlertsToScheduler() {
+        synchronized (alertMap) {
+            for (Map.Entry<String, Alert> entry : alertMap.entrySet()) {
+                scheduler.addAlert(entry.getKey(), entry.getValue());
             }
         }
     }
@@ -137,6 +140,20 @@ public class AlertManager extends AbstractLifecycleComponent {
         ClusterHealthResponse actionGet = client.admin().cluster()
                 .health(Requests.clusterHealthRequest(ALERT_INDEX).waitForGreenStatus().waitForEvents(Priority.LANGUID).waitForRelocatingShards(0)).actionGet();
         return actionGet.getStatus();
+    }
+
+    public void refreshAlerts() {
+        try {
+            synchronized (alertMap) {
+                scheduler.clearAlerts();
+                alertMap.clear();
+                loadAlerts();
+                sendAlertsToScheduler();
+
+            }
+        } catch (Exception e){
+            throw new ElasticsearchException("Failed to refresh alerts",e);
+        }
     }
 
     private void loadAlerts() throws InterruptedException, ExecutionException{

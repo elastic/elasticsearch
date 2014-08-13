@@ -47,6 +47,14 @@ public class AlertScheduler extends AbstractLifecycleComponent {
         }
     }
 
+    public void clearAlerts() {
+        try {
+            scheduler.clear();
+        } catch (SchedulerException se){
+            throw new ElasticsearchException("Failed to clear scheduler", se);
+        }
+    }
+
     public void executeAlert(String alertName, JobExecutionContext jobExecutionContext){
         logger.warn("Running [{}]",alertName);
         Alert alert = alertManager.getAlertForName(alertName);

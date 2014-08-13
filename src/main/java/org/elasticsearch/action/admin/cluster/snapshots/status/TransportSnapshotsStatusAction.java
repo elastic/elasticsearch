@@ -179,7 +179,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeOperation
                         default:
                             throw new ElasticsearchIllegalArgumentException("Unknown snapshot state " + shardEntry.getValue().state());
                     }
-                    SnapshotIndexShardStatus shardStatus = new SnapshotIndexShardStatus(shardEntry.getKey().getIndex(), shardEntry.getKey().getId(), stage);
+                    SnapshotIndexShardStatus shardStatus = new SnapshotIndexShardStatus(shardEntry.getKey(), stage);
                     shardStatusBuilder.add(shardStatus);
                 }
                 builder.add(new SnapshotStatus(entry.snapshotId(), entry.state(), shardStatusBuilder.build()));

@@ -133,8 +133,8 @@ public class TransportIndicesStatsAction extends TransportBroadcastOperationActi
 
     @Override
     protected ShardStats shardOperation(IndexShardStatsRequest request) throws ElasticsearchException {
-        InternalIndexService indexService = (InternalIndexService) indicesService.indexServiceSafe(request.index());
-        InternalIndexShard indexShard = (InternalIndexShard) indexService.shardSafe(request.shardId());
+        InternalIndexService indexService = (InternalIndexService) indicesService.indexServiceSafe(request.shardId().getIndex());
+        InternalIndexShard indexShard = (InternalIndexShard) indexService.shardSafe(request.shardId().id());
 
         CommonStatsFlags flags = new CommonStatsFlags().clear();
 

@@ -23,6 +23,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.percolator.PercolateContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.facet.InternalFacets;
@@ -57,8 +58,8 @@ public class PercolateShardResponse extends BroadcastShardOperationResponse {
         hls = new ArrayList<>();
     }
 
-    public PercolateShardResponse(BytesRef[] matches, List<Map<String, HighlightField>> hls, long count, float[] scores, PercolateContext context, String index, int shardId) {
-        super(index, shardId);
+    public PercolateShardResponse(BytesRef[] matches, List<Map<String, HighlightField>> hls, long count, float[] scores, PercolateContext context, ShardId shardId) {
+        super(shardId);
         this.matches = matches;
         this.hls = hls;
         this.count = count;
@@ -76,20 +77,20 @@ public class PercolateShardResponse extends BroadcastShardOperationResponse {
         }
     }
 
-    public PercolateShardResponse(BytesRef[] matches, long count, float[] scores, PercolateContext context, String index, int shardId) {
-        this(matches, EMPTY_HL, count, scores, context, index, shardId);
+    public PercolateShardResponse(BytesRef[] matches, long count, float[] scores, PercolateContext context, ShardId shardId) {
+        this(matches, EMPTY_HL, count, scores, context, shardId);
     }
 
-    public PercolateShardResponse(BytesRef[] matches, List<Map<String, HighlightField>> hls, long count, PercolateContext context, String index, int shardId) {
-        this(matches, hls, count, EMPTY_SCORES, context, index, shardId);
+    public PercolateShardResponse(BytesRef[] matches, List<Map<String, HighlightField>> hls, long count, PercolateContext context, ShardId shardId) {
+        this(matches, hls, count, EMPTY_SCORES, context, shardId);
     }
 
-    public PercolateShardResponse(long count, PercolateContext context, String index, int shardId) {
-        this(EMPTY_MATCHES, EMPTY_HL, count, EMPTY_SCORES, context, index, shardId);
+    public PercolateShardResponse(long count, PercolateContext context, ShardId shardId) {
+        this(EMPTY_MATCHES, EMPTY_HL, count, EMPTY_SCORES, context, shardId);
     }
 
-    public PercolateShardResponse(PercolateContext context, String index, int shardId) {
-        this(EMPTY_MATCHES, EMPTY_HL, 0, EMPTY_SCORES, context, index, shardId);
+    public PercolateShardResponse(PercolateContext context, ShardId shardId) {
+        this(EMPTY_MATCHES, EMPTY_HL, 0, EMPTY_SCORES, context, shardId);
     }
 
     public BytesRef[] matches() {

@@ -47,6 +47,8 @@ public class GroovySandboxScriptTests extends ElasticsearchIntegrationTest {
         testSuccess("def v = doc['foo'].value; def m = [:]; m.put(\\\"value\\\", v)");
         // Times
         testSuccess("def t = Instant.now().getMillis()");
+        // GroovyCollections
+        testSuccess("def n = [1,2,3]; GroovyCollections.max(n)");
 
         // Fail cases
         testFailure("pr = Runtime.getRuntime().exec(\\\"touch /tmp/gotcha\\\"); pr.waitFor()",

@@ -176,12 +176,13 @@ public class FunctionScoreTests extends ElasticsearchIntegrationTest {
                                         .add(weightFactorFunction(4.0))
                         ).explain(true))).actionGet();
         assertThat(responseWithWeights.getHits().getAt(0).getExplanation().toString(), anyOf(
-                equalTo("4.0 = function score, product of:\n  1.0 = ConstantScore(text_field:value), product of:\n    1.0 = boost\n    1.0 = queryNorm\n  4.0 = Math.min of\n    4.0 = weight\n    3.4028235E38 = maxBoost\n  1.0 = queryBoost\n"),
+                equalTo("4.0 = function score, product of:\n  1.0 = ConstantScore(cache(text_field:value)), product of:\n    1.0 = boost\n    1.0 = queryNorm\n  4.0 = Math.min of\n    4.0 = product of:\n      1.0 = constant score 1.0 - no function provided\n      4.0 = weight\n    3.4028235E38 = maxBoost\n  1.0 = queryBoost\n"),
                 // TODO: Why is there sometimes a '...cache(...' in the explanation?
-                equalTo("4.0 = function score, product of:\n  1.0 = ConstantScore(cache(text_field:value)), product of:\n    1.0 = boost\n    1.0 = queryNorm\n  4.0 = Math.min of\n    4.0 = weight\n    3.4028235E38 = maxBoost\n  1.0 = queryBoost\n"),
-                equalTo("4.0 = (MATCH) function score, product of:\n  1.0 = (MATCH) ConstantScore(text_field:value), product of:\n    1.0 = boost\n    1.0 = queryNorm\n  4.0 = (MATCH) Math.min of\n    4.0 = weight\n    3.4028235E38 = maxBoost\n  1.0 = queryBoost\n"),
-                equalTo("4.0 = (MATCH) function score, product of:\n  1.0 = (MATCH) ConstantScore(cache(text_field:value)), product of:\n    1.0 = boost\n    1.0 = queryNorm\n  4.0 = (MATCH) Math.min of\n    4.0 = weight\n    3.4028235E38 = maxBoost\n  1.0 = queryBoost\n")
+                equalTo("4.0 = (MATCH) function score, product of:\n  1.0 = (MATCH) ConstantScore(text_field:value), product of:\n    1.0 = boost\n    1.0 = queryNorm\n  4.0 = (MATCH) Math.min of\n    4.0 = (MATCH) product of:\n      1.0 = constant score 1.0 - no function provided\n      4.0 = weight\n    3.4028235E38 = maxBoost\n  1.0 = queryBoost\n"),
+                equalTo("4.0 = function score, product of:\n  1.0 = ConstantScore(text_field:value), product of:\n    1.0 = boost\n    1.0 = queryNorm\n  4.0 = Math.min of\n    4.0 = product of:\n      1.0 = constant score 1.0 - no function provided\n      4.0 = weight\n    3.4028235E38 = maxBoost\n  1.0 = queryBoost\n"),
+                equalTo("4.0 = (MATCH) function score, product of:\n  1.0 = (MATCH) ConstantScore(cache(text_field:value)), product of:\n    1.0 = boost\n    1.0 = queryNorm\n  4.0 = (MATCH) Math.min of\n    4.0 = (MATCH) product of:\n      1.0 = constant score 1.0 - no function provided\n      4.0 = weight\n    3.4028235E38 = maxBoost\n  1.0 = queryBoost\n")
         ));
+
     }
 
     @Test

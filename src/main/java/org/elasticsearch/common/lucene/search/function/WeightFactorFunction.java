@@ -29,7 +29,7 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
  */
 public class WeightFactorFunction extends ScoreFunction {
 
-
+    private static final ScoreFunction SCORE_ONE = new ScoreOne(CombineFunction.MULT);
     private final ScoreFunction scoreFunction;
     private double weight = 1.0;
 
@@ -38,43 +38,37 @@ public class WeightFactorFunction extends ScoreFunction {
         if (scoreFunction instanceof BoostScoreFunction) {
             throw new ElasticsearchIllegalArgumentException(BoostScoreFunction.BOOST_WEIGHT_ERROR_MESSAGE_PARSER);
         }
-        this.scoreFunction = scoreFunction;
+        if (scoreFunction == null) {
+            this.scoreFunction = SCORE_ONE;
+        } else {
+            this.scoreFunction = scoreFunction;
+        }
         this.weight = weight;
     }
 
     public WeightFactorFunction(double weight) {
         super(CombineFunction.MULT);
-        this.scoreFunction = null;
+        this.scoreFunction = SCORE_ONE;
         this.weight = weight;
     }
 
     @Override
     public void setNextReader(AtomicReaderContext context) {
-        if (scoreFunction != null ) {
-            scoreFunction.setNextReader(context);
-        }
+        scoreFunction.setNextReader(context);
     }
 
     @Override
     public double score(int docId, float subQueryScore) {
-        if (scoreFunction != null ) {
-            return scoreFunction.score(docId, subQueryScore) * getWeight();
-        } else {
-            return getWeight();
-        }
+        return scoreFunction.score(docId, subQueryScore) * getWeight();
     }
 
     @Override
     public Explanation explainScore(int docId, float score) {
         Explanation functionScoreExplanation;
-        if (scoreFunction != null) {
-            Explanation functionExplanation = scoreFunction.explainScore(docId, score);
-             functionScoreExplanation = new ComplexExplanation(true, functionExplanation.getValue() * (float) getWeight(), "product of:");
-            functionScoreExplanation.addDetail(functionExplanation);
-            functionScoreExplanation.addDetail(explainWeight());
-        } else {
-            functionScoreExplanation = explainWeight();
-        }
+        Explanation functionExplanation = scoreFunction.explainScore(docId, score);
+        functionScoreExplanation = new ComplexExplanation(true, functionExplanation.getValue() * (float) getWeight(), "product of:");
+        functionScoreExplanation.addDetail(functionExplanation);
+        functionScoreExplanation.addDetail(explainWeight());
         return functionScoreExplanation;
     }
 
@@ -86,7 +80,7 @@ public class WeightFactorFunction extends ScoreFunction {
             return false;
 
         WeightFactorFunction that = (WeightFactorFunction) o;
-        if (! scoreFunction.equals(that.scoreFunction)) {
+        if (!scoreFunction.equals(that.scoreFunction)) {
             return false;
         }
 
@@ -101,13 +95,33 @@ public class WeightFactorFunction extends ScoreFunction {
         return (getWeight() != +0.0f ? Float.floatToIntBits((float) getWeight()) : 0);
     }
 
-
     public Explanation explainWeight() {
         return new Explanation((float) getWeight(), "weight");
     }
 
-
     public double getWeight() {
         return weight;
+    }
+
+    private static class ScoreOne extends ScoreFunction {
+
+        protected ScoreOne(CombineFunction scoreCombiner) {
+            super(scoreCombiner);
+        }
+
+        @Override
+        public void setNextReader(AtomicReaderContext context) {
+
+        }
+
+        @Override
+        public double score(int docId, float subQueryScore) {
+            return 1.0;
+        }
+
+        @Override
+        public Explanation explainScore(int docId, float subQueryScore) {
+            return new Explanation(1.0f, "constant score 1.0 - no function provided");
+        }
     }
 }

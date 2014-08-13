@@ -52,6 +52,7 @@ class PhraseSuggestionContext extends SuggestionContext {
     private WordScorer.WordScorerFactory scorer;
 
     private boolean requireUnigram = true;
+    private boolean prune = false;
 
     public PhraseSuggestionContext(Suggester<? extends PhraseSuggestionContext> suggester) {
         super(suggester);
@@ -219,6 +220,14 @@ class PhraseSuggestionContext extends SuggestionContext {
 
     void setCollateScriptParams(Map<String, Object> collateScriptParams) {
         this.collateScriptParams = collateScriptParams;
+    }
+
+    void setCollatePrune(boolean prune) {
+        this.prune = prune;
+    }
+
+    boolean collatePrune() {
+        return prune;
     }
 
 }

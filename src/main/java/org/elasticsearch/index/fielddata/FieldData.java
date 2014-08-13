@@ -35,6 +35,21 @@ public enum FieldData {
     ;
 
     /**
+     * Return a {@link SortedBinaryDocValues} that doesn't contain any value.
+     */
+    public static SortedBinaryDocValues emptySortedBinary(int maxDoc) {
+        return singleton(DocValues.emptyBinary(), new Bits.MatchNoBits(maxDoc));
+    }
+
+    /**
+     * Return a {@link SortedNumericDocValues} that doesn't contain any value.
+     */
+    public static SortedNumericDocValues emptySortedNumeric(int maxDoc) {
+        // nocommit: DocValues.emptySortedNumeric
+        return DocValues.singleton(DocValues.emptyNumeric(), new Bits.MatchNoBits(maxDoc));
+    }
+
+    /**
      * Return a {@link NumericDoubleValues} that doesn't contain any value.
      */
     public static NumericDoubleValues emptyNumericDouble() {

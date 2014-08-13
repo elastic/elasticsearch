@@ -33,10 +33,9 @@ import org.elasticsearch.rest.support.RestUtils;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
-import static org.elasticsearch.rest.RestStatus.OK;
-import static org.elasticsearch.rest.RestStatus.FORBIDDEN;
+import static org.elasticsearch.rest.RestStatus.*;
 
 /**
  *
@@ -87,7 +86,7 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
         Arrays.sort(copy, new Comparator<RestFilter>() {
             @Override
             public int compare(RestFilter o1, RestFilter o2) {
-                return o2.order() - o1.order();
+                return Integer.compare(o1.order(), o2.order());
             }
         });
         filters = copy;
@@ -216,7 +215,7 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
 
         private final RestFilter executionFilter;
 
-        private volatile int index;
+        private final AtomicInteger index = new AtomicInteger();
 
         ControllerFilterChain(RestFilter executionFilter) {
             this.executionFilter = executionFilter;
@@ -225,8 +224,7 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
         @Override
         public void continueProcessing(RestRequest request, RestChannel channel) {
             try {
-                int loc = index;
-                index++;
+                int loc = index.getAndIncrement();
                 if (loc > filters.length) {
                     throw new ElasticsearchIllegalStateException("filter continueProcessing was called more than expected");
                 } else if (loc == filters.length) {

@@ -43,7 +43,7 @@ once all `gateway.recover_after...nodes` conditions are met.
 The `gateway.expected_nodes` allows to set how many data and master
 eligible nodes are expected to be in the cluster, and once met, the
 `gateway.recover_after_time` is ignored and recovery starts.
-Setting `gateway.expected_nodes` also defaults `gateway.recovery_after_time` to `5m` coming[1.3.0, before `expected_nodes`
+Setting `gateway.expected_nodes` also defaults `gateway.recovery_after_time` to `5m` added[1.3.0, before `expected_nodes`
 required `recovery_after_time` to be set]. The `gateway.expected_data_nodes` and `gateway.expected_master_nodes`
 settings are also supported. For example setting:
 

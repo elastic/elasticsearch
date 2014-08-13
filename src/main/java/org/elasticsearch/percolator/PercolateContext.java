@@ -122,7 +122,7 @@ public class PercolateContext extends SearchContext {
         this.types = new String[]{request.documentType()};
         this.cacheRecycler = cacheRecycler;
         this.pageCacheRecycler = pageCacheRecycler;
-        this.bigArrays = bigArrays;
+        this.bigArrays = bigArrays.withCircuitBreaking();
         this.querySearchResult = new QuerySearchResult(0, searchShardTarget);
         this.engineSearcher = indexShard.acquireSearcher("percolate");
         this.searcher = new ContextIndexSearcher(this, engineSearcher);
@@ -341,7 +341,7 @@ public class PercolateContext extends SearchContext {
     }
 
     @Override
-    public long nowInMillis() {
+    protected long nowInMillisImpl() {
         throw new UnsupportedOperationException();
     }
 
@@ -482,6 +482,16 @@ public class PercolateContext extends SearchContext {
 
     @Override
     public void timeoutInMillis(long timeoutInMillis) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public int terminateAfter() {
+        return DEFAULT_TERMINATE_AFTER;
+    }
+
+    @Override
+    public void terminateAfter(int terminateAfter) {
         throw new UnsupportedOperationException();
     }
 

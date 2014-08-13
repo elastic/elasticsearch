@@ -27,6 +27,7 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.cache.filter.FilterCacheStats;
 import org.elasticsearch.index.cache.filter.ShardFilterCache;
 import org.elasticsearch.index.cache.id.IdCacheStats;
+import org.elasticsearch.index.cache.query.ShardQueryCache;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
@@ -76,6 +77,8 @@ public interface IndexShard extends IndexShardComponent {
     ShardIndexWarmerService warmerService();
 
     ShardFilterCache filterCache();
+
+    ShardQueryCache queryCache();
 
     ShardFieldData fieldData();
 

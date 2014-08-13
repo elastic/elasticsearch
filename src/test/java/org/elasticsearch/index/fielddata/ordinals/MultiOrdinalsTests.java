@@ -108,7 +108,7 @@ public class MultiOrdinalsTests extends ElasticsearchTestCase {
         });
         Ordinals ords = creationMultiOrdinals(builder);
         RandomAccessOrds docs = ords.ordinals();
-        final SortedDocValues singleOrds = MultiValueMode.MIN.select(docs, -1);
+        final SortedDocValues singleOrds = MultiValueMode.MIN.select(docs);
         int docId = ordsAndIds.get(0).id;
         List<Long> docOrds = new ArrayList<>();
         for (OrdAndId ordAndId : ordsAndIds) {

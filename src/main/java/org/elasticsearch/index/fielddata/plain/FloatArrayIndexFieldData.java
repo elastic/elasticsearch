@@ -21,18 +21,20 @@ package org.elasticsearch.index.fielddata.plain;
 import org.apache.lucene.index.*;
 import org.apache.lucene.util.*;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.FloatArray;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.*;
+import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.fieldcomparator.FloatValuesComparatorSource;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.MultiValueMode;
 
 /**
@@ -67,7 +69,7 @@ public class FloatArrayIndexFieldData extends AbstractIndexFieldData<AtomicNumer
         Terms terms = reader.terms(getFieldNames().indexName());
         AtomicNumericFieldData data = null;
         // TODO: Use an actual estimator to estimate before loading.
-        NonEstimatingEstimator estimator = new NonEstimatingEstimator(breakerService.getBreaker());
+        NonEstimatingEstimator estimator = new NonEstimatingEstimator(breakerService.getBreaker(CircuitBreaker.Name.FIELDDATA));
         if (terms == null) {
             data = AtomicDoubleFieldData.empty(reader.maxDoc());
             estimator.afterLoad(null, data.ramBytesUsed());
@@ -153,8 +155,8 @@ public class FloatArrayIndexFieldData extends AbstractIndexFieldData<AtomicNumer
     }
 
     @Override
-    public XFieldComparatorSource comparatorSource(@Nullable Object missingValue, MultiValueMode sortMode) {
-        return new FloatValuesComparatorSource(this, missingValue, sortMode);
+    public XFieldComparatorSource comparatorSource(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested) {
+        return new FloatValuesComparatorSource(this, missingValue, sortMode, nested);
     }
 
     private static SortedNumericDoubleValues withOrdinals(Ordinals ordinals, final FloatArray values, int maxDoc) {

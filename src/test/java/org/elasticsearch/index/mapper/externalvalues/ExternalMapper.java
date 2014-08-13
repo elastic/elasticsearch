@@ -20,10 +20,16 @@
 package org.elasticsearch.index.mapper.externalvalues;
 
 import com.spatial4j.core.shape.Point;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.mapper.core.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.core.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
@@ -31,7 +37,12 @@ import org.elasticsearch.index.mapper.geo.GeoShapeFieldMapper;
 
 import java.io.IOException;
 import java.nio.charset.Charset;
+import java.util.List;
 import java.util.Map;
+
+import static org.elasticsearch.index.mapper.MapperBuilders.stringField;
+import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
+import static org.elasticsearch.index.mapper.core.TypeParsers.parseMultiField;
 
 /**
  * This mapper add a new sub fields
@@ -40,7 +51,17 @@ import java.util.Map;
  * .point GeoPoint type
  * .shape GeoShape type
  */
-public class ExternalMapper implements Mapper {
+public class ExternalMapper extends AbstractFieldMapper<Object> {
+    /**
+     * Returns the actual value of the field.
+     *
+     * @param value
+     */
+    @Override
+    public Object value(Object value) {
+        return null;
+    }
+
     public static class Names {
         public static final String FIELD_BIN = "bin";
         public static final String FIELD_BOOL = "bool";
@@ -48,16 +69,27 @@ public class ExternalMapper implements Mapper {
         public static final String FIELD_SHAPE = "shape";
     }
 
-    public static class Builder extends Mapper.Builder<Builder, ExternalMapper> {
+    public static class Builder extends AbstractFieldMapper.Builder<Builder, ExternalMapper> {
 
         private BinaryFieldMapper.Builder binBuilder = new BinaryFieldMapper.Builder(Names.FIELD_BIN);
         private BooleanFieldMapper.Builder boolBuilder = new BooleanFieldMapper.Builder(Names.FIELD_BOOL);
         private GeoPointFieldMapper.Builder pointBuilder = new GeoPointFieldMapper.Builder(Names.FIELD_POINT);
         private GeoShapeFieldMapper.Builder shapeBuilder = new GeoShapeFieldMapper.Builder(Names.FIELD_SHAPE);
+        private Mapper.Builder stringBuilder;
+        private String generatedValue;
+        private String mapperName;
 
-        public Builder(String name) {
-            super(name);
+        public Builder(String name, String generatedValue, String mapperName) {
+            super(name, new FieldType(Defaults.FIELD_TYPE));
             this.builder = this;
+            this.stringBuilder = stringField(name).store(false);
+            this.generatedValue = generatedValue;
+            this.mapperName = mapperName;
+        }
+
+        public Builder string(Mapper.Builder content) {
+            this.stringBuilder = content;
+            return this;
         }
 
         @Override
@@ -70,81 +102,107 @@ public class ExternalMapper implements Mapper {
             BooleanFieldMapper boolMapper = boolBuilder.build(context);
             GeoPointFieldMapper pointMapper = pointBuilder.build(context);
             GeoShapeFieldMapper shapeMapper = shapeBuilder.build(context);
+            Mapper stringMapper = stringBuilder.build(context);
             context.path().remove();
 
             context.path().pathType(origPathType);
 
-            return new ExternalMapper(name, binMapper, boolMapper, pointMapper, shapeMapper);
+            return new ExternalMapper(buildNames(context), generatedValue, mapperName, binMapper, boolMapper, pointMapper, shapeMapper, stringMapper,
+                    multiFieldsBuilder.build(this, context), copyTo);
         }
     }
 
     public static class TypeParser implements Mapper.TypeParser {
 
+        private String generatedValue;
+        private String mapperName;
+
+        TypeParser(String mapperName, String generatedValue) {
+            this.mapperName = mapperName;
+            this.generatedValue = generatedValue;
+        }
+
         @SuppressWarnings({"unchecked"})
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            ExternalMapper.Builder builder = new ExternalMapper.Builder(name);
+            ExternalMapper.Builder builder = new ExternalMapper.Builder(name, generatedValue, mapperName);
+            parseField(builder, name, node, parserContext);
+            for (Map.Entry<String, Object> entry : node.entrySet()) {
+                String propName = Strings.toUnderscoreCase(entry.getKey());
+                Object propNode = entry.getValue();
+
+                parseMultiField(builder, name, node, parserContext, propName, propNode);
+            }
+
             return builder;
         }
     }
 
-    private final String name;
+    private final String generatedValue;
+    private final String mapperName;
 
     private final BinaryFieldMapper binMapper;
     private final BooleanFieldMapper boolMapper;
     private final GeoPointFieldMapper pointMapper;
     private final GeoShapeFieldMapper shapeMapper;
+    private final Mapper stringMapper;
 
-    public ExternalMapper(String name,
-                          BinaryFieldMapper binMapper, BooleanFieldMapper boolMapper, GeoPointFieldMapper pointMapper, GeoShapeFieldMapper shapeMapper) {
-        this.name = name;
+    public ExternalMapper(FieldMapper.Names names,
+                          String generatedValue, String mapperName,
+                          BinaryFieldMapper binMapper, BooleanFieldMapper boolMapper, GeoPointFieldMapper pointMapper,
+                          GeoShapeFieldMapper shapeMapper, Mapper stringMapper, MultiFields multiFields, CopyTo copyTo) {
+        super(names, 1.0f, Defaults.FIELD_TYPE, false, null, null, null, null, null, null, null, ImmutableSettings.EMPTY,
+                multiFields, copyTo);
+        this.generatedValue = generatedValue;
+        this.mapperName = mapperName;
         this.binMapper = binMapper;
         this.boolMapper = boolMapper;
         this.pointMapper = pointMapper;
         this.shapeMapper = shapeMapper;
+        this.stringMapper = stringMapper;
     }
 
     @Override
-    public String name() {
-        return name;
+    public FieldType defaultFieldType() {
+        return Defaults.FIELD_TYPE;
+    }
+
+    @Override
+    public FieldDataType defaultFieldDataType() {
+        return null;
     }
 
     @Override
     public void parse(ParseContext context) throws IOException {
-        ContentPath.Type origPathType = context.path().pathType();
-        context.path().pathType(ContentPath.Type.FULL);
-        context.path().add(name);
-
-        // Let's add a Dummy Binary content
-        context.path().add(Names.FIELD_BIN);
         byte[] bytes = "Hello world".getBytes(Charset.defaultCharset());
-        context.externalValue(bytes);
-        binMapper.parse(context);
-        context.path().remove();
+        binMapper.parse(context.createExternalValueContext(bytes));
 
-        // Let's add a Dummy Boolean content
-        context.path().add(Names.FIELD_BOOL);
-        context.externalValue(true);
-        boolMapper.parse(context);
-        context.path().remove();
+        boolMapper.parse(context.createExternalValueContext(true));
 
         // Let's add a Dummy Point
         Double lat = 42.0;
         Double lng = 51.0;
-        context.path().add(Names.FIELD_POINT);
         GeoPoint point = new GeoPoint(lat, lng);
-        context.externalValue(point);
-        pointMapper.parse(context);
-        context.path().remove();
+        pointMapper.parse(context.createExternalValueContext(point));
 
         // Let's add a Dummy Shape
-        context.path().add(Names.FIELD_SHAPE);
         Point shape = ShapeBuilder.newPoint(-100, 45).build();
-        context.externalValue(shape);
-        shapeMapper.parse(context);
-        context.path().remove();
+        shapeMapper.parse(context.createExternalValueContext(shape));
 
-        context.path().pathType(origPathType);
+        context = context.createExternalValueContext(generatedValue);
+
+        // Let's add a Original String
+        stringMapper.parse(context);
+
+        multiFields.parse(this, context);
+        if (copyTo != null) {
+            copyTo.parse(context);
+        }
+    }
+
+    @Override
+    protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
+        throw new UnsupportedOperationException();
     }
 
     @Override
@@ -158,6 +216,7 @@ public class ExternalMapper implements Mapper {
         boolMapper.traverse(fieldMapperListener);
         pointMapper.traverse(fieldMapperListener);
         shapeMapper.traverse(fieldMapperListener);
+        stringMapper.traverse(fieldMapperListener);
     }
 
     @Override
@@ -170,20 +229,20 @@ public class ExternalMapper implements Mapper {
         boolMapper.close();
         pointMapper.close();
         shapeMapper.close();
+        stringMapper.close();
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(name);
-        builder.field("type", RegisterExternalTypes.EXTERNAL);
-        builder.startObject("fields");
-        binMapper.toXContent(builder, params);
-        boolMapper.toXContent(builder, params);
-        pointMapper.toXContent(builder, params);
-        shapeMapper.toXContent(builder, params);
-        builder.endObject();
-
+        builder.startObject(name());
+        builder.field("type", mapperName);
+        multiFields.toXContent(builder, params);
         builder.endObject();
         return builder;
+    }
+
+    @Override
+    protected String contentType() {
+        return mapperName;
     }
 }

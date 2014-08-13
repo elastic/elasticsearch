@@ -29,10 +29,12 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 
 import java.util.Map;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+
 public class GeoMappingTests extends ElasticsearchIntegrationTest {
 
     public void testUpdatePrecision() throws Exception {
-        prepareCreate("test").addMapping("type1", XContentFactory.jsonBuilder().startObject()
+        assertAcked(prepareCreate("test").addMapping("type1", XContentFactory.jsonBuilder().startObject()
                 .startObject("type1")
                     .startObject("properties")
                         .startObject("pin")
@@ -44,11 +46,11 @@ public class GeoMappingTests extends ElasticsearchIntegrationTest {
                         .endObject()
                     .endObject()
                 .endObject()
-                .endObject()).execute().actionGet();
+                .endObject()).get());
         ensureYellow();
         assertPrecision(new Distance(2, DistanceUnit.MILLIMETERS));
 
-        client().admin().indices().preparePutMapping("test").setType("type1").setSource(XContentFactory.jsonBuilder().startObject()
+        assertAcked(client().admin().indices().preparePutMapping("test").setType("type1").setSource(XContentFactory.jsonBuilder().startObject()
                 .startObject("type1")
                 .startObject("properties")
                     .startObject("pin")
@@ -60,7 +62,7 @@ public class GeoMappingTests extends ElasticsearchIntegrationTest {
                     .endObject()
                 .endObject()
             .endObject()
-            .endObject()).execute().actionGet();
+            .endObject()).get());
 
         assertPrecision(new Distance(11, DistanceUnit.METERS));
     }

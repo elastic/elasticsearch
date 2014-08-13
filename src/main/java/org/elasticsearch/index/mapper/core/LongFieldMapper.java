@@ -305,7 +305,7 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
             fields.add(field);
         }
         if (hasDocValues()) {
-            addDocValue(context, value);
+            addDocValue(context, fields, value);
         }
     }
 

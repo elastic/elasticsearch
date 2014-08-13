@@ -18,7 +18,7 @@ The `ES_HEAP_SIZE` environment variable allows to set the heap memory
 that will be allocated to elasticsearch java process. It will allocate
 the same value to both min and max values, though those can be set
 explicitly (not recommended) by setting `ES_MIN_MEM` (defaults to
-`256m`), and `ES_MAX_MEM` (defaults to `1gb`).
+`256m`), and `ES_MAX_MEM` (defaults to `1g`).
 
 It is recommended to set the min and max memory to the same value, and
 enable <<setup-configuration-memory,`mlockall`>>.

@@ -42,7 +42,10 @@ i.e. whether a browser on another origin can do requests to
 Elasticsearch. Defaults to `true`.
 
 |`http.cors.allow-origin` |Which origins to allow. Defaults to `*`,
-i.e. any origin.
+i.e. any origin. If you prepend and append a `/` to the value, this will
+be treated as a regular expression, allowing you to support HTTP and HTTPs.
+for example using `/https?:\/\/localhost(:[0-9]+)?/` would return the
+request header appropriately in both cases.
 
 |`http.cors.max-age` |Browsers send a "preflight" OPTIONS-request to
 determine CORS settings. `max-age` defines how long the result should
@@ -53,6 +56,10 @@ be cached for. Defaults to `1728000` (20 days)
 
 |`http.cors.allow-headers` |Which headers to allow. Defaults to
 `X-Requested-With, Content-Type, Content-Length`.
+
+|`http.cors.allow-credentials` | Whether the `Access-Control-Allow-Credentials`
+header should be returned. Note: This header is only returned, when the setting is
+set to `true`. Defaults to `false`
 
 
 |=======================================================================

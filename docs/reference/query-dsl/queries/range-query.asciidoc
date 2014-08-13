@@ -29,3 +29,27 @@ The `range` query accepts the following parameters:
 `lt`::  	Less-than
 `boost`:: 	Sets the boost value of the query, defaults to `1.0`
 
+coming[1.4.0]
+
+When applied on `date` fields the `range` filter accepts also a `time_zone` parameter.
+The `time_zone` parameter will be applied to your input lower and upper bounds and will
+move them to UTC time based date:
+
+[source,js]
+--------------------------------------------------
+{
+    "range" : {
+        "born" : {
+            "gte": "2012-01-01",
+            "lte": "now",
+            "time_zone": "+1:00"
+        }
+    }
+}
+--------------------------------------------------
+
+In the above example, `gte` will be actually moved to `2011-12-31T23:00:00` UTC date.
+
+NOTE: if you give a date with a timezone explicitly defined and use the `time_zone` parameter, `time_zone` will be
+ignored. For example, setting `from` to `2012-01-01T00:00:00+01:00` with `"time_zone":"+10:00"` will still use `+01:00` time zone.
+

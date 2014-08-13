@@ -76,6 +76,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
 
     private IndexRequest upsertRequest;
 
+    private boolean scriptedUpsert = false;
     private boolean docAsUpsert = false;
     private boolean detectNoop = false;
 
@@ -588,10 +589,16 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
                     currentFieldName = parser.currentName();
                 } else if ("script".equals(currentFieldName)) {
                     script = parser.textOrNull();
+                    scriptType = ScriptService.ScriptType.INLINE;
+                } else if ("script_id".equals(currentFieldName)) {
+                    script = parser.textOrNull();
+                    scriptType = ScriptService.ScriptType.INDEXED;
                 } else if ("params".equals(currentFieldName)) {
                     scriptParams = parser.map();
                 } else if ("lang".equals(currentFieldName)) {
                     scriptLang = parser.text();
+                } else if ("scripted_upsert".equals(currentFieldName)) {
+                    scriptedUpsert = parser.booleanValue();
                 } else if ("upsert".equals(currentFieldName)) {
                     XContentBuilder builder = XContentFactory.contentBuilder(xContentType);
                     builder.copyCurrentStructure(parser);
@@ -617,6 +624,15 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
     public void docAsUpsert(boolean shouldUpsertDoc) {
         this.docAsUpsert = shouldUpsertDoc;
     }
+    
+    public boolean scriptedUpsert(){
+        return this.scriptedUpsert;
+    }
+    
+    public void scriptedUpsert(boolean scriptedUpsert) {
+        this.scriptedUpsert = scriptedUpsert;
+    }
+    
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
@@ -656,8 +672,9 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         docAsUpsert = in.readBoolean();
         version = Versions.readVersion(in);
         versionType = VersionType.fromValue(in.readByte());
-        if (in.getVersion().onOrAfter(Version.V_1_3_0)) {
+        if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
             detectNoop = in.readBoolean();
+            scriptedUpsert = in.readBoolean();
         }
     }
 
@@ -708,8 +725,9 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         out.writeBoolean(docAsUpsert);
         Versions.writeVersion(version, out);
         out.writeByte(versionType.getValue());
-        if (out.getVersion().onOrAfter(Version.V_1_3_0)) {
+        if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
             out.writeBoolean(detectNoop);
+            out.writeBoolean(scriptedUpsert);
         }
     }
 

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper.ip;
 
+import com.google.common.net.InetAddresses;
 import org.apache.lucene.analysis.NumericTokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
@@ -79,9 +80,12 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
 
     public static long ipToLong(String ip) throws ElasticsearchIllegalArgumentException {
         try {
+            if (!InetAddresses.isInetAddress(ip)) {
+                throw new ElasticsearchIllegalArgumentException("failed to parse ip [" + ip + "], not a valid ip address");
+            }
             String[] octets = pattern.split(ip);
             if (octets.length != 4) {
-                throw new ElasticsearchIllegalArgumentException("failed to parse ip [" + ip + "], not full ip address (4 dots)");
+                throw new ElasticsearchIllegalArgumentException("failed to parse ip [" + ip + "], not a valid ipv4 address (4 dots)");
             }
             return (Long.parseLong(octets[0]) << 24) + (Integer.parseInt(octets[1]) << 16) +
                     (Integer.parseInt(octets[2]) << 8) + Integer.parseInt(octets[3]);
@@ -298,7 +302,7 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
             fields.add(field);
         }
         if (hasDocValues()) {
-            addDocValue(context, value);
+            addDocValue(context, fields, value);
         }
     }
 

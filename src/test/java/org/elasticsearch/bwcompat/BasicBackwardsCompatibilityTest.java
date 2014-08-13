@@ -20,17 +20,30 @@ package org.elasticsearch.bwcompat;
 
 import com.carrotsearch.randomizedtesting.LifecycleScope;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+import org.apache.lucene.index.Fields;
 import org.apache.lucene.util.English;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.count.CountResponse;
+import org.elasticsearch.action.delete.DeleteResponse;
+import org.elasticsearch.action.deletebyquery.DeleteByQueryResponse;
+import org.elasticsearch.action.deletebyquery.IndexDeleteByQueryResponse;
+import org.elasticsearch.action.explain.ExplainResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.termvector.TermVectorResponse;
+import org.elasticsearch.action.update.UpdateRequestBuilder;
+import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -42,11 +55,14 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
 import org.junit.Test;
@@ -176,7 +192,7 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
         int numDocs = randomIntBetween(100, 150);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
-            docs[i] = client().prepareIndex("test", "type1", randomRealisticUnicodeOfLength(10) + String.valueOf(i)).setSource("field1", English.intToEnglish(i));
+            docs[i] = client().prepareIndex("test", "type1", randomRealisticUnicodeOfLength(10) + String.valueOf(i)).setSource("field1", English.intToEnglish(i), "num_int", randomInt(), "num_double", randomDouble());
         }
         indexRandom(true, docs);
         backwardsCluster().allowOnAllNodes("test");
@@ -190,8 +206,26 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
         for (int i = 0; i < numIters; i++) {
             countResponse = client().prepareCount().get();
             assertHitCount(countResponse, numDocs);
+            assertSimpleSort("num_double", "num_int");
         }
         assertVersionCreated(compatibilityVersion(), "test");
+    }
+
+
+    public void assertSimpleSort(String... numericFields) {
+        for(String field : numericFields) {
+            SearchResponse searchResponse = client().prepareSearch().addSort(field, SortOrder.ASC).get();
+            SearchHit[] hits = searchResponse.getHits().getHits();
+            assertThat(hits.length, greaterThan(0));
+            Number previous = null;
+            for (SearchHit hit : hits) {
+                assertNotNull(hit.getSource().get(field));
+                if (previous != null) {
+                    assertThat(previous.doubleValue(), lessThanOrEqualTo(((Number) hit.getSource().get(field)).doubleValue()));
+                }
+                previous = (Number) hit.getSource().get(field);
+            }
+        }
     }
 
     public void assertAllShardsOnNodes(String index, String pattern) {
@@ -218,7 +252,7 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
         int numDocs = randomIntBetween(100, 150);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
-            docs[i] = client().prepareIndex("test", "type1", String.valueOf(i)).setSource("field1", English.intToEnglish(i));
+            docs[i] = client().prepareIndex("test", "type1", String.valueOf(i)).setSource("field1", English.intToEnglish(i), "num_int", randomInt(), "num_double", randomDouble());
         }
 
         indexRandom(true, docs);
@@ -231,7 +265,7 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
         ensureYellow();
         if (randomBoolean()) {
             for (int i = 0; i < numDocs; i++) {
-                docs[i] = client().prepareIndex("test", "type1", String.valueOf(i)).setSource("field1", English.intToEnglish(i));
+                docs[i] = client().prepareIndex("test", "type1", String.valueOf(i)).setSource("field1", English.intToEnglish(i), "num_int", randomInt(), "num_double", randomDouble());
             }
             indexRandom(true, docs);
         }
@@ -240,6 +274,7 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
         final int numIters = randomIntBetween(1, 20);
         for (int i = 0; i < numIters; i++) {
             assertHitCount(client().prepareCount().get(), numDocs);
+            assertSimpleSort("num_double", "num_int");
         }
         assertVersionCreated(compatibilityVersion(), "test");
     }
@@ -261,11 +296,11 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         String[] indexForDoc = new String[docs.length];
         for (int i = 0; i < numDocs; i++) {
-            docs[i] = client().prepareIndex(indexForDoc[i] = RandomPicks.randomFrom(getRandom(), indices), "type1", String.valueOf(i)).setSource("field1", English.intToEnglish(i));
+            docs[i] = client().prepareIndex(indexForDoc[i] = RandomPicks.randomFrom(getRandom(), indices), "type1", String.valueOf(i)).setSource("field1", English.intToEnglish(i), "num_int", randomInt(), "num_double", randomDouble());
         }
         indexRandom(true, docs);
-        for (int i = 0; i < indices.length; i++) {
-            assertAllShardsOnNodes(indices[i], backwardsCluster().backwardsNodePattern());
+        for (String index : indices) {
+            assertAllShardsOnNodes(index, backwardsCluster().backwardsNodePattern());
         }
         client().admin().indices().prepareUpdateSettings(indices).setSettings(ImmutableSettings.builder().put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE, "none")).get();
         backwardsCluster().allowOnAllNodes(indices);
@@ -275,18 +310,21 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
             logClusterState();
             CountResponse countResponse = client().prepareCount().get();
             assertHitCount(countResponse, numDocs);
+            assertSimpleSort("num_double", "num_int");
             upgraded = backwardsCluster().upgradeOneNode();
             ensureYellow();
             countResponse = client().prepareCount().get();
             assertHitCount(countResponse, numDocs);
             for (int i = 0; i < numDocs; i++) {
-                docs[i] = client().prepareIndex(indexForDoc[i], "type1", String.valueOf(i)).setSource("field1", English.intToEnglish(i));
+                docs[i] = client().prepareIndex(indexForDoc[i], "type1", String.valueOf(i)).setSource("field1", English.intToEnglish(i), "num_int", randomInt(), "num_double", randomDouble());
             }
             indexRandom(true, docs);
         } while (upgraded);
         client().admin().indices().prepareUpdateSettings(indices).setSettings(ImmutableSettings.builder().put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE, "all")).get();
         CountResponse countResponse  = client().prepareCount().get();
         assertHitCount(countResponse, numDocs);
+        assertSimpleSort("num_double", "num_int");
+
         String[] newIndices = new String[randomIntBetween(1,3)];
 
         for (int i = 0; i < newIndices.length; i++) {
@@ -297,11 +335,11 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
         assertVersionCreated(compatibilityVersion(), indices);
     }
 
-    public void assertVersionCreated(Version version, String... index) {
-        GetSettingsResponse getSettingsResponse = client().admin().indices().prepareGetSettings(index).get();
+    public void assertVersionCreated(Version version, String... indices) {
+        GetSettingsResponse getSettingsResponse = client().admin().indices().prepareGetSettings(indices).get();
         ImmutableOpenMap<String,Settings> indexToSettings = getSettingsResponse.getIndexToSettings();
-        for (int i = 0; i < index.length; i++) {
-            Settings settings = indexToSettings.get(index[i]);
+        for (String index : indices) {
+            Settings settings = indexToSettings.get(index);
             assertThat(settings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, null), notNullValue());
             assertThat(settings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, null), equalTo(version));
         }
@@ -347,6 +385,7 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
         assumeTrue("this test fails often with 1.0.3 skipping for now....",compatibilityVersion().onOrAfter(Version.V_1_1_0));
         for (;;)  {
             createIndex("test");
+            ensureYellow();
             indexRandom(true,
                     client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject().startObject("obj1").field("obj1_val", "1").endObject().field("x1", "x_1").field("field1", "value1_1").field("field2", "value2_1").endObject()),
                     client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject().startObject("obj1").field("obj1_val", "1").endObject().field("x2", "x_2").field("field1", "value1_2").endObject()),
@@ -500,5 +539,202 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
         }
     }
 
+    @Test
+    public void testDeleteByQuery() throws ExecutionException, InterruptedException {
+        createIndex("test");
+        ensureYellow("test");
 
+        int numDocs = iterations(10, 50);
+        IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[numDocs + 1];
+        for (int i = 0; i < numDocs; i++) {
+            indexRequestBuilders[i] = client().prepareIndex("test", "test", Integer.toString(i)).setSource("field", "value");
+        }
+        indexRequestBuilders[numDocs] = client().prepareIndex("test", "test", Integer.toString(numDocs)).setSource("field", "other_value");
+        indexRandom(true, indexRequestBuilders);
+
+        SearchResponse searchResponse = client().prepareSearch("test").get();
+        assertThat(searchResponse.getHits().totalHits(), equalTo((long)numDocs + 1));
+
+        DeleteByQueryResponse deleteByQueryResponse = client().prepareDeleteByQuery("test").setQuery(QueryBuilders.termQuery("field", "value")).get();
+        assertThat(deleteByQueryResponse.getIndices().size(), equalTo(1));
+        for (IndexDeleteByQueryResponse indexDeleteByQueryResponse : deleteByQueryResponse) {
+            assertThat(indexDeleteByQueryResponse.getIndex(), equalTo("test"));
+            assertThat(indexDeleteByQueryResponse.getFailures().length, equalTo(0));
+        }
+
+        refresh();
+        searchResponse = client().prepareSearch("test").get();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+    }
+
+    @Test
+    public void testDeleteRoutingRequired() throws ExecutionException, InterruptedException, IOException {
+        assertAcked(prepareCreate("test").addMapping("test",
+                XContentFactory.jsonBuilder().startObject().startObject("test").startObject("_routing").field("required", true).endObject().endObject().endObject()));
+        ensureYellow("test");
+
+        int numDocs = iterations(10, 50);
+        IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[numDocs];
+        for (int i = 0; i < numDocs - 2; i++) {
+            indexRequestBuilders[i] = client().prepareIndex("test", "test", Integer.toString(i))
+                    .setRouting(randomAsciiOfLength(randomIntBetween(1, 10))).setSource("field", "value");
+        }
+        String firstDocId = Integer.toString(numDocs - 2);
+        indexRequestBuilders[numDocs - 2] = client().prepareIndex("test", "test", firstDocId)
+                .setRouting("routing").setSource("field", "value");
+        String secondDocId = Integer.toString(numDocs - 1);
+        String secondRouting = randomAsciiOfLength(randomIntBetween(1, 10));
+        indexRequestBuilders[numDocs - 1] = client().prepareIndex("test", "test", secondDocId)
+                .setRouting(secondRouting).setSource("field", "value");
+
+        indexRandom(true, indexRequestBuilders);
+
+        SearchResponse searchResponse = client().prepareSearch("test").get();
+        assertThat(searchResponse.getHits().totalHits(), equalTo((long) numDocs));
+
+        //use routing
+        DeleteResponse deleteResponse = client().prepareDelete("test", "test", firstDocId).setRouting("routing").get();
+        assertThat(deleteResponse.isFound(), equalTo(true));
+        GetResponse getResponse = client().prepareGet("test", "test", firstDocId).setRouting("routing").get();
+        assertThat(getResponse.isExists(), equalTo(false));
+        refresh();
+        searchResponse = client().prepareSearch("test").get();
+        assertThat(searchResponse.getHits().totalHits(), equalTo((long) numDocs - 1));
+
+        //don't use routing and trigger a broadcast delete
+        deleteResponse = client().prepareDelete("test", "test", secondDocId).get();
+        assertThat(deleteResponse.isFound(), equalTo(true));
+        getResponse = client().prepareGet("test", "test", secondDocId).setRouting(secondRouting).get();
+        assertThat(getResponse.isExists(), equalTo(false));
+        refresh();
+        searchResponse = client().prepareSearch("test").get();
+        assertThat(searchResponse.getHits().totalHits(), equalTo((long) numDocs - 2));
+    }
+
+    @Test
+    public void testIndexGetAndDelete() throws ExecutionException, InterruptedException {
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
+        ensureYellow("test");
+
+        int numDocs = iterations(10, 50);
+        for (int i = 0; i < numDocs; i++) {
+            IndexResponse indexResponse = client().prepareIndex(indexOrAlias(), "type", Integer.toString(i)).setSource("field", "value-" + i).get();
+            assertThat(indexResponse.isCreated(), equalTo(true));
+            assertThat(indexResponse.getIndex(), equalTo("test"));
+            assertThat(indexResponse.getType(), equalTo("type"));
+            assertThat(indexResponse.getId(), equalTo(Integer.toString(i)));
+        }
+        refresh();
+
+        String docId = Integer.toString(randomIntBetween(0, numDocs - 1));
+        GetResponse getResponse = client().prepareGet(indexOrAlias(), "type", docId).get();
+        assertThat(getResponse.isExists(), equalTo(true));
+        assertThat(getResponse.getIndex(), equalTo("test"));
+        assertThat(getResponse.getType(), equalTo("type"));
+        assertThat(getResponse.getId(), equalTo(docId));
+
+        DeleteResponse deleteResponse = client().prepareDelete(indexOrAlias(), "type", docId).get();
+        assertThat(deleteResponse.isFound(), equalTo(true));
+        assertThat(deleteResponse.getIndex(), equalTo("test"));
+        assertThat(deleteResponse.getType(), equalTo("type"));
+        assertThat(deleteResponse.getId(), equalTo(docId));
+
+        getResponse = client().prepareGet(indexOrAlias(), "type", docId).get();
+        assertThat(getResponse.isExists(), equalTo(false));
+
+        refresh();
+
+        SearchResponse searchResponse = client().prepareSearch(indexOrAlias()).get();
+        assertThat(searchResponse.getHits().totalHits(), equalTo((long)numDocs - 1));
+    }
+
+    @Test
+    public void testUpdate() {
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
+        ensureYellow("test");
+
+        UpdateRequestBuilder updateRequestBuilder = client().prepareUpdate(indexOrAlias(), "type1", "1")
+                .setUpsert("field1", "value1").setDoc("field2", "value2");
+
+        UpdateResponse updateResponse = updateRequestBuilder.get();
+        assertThat(updateResponse.getIndex(), equalTo("test"));
+        assertThat(updateResponse.getType(), equalTo("type1"));
+        assertThat(updateResponse.getId(), equalTo("1"));
+        assertThat(updateResponse.isCreated(), equalTo(true));
+
+        GetResponse getResponse = client().prepareGet("test", "type1", "1").get();
+        assertThat(getResponse.isExists(), equalTo(true));
+        assertThat(getResponse.getSourceAsMap().containsKey("field1"), equalTo(true));
+        assertThat(getResponse.getSourceAsMap().containsKey("field2"), equalTo(false));
+
+        updateResponse = updateRequestBuilder.get();
+        assertThat(updateResponse.getIndex(), equalTo("test"));
+        assertThat(updateResponse.getType(), equalTo("type1"));
+        assertThat(updateResponse.getId(), equalTo("1"));
+        assertThat(updateResponse.isCreated(), equalTo(false));
+
+        getResponse = client().prepareGet("test", "type1", "1").get();
+        assertThat(getResponse.isExists(), equalTo(true));
+        assertThat(getResponse.getSourceAsMap().containsKey("field1"), equalTo(true));
+        assertThat(getResponse.getSourceAsMap().containsKey("field2"), equalTo(true));
+    }
+
+    @Test
+    public void testAnalyze() {
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
+                .addMapping("test", "field", "type=string,analyzer=keyword"));
+        ensureYellow("test");
+        AnalyzeResponse analyzeResponse = client().admin().indices().prepareAnalyze("this is a test").setIndex(indexOrAlias()).setField("field").get();
+        assertThat(analyzeResponse.getTokens().size(), equalTo(1));
+        assertThat(analyzeResponse.getTokens().get(0).getTerm(), equalTo("this is a test"));
+    }
+
+    @Test
+    public void testExplain() {
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
+        ensureYellow("test");
+
+        client().prepareIndex(indexOrAlias(), "test", "1").setSource("field", "value1").get();
+        refresh();
+
+        ExplainResponse response = client().prepareExplain(indexOrAlias(), "test", "1")
+                .setQuery(QueryBuilders.termQuery("field", "value1")).get();
+        assertThat(response.isExists(), equalTo(true));
+        assertThat(response.isMatch(), equalTo(true));
+        assertThat(response.getExplanation(), notNullValue());
+        assertThat(response.getExplanation().isMatch(), equalTo(true));
+        assertThat(response.getExplanation().getDetails().length, equalTo(1));
+    }
+
+    @Test
+    public void testGetTermVector() throws IOException {
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
+                .addMapping("type1", "field", "type=string,term_vector=with_positions_offsets_payloads"));
+        ensureYellow("test");
+
+        client().prepareIndex(indexOrAlias(), "type1", "1")
+                .setSource("field", "the quick brown fox jumps over the lazy dog").get();
+        refresh();
+
+        TermVectorResponse termVectorResponse = client().prepareTermVector(indexOrAlias(), "type1", "1").get();
+        assertThat(termVectorResponse.getIndex(), equalTo("test"));
+        assertThat(termVectorResponse.isExists(), equalTo(true));
+        Fields fields = termVectorResponse.getFields();
+        assertThat(fields.size(), equalTo(1));
+        assertThat(fields.terms("field").size(), equalTo(8l));
+    }
+
+    @Test
+    public void testIndicesStats() {
+        createIndex("test");
+        ensureYellow("test");
+
+        IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats().all().get();
+        assertThat(indicesStatsResponse.getIndices().size(), equalTo(1));
+        assertThat(indicesStatsResponse.getIndices().containsKey("test"), equalTo(true));
+    }
+
+    private static String indexOrAlias() {
+        return randomBoolean() ? "test" : "alias";
+    }
 }

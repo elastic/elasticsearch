@@ -102,10 +102,14 @@ public class Murmur3FieldMapper extends LongFieldMapper {
         if (value != null) {
             final BytesRef bytes = new BytesRef(value.toString());
             final long hash = MurmurHash3.hash128(bytes.bytes, bytes.offset, bytes.length, 0, new MurmurHash3.Hash128()).h1;
-            context.externalValue(hash);
-            super.innerParseCreateField(context, fields);
+            super.innerParseCreateField(context.createExternalValueContext(hash), fields);
         }
 
+    }
+
+    @Override
+    public boolean isGenerated() {
+        return true;
     }
 
 }

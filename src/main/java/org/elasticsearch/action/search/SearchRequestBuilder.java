@@ -130,6 +130,15 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
+     * An optional document count, upon collecting which the search
+     * query will early terminate
+     */
+    public SearchRequestBuilder setTerminateAfter(int terminateAfter) {
+        sourceBuilder().terminateAfter(terminateAfter);
+        return this;
+    }
+
+    /**
      * A comma separated list of routing values to control the shards the search will be executed on.
      */
     public SearchRequestBuilder setRouting(String routing) {
@@ -1056,6 +1065,16 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
 
     public SearchRequestBuilder setTemplateSource(BytesReference source) {
         request.templateSource(source, true);
+        return this;
+    }
+
+    /**
+     * Sets if this request should use the query cache or not, assuming that it can (for
+     * example, if "now" is used, it will never be cached). By default (not set, or null,
+     * will default to the index level setting if query cache is enabled or not).
+     */
+    public SearchRequestBuilder setQueryCache(Boolean queryCache) {
+        request.queryCache(queryCache);
         return this;
     }
 

@@ -33,6 +33,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.mapper.MapperBuilders;
 import org.elasticsearch.index.mapper.core.*;
+import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 
 import java.util.Arrays;
@@ -47,9 +48,10 @@ public class IndexFieldDataServiceTests extends ElasticsearchSingleNodeTest {
     private static Settings DOC_VALUES_SETTINGS = ImmutableSettings.builder().put(FieldDataType.FORMAT_KEY, FieldDataType.DOC_VALUES_FORMAT_VALUE).build();
 
     public void testGetForFieldDefaults() {
-        final IndexFieldDataService ifdService = createIndex("test").fieldData();
+        final IndexService indexService = createIndex("test");
+        final IndexFieldDataService ifdService = indexService.fieldData();
         for (boolean docValues : Arrays.asList(true, false)) {
-            final BuilderContext ctx = new BuilderContext(null, new ContentPath(1));
+            final BuilderContext ctx = new BuilderContext(indexService.settingsService().getSettings(), new ContentPath(1));
             final StringFieldMapper stringMapper = new StringFieldMapper.Builder("string").tokenized(false).fieldDataSettings(docValues ? DOC_VALUES_SETTINGS : ImmutableSettings.EMPTY).build(ctx);
             ifdService.clear();
             IndexFieldData<?> fd = ifdService.getForField(stringMapper);
@@ -68,7 +70,7 @@ public class IndexFieldDataServiceTests extends ElasticsearchSingleNodeTest {
                 ifdService.clear();
                 fd = ifdService.getForField(mapper);
                 if (docValues) {
-                    assertTrue(fd instanceof BinaryDVNumericIndexFieldData);
+                    assertTrue(fd instanceof SortedNumericDVIndexFieldData);
                 } else {
                     assertTrue(fd instanceof PackedArrayIndexFieldData);
                 }
@@ -78,7 +80,7 @@ public class IndexFieldDataServiceTests extends ElasticsearchSingleNodeTest {
             ifdService.clear();
             fd = ifdService.getForField(floatMapper);
             if (docValues) {
-                assertTrue(fd instanceof BinaryDVNumericIndexFieldData);
+                assertTrue(fd instanceof SortedNumericDVIndexFieldData);
             } else {
                 assertTrue(fd instanceof FloatArrayIndexFieldData);
             }
@@ -87,7 +89,7 @@ public class IndexFieldDataServiceTests extends ElasticsearchSingleNodeTest {
             ifdService.clear();
             fd = ifdService.getForField(doubleMapper);
             if (docValues) {
-                assertTrue(fd instanceof BinaryDVNumericIndexFieldData);
+                assertTrue(fd instanceof SortedNumericDVIndexFieldData);
             } else {
                 assertTrue(fd instanceof DoubleArrayIndexFieldData);
             }
@@ -96,8 +98,9 @@ public class IndexFieldDataServiceTests extends ElasticsearchSingleNodeTest {
 
     @SuppressWarnings("unchecked")
     public void testByPassDocValues() {
-        final IndexFieldDataService ifdService = createIndex("test").fieldData();
-        final BuilderContext ctx = new BuilderContext(null, new ContentPath(1));
+        final IndexService indexService = createIndex("test");
+        final IndexFieldDataService ifdService = indexService.fieldData();
+        final BuilderContext ctx = new BuilderContext(indexService.settingsService().getSettings(), new ContentPath(1));
         final StringFieldMapper stringMapper = MapperBuilders.stringField("string").tokenized(false).fieldDataSettings(DOC_VALUES_SETTINGS).fieldDataSettings(ImmutableSettings.builder().put("format", "fst").build()).build(ctx);
         ifdService.clear();
         IndexFieldData<?> fd = ifdService.getForField(stringMapper);
@@ -127,8 +130,9 @@ public class IndexFieldDataServiceTests extends ElasticsearchSingleNodeTest {
     }
 
     public void testChangeFieldDataFormat() throws Exception {
-        final IndexFieldDataService ifdService = createIndex("test").fieldData();
-        final BuilderContext ctx = new BuilderContext(null, new ContentPath(1));
+        final IndexService indexService = createIndex("test");
+        final IndexFieldDataService ifdService = indexService.fieldData();
+        final BuilderContext ctx = new BuilderContext(indexService.settingsService().getSettings(), new ContentPath(1));
         final StringFieldMapper mapper1 = MapperBuilders.stringField("s").tokenized(false).fieldDataSettings(ImmutableSettings.builder().put(FieldDataType.FORMAT_KEY, "paged_bytes").build()).build(ctx);
         final IndexWriter writer = new IndexWriter(new RAMDirectory(), new IndexWriterConfig(TEST_VERSION_CURRENT, new KeywordAnalyzer()));
         Document doc = new Document();

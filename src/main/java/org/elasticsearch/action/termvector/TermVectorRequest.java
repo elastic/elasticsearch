@@ -21,6 +21,7 @@ package org.elasticsearch.action.termvector;
 
 import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.single.shard.SingleShardOperationRequest;
@@ -168,7 +169,7 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
     }
 
     /**
-     * @returns <code>true</code> if term offsets should be returned. Otherwise
+     * @return <code>true</code> if term offsets should be returned. Otherwise
      * <code>false</code>
      */
     public boolean offsets() {
@@ -192,7 +193,7 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
     }
 
     /**
-     * @returns <code>true</code> if term payloads should be returned. Otherwise
+     * @return <code>true</code> if term payloads should be returned. Otherwise
      * <code>false</code>
      */
     public boolean payloads() {
@@ -208,7 +209,7 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
     }
 
     /**
-     * @returns <code>true</code> if term statistics should be returned.
+     * @return <code>true</code> if term statistics should be returned.
      * Otherwise <code>false</code>
      */
     public boolean termStatistics() {
@@ -224,7 +225,7 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
     }
 
     /**
-     * @returns <code>true</code> if field statistics should be returned.
+     * @return <code>true</code> if field statistics should be returned.
      * Otherwise <code>false</code>
      */
     public boolean fieldStatistics() {
@@ -267,10 +268,7 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
 
     @Override
     public ActionRequestValidationException validate() {
-        ActionRequestValidationException validationException = null;
-        if (index == null) {
-            validationException = ValidateActions.addValidationError("index is missing", validationException);
-        }
+        ActionRequestValidationException validationException = super.validate();
         if (type == null) {
             validationException = ValidateActions.addValidationError("type is missing", validationException);
         }
@@ -290,7 +288,10 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        index = in.readString();
+        if (in.getVersion().before(Version.V_1_4_0)) {
+            //term vector used to read & write the index twice, here and in the parent class
+            in.readString();
+        }
         type = in.readString();
         id = in.readString();
         routing = in.readOptionalString();
@@ -315,7 +316,10 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(index);
+        if (out.getVersion().before(Version.V_1_4_0)) {
+            //term vector used to read & write the index twice, here and in the parent class
+            out.writeString(index);
+        }
         out.writeString(type);
         out.writeString(id);
         out.writeOptionalString(routing);
@@ -333,21 +337,16 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
         } else {
             out.writeVInt(0);
         }
-
     }
 
     public static enum Flag {
         // Do not change the order of these flags we use
         // the ordinal for encoding! Only append to the end!
-        Positions, Offsets, Payloads, FieldStatistics, TermStatistics;
+        Positions, Offsets, Payloads, FieldStatistics, TermStatistics
     }
 
     /**
      * populates a request object (pre-populated with defaults) based on a parser.
-     *
-     * @param termVectorRequest
-     * @param parser
-     * @throws IOException
      */
     public static void parseRequest(TermVectorRequest termVectorRequest, XContentParser parser) throws IOException {
         XContentParser.Token token;
@@ -358,7 +357,6 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
                 currentFieldName = parser.currentName();
             } else if (currentFieldName != null) {
                 if (currentFieldName.equals("fields")) {
-
                     if (token == XContentParser.Token.START_ARRAY) {
                         while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                             fields.add(parser.text());

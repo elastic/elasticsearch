@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest.action.count;
 
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.count.CountRequest;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -33,6 +34,7 @@ import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 
 import static org.elasticsearch.action.count.CountRequest.DEFAULT_MIN_SCORE;
+import static org.elasticsearch.search.internal.SearchContext.DEFAULT_TERMINATE_AFTER;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastShardsHeader;
@@ -76,12 +78,20 @@ public class RestCountAction extends BaseRestHandler {
         countRequest.types(Strings.splitStringByCommaToArray(request.param("type")));
         countRequest.preference(request.param("preference"));
 
+        final int terminateAfter = request.paramAsInt("terminate_after", DEFAULT_TERMINATE_AFTER);
+        if (terminateAfter < 0) {
+            throw new ElasticsearchIllegalArgumentException("terminateAfter must be > 0");
+        } else if (terminateAfter > 0) {
+            countRequest.terminateAfter(terminateAfter);
+        }
         client.count(countRequest, new RestBuilderListener<CountResponse>(channel) {
             @Override
             public RestResponse buildResponse(CountResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();
+                if (terminateAfter != DEFAULT_TERMINATE_AFTER) {
+                    builder.field("terminated_early", response.terminatedEarly());
+                }
                 builder.field("count", response.getCount());
-
                 buildBroadcastShardsHeader(builder, response);
 
                 builder.endObject();

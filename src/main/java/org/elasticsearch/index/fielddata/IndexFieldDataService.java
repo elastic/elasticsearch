@@ -38,10 +38,10 @@ import org.elasticsearch.index.mapper.internal.IndexFieldMapper;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
-import org.elasticsearch.indices.fielddata.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCacheListener;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -143,7 +143,9 @@ public class IndexFieldDataService extends AbstractIndexComponent {
 
     // public for testing
     public IndexFieldDataService(Index index, CircuitBreakerService circuitBreakerService) {
-        this(index, ImmutableSettings.Builder.EMPTY_SETTINGS, new IndicesFieldDataCache(ImmutableSettings.Builder.EMPTY_SETTINGS, new IndicesFieldDataCacheListener(circuitBreakerService)), circuitBreakerService, new IndicesFieldDataCacheListener(circuitBreakerService));
+        this(index, ImmutableSettings.Builder.EMPTY_SETTINGS,
+                new IndicesFieldDataCache(ImmutableSettings.Builder.EMPTY_SETTINGS, new IndicesFieldDataCacheListener(circuitBreakerService), new ThreadPool("testing-only")),
+                circuitBreakerService, new IndicesFieldDataCacheListener(circuitBreakerService));
     }
 
     // public for testing
@@ -294,42 +296,6 @@ public class IndexFieldDataService extends AbstractIndexComponent {
             }
         }
         return (IFD) fieldData;
-    }
-
-    public <IFD extends IndexFieldData<?>> IFD getForFieldDirect(FieldMapper<?> mapper) {
-        final FieldMapper.Names fieldNames = mapper.names();
-        final FieldDataType type = mapper.fieldDataType();
-        if (type == null) {
-            throw new ElasticsearchIllegalArgumentException("found no fielddata type for field [" + fieldNames.fullName() + "]");
-        }
-        final boolean docValues = mapper.hasDocValues();
-
-        IndexFieldData.Builder builder = null;
-        String format = type.getFormat(indexSettings);
-        if (format != null && FieldDataType.DOC_VALUES_FORMAT_VALUE.equals(format) && !docValues) {
-            logger.warn("field [" + fieldNames.fullName() + "] has no doc values, will use default field data format");
-            format = null;
-        }
-        if (format != null) {
-            builder = buildersByTypeAndFormat.get(Tuple.tuple(type.getType(), format));
-            if (builder == null) {
-                logger.warn("failed to find format [" + format + "] for field [" + fieldNames.fullName() + "], will use default");
-            }
-        }
-        if (builder == null && docValues) {
-            builder = docValuesBuildersByType.get(type.getType());
-        }
-        if (builder == null) {
-            builder = buildersByType.get(type.getType());
-        }
-        if (builder == null) {
-            throw new ElasticsearchIllegalArgumentException("failed to find field data builder for field " + fieldNames.fullName() + ", and type " + type.getType());
-        }
-
-        CircuitBreakerService circuitBreakerService = new NoneCircuitBreakerService();
-        @SuppressWarnings("unchecked")
-        IFD ifd = (IFD) builder.build(index, indexSettings, mapper, new IndexFieldDataCache.None(), circuitBreakerService, indexService.mapperService());
-        return ifd;
     }
 
 }

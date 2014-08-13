@@ -143,6 +143,26 @@ bin/plugin --install mobz/elasticsearch-head --timeout 0
 -----------------------------------
 
 [float]
+==== Proxy settings
+
+To install a plugin via a proxy, you can pass the proxy details using the environment variables `proxyHost` and `proxyPort`.
+
+On Linux and Mac, here is an example of setting it:
+
+[source,shell]
+-----------------------------------
+bin/plugin -DproxyHost=host_name -DproxyPort=port_number --install mobz/elasticsearch-head
+-----------------------------------
+
+On Windows, here is an example of setting it:
+
+[source,shell]
+-----------------------------------
+set JAVA_OPTS="-DproxyHost=host_name -DproxyPort=port_number"
+bin/plugin --install mobz/elasticsearch-head
+-----------------------------------
+
+[float]
 ==== Lucene version dependent plugins
 
 added[1.2.0]
@@ -304,4 +324,5 @@ You can disable that check using `plugins.check_lucene: false`.
 * https://github.com/wikimedia/search-highlighter[Elasticsearch Experimental Highlighter] (by Wikimedia Foundation/Nik Everett)
 * https://github.com/salyh/elasticsearch-security-plugin[Elasticsearch Security Plugin] (by Hendrik Saly)
 * https://github.com/codelibs/elasticsearch-taste[Elasticsearch Taste Plugin] (by CodeLibs Project)
+* http://siren.solutions/siren/downloads/[Elasticsearch SIREn Plugin]: Nested data search (by SIREn Solutions)
 

@@ -185,7 +185,7 @@ public class GeoHashUtils {
             // encode the cell directly. Otherwise find the cell next to this
             // cell recursively. Since encoding wraps around within a cell
             // it can be encoded here.
-            if (nx >= 0 && nx <= xLimit && ny >= 0 && ny < yLimit) {
+            if (nx >= 0 && nx <= xLimit && ny >= 0 && ny <= yLimit) {
                 return geohash.substring(0, level - 1) + encode(nx, ny);
             } else {
                 String neighbor = neighbor(geohash, level - 1, dx, dy);
@@ -511,5 +511,5 @@ public class GeoHashUtils {
             }
         }
         return interval;
-    }       
+    }
 }

@@ -19,8 +19,12 @@
 
 package org.elasticsearch.common.geo.builders;
 
+import com.spatial4j.core.context.jts.JtsSpatialContext;
+import com.spatial4j.core.shape.Shape;
 import com.spatial4j.core.shape.jts.JtsGeometry;
+import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Geometry;
+import com.vividsolutions.jts.geom.GeometryFactory;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.logging.ESLogger;
@@ -32,10 +36,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 
-import com.spatial4j.core.context.jts.JtsSpatialContext;
-import com.spatial4j.core.shape.Shape;
-import com.vividsolutions.jts.geom.Coordinate;
-import com.vividsolutions.jts.geom.GeometryFactory;
 import java.io.IOException;
 import java.util.*;
 
@@ -293,15 +293,6 @@ public abstract class ShapeBuilder implements ToXContent {
 
             double position = intersection(p1, p2, dateline);
             if (!Double.isNaN(position)) {
-                if (position == 1) {
-                    if (Double.compare(p1.x, dateline) == Double.compare(edges[i].next.next.coordinate.x, dateline)) {
-                        // Ignore the ear
-                        continue;
-                    } else if (p2.x == dateline) {
-                        // Ignore Linesegment on dateline
-                        continue;
-                    }
-                }
                 edges[i].intersection(position);
                 numIntersections++;
             }

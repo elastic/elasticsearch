@@ -72,7 +72,7 @@ import java.util.concurrent.atomic.AtomicReference;
 public class RecoverySource extends AbstractComponent {
 
     public static class Actions {
-        public static final String START_RECOVERY = "index/shard/recovery/startRecovery";
+        public static final String START_RECOVERY = "internal:index/shard/recovery/start_recovery";
     }
 
     private final TransportService transportService;

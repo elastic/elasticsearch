@@ -148,7 +148,6 @@ public class DocumentMapper implements ToXContent {
 
         private final String index;
 
-        @Nullable
         private final Settings indexSettings;
 
         private final RootObjectMapper rootObjectMapper;
@@ -157,7 +156,7 @@ public class DocumentMapper implements ToXContent {
 
         private final Mapper.BuilderContext builderContext;
 
-        public Builder(String index, @Nullable Settings indexSettings, RootObjectMapper.Builder builder) {
+        public Builder(String index, Settings indexSettings, RootObjectMapper.Builder builder) {
             this.index = index;
             this.indexSettings = indexSettings;
             this.builderContext = new Mapper.BuilderContext(indexSettings, new ContentPath(1));
@@ -248,10 +247,10 @@ public class DocumentMapper implements ToXContent {
     }
 
 
-    private CloseableThreadLocal<ParseContext> cache = new CloseableThreadLocal<ParseContext>() {
+    private CloseableThreadLocal<ParseContext.InternalParseContext> cache = new CloseableThreadLocal<ParseContext.InternalParseContext>() {
         @Override
-        protected ParseContext initialValue() {
-            return new ParseContext(index, indexSettings, docMapperParser, DocumentMapper.this, new ContentPath(0));
+        protected ParseContext.InternalParseContext initialValue() {
+            return new ParseContext.InternalParseContext(index, indexSettings, docMapperParser, DocumentMapper.this, new ContentPath(0));
         }
     };
 
@@ -484,7 +483,7 @@ public class DocumentMapper implements ToXContent {
     }
 
     public ParsedDocument parse(SourceToParse source, @Nullable ParseListener listener) throws MapperParsingException {
-        ParseContext context = cache.get();
+        ParseContext.InternalParseContext context = cache.get();
 
         if (source.type() != null && !source.type().equals(this.type)) {
             throw new MapperParsingException("Type mismatch, provide type [" + source.type() + "] but mapper is of type [" + this.type + "]");

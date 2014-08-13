@@ -26,16 +26,18 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.ObjectMappers;
+import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.query.ParsedFilter;
-import org.elasticsearch.index.search.nested.NestedFieldComparatorSource;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
+import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.internal.SearchContext;
@@ -51,6 +53,9 @@ public class SortParseElement implements SearchParseElement {
     private static final SortField SORT_SCORE_REVERSE = new SortField(null, SortField.Type.SCORE, true);
     private static final SortField SORT_DOC = new SortField(null, SortField.Type.DOC);
     private static final SortField SORT_DOC_REVERSE = new SortField(null, SortField.Type.DOC, true);
+
+    public static final ParseField IGNORE_UNMAPPED = new ParseField("ignore_unmapped");
+    public static final ParseField UNMAPPED_TYPE = new ParseField("unmapped_type");
 
     public static final String SCORE_FIELD_NAME = "_score";
     public static final String DOC_FIELD_NAME = "_doc";
@@ -79,13 +84,13 @@ public class SortParseElement implements SearchParseElement {
                 if (token == XContentParser.Token.START_OBJECT) {
                     addCompoundSortField(parser, context, sortFields);
                 } else if (token == XContentParser.Token.VALUE_STRING) {
-                    addSortField(context, sortFields, parser.text(), false, false, null, null, null, null);
+                    addSortField(context, sortFields, parser.text(), false, null, null, null, null, null);
                 } else {
                     throw new ElasticsearchIllegalArgumentException("malformed sort format, within the sort array, an object, or an actual string are allowed");
                 }
             }
         } else if (token == XContentParser.Token.VALUE_STRING) {
-            addSortField(context, sortFields, parser.text(), false, false, null, null, null, null);
+            addSortField(context, sortFields, parser.text(), false, null, null, null, null, null);
         } else if (token == XContentParser.Token.START_OBJECT) {
             addCompoundSortField(parser, context, sortFields);
         } else {
@@ -118,7 +123,7 @@ public class SortParseElement implements SearchParseElement {
                 boolean reverse = false;
                 String missing = null;
                 String innerJsonName = null;
-                boolean ignoreUnmapped = false;
+                String unmappedType = null;
                 MultiValueMode sortMode = null;
                 Filter nestedFilter = null;
                 String nestedPath = null;
@@ -132,7 +137,7 @@ public class SortParseElement implements SearchParseElement {
                     } else {
                         throw new ElasticsearchIllegalArgumentException("sort direction [" + fieldName + "] not supported");
                     }
-                    addSortField(context, sortFields, fieldName, reverse, ignoreUnmapped, missing, sortMode, nestedPath, nestedFilter);
+                    addSortField(context, sortFields, fieldName, reverse, unmappedType, missing, sortMode, nestedPath, nestedFilter);
                 } else {
                     if (parsers.containsKey(fieldName)) {
                         sortFields.add(parsers.get(fieldName).parse(parser, context));
@@ -151,8 +156,14 @@ public class SortParseElement implements SearchParseElement {
                                     }
                                 } else if ("missing".equals(innerJsonName)) {
                                     missing = parser.textOrNull();
-                                } else if ("ignore_unmapped".equals(innerJsonName) || "ignoreUnmapped".equals(innerJsonName)) {
-                                    ignoreUnmapped = parser.booleanValue();
+                                } else if (IGNORE_UNMAPPED.match(innerJsonName)) {
+                                    // backward compatibility: ignore_unmapped has been replaced with unmapped_type
+                                    if (unmappedType == null // don't override if unmapped_type has been provided too
+                                            && parser.booleanValue()) {
+                                        unmappedType = LongFieldMapper.CONTENT_TYPE;
+                                    }
+                                } else if (UNMAPPED_TYPE.match(innerJsonName)) {
+                                    unmappedType = parser.textOrNull();
                                 } else if ("mode".equals(innerJsonName)) {
                                     sortMode = MultiValueMode.fromString(parser.text());
                                 } else if ("nested_path".equals(innerJsonName) || "nestedPath".equals(innerJsonName)) {
@@ -169,14 +180,14 @@ public class SortParseElement implements SearchParseElement {
                                 }
                             }
                         }
-                        addSortField(context, sortFields, fieldName, reverse, ignoreUnmapped, missing, sortMode, nestedPath, nestedFilter);
+                        addSortField(context, sortFields, fieldName, reverse, unmappedType, missing, sortMode, nestedPath, nestedFilter);
                     }
                 }
             }
         }
     }
 
-    private void addSortField(SearchContext context, List<SortField> sortFields, String fieldName, boolean reverse, boolean ignoreUnmapped, @Nullable final String missing, MultiValueMode sortMode, String nestedPath, Filter nestedFilter) {
+    private void addSortField(SearchContext context, List<SortField> sortFields, String fieldName, boolean reverse, String unmappedType, @Nullable final String missing, MultiValueMode sortMode, String nestedPath, Filter nestedFilter) {
         if (SCORE_FIELD_NAME.equals(fieldName)) {
             if (reverse) {
                 sortFields.add(SORT_SCORE_REVERSE);
@@ -190,12 +201,13 @@ public class SortParseElement implements SearchParseElement {
                 sortFields.add(SORT_DOC);
             }
         } else {
-            FieldMapper fieldMapper = context.smartNameFieldMapper(fieldName);
+            FieldMapper<?> fieldMapper = context.smartNameFieldMapper(fieldName);
             if (fieldMapper == null) {
-                if (ignoreUnmapped) {
-                    return;
+                if (unmappedType != null) {
+                    fieldMapper = context.mapperService().unmappedFieldMapper(unmappedType);
+                } else {
+                    throw new SearchParseException(context, "No mapping found for [" + fieldName + "] in order to sort on");
                 }
-                throw new SearchParseException(context, "No mapping found for [" + fieldName + "] in order to sort on");
             }
 
             if (!fieldMapper.isSortable()) {
@@ -219,8 +231,7 @@ public class SortParseElement implements SearchParseElement {
                 sortMode = resolveDefaultSortMode(reverse);
             }
 
-            IndexFieldData.XFieldComparatorSource fieldComparatorSource = context.fieldData().getForField(fieldMapper)
-                    .comparatorSource(missing, sortMode);
+
             ObjectMapper objectMapper;
             if (nestedPath != null) {
                 ObjectMappers objectMappers = context.mapperService().objectMapper(nestedPath);
@@ -234,6 +245,7 @@ public class SortParseElement implements SearchParseElement {
             } else {
                 objectMapper = context.mapperService().resolveClosestNestedObjectMapper(fieldName);
             }
+            final Nested nested;
             if (objectMapper != null && objectMapper.nested().isNested()) {
                 Filter rootDocumentsFilter = context.filterCache().cache(NonNestedDocsFilter.INSTANCE);
                 Filter innerDocumentsFilter;
@@ -242,8 +254,13 @@ public class SortParseElement implements SearchParseElement {
                 } else {
                     innerDocumentsFilter = context.filterCache().cache(objectMapper.nestedTypeFilter());
                 }
-                fieldComparatorSource = new NestedFieldComparatorSource(sortMode, fieldComparatorSource, rootDocumentsFilter, innerDocumentsFilter);
+                nested = new Nested(rootDocumentsFilter, innerDocumentsFilter);
+            } else {
+                nested = null;
             }
+
+            IndexFieldData.XFieldComparatorSource fieldComparatorSource = context.fieldData().getForField(fieldMapper)
+                    .comparatorSource(missing, sortMode, nested);
             sortFields.add(new SortField(fieldMapper.names().indexName(), fieldComparatorSource, reverse));
         }
     }

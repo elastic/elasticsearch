@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.mapping.get;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.single.custom.SingleCustomOperationRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -28,8 +27,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 
 class GetFieldMappingsIndexRequest extends SingleCustomOperationRequest<GetFieldMappingsIndexRequest> {
-
-    private String index;
 
     private boolean probablySingleFieldRequest;
     private boolean includeDefaults;
@@ -45,11 +42,8 @@ class GetFieldMappingsIndexRequest extends SingleCustomOperationRequest<GetField
         this.includeDefaults = other.includeDefaults();
         this.types = other.types();
         this.fields = other.fields();
-        this.index = index;
-    }
-
-    public String index() {
-        return index;
+        assert index != null;
+        this.index(index);
     }
 
     public String[] types() {
@@ -68,21 +62,9 @@ class GetFieldMappingsIndexRequest extends SingleCustomOperationRequest<GetField
         return includeDefaults;
     }
 
-    /** Indicates whether default mapping settings should be returned */
-    public GetFieldMappingsIndexRequest includeDefaults(boolean includeDefaults) {
-        this.includeDefaults = includeDefaults;
-        return this;
-    }
-
-    @Override
-    public ActionRequestValidationException validate() {
-        return null;
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(index);
         out.writeStringArray(types);
         out.writeStringArray(fields);
         out.writeBoolean(includeDefaults);
@@ -90,12 +72,21 @@ class GetFieldMappingsIndexRequest extends SingleCustomOperationRequest<GetField
     }
 
     @Override
+    protected void writeIndex(StreamOutput out) throws IOException {
+        out.writeString(index());
+    }
+
+    @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        index = in.readString();
         types = in.readStringArray();
         fields = in.readStringArray();
         includeDefaults = in.readBoolean();
         probablySingleFieldRequest = in.readBoolean();
+    }
+
+    @Override
+    protected void readIndex(StreamInput in) throws IOException {
+        index(in.readString());
     }
 }

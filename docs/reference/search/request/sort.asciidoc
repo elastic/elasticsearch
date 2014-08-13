@@ -131,22 +131,33 @@ the `nested_filter` then a missing value is used.
 
 ==== Ignoring Unmapped Fields
 
+coming[1.4.0] Before 1.4.0 there was the `ignore_unmapped` boolean
+parameter, which was not enough information to decide on the sort
+values to emit, and didn't work for cross-index search. It is still
+supported but users are encouraged to migrate to the new
+`unmapped_type` instead.
+
 By default, the search request will fail if there is no mapping
-associated with a field. The `ignore_unmapped` option allows to ignore
-fields that have no mapping and not sort by them. Here is an example of
-how it can be used:
+associated with a field. The `unmapped_type` option allows to ignore
+fields that have no mapping and not sort by them. The value of this
+parameter is used to determine what sort values to emit. Here is an
+example of how it can be used:
 
 [source,js]
 --------------------------------------------------
 {
     "sort" : [
-        { "price" : {"ignore_unmapped" : true} },
+        { "price" : {"unmapped_type" : "long"} },
     ],
     "query" : {
         "term" : { "user" : "kimchy" }
     }
 }
 --------------------------------------------------
+
+If any of the indices that are queried doesn't have a mapping for `price`
+then Elasticsearch will handle it as if there was a mapping of type
+`long`, with all documents in this index having no value for this field.
 
 ==== Geo Distance Sorting
 
@@ -262,6 +273,25 @@ conform with http://geojson.org/[GeoJSON].
     }
 }
 --------------------------------------------------
+
+
+==== Multiple reference points
+
+added[1.4.0]
+
+Multiple geo points can be passed as an array containing any `geo_point` format, for example
+
+[source,js]
+--------------------------------------------------
+"pin.location" : [[-70, 40], [-71, 42]]
+"pin.location" : [{"lat": -70, "lon": 40}, {"lat": -71, "lon": 42}]
+--------------------------------------------------
+
+and so forth.
+
+The final distance for a document will then be `min`/`max` distance of all points contained in the document to all points given in the sort request.
+
+
 
 ==== Script Based Sorting
 

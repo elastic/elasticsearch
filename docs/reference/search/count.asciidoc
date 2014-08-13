@@ -63,6 +63,12 @@ query.
 
 |default_operator |The default operator to be used, can be `AND` or
 `OR`. Defaults to `OR`.
+
+|coming[1.4.0] terminate_after |The maximum count for each shard, upon
+reaching which the query execution will terminate early.
+If set, the response will have a boolean field `terminated_early` to
+indicate whether the query execution has actually terminated_early.
+Defaults to no terminate_after.
 |=======================================================================
 
 [float]

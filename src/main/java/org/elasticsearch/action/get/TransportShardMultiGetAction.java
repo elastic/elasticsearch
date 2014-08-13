@@ -26,8 +26,6 @@ import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.single.shard.TransportShardSingleOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -35,6 +33,7 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
@@ -43,7 +42,7 @@ import org.elasticsearch.transport.TransportService;
 
 public class TransportShardMultiGetAction extends TransportShardSingleOperationAction<MultiGetShardRequest, MultiGetShardResponse> {
 
-    private static final String ACTION_NAME = MultiGetAction.NAME + "/shard";
+    private static final String ACTION_NAME = MultiGetAction.NAME + "[shard]";
 
     private final IndicesService indicesService;
 
@@ -74,34 +73,27 @@ public class TransportShardMultiGetAction extends TransportShardSingleOperationA
     }
 
     @Override
-    protected ClusterBlockException checkGlobalBlock(ClusterState state, MultiGetShardRequest request) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.READ);
+    protected boolean resolveIndex() {
+        return true;
     }
 
     @Override
-    protected ClusterBlockException checkRequestBlock(ClusterState state, MultiGetShardRequest request) {
-        return state.blocks().indexBlockedException(ClusterBlockLevel.READ, request.index());
-    }
-
-    @Override
-    protected ShardIterator shards(ClusterState state, MultiGetShardRequest request) {
+    protected ShardIterator shards(ClusterState state, InternalRequest request) {
         return clusterService.operationRouting()
-                .getShards(clusterService.state(), request.index(), request.shardId(), request.preference());
+                .getShards(state, request.request().index(), request.request().shardId(), request.request().preference());
     }
 
     @Override
-    protected void resolveRequest(ClusterState state, MultiGetShardRequest request) {
-        if (request.realtime == null) {
-            request.realtime = this.realtime;
+    protected void resolveRequest(ClusterState state, InternalRequest request) {
+        if (request.request().realtime == null) {
+            request.request().realtime = this.realtime;
         }
-        // no need to set concrete index and routing here, it has already been set by the multi get action on the item
-        //request.index(state.metaData().concreteIndex(request.index()));
     }
 
     @Override
-    protected MultiGetShardResponse shardOperation(MultiGetShardRequest request, int shardId) throws ElasticsearchException {
-        IndexService indexService = indicesService.indexServiceSafe(request.index());
-        IndexShard indexShard = indexService.shardSafe(shardId);
+    protected MultiGetShardResponse shardOperation(MultiGetShardRequest request, ShardId shardId) throws ElasticsearchException {
+        IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
+        IndexShard indexShard = indexService.shardSafe(shardId.id());
 
         if (request.refresh() && !request.realtime()) {
             indexShard.refresh(new Engine.Refresh("refresh_flag_mget").force(TransportGetAction.REFRESH_FORCE));
@@ -121,7 +113,7 @@ public class TransportShardMultiGetAction extends TransportShardSingleOperationA
 
             FetchSourceContext fetchSourceContext = request.fetchSourceContexts.get(i);
             try {
-                GetResult getResult = indexShard.getService().get(type, id, fields, request.realtime(), version, versionType, fetchSourceContext);
+                GetResult getResult = indexShard.getService().get(type, id, fields, request.realtime(), version, versionType, fetchSourceContext, request.ignoreErrorsOnGeneratedFields());
                 response.add(request.locations.get(i), new GetResponse(getResult));
             } catch (Throwable t) {
                 if (TransportActions.isShardNotAvailableException(t)) {
@@ -135,5 +127,4 @@ public class TransportShardMultiGetAction extends TransportShardSingleOperationA
 
         return response;
     }
-
 }

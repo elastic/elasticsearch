@@ -28,6 +28,7 @@ import org.elasticsearch.action.termvector.TermVectorResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.get.GetField;
@@ -62,17 +63,21 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
         return this;
     }
 
-    public TermVectorResponse getTermVector(TermVectorRequest request) {
+    public TermVectorResponse getTermVector(TermVectorRequest request, String concreteIndex) {
         final Engine.Searcher searcher = indexShard.acquireSearcher("term_vector");
         IndexReader topLevelReader = searcher.reader();
-        final TermVectorResponse termVectorResponse = new TermVectorResponse(request.index(), request.type(), request.id());
+        final TermVectorResponse termVectorResponse = new TermVectorResponse(concreteIndex, request.type(), request.id());
         final Term uidTerm = new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(request.type(), request.id()));
         try {
             Fields topLevelFields = MultiFields.getFields(topLevelReader);
             Versions.DocIdAndVersion docIdAndVersion = Versions.loadDocIdAndVersion(topLevelReader, uidTerm);
             if (docIdAndVersion != null) {
-                Fields termVectorsByField = docIdAndVersion.context.reader().getTermVectors(docIdAndVersion.docId);
+                /* handle potential wildcards in fields */
+                if (request.selectedFields() != null) {
+                    handleFieldWildcards(request);
+                }
                 /* generate term vectors if not available */
+                Fields termVectorsByField = docIdAndVersion.context.reader().getTermVectors(docIdAndVersion.docId);
                 if (request.selectedFields() != null) {
                     termVectorsByField = generateTermVectorsIfNeeded(termVectorsByField, request, uidTerm, false);
                 }
@@ -88,6 +93,14 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
             searcher.close();
         }
         return termVectorResponse;
+    }
+
+    private void handleFieldWildcards(TermVectorRequest request) {
+        Set<String> fieldNames = new HashSet<>();
+        for (String pattern : request.selectedFields()) {
+            fieldNames.addAll(indexShard.mapperService().simpleMatchToIndexNames(pattern));
+        }
+        request.selectedFields(fieldNames.toArray(Strings.EMPTY_ARRAY));
     }
 
     private Fields generateTermVectorsIfNeeded(Fields termVectorsByField, TermVectorRequest request, Term uidTerm, boolean realTime) throws IOException {
@@ -118,7 +131,7 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
             }
             // TODO: support for fetchSourceContext?
             GetResult getResult = indexShard.getService().get(
-                    get, request.id(), request.type(), validFields.toArray(Strings.EMPTY_ARRAY), null);
+                    get, request.id(), request.type(), validFields.toArray(Strings.EMPTY_ARRAY), null, false);
             generatedTermVectors = generateTermVectors(getResult.getFields().values(), request.offsets());
         } finally {
             get.release();
@@ -187,4 +200,5 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
             return fields.size();
         }
     }
+
 }

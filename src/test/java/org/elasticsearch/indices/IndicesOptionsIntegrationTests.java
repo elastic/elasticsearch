@@ -170,6 +170,8 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
     @Test
     public void testSpecifiedIndexUnavailable_snapshotRestore() throws Exception {
         createIndex("test1");
+        ensureGreen("test1");
+        waitForRelocation();
 
         PutRepositoryResponse putRepositoryResponse = client().admin().cluster().preparePutRepository("dummy-repo")
                 .setType("fs").setSettings(ImmutableSettings.settingsBuilder().put("location", newTempDir())).get();
@@ -188,9 +190,9 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
         verify(restore("snap2", "test1", "test2").setIndicesOptions(options), false);
 
         options = IndicesOptions.strictExpandOpen();
-        assertAcked(prepareCreate("test2"));
+        createIndex("test2");
         //TODO: temporary work-around for #5531
-        ensureGreen();
+        ensureGreen("test2");
         waitForRelocation();
         verify(snapshot("snap3", "test1", "test2").setIndicesOptions(options), false);
         verify(restore("snap3", "test1", "test2").setIndicesOptions(options), false);
@@ -325,6 +327,8 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
     @Test
     public void testWildcardBehaviour_snapshotRestore() throws Exception {
         createIndex("foobar");
+        ensureGreen("foobar");
+        waitForRelocation();
 
         PutRepositoryResponse putRepositoryResponse = client().admin().cluster().preparePutRepository("dummy-repo")
                 .setType("fs").setSettings(ImmutableSettings.settingsBuilder().put("location", newTempDir())).get();
@@ -341,7 +345,7 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
 
         assertAcked(prepareCreate("barbaz"));
         //TODO: temporary work-around for #5531
-        ensureGreen();
+        ensureGreen("barbaz");
         waitForRelocation();
         options = IndicesOptions.fromOptions(false, false, true, false);
         verify(snapshot("snap3", "foo*", "bar*").setIndicesOptions(options), false);

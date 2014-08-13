@@ -21,6 +21,7 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -45,22 +46,26 @@ import static org.elasticsearch.action.search.type.TransportSearchHelper.parseSc
 
 /**
  */
-public class TransportClearScrollAction extends TransportAction<ClearScrollRequest, ClearScrollResponse> {
+public class TransportClearScrollAction extends HandledTransportAction<ClearScrollRequest, ClearScrollResponse> {
 
     private final ClusterService clusterService;
     private final SearchServiceTransportAction searchServiceTransportAction;
 
     @Inject
     public TransportClearScrollAction(Settings settings, TransportService transportService, ThreadPool threadPool, ClusterService clusterService, SearchServiceTransportAction searchServiceTransportAction, ActionFilters actionFilters) {
-        super(settings, ClearScrollAction.NAME, threadPool, actionFilters);
+        super(settings, ClearScrollAction.NAME, threadPool, transportService, actionFilters);
         this.clusterService = clusterService;
         this.searchServiceTransportAction = searchServiceTransportAction;
-        transportService.registerHandler(ClearScrollAction.NAME, new TransportHandler());
     }
 
     @Override
     protected void doExecute(ClearScrollRequest request, final ActionListener<ClearScrollResponse> listener) {
         new Async(request, listener, clusterService.state()).run();
+    }
+
+    @Override
+    public ClearScrollRequest newRequestInstance() {
+        return new ClearScrollRequest();
     }
 
     private class Async {
@@ -156,44 +161,6 @@ public class TransportClearScrollAction extends TransportAction<ClearScrollReque
             }
         }
 
-    }
-    
-    class TransportHandler extends BaseTransportRequestHandler<ClearScrollRequest> {
-
-        @Override
-        public ClearScrollRequest newInstance() {
-            return new ClearScrollRequest();
-        }
-
-        @Override
-        public void messageReceived(final ClearScrollRequest request, final TransportChannel channel) throws Exception {
-            // no need to use threaded listener, since we just send a response
-            request.listenerThreaded(false);
-            execute(request, new ActionListener<ClearScrollResponse>() {
-                @Override
-                public void onResponse(ClearScrollResponse response) {
-                    try {
-                        channel.sendResponse(response);
-                    } catch (Throwable e) {
-                        onFailure(e);
-                    }
-                }
-
-                @Override
-                public void onFailure(Throwable e) {
-                    try {
-                        channel.sendResponse(e);
-                    } catch (Exception e1) {
-                        logger.warn("Failed to send error response for action [clear_sc] and request [" + request + "]", e1);
-                    }
-                }
-            });
-        }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.SAME;
-        }
     }
 
 }

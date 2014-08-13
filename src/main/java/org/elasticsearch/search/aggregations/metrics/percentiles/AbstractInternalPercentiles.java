@@ -104,8 +104,7 @@ abstract class AbstractInternalPercentiles extends InternalNumericMetricsAggrega
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(name);
+    public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         if (keyed) {
             builder.startObject(CommonFields.VALUES);
             for(int i = 0; i < keys.length; ++i) {
@@ -131,7 +130,6 @@ abstract class AbstractInternalPercentiles extends InternalNumericMetricsAggrega
             }
             builder.endArray();
         }
-        builder.endObject();
         return builder;
     }
 }

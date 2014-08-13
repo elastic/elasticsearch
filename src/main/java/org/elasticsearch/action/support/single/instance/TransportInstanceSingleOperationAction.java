@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.ShardIterator;
@@ -71,24 +72,24 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
 
     protected abstract String executor();
 
-    protected abstract void shardOperation(Request request, ActionListener<Response> listener) throws ElasticsearchException;
+    protected abstract void shardOperation(InternalRequest request, ActionListener<Response> listener) throws ElasticsearchException;
 
     protected abstract Request newRequest();
 
     protected abstract Response newResponse();
 
-    protected abstract ClusterBlockException checkGlobalBlock(ClusterState state, Request request);
-
-    protected abstract ClusterBlockException checkRequestBlock(ClusterState state, Request request);
-
-    /**
-     * Resolves the request, by default, simply setting the concrete index (if its aliased one). If the resolve
-     * means a different execution, then return false here to indicate not to continue and execute this request.
-     */
-    protected boolean resolveRequest(ClusterState state, Request request, ActionListener<Response> listener) {
-        request.index(state.metaData().concreteSingleIndex(request.index()));
-        return true;
+    protected ClusterBlockException checkGlobalBlock(ClusterState state) {
+        return state.blocks().globalBlockedException(ClusterBlockLevel.WRITE);
     }
+
+    protected ClusterBlockException checkRequestBlock(ClusterState state, InternalRequest request) {
+        return state.blocks().indexBlockedException(ClusterBlockLevel.WRITE, request.concreteIndex());
+    }
+    /**
+     * Resolves the request. If the resolve means a different execution, then return false
+     * here to indicate not to continue and execute this request.
+     */
+    protected abstract boolean resolveRequest(ClusterState state, InternalRequest request, ActionListener<Response> listener);
 
     protected boolean retryOnFailure(Throwable e) {
         return false;
@@ -101,36 +102,31 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
     /**
      * Should return an iterator with a single shard!
      */
-    protected abstract ShardIterator shards(ClusterState clusterState, Request request) throws ElasticsearchException;
+    protected abstract ShardIterator shards(ClusterState clusterState, InternalRequest request) throws ElasticsearchException;
 
     class AsyncSingleAction {
 
         private final ActionListener<Response> listener;
-
-        private final Request request;
-
+        private final InternalRequest internalRequest;
+        private volatile ClusterStateObserver observer;
         private ShardIterator shardIt;
-
         private DiscoveryNodes nodes;
-
         private final AtomicBoolean operationStarted = new AtomicBoolean();
 
-        private volatile ClusterStateObserver observer;
-
         private AsyncSingleAction(Request request, ActionListener<Response> listener) {
-            this.request = request;
+            this.internalRequest = new InternalRequest(request);
             this.listener = listener;
         }
 
         public void start() {
-            observer = new ClusterStateObserver(clusterService, request.timeout(), logger);
+            this.observer = new ClusterStateObserver(clusterService, internalRequest.request().timeout(), logger);
             doStart();
         }
 
         protected boolean doStart() throws ElasticsearchException {
             nodes = observer.observedState().nodes();
             try {
-                ClusterBlockException blockException = checkGlobalBlock(observer.observedState(), request);
+                ClusterBlockException blockException = checkGlobalBlock(observer.observedState());
                 if (blockException != null) {
                     if (blockException.retryable()) {
                         retry(blockException);
@@ -139,11 +135,12 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
                         throw blockException;
                     }
                 }
+                internalRequest.concreteIndex(observer.observedState().metaData().concreteSingleIndex(internalRequest.request().index(), internalRequest.request().indicesOptions()));
                 // check if we need to execute, and if not, return
-                if (!resolveRequest(observer.observedState(), request, listener)) {
+                if (!resolveRequest(observer.observedState(), internalRequest, listener)) {
                     return true;
                 }
-                blockException = checkRequestBlock(observer.observedState(), request);
+                blockException = checkRequestBlock(observer.observedState(), internalRequest);
                 if (blockException != null) {
                     if (blockException.retryable()) {
                         retry(blockException);
@@ -152,7 +149,7 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
                         throw blockException;
                     }
                 }
-                shardIt = shards(observer.observedState(), request);
+                shardIt = shards(observer.observedState(), internalRequest);
             } catch (Throwable e) {
                 listener.onFailure(e);
                 return true;
@@ -179,15 +176,15 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
                 return true;
             }
 
-            request.shardId = shardIt.shardId().id();
+            internalRequest.request().shardId = shardIt.shardId().id();
             if (shard.currentNodeId().equals(nodes.localNodeId())) {
-                request.beforeLocalFork();
+                internalRequest.request().beforeLocalFork();
                 try {
                     threadPool.executor(executor).execute(new Runnable() {
                         @Override
                         public void run() {
                             try {
-                                shardOperation(request, listener);
+                                shardOperation(internalRequest, listener);
                             } catch (Throwable e) {
                                 if (retryOnFailure(e)) {
                                     operationStarted.set(false);
@@ -209,7 +206,7 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
                 }
             } else {
                 DiscoveryNode node = nodes.get(shard.currentNodeId());
-                transportService.sendRequest(node, actionName, request, transportOptions(), new BaseTransportResponseHandler<Response>() {
+                transportService.sendRequest(node, actionName, internalRequest.request(), transportOptions(), new BaseTransportResponseHandler<Response>() {
 
                     @Override
                     public Response newInstance() {
@@ -251,7 +248,7 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
             }
 
             // make it threaded operation so we fork on the discovery listener thread
-            request.beforeLocalFork();
+            internalRequest.request().beforeLocalFork();
             observer.waitForNextChange(new ClusterStateObserver.Listener() {
                 @Override
                 public void onNewClusterState(ClusterState state) {
@@ -270,15 +267,15 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
                         Throwable listenFailure = failure;
                         if (listenFailure == null) {
                             if (shardIt == null) {
-                                listenFailure = new UnavailableShardsException(new ShardId(request.index(), -1), "Timeout waiting for [" + timeout + "], request: " + request.toString());
+                                listenFailure = new UnavailableShardsException(new ShardId(internalRequest.concreteIndex(), -1), "Timeout waiting for [" + timeout + "], request: " + internalRequest.request().toString());
                             } else {
-                                listenFailure = new UnavailableShardsException(shardIt.shardId(), "[" + shardIt.size() + "] shardIt, [" + shardIt.sizeActive() + "] active : Timeout waiting for [" + timeout + "], request: " + request.toString());
+                                listenFailure = new UnavailableShardsException(shardIt.shardId(), "[" + shardIt.size() + "] shardIt, [" + shardIt.sizeActive() + "] active : Timeout waiting for [" + timeout + "], request: " + internalRequest.request().toString());
                             }
                         }
                         listener.onFailure(listenFailure);
                     }
                 }
-            }, request.timeout());
+            }, internalRequest.request().timeout());
         }
     }
 
@@ -317,6 +314,30 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
                     }
                 }
             });
+        }
+    }
+
+    /**
+     * Internal request class that gets built on each node. Holds the original request plus additional info.
+     */
+    protected class InternalRequest {
+        final Request request;
+        String concreteIndex;
+
+        InternalRequest(Request request) {
+            this.request = request;
+        }
+
+        public Request request() {
+            return request;
+        }
+
+        void concreteIndex(String concreteIndex) {
+            this.concreteIndex = concreteIndex;
+        }
+
+        public String concreteIndex() {
+            return concreteIndex;
         }
     }
 }

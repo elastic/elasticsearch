@@ -64,7 +64,7 @@
         <dependency>
             <groupId>com.carrotsearch.randomizedtesting</groupId>
             <artifactId>randomizedtesting-runner</artifactId>
-            <version>2.1.2</version>
+            <version>2.1.6</version>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -201,7 +201,7 @@
         <dependency>
             <groupId>com.carrotsearch</groupId>
             <artifactId>hppc</artifactId>
-            <version>0.5.3</version>
+            <version>0.6.0</version>
         </dependency>
 
         <dependency>
@@ -257,7 +257,7 @@
         <dependency>
             <groupId>com.ning</groupId>
             <artifactId>compress-lzf</artifactId>
-            <version>0.9.6</version>
+            <version>1.0.2</version>
             <scope>compile</scope>
         </dependency>
 
@@ -267,6 +267,13 @@
             <version>3.0</version>
             <scope>compile</scope>
         </dependency>
+
+        <dependency>
+            <groupId>commons-cli</groupId>
+            <artifactId>commons-cli</artifactId>
+            <version>1.2</version>
+        </dependency>
+
         <!-- END: dependencies that are shaded -->
 
         <dependency>
@@ -671,6 +678,7 @@
                             <include>com.ning:compress-lzf</include>
                             <include>com.github.spullara.mustache.java:compiler</include>
                             <include>com.tdunning:t-digest</include>
+                            <include>commons-cli:commons-cli</include>
                         </includes>
                     </artifactSet>
                     <relocations>
@@ -709,6 +717,10 @@
                         <relocation>
                             <pattern>com.tdunning.math.stats</pattern>
                             <shadedPattern>org.elasticsearch.common.stats</shadedPattern>
+                        </relocation>
+                        <relocation>
+                            <pattern>org.apache.commons.cli</pattern>
+                            <shadedPattern>org.elasticsearch.common.cli.commons</shadedPattern>
                         </relocation>
                     </relocations>
                     <filters>
@@ -1157,14 +1169,14 @@
                                 <exclude>jsr166e/**</exclude>
                                 <!-- start excludes for valid system-out -->
                                 <exclude>org/elasticsearch/common/logging/log4j/ConsoleAppender*</exclude>
+                                <exclude>org/elasticsearch/common/http/client/HttpDownloadHelper*</exclude>
+                                <exclude>org/elasticsearch/common/cli/Terminal*</exclude>
                                 <exclude>org/elasticsearch/plugins/PluginManager.class</exclude>
+                                <exclude>org/elasticsearch/common/http/client/HttpDownloadHelper.class</exclude>
                                 <exclude>org/elasticsearch/bootstrap/Bootstrap.class</exclude>
                                 <exclude>org/elasticsearch/Version.class</exclude>
                                 <exclude>org/elasticsearch/common/lucene/search/Queries$QueryWrapperFilterFactory.class</exclude>
                                 <!-- end excludes for valid system-out -->
-                                <!-- start excludes for Unsafe -->
-                                <exclude>org/elasticsearch/common/util/UnsafeUtils.class</exclude>
-                                <!-- end excludes for Unsafe -->
                                 <!-- start excludes for Math.abs -->
                                 <exclude>org/elasticsearch/common/util/MathUtils.class</exclude>
                                 <exclude>org/elasticsearch/common/math/UnboxedMathUtils.class</exclude>
@@ -1176,6 +1188,9 @@
                                 <!-- start exclude for Channels utility class -->
                                 <exclude>org/elasticsearch/common/io/Channels.class</exclude>
                                 <!-- end exclude for Channels -->
+                                <!-- start exclude for Lucene utility class -->
+                                <exclude>org/elasticsearch/common/lucene/Lucene$LenientParser.class</exclude>
+                                <!-- end exclude for Lucene -->
                             </excludes>
                             <bundledSignatures>
                                 <!-- This will automatically choose the right signatures based on 'targetVersion': -->
@@ -1236,6 +1251,8 @@
                                 <include>org/elasticsearch/cache/recycler/MockPageCacheRecycler.class</include>
                                 <include>org/apache/lucene/util/AbstractRandomizedTest.class</include>
                                 <include>org/apache/lucene/util/AbstractRandomizedTest$*.class</include>
+                                <include>org/elasticsearch/common/cli/CliToolTestCase.class</include>
+                                <include>org/elasticsearch/common/cli/CliToolTestCase$*.class</include>
                             </includes>
                             <excludes>
                                 <!-- unit tests for yaml suite parser & rest spec parser need to be excluded -->
@@ -1381,6 +1398,32 @@
             </plugin>
           </plugins>
         </build>
+      </profile>
+      <!-- profile for development that doesn't check forbidden-apis, no-commit validation or license headers run with mvn -Pdev -->
+      <profile>
+        <id>dev</id>
+        <properties>
+          <validate.skip>true</validate.skip>
+        </properties>
+          <build>
+        <plugins>
+          <plugin>
+              <groupId>de.thetaphi</groupId>
+              <artifactId>forbiddenapis</artifactId>
+              <version>1.5.1</version>
+              <executions>
+                <execution>
+                    <id>check-forbidden-apis</id>
+                    <phase>none</phase>
+                </execution>
+                <execution>
+                    <id>check-forbidden-test-apis</id>
+                    <phase>none</phase>
+                </execution>
+              </executions>
+          </plugin>
+          </plugins>
+          </build>
       </profile>
       <!-- license profile, to generate third party license file -->
       <profile>

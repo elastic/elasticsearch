@@ -27,7 +27,7 @@ import org.elasticsearch.client.IndicesAdminClient;
 public class DeleteIndexAction extends IndicesAction<DeleteIndexRequest, DeleteIndexResponse, DeleteIndexRequestBuilder> {
 
     public static final DeleteIndexAction INSTANCE = new DeleteIndexAction();
-    public static final String NAME = "indices/delete";
+    public static final String NAME = "indices:admin/delete";
 
     private DeleteIndexAction() {
         super(NAME);

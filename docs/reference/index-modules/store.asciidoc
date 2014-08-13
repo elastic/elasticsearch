@@ -72,12 +72,11 @@ It can also be set on a per-index basis at index creation time:
 
 [source,json]
 ---------------------------------
-curl -XPUT localhost:9200/my_index
-{
+curl -XPUT localhost:9200/my_index -d '{
     "settings": {
         "index.store.type": "niofs"
     }
-}
+}';
 ---------------------------------
 
 The following sections lists all the different storage types supported.
@@ -114,7 +113,7 @@ See <<vm-max-map-count>>
 
 [[default_fs]]
 [float]
-==== Hybrid MMap / NIO FS coming[1.3.0]
+==== Hybrid MMap / NIO FS added[1.3.0]
 
 The `default` type stores the shard index on the file system depending on
 the file type by mapping a file into memory (mmap) or using Java NIO. Currently

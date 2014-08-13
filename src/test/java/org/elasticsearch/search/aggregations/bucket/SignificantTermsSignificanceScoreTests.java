@@ -20,9 +20,7 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -33,7 +31,6 @@ import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.plugins.AbstractPlugin;
 import org.elasticsearch.search.aggregations.Aggregation;
-import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms;
@@ -44,6 +41,8 @@ import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsBuilder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -53,8 +52,6 @@ import java.util.concurrent.ExecutionException;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.*;
@@ -166,7 +163,7 @@ public class SignificantTermsSignificanceScoreTests extends ElasticsearchIntegra
         }
     }
 
-    public static class SimpleHeuristic implements SignificanceHeuristic {
+    public static class SimpleHeuristic extends SignificanceHeuristic {
 
         protected static final String[] NAMES = {"simple"};
 
@@ -254,23 +251,30 @@ public class SignificantTermsSignificanceScoreTests extends ElasticsearchIntegra
         classes.toXContent(responseBuilder, null);
         String result = null;
         if (type.equals("long")) {
-            result = "\"class\"{\"buckets\":[{\"key\":\"0\",\"doc_count\":4,\"sig_terms\":{\"doc_count\":4,\"buckets\":[{\"key\":0,\"key_as_string\":\"0\",\"doc_count\":4,\"score\":0.39999999999999997,\"bg_count\":5}]}},{\"key\":\"1\",\"doc_count\":3,\"sig_terms\":{\"doc_count\":3,\"buckets\":[{\"key\":1,\"key_as_string\":\"1\",\"doc_count\":3,\"score\":0.75,\"bg_count\":4}]}}]}";
+            result = "\"class\"{\"doc_count_error_upper_bound\":0,\"buckets\":[{\"key\":\"0\",\"doc_count\":4,\"sig_terms\":{\"doc_count\":4,\"buckets\":[{\"key\":0,\"key_as_string\":\"0\",\"doc_count\":4,\"score\":0.39999999999999997,\"bg_count\":5}]}},{\"key\":\"1\",\"doc_count\":3,\"sig_terms\":{\"doc_count\":3,\"buckets\":[{\"key\":1,\"key_as_string\":\"1\",\"doc_count\":3,\"score\":0.75,\"bg_count\":4}]}}]}";
         } else {
-            result = "\"class\"{\"buckets\":[{\"key\":\"0\",\"doc_count\":4,\"sig_terms\":{\"doc_count\":4,\"buckets\":[{\"key\":\"0\",\"doc_count\":4,\"score\":0.39999999999999997,\"bg_count\":5}]}},{\"key\":\"1\",\"doc_count\":3,\"sig_terms\":{\"doc_count\":3,\"buckets\":[{\"key\":\"1\",\"doc_count\":3,\"score\":0.75,\"bg_count\":4}]}}]}";
+            result = "\"class\"{\"doc_count_error_upper_bound\":0,\"buckets\":[{\"key\":\"0\",\"doc_count\":4,\"sig_terms\":{\"doc_count\":4,\"buckets\":[{\"key\":\"0\",\"doc_count\":4,\"score\":0.39999999999999997,\"bg_count\":5}]}},{\"key\":\"1\",\"doc_count\":3,\"sig_terms\":{\"doc_count\":3,\"buckets\":[{\"key\":\"1\",\"doc_count\":3,\"score\":0.75,\"bg_count\":4}]}}]}";
         }
         assertThat(responseBuilder.string(), equalTo(result));
 
+    }
+
+    @Test
+    public void testBackgroundVsSeparateSet() throws Exception {
+        String type = randomBoolean() ? "string" : "long";
+        String settings = "{\"index.number_of_shards\": 1, \"index.number_of_replicas\": 0}";
+        index01Docs(type, settings);
+        testBackgroundVsSeparateSet(new MutualInformation.MutualInformationBuilder(true, true), new MutualInformation.MutualInformationBuilder(true, false));
+        testBackgroundVsSeparateSet(new ChiSquare.ChiSquareBuilder(true, true), new ChiSquare.ChiSquareBuilder(true, false));
+        testBackgroundVsSeparateSet(new GND.GNDBuilder(true), new GND.GNDBuilder(false));
     }
 
     // compute significance score by
     // 1. terms agg on class and significant terms
     // 2. filter buckets and set the background to the other class and set is_background false
     // both should yield exact same result
-    @Test
-    public void testBackgroundVsSeparateSet() throws Exception {
-        String type = randomBoolean() ? "string" : "long";
-        String settings = "{\"index.number_of_shards\": 1, \"index.number_of_replicas\": 0}";
-        index01Docs(type, settings);
+    public void testBackgroundVsSeparateSet(SignificanceHeuristicBuilder significanceHeuristicExpectingSuperset, SignificanceHeuristicBuilder significanceHeuristicExpectingSeparateSets) throws Exception {
+
         SearchResponse response1 = client().prepareSearch(INDEX_NAME).setTypes(DOC_TYPE)
                 .addAggregation(new TermsBuilder("class")
                         .field(CLASS_FIELD)
@@ -279,7 +283,7 @@ public class SignificantTermsSignificanceScoreTests extends ElasticsearchIntegra
                                         .field(TEXT_FIELD)
                                         .minDocCount(1)
                                         .significanceHeuristic(
-                                                new MutualInformation.MutualInformationBuilder(true, true))))
+                                                significanceHeuristicExpectingSuperset)))
                 .execute()
                 .actionGet();
         assertSearchResponse(response1);
@@ -290,14 +294,14 @@ public class SignificantTermsSignificanceScoreTests extends ElasticsearchIntegra
                                 .field(TEXT_FIELD)
                                 .minDocCount(1)
                                 .backgroundFilter(FilterBuilders.termFilter(CLASS_FIELD, "1"))
-                                .significanceHeuristic(new MutualInformation.MutualInformationBuilder(true, false))))
+                                .significanceHeuristic(significanceHeuristicExpectingSeparateSets)))
                 .addAggregation((new FilterAggregationBuilder("1"))
                         .filter(FilterBuilders.termFilter(CLASS_FIELD, "1"))
                         .subAggregation(new SignificantTermsBuilder("sig_terms")
                                 .field(TEXT_FIELD)
                                 .minDocCount(1)
                                 .backgroundFilter(FilterBuilders.termFilter(CLASS_FIELD, "0"))
-                                .significanceHeuristic(new MutualInformation.MutualInformationBuilder(true, false))))
+                                .significanceHeuristic(significanceHeuristicExpectingSeparateSets)))
                 .execute()
                 .actionGet();
 
@@ -305,7 +309,7 @@ public class SignificantTermsSignificanceScoreTests extends ElasticsearchIntegra
         assertThat(sigTerms0.getBuckets().size(), equalTo(2));
         double score00Background = sigTerms0.getBucketByKey("0").getSignificanceScore();
         double score01Background = sigTerms0.getBucketByKey("1").getSignificanceScore();
-        SignificantTerms sigTerms1 = ((SignificantTerms) (((StringTerms) response1.getAggregations().get("class")).getBucketByKey("0").getAggregations().asMap().get("sig_terms")));
+        SignificantTerms sigTerms1 = ((SignificantTerms) (((StringTerms) response1.getAggregations().get("class")).getBucketByKey("1").getAggregations().asMap().get("sig_terms")));
         double score10Background = sigTerms1.getBucketByKey("0").getSignificanceScore();
         double score11Background = sigTerms1.getBucketByKey("1").getSignificanceScore();
 
@@ -343,14 +347,20 @@ public class SignificantTermsSignificanceScoreTests extends ElasticsearchIntegra
     }
 
     @Test
-    public void testMutualInformationEqual() throws Exception {
+    public void testScoresEqualForPositiveAndNegative() throws Exception {
         indexEqualTestData();
-        //now, check that results for both classes are the same with exclude negatives = false and classes are routing ids
+        testScoresEqualForPositiveAndNegative(new MutualInformation.MutualInformationBuilder(true, true));
+        testScoresEqualForPositiveAndNegative(new ChiSquare.ChiSquareBuilder(true, true));
+    }
+
+    public void testScoresEqualForPositiveAndNegative(SignificanceHeuristicBuilder heuristic) throws Exception {
+
+        //check that results for both classes are the same with exclude negatives = false and classes are routing ids
         SearchResponse response = client().prepareSearch("test")
                 .addAggregation(new TermsBuilder("class").field("class").subAggregation(new SignificantTermsBuilder("mySignificantTerms")
                         .field("text")
                         .executionHint(randomExecutionHint())
-                        .significanceHeuristic(new MutualInformation.MutualInformationBuilder(true, true))
+                        .significanceHeuristic(heuristic)
                         .minDocCount(1).shardSize(1000).size(1000)))
                 .execute()
                 .actionGet();

@@ -126,12 +126,14 @@ import org.elasticsearch.action.count.CountAction;
 import org.elasticsearch.action.count.TransportCountAction;
 import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.delete.TransportDeleteAction;
-import org.elasticsearch.action.delete.index.TransportIndexDeleteAction;
-import org.elasticsearch.action.delete.index.TransportShardDeleteAction;
+import org.elasticsearch.action.delete.TransportIndexDeleteAction;
+import org.elasticsearch.action.delete.TransportShardDeleteAction;
 import org.elasticsearch.action.deletebyquery.DeleteByQueryAction;
 import org.elasticsearch.action.deletebyquery.TransportDeleteByQueryAction;
 import org.elasticsearch.action.deletebyquery.TransportIndexDeleteByQueryAction;
 import org.elasticsearch.action.deletebyquery.TransportShardDeleteByQueryAction;
+import org.elasticsearch.action.exists.ExistsAction;
+import org.elasticsearch.action.exists.TransportExistsAction;
 import org.elasticsearch.action.explain.ExplainAction;
 import org.elasticsearch.action.explain.TransportExplainAction;
 import org.elasticsearch.action.get.*;
@@ -278,6 +280,7 @@ public class ActionModule extends AbstractModule {
         registerAction(DeleteAction.INSTANCE, TransportDeleteAction.class,
                 TransportIndexDeleteAction.class, TransportShardDeleteAction.class);
         registerAction(CountAction.INSTANCE, TransportCountAction.class);
+        registerAction(ExistsAction.INSTANCE, TransportExistsAction.class);
         registerAction(SuggestAction.INSTANCE, TransportSuggestAction.class);
         registerAction(UpdateAction.INSTANCE, TransportUpdateAction.class);
         registerAction(MultiGetAction.INSTANCE, TransportMultiGetAction.class,

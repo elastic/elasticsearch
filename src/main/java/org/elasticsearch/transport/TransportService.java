@@ -22,6 +22,7 @@ package org.elasticsearch.transport;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -69,7 +70,6 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         }
     });
 
-    private boolean throwConnectException = false;
     private final TransportService.Adapter adapter = new Adapter();
 
     public TransportService(Transport transport, ThreadPool threadPool) {
@@ -166,17 +166,6 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         connectionListeners.remove(listener);
     }
 
-    /**
-     * Set to <tt>true</tt> to indicate that a {@link ConnectTransportException} should be thrown when
-     * sending a message (otherwise, it will be passed to the response handler). Defaults to <tt>false</tt>.
-     * <p/>
-     * <p>This is useful when logic based on connect failure is needed without having to wrap the handler,
-     * for example, in case of retries across several nodes.
-     */
-    public void throwConnectException(boolean throwConnectException) {
-        this.throwConnectException = throwConnectException;
-    }
-
     public <T extends TransportResponse> TransportFuture<T> submitRequest(DiscoveryNode node, String action, TransportRequest request,
                                                                           TransportResponseHandler<T> handler) throws TransportException {
         return submitRequest(node, action, request, TransportRequestOptions.EMPTY, handler);
@@ -190,12 +179,12 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
     }
 
     public <T extends TransportResponse> void sendRequest(final DiscoveryNode node, final String action, final TransportRequest request,
-                                                          final TransportResponseHandler<T> handler) throws TransportException {
+                                                          final TransportResponseHandler<T> handler) {
         sendRequest(node, action, request, TransportRequestOptions.EMPTY, handler);
     }
 
     public <T extends TransportResponse> void sendRequest(final DiscoveryNode node, final String action, final TransportRequest request,
-                                                          final TransportRequestOptions options, TransportResponseHandler<T> handler) throws TransportException {
+                                                          final TransportRequestOptions options, TransportResponseHandler<T> handler) {
         if (node == null) {
             throw new ElasticsearchIllegalStateException("can't send request to a null node");
         }
@@ -228,12 +217,6 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
                         holderToNotify.handler().handleException(sendRequestException);
                     }
                 });
-            }
-
-            if (throwConnectException) {
-                if (e instanceof ConnectTransportException) {
-                    throw (ConnectTransportException) e;
-                }
             }
         }
     }
@@ -278,8 +261,8 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         }
 
         @Override
-        public TransportRequestHandler handler(String action) {
-            return serverHandlers.get(action);
+        public TransportRequestHandler handler(String action, Version version) {
+            return serverHandlers.get(ActionNames.incomingAction(action, version));
         }
 
         @Override
@@ -343,6 +326,11 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
                 logger.debug("Rejected execution on NodeDisconnected", ex);
             }
         }
+
+        @Override
+        public String action(String action, Version version) {
+            return ActionNames.outgoingAction(action, version);
+        }
     }
 
     class TimeoutHandler implements Runnable {
@@ -375,7 +363,6 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
             }
         }
     }
-
 
     static class TimeoutInfoHolder {
 

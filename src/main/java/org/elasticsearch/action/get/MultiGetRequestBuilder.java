@@ -82,6 +82,11 @@ public class MultiGetRequestBuilder extends ActionRequestBuilder<MultiGetRequest
         return this;
     }
 
+    public MultiGetRequestBuilder setIgnoreErrorsOnGeneratedFields(boolean ignoreErrorsOnGeneratedFields) {
+        request.ignoreErrorsOnGeneratedFields(ignoreErrorsOnGeneratedFields);
+        return this;
+    }
+
     @Override
     protected void doExecute(ActionListener<MultiGetResponse> listener) {
         client.multiGet(request, listener);

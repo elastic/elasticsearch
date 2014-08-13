@@ -110,8 +110,9 @@ public class MultiOrdinals extends Ordinals {
 
         @Override
         public int getOrd(int docId) {
-            final long offset = docId != 0 ? endOffsets.get(docId - 1) : 0;
-            return (int) ords.get(offset);
+            final long startOffset = docId != 0 ? endOffsets.get(docId - 1) : 0;
+            final long endOffset = endOffsets.get(docId);
+            return startOffset == endOffset ? -1 : (int) ords.get(startOffset);
         }
 
         @Override

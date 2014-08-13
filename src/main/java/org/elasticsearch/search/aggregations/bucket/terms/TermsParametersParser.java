@@ -38,9 +38,14 @@ public class TermsParametersParser extends AbstractTermsParametersParser {
     public boolean isOrderAsc() {
         return orderAsc;
     }
+    
+    public boolean showTermDocCountError() {
+        return showTermDocCountError;
+    }
 
     String orderKey = "_count";
     boolean orderAsc = false;
+    private boolean showTermDocCountError = false;
 
     @Override
     public void parseSpecial(String aggregationName, XContentParser parser, SearchContext context, XContentParser.Token token, String currentFieldName) throws IOException {
@@ -64,6 +69,10 @@ public class TermsParametersParser extends AbstractTermsParametersParser {
                 }
             } else {
                 throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+            }
+        } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
+            if (SHOW_TERM_DOC_COUNT_ERROR.match(currentFieldName)) {
+                showTermDocCountError = parser.booleanValue();
             }
         } else {
             throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");

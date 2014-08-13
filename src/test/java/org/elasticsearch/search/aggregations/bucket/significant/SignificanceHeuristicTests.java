@@ -39,8 +39,10 @@ import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.*;
@@ -66,6 +68,8 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
     public void streamResponse() throws Exception {
         SignificanceHeuristicStreams.registerStream(MutualInformation.STREAM, MutualInformation.STREAM.getName());
         SignificanceHeuristicStreams.registerStream(JLHScore.STREAM, JLHScore.STREAM.getName());
+        SignificanceHeuristicStreams.registerStream(GND.STREAM, GND.STREAM.getName());
+        SignificanceHeuristicStreams.registerStream(ChiSquare.STREAM, ChiSquare.STREAM.getName());
         Version version = ElasticsearchIntegrationTest.randomVersion();
         InternalSignificantTerms[] sigTerms = getRandomSignificantTerms(getRandomSignificanceheuristic());
 
@@ -109,11 +113,12 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
     }
 
     SignificanceHeuristic getRandomSignificanceheuristic() {
-        if (randomBoolean()) {
-            return JLHScore.INSTANCE;
-        } else {
-            return new MutualInformation(randomBoolean(), true);
-        }
+        List<SignificanceHeuristic> heuristics = new ArrayList<>();
+        heuristics.add(JLHScore.INSTANCE);
+        heuristics.add(new MutualInformation(randomBoolean(), randomBoolean()));
+        heuristics.add(new GND(randomBoolean()));
+        heuristics.add(new ChiSquare(randomBoolean(), randomBoolean()));
+        return heuristics.get(randomInt(3));
     }
 
     // test that
@@ -125,110 +130,111 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
         Set<SignificanceHeuristicParser> parsers = new HashSet<>();
         parsers.add(new JLHScore.JLHScoreParser());
         parsers.add(new MutualInformation.MutualInformationParser());
+        parsers.add(new GND.GNDParser());
+        parsers.add(new ChiSquare.ChiSquareParser());
         SignificanceHeuristicParserMapper heuristicParserMapper = new SignificanceHeuristicParserMapper(parsers);
         SearchContext searchContext = new SignificantTermsTestSearchContext();
 
-        // test default with string
-        XContentParser stParser = JsonXContent.jsonXContent.createParser("{\"field\":\"text\", \"jlh\":{}, \"min_doc_count\":200}");
+        // test jlh with string
+        assertTrue(parseFromString(heuristicParserMapper, searchContext, "\"jlh\":{}") instanceof JLHScore);
+        // test gnd with string
+        assertTrue(parseFromString(heuristicParserMapper, searchContext, "\"gnd\":{}") instanceof GND);
+        // test mutual information with string
+        boolean includeNegatives = randomBoolean();
+        boolean backgroundIsSuperset = randomBoolean();
+        assertThat(parseFromString(heuristicParserMapper, searchContext, "\"mutual_information\":{\"include_negatives\": " + includeNegatives + ", \"background_is_superset\":" + backgroundIsSuperset + "}"), equalTo((SignificanceHeuristic) (new MutualInformation(includeNegatives, backgroundIsSuperset))));
+        assertThat(parseFromString(heuristicParserMapper, searchContext, "\"chi_square\":{\"include_negatives\": " + includeNegatives + ", \"background_is_superset\":" + backgroundIsSuperset + "}"), equalTo((SignificanceHeuristic) (new ChiSquare(includeNegatives, backgroundIsSuperset))));
+
+        // test with builders
+        assertTrue(parseFromBuilder(heuristicParserMapper, searchContext, new JLHScore.JLHScoreBuilder()) instanceof JLHScore);
+        assertTrue(parseFromBuilder(heuristicParserMapper, searchContext, new GND.GNDBuilder(backgroundIsSuperset)) instanceof GND);
+        assertThat(parseFromBuilder(heuristicParserMapper, searchContext, new MutualInformation.MutualInformationBuilder(includeNegatives, backgroundIsSuperset)), equalTo((SignificanceHeuristic) new MutualInformation(includeNegatives, backgroundIsSuperset)));
+        assertThat(parseFromBuilder(heuristicParserMapper, searchContext, new ChiSquare.ChiSquareBuilder(includeNegatives, backgroundIsSuperset)), equalTo((SignificanceHeuristic) new ChiSquare(includeNegatives, backgroundIsSuperset)));
+
+        // test exceptions
+        String faultyHeuristicdefinition = "\"mutual_information\":{\"include_negatives\": false, \"some_unknown_field\": false}";
+        String expectedError = "unknown for mutual_information";
+        checkParseException(heuristicParserMapper, searchContext, faultyHeuristicdefinition, expectedError);
+
+        faultyHeuristicdefinition = "\"chi_square\":{\"unknown_field\": true}";
+        expectedError = "unknown for chi_square";
+        checkParseException(heuristicParserMapper, searchContext, faultyHeuristicdefinition, expectedError);
+
+        faultyHeuristicdefinition = "\"jlh\":{\"unknown_field\": true}";
+        expectedError = "expected }, got ";
+        checkParseException(heuristicParserMapper, searchContext, faultyHeuristicdefinition, expectedError);
+
+        faultyHeuristicdefinition = "\"gnd\":{\"unknown_field\": true}";
+        expectedError = "unknown for gnd";
+        checkParseException(heuristicParserMapper, searchContext, faultyHeuristicdefinition, expectedError);
+    }
+
+    protected void checkParseException(SignificanceHeuristicParserMapper heuristicParserMapper, SearchContext searchContext, String faultyHeuristicDefinition, String expectedError) throws IOException {
+        try {
+            XContentParser stParser = JsonXContent.jsonXContent.createParser("{\"field\":\"text\", " + faultyHeuristicDefinition + ",\"min_doc_count\":200}");
+            stParser.nextToken();
+            new SignificantTermsParser(heuristicParserMapper).parse("testagg", stParser, searchContext);
+            fail();
+        } catch (ElasticsearchParseException e) {
+            assertTrue(e.getMessage().contains(expectedError));
+        }
+    }
+
+    protected SignificanceHeuristic parseFromBuilder(SignificanceHeuristicParserMapper heuristicParserMapper, SearchContext searchContext, SignificanceHeuristicBuilder significanceHeuristicBuilder) throws IOException {
+        SignificantTermsBuilder stBuilder = new SignificantTermsBuilder("testagg");
+        stBuilder.significanceHeuristic(significanceHeuristicBuilder).field("text").minDocCount(200);
+        XContentBuilder stXContentBuilder = XContentFactory.jsonBuilder();
+        stBuilder.internalXContent(stXContentBuilder, null);
+        XContentParser stParser = JsonXContent.jsonXContent.createParser(stXContentBuilder.string());
+        return parseSignificanceHeuristic(heuristicParserMapper, searchContext, stParser);
+    }
+
+    private SignificanceHeuristic parseSignificanceHeuristic(SignificanceHeuristicParserMapper heuristicParserMapper, SearchContext searchContext, XContentParser stParser) throws IOException {
         stParser.nextToken();
         SignificantTermsAggregatorFactory aggregatorFactory = (SignificantTermsAggregatorFactory) new SignificantTermsParser(heuristicParserMapper).parse("testagg", stParser, searchContext);
         stParser.nextToken();
         assertThat(aggregatorFactory.getBucketCountThresholds().getMinDocCount(), equalTo(200l));
         assertThat(stParser.currentToken(), equalTo(null));
         stParser.close();
-
-        // test default with builders
-        SignificantTermsBuilder stBuilder = new SignificantTermsBuilder("testagg");
-        stBuilder.significanceHeuristic(new JLHScore.JLHScoreBuilder()).field("text").minDocCount(200);
-        XContentBuilder stXContentBuilder = XContentFactory.jsonBuilder();
-        stBuilder.internalXContent(stXContentBuilder, null);
-        stParser = JsonXContent.jsonXContent.createParser(stXContentBuilder.string());
-        stParser.nextToken();
-        aggregatorFactory = (SignificantTermsAggregatorFactory) new SignificantTermsParser(heuristicParserMapper).parse("testagg", stParser, searchContext);
-        stParser.nextToken();
-        assertThat(aggregatorFactory.getBucketCountThresholds().getMinDocCount(), equalTo(200l));
-        assertThat(stParser.currentToken(), equalTo(null));
-        stParser.close();
-
-        // test mutual_information with string
-        stParser = JsonXContent.jsonXContent.createParser("{\"field\":\"text\", \"mutual_information\":{\"include_negatives\": false}, \"min_doc_count\":200}");
-        stParser.nextToken();
-        aggregatorFactory = (SignificantTermsAggregatorFactory) new SignificantTermsParser(heuristicParserMapper).parse("testagg", stParser, searchContext);
-        stParser.nextToken();
-        assertThat(aggregatorFactory.getBucketCountThresholds().getMinDocCount(), equalTo(200l));
-        assertTrue(!((MutualInformation) aggregatorFactory.getSignificanceHeuristic()).getIncludeNegatives());
-        assertThat(stParser.currentToken(), equalTo(null));
-        stParser.close();
-
-        // test mutual_information with builders
-        stBuilder = new SignificantTermsBuilder("testagg");
-        stBuilder.significanceHeuristic(new MutualInformation.MutualInformationBuilder(false, true)).field("text").minDocCount(200);
-        stXContentBuilder = XContentFactory.jsonBuilder();
-        stBuilder.internalXContent(stXContentBuilder, null);
-        stParser = JsonXContent.jsonXContent.createParser(stXContentBuilder.string());
-        stParser.nextToken();
-        aggregatorFactory = (SignificantTermsAggregatorFactory) new SignificantTermsParser(heuristicParserMapper).parse("testagg", stParser, searchContext);
-        stParser.nextToken();
-        assertThat(aggregatorFactory.getBucketCountThresholds().getMinDocCount(), equalTo(200l));
-        assertTrue(!((MutualInformation) aggregatorFactory.getSignificanceHeuristic()).getIncludeNegatives());
-        assertThat(stParser.currentToken(), equalTo(null));
-        stParser.close();
-
-        // test exceptions
-        try {
-            // 1. invalid field
-            stParser = JsonXContent.jsonXContent.createParser("{\"field\":\"text\", \"mutual_information\":{\"include_negatives\": false, \"some_unknown_field\": false}\"min_doc_count\":200}");
-            stParser.nextToken();
-            new SignificantTermsParser(heuristicParserMapper).parse("testagg", stParser, searchContext);
-            fail();
-        } catch (ElasticsearchParseException e) {
-            assertTrue(e.getMessage().contains("unknown for mutual_information"));
-        }
-
-        try {
-            // 2. unknown field in jlh_score
-            stParser = JsonXContent.jsonXContent.createParser("{\"field\":\"text\", \"jlh\":{\"unknown_field\": true}, \"min_doc_count\":200}");
-            stParser.nextToken();
-            new SignificantTermsParser(heuristicParserMapper).parse("testagg", stParser, searchContext);
-            fail();
-        } catch (ElasticsearchParseException e) {
-            assertTrue(e.getMessage().contains("expected }, got "));
-        }
+        return aggregatorFactory.getSignificanceHeuristic();
     }
 
-    @Test
-    public void testAssertions() throws Exception {
-        MutualInformation mutualInformation = new MutualInformation(true, true);
+    protected SignificanceHeuristic parseFromString(SignificanceHeuristicParserMapper heuristicParserMapper, SearchContext searchContext, String heuristicString) throws IOException {
+        XContentParser stParser = JsonXContent.jsonXContent.createParser("{\"field\":\"text\", " + heuristicString + ", \"min_doc_count\":200}");
+        return parseSignificanceHeuristic(heuristicParserMapper, searchContext, stParser);
+    }
+
+    void testBackgroundAssertions(SignificanceHeuristic heuristicIsSuperset, SignificanceHeuristic heuristicNotSuperset) {
         try {
-            mutualInformation.getScore(2, 3, 1, 4);
+            heuristicIsSuperset.getScore(2, 3, 1, 4);
             fail();
         } catch (ElasticsearchIllegalArgumentException illegalArgumentException) {
             assertNotNull(illegalArgumentException.getMessage());
             assertTrue(illegalArgumentException.getMessage().contains("subsetFreq > supersetFreq"));
         }
         try {
-            mutualInformation.getScore(1, 4, 2, 3);
+            heuristicIsSuperset.getScore(1, 4, 2, 3);
             fail();
         } catch (ElasticsearchIllegalArgumentException illegalArgumentException) {
             assertNotNull(illegalArgumentException.getMessage());
             assertTrue(illegalArgumentException.getMessage().contains("subsetSize > supersetSize"));
         }
         try {
-            mutualInformation.getScore(2, 1, 3, 4);
+            heuristicIsSuperset.getScore(2, 1, 3, 4);
             fail();
         } catch (ElasticsearchIllegalArgumentException illegalArgumentException) {
             assertNotNull(illegalArgumentException.getMessage());
             assertTrue(illegalArgumentException.getMessage().contains("subsetFreq > subsetSize"));
         }
         try {
-            mutualInformation.getScore(1, 2, 4, 3);
+            heuristicIsSuperset.getScore(1, 2, 4, 3);
             fail();
         } catch (ElasticsearchIllegalArgumentException illegalArgumentException) {
             assertNotNull(illegalArgumentException.getMessage());
             assertTrue(illegalArgumentException.getMessage().contains("supersetFreq > supersetSize"));
         }
         try {
-            mutualInformation.getScore(1, 3, 4, 4);
+            heuristicIsSuperset.getScore(1, 3, 4, 4);
             fail();
         } catch (ElasticsearchIllegalArgumentException assertionError) {
             assertNotNull(assertionError.getMessage());
@@ -238,70 +244,58 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
             int idx = randomInt(3);
             long[] values = {1, 2, 3, 4};
             values[idx] *= -1;
-            mutualInformation.getScore(values[0], values[1], values[2], values[3]);
+            heuristicIsSuperset.getScore(values[0], values[1], values[2], values[3]);
             fail();
         } catch (ElasticsearchIllegalArgumentException illegalArgumentException) {
             assertNotNull(illegalArgumentException.getMessage());
             assertTrue(illegalArgumentException.getMessage().contains("Frequencies of subset and superset must be positive"));
         }
-        mutualInformation = new MutualInformation(true, false);
-        double score = mutualInformation.getScore(2, 3, 1, 4);
-        assertThat(score, greaterThanOrEqualTo(0.0));
-        assertThat(score, lessThanOrEqualTo(1.0));
-        score = mutualInformation.getScore(1, 4, 2, 3);
-        assertThat(score, greaterThanOrEqualTo(0.0));
-        assertThat(score, lessThanOrEqualTo(1.0));
-
         try {
-            mutualInformation.getScore(2, 1, 3, 4);
+            heuristicNotSuperset.getScore(2, 1, 3, 4);
             fail();
         } catch (ElasticsearchIllegalArgumentException illegalArgumentException) {
             assertNotNull(illegalArgumentException.getMessage());
             assertTrue(illegalArgumentException.getMessage().contains("subsetFreq > subsetSize"));
         }
         try {
-            mutualInformation.getScore(1, 2, 4, 3);
-            fail();
-        } catch (ElasticsearchIllegalArgumentException illegalArgumentException) {
-            assertNotNull(illegalArgumentException.getMessage());
-            assertTrue(illegalArgumentException.getMessage().contains("supersetFreq > supersetSize"));
-        }
-
-        score = mutualInformation.getScore(1, 3, 4, 4);
-        assertThat(score, greaterThanOrEqualTo(0.0));
-        assertThat(score, lessThanOrEqualTo(1.0));
-
-        try {
-            int idx = randomInt(3);
-            long[] values = {1, 2, 3, 4};
-            values[idx] *= -1;
-            mutualInformation.getScore(values[0], values[1], values[2], values[3]);
-            fail();
-        } catch (ElasticsearchIllegalArgumentException illegalArgumentException) {
-            assertNotNull(illegalArgumentException.getMessage());
-            assertTrue(illegalArgumentException.getMessage().contains("Frequencies of subset and superset must be positive"));
-        }
-
-        JLHScore jlhScore = JLHScore.INSTANCE;
-        try {
-            int idx = randomInt(3);
-            long[] values = {1, 2, 3, 4};
-            values[idx] *= -1;
-            jlhScore.getScore(values[0], values[1], values[2], values[3]);
-            fail();
-        } catch (ElasticsearchIllegalArgumentException illegalArgumentException) {
-            assertNotNull(illegalArgumentException.getMessage());
-            assertTrue(illegalArgumentException.getMessage().contains("Frequencies of subset and superset must be positive"));
-        }
-        try {
-            jlhScore.getScore(1, 2, 4, 3);
+            heuristicNotSuperset.getScore(1, 2, 4, 3);
             fail();
         } catch (ElasticsearchIllegalArgumentException illegalArgumentException) {
             assertNotNull(illegalArgumentException.getMessage());
             assertTrue(illegalArgumentException.getMessage().contains("supersetFreq > supersetSize"));
         }
         try {
-            jlhScore.getScore(2, 1, 3, 4);
+            int idx = randomInt(3);
+            long[] values = {1, 2, 3, 4};
+            values[idx] *= -1;
+            heuristicNotSuperset.getScore(values[0], values[1], values[2], values[3]);
+            fail();
+        } catch (ElasticsearchIllegalArgumentException illegalArgumentException) {
+            assertNotNull(illegalArgumentException.getMessage());
+            assertTrue(illegalArgumentException.getMessage().contains("Frequencies of subset and superset must be positive"));
+        }
+    }
+
+    void testAssertions(SignificanceHeuristic heuristic) {
+        try {
+            int idx = randomInt(3);
+            long[] values = {1, 2, 3, 4};
+            values[idx] *= -1;
+            heuristic.getScore(values[0], values[1], values[2], values[3]);
+            fail();
+        } catch (ElasticsearchIllegalArgumentException illegalArgumentException) {
+            assertNotNull(illegalArgumentException.getMessage());
+            assertTrue(illegalArgumentException.getMessage().contains("Frequencies of subset and superset must be positive"));
+        }
+        try {
+            heuristic.getScore(1, 2, 4, 3);
+            fail();
+        } catch (ElasticsearchIllegalArgumentException illegalArgumentException) {
+            assertNotNull(illegalArgumentException.getMessage());
+            assertTrue(illegalArgumentException.getMessage().contains("supersetFreq > supersetSize"));
+        }
+        try {
+            heuristic.getScore(2, 1, 3, 4);
             fail();
         } catch (ElasticsearchIllegalArgumentException illegalArgumentException) {
             assertNotNull(illegalArgumentException.getMessage());
@@ -310,11 +304,30 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
     }
 
     @Test
-    public void scoreDefault() {
-        SignificanceHeuristic heuristic = JLHScore.INSTANCE;
+    public void testAssertions() throws Exception {
+        testBackgroundAssertions(new MutualInformation(true, true), new MutualInformation(true, false));
+        testBackgroundAssertions(new ChiSquare(true, true), new ChiSquare(true, false));
+        testBackgroundAssertions(new GND(true), new GND(false));
+        testAssertions(JLHScore.INSTANCE);
+    }
+
+    @Test
+    public void basicScoreProperties() {
+        basicScoreProperties(JLHScore.INSTANCE, true);
+        basicScoreProperties(new GND(true), true);
+        basicScoreProperties(new MutualInformation(true, true), false);
+        basicScoreProperties(new ChiSquare(true, true), false);
+    }
+
+    public void basicScoreProperties(SignificanceHeuristic heuristic, boolean test0) {
+
         assertThat(heuristic.getScore(1, 1, 1, 3), greaterThan(0.0));
         assertThat(heuristic.getScore(1, 1, 2, 3), lessThan(heuristic.getScore(1, 1, 1, 3)));
-        assertThat(heuristic.getScore(0, 1, 2, 3), equalTo(0.0));
+        assertThat(heuristic.getScore(1, 1, 3, 4), lessThan(heuristic.getScore(1, 1, 2, 4)));
+        if (test0) {
+            assertThat(heuristic.getScore(0, 1, 2, 3), equalTo(0.0));
+        }
+
         double score = 0.0;
         try {
             long a = randomLong();
@@ -350,7 +363,34 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
         assertThat(score, lessThanOrEqualTo(1.0));
         assertThat(score, greaterThanOrEqualTo(0.0));
         heuristic = new MutualInformation(false, true);
-        assertThat(heuristic.getScore(0, 1, 2, 3), equalTo(-1.0 * Double.MAX_VALUE));
+        assertThat(heuristic.getScore(0, 1, 2, 3), equalTo(Double.NEGATIVE_INFINITY));
 
+        heuristic = new MutualInformation(true, false);
+        score = heuristic.getScore(2, 3, 1, 4);
+        assertThat(score, greaterThanOrEqualTo(0.0));
+        assertThat(score, lessThanOrEqualTo(1.0));
+        score = heuristic.getScore(1, 4, 2, 3);
+        assertThat(score, greaterThanOrEqualTo(0.0));
+        assertThat(score, lessThanOrEqualTo(1.0));
+        score = heuristic.getScore(1, 3, 4, 4);
+        assertThat(score, greaterThanOrEqualTo(0.0));
+        assertThat(score, lessThanOrEqualTo(1.0));
+    }
+
+    @Test
+    public void testGNDCornerCases() throws Exception {
+        GND gnd = new GND(true);
+        //term is only in the subset, not at all in the other set but that is because the other set is empty.
+        // this should actually not happen because only terms that are in the subset are considered now,
+        // however, in this case the score should be 0 because a term that does not exist cannot be relevant...
+        assertThat(gnd.getScore(0, randomIntBetween(1, 2), 0, randomIntBetween(2,3)), equalTo(0.0));
+        // the terms do not co-occur at all - should be 0
+        assertThat(gnd.getScore(0, randomIntBetween(1, 2), randomIntBetween(2, 3), randomIntBetween(5,6)), equalTo(0.0));
+        // comparison between two terms that do not exist - probably not relevant
+        assertThat(gnd.getScore(0, 0, 0, randomIntBetween(1,2)), equalTo(0.0));
+        // terms co-occur perfectly - should be 1
+        assertThat(gnd.getScore(1, 1, 1, 1), equalTo(1.0));
+        gnd = new GND(false);
+        assertThat(gnd.getScore(0, 0, 0, 0), equalTo(0.0));
     }
 }

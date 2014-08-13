@@ -35,7 +35,6 @@ import org.elasticsearch.client.*;
 import org.elasticsearch.client.support.AbstractClient;
 import org.elasticsearch.client.support.AbstractClusterAdminClient;
 import org.elasticsearch.client.support.AbstractIndicesAdminClient;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -326,78 +325,9 @@ public class HeadersCopyClientTests extends ElasticsearchTestCase {
         } else {
             assertThat(request.getHeaders(), notNullValue());
             assertThat(request.getHeaders().size(), equalTo(headers.size()));
-            for (Map.Entry<String, Object> entry : request.getHeaders().entrySet()) {
-                assertThat(headers.get(entry.getKey()), equalTo(entry.getValue()));
+            for (String key : request.getHeaders()) {
+                assertThat(headers.get(key), equalTo(request.getHeader(key)));
             }
-        }
-    }
-
-    private static class FakeRestRequest extends RestRequest {
-
-        private final Map<String, String> headers;
-
-        private FakeRestRequest(Map<String, String> headers) {
-            this.headers = headers;
-        }
-
-        @Override
-        public Method method() {
-            return null;
-        }
-
-        @Override
-        public String uri() {
-            return null;
-        }
-
-        @Override
-        public String rawPath() {
-            return null;
-        }
-
-        @Override
-        public boolean hasContent() {
-            return false;
-        }
-
-        @Override
-        public boolean contentUnsafe() {
-            return false;
-        }
-
-        @Override
-        public BytesReference content() {
-            return null;
-        }
-
-        @Override
-        public String header(String name) {
-            return headers.get(name);
-        }
-
-        @Override
-        public Iterable<Map.Entry<String, String>> headers() {
-            return headers.entrySet();
-        }
-
-        @Override
-        public boolean hasParam(String key) {
-            return false;
-        }
-
-        @Override
-        public String param(String key) {
-            return null;
-        }
-
-        @Override
-        public String param(String key, String defaultValue) {
-            return null;
-        }
-
-        @Override
-        public Map<String, String> params() {
-            return null;
         }
     }
 

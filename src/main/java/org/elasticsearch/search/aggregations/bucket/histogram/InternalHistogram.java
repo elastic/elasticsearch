@@ -320,10 +320,11 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
                 B nextBucket = list.get(iter.nextIndex());
                 if (lastBucket != null) {
                     long key = emptyBucketInfo.rounding.nextRoundingValue(lastBucket.key);
-                    while (key != nextBucket.key) {
+                    while (key < nextBucket.key) {
                         iter.add(createBucket(key, 0, emptyBucketInfo.subAggregations, formatter));
                         key = emptyBucketInfo.rounding.nextRoundingValue(key);
                     }
+                    assert key == nextBucket.key;
                 }
                 lastBucket = iter.next();
             }
@@ -391,8 +392,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(name);
+    public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         if (keyed) {
             builder.startObject(CommonFields.BUCKETS);
         } else {
@@ -406,7 +406,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         } else {
             builder.endArray();
         }
-        return builder.endObject();
+        return builder;
     }
 
 }

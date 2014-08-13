@@ -316,12 +316,16 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
             fields.add(field);
         }
         if (hasDocValues()) {
-            CustomDoubleNumericDocValuesField field = (CustomDoubleNumericDocValuesField) context.doc().getByKey(names().indexName());
-            if (field != null) {
-                field.add(value);
+            if (useSortedNumericDocValues) {
+                addDocValue(context, fields, NumericUtils.doubleToSortableLong(value));
             } else {
-                field = new CustomDoubleNumericDocValuesField(names().indexName(), value);
-                context.doc().addWithKey(names().indexName(), field);
+                CustomDoubleNumericDocValuesField field = (CustomDoubleNumericDocValuesField) context.doc().getByKey(names().indexName());
+                if (field != null) {
+                    field.add(value);
+                } else {
+                    field = new CustomDoubleNumericDocValuesField(names().indexName(), value);
+                    context.doc().addWithKey(names().indexName(), field);
+                }
             }
         }
     }

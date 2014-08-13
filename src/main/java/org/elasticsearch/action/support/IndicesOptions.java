@@ -42,6 +42,12 @@ public class IndicesOptions {
     private static final byte FORBID_ALIASES_TO_MULTIPLE_INDICES = 16;
     private static final byte FORBID_CLOSED_INDICES = 32;
 
+    private static final byte STRICT_EXPAND_OPEN = 6;
+    private static final byte LENIENT_EXPAND_OPEN = 7;
+    private static final byte STRICT_EXPAND_OPEN_CLOSED = 14;
+    private static final byte STRICT_EXPAND_OPEN_FORBID_CLOSED = 38;
+    private static final byte STRICT_SINGLE_INDEX_NO_EXPAND_FORBID_CLOSED = 48;
+
     static {
         byte max = 1 << 6;
         VALUES = new IndicesOptions[max];
@@ -177,7 +183,7 @@ public class IndicesOptions {
      *         allows that no indices are resolved from wildcard expressions (not returning an error).
      */
     public static IndicesOptions strictExpandOpen() {
-        return VALUES[6];
+        return VALUES[STRICT_EXPAND_OPEN];
     }
 
     /**
@@ -186,7 +192,7 @@ public class IndicesOptions {
      *         use of closed indices by throwing an error.
      */
     public static IndicesOptions strictExpandOpenAndForbidClosed() {
-        return VALUES[38];
+        return VALUES[STRICT_EXPAND_OPEN_FORBID_CLOSED];
     }
 
     /**
@@ -194,15 +200,15 @@ public class IndicesOptions {
      * indices and allows that no indices are resolved from wildcard expressions (not returning an error).
      */
     public static IndicesOptions strictExpand() {
-        return VALUES[14];
+        return VALUES[STRICT_EXPAND_OPEN_CLOSED];
     }
 
     /**
      * @return indices option that requires each specified index or alias to exist, doesn't expand wildcards and
      * throws error if any of the aliases resolves to multiple indices
      */
-    public static IndicesOptions strictSingleIndexNoExpand() {
-        return VALUES[FORBID_ALIASES_TO_MULTIPLE_INDICES];
+    public static IndicesOptions strictSingleIndexNoExpandForbidClosed() {
+        return VALUES[STRICT_SINGLE_INDEX_NO_EXPAND_FORBID_CLOSED];
     }
 
     /**
@@ -210,7 +216,7 @@ public class IndicesOptions {
      *         allows that no indices are resolved from wildcard expressions (not returning an error).
      */
     public static IndicesOptions lenientExpandOpen() {
-        return VALUES[7];
+        return VALUES[LENIENT_EXPAND_OPEN];
     }
 
     private static byte toByte(boolean ignoreUnavailable, boolean allowNoIndices, boolean wildcardExpandToOpen,

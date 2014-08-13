@@ -321,7 +321,7 @@ public class ShortFieldMapper extends NumberFieldMapper<Short> {
             fields.add(field);
         }
         if (hasDocValues()) {
-            addDocValue(context, value);
+            addDocValue(context, fields, value);
         }
     }
 

@@ -20,6 +20,7 @@
 package org.elasticsearch.search.simple;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -28,8 +29,12 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ExecutionException;
 
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
@@ -199,5 +204,44 @@ public class SimpleSearchTests extends ElasticsearchIntegrationTest {
             assertHitCount(searchResponse, 20l);
 
         }
+    }
+
+    @Test
+    public void simpleTerminateAfterCountTests() throws Exception {
+        prepareCreate("test").setSettings(
+                SETTING_NUMBER_OF_SHARDS, 1,
+                SETTING_NUMBER_OF_REPLICAS, 0).get();
+        ensureGreen();
+        int max = randomIntBetween(3, 29);
+        List<IndexRequestBuilder> docbuilders = new ArrayList<>(max);
+
+        for (int i = 1; i <= max; i++) {
+            String id = String.valueOf(i);
+            docbuilders.add(client().prepareIndex("test", "type1", id).setSource("field", "2010-01-"+ id +"T02:00"));
+        }
+
+        indexRandom(true, docbuilders);
+        ensureGreen();
+        refresh();
+
+        String upperBound = "2010-01-" + String.valueOf(max+1) + "||+2d";
+        String lowerBound = "2009-12-01||+2d";
+
+        SearchResponse searchResponse;
+
+        for (int i = 1; i <= max; i++) {
+            searchResponse = client().prepareSearch("test")
+                    .setQuery(QueryBuilders.rangeQuery("field").gte(lowerBound).lte(upperBound))
+                    .setTerminateAfter(i).execute().actionGet();
+            assertHitCount(searchResponse, (long)i);
+            assertTrue(searchResponse.isTerminatedEarly());
+        }
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(QueryBuilders.rangeQuery("field").gte(lowerBound).lte(upperBound))
+                .setTerminateAfter(2 * max).execute().actionGet();
+
+        assertHitCount(searchResponse, max);
+        assertFalse(searchResponse.isTerminatedEarly());
     }
 }

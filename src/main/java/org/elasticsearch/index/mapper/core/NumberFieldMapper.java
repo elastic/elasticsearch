@@ -27,6 +27,7 @@ import org.apache.lucene.analysis.NumericTokenStream;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.apache.lucene.index.IndexableField;
@@ -35,6 +36,7 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
@@ -138,6 +140,14 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
 
     protected Explicit<Boolean> coerce;
     
+    /** 
+     * True if index version is 1.4+
+     * <p>
+     * In this case numerics are encoded with SORTED_NUMERIC docvalues,
+     * otherwise for older indexes we must continue to write BINARY (for now)
+     */
+    protected final boolean useSortedNumericDocValues;
+    
     private ThreadLocal<NumericTokenStream> tokenStream = new ThreadLocal<NumericTokenStream>() {
         @Override
         protected NumericTokenStream initialValue() {
@@ -189,6 +199,8 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
         }
         this.ignoreMalformed = ignoreMalformed;
         this.coerce = coerce;
+        Version v = Version.indexCreated(indexSettings);
+        this.useSortedNumericDocValues = v.onOrAfter(Version.V_1_4_0);
     }
 
     @Override
@@ -234,13 +246,17 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
 
     protected abstract void innerParseCreateField(ParseContext context, List<Field> fields) throws IOException;
 
-    protected final void addDocValue(ParseContext context, long value) {
-        CustomLongNumericDocValuesField field = (CustomLongNumericDocValuesField) context.doc().getByKey(names().indexName());
-        if (field != null) {
-            field.add(value);
+    protected final void addDocValue(ParseContext context, List<Field> fields, long value) {
+        if (useSortedNumericDocValues) {
+            fields.add(new SortedNumericDocValuesField(names().indexName(), value));
         } else {
-            field = new CustomLongNumericDocValuesField(names().indexName(), value);
-            context.doc().addWithKey(names().indexName(), field);
+            CustomLongNumericDocValuesField field = (CustomLongNumericDocValuesField) context.doc().getByKey(names().indexName());
+            if (field != null) {
+                field.add(value);
+            } else {
+                field = new CustomLongNumericDocValuesField(names().indexName(), value);
+                context.doc().addWithKey(names().indexName(), field);
+            }
         }
     }
 

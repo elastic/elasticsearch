@@ -19,16 +19,19 @@
 
 package org.elasticsearch.action.admin.cluster.node.stats;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.nodes.NodeOperationResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.http.HttpStats;
 import org.elasticsearch.indices.NodeIndicesStats;
-import org.elasticsearch.indices.fielddata.breaker.FieldDataBreakerStats;
+import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
+import org.elasticsearch.indices.breaker.CircuitBreakerStats;
 import org.elasticsearch.monitor.fs.FsStats;
 import org.elasticsearch.monitor.jvm.JvmStats;
 import org.elasticsearch.monitor.network.NetworkStats;
@@ -75,7 +78,7 @@ public class NodeStats extends NodeOperationResponse implements ToXContent {
     private HttpStats http;
 
     @Nullable
-    private FieldDataBreakerStats breaker;
+    private AllCircuitBreakerStats breaker;
 
     NodeStats() {
     }
@@ -83,7 +86,7 @@ public class NodeStats extends NodeOperationResponse implements ToXContent {
     public NodeStats(DiscoveryNode node, long timestamp, @Nullable NodeIndicesStats indices,
                      @Nullable OsStats os, @Nullable ProcessStats process, @Nullable JvmStats jvm, @Nullable ThreadPoolStats threadPool,
                      @Nullable NetworkStats network, @Nullable FsStats fs, @Nullable TransportStats transport, @Nullable HttpStats http,
-                     @Nullable FieldDataBreakerStats breaker) {
+                     @Nullable AllCircuitBreakerStats breaker) {
         super(node);
         this.timestamp = timestamp;
         this.indices = indices;
@@ -174,7 +177,7 @@ public class NodeStats extends NodeOperationResponse implements ToXContent {
     }
 
     @Nullable
-    public FieldDataBreakerStats getBreaker() {
+    public AllCircuitBreakerStats getBreaker() {
         return this.breaker;
     }
 
@@ -215,7 +218,16 @@ public class NodeStats extends NodeOperationResponse implements ToXContent {
         if (in.readBoolean()) {
             http = HttpStats.readHttpStats(in);
         }
-        breaker = FieldDataBreakerStats.readOptionalCircuitBreakerStats(in);
+        if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
+            breaker = AllCircuitBreakerStats.readOptionalAllCircuitBreakerStats(in);
+        } else {
+            // If 1.3.0 or earlier, only a single CircuitBreakerStats can be read
+            CircuitBreakerStats fdStats = CircuitBreakerStats.readOptionalCircuitBreakerStats(in);
+            CircuitBreakerStats reqStats = new CircuitBreakerStats(CircuitBreaker.Name.REQUEST, 0, 0, 1.0, -1);
+            CircuitBreakerStats parentStats = new CircuitBreakerStats(CircuitBreaker.Name.PARENT, 0, 0, 1.0, -1);
+            breaker = new AllCircuitBreakerStats(new CircuitBreakerStats[] {parentStats, fdStats, reqStats});
+        }
+
     }
 
     @Override
@@ -276,7 +288,12 @@ public class NodeStats extends NodeOperationResponse implements ToXContent {
             out.writeBoolean(true);
             http.writeTo(out);
         }
-        out.writeOptionalStreamable(breaker);
+        if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
+            out.writeOptionalStreamable(breaker);
+        } else {
+            // Writing to a 1.3.0 or earlier stream expects only a single breaker stats
+            out.writeOptionalStreamable(breaker == null ? null : breaker.getStats(CircuitBreaker.Name.FIELDDATA));
+        }
     }
 
     @Override

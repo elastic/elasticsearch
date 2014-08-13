@@ -32,6 +32,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -65,7 +66,7 @@ import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 /**
  * The more like this action.
  */
-public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisRequest, SearchResponse> {
+public class TransportMoreLikeThisAction extends HandledTransportAction<MoreLikeThisRequest, SearchResponse> {
 
     private final TransportSearchAction searchAction;
 
@@ -80,14 +81,17 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
     @Inject
     public TransportMoreLikeThisAction(Settings settings, ThreadPool threadPool, TransportSearchAction searchAction, TransportGetAction getAction,
                                        ClusterService clusterService, IndicesService indicesService, TransportService transportService, ActionFilters actionFilters) {
-        super(settings, MoreLikeThisAction.NAME, threadPool, actionFilters);
+        super(settings, MoreLikeThisAction.NAME, threadPool, transportService, actionFilters);
         this.searchAction = searchAction;
         this.getAction = getAction;
         this.indicesService = indicesService;
         this.clusterService = clusterService;
         this.transportService = transportService;
+    }
 
-        transportService.registerHandler(MoreLikeThisAction.NAME, new TransportHandler());
+    @Override
+    public MoreLikeThisRequest newRequestInstance(){
+        return new MoreLikeThisRequest();
     }
 
     @Override
@@ -95,7 +99,7 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
         // update to actual index name
         ClusterState clusterState = clusterService.state();
         // update to the concrete index
-        final String concreteIndex = clusterState.metaData().concreteSingleIndex(request.index());
+        final String concreteIndex = clusterState.metaData().concreteSingleIndex(request.index(), request.indicesOptions());
 
         Iterable<MutableShardRouting> routingNode = clusterState.getRoutingNodes().routingNodeIter(clusterService.localNode().getId());
         if (routingNode == null) {
@@ -330,43 +334,5 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
                 .stopWords(request.stopWords())
                 .failOnUnsupportedField(failOnUnsupportedField);
         boolBuilder.should(mlt);
-    }
-
-    private class TransportHandler extends BaseTransportRequestHandler<MoreLikeThisRequest> {
-
-        @Override
-        public MoreLikeThisRequest newInstance() {
-            return new MoreLikeThisRequest();
-        }
-
-        @Override
-        public void messageReceived(MoreLikeThisRequest request, final TransportChannel channel) throws Exception {
-            // no need to have a threaded listener since we just send back a response
-            request.listenerThreaded(false);
-            execute(request, new ActionListener<SearchResponse>() {
-                @Override
-                public void onResponse(SearchResponse result) {
-                    try {
-                        channel.sendResponse(result);
-                    } catch (Throwable e) {
-                        onFailure(e);
-                    }
-                }
-
-                @Override
-                public void onFailure(Throwable e) {
-                    try {
-                        channel.sendResponse(e);
-                    } catch (Exception e1) {
-                        logger.warn("Failed to send response for get", e1);
-                    }
-                }
-            });
-        }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.SAME;
-        }
     }
 }

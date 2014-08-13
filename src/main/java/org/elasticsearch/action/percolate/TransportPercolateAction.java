@@ -170,7 +170,7 @@ public class TransportPercolateAction extends TransportBroadcastOperationAction<
 
     @Override
     protected PercolateShardRequest newShardRequest(int numShards, ShardRouting shard, PercolateRequest request) {
-        return new PercolateShardRequest(shard.index(), shard.id(), numShards, request);
+        return new PercolateShardRequest(shard.shardId(), numShards, request);
     }
 
     @Override

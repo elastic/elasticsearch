@@ -20,9 +20,13 @@
 package org.elasticsearch;
 
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.test.ElasticsearchTestCase;
+import org.hamcrest.Matchers;
 import org.junit.Test;
+
+import java.util.Locale;
 
 import static org.elasticsearch.Version.V_0_20_0;
 import static org.elasticsearch.Version.V_0_90_0;
@@ -112,6 +116,24 @@ public class VersionTests extends ElasticsearchTestCase {
         assertThat(Version.V_1_2_0.minimumCompatibilityVersion(), equalTo(Version.V_1_0_0));
         assertThat(Version.V_1_2_3.minimumCompatibilityVersion(), equalTo(Version.V_1_0_0));
         assertThat(Version.V_1_0_0_RC2.minimumCompatibilityVersion(), equalTo(Version.V_1_0_0_RC2));
+    }
+
+    @Test
+    public void parseLenient() {
+        int numIters = randomIntBetween(10, 100);
+        for (int i = 0; i < numIters; i++) {
+            Version version = randomVersion(getRandom());
+            org.apache.lucene.util.Version luceneVersion = version.luceneVersion;
+            String string = luceneVersion.name().toUpperCase(Locale.ROOT)
+                    .replaceFirst("^LUCENE_(\\d+)_(\\d+)$", "$1.$2");
+            if (randomBoolean()) {
+                string = string + "." + randomIntBetween(0, 100);
+                if (randomBoolean()) {
+                    string = string + "." + randomIntBetween(0, 100);
+                }
+            }
+            assertThat(luceneVersion, Matchers.equalTo(Lucene.parseVersionLenient(string, null)));
+        }
     }
 
 }

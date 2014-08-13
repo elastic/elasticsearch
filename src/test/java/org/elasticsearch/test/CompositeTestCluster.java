@@ -18,17 +18,21 @@
  */
 package org.elasticsearch.test;
 
-import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.collect.Iterators;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Collections2;
+import com.google.common.collect.Iterators;
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.TransportAddress;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -36,6 +40,9 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.Random;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.junit.Assert.assertThat;
 
 /**
  * A test cluster implementation that holds a fixed set of external nodes as well as a InternalTestCluster
@@ -221,8 +228,28 @@ public class CompositeTestCluster extends TestCluster {
     }
 
     @Override
+    public void ensureEstimatedStats() {
+        if (size() > 0) {
+            NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats()
+                    .clear().setBreaker(true).execute().actionGet();
+            for (NodeStats stats : nodeStats.getNodes()) {
+                assertThat("Fielddata breaker not reset to 0 on node: " + stats.getNode(),
+                        stats.getBreaker().getStats(CircuitBreaker.Name.FIELDDATA).getEstimated(), equalTo(0L));
+            }
+            // CompositeTestCluster does not check the request breaker,
+            // because checking it requires a network request, which in
+            // turn increments the breaker, making it non-0
+        }
+    }
+
+    @Override
     public boolean hasFilterCache() {
         return true;
+    }
+
+    @Override
+    public String getClusterName() {
+        return cluster.getClusterName();
     }
 
     @Override
@@ -249,6 +276,14 @@ public class CompositeTestCluster extends TestCluster {
      */
     public int numBackwardsDataNodes() {
         return runningNodes().size();
+    }
+
+    public TransportAddress externalTransportAddress() {
+        return RandomPicks.randomFrom(random, externalNodes).getTransportAddress();
+    }
+
+    public InternalTestCluster internalCluster() {
+        return cluster;
     }
 
     private synchronized Client internalClient() {

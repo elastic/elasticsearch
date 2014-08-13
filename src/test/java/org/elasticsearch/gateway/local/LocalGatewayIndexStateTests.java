@@ -21,10 +21,8 @@ package org.elasticsearch.gateway.local;
 
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -35,11 +33,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.gateway.Gateway;
+import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.InternalTestCluster.RestartCallback;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.junit.Test;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -123,7 +121,7 @@ public class LocalGatewayIndexStateTests extends ElasticsearchIntegrationTest {
         try {
             client().prepareIndex("test", "type1", "1").setSource("field1", "value1").setTimeout("1s").execute().actionGet();
             fail();
-        } catch (ClusterBlockException e) {
+        } catch (IndexClosedException e) {
             // all is well
         }
 
@@ -166,7 +164,7 @@ public class LocalGatewayIndexStateTests extends ElasticsearchIntegrationTest {
         try {
             client().prepareIndex("test", "type1", "1").setSource("field1", "value1").setTimeout("1s").execute().actionGet();
             fail();
-        } catch (ClusterBlockException e) {
+        } catch (IndexClosedException e) {
             // all is well
         }
 

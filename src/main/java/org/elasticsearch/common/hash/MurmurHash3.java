@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.hash;
 
-import org.elasticsearch.common.util.UnsafeUtils;
+import org.elasticsearch.common.util.ByteUtils;
 
 
 /**
@@ -41,7 +41,7 @@ public enum MurmurHash3 {
     protected static long getblock(byte[] key, int offset, int index) {
         int i_8 = index << 3;
         int blockOffset = offset + i_8;
-        return UnsafeUtils.readLongLE(key, blockOffset);
+        return ByteUtils.readLongLE(key, blockOffset);
     }
 
     protected static long fmix(long k) {
@@ -68,8 +68,8 @@ public enum MurmurHash3 {
             final int len16 = length & 0xFFFFFFF0; // higher multiple of 16 that is lower than or equal to length
             final int end = offset + len16;
             for (int i = offset; i < end; i += 16) {
-                long k1 = UnsafeUtils.readLongLE(key, i);
-                long k2 = UnsafeUtils.readLongLE(key, i + 8);
+                long k1 = ByteUtils.readLongLE(key, i);
+                long k2 = ByteUtils.readLongLE(key, i + 8);
 
                 k1 *= C1;
                 k1 = Long.rotateLeft(k1, 31);

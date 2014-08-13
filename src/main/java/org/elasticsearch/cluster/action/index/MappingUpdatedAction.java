@@ -25,7 +25,9 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
@@ -65,8 +67,7 @@ import java.util.concurrent.atomic.AtomicLong;
 public class MappingUpdatedAction extends TransportMasterNodeOperationAction<MappingUpdatedAction.MappingUpdatedRequest, MappingUpdatedAction.MappingUpdatedResponse> {
 
     public static final String INDICES_MAPPING_ADDITIONAL_MAPPING_CHANGE_TIME = "indices.mapping.additional_mapping_change_time";
-
-    private static final String ACTION_NAME = "cluster/mappingUpdated";
+    public static final String ACTION_NAME = "internal:cluster/mapping_updated";
 
     private final AtomicLong mappingUpdateOrderGen = new AtomicLong();
     private final MetaDataMappingService metaDataMappingService;
@@ -160,7 +161,7 @@ public class MappingUpdatedAction extends TransportMasterNodeOperationAction<Map
         }
     }
 
-    public static class MappingUpdatedRequest extends MasterNodeOperationRequest<MappingUpdatedRequest> {
+    public static class MappingUpdatedRequest extends MasterNodeOperationRequest<MappingUpdatedRequest> implements IndicesRequest {
 
         private String index;
         private String indexUUID = IndexMetaData.INDEX_UUID_NA_VALUE;
@@ -183,6 +184,16 @@ public class MappingUpdatedAction extends TransportMasterNodeOperationAction<Map
 
         public String index() {
             return index;
+        }
+
+        @Override
+        public IndicesOptions indicesOptions() {
+            return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
+        }
+
+        @Override
+        public String[] indices() {
+            return new String[]{index};
         }
 
         public String indexUUID() {

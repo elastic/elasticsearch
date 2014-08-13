@@ -22,6 +22,7 @@ package org.elasticsearch.index.fielddata;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.*;
 import org.apache.lucene.store.RAMDirectory;
+import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -34,6 +35,8 @@ import org.junit.After;
 import org.junit.Before;
 
 // we might wanna cut this over to LuceneTestCase
+@SuppressCodecs({"Lucene3x", "Lucene40", "Lucene41", "Lucene42", "Lucene45", "Lucene46"}) 
+// avoid codecs that do not support SortedNumerics, SortedSet, etc
 public abstract class AbstractFieldDataTests extends ElasticsearchSingleNodeTest {
 
     protected IndexService indexService;
@@ -56,7 +59,7 @@ public abstract class AbstractFieldDataTests extends ElasticsearchSingleNodeTest
 
     public <IFD extends IndexFieldData<?>> IFD getForField(FieldDataType type, String fieldName) {
         final FieldMapper<?> mapper;
-        final BuilderContext context = new BuilderContext(null, new ContentPath(1));
+        final BuilderContext context = new BuilderContext(indexService.settingsService().getSettings(), new ContentPath(1));
         if (type.getType().equals("string")) {
             mapper = MapperBuilders.stringField(fieldName).tokenized(false).fieldDataSettings(type.getSettings()).build(context);
         } else if (type.getType().equals("float")) {

@@ -217,7 +217,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadOperati
         }
         String[] concreteIndices;
         try {
-            concreteIndices = clusterState.metaData().concreteIndices(IndicesOptions.lenientExpandOpen(), request.indices());
+            concreteIndices = clusterState.metaData().concreteIndices(request.indicesOptions(), request.indices());
         } catch (IndexMissingException e) {
             // one of the specified indices is not there - treat it as RED.
             ClusterHealthResponse response = new ClusterHealthResponse(clusterName.value(), Strings.EMPTY_ARRAY, clusterState);

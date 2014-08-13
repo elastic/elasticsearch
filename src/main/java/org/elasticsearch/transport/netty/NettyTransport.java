@@ -21,11 +21,9 @@ package org.elasticsearch.transport.netty;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
-import org.elasticsearch.Version;
+import org.elasticsearch.*;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -58,7 +56,6 @@ import org.elasticsearch.transport.support.TransportStatus;
 import org.jboss.netty.bootstrap.ClientBootstrap;
 import org.jboss.netty.bootstrap.ServerBootstrap;
 import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.buffer.CompositeChannelBuffer;
 import org.jboss.netty.channel.*;
 import org.jboss.netty.channel.socket.nio.NioClientSocketChannelFactory;
 import org.jboss.netty.channel.socket.nio.NioServerSocketChannelFactory;
@@ -131,11 +128,8 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     final boolean compress;
 
     final TimeValue connectTimeout;
-
-    final Boolean tcpNoDelay;
-
-    final Boolean tcpKeepAlive;
-
+    final String tcpNoDelay;
+    final String tcpKeepAlive;
     final Boolean reuseAddress;
 
     final ByteSizeValue tcpSendBufferSize;
@@ -199,8 +193,8 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         this.publishPort = componentSettings.getAsInt("publish_port", settings.getAsInt("transport.publish_port", 0));
         this.compress = settings.getAsBoolean(TransportSettings.TRANSPORT_TCP_COMPRESS, false);
         this.connectTimeout = componentSettings.getAsTime("connect_timeout", settings.getAsTime("transport.tcp.connect_timeout", settings.getAsTime(TCP_CONNECT_TIMEOUT, TCP_DEFAULT_CONNECT_TIMEOUT)));
-        this.tcpNoDelay = componentSettings.getAsBoolean("tcp_no_delay", settings.getAsBoolean(TCP_NO_DELAY, true));
-        this.tcpKeepAlive = componentSettings.getAsBoolean("tcp_keep_alive", settings.getAsBoolean(TCP_KEEP_ALIVE, true));
+        this.tcpNoDelay = componentSettings.get("tcp_no_delay", settings.get(TCP_NO_DELAY, "true"));
+        this.tcpKeepAlive = componentSettings.get("tcp_keep_alive", settings.get(TCP_KEEP_ALIVE, "true"));
         this.reuseAddress = componentSettings.getAsBoolean("reuse_address", settings.getAsBoolean(TCP_REUSE_ADDRESS, NetworkUtils.defaultReuseAddress()));
         this.tcpSendBufferSize = componentSettings.getAsBytesSize("tcp_send_buffer_size", settings.getAsBytesSize(TCP_SEND_BUFFER_SIZE, TCP_DEFAULT_SEND_BUFFER_SIZE));
         this.tcpReceiveBufferSize = componentSettings.getAsBytesSize("tcp_receive_buffer_size", settings.getAsBytesSize(TCP_RECEIVE_BUFFER_SIZE, TCP_DEFAULT_RECEIVE_BUFFER_SIZE));
@@ -274,11 +268,11 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         }
         clientBootstrap.setPipelineFactory(configureClientChannelPipelineFactory());
         clientBootstrap.setOption("connectTimeoutMillis", connectTimeout.millis());
-        if (tcpNoDelay != null) {
-            clientBootstrap.setOption("tcpNoDelay", tcpNoDelay);
+        if (!"default".equals(tcpNoDelay)) {
+            clientBootstrap.setOption("tcpNoDelay", Booleans.parseBoolean(tcpNoDelay, null));
         }
-        if (tcpKeepAlive != null) {
-            clientBootstrap.setOption("keepAlive", tcpKeepAlive);
+        if (!"default".equals(tcpKeepAlive)) {
+            clientBootstrap.setOption("keepAlive", Booleans.parseBoolean(tcpKeepAlive, null));
         }
         if (tcpSendBufferSize != null && tcpSendBufferSize.bytes() > 0) {
             clientBootstrap.setOption("sendBufferSize", tcpSendBufferSize.bytes());
@@ -309,11 +303,11 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
                     workerCount));
         }
         serverBootstrap.setPipelineFactory(configureServerChannelPipelineFactory());
-        if (tcpNoDelay != null) {
-            serverBootstrap.setOption("child.tcpNoDelay", tcpNoDelay);
+        if (!"default".equals(tcpNoDelay)) {
+            serverBootstrap.setOption("child.tcpNoDelay", Booleans.parseBoolean(tcpNoDelay, null));
         }
-        if (tcpKeepAlive != null) {
-            serverBootstrap.setOption("child.keepAlive", tcpKeepAlive);
+        if (!"default".equals(tcpKeepAlive)) {
+            serverBootstrap.setOption("child.keepAlive", Booleans.parseBoolean(tcpKeepAlive, null));
         }
         if (tcpSendBufferSize != null && tcpSendBufferSize.bytes() > 0) {
             serverBootstrap.setOption("child.sendBufferSize", tcpSendBufferSize.bytes());
@@ -512,6 +506,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 
     @Override
     public void sendRequest(final DiscoveryNode node, final long requestId, final String action, final TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {
+
         Channel targetChannel = nodeChannel(node, options);
 
         if (compress) {
@@ -540,7 +535,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             Version version = Version.smallest(this.version, node.version());
 
             stream.setVersion(version);
-            stream.writeString(action);
+            stream.writeString(transportServiceAdapter.action(action, version));
 
             ReleasableBytesReference bytes;
             ChannelBuffer buffer;
@@ -598,48 +593,38 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         }
         globalLock.readLock().lock();
         try {
-            if (!lifecycle.started()) {
-                throw new ElasticsearchIllegalStateException("can't add nodes to a stopped transport");
-            }
-            NodeChannels nodeChannels = connectedNodes.get(node);
-            if (nodeChannels != null) {
-                return;
-            }
             connectionLock.acquire(node.id());
             try {
                 if (!lifecycle.started()) {
                     throw new ElasticsearchIllegalStateException("can't add nodes to a stopped transport");
                 }
+                NodeChannels nodeChannels = connectedNodes.get(node);
+                if (nodeChannels != null) {
+                    return;
+                }
                 try {
-
-
                     if (light) {
                         nodeChannels = connectToChannelsLight(node);
                     } else {
                         nodeChannels = new NodeChannels(new Channel[connectionsPerNodeRecovery], new Channel[connectionsPerNodeBulk], new Channel[connectionsPerNodeReg], new Channel[connectionsPerNodeState], new Channel[connectionsPerNodePing]);
                         try {
                             connectToChannels(nodeChannels, node);
-                        } catch (Exception e) {
+                        } catch (Throwable e) {
+                            logger.trace("failed to connect to [{}], cleaning dangling connections", e, node);
                             nodeChannels.close();
                             throw e;
                         }
                     }
-
-                    NodeChannels existing = connectedNodes.putIfAbsent(node, nodeChannels);
-                    if (existing != null) {
-                        // we are already connected to a node, close this ones
-                        nodeChannels.close();
-                    } else {
-                        if (logger.isDebugEnabled()) {
-                            logger.debug("connected to node [{}]", node);
-                        }
-                        transportServiceAdapter.raiseNodeConnected(node);
+                    // we acquire a connection lock, so no way there is an existing connection
+                    connectedNodes.put(node, nodeChannels);
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("connected to node [{}]", node);
                     }
-
+                    transportServiceAdapter.raiseNodeConnected(node);
                 } catch (ConnectTransportException e) {
                     throw e;
                 } catch (Exception e) {
-                    throw new ConnectTransportException(node, "General node connection failure", e);
+                    throw new ConnectTransportException(node, "general node connection failure", e);
                 }
             } finally {
                 connectionLock.release(node.id());
@@ -759,45 +744,51 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 
     @Override
     public void disconnectFromNode(DiscoveryNode node) {
-        NodeChannels nodeChannels = connectedNodes.remove(node);
-        if (nodeChannels != null) {
-            connectionLock.acquire(node.id());
-            try {
+        connectionLock.acquire(node.id());
+        try {
+            NodeChannels nodeChannels = connectedNodes.remove(node);
+            if (nodeChannels != null) {
                 try {
+                    logger.debug("disconnecting from [{}] due to explicit disconnect call", node);
                     nodeChannels.close();
                 } finally {
-                    logger.debug("disconnected from [{}]", node);
+                    logger.trace("disconnected from [{}] due to explicit disconnect call", node);
                     transportServiceAdapter.raiseNodeDisconnected(node);
                 }
-            } finally {
-                connectionLock.release(node.id());
             }
+        } finally {
+            connectionLock.release(node.id());
         }
     }
 
     /**
      * Disconnects from a node, only if the relevant channel is found to be part of the node channels.
      */
-    private void disconnectFromNode(DiscoveryNode node, Channel channel, String reason) {
+    private boolean disconnectFromNode(DiscoveryNode node, Channel channel, String reason) {
+        // this might be called multiple times from all the node channels, so do a lightweight
+        // check outside of the lock
         NodeChannels nodeChannels = connectedNodes.get(node);
         if (nodeChannels != null && nodeChannels.hasChannel(channel)) {
             connectionLock.acquire(node.id());
-            if (!nodeChannels.hasChannel(channel)) { //might have been removed in the meanwhile, safety check
-                assert !connectedNodes.containsKey(node);
-            } else {
-                try {
+            try {
+                nodeChannels = connectedNodes.get(node);
+                // check again within the connection lock, if its still applicable to remove it
+                if (nodeChannels != null && nodeChannels.hasChannel(channel)) {
                     connectedNodes.remove(node);
                     try {
+                        logger.debug("disconnecting from [{}], {}", node, reason);
                         nodeChannels.close();
                     } finally {
-                        logger.debug("disconnected from [{}], {}", node, reason);
+                        logger.trace("disconnected from [{}], {}", node, reason);
                         transportServiceAdapter.raiseNodeDisconnected(node);
                     }
-                } finally {
-                    connectionLock.release(node.id());
+                    return true;
                 }
+            } finally {
+                connectionLock.release(node.id());
             }
         }
+        return false;
     }
 
     /**
@@ -805,24 +796,10 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
      */
     private void disconnectFromNodeChannel(Channel channel, Throwable failure) {
         for (DiscoveryNode node : connectedNodes.keySet()) {
-            NodeChannels nodeChannels = connectedNodes.get(node);
-            if (nodeChannels != null && nodeChannels.hasChannel(channel)) {
-                connectionLock.acquire(node.id());
-                if (!nodeChannels.hasChannel(channel)) { //might have been removed in the meanwhile, safety check
-                    assert !connectedNodes.containsKey(node);
-                } else {
-                    try {
-                        connectedNodes.remove(node);
-                        try {
-                            nodeChannels.close();
-                        } finally {
-                            logger.debug("disconnected from [{}] on channel failure", failure, node);
-                            transportServiceAdapter.raiseNodeDisconnected(node);
-                        }
-                    } finally {
-                        connectionLock.release(node.id());
-                    }
-                }
+            if (disconnectFromNode(node, channel, ExceptionsHelper.detailedMessage(failure))) {
+                // if we managed to find this channel and disconnect from it, then break, no need to check on
+                // the rest of the nodes
+                break;
             }
         }
     }

@@ -23,7 +23,12 @@ import com.carrotsearch.hppc.IntArrayList;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.type.ParsedScrollId;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
@@ -34,7 +39,7 @@ import java.io.IOException;
 /**
  *
  */
-public class FetchSearchRequest extends TransportRequest {
+public class FetchSearchRequest extends TransportRequest implements IndicesRequest {
 
     private long id;
 
@@ -44,19 +49,31 @@ public class FetchSearchRequest extends TransportRequest {
 
     private ScoreDoc lastEmittedDoc;
 
+    private OriginalIndices originalIndices;
+
     public FetchSearchRequest() {
     }
 
-    public FetchSearchRequest(TransportRequest request, long id, IntArrayList list) {
+    public FetchSearchRequest(SearchRequest request, long id, IntArrayList list) {
         this(request, id, list, null);
     }
 
-    public FetchSearchRequest(TransportRequest request, long id, IntArrayList list, ScoreDoc lastEmittedDoc) {
+    public FetchSearchRequest(SearchRequest request, long id, IntArrayList list, ScoreDoc lastEmittedDoc) {
         super(request);
         this.id = id;
         this.docIds = list.buffer;
         this.size = list.size();
         this.lastEmittedDoc = lastEmittedDoc;
+        this.originalIndices = new OriginalIndices(request);
+    }
+
+    public FetchSearchRequest(SearchScrollRequest request, long id, IntArrayList list, ScoreDoc lastEmittedDoc) {
+        super(request);
+        this.id = id;
+        this.docIds = list.buffer;
+        this.size = list.size();
+        this.lastEmittedDoc = lastEmittedDoc;
+        this.originalIndices = OriginalIndices.EMPTY;
     }
 
     public long id() {
@@ -73,6 +90,16 @@ public class FetchSearchRequest extends TransportRequest {
 
     public ScoreDoc lastEmittedDoc() {
         return lastEmittedDoc;
+    }
+
+    @Override
+    public String[] indices() {
+        return originalIndices.indices();
+    }
+
+    @Override
+    public IndicesOptions indicesOptions() {
+        return originalIndices.indicesOptions();
     }
 
     @Override
@@ -94,6 +121,7 @@ public class FetchSearchRequest extends TransportRequest {
                 throw new IOException("Unknown flag: " + flag);
             }
         }
+        originalIndices = OriginalIndices.readOptionalOriginalIndices(in);
     }
 
     @Override
@@ -115,5 +143,6 @@ public class FetchSearchRequest extends TransportRequest {
                 Lucene.writeScoreDoc(out, lastEmittedDoc);
             }
         }
+        OriginalIndices.writeOptionalOriginalIndices(originalIndices, out);
     }
 }

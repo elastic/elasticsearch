@@ -23,8 +23,10 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.ClusterService;
@@ -298,7 +300,7 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
         }
     }
 
-    class ShardSingleOperationRequest extends TransportRequest {
+    class ShardSingleOperationRequest extends TransportRequest implements IndicesRequest {
 
         private Request request;
 
@@ -307,7 +309,7 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
         ShardSingleOperationRequest() {
         }
 
-        public ShardSingleOperationRequest(Request request, ShardId shardId) {
+        ShardSingleOperationRequest(Request request, ShardId shardId) {
             super(request);
             this.request = request;
             this.shardId = shardId;
@@ -319,6 +321,16 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
 
         public ShardId shardId() {
             return shardId;
+        }
+
+        @Override
+        public String[] indices() {
+            return request.indices();
+        }
+
+        @Override
+        public IndicesOptions indicesOptions() {
+            return request.indicesOptions();
         }
 
         @Override

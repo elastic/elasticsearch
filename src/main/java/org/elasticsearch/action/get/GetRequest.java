@@ -97,6 +97,14 @@ public class GetRequest extends SingleShardOperationRequest<GetRequest> {
     }
 
     /**
+     * Constructs a new get request starting from the provided request, meaning that it will
+     * inherit its headers and context, and against the specified index.
+     */
+    public GetRequest(ActionRequest request, String index) {
+        super(request, index);
+    }
+
+    /**
      * Constructs a new get request against the specified index with the type and id.
      *
      * @param index The index to get the document from

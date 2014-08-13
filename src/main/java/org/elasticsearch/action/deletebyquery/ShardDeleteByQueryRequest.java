@@ -21,6 +21,8 @@ package org.elasticsearch.action.deletebyquery;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.replication.ShardReplicationOperationRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -50,6 +52,8 @@ public class ShardDeleteByQueryRequest extends ShardReplicationOperationRequest<
     private String[] filteringAliases;
     private long nowInMillis;
 
+    private OriginalIndices originalIndices;
+
     ShardDeleteByQueryRequest(IndexDeleteByQueryRequest request, int shardId) {
         super(request);
         this.index = request.index();
@@ -62,6 +66,7 @@ public class ShardDeleteByQueryRequest extends ShardReplicationOperationRequest<
         this.routing = request.routing();
         filteringAliases = request.filteringAliases();
         nowInMillis = request.nowInMillis();
+        this.originalIndices = new OriginalIndices(request);
     }
 
     ShardDeleteByQueryRequest() {
@@ -101,6 +106,16 @@ public class ShardDeleteByQueryRequest extends ShardReplicationOperationRequest<
     }
 
     @Override
+    public String[] indices() {
+        return originalIndices.indices();
+    }
+
+    @Override
+    public IndicesOptions indicesOptions() {
+        return originalIndices.indicesOptions();
+    }
+
+    @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         source = in.readBytesReference();
@@ -126,6 +141,7 @@ public class ShardDeleteByQueryRequest extends ShardReplicationOperationRequest<
         } else {
             nowInMillis = System.currentTimeMillis();
         }
+        originalIndices = OriginalIndices.readOriginalIndices(in);
     }
 
     @Override
@@ -153,6 +169,7 @@ public class ShardDeleteByQueryRequest extends ShardReplicationOperationRequest<
         if (out.getVersion().onOrAfter(Version.V_1_2_0)) {
             out.writeVLong(nowInMillis);
         }
+        OriginalIndices.writeOriginalIndices(originalIndices, out);
     }
 
     @Override

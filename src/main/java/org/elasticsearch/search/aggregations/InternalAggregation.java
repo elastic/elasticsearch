@@ -155,6 +155,12 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
     @Override
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
+        if(params != null && params.paramAsBoolean("output_type", false)) {
+            builder.field(CommonFields.TYPE, type().name);
+        }
+        if(params != null && params.paramAsBoolean("output_concrete_type", false)) {
+            builder.field(CommonFields.CONCRETE_TYPE, getClass().getName());
+        }
         doXContentBody(builder, params);
         builder.endObject();
         return builder;
@@ -167,6 +173,8 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
      */
     public static final class CommonFields {
         public static final XContentBuilderString BUCKETS = new XContentBuilderString("buckets");
+        public static final XContentBuilderString TYPE = new XContentBuilderString("_type");
+        public static final XContentBuilderString CONCRETE_TYPE = new XContentBuilderString("_concrete_type");
         public static final XContentBuilderString VALUE = new XContentBuilderString("value");
         public static final XContentBuilderString VALUES = new XContentBuilderString("values");
         public static final XContentBuilderString VALUE_AS_STRING = new XContentBuilderString("value_as_string");

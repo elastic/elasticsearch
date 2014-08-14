@@ -346,7 +346,7 @@ public enum CollectionUtils {
         bytes.get(previous, indices[0]);
         for (int i = 1; i < numValues; ++i) {
             bytes.get(current, indices[i]);
-            if (!previous.equals(current)) {
+            if (!previous.get().equals(current.get())) {
                 indices[uniqueCount++] = indices[i];
             }
             BytesRefBuilder tmp = previous;

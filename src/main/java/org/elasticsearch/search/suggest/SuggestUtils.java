@@ -80,29 +80,12 @@ public final class SuggestUtils {
     }
     
     public static BytesRef join(BytesRef separator, BytesRefBuilder result, BytesRef... toJoin) {
-        int len = separator.length * toJoin.length - 1;
-        for (BytesRef br : toJoin) {
-            len += br.length;
-        }
-        
-        result.grow(len);
-        return joinPreAllocated(separator, result, toJoin);
-    }
-    
-    public static BytesRef joinPreAllocated(BytesRef separator, BytesRefBuilder result, BytesRef... toJoin) {
         result.clear();
-        int offset = 0;
         for (int i = 0; i < toJoin.length - 1; i++) {
-            BytesRef br = toJoin[i];
-            System.arraycopy(br.bytes, br.offset, result.bytes(), 0, br.length);
-            offset += br.length;
-            System.arraycopy(separator.bytes, separator.offset, result.bytes(), offset, separator.length);
-            offset += separator.length;
+            result.append(toJoin[i]);
+            result.append(separator);
         }
-        final BytesRef br = toJoin[toJoin.length-1];
-        System.arraycopy(br.bytes, br.offset, result.bytes(), offset, br.length);
-        
-        result.setLength(offset + br.length);
+        result.append(toJoin[toJoin.length-1]);
         return result.get();
     }
     

@@ -73,7 +73,7 @@ public final class Correction implements Comparable<Correction> {
             len += toJoin[i].length;
         }
         result.grow(len);
-        return SuggestUtils.joinPreAllocated(separator, result, toJoin);
+        return SuggestUtils.join(separator, result, toJoin);
     }
 
     /** Lower scores sorts first; if scores are equal,

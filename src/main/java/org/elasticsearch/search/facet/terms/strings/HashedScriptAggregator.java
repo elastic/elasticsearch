@@ -87,7 +87,7 @@ public final class HashedScriptAggregator extends HashedAggregator {
                     }
                 } else {
                     scriptSpare.copyChars(scriptValue.toString());
-                    hashCode = scriptSpare.hashCode();
+                    hashCode = scriptSpare.get().hashCode();
                     super.onValue(docId, scriptSpare.get(), hashCode);
                     return;
                 }

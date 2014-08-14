@@ -47,7 +47,6 @@ public class DateRangeParser implements Aggregator.Parser {
 
         ValuesSourceParser<ValuesSource.Numeric> vsParser = ValuesSourceParser.numeric(aggregationName, InternalDateRange.TYPE, context)
                 .targetValueType(ValueType.DATE)
-                .requiresSortedValues(true)
                 .formattable(true)
                 .build();
 

@@ -231,7 +231,7 @@ final class ActionNames {
         addShardAction(ExplainAction.NAME, "explain", builder);
         addShardAction(GetAction.NAME, "get", builder);
         builder.put(MultiGetAction.NAME, "mget");
-        addShardAction(MultiGetAction.NAME + "[shard]", "mget/shard", builder);
+        builder.put(MultiGetAction.NAME + "[shard][s]", "mget/shard/s");
 
         builder.put(GetIndexedScriptAction.NAME, "getIndexedScript");
         builder.put(PutIndexedScriptAction.NAME, "putIndexedScript");
@@ -240,12 +240,12 @@ final class ActionNames {
         builder.put(MoreLikeThisAction.NAME, "mlt");
 
         builder.put(MultiPercolateAction.NAME, "mpercolate");
-        addShardAction(MultiPercolateAction.NAME + "[shard]", "mpercolate/shard", builder);
+        builder.put(MultiPercolateAction.NAME + "[shard][s]", "mpercolate/shard/s");
 
         builder.put(MultiSearchAction.NAME, "msearch");
 
         builder.put(MultiTermVectorsAction.NAME, "mtv");
-        addShardAction(MultiTermVectorsAction.NAME + "[shard]", "mtv/shard", builder);
+        builder.put(MultiTermVectorsAction.NAME + "[shard][s]", "mtv/shard/s");
 
         addShardAction(PercolateAction.NAME, "percolate", builder);
 

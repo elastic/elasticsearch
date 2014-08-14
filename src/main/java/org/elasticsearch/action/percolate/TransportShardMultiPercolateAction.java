@@ -60,6 +60,11 @@ public class TransportShardMultiPercolateAction extends TransportShardSingleOper
     }
 
     @Override
+    protected boolean isSubAction() {
+        return true;
+    }
+
+    @Override
     protected String executor() {
         return ThreadPool.Names.PERCOLATE;
     }

@@ -171,7 +171,9 @@ Allow to sort by `_geo_distance`. Here is an example:
             "_geo_distance" : {
                 "pin.location" : [-70, 40],
                 "order" : "asc",
-                "unit" : "km"
+                "unit" : "km",
+		"mode" : "min",
+		"distance_type" : "sloppy_arc"
             }
         }
     ],
@@ -180,6 +182,12 @@ Allow to sort by `_geo_distance`. Here is an example:
     }
 }
 --------------------------------------------------
+
+
+
+`distance_type`::
+
+    How to compute the distance. Can either be `sloppy_arc` (default), `arc` (slighly more precise but significantly slower) or `plane` (faster, but inaccurate on long distances and close to the poles).
 
 Note: the geo distance sorting supports `sort_mode` options: `min`,
 `max` and `avg`.
@@ -289,7 +297,7 @@ Multiple geo points can be passed as an array containing any `geo_point` format,
 
 and so forth.
 
-The final distance for a document will then be `min`/`max` distance of all points contained in the document to all points given in the sort request.
+The final distance for a document will then be `min`/`max`/`avg` (defined via `mode`) distance of all points contained in the document to all points given in the sort request.
 
 
 

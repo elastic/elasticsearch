@@ -70,10 +70,10 @@ public class FieldValueFactorFunction extends ScoreFunction {
     }
 
     @Override
-    public Explanation explainScore(int docId, Explanation subQueryExpl) {
+    public Explanation explainScore(int docId, float subQueryScore) {
         Explanation exp = new Explanation();
         String modifierStr = modifier != null ? modifier.toString() : "";
-        double score = score(docId, subQueryExpl.getValue());
+        double score = score(docId, subQueryScore);
         exp.setValue(CombineFunction.toFloat(score));
         exp.setDescription("field value function: " +
                 modifierStr + "(" + "doc['" + field + "'].value * factor=" + boostFactor + ")");

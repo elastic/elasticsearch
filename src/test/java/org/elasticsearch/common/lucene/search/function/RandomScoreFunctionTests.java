@@ -183,7 +183,7 @@ public class RandomScoreFunctionTests extends ElasticsearchTestCase {
         function.score(0, 1.0f);
 
         // Generate the randomScore explanation
-        Explanation randomExplanation = function.explainScore(0, subExplanation);
+        Explanation randomExplanation = function.explainScore(0, subExplanation.getValue());
 
         // Original seed should be there
         assertThat(randomExplanation.getDescription(), containsString("" + seed));

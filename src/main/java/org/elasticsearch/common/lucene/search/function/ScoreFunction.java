@@ -33,7 +33,7 @@ public abstract class ScoreFunction {
 
     public abstract double score(int docId, float subQueryScore);
 
-    public abstract Explanation explainScore(int docId, Explanation subQueryExpl);
+    public abstract Explanation explainScore(int docId, float subQueryScore);
 
     public CombineFunction getDefaultScoreCombiner() {
         return scoreCombiner;

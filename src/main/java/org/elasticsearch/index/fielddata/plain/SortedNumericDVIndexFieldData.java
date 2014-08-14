@@ -235,58 +235,10 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
         public SortedNumericDoubleValues getDoubleValues() {
             try {
                 SortedNumericDocValues raw = DocValues.getSortedNumeric(reader, field);
-                
-                NumericDocValues single = DocValues.unwrapSingleton(raw);
-                if (single != null) {
-                    return FieldData.singleton(new SingleDoubleValues(single), DocValues.unwrapSingletonBits(raw));
-                } else {
-                    return new MultiDoubleValues(raw);
-                }
+                return FieldData.sortableLongBitsToDoubles(raw);
             } catch (IOException e) {
                 throw new ElasticsearchIllegalStateException("Cannot load doc values", e);
             }
-        }
-    }
-    
-    /** 
-     * Wraps a NumericDocValues and exposes a single 64-bit double per document.
-     */
-    static final class SingleDoubleValues extends NumericDoubleValues {
-        final NumericDocValues in;
-        
-        SingleDoubleValues(NumericDocValues in) {
-            this.in = in;
-        }
-
-        @Override
-        public double get(int docID) {
-            return NumericUtils.sortableLongToDouble(in.get(docID));
-        }
-    }
-    
-    /** 
-     * Wraps a SortedNumericDocValues and exposes multiple 64-bit doubles per document.
-     */
-    static final class MultiDoubleValues extends SortedNumericDoubleValues {
-        final SortedNumericDocValues in;
-        
-        MultiDoubleValues(SortedNumericDocValues in) {
-            this.in = in;
-        }
-
-        @Override
-        public void setDocument(int doc) {
-            in.setDocument(doc);
-        }
-
-        @Override
-        public double valueAt(int index) {
-            return NumericUtils.sortableLongToDouble(in.valueAt(index));
-        }
-
-        @Override
-        public int count() {
-            return in.count();
         }
     }
 }

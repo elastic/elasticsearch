@@ -20,17 +20,28 @@
 package org.elasticsearch.action.quality;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-public class PrecisionAtResponse extends ActionResponse implements ToXContent {
+public class PrecisionAtResponse extends ActionResponse {
 
-    //TODO
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return null;
+    private double precisionAt;
+    
+    public void setPrecisionAt(double precisionAt) {
+        this.precisionAt = precisionAt;
     }
 
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeDouble(precisionAt);
+    }    
+    
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
+        precisionAt = in.readDouble();
+    }
 }

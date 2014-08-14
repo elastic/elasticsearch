@@ -23,56 +23,65 @@ import com.google.common.base.Objects;
 import com.google.common.base.Objects.ToStringHelper;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Set;
 
 public class PrecisionAtRequest extends ActionRequest<PrecisionAtRequest> {
 
     /** TODO move the following to a metric specific context - need move writing and reading too then. */
 
     /** IDs of documents considered relevant for this query. */
-    private List<String> relevantDocs = new LinkedList<String>();
+    private Collection<String> relevantDocs = new LinkedList<String>();
     /** QueryBuilder to run against search index and generate hits to compare against relevantDocs. */
-    private BytesReference query;
+    private SearchRequest searchRequest;
 
     @Override
     public ActionRequestValidationException validate() {
         return null;
     }
 
-    public void queryBuilder(BytesReference query) {
-        this.query = query;
+    public void searchRequestBuilder(SearchRequest searchRequest) {
+        this.searchRequest = searchRequest;
     }
 
-    public void relevantDocs(Set<String> relevant) {
+    public void relevantDocs(Collection<String> relevant) {
         this.relevantDocs.addAll(relevant);
+    }
+    
+    public SearchRequest getSearchRequest() {
+        return searchRequest;
+    }
+    
+    public Collection<String> getRelevantDocs() {
+        return relevantDocs;
     }
     
     @SuppressWarnings("unchecked")
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        query = in.readBytesReference();
+        searchRequest = new SearchRequest();
+        searchRequest.readFrom(in);
         relevantDocs = (List<String>) in.readGenericValue();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeBytesReference(query);
+        searchRequest.writeTo(out);
         out.writeGenericValue(relevantDocs);
     }
     
     @Override
     public String toString() {
         ToStringHelper help = Objects.toStringHelper(this).add("Relevant docs", relevantDocs.toString());
-        help.add("Query", query);
+        help.add("SearchRequest", searchRequest);
         return help.toString();
     }
 }

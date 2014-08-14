@@ -21,7 +21,7 @@ package org.elasticsearch.action.quality;
 
 import org.elasticsearch.search.SearchHit;
 
-import java.util.Set;
+import java.util.Collection;
 
 /**
  * TODO depending on the exact metric looking at one ranked list alone might not be sufficient think MAP
@@ -41,6 +41,6 @@ public interface RankedListQualityMetric {
      * @param hits the result hits as returned by some search
      * @return some metric representing the quality of the result hit list wrt. to relevant doc ids.
      * */
-    public double evaluate(Set<String> relevantDocIds, SearchHit[] hits);
+    public double evaluate(Collection<String> relevantDocIds, SearchHit[] hits);
 
 }

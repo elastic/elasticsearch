@@ -21,8 +21,8 @@ package org.elasticsearch.action.quality;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.bytes.BytesReference;
 
 import java.util.Set;
 
@@ -36,8 +36,8 @@ public class PrecisionAtQueryBuilder extends ActionRequestBuilder<PrecisionAtReq
     protected void doExecute(ActionListener<PrecisionAtResponse> listener) {
     }
 
-    public PrecisionAtQueryBuilder setQuery(BytesReference query) {
-        request.queryBuilder(query);
+    public PrecisionAtQueryBuilder setSearchRequest(SearchRequest searchRequest) {
+        request.searchRequestBuilder(searchRequest);
         return this;
     }
 

@@ -19,25 +19,49 @@
 
 package org.elasticsearch.action.quality;
 
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportService;
 
 public class TransportPrecisionAtAction extends TransportAction<PrecisionAtRequest, PrecisionAtResponse> {
 
+    private final TransportSearchAction transportSearchAction;
+
     @Inject
-    public TransportPrecisionAtAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters, TransportService transportService) {
+    public TransportPrecisionAtAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters, 
+            TransportSearchAction transportSearchAction) {
         super(settings, PrecisionAtAction.NAME, threadPool, actionFilters);
-        transportService.registerHandler(PrecisionAtAction.NAME, new PrecisionAtTransportHandler());
+        this.transportSearchAction = transportSearchAction;
     }
 
-    //TODO
     @Override
     protected void doExecute(PrecisionAtRequest request, ActionListener<PrecisionAtResponse> listener) {
+        ActionFuture<SearchResponse> searchResponse = transportSearchAction.execute(request.getSearchRequest());
+        SearchHits hits = searchResponse.actionGet().getHits();
+
+        PrecisionAtResponse response = new PrecisionAtResponse();
+        PrecisionAtN pan = new PrecisionAtN(10);
+        response.setPrecisionAt(pan.evaluate(request.getRelevantDocs(), hits.getHits())); 
+        listener.onResponse(response);
     }
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
 
 }

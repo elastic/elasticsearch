@@ -21,7 +21,7 @@ package org.elasticsearch.action.quality;
 
 import org.elasticsearch.search.SearchHit;
 
-import java.util.Set;
+import java.util.Collection;
 
 import javax.naming.directory.SearchResult;
 
@@ -45,7 +45,7 @@ public class PrecisionAtN implements RankedListQualityMetric {
      * @param hits hits as returned for some query
      * @return precision at n for above {@link SearchResult} list.
      **/
-    public double evaluate(Set<String> relevantDocIds, SearchHit[] hits) {
+    public double evaluate(Collection<String> relevantDocIds, SearchHit[] hits) {
         int good = 0;
         for (int i = 0; (i < 5 && i < hits.length); i++) {
             if (relevantDocIds.contains(hits[i].getId())) {

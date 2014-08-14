@@ -20,6 +20,7 @@
 package org.elasticsearch.action.quality;
 
 import com.google.common.collect.Sets;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.search.SearchHit;
@@ -84,10 +85,12 @@ public class PrecisionAtRequestTest extends ElasticsearchIntegrationTest {
     /** TODO change PrecisionAt bound classes to support generic qa metrics - hint: Naming etc.*/
     @Test
     public void testPrecisionAction() {
-      MatchQueryBuilder query = new MatchQueryBuilder("text", "value2");
-      Set<String> relevant = Sets.newHashSet("2", "3", "4", "5");
-      PrecisionAtQueryBuilder builder = (new PrecisionAtQueryBuilder(client())).setQuery(query.buildAsBytes()).addRelevantDocs(relevant);
-      client().execute(PrecisionAtAction.INSTANCE, builder.request()).actionGet();
-      
+        MatchQueryBuilder query = new MatchQueryBuilder("text", "value2");
+        SearchRequest request = client().prepareSearch("test").setQuery(query.buildAsBytes()).request();
+
+        Set<String> relevant = Sets.newHashSet("2", "3", "4", "5");
+
+        PrecisionAtQueryBuilder builder = (new PrecisionAtQueryBuilder(client()).setSearchRequest(request).addRelevantDocs(relevant));
+        client().execute(PrecisionAtAction.INSTANCE, builder.request()).actionGet();
     }
 }

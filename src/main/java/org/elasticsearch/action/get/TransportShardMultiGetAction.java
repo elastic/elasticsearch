@@ -58,6 +58,11 @@ public class TransportShardMultiGetAction extends TransportShardSingleOperationA
     }
 
     @Override
+    protected boolean isSubAction() {
+        return true;
+    }
+
+    @Override
     protected String executor() {
         return ThreadPool.Names.GET;
     }

@@ -22,8 +22,8 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 
-import java.util.Collection;
 import java.util.Comparator;
+import java.util.List;
 
 /**
  * A {@code terms} aggregation. Defines multiple bucket, each associated with a unique term for a specific field.
@@ -70,7 +70,10 @@ public interface Terms extends MultiBucketsAggregation {
 
     }
 
-    Collection<Bucket> getBuckets();
+    /**
+     * Return the sorted list of the buckets in this terms aggregation.
+     */
+    List<Bucket> getBuckets();
 
     Bucket getBucketByKey(String term);
     

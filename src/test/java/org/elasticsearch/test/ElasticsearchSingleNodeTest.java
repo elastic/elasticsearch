@@ -23,6 +23,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -60,8 +61,8 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
     }
 
     static void cleanup() {
-        assertAcked(Holder.NODE.client().admin().indices().prepareDelete("*").get());
-        MetaData metaData = Holder.NODE.client().admin().cluster().prepareState().get().getState().getMetaData();
+        assertAcked(client().admin().indices().prepareDelete("*").get());
+        MetaData metaData = client().admin().cluster().prepareState().get().getState().getMetaData();
         assertThat("test leaves persistent cluster metadata behind: " + metaData.persistentSettings().getAsMap(),
                 metaData.persistentSettings().getAsMap().size(), equalTo(0));
         assertThat("test leaves transient cluster metadata behind: " + metaData.transientSettings().getAsMap(),
@@ -87,6 +88,13 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
         build.start();
         assertThat(DiscoveryNode.localNode(build.settings()), is(true));
         return build;
+    }
+
+    /**
+     * Returns a client to the single-node cluster.
+     */
+    public static Client client() {
+        return Holder.NODE.client();
     }
 
     /**
@@ -128,21 +136,36 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
      * Create a new index on the singleton node with the provided index settings.
      */
     protected static IndexService createIndex(String index, Settings settings) {
-        return createIndex(index, settings, null, null);
+        return createIndex(index, settings, null, (XContentBuilder) null);
     }
 
     /**
      * Create a new index on the singleton node with the provided index settings.
      */
     protected static IndexService createIndex(String index, Settings settings, String type, XContentBuilder mappings) {
-        CreateIndexRequestBuilder createIndexRequestBuilder = Holder.NODE.client().admin().indices().prepareCreate(index).setSettings(settings);
+        CreateIndexRequestBuilder createIndexRequestBuilder = client().admin().indices().prepareCreate(index).setSettings(settings);
         if (type != null && mappings != null) {
             createIndexRequestBuilder.addMapping(type, mappings);
         }
+        return createIndex(index, createIndexRequestBuilder);
+    }
+
+    /**
+     * Create a new index on the singleton node with the provided index settings.
+     */
+    protected static IndexService createIndex(String index, Settings settings, String type, Object... mappings) {
+        CreateIndexRequestBuilder createIndexRequestBuilder = client().admin().indices().prepareCreate(index).setSettings(settings);
+        if (type != null && mappings != null) {
+            createIndexRequestBuilder.addMapping(type, mappings);
+        }
+        return createIndex(index, createIndexRequestBuilder);
+    }
+
+    private static IndexService createIndex(String index, CreateIndexRequestBuilder createIndexRequestBuilder) {
         assertAcked(createIndexRequestBuilder.get());
         // Wait for the index to be allocated so that cluster state updates don't override
         // changes that would have been done locally
-        ClusterHealthResponse health = Holder.NODE.client().admin().cluster()
+        ClusterHealthResponse health = client().admin().cluster()
                 .health(Requests.clusterHealthRequest(index).waitForYellowStatus().waitForEvents(Priority.LANGUID).waitForRelocatingShards(0)).actionGet();
         assertThat(health.getStatus(), lessThanOrEqualTo(ClusterHealthStatus.YELLOW));
         assertThat("Cluster must be a single node cluster", health.getNumberOfDataNodes(), equalTo(1));

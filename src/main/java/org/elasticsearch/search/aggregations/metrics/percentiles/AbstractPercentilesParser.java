@@ -42,9 +42,7 @@ public abstract class AbstractPercentilesParser implements Aggregator.Parser {
     @Override
     public AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
     
-        ValuesSourceParser<ValuesSource.Numeric> vsParser = ValuesSourceParser.numeric(aggregationName, InternalPercentiles.TYPE, context)
-                .requiresSortedValues(true)
-                .build();
+        ValuesSourceParser<ValuesSource.Numeric> vsParser = ValuesSourceParser.numeric(aggregationName, InternalPercentiles.TYPE, context).build();
     
         double[] keys = null;
         boolean keyed = true;

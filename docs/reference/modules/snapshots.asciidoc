@@ -210,7 +210,7 @@ $ curl -XPOST "localhost:9200/_snapshot/my_backup/snapshot_1/_restore" -d '{
 -----------------------------------
 
 The restore operation can be performed on a functioning cluster. However, an existing index can be only restored if it's
-closed. The restore operation automatically opens restored indices if they were closed and creates new indices if they
+<<indices-open-close,closed>>. The restore operation automatically opens restored indices if they were closed and creates new indices if they
 didn't exist in the cluster. If cluster state is restored, the restored templates that don't currently exist in the
 cluster are added and existing templates with the same name are replaced by the restored templates. The restored
 persistent settings are added to the existing persistent settings.

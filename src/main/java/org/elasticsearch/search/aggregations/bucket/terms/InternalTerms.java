@@ -120,9 +120,9 @@ public abstract class InternalTerms extends InternalAggregation implements Terms
     }
 
     @Override
-    public Collection<Terms.Bucket> getBuckets() {
+    public List<Terms.Bucket> getBuckets() {
         Object o = buckets;
-        return (Collection<Terms.Bucket>) o;
+        return (List<Terms.Bucket>) o;
     }
 
     @Override

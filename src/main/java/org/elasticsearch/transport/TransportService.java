@@ -70,7 +70,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         }
     });
 
-    private final TransportService.Adapter adapter = new Adapter();
+    private final Adapter<? extends TransportService> adapter;
 
     public TransportService(Transport transport, ThreadPool threadPool) {
         this(EMPTY_SETTINGS, transport, threadPool);
@@ -81,6 +81,11 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         super(settings);
         this.transport = transport;
         this.threadPool = threadPool;
+        this.adapter = createAdapter();
+    }
+
+    protected Adapter<? extends TransportService> createAdapter() {
+        return new Adapter<>(this);
     }
 
     @Override
@@ -245,10 +250,16 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         }
     }
 
-    class Adapter implements TransportServiceAdapter {
+    protected static class Adapter<TS extends TransportService> implements TransportServiceAdapter {
 
         final MeanMetric rxMetric = new MeanMetric();
         final MeanMetric txMetric = new MeanMetric();
+
+        protected final TS service;
+
+        protected Adapter(TS service) {
+            this.service = service;
+        }
 
         @Override
         public void received(long size) {
@@ -262,20 +273,20 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
 
         @Override
         public TransportRequestHandler handler(String action, Version version) {
-            return serverHandlers.get(ActionNames.incomingAction(action, version));
+            return service.serverHandlers.get(ActionNames.incomingAction(action, version));
         }
 
         @Override
         public TransportResponseHandler remove(long requestId) {
-            RequestHolder holder = clientHandlers.remove(requestId);
+            RequestHolder holder = service.clientHandlers.remove(requestId);
             if (holder == null) {
                 // lets see if its in the timeout holder
-                TimeoutInfoHolder timeoutInfoHolder = timeoutInfoHandlers.remove(requestId);
+                TimeoutInfoHolder timeoutInfoHolder = service.timeoutInfoHandlers.remove(requestId);
                 if (timeoutInfoHolder != null) {
                     long time = System.currentTimeMillis();
-                    logger.warn("Received response for a request that has timed out, sent [{}ms] ago, timed out [{}ms] ago, action [{}], node [{}], id [{}]", time - timeoutInfoHolder.sentTime(), time - timeoutInfoHolder.timeoutTime(), timeoutInfoHolder.action(), timeoutInfoHolder.node(), requestId);
+                    service.logger.warn("Received response for a request that has timed out, sent [{}ms] ago, timed out [{}ms] ago, action [{}], node [{}], id [{}]", time - timeoutInfoHolder.sentTime(), time - timeoutInfoHolder.timeoutTime(), timeoutInfoHolder.action(), timeoutInfoHolder.node(), requestId);
                 } else {
-                    logger.warn("Transport response handler not found of id [{}]", requestId);
+                    service.logger.warn("Transport response handler not found of id [{}]", requestId);
                 }
                 return null;
             }
@@ -285,10 +296,10 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
 
         @Override
         public void raiseNodeConnected(final DiscoveryNode node) {
-            threadPool.generic().execute(new Runnable() {
+            service.threadPool.generic().execute(new Runnable() {
                 @Override
                 public void run() {
-                    for (TransportConnectionListener connectionListener : connectionListeners) {
+                    for (TransportConnectionListener connectionListener : service.connectionListeners) {
                         connectionListener.onNodeConnected(node);
                     }
                 }
@@ -298,22 +309,22 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         @Override
         public void raiseNodeDisconnected(final DiscoveryNode node) {
             try {
-                for (final TransportConnectionListener connectionListener : connectionListeners) {
-                    threadPool.generic().execute(new Runnable() {
+                for (final TransportConnectionListener connectionListener : service.connectionListeners) {
+                    service.threadPool.generic().execute(new Runnable() {
                         @Override
                         public void run() {
                             connectionListener.onNodeDisconnected(node);
                         }
                     });
                 }
-                for (Map.Entry<Long, RequestHolder> entry : clientHandlers.entrySet()) {
+                for (Map.Entry<Long, RequestHolder> entry : service.clientHandlers.entrySet()) {
                     RequestHolder holder = entry.getValue();
                     if (holder.node().equals(node)) {
-                        final RequestHolder holderToNotify = clientHandlers.remove(entry.getKey());
+                        final RequestHolder holderToNotify = service.clientHandlers.remove(entry.getKey());
                         if (holderToNotify != null) {
                             // callback that an exception happened, but on a different thread since we don't
                             // want handlers to worry about stack overflows
-                            threadPool.generic().execute(new Runnable() {
+                            service.threadPool.generic().execute(new Runnable() {
                                 @Override
                                 public void run() {
                                     holderToNotify.handler().handleException(new NodeDisconnectedException(node, holderToNotify.action()));
@@ -323,7 +334,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
                     }
                 }
             } catch (EsRejectedExecutionException ex) {
-                logger.debug("Rejected execution on NodeDisconnected", ex);
+                service.logger.debug("Rejected execution on NodeDisconnected", ex);
             }
         }
 

@@ -67,8 +67,19 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
         this.transportShardAction = actionName + "[s]";
         this.executor = executor();
 
-        transportService.registerHandler(actionName, new TransportHandler());
+        if (!isSubAction()) {
+            transportService.registerHandler(actionName, new TransportHandler());
+        }
         transportService.registerHandler(transportShardAction, new ShardTransportHandler());
+    }
+
+    /**
+     * Tells whether the action is a main one or a subaction. Used to decide whether we need to register
+     * the main transport handler. In fact if the action is a subaction, its execute method
+     * will be called locally to its parent action.
+     */
+    protected boolean isSubAction() {
+        return false;
     }
 
     @Override

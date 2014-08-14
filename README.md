@@ -21,12 +21,22 @@ It depends on whether you have Hadoop installed on your nodes or not. If you do,
 If you do not have Hadoop installed, then select either the default version (for Hadoop stable/1.x) or, if you are using Hadoop 2, the `hadoop2` version.
 
 ## Installation
+
+### Stable version
 As with any other plugin, simply run:
-`bin/plugin -i elasticsearch/elasticsearch-repository-hdfs/2.0.0`
+`bin/plugin -i elasticsearch/elasticsearch-repository-hdfs/2.0.1`
 
 When looking for `light` or `hadoop2` artifacts use:
-`bin/plugin -i elasticsearch/elasticsearch-repository-hdfs/2.0.0-<classifier>`
+`bin/plugin -i elasticsearch/elasticsearch-repository-hdfs/2.0.1-<classifier>`
 
+### Beta version
+For the beta version, simply run:
+`bin/plugin -i elasticsearch/elasticsearch-repository-hdfs/2.1.0.Beta1`
+
+When looking for `light` or `hadoop2` artifacts use:
+`bin/plugin -i elasticsearch/elasticsearch-repository-hdfs/2.1.0.Beta1-<classifier>`
+
+### Development snashot
 To install the latest snapshot, please install the plugin manually using:
 `bin/plugin -u <url-path-to-plugin.zip> -i elasticsearch-repository-hdfs-2.1.0-BUILD-SNAPSHOT`
 

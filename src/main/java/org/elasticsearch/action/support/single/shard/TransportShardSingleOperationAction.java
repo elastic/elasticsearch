@@ -326,7 +326,7 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getVersion().onOrBefore(Version.V_1_4_0)) {
+            if (out.getVersion().before(Version.V_1_4_0)) {
                 //older nodes expect the concrete index as part of the request
                 request.index(shardId.getIndex());
             }

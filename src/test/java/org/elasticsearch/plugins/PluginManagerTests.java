@@ -116,7 +116,9 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
             assertThat(plugins.length, is(1));
             assertTrue(pluginBinDir.exists());
             assertTrue(pluginConfigDir.exists());
-
+            File toolFile = new File(pluginBinDir, "tool");
+            assertThat(toolFile.exists(), is(true));
+            assertThat(toolFile.canExecute(), is(true));
         } finally {
             // we need to clean up the copied dirs
             FileSystemUtils.deleteRecursively(pluginBinDir);

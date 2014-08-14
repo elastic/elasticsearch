@@ -71,6 +71,11 @@ when no allowed action can bring the weights of each node closer together by
 more then the fourth setting.  Actions might not be allowed, for instance,
 due to forced awareness or allocation filtering.
 
+`cluster.routing.allocation.balance.threshold`::
+     Minimal optimization value of operations that should be performed (non
+      negative float). Defaults to `1.0f`.  Raising this will cause the cluster
+      to be less aggressive about optimizing the shard balance.
+
 `cluster.routing.allocation.balance.shard`::
      Defines the weight factor for shards allocated on a node
      (float). Defaults to `0.45f`.  Raising this raises the tendency to
@@ -102,11 +107,6 @@ added[1.4.0]
       See <<indices-update-settings, `index.minimum_shard_size`>> for
       information on what to do to prevent this balance function from causing
       excess shuffling during fast index building.
-
-`cluster.routing.allocation.balance.threshold`::
-     Minimal optimization value of operations that should be performed (non
-      negative float). Defaults to `1.0f`.  Raising this will cause the cluster
-      to be less aggressive about optimizing the shard balance.
 
 [float]
 ===== Concurrent Rebalance

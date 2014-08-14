@@ -43,6 +43,11 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.nio.file.FileVisitResult;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.*;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
@@ -235,6 +240,16 @@ public class PluginManager {
             if (!binFile.renameTo(toLocation)) {
                 throw new IOException("Could not move ["+ binFile.getAbsolutePath() + "] to [" + toLocation.getAbsolutePath() + "]");
             }
+            // Make everything in bin/ executable
+            Files.walkFileTree(toLocation.toPath(), new SimpleFileVisitor<Path>() {
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                    if (attrs.isRegularFile()) {
+                        file.toFile().setExecutable(true);
+                    }
+                    return FileVisitResult.CONTINUE;
+                }
+            });
             debug("Installed " + name + " into " + toLocation.getAbsolutePath());
             potentialSitePlugin = false;
         }

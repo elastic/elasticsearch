@@ -88,6 +88,7 @@ due to forced awareness or allocation filtering.
       the tendency to equalize the number of primary shards across all nodes in
       the cluster.
 
+added[1.4.0]
 `cluster.routing.allocation.balance.shard_size`::
      Defines a weight factor for the number of similarly sized shards allocated
       on a node (float). Defaults to `0.00f` because it is new and we're not
@@ -98,6 +99,9 @@ due to forced awareness or allocation filtering.
         size <= 10MB ? 0 : floor(log10(size))
       So 1GB and 5GB shards are "similar" and so are 1KB and 40MB.
       The 10MB is configurable dynamically as `cluster.info.small_shard_size`.
+      See <<indices-update-settings, `index.minimum_shard_size`>> for
+      information on what to do to prevent this balance function from causing
+      excess shuffling during fast index building.
 
 `cluster.routing.allocation.balance.threshold`::
      Minimal optimization value of operations that should be performed (non

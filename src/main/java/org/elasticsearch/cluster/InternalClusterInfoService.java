@@ -70,8 +70,7 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
     public static final String SMALL_SHARD_LIMIT = "cluster.info.small_shard_size";
 
     // Index settings
-    public static final String INDEX_SETTING_MINIMUM_SHARD_SIZE = "index.minimum_shard_size.size";
-    public static final String INDEX_SETTING_MINIMUM_SHARD_SIZE_TIMEOUT = "index.minimum_shard_size.timeout";
+    public static final String INDEX_SETTING_MINIMUM_SHARD_SIZE = "index.minimum_shard_size";
 
     // Cluster settings defaults
     public static final ByteSizeValue DEFAULT_SMALL_SHARD_LIMIT = ByteSizeValue.parseBytesSizeValue("10mb");

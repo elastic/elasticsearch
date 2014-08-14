@@ -161,13 +161,13 @@ added[1.0.0.RC1]
 
 
 added[1.4.0]
-`index.minimum_shard_size.size`::
+`index.minimum_shard_size`::
     If a shard of the index is smaller then this size it is considered to be
     this size for the purposes of the disk aware allocation decider and the
     shard size allocation function.  This should prevent the shard size
     allocation function from causing many index moves when an index is being
-    built quickly.  Be sure to remove this setting from the index once it is
-    the size its going to stay.
+    under construction.  Its best to set this setting to `0` once the index has
+    grown to the size that is it going to stay.
 
 [float]
 [[bulk]]

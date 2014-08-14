@@ -187,9 +187,7 @@ Allow to sort by `_geo_distance`. Here is an example:
 
 `distance_type`::
 
-    How to compute the distance. Can either be `arc` (better precision),
-    `sloppy_arc` (faster but less precise) or `plane` (fastest). Defaults
-    to `sloppy_arc`.
+    How to compute the distance. Can either be `sloppy_arc` (default), `arc` (slighly more precise but significantly slower) or `plane` (faster, but inaccurate on long distances and close to the poles).
 
 Note: the geo distance sorting supports `sort_mode` options: `min`,
 `max` and `avg`.

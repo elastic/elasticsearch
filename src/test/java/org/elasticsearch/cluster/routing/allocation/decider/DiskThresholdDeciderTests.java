@@ -20,8 +20,8 @@
 package org.elasticsearch.cluster.routing.allocation.decider;
 
 import com.google.common.base.Predicate;
+import com.google.common.collect.ImmutableListMultimap;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSetMultimap;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
@@ -669,6 +669,6 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
 
     private ClusterInfo newClusterInfo(Map<String, DiskUsage> usages, Map<String, Long> shardSizes) {
         return new ClusterInfo(ImmutableMap.copyOf(usages), ImmutableMap.copyOf(shardSizes),
-                ImmutableMap.<String, Long> of(), ImmutableSetMultimap.<Integer, String>of());
+                ImmutableMap.<String, Long> of(), ImmutableListMultimap.<Integer, String>of());
     }
 }

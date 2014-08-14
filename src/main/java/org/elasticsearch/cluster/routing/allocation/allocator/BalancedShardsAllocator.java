@@ -360,7 +360,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             if (allocation.clusterInfo().getShardSizeBinToShard() == null) {
                 return 0;
             }
-            Set<String> shards = allocation.clusterInfo().getShardSizeBinToShard()
+            List<String> shards = allocation.clusterInfo().getShardSizeBinToShard()
                     .get(InternalClusterInfoService.shardBinBySize(indexShardSize));
             if (shards == null) {
                 return 0;

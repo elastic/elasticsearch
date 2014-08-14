@@ -19,8 +19,8 @@
 
 package org.elasticsearch.cluster;
 
+import com.google.common.collect.ImmutableListMultimap;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSetMultimap;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.ImmutableSettings;
 
@@ -37,7 +37,7 @@ public class EmptyClusterInfoService extends AbstractComponent implements Cluste
     private EmptyClusterInfoService() {
         super(ImmutableSettings.EMPTY);
         emptyClusterInfo = new ClusterInfo(ImmutableMap.<String, DiskUsage>of(), ImmutableMap.<String, Long>of(),
-                ImmutableMap.<String, Long>of(), ImmutableSetMultimap.<Integer, String>of());
+                ImmutableMap.<String, Long>of(), ImmutableListMultimap.<Integer, String>of());
     }
 
     public static EmptyClusterInfoService getInstance() {

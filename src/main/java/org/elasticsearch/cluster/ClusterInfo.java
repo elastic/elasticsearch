@@ -19,8 +19,8 @@
 
 package org.elasticsearch.cluster;
 
+import com.google.common.collect.ImmutableListMultimap;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSetMultimap;
 
 import java.util.Map;
 
@@ -32,10 +32,10 @@ public class ClusterInfo {
     private final ImmutableMap<String, DiskUsage> usages;
     private final ImmutableMap<String, Long> shardSizes;
     private final ImmutableMap<String, Long> indexToAverageShardSize;
-    private final ImmutableSetMultimap<Integer, String> shardSizeBinToShard;
+    private final ImmutableListMultimap<Integer, String> shardSizeBinToShard;
 
     public ClusterInfo(ImmutableMap<String, DiskUsage> usages, ImmutableMap<String, Long> shardSizes,
-            ImmutableMap<String, Long> indexToAverageShardSize, ImmutableSetMultimap<Integer, String> shardSizeBinToShard) {
+            ImmutableMap<String, Long> indexToAverageShardSize, ImmutableListMultimap<Integer, String> shardSizeBinToShard) {
         this.usages = usages;
         this.shardSizes = shardSizes;
         this.indexToAverageShardSize = indexToAverageShardSize;
@@ -62,12 +62,12 @@ public class ClusterInfo {
     }
 
     /**
-     * @return multimap from a
+     * @return multimap from
      *         {@link InternalClusterInfoService#shardBinBySize(long)} to
      *         {@link InternalClusterInfoService#shardIdentifierFromRouting(String)}
      *         .
      */
-    public ImmutableSetMultimap<Integer, String> getShardSizeBinToShard() {
+    public ImmutableListMultimap<Integer, String> getShardSizeBinToShard() {
         return shardSizeBinToShard;
     }
 }

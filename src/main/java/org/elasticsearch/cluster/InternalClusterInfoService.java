@@ -19,8 +19,8 @@
 
 package org.elasticsearch.cluster;
 
+import com.google.common.collect.ImmutableListMultimap;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSetMultimap;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
@@ -80,7 +80,7 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
     private volatile ImmutableMap<String, DiskUsage> usages;
     private volatile ImmutableMap<String, Long> shardSizes;
     private volatile ImmutableMap<String, Long> indexToAverageShardSize;
-    private volatile ImmutableSetMultimap<Integer, String> shardSizeBinToShard;
+    private volatile ImmutableListMultimap<Integer, String> shardSizeBinToShard;
     private volatile MetaData metaData;
 
     private volatile boolean isMaster = false;
@@ -104,7 +104,7 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
         this.usages = ImmutableMap.of();
         this.shardSizes = ImmutableMap.of();
         this.indexToAverageShardSize = ImmutableMap.of();
-        this.shardSizeBinToShard = ImmutableSetMultimap.of();
+        this.shardSizeBinToShard = ImmutableListMultimap.of();
         this.transportNodesStatsAction = transportNodesStatsAction;
         this.transportIndicesStatsAction = transportIndicesStatsAction;
         this.clusterService = clusterService;
@@ -169,6 +169,7 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
         this.isMaster = false;
     }
 
+    @Override
     public String executorName() {
         return ThreadPool.Names.MANAGEMENT;
     }
@@ -316,41 +317,7 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
             transportIndicesStatsAction.execute(indicesStatsRequest, new ActionListener<IndicesStatsResponse>() {
                 @Override
                 public void onResponse(IndicesStatsResponse indicesStatsResponse) {
-                    ShardStats[] stats = indicesStatsResponse.getShards();
-                    Map<String, Tuple<Long, Integer>> averageShardSizesWork = new TreeMap<>();
-                    Map<String, Long> newShardSizes = new HashMap<>();
-                    ImmutableSetMultimap.Builder<Integer, String> newShardSizeBinToShard = ImmutableSetMultimap.builder();
-                    for (ShardStats s : stats) {
-                        // Default to the configured "default" size if there is
-                        // one that isn't expired and is larger then the actual
-                        // size.
-                        long size = minimumShardSizeFromMetaData(s.getIndex());
-                        if (size < s.getStats().getStore().sizeInBytes()) {
-                            size = s.getStats().getStore().sizeInBytes();
-                        }
-                        String sid = shardIdentifierFromRouting(s.getShardRouting());
-                        if (logger.isTraceEnabled()) {
-                            logger.trace("shard: {} size: {}", sid, size);
-                        }
-                        newShardSizes.put(sid, size);
-                        newShardSizeBinToShard.put(shardBinBySize(size), sid);
-                        Tuple<Long, Integer> avgWork = averageShardSizesWork.get(s.getIndex());
-                        if (avgWork == null) {
-                            avgWork = new Tuple<>(size, 1);
-                        } else {
-                            avgWork = new Tuple<>(avgWork.v1() + size, avgWork.v2() + 1);
-                        }
-                        averageShardSizesWork.put(s.getIndex(), avgWork);
-                    }
-                    shardSizes = ImmutableMap.copyOf(newShardSizes);
-                    shardSizeBinToShard = newShardSizeBinToShard.build();
-
-                    ImmutableMap.Builder<String, Long> newIndexToAverageShardSize = ImmutableMap.builder();
-                    for (Map.Entry<String, Tuple<Long, Integer>> entry : averageShardSizesWork.entrySet()) {
-                        // TODO support for newly created indexes returning a configured value for a while
-                        newIndexToAverageShardSize.put(entry.getKey(), entry.getValue().v1() / entry.getValue().v2());
-                    }
-                    indexToAverageShardSize = newIndexToAverageShardSize.build();
+                    updateIndicesStats(indicesStatsResponse);
                 }
 
                 @Override
@@ -370,22 +337,7 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
             }
         }
 
-        /**
-         * Load the shard size from its metadata if it has any configured.
-         * @param index index name
-         * @return -1 if there isn't any shard size in the metadata.  0 or more if there was a size in the metadata.
-         */
-        private long minimumShardSizeFromMetaData(String index) {
-            IndexMetaData meta = metaData.index(index);
-            if (meta == null) {
-                return -1;
-            }
-            ByteSizeValue minimumSize = meta.getSettings().getAsBytesSize(INDEX_SETTING_MINIMUM_SHARD_SIZE, null);
-            if (minimumSize == null) {
-                return -1;
-            }
-            return minimumSize.bytes();
-        }
+
     }
 
     /**
@@ -403,5 +355,59 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
      */
     public static int shardBinBySize(long size) {
         return size <= DEFAULT_SMALL_SHARD_LIMIT.bytes() ? 0 : (int)floor(log10(size));
+    }
+
+    void updateIndicesStats(IndicesStatsResponse indicesStatsResponse) {
+        Map<String, Tuple<Long, Integer>> averageShardSizesWork = new TreeMap<>();
+        Map<String, Long> newShardSizes = new HashMap<>();
+        ImmutableListMultimap.Builder<Integer, String> newShardSizeBinToShard = ImmutableListMultimap.builder();
+        for (ShardStats s : indicesStatsResponse.getShards()) {
+            // Default to the configured "default" size if there is
+            // one that isn't expired and is larger then the actual
+            // size.
+            long size = minimumShardSizeFromMetaData(s.getIndex());
+            if (size < s.getStats().getStore().sizeInBytes()) {
+                size = s.getStats().getStore().sizeInBytes();
+            }
+            String sid = shardIdentifierFromRouting(s.getShardRouting());
+            if (logger.isTraceEnabled()) {
+                logger.trace("shard: {} size: {}", sid, size);
+            }
+            newShardSizes.put(sid, size);
+            newShardSizeBinToShard.put(shardBinBySize(size), sid);
+            Tuple<Long, Integer> avgWork = averageShardSizesWork.get(s.getIndex());
+            if (avgWork == null) {
+                avgWork = new Tuple<>(size, 1);
+            } else {
+                avgWork = new Tuple<>(avgWork.v1() + size, avgWork.v2() + 1);
+            }
+            averageShardSizesWork.put(s.getIndex(), avgWork);
+        }
+        shardSizes = ImmutableMap.copyOf(newShardSizes);
+        shardSizeBinToShard = newShardSizeBinToShard.build();
+
+        ImmutableMap.Builder<String, Long> newIndexToAverageShardSize = ImmutableMap.builder();
+        for (Map.Entry<String, Tuple<Long, Integer>> entry : averageShardSizesWork.entrySet()) {
+            // TODO support for newly created indexes returning a configured value for a while
+            newIndexToAverageShardSize.put(entry.getKey(), entry.getValue().v1() / entry.getValue().v2());
+        }
+        indexToAverageShardSize = newIndexToAverageShardSize.build();
+    }
+
+    /**
+     * Load the shard size from its metadata if it has any configured.
+     * @param index index name
+     * @return -1 if there isn't any shard size in the metadata.  0 or more if there was a size in the metadata.
+     */
+    private long minimumShardSizeFromMetaData(String index) {
+        IndexMetaData meta = metaData.index(index);
+        if (meta == null) {
+            return -1;
+        }
+        ByteSizeValue minimumSize = meta.getSettings().getAsBytesSize(INDEX_SETTING_MINIMUM_SHARD_SIZE, null);
+        if (minimumSize == null) {
+            return -1;
+        }
+        return minimumSize.bytes();
     }
 }

@@ -20,8 +20,8 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import com.google.common.collect.ImmutableListMultimap;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSetMultimap;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -461,7 +461,7 @@ public class BalanceConfigurationTests extends ElasticsearchAllocationTestCase {
     private void buildClusterInfo(long[] sizes) {
         ImmutableMap.Builder<String, Long> shardSizes = ImmutableMap.builder();
         ImmutableMap.Builder<String, Long> indexToAverageShardSize = ImmutableMap.builder();
-        ImmutableSetMultimap.Builder<Integer, String> logShardSizeToShard = ImmutableSetMultimap.builder();
+        ImmutableListMultimap.Builder<Integer, String> logShardSizeToShard = ImmutableListMultimap.builder();
         for (int i = 0; i < numberOfIndices; i++) {
             indexToAverageShardSize.put("test" + i, sizes[i]);
             for (int s = 0; s < numberOfShards[i]; s++) {

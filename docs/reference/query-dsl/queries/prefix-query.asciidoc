@@ -31,6 +31,6 @@ Or :
 }
 --------------------------------------------------
 
-This multi term query allows to control how it gets rewritten using the
+This multi term query allows you to control how it gets rewritten using the
 <<query-dsl-multi-term-rewrite,rewrite>>
 parameter.

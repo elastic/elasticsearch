@@ -41,7 +41,6 @@ public class ValueCountParser implements Aggregator.Parser {
     public AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
 
         ValuesSourceParser vsParser = ValuesSourceParser.any(aggregationName, InternalValueCount.TYPE, context)
-                .requiresUniqueValues(true)
                 .build();
 
         XContentParser.Token token;

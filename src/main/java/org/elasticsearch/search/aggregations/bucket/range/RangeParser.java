@@ -47,7 +47,6 @@ public class RangeParser implements Aggregator.Parser {
         boolean keyed = false;
 
         ValuesSourceParser<ValuesSource.Numeric> vsParser = ValuesSourceParser.numeric(aggregationName, InternalRange.TYPE, context)
-                .requiresSortedValues(true)
                 .formattable(true)
                 .build();
 

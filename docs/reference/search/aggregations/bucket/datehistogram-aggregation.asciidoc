@@ -69,14 +69,6 @@ set `pre_zone_adjust_large_interval` to `true`, which will apply the same conver
 example, to day and above intervals (it can be set regardless of the interval, but only kick in when using day and
 higher intervals).
 
-==== Factor
-
-The date histogram works on numeric values (since time is stored in milliseconds since the epoch in UTC). But,
-sometimes, systems will store a different resolution (like seconds since UTC) in a numeric field. The `factor`
-parameter can be used to change the value in the field to milliseconds to actual do the relevant rounding, and then
-be applied again to get to the original unit. For example, when storing in a numeric field seconds resolution, the
-factor can be set to 1000.
-
 ==== Pre/Post Offset
 
 Specific offsets can be provided for pre rounding and post rounding. The `pre_offset` for pre rounding, and

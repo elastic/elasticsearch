@@ -22,6 +22,7 @@ package org.elasticsearch.common.cli;
 import com.google.common.collect.ImmutableMap;
 import org.apache.commons.cli.CommandLine;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.junit.Test;
@@ -251,6 +252,23 @@ public class CliToolTests extends CliToolTestCase {
         } finally {
             System.clearProperty(Terminal.DEBUG_SYSTEM_PROPERTY);
         }
+    }
+
+    @Test
+    public void testMultipleLaunch() throws Exception {
+        Terminal terminal = new MockTerminal();
+        final AtomicReference<Boolean> executed = new AtomicReference<>(false);
+        final NamedCommand cmd = new NamedCommand("cmd", terminal) {
+            @Override
+            public CliTool.ExitStatus execute(Settings settings, Environment env) {
+                executed.set(true);
+                return CliTool.ExitStatus.OK;
+            }
+        };
+        SingleCmdTool tool = new SingleCmdTool("tool", terminal, cmd);
+        tool.parse("cmd", Strings.splitStringByCommaToArray("--verbose"));
+        tool.parse("cmd", Strings.splitStringByCommaToArray("--silent"));
+        tool.parse("cmd", Strings.splitStringByCommaToArray("--help"));
     }
 
     private void assertStatus(int status, CliTool.ExitStatus expectedStatus) {

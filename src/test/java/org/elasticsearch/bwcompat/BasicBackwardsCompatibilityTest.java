@@ -452,7 +452,7 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
     }
 
     @Test
-    @TestLogging("index.snapshots:TRACE")
+    @TestLogging("index.snapshots:TRACE,index.shard.service:TRACE")
     public void testSnapshotAndRestore() throws ExecutionException, InterruptedException, IOException {
         logger.info("-->  creating repository");
         assertAcked(client().admin().cluster().preparePutRepository("test-repo")

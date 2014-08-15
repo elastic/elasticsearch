@@ -88,8 +88,9 @@ public class PercolateRequest extends BroadcastOperationRequest<PercolateRequest
         return documentType;
     }
 
-    public void documentType(String type) {
+    public PercolateRequest documentType(String type) {
         this.documentType = type;
+        return this;
     }
 
     public String routing() {
@@ -114,8 +115,9 @@ public class PercolateRequest extends BroadcastOperationRequest<PercolateRequest
         return getRequest;
     }
 
-    public void getRequest(GetRequest getRequest) {
+    public PercolateRequest getRequest(GetRequest getRequest) {
         this.getRequest = getRequest;
+        return this;
     }
 
     /**
@@ -137,6 +139,7 @@ public class PercolateRequest extends BroadcastOperationRequest<PercolateRequest
         return source(document, Requests.CONTENT_TYPE);
     }
 
+    @SuppressWarnings("unchecked")
     public PercolateRequest source(Map document, XContentType contentType) throws ElasticsearchGenerationException {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(contentType);
@@ -187,8 +190,9 @@ public class PercolateRequest extends BroadcastOperationRequest<PercolateRequest
         return onlyCount;
     }
 
-    public void onlyCount(boolean onlyCount) {
+    public PercolateRequest onlyCount(boolean onlyCount) {
         this.onlyCount = onlyCount;
+        return this;
     }
 
     BytesReference docSource() {

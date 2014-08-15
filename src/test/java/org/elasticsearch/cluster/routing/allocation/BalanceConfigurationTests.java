@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.google.common.collect.ImmutableListMultimap;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -461,20 +460,19 @@ public class BalanceConfigurationTests extends ElasticsearchAllocationTestCase {
     private void buildClusterInfo(long[] sizes) {
         ImmutableMap.Builder<String, Long> shardSizes = ImmutableMap.builder();
         ImmutableMap.Builder<String, Long> indexToAverageShardSize = ImmutableMap.builder();
-        ImmutableListMultimap.Builder<Integer, String> logShardSizeToShard = ImmutableListMultimap.builder();
+        ClusterInfo.ShardsBucketedBySize.Builder shardsBucketedBySize = ClusterInfo.ShardsBucketedBySize.builder(smallShardLimit);
         for (int i = 0; i < numberOfIndices; i++) {
             indexToAverageShardSize.put("test" + i, sizes[i]);
             for (int s = 0; s < numberOfShards[i]; s++) {
                 String sid = String.format(Locale.US, "[test%s][%s]", i, s);
                 shardSizes.put(sid + "[p]", sizes[i]);
                 shardSizes.put(sid + "[r]", sizes[i]);
-                int logSize = sizes[i] <= smallShardLimit ? 0 : (int)Math.floor(Math.log10(sizes[i]));
-                logShardSizeToShard.put(logSize, sid + "[p]");
-                logShardSizeToShard.put(logSize, sid + "[r]");
+                shardsBucketedBySize.add(sizes[i], sid);
+                shardsBucketedBySize.add(sizes[i], sid);
             }
         }
         clusterInfo = new ClusterInfo(ImmutableMap.<String, DiskUsage> of(), shardSizes.build(), indexToAverageShardSize.build(),
-                logShardSizeToShard.build());
+                shardsBucketedBySize.build());
     }
 
     @Test

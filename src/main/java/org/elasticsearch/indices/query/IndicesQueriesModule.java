@@ -125,7 +125,6 @@ public class IndicesQueriesModule extends AbstractModule {
         fpBinders.addBinding().to(TermFilterParser.class).asEagerSingleton();
         fpBinders.addBinding().to(TermsFilterParser.class).asEagerSingleton();
         fpBinders.addBinding().to(RangeFilterParser.class).asEagerSingleton();
-        fpBinders.addBinding().to(NumericRangeFilterParser.class).asEagerSingleton();
         fpBinders.addBinding().to(PrefixFilterParser.class).asEagerSingleton();
         fpBinders.addBinding().to(RegexpFilterParser.class).asEagerSingleton();
         fpBinders.addBinding().to(ScriptFilterParser.class).asEagerSingleton();

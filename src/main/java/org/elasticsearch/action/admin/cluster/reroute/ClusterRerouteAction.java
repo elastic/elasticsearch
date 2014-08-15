@@ -27,7 +27,7 @@ import org.elasticsearch.client.ClusterAdminClient;
 public class ClusterRerouteAction extends ClusterAction<ClusterRerouteRequest, ClusterRerouteResponse, ClusterRerouteRequestBuilder> {
 
     public static final ClusterRerouteAction INSTANCE = new ClusterRerouteAction();
-    public static final String NAME = "cluster/reroute";
+    public static final String NAME = "cluster:admin/reroute";
 
     private ClusterRerouteAction() {
         super(NAME);

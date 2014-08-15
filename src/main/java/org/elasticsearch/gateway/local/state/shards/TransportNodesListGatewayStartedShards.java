@@ -48,8 +48,7 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
  */
 public class TransportNodesListGatewayStartedShards extends TransportNodesOperationAction<TransportNodesListGatewayStartedShards.Request, TransportNodesListGatewayStartedShards.NodesLocalGatewayStartedShards, TransportNodesListGatewayStartedShards.NodeRequest, TransportNodesListGatewayStartedShards.NodeLocalGatewayStartedShards> {
 
-    private static final String ACTION_NAME = "/gateway/local/started-shards";
-
+    public static final String ACTION_NAME = "internal:gateway/local/started_shards";
 
     private LocalGatewayShardsState shardsState;
 

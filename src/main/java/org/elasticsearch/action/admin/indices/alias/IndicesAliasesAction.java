@@ -27,7 +27,7 @@ import org.elasticsearch.client.IndicesAdminClient;
 public class IndicesAliasesAction extends IndicesAction<IndicesAliasesRequest, IndicesAliasesResponse, IndicesAliasesRequestBuilder> {
 
     public static final IndicesAliasesAction INSTANCE = new IndicesAliasesAction();
-    public static final String NAME = "indices/aliases";
+    public static final String NAME = "indices:admin/aliases";
 
     private IndicesAliasesAction() {
         super(NAME);

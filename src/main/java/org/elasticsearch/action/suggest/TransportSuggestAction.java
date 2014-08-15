@@ -90,7 +90,7 @@ public class TransportSuggestAction extends TransportBroadcastOperationAction<Su
 
     @Override
     protected ShardSuggestRequest newShardRequest(int numShards, ShardRouting shard, SuggestRequest request) {
-        return new ShardSuggestRequest(shard.index(), shard.id(), request);
+        return new ShardSuggestRequest(shard.shardId(), request);
     }
 
     @Override
@@ -144,8 +144,8 @@ public class TransportSuggestAction extends TransportBroadcastOperationAction<Su
 
     @Override
     protected ShardSuggestResponse shardOperation(ShardSuggestRequest request) throws ElasticsearchException {
-        IndexService indexService = indicesService.indexServiceSafe(request.index());
-        IndexShard indexShard = indexService.shardSafe(request.shardId());
+        IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
+        IndexShard indexShard = indexService.shardSafe(request.shardId().id());
         final Engine.Searcher searcher = indexShard.acquireSearcher("suggest");
         ShardSuggestService shardSuggestService = indexShard.shardSuggestService();
         shardSuggestService.preSuggest();
@@ -158,11 +158,11 @@ public class TransportSuggestAction extends TransportBroadcastOperationAction<Su
                 if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
                     throw new ElasticsearchIllegalArgumentException("suggest content missing");
                 }
-                final SuggestionSearchContext context = suggestPhase.parseElement().parseInternal(parser, indexService.mapperService(), request.index(), request.shardId());
+                final SuggestionSearchContext context = suggestPhase.parseElement().parseInternal(parser, indexService.mapperService(), request.shardId().getIndex(), request.shardId().id());
                 final Suggest result = suggestPhase.execute(context, searcher.reader());
-                return new ShardSuggestResponse(request.index(), request.shardId(), result);
+                return new ShardSuggestResponse(request.shardId(), result);
             }
-            return new ShardSuggestResponse(request.index(), request.shardId(), new Suggest());
+            return new ShardSuggestResponse(request.shardId(), new Suggest());
         } catch (Throwable ex) {
             throw new ElasticsearchException("failed to execute suggest", ex);
         } finally {

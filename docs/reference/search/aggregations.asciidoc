@@ -104,9 +104,9 @@ are being aggregated. The values are typically extracted from the fields of the 
 can also be generated using scripts.
 
 Numeric metrics aggregations are a special type of metrics aggregation which output numeric values. Some aggregations output
-a single numeric metric (e.g. `avg`) and are called `single-value numeric metrics aggregation`, others generate multiple 
-metrics (e.g. `stats`) and are called `multi-value numeric metrics aggregation`. The distinction between single-value and 
-multi-value numeric metrics aggregations plays a role when these aggregations serve as direct sub-aggregations of some 
+a single numeric metric (e.g. `avg`) and are called `single-value numeric metrics aggregation`, others generate multiple
+metrics (e.g. `stats`) and are called `multi-value numeric metrics aggregation`. The distinction between single-value and
+multi-value numeric metrics aggregations plays a role when these aggregations serve as direct sub-aggregations of some
 bucket aggregations (some bucket aggregations enable you to sort the returned buckets based on the numeric metrics in each bucket).
 
 
@@ -125,6 +125,40 @@ aggregated for the buckets created by their "parent" bucket aggregation.
 There are different bucket aggregators, each with a different "bucketing" strategy. Some define a single bucket, some
 define fixed number of multiple buckets, and others dynamically create the buckets during the aggregation process.
 
+[float]
+=== Caching heavy aggregations
+
+coming[1.4.0]
+
+Frequently used aggregations (e.g. for display on the home page of a website)
+can be cached for faster responses. These cached results are the same results
+that would be returned by an uncached aggregation -- you will never get stale
+results.
+
+See <<index-modules-shard-query-cache>> for more details.
+
+[float]
+=== Returning only aggregation results
+
+There are many occasions when aggregations are required but search hits are not.  For these cases the hits can be ignored by 
+adding `search_type=count` to the request URL parameters. For example:
+
+[source,js]
+--------------------------------------------------
+$ curl -XGET 'http://localhost:9200/twitter/tweet/_search?search_type=count' -d '{
+  "aggregations": {
+    "my_agg": {
+      "terms": {
+        "field": "text"
+      }
+    }
+  }
+}
+'
+--------------------------------------------------
+
+Setting `search_type` to `count` avoids executing the fetch phase of the search making the request more efficient.  See 
+<<search-request-search-type>> for more information on the `search_type` parameter.
 
 include::aggregations/metrics.asciidoc[]
 

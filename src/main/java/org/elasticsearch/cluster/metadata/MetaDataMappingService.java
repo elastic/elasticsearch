@@ -25,7 +25,10 @@ import com.google.common.collect.Sets;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingClusterStateUpdateRequest;
-import org.elasticsearch.cluster.*;
+import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
+import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.Tuple;
@@ -491,33 +494,28 @@ public class MetaDataMappingService extends AbstractComponent {
                     Map<String, DocumentMapper> newMappers = newHashMap();
                     Map<String, DocumentMapper> existingMappers = newHashMap();
                     for (String index : request.indices()) {
-                        IndexService indexService = indicesService.indexService(index);
-                        if (indexService != null) {
-                            // try and parse it (no need to add it here) so we can bail early in case of parsing exception
-                            DocumentMapper newMapper;
-                            DocumentMapper existingMapper = indexService.mapperService().documentMapper(request.type());
-                            if (MapperService.DEFAULT_MAPPING.equals(request.type())) {
-                                // _default_ types do not go through merging, but we do test the new settings. Also don't apply the old default
-                                newMapper = indexService.mapperService().parse(request.type(), new CompressedString(request.source()), false);
-                            } else {
-                                newMapper = indexService.mapperService().parse(request.type(), new CompressedString(request.source()));
-                                if (existingMapper != null) {
-                                    // first, simulate
-                                    DocumentMapper.MergeResult mergeResult = existingMapper.merge(newMapper, mergeFlags().simulate(true));
-                                    // if we have conflicts, and we are not supposed to ignore them, throw an exception
-                                    if (!request.ignoreConflicts() && mergeResult.hasConflicts()) {
-                                        throw new MergeMappingException(mergeResult.conflicts());
-                                    }
+                        IndexService indexService = indicesService.indexServiceSafe(index);
+                        // try and parse it (no need to add it here) so we can bail early in case of parsing exception
+                        DocumentMapper newMapper;
+                        DocumentMapper existingMapper = indexService.mapperService().documentMapper(request.type());
+                        if (MapperService.DEFAULT_MAPPING.equals(request.type())) {
+                            // _default_ types do not go through merging, but we do test the new settings. Also don't apply the old default
+                            newMapper = indexService.mapperService().parse(request.type(), new CompressedString(request.source()), false);
+                        } else {
+                            newMapper = indexService.mapperService().parse(request.type(), new CompressedString(request.source()));
+                            if (existingMapper != null) {
+                                // first, simulate
+                                DocumentMapper.MergeResult mergeResult = existingMapper.merge(newMapper, mergeFlags().simulate(true));
+                                // if we have conflicts, and we are not supposed to ignore them, throw an exception
+                                if (!request.ignoreConflicts() && mergeResult.hasConflicts()) {
+                                    throw new MergeMappingException(mergeResult.conflicts());
                                 }
                             }
+                        }
 
-                            newMappers.put(index, newMapper);
-                            if (existingMapper != null) {
-                                existingMappers.put(index, existingMapper);
-                            }
-
-                        } else {
-                            throw new IndexMissingException(new Index(index));
+                        newMappers.put(index, newMapper);
+                        if (existingMapper != null) {
+                            existingMappers.put(index, existingMapper);
                         }
                     }
 
@@ -537,6 +535,10 @@ public class MetaDataMappingService extends AbstractComponent {
                         // do the actual merge here on the master, and update the mapping source
                         DocumentMapper newMapper = entry.getValue();
                         IndexService indexService = indicesService.indexService(index);
+                        if (indexService == null) {
+                            continue;
+                        }
+
                         CompressedString existingSource = null;
                         if (existingMappers.containsKey(entry.getKey())) {
                             existingSource = existingMappers.get(entry.getKey()).mappingSource();

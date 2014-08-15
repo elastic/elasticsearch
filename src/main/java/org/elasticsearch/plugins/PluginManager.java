@@ -43,6 +43,11 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.nio.file.FileVisitResult;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.*;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
@@ -75,6 +80,13 @@ public class PluginManager {
                     "plugin",
                     "plugin.bat",
                     "service.bat").build();
+
+    // Valid directory names for plugin ZIP files when it has only one single dir
+    private static final ImmutableSet<Object> VALID_TOP_LEVEL_PLUGIN_DIRS = ImmutableSet.builder()
+            .add("_site",
+                    "bin",
+                    "config",
+                    "_dict").build();
 
     private final Environment environment;
 
@@ -218,6 +230,8 @@ public class PluginManager {
             throw new IllegalArgumentException("Plugin installation assumed to be site plugin, but contains source code, aborting installation.");
         }
 
+        // It could potentially be a non explicit _site plugin
+        boolean potentialSitePlugin = true;
         File binFile = new File(extractLocation, "bin");
         if (binFile.exists() && binFile.isDirectory()) {
             File toLocation = pluginHandle.binDir(environment);
@@ -226,7 +240,18 @@ public class PluginManager {
             if (!binFile.renameTo(toLocation)) {
                 throw new IOException("Could not move ["+ binFile.getAbsolutePath() + "] to [" + toLocation.getAbsolutePath() + "]");
             }
+            // Make everything in bin/ executable
+            Files.walkFileTree(toLocation.toPath(), new SimpleFileVisitor<Path>() {
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                    if (attrs.isRegularFile()) {
+                        file.toFile().setExecutable(true);
+                    }
+                    return FileVisitResult.CONTINUE;
+                }
+            });
             debug("Installed " + name + " into " + toLocation.getAbsolutePath());
+            potentialSitePlugin = false;
         }
 
         File configFile = new File(extractLocation, "config");
@@ -238,12 +263,13 @@ public class PluginManager {
                 throw new IOException("Could not move ["+ configFile.getAbsolutePath() + "] to [" + configFile.getAbsolutePath() + "]");
             }
             debug("Installed " + name + " into " + toLocation.getAbsolutePath());
+            potentialSitePlugin = false;
         }
 
         // try and identify the plugin type, see if it has no .class or .jar files in it
         // so its probably a _site, and it it does not have a _site in it, move everything to _site
         if (!new File(extractLocation, "_site").exists()) {
-            if (!FileSystemUtils.hasExtensions(extractLocation, ".class", ".jar")) {
+            if (potentialSitePlugin && !FileSystemUtils.hasExtensions(extractLocation, ".class", ".jar")) {
                 log("Identified as a _site plugin, moving to _site structure ...");
                 File site = new File(extractLocation, "_site");
                 File tmpLocation = new File(environment.pluginsFile(), extractLocation.getName() + ".tmp");
@@ -354,7 +380,12 @@ public class PluginManager {
                 return false;
             }
         }
-        return topLevelDirNames.size() == 1 && !"_site".equals(topLevelDirNames.iterator().next());
+
+        if (topLevelDirNames.size() == 1) {
+            return !VALID_TOP_LEVEL_PLUGIN_DIRS.contains(topLevelDirNames.iterator().next());
+        }
+
+        return false;
     }
 
     private static final int EXIT_CODE_OK = 0;

@@ -88,15 +88,15 @@ public class ConfigurableErrorNettyTransportModule extends AbstractModule {
 
                         final NettyTransportChannel transportChannel = new NettyTransportChannel(transport, action, channel, requestId, version);
                         try {
-                            final TransportRequestHandler handler = transportServiceAdapter.handler(action);
+                            final TransportRequestHandler handler = transportServiceAdapter.handler(action, version);
                             if (handler == null) {
                                 throw new ActionNotFoundTransportException(action);
                             }
                             final TransportRequest request = handler.newInstance();
                             request.remoteAddress(new InetSocketTransportAddress((InetSocketAddress) channel.getRemoteAddress()));
                             request.readFrom(buffer);
-                            if (request.getHeaders() != null && request.getHeaders().containsKey("ERROR")) {
-                                throw new ElasticsearchException((String) request.getHeaders().get("ERROR"));
+                            if (request.hasHeader("ERROR")) {
+                                throw new ElasticsearchException((String) request.getHeader("ERROR"));
                             }
                             if (handler.executor() == ThreadPool.Names.SAME) {
                                 //noinspection unchecked

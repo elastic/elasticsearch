@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.ElasticsearchAllocationTestCase;
@@ -53,7 +54,7 @@ public class NodeVersionAllocationDeciderTests extends ElasticsearchAllocationTe
     public void testDoNotAllocateFromPrimary() {
         AllocationService strategy = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
-                .put("cluster.routing.allocation.allow_rebalance", "always")
+                .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
                 .build());
 
@@ -169,7 +170,7 @@ public class NodeVersionAllocationDeciderTests extends ElasticsearchAllocationTe
     public void testRandom() {
         AllocationService service = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
-                .put("cluster.routing.allocation.allow_rebalance", "always")
+                .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
                 .build());
 
@@ -219,7 +220,7 @@ public class NodeVersionAllocationDeciderTests extends ElasticsearchAllocationTe
     public void testRollingRestart() {
         AllocationService service = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
-                .put("cluster.routing.allocation.allow_rebalance", "always")
+                .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
                 .build());
 

@@ -90,6 +90,7 @@ import org.elasticsearch.index.translog.TranslogService;
 import org.elasticsearch.index.translog.fs.FsTranslog;
 import org.elasticsearch.index.translog.fs.FsTranslogFile;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.rest.RestStatus;
@@ -441,6 +442,10 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
 
         // Randomly load or don't load bloom filters:
         builder.put(CodecService.INDEX_CODEC_BLOOM_LOAD, random.nextBoolean());
+
+        if (random.nextBoolean()) {
+            builder.put(IndicesQueryCache.INDEX_CACHE_QUERY_ENABLED, random.nextBoolean());
+        }
 
         return builder;
     }
@@ -1041,6 +1046,19 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     }
 
     /**
+     * Syntactic sugar for:
+     *
+     * <pre>
+     *   return client().prepareIndex(index, type, id).setSource(source).execute().actionGet();
+     * </pre>
+     *
+     * where source is a String.
+     */
+    protected final IndexResponse index(String index, String type, String id, String source) {
+        return client().prepareIndex(index, type, id).setSource(source).execute().actionGet();
+    }
+
+    /**
      * Waits for relocations and refreshes all indices in the cluster.
      *
      * @see #waitForRelocation()
@@ -1440,13 +1458,28 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         return ImmutableSettings.EMPTY;
     }
 
+    /**
+     * This method is used to obtain additional settings for clients created by the internal cluster.
+     * These settings will be applied on the client in addition to some randomized settings defined in
+     * the cluster. These setttings will also override any other settings the internal cluster might
+     * add by default.
+     */
+    protected Settings transportClientSettings() {
+        return ImmutableSettings.EMPTY;
+    }
+
     protected TestCluster buildTestCluster(Scope scope) throws IOException {
         long currentClusterSeed = randomLong();
 
-        NodeSettingsSource nodeSettingsSource = new NodeSettingsSource() {
+        SettingsSource settingsSource = new SettingsSource() {
             @Override
-            public Settings settings(int nodeOrdinal) {
+            public Settings node(int nodeOrdinal) {
                 return nodeSettings(nodeOrdinal);
+            }
+
+            @Override
+            public Settings transportClient() {
+                return transportClientSettings();
             }
         };
 
@@ -1461,7 +1494,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
 
         int numClientNodes = getNumClientNodes();
         boolean enableRandomBenchNodes = enableRandomBenchNodes();
-        return new InternalTestCluster(currentClusterSeed, minNumDataNodes, maxNumDataNodes, clusterName(scope.name(), ElasticsearchTestCase.CHILD_VM_ID, currentClusterSeed), nodeSettingsSource, numClientNodes, enableRandomBenchNodes);
+        return new InternalTestCluster(currentClusterSeed, minNumDataNodes, maxNumDataNodes, clusterName(scope.name(), ElasticsearchTestCase.CHILD_VM_ID, currentClusterSeed), settingsSource, numClientNodes, enableRandomBenchNodes);
     }
 
     /**

@@ -532,6 +532,11 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
         // we can only handle null values if we have mappings for them
         Mapper mapper = mappers.get(lastFieldName);
         if (mapper != null) {
+            if (mapper instanceof FieldMapper) {
+                if (!((FieldMapper) mapper).supportsNullValue()) {
+                    throw new MapperParsingException("no object mapping found for null value in [" + lastFieldName + "]");
+                }
+            }
             mapper.parse(context);
         }
     }
@@ -570,34 +575,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                         }
                         BuilderContext builderContext = new BuilderContext(context.indexSettings(), context.path());
                         objectMapper = builder.build(builderContext);
-                        // ...now re add it
-                        context.path().add(currentFieldName);
-                        context.setMappingsModified();
-
-                        if (context.isWithinNewMapper()) {
-                            // within a new mapper, no need to traverse, just parse
-                            objectMapper.parse(context);
-                        } else {
-                            // create a context of new mapper, so we batch aggregate all the changes within
-                            // this object mapper once, and traverse all of them to add them in a single go
-                            context.setWithinNewMapper();
-                            try {
-                                objectMapper.parse(context);
-                                FieldMapperListener.Aggregator newFields = new FieldMapperListener.Aggregator();
-                                ObjectMapperListener.Aggregator newObjects = new ObjectMapperListener.Aggregator();
-                                objectMapper.traverse(newFields);
-                                objectMapper.traverse(newObjects);
-                                // callback on adding those fields!
-                                context.docMapper().addFieldMappers(newFields.mappers);
-                                context.docMapper().addObjectMappers(newObjects.mappers);
-                            } finally {
-                                context.clearWithinNewMapper();
-                            }
-                        }
-
-                        // only put after we traversed and did the callbacks, so other parsing won't see it only after we
-                        // properly traversed it and adding the mappers
-                        putMapper(objectMapper);
+                        putDynamicMapper(context, currentFieldName, objectMapper);
                     } else {
                         objectMapper.parse(context);
                     }
@@ -617,22 +595,95 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
         if (mapper != null && mapper instanceof ArrayValueMapperParser) {
             mapper.parse(context);
         } else {
-            XContentParser parser = context.parser();
-            XContentParser.Token token;
-            while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                if (token == XContentParser.Token.START_OBJECT) {
-                    serializeObject(context, lastFieldName);
-                } else if (token == XContentParser.Token.START_ARRAY) {
-                    serializeArray(context, lastFieldName);
-                } else if (token == XContentParser.Token.FIELD_NAME) {
-                    lastFieldName = parser.currentName();
-                } else if (token == XContentParser.Token.VALUE_NULL) {
-                    serializeNullValue(context, lastFieldName);
-                } else if (token == null) {
-                    throw new MapperParsingException("object mapping for [" + name + "] with array for [" + arrayFieldName + "] tried to parse as array, but got EOF, is there a mismatch in types for the same field?");
-                } else {
-                    serializeValue(context, lastFieldName, token);
+
+            Dynamic dynamic = this.dynamic;
+            if (dynamic == null) {
+                dynamic = context.root().dynamic();
+            }
+            if (dynamic == Dynamic.STRICT) {
+                throw new StrictDynamicMappingException(fullPath, arrayFieldName);
+            } else if (dynamic == Dynamic.TRUE) {
+                // we sync here just so we won't add it twice. Its not the end of the world
+                // to sync here since next operations will get it before
+                synchronized (mutex) {
+                    mapper = mappers.get(arrayFieldName);
+                    if (mapper == null) {
+                        Mapper.Builder builder = context.root().findTemplateBuilder(context, arrayFieldName, "object");
+                        if (builder == null) {
+                            serializeNonDynamicArray(context, lastFieldName, arrayFieldName);
+                            return;
+                        }
+                        BuilderContext builderContext = new BuilderContext(context.indexSettings(), context.path());
+                        mapper = builder.build(builderContext);
+                        if (mapper != null && mapper instanceof ArrayValueMapperParser) {
+                            putDynamicMapper(context, arrayFieldName, mapper);
+                        } else {
+                            serializeNonDynamicArray(context, lastFieldName, arrayFieldName);
+                        }
+                    } else {
+                        
+                        serializeNonDynamicArray(context, lastFieldName, arrayFieldName);
+                    }
                 }
+            } else {
+                
+                serializeNonDynamicArray(context, lastFieldName, arrayFieldName);
+            }
+        }
+    }
+
+    private void putDynamicMapper(ParseContext context, String arrayFieldName, Mapper mapper) throws IOException {
+        // ...now re add it
+        context.path().add(arrayFieldName);
+        context.setMappingsModified();
+
+        if (context.isWithinNewMapper()) {
+            // within a new mapper, no need to traverse,
+            // just parse
+            mapper.parse(context);
+        } else {
+            // create a context of new mapper, so we batch
+            // aggregate all the changes within
+            // this object mapper once, and traverse all of
+            // them to add them in a single go
+            context.setWithinNewMapper();
+            try {
+                mapper.parse(context);
+                FieldMapperListener.Aggregator newFields = new FieldMapperListener.Aggregator();
+                ObjectMapperListener.Aggregator newObjects = new ObjectMapperListener.Aggregator();
+                mapper.traverse(newFields);
+                mapper.traverse(newObjects);
+                // callback on adding those fields!
+                context.docMapper().addFieldMappers(newFields.mappers);
+                context.docMapper().addObjectMappers(newObjects.mappers);
+            } finally {
+                context.clearWithinNewMapper();
+            }
+        }
+
+        // only put after we traversed and did the
+        // callbacks, so other parsing won't see it only
+        // after we
+        // properly traversed it and adding the mappers
+        putMapper(mapper);
+    }
+
+    private void serializeNonDynamicArray(ParseContext context, String lastFieldName, String arrayFieldName) throws IOException {
+        XContentParser parser = context.parser();
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+            if (token == XContentParser.Token.START_OBJECT) {
+                serializeObject(context, lastFieldName);
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                serializeArray(context, lastFieldName);
+            } else if (token == XContentParser.Token.FIELD_NAME) {
+                lastFieldName = parser.currentName();
+            } else if (token == XContentParser.Token.VALUE_NULL) {
+                serializeNullValue(context, lastFieldName);
+            } else if (token == null) {
+                throw new MapperParsingException("object mapping for [" + name + "] with array for [" + arrayFieldName + "] tried to parse as array, but got EOF, is there a mismatch in types for the same field?");
+            } else {
+                serializeValue(context, lastFieldName, token);
             }
         }
     }

@@ -78,6 +78,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
     private String templateName;
     private ScriptService.ScriptType templateType;
     private Map<String, String> templateParams;
+    private Boolean queryCache;
 
     private long nowInMillis;
 
@@ -101,6 +102,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         this.scroll = searchRequest.scroll();
         this.types = searchRequest.types();
         this.useSlowScroll = useSlowScroll;
+        this.queryCache = searchRequest.queryCache();
     }
 
     public ShardSearchRequest(ShardRouting shardRouting, int numberOfShards, SearchType searchType) {
@@ -221,6 +223,10 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         return useSlowScroll;
     }
 
+    public Boolean queryCache() {
+        return this.queryCache;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -255,15 +261,25 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             // This means that this request was send from a 1.0.x or 1.1.x node and we need to fallback to slow scroll.
             useSlowScroll = in.getVersion().before(ParsedScrollId.SCROLL_SEARCH_AFTER_MINIMUM_VERSION);
         }
+
+        if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
+            queryCache = in.readOptionalBoolean();
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        writeTo(out, false);
+    }
+
+    public void writeTo(StreamOutput out, boolean asKey) throws IOException {
         super.writeTo(out);
         out.writeString(index);
         out.writeVInt(shardId);
         out.writeByte(searchType.id());
-        out.writeVInt(numberOfShards);
+        if (!asKey) {
+            out.writeVInt(numberOfShards);
+        }
         if (scroll == null) {
             out.writeBoolean(false);
         } else {
@@ -274,7 +290,9 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         out.writeBytesReference(extraSource);
         out.writeStringArray(types);
         out.writeStringArrayNullable(filteringAliases);
-        out.writeVLong(nowInMillis);
+        if (!asKey) {
+            out.writeVLong(nowInMillis);
+        }
 
         if (out.getVersion().onOrAfter(Version.V_1_1_0)) {
             out.writeBytesReference(templateSource);
@@ -290,6 +308,10 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         }
         if (out.getVersion().onOrAfter(ParsedScrollId.SCROLL_SEARCH_AFTER_MINIMUM_VERSION)) {
             out.writeBoolean(useSlowScroll);
+        }
+
+        if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
+            out.writeOptionalBoolean(queryCache);
         }
     }
 }

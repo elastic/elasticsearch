@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.mget;
 
+import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.get.MultiGetItemResponse;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.get.MultiGetRequestBuilder;
@@ -71,25 +72,24 @@ public class SimpleMgetTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testThatParentPerDocumentIsSupported() throws Exception {
-        createIndex("test");
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
+                .addMapping("test", jsonBuilder()
+                        .startObject()
+                        .startObject("test")
+                        .startObject("_parent")
+                        .field("type", "foo")
+                        .endObject()
+                        .endObject()
+                        .endObject()));
         ensureYellow();
-        client().admin().indices().preparePutMapping("test").setType("test").setSource(jsonBuilder()
-                .startObject()
-                .startObject("test")
-                .startObject("_parent")
-                .field("type", "foo")
-                .endObject()
-                .endObject()
-                .endObject()
-        ).get();
 
         client().prepareIndex("test", "test", "1").setParent("4").setRefresh(true)
                 .setSource(jsonBuilder().startObject().field("foo", "bar").endObject())
                 .execute().actionGet();
 
         MultiGetResponse mgetResponse = client().prepareMultiGet()
-                .add(new MultiGetRequest.Item("test", "test", "1").parent("4"))
-                .add(new MultiGetRequest.Item("test", "test", "1"))
+                .add(new MultiGetRequest.Item(indexOrAlias(), "test", "1").parent("4"))
+                .add(new MultiGetRequest.Item(indexOrAlias(), "test", "1"))
                 .execute().actionGet();
 
         assertThat(mgetResponse.getResponses().length, is(2));
@@ -98,13 +98,13 @@ public class SimpleMgetTests extends ElasticsearchIntegrationTest {
 
         assertThat(mgetResponse.getResponses()[1].isFailed(), is(true));
         assertThat(mgetResponse.getResponses()[1].getResponse(), nullValue());
-        assertThat(mgetResponse.getResponses()[1].getFailure().getMessage(), equalTo("routing is required, but hasn't been specified"));
+        assertThat(mgetResponse.getResponses()[1].getFailure().getMessage(), equalTo("routing is required for [test]/[test]/[1]"));
     }
 
     @SuppressWarnings("unchecked")
     @Test
     public void testThatSourceFilteringIsSupported() throws Exception {
-        createIndex("test");
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
         ensureYellow();
         BytesReference sourceBytesRef = jsonBuilder().startObject()
                 .field("field", "1", "2")
@@ -118,9 +118,9 @@ public class SimpleMgetTests extends ElasticsearchIntegrationTest {
         MultiGetRequestBuilder request = client().prepareMultiGet();
         for (int i = 0; i < 100; i++) {
             if (i % 2 == 0) {
-                request.add(new MultiGetRequest.Item("test", "type", Integer.toString(i)).fetchSourceContext(new FetchSourceContext("included", "*.hidden_field")));
+                request.add(new MultiGetRequest.Item(indexOrAlias(), "type", Integer.toString(i)).fetchSourceContext(new FetchSourceContext("included", "*.hidden_field")));
             } else {
-                request.add(new MultiGetRequest.Item("test", "type", Integer.toString(i)).fetchSourceContext(new FetchSourceContext(false)));
+                request.add(new MultiGetRequest.Item(indexOrAlias(), "type", Integer.toString(i)).fetchSourceContext(new FetchSourceContext(false)));
             }
         }
 
@@ -129,6 +129,7 @@ public class SimpleMgetTests extends ElasticsearchIntegrationTest {
         assertThat(response.getResponses().length, equalTo(100));
         for (int i = 0; i < 100; i++) {
             MultiGetItemResponse responseItem = response.getResponses()[i];
+            assertThat(responseItem.getIndex(), equalTo("test"));
             if (i % 2 == 0) {
                 Map<String, Object> source = responseItem.getResponse().getSourceAsMap();
                 assertThat(source.size(), equalTo(1));
@@ -139,15 +140,14 @@ public class SimpleMgetTests extends ElasticsearchIntegrationTest {
                 assertThat(responseItem.getResponse().getSourceAsBytes(), nullValue());
             }
         }
-
-
     }
 
     @Test
     public void testThatRoutingPerDocumentIsSupported() throws Exception {
-        assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder()
-                .put(indexSettings())
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, between(2, DEFAULT_MAX_NUM_SHARDS))));
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
+                .setSettings(ImmutableSettings.builder()
+                        .put(indexSettings())
+                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, between(2, DEFAULT_MAX_NUM_SHARDS))));
         ensureYellow();
 
         client().prepareIndex("test", "test", "1").setRefresh(true).setRouting("2")
@@ -155,15 +155,21 @@ public class SimpleMgetTests extends ElasticsearchIntegrationTest {
                 .execute().actionGet();
 
         MultiGetResponse mgetResponse = client().prepareMultiGet()
-                .add(new MultiGetRequest.Item("test", "test", "1").routing("2"))
-                .add(new MultiGetRequest.Item("test", "test", "1"))
+                .add(new MultiGetRequest.Item(indexOrAlias(), "test", "1").routing("2"))
+                .add(new MultiGetRequest.Item(indexOrAlias(), "test", "1"))
                 .execute().actionGet();
 
         assertThat(mgetResponse.getResponses().length, is(2));
         assertThat(mgetResponse.getResponses()[0].isFailed(), is(false));
         assertThat(mgetResponse.getResponses()[0].getResponse().isExists(), is(true));
+        assertThat(mgetResponse.getResponses()[0].getResponse().getIndex(), is("test"));
 
         assertThat(mgetResponse.getResponses()[1].isFailed(), is(false));
         assertThat(mgetResponse.getResponses()[1].getResponse().isExists(), is(false));
+        assertThat(mgetResponse.getResponses()[1].getResponse().getIndex(), is("test"));
+    }
+
+    private static String indexOrAlias() {
+        return randomBoolean() ? "test" : "alias";
     }
 }

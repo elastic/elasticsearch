@@ -351,4 +351,9 @@ public class AllFieldMapper extends AbstractFieldMapper<String> implements Inter
     public boolean hasDocValues() {
         return false;
     }
+
+    @Override
+    public boolean isGenerated() {
+        return true;
+    }
 }

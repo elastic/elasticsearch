@@ -37,6 +37,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.common.inject.internal.Join;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -114,6 +115,7 @@ public abstract class AbstractTermVectorTests extends ElasticsearchIntegrationTe
         final public TestFieldSetting[] fieldSettings;
         final public String[] fieldContent;
         public String index = "test";
+        public String alias = "alias";
         public String type = "type1";
 
         public TestDoc(String id, TestFieldSetting[] fieldSettings, String[] fieldContent) {
@@ -125,6 +127,11 @@ public abstract class AbstractTermVectorTests extends ElasticsearchIntegrationTe
 
         public TestDoc index(String index) {
             this.index = index;
+            return this;
+        }
+
+        public TestDoc alias(String alias) {
+            this.alias = alias;
             return this;
         }
 
@@ -181,7 +188,7 @@ public abstract class AbstractTermVectorTests extends ElasticsearchIntegrationTe
         }
     }
 
-    protected void createIndexBasedOnFieldSettings(String index, TestFieldSetting[] fieldSettings) throws IOException {
+    protected void createIndexBasedOnFieldSettings(String index, String alias, TestFieldSetting[] fieldSettings) throws IOException {
         XContentBuilder mappingBuilder = jsonBuilder();
         mappingBuilder.startObject().startObject("type1").startObject("properties");
         for (TestFieldSetting field : fieldSettings) {
@@ -192,7 +199,7 @@ public abstract class AbstractTermVectorTests extends ElasticsearchIntegrationTe
                 .put(indexSettings())
                 .put("index.analysis.analyzer.tv_test.tokenizer", "standard")
                 .putArray("index.analysis.analyzer.tv_test.filter", "type_as_payload", "lowercase");
-        assertAcked(prepareCreate(index).addMapping("type1", mappingBuilder).setSettings(settings));
+        assertAcked(prepareCreate(index).addMapping("type1", mappingBuilder).setSettings(settings).addAlias(new Alias(alias)));
 
         ensureYellow();
     }
@@ -253,12 +260,12 @@ public abstract class AbstractTermVectorTests extends ElasticsearchIntegrationTe
             configs.add(config);
         }
         // always adds a test that fails
-        configs.add(new TestConfig(new TestDoc("doesnt_exist", new TestFieldSetting[]{}, new String[]{}).index("doesn't_exist"),
+        configs.add(new TestConfig(new TestDoc("doesnt_exist", new TestFieldSetting[]{}, new String[]{}).index("doesn't_exist").alias("doesn't_exist"),
                 new String[]{"doesnt_exist"}, true, true, true).expectedException(IndexMissingException.class));
 
         refresh();
 
-        return configs.toArray(new TestConfig[]{});
+        return configs.toArray(new TestConfig[configs.size()]);
     }
 
     protected TestFieldSetting[] getFieldSettings() {
@@ -267,12 +274,10 @@ public abstract class AbstractTermVectorTests extends ElasticsearchIntegrationTe
                 new TestFieldSetting("field_with_only_tv", false, false, false),
                 new TestFieldSetting("field_with_positions_offsets", false, false, true),
                 new TestFieldSetting("field_with_positions_payloads", false, true, true)
-
         };
     }
 
     protected DirectoryReader indexDocsWithLucene(TestDoc[] testDocs) throws IOException {
-
         Map<String, Analyzer> mapping = new HashMap<>();
         for (TestFieldSetting field : testDocs[0].fieldSettings) {
             if (field.storedPayloads) {
@@ -319,6 +324,7 @@ public abstract class AbstractTermVectorTests extends ElasticsearchIntegrationTe
     }
 
     protected void validateResponse(TermVectorResponse esResponse, Fields luceneFields, TestConfig testConfig) throws IOException {
+        assertThat(esResponse.getIndex(), equalTo(testConfig.doc.index));
         TestDoc testDoc = testConfig.doc;
         HashSet<String> selectedFields = testConfig.selectedFields == null ? null : new HashSet<>(
                 Arrays.asList(testConfig.selectedFields));
@@ -380,21 +386,16 @@ public abstract class AbstractTermVectorTests extends ElasticsearchIntegrationTe
                     } else {
                         assertThat("Missing payload test failed" + failDesc, esDocsPosEnum.getPayload(), equalTo(null));
                     }
-
                 }
             }
-
             assertNull("Es returned terms are done but lucene isn't", luceneTermEnum.next());
-
         }
-
     }
 
     protected TermVectorRequestBuilder getRequestForConfig(TestConfig config) {
-        return client().prepareTermVector(config.doc.index, config.doc.type, config.doc.id).setPayloads(config.requestPayloads)
+        return client().prepareTermVector(randomBoolean() ? config.doc.index : config.doc.alias, config.doc.type, config.doc.id).setPayloads(config.requestPayloads)
                 .setOffsets(config.requestOffsets).setPositions(config.requestPositions).setFieldStatistics(true).setTermStatistics(true)
                 .setSelectedFields(config.selectedFields);
-
     }
 
     protected Fields getTermVectorsFromLucene(DirectoryReader directoryReader, TestDoc doc) throws IOException {
@@ -405,5 +406,4 @@ public abstract class AbstractTermVectorTests extends ElasticsearchIntegrationTe
         assertEquals(1, scoreDocs.length);
         return directoryReader.getTermVectors(scoreDocs[0].doc);
     }
-
 }

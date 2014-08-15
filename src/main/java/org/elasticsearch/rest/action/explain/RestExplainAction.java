@@ -106,9 +106,10 @@ public class RestExplainAction extends BaseRestHandler {
             @Override
             public RestResponse buildResponse(ExplainResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();
-                builder.field(Fields._INDEX, explainRequest.index())
-                        .field(Fields._TYPE, explainRequest.type())
-                        .field(Fields._ID, explainRequest.id())
+                //null checks for bw comp, since we only added in 1.4 index, type and id to ExplainResponse
+                builder.field(Fields._INDEX, response.getIndex() != null ? response.getIndex() : explainRequest.index())
+                        .field(Fields._TYPE, response.getType() != null ? response.getType() : explainRequest.type())
+                        .field(Fields._ID, response.getId() != null ? response.getId() : explainRequest.id())
                         .field(Fields.MATCHED, response.isMatch());
 
                 if (response.hasExplanation()) {

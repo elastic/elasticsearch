@@ -24,6 +24,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 
@@ -41,8 +42,8 @@ class ShardOptimizeRequest extends BroadcastShardOperationRequest {
     ShardOptimizeRequest() {
     }
 
-    public ShardOptimizeRequest(String index, int shardId, OptimizeRequest request) {
-        super(index, shardId, request);
+    ShardOptimizeRequest(ShardId shardId, OptimizeRequest request) {
+        super(shardId, request);
         waitForMerge = request.waitForMerge();
         maxNumSegments = request.maxNumSegments();
         onlyExpungeDeletes = request.onlyExpungeDeletes();

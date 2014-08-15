@@ -30,26 +30,20 @@ import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
 
 /**
- *
+ * Internal transport action that broadcasts a delete by query request to all of the shards that belong to an index.
  */
 public class TransportIndexDeleteByQueryAction extends TransportIndexReplicationOperationAction<IndexDeleteByQueryRequest, IndexDeleteByQueryResponse, ShardDeleteByQueryRequest, ShardDeleteByQueryRequest, ShardDeleteByQueryResponse> {
 
-    private static final String ACTION_NAME = DeleteByQueryAction.NAME + "/index";
+    private static final String ACTION_NAME = DeleteByQueryAction.NAME + "[index]";
 
     @Inject
-    public TransportIndexDeleteByQueryAction(Settings settings, ClusterService clusterService, TransportService transportService,
+    public TransportIndexDeleteByQueryAction(Settings settings, ClusterService clusterService,
                                              ThreadPool threadPool, TransportShardDeleteByQueryAction shardDeleteByQueryAction, ActionFilters actionFilters) {
-        super(settings, ACTION_NAME, transportService, clusterService, threadPool, shardDeleteByQueryAction, actionFilters);
-    }
-
-    @Override
-    protected IndexDeleteByQueryRequest newRequestInstance() {
-        return new IndexDeleteByQueryRequest();
+        super(settings, ACTION_NAME, clusterService, threadPool, shardDeleteByQueryAction, actionFilters);
     }
 
     @Override

@@ -111,7 +111,7 @@ public class TransportCountAction extends TransportBroadcastOperationAction<Coun
     @Override
     protected ShardCountRequest newShardRequest(int numShards, ShardRouting shard, CountRequest request) {
         String[] filteringAliases = clusterService.state().metaData().filteringAliases(shard.index(), request.indices());
-        return new ShardCountRequest(shard.index(), shard.id(), filteringAliases, request);
+        return new ShardCountRequest(shard.shardId(), filteringAliases, request);
     }
 
     @Override
@@ -165,10 +165,10 @@ public class TransportCountAction extends TransportBroadcastOperationAction<Coun
 
     @Override
     protected ShardCountResponse shardOperation(ShardCountRequest request) throws ElasticsearchException {
-        IndexService indexService = indicesService.indexServiceSafe(request.index());
-        IndexShard indexShard = indexService.shardSafe(request.shardId());
+        IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
+        IndexShard indexShard = indexService.shardSafe(request.shardId().id());
 
-        SearchShardTarget shardTarget = new SearchShardTarget(clusterService.localNode().id(), request.index(), request.shardId());
+        SearchShardTarget shardTarget = new SearchShardTarget(clusterService.localNode().id(), request.shardId().getIndex(), request.shardId().id());
         SearchContext context = new DefaultSearchContext(0,
                 new ShardSearchRequest().types(request.types())
                         .filteringAliases(request.filteringAliases())
@@ -204,7 +204,7 @@ public class TransportCountAction extends TransportBroadcastOperationAction<Coun
                 } else {
                     count = Lucene.count(context.searcher(), context.query());
                 }
-                return new ShardCountResponse(request.index(), request.shardId(), count, terminatedEarly);
+                return new ShardCountResponse(request.shardId(), count, terminatedEarly);
             } catch (Exception e) {
                 throw new QueryPhaseExecutionException(context, "failed to execute count", e);
             }

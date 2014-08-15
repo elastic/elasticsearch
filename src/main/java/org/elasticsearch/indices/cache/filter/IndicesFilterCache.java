@@ -185,7 +185,6 @@ public class IndicesFilterCache extends AbstractComponent implements RemovalList
                             keys.add(it.next());
                             it.remove();
                         }
-                        cache.cleanUp();
                         if (!keys.isEmpty()) {
                             for (Iterator<WeightedFilterCache.FilterCacheKey> it = cache.asMap().keySet().iterator(); it.hasNext(); ) {
                                 WeightedFilterCache.FilterCacheKey filterCacheKey = it.next();
@@ -195,6 +194,7 @@ public class IndicesFilterCache extends AbstractComponent implements RemovalList
                                 }
                             }
                         }
+                        cache.cleanUp();
                         schedule();
                         keys.clear();
                     }

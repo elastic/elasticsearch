@@ -57,12 +57,9 @@ settings API:
 `index.index_concurrency`::
     Defaults to `8`.
 
-`index.codec`::
-    Codec. Default to `default`.
-
 `index.codec.bloom.load`::
-    Whether to load the bloom filter. Defaults to `true`.
-    See <<bloom-postings>>.
+    Whether to load the bloom filter. Defaults to `false`.
+    See <<codec-bloom-load>>.
 
 `index.fail_on_merge_failure`::
     Default to `true`.
@@ -225,3 +222,35 @@ curl -XPUT 'localhost:9200/myindex/_settings' -d '{
 
 curl -XPOST 'localhost:9200/myindex/_open'
 --------------------------------------------------
+
+[float]
+[[codec-bloom-load]]
+=== Bloom filters
+
+Up to version 1.3, Elasticsearch used to generate bloom filters for the `_uid`
+field at indexing time and to load them at search time in order to speed-up
+primary-key lookups by savings disk seeks.
+
+As of 1.4, bloom filters are still generated at indexing time, but they are
+no longer loaded at search time by default: they consume RAM in proportion to
+the number of unique terms, which can quickly add up for certain use cases,
+and separate performance improvements have made the performance gains with
+bloom filters very small.
+
+[TIP]
+==================================================
+
+You can enable loading of the bloom filter at search time on a
+per-index basis by updating the index settings:
+
+[source,js]
+--------------------------------------------------
+PUT /old_index/_settings?index.codec.bloom.load=true
+--------------------------------------------------
+
+This setting, which defaults to `false`, can be updated on a live index. Note,
+however, that changing the value will cause the index to be reopened, which
+will invalidate any existing caches.
+
+==================================================
+

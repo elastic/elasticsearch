@@ -12,7 +12,7 @@ core types:
 --------------------------------------------------
 {
     "tweet" {
-        "user" : "kimchy"
+        "user" : "kimchy",
         "message" : "This is a tweet!",
         "postDate" : "2009-11-15T14:12:12",
         "priority" : 4,
@@ -510,116 +510,6 @@ These filters can be updated on an existing field mapping and will take
 effect the next time the fielddata for a segment is loaded. Use the
 <<indices-clearcache,Clear Cache>> API
 to reload the fielddata using the new filters.
-
-[float]
-[[postings]]
-==== Postings format
-
-Posting formats define how fields are written into the index and how
-fields are represented into memory. Posting formats can be defined per
-field via the `postings_format` option. Postings format are configurable.
-Elasticsearch has several builtin formats:
-
-`direct`::
-        A postings format that uses disk-based storage but loads
-        its terms and postings directly into memory. Note this postings format
-        is very memory intensive and has certain limitation that don't allow
-        segments to grow beyond 2.1GB see \{@link DirectPostingsFormat} for
-        details.
-
-`memory`::
-        A postings format that stores its entire terms, postings,
-        positions and payloads in a finite state transducer. This format should
-        only be used for primary keys or with fields where each term is
-        contained in a very low number of documents.
-
-`pulsing`::
-        A postings format that in-lines the posting lists for very low
-        frequent terms in the term dictionary. This is useful to improve lookup
-        performance for low-frequent terms.
-
-`bloom_default`::
-        A postings format that uses a bloom filter to
-        improve term lookup performance. This is useful for primary keys or
-        fields that are used as a delete key.
-
-`bloom_pulsing`::
-        A postings format that combines the advantages of
-        *bloom* and *pulsing* to further improve lookup performance.
-
-`default`::
-        The default Elasticsearch postings format offering best
-        general purpose performance. This format is used if no postings format
-        is specified in the field mapping.
-
-[float]
-===== Postings format example
-
-On all field types it possible to configure a `postings_format`
-attribute:
-
-[source,js]
---------------------------------------------------
-{
-  "person" : {
-     "properties" : {
-         "second_person_id" : {"type" : "string", "postings_format" : "pulsing"}
-     }
-  }
-}
---------------------------------------------------
-
-On top of using the built-in posting formats it is possible define
-custom postings format. See
-<<index-modules-codec,codec module>> for more
-information.
-
-[float]
-==== Doc values format
-
-Doc values formats define how fields are written into column-stride storage in
-the index for the purpose of sorting or faceting. Fields that have doc values
-enabled will have special field data instances, which will not be uninverted
-from the inverted index, but directly read from disk. This makes _refresh faster
-and ultimately allows for having field data stored on disk depending on the
-configured doc values format.
-
-Doc values formats are configurable. Elasticsearch has several builtin formats:
-
-`memory`::
-        A doc values format which stores data in memory. Compared to the default
-        field data implementations, using doc values with this format will have
-        similar performance but will be faster to load, making '_refresh' less
-        time-consuming.
-
-`disk`::
-        A doc values format which stores all data on disk, requiring almost no
-        memory from the JVM at the cost of a slight performance degradation.
-
-`default`::
-        The default Elasticsearch doc values format, offering good performance
-        with low memory usage. This format is used if no format is specified in
-        the field mapping.
-
-[float]
-===== Doc values format example
-
-On all field types, it is possible to configure a `doc_values_format` attribute:
-
-[source,js]
---------------------------------------------------
-{
-  "product" : {
-     "properties" : {
-         "price" : {"type" : "integer", "doc_values_format" : "memory"}
-     }
-  }
-}
---------------------------------------------------
-
-On top of using the built-in doc values formats it is possible to define
-custom doc values formats. See
-<<index-modules-codec,codec module>> for more information.
 
 [float]
 ==== Similarity

@@ -37,7 +37,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.DocumentMissingException;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.percolator.PercolateException;
 import org.elasticsearch.percolator.PercolatorService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -170,7 +169,7 @@ public class TransportPercolateAction extends TransportBroadcastOperationAction<
 
     @Override
     protected PercolateShardRequest newShardRequest(int numShards, ShardRouting shard, PercolateRequest request) {
-        return new PercolateShardRequest(shard.index(), shard.id(), numShards, request);
+        return new PercolateShardRequest(shard.shardId(), numShards, request);
     }
 
     @Override
@@ -189,9 +188,8 @@ public class TransportPercolateAction extends TransportBroadcastOperationAction<
         try {
             return percolatorService.percolate(request);
         } catch (Throwable e) {
-            logger.trace("[{}][{}] failed to percolate", e, request.index(), request.shardId());
-            ShardId shardId = new ShardId(request.index(), request.shardId());
-            throw new PercolateException(shardId, "failed to percolate", e);
+            logger.trace("{} failed to percolate", e, request.shardId());
+            throw new PercolateException(request.shardId(), "failed to percolate", e);
         }
     }
 

@@ -233,6 +233,9 @@ that can be used for configuring this sandbox:
     Flag to disable the sandbox (defaults to `true` meaning the sandbox is
     enabled).
 
+When specifying whitelist or blacklist settings for the groovy sandbox, all
+options replace the current whitelist, they are not additive.
+    
 [float]
 === Automatic Script Reloading
 

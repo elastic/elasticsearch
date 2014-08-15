@@ -341,7 +341,7 @@ public class PercolateContext extends SearchContext {
     }
 
     @Override
-    public long nowInMillis() {
+    protected long nowInMillisImpl() {
         throw new UnsupportedOperationException();
     }
 

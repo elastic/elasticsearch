@@ -35,6 +35,7 @@ import org.elasticsearch.search.fetch.FetchSearchResultProvider;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.query.QuerySearchResultProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import static org.elasticsearch.action.search.type.TransportSearchHelper.buildScrollId;
@@ -55,7 +56,7 @@ public class TransportSearchCountAction extends TransportSearchTypeAction {
         new AsyncAction(searchRequest, listener).start();
     }
 
-    private class AsyncAction extends BaseAsyncAction<QuerySearchResult> {
+    private class AsyncAction extends BaseAsyncAction<QuerySearchResultProvider> {
 
         private AsyncAction(SearchRequest request, ActionListener<SearchResponse> listener) {
             super(request, listener);
@@ -67,7 +68,7 @@ public class TransportSearchCountAction extends TransportSearchTypeAction {
         }
 
         @Override
-        protected void sendExecuteFirstPhase(DiscoveryNode node, ShardSearchRequest request, SearchServiceListener<QuerySearchResult> listener) {
+        protected void sendExecuteFirstPhase(DiscoveryNode node, ShardSearchRequest request, SearchServiceListener<QuerySearchResultProvider> listener) {
             searchService.sendExecuteQuery(node, request, listener);
         }
 

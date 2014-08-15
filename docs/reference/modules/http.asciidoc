@@ -57,6 +57,10 @@ be cached for. Defaults to `1728000` (20 days)
 |`http.cors.allow-headers` |Which headers to allow. Defaults to
 `X-Requested-With, Content-Type, Content-Length`.
 
+|`http.cors.allow-credentials` | Whether the `Access-Control-Allow-Credentials`
+header should be returned. Note: This header is only returned, when the setting is
+set to `true`. Defaults to `false`
+
 
 |=======================================================================
 

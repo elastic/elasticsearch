@@ -106,7 +106,7 @@ public class TransportValidateQueryAction extends TransportBroadcastOperationAct
     @Override
     protected ShardValidateQueryRequest newShardRequest(int numShards, ShardRouting shard, ValidateQueryRequest request) {
         String[] filteringAliases = clusterService.state().metaData().filteringAliases(shard.index(), request.indices());
-        return new ShardValidateQueryRequest(shard.index(), shard.id(), filteringAliases, request);
+        return new ShardValidateQueryRequest(shard.shardId(), filteringAliases, request);
     }
 
     @Override
@@ -170,9 +170,9 @@ public class TransportValidateQueryAction extends TransportBroadcastOperationAct
 
     @Override
     protected ShardValidateQueryResponse shardOperation(ShardValidateQueryRequest request) throws ElasticsearchException {
-        IndexQueryParserService queryParserService = indicesService.indexServiceSafe(request.index()).queryParserService();
-        IndexService indexService = indicesService.indexServiceSafe(request.index());
-        IndexShard indexShard = indexService.shardSafe(request.shardId());
+        IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
+        IndexQueryParserService queryParserService = indexService.queryParserService();
+        IndexShard indexShard = indexService.shardSafe(request.shardId().id());
 
         boolean valid;
         String explanation = null;
@@ -206,6 +206,6 @@ public class TransportValidateQueryAction extends TransportBroadcastOperationAct
             SearchContext.removeCurrent();
         }
 
-        return new ShardValidateQueryResponse(request.index(), request.shardId(), valid, explanation, error);
+        return new ShardValidateQueryResponse(request.shardId(), valid, explanation, error);
     }
 }

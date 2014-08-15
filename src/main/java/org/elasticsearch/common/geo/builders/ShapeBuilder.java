@@ -293,12 +293,6 @@ public abstract class ShapeBuilder implements ToXContent {
 
             double position = intersection(p1, p2, dateline);
             if (!Double.isNaN(position)) {
-                if (position == 1) {
-                    if (Double.compare(p1.x, dateline) == Double.compare(edges[i].next.next.coordinate.x, dateline)) {
-                        // Ignore the ear
-                        continue;
-                    }
-                }
                 edges[i].intersection(position);
                 numIntersections++;
             }

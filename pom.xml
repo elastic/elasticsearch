@@ -60,7 +60,7 @@
         <dependency>
             <groupId>com.carrotsearch.randomizedtesting</groupId>
             <artifactId>randomizedtesting-runner</artifactId>
-            <version>2.1.2</version>
+            <version>2.1.6</version>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -197,7 +197,7 @@
         <dependency>
             <groupId>com.carrotsearch</groupId>
             <artifactId>hppc</artifactId>
-            <version>0.5.3</version>
+            <version>0.6.0</version>
         </dependency>
 
         <dependency>
@@ -253,7 +253,7 @@
         <dependency>
             <groupId>com.ning</groupId>
             <artifactId>compress-lzf</artifactId>
-            <version>0.9.6</version>
+            <version>1.0.2</version>
             <scope>compile</scope>
         </dependency>
 
@@ -263,6 +263,13 @@
             <version>3.0</version>
             <scope>compile</scope>
         </dependency>
+
+        <dependency>
+            <groupId>commons-cli</groupId>
+            <artifactId>commons-cli</artifactId>
+            <version>1.2</version>
+        </dependency>
+
         <!-- END: dependencies that are shaded -->
 
         <dependency>
@@ -667,6 +674,7 @@
                             <include>com.ning:compress-lzf</include>
                             <include>com.github.spullara.mustache.java:compiler</include>
                             <include>com.tdunning:t-digest</include>
+                            <include>commons-cli:commons-cli</include>
                         </includes>
                     </artifactSet>
                     <relocations>
@@ -705,6 +713,10 @@
                         <relocation>
                             <pattern>com.tdunning.math.stats</pattern>
                             <shadedPattern>org.elasticsearch.common.stats</shadedPattern>
+                        </relocation>
+                        <relocation>
+                            <pattern>org.apache.commons.cli</pattern>
+                            <shadedPattern>org.elasticsearch.common.cli.commons</shadedPattern>
                         </relocation>
                     </relocations>
                     <filters>
@@ -1153,7 +1165,10 @@
                                 <exclude>jsr166e/**</exclude>
                                 <!-- start excludes for valid system-out -->
                                 <exclude>org/elasticsearch/common/logging/log4j/ConsoleAppender*</exclude>
+                                <exclude>org/elasticsearch/common/http/client/HttpDownloadHelper*</exclude>
+                                <exclude>org/elasticsearch/common/cli/Terminal*</exclude>
                                 <exclude>org/elasticsearch/plugins/PluginManager.class</exclude>
+                                <exclude>org/elasticsearch/common/http/client/HttpDownloadHelper.class</exclude>
                                 <exclude>org/elasticsearch/bootstrap/Bootstrap.class</exclude>
                                 <exclude>org/elasticsearch/Version.class</exclude>
                                 <exclude>org/elasticsearch/common/lucene/search/Queries$QueryWrapperFilterFactory.class</exclude>
@@ -1232,6 +1247,8 @@
                                 <include>org/elasticsearch/cache/recycler/MockPageCacheRecycler.class</include>
                                 <include>org/apache/lucene/util/AbstractRandomizedTest.class</include>
                                 <include>org/apache/lucene/util/AbstractRandomizedTest$*.class</include>
+                                <include>org/elasticsearch/common/cli/CliToolTestCase.class</include>
+                                <include>org/elasticsearch/common/cli/CliToolTestCase$*.class</include>
                             </includes>
                             <excludes>
                                 <!-- unit tests for yaml suite parser & rest spec parser need to be excluded -->

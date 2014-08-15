@@ -27,7 +27,7 @@ import org.elasticsearch.client.IndicesAdminClient;
 public class GetAliasesAction extends IndicesAction<GetAliasesRequest, GetAliasesResponse, GetAliasesRequestBuilder> {
 
     public static final GetAliasesAction INSTANCE = new GetAliasesAction();
-    public static final String NAME = "indices/get/aliases";
+    public static final String NAME = "indices:admin/aliases/get";
 
     private GetAliasesAction() {
         super(NAME);

@@ -325,8 +325,8 @@ public class HeadersCopyClientTests extends ElasticsearchTestCase {
         } else {
             assertThat(request.getHeaders(), notNullValue());
             assertThat(request.getHeaders().size(), equalTo(headers.size()));
-            for (Map.Entry<String, Object> entry : request.getHeaders().entrySet()) {
-                assertThat(headers.get(entry.getKey()), equalTo(entry.getValue()));
+            for (String key : request.getHeaders()) {
+                assertThat(headers.get(key), equalTo(request.getHeader(key)));
             }
         }
     }

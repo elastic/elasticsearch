@@ -63,10 +63,10 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
         return this;
     }
 
-    public TermVectorResponse getTermVector(TermVectorRequest request) {
+    public TermVectorResponse getTermVector(TermVectorRequest request, String concreteIndex) {
         final Engine.Searcher searcher = indexShard.acquireSearcher("term_vector");
         IndexReader topLevelReader = searcher.reader();
-        final TermVectorResponse termVectorResponse = new TermVectorResponse(request.index(), request.type(), request.id());
+        final TermVectorResponse termVectorResponse = new TermVectorResponse(concreteIndex, request.type(), request.id());
         final Term uidTerm = new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(request.type(), request.id()));
         try {
             Fields topLevelFields = MultiFields.getFields(topLevelReader);
@@ -131,7 +131,7 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
             }
             // TODO: support for fetchSourceContext?
             GetResult getResult = indexShard.getService().get(
-                    get, request.id(), request.type(), validFields.toArray(Strings.EMPTY_ARRAY), null);
+                    get, request.id(), request.type(), validFields.toArray(Strings.EMPTY_ARRAY), null, false);
             generatedTermVectors = generateTermVectors(getResult.getFields().values(), request.offsets());
         } finally {
             get.release();

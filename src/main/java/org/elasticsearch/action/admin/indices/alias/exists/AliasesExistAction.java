@@ -28,7 +28,7 @@ import org.elasticsearch.client.IndicesAdminClient;
 public class AliasesExistAction extends IndicesAction<GetAliasesRequest, AliasesExistResponse, AliasesExistRequestBuilder> {
 
     public static final AliasesExistAction INSTANCE = new AliasesExistAction();
-    public static final String NAME = "indices/exists/aliases";
+    public static final String NAME = "indices:admin/aliases/exists";
 
     private AliasesExistAction() {
         super(NAME);

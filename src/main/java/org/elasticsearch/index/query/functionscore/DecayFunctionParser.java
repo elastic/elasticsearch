@@ -200,7 +200,7 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
             }
         }
         if (!scaleFound || !refFound) {
-            throw new ElasticsearchParseException("Both " + DecayFunctionBuilder.SCALE + "and " + DecayFunctionBuilder.ORIGIN
+            throw new ElasticsearchParseException("Both " + DecayFunctionBuilder.SCALE + " and " + DecayFunctionBuilder.ORIGIN
                     + " must be set for numeric fields.");
         }
         IndexNumericFieldData numericFieldData = parseContext.getForField(mapper);
@@ -381,6 +381,7 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         protected String getDistanceString(int docId) {
 
             StringBuilder values = new StringBuilder(mode.name());
+            values.append("[");
             doubleValues.setDocument(docId);
             final int num = doubleValues.count();
             if (num > 0) {

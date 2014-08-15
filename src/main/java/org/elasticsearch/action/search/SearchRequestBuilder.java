@@ -1069,6 +1069,16 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
+     * Sets if this request should use the query cache or not, assuming that it can (for
+     * example, if "now" is used, it will never be cached). By default (not set, or null,
+     * will default to the index level setting if query cache is enabled or not).
+     */
+    public SearchRequestBuilder setQueryCache(Boolean queryCache) {
+        request.queryCache(queryCache);
+        return this;
+    }
+
+    /**
      * Sets the source builder to be used with this request. Note, any operations done
      * on this require builder before are discarded as this internal builder replaces
      * what has been built up until this point.

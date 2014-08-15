@@ -62,6 +62,8 @@ import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.new
  */
 public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implements ZenPing {
 
+    public static final String ACTION_NAME = "internal:discovery/zen/multicast";
+
     private static final byte[] INTERNAL_HEADER = new byte[]{1, 9, 8, 4};
 
     private final String address;
@@ -106,7 +108,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
 
         logger.debug("using group [{}], with port [{}], ttl [{}], and address [{}]", group, port, ttl, address);
 
-        this.transportService.registerHandler(MulticastPingResponseRequestHandler.ACTION, new MulticastPingResponseRequestHandler());
+        this.transportService.registerHandler(ACTION_NAME, new MulticastPingResponseRequestHandler());
     }
 
     @Override
@@ -233,8 +235,6 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
     }
 
     class MulticastPingResponseRequestHandler extends BaseTransportRequestHandler<MulticastPingResponse> {
-
-        static final String ACTION = "discovery/zen/multicast";
 
         @Override
         public MulticastPingResponse newInstance() {
@@ -445,7 +445,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
                         // connect to the node if possible
                         try {
                             transportService.connectToNode(requestingNode);
-                            transportService.sendRequest(requestingNode, MulticastPingResponseRequestHandler.ACTION, multicastPingResponse, new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
+                            transportService.sendRequest(requestingNode, ACTION_NAME, multicastPingResponse, new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
                                 @Override
                                 public void handleException(TransportException exp) {
                                     logger.warn("failed to receive confirmation on sent ping response to [{}]", exp, requestingNode);
@@ -459,7 +459,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
                     }
                 });
             } else {
-                transportService.sendRequest(requestingNode, MulticastPingResponseRequestHandler.ACTION, multicastPingResponse, new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
+                transportService.sendRequest(requestingNode, ACTION_NAME, multicastPingResponse, new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
                     @Override
                     public void handleException(TransportException exp) {
                         if (lifecycle.started()) {

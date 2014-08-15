@@ -110,10 +110,6 @@ public class ExplainRequestBuilder extends SingleShardOperationRequestBuilder<Ex
 
     /**
      * Indicates whether the response should contain the stored _source
-     *
-     *
-     * @param fetch
-     * @return
      */
     public ExplainRequestBuilder setFetchSource(boolean fetch) {
         FetchSourceContext context = request.fetchSourceContext();
@@ -164,14 +160,6 @@ public class ExplainRequestBuilder extends SingleShardOperationRequestBuilder<Ex
      */
     public ExplainRequestBuilder setSource(BytesReference source, boolean unsafe) {
         request().source(source, unsafe);
-        return this;
-    }
-
-    /**
-     * Sets whether the actual explain action should occur in a different thread if executed locally.
-     */
-    public ExplainRequestBuilder operationThreaded(boolean threadedOperation) {
-        request().operationThreaded(threadedOperation);
         return this;
     }
 

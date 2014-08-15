@@ -160,7 +160,7 @@ public class SimpleDistributorTests extends ElasticsearchIntegrationTest {
         Set<String> nodes = internalCluster().nodesInclude("test");
         assertThat(nodes.isEmpty(), equalTo(false));
         IndicesService indicesService = internalCluster().getInstance(IndicesService.class, nodes.iterator().next());
-        InternalIndexShard indexShard = (InternalIndexShard) (indicesService.indexService(index).shard(shardId));
+        InternalIndexShard indexShard = (InternalIndexShard) (indicesService.indexService(index).shardSafe(shardId));
         return indexShard.store().directory();
     }
 }

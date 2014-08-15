@@ -76,11 +76,137 @@ public class IndexQueryParserFilterCachingTests extends ElasticsearchSingleNodeT
         return this.queryParser;
     }
 
+    /**
+     * Runner to test our cache cases when using date range filter
+     * @param lte could be null
+     * @param gte could be null
+     * @param forcedCache true if we want to force the cache, false if we want to force no cache, null either
+     * @param expectedCache true if we expect a cached filter
+     */
+    private void testDateRangeFilterCache(IndexQueryParserService queryParser, Object gte, Object lte, Boolean forcedCache, boolean expectedCache) {
+        RangeFilterBuilder filterBuilder = FilterBuilders.rangeFilter("born")
+                .gte(gte)
+                .lte(lte);
+        if (forcedCache != null) {
+            filterBuilder.cache(forcedCache);
+        }
+
+        Query parsedQuery = queryParser.parse(QueryBuilders.constantScoreQuery(filterBuilder)).query();
+        assertThat(parsedQuery, instanceOf(ConstantScoreQuery.class));
+
+
+        if (expectedCache) {
+            if (((ConstantScoreQuery)parsedQuery).getFilter() instanceof CachedFilter) {
+                logger.info("gte [{}], lte [{}], _cache [{}] is cached", gte, lte, forcedCache);
+            } else {
+                logger.warn("gte [{}], lte [{}], _cache [{}] should be cached", gte, lte, forcedCache);
+            }
+        } else {
+            if (((ConstantScoreQuery)parsedQuery).getFilter() instanceof NoCacheFilter) {
+                logger.info("gte [{}], lte [{}], _cache [{}] is not cached", gte, lte, forcedCache);
+            } else {
+                logger.warn("gte [{}], lte [{}], _cache [{}] should not be cached", gte, lte, forcedCache);
+            }
+        }
+
+       if (expectedCache) {
+            assertThat(((ConstantScoreQuery)parsedQuery).getFilter(), instanceOf(CachedFilter.class));
+        } else {
+            assertThat(((ConstantScoreQuery)parsedQuery).getFilter(), instanceOf(NoCacheFilter.class));
+        }
+    }
+
+    /**
+     * We test all possible combinations for range date filter cache
+     */
+    @Test
+    public void testDateRangeFilterCache() throws IOException {
+        IndexQueryParserService queryParser = queryParser();
+
+        testDateRangeFilterCache(queryParser, null, null, null, true);
+        testDateRangeFilterCache(queryParser, null, null, true, true);
+        testDateRangeFilterCache(queryParser, null, null, false, false);
+        testDateRangeFilterCache(queryParser, "now", null, null, false);
+        testDateRangeFilterCache(queryParser, null, "now", null, false);
+        testDateRangeFilterCache(queryParser, "now", "now", null, false);
+        testDateRangeFilterCache(queryParser, "now/d", null, null, true);
+        testDateRangeFilterCache(queryParser, null, "now/d", null, true);
+        testDateRangeFilterCache(queryParser, "now/d", "now/d", null, true);
+        testDateRangeFilterCache(queryParser, "2012-01-01", null, null, true);
+        testDateRangeFilterCache(queryParser, null, "2012-01-01", null, true);
+        testDateRangeFilterCache(queryParser, "2012-01-01", "2012-01-01", null, true);
+        testDateRangeFilterCache(queryParser, "now", "2012-01-01", null, false);
+        testDateRangeFilterCache(queryParser, "2012-01-01", "now", null, false);
+        testDateRangeFilterCache(queryParser, "2012-01-01", "now/d", null, true);
+        testDateRangeFilterCache(queryParser, "now/d", "2012-01-01", null, true);
+        testDateRangeFilterCache(queryParser, null, 1577836800, null, true);
+        testDateRangeFilterCache(queryParser, 1325376000, null, null, true);
+        testDateRangeFilterCache(queryParser, 1325376000, 1577836800, null, true);
+        testDateRangeFilterCache(queryParser, "now", 1577836800, null, false);
+        testDateRangeFilterCache(queryParser, 1325376000, "now", null, false);
+        testDateRangeFilterCache(queryParser, 1325376000, "now/d", null, true);
+        testDateRangeFilterCache(queryParser, "now/d", 1577836800, null, true);
+        testDateRangeFilterCache(queryParser, "now", null, true, false);
+        testDateRangeFilterCache(queryParser, null, "now", true, false);
+        testDateRangeFilterCache(queryParser, "now", "now", true, false);
+        testDateRangeFilterCache(queryParser, "now/d", null, true, true);
+        testDateRangeFilterCache(queryParser, null, "now/d", true, true);
+        testDateRangeFilterCache(queryParser, "now/d", "now/d", true, true);
+        testDateRangeFilterCache(queryParser, "2012-01-01", null, true, true);
+        testDateRangeFilterCache(queryParser, null, "2012-01-01", true, true);
+        testDateRangeFilterCache(queryParser, "2012-01-01", "2012-01-01", true, true);
+        testDateRangeFilterCache(queryParser, "now", "2012-01-01", true, false);
+        testDateRangeFilterCache(queryParser, "2012-01-01", "now", true, false);
+        testDateRangeFilterCache(queryParser, "2012-01-01", "now/d", true, true);
+        testDateRangeFilterCache(queryParser, "now/d", "2012-01-01", true, true);
+        testDateRangeFilterCache(queryParser, null, 1577836800, true, true);
+        testDateRangeFilterCache(queryParser, 1325376000, null, true, true);
+        testDateRangeFilterCache(queryParser, 1325376000, 1577836800, true, true);
+        testDateRangeFilterCache(queryParser, "now", 1577836800, true, false);
+        testDateRangeFilterCache(queryParser, 1325376000, "now", true, false);
+        testDateRangeFilterCache(queryParser, 1325376000, "now/d", true, true);
+        testDateRangeFilterCache(queryParser, "now/d", 1577836800, true, true);
+        testDateRangeFilterCache(queryParser, "now", null, false, false);
+        testDateRangeFilterCache(queryParser, null, "now", false, false);
+        testDateRangeFilterCache(queryParser, "now", "now", false, false);
+        testDateRangeFilterCache(queryParser, "now/d", null, false, false);
+        testDateRangeFilterCache(queryParser, null, "now/d", false, false);
+        testDateRangeFilterCache(queryParser, "now/d", "now/d", false, false);
+        testDateRangeFilterCache(queryParser, "2012-01-01", null, false, false);
+        testDateRangeFilterCache(queryParser, null, "2012-01-01", false, false);
+        testDateRangeFilterCache(queryParser, "2012-01-01", "2012-01-01", false, false);
+        testDateRangeFilterCache(queryParser, "now", "2012-01-01", false, false);
+        testDateRangeFilterCache(queryParser, "2012-01-01", "now", false, false);
+        testDateRangeFilterCache(queryParser, "2012-01-01", "now/d", false, false);
+        testDateRangeFilterCache(queryParser, "now/d", "2012-01-01", false, false);
+        testDateRangeFilterCache(queryParser, null, 1577836800, false, false);
+        testDateRangeFilterCache(queryParser, 1325376000, null, false, false);
+        testDateRangeFilterCache(queryParser, 1325376000, 1577836800, false, false);
+        testDateRangeFilterCache(queryParser, "now", 1577836800, false, false);
+        testDateRangeFilterCache(queryParser, 1325376000, "now", false, false);
+        testDateRangeFilterCache(queryParser, 1325376000, "now/d", false, false);
+        testDateRangeFilterCache(queryParser, "now/d", 1577836800, false, false);
+    }
+
     @Test
     public void testNoFilterParsing() throws IOException {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/date_range_in_boolean.json");
         Query parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(ConstantScoreQuery.class));
+        assertThat(((ConstantScoreQuery) parsedQuery).getFilter(), instanceOf(XBooleanFilter.class));
+        assertThat(((XBooleanFilter) ((ConstantScoreQuery) parsedQuery).getFilter()).clauses().get(1).getFilter(), instanceOf(NoCacheFilter.class));
+        assertThat(((XBooleanFilter) ((ConstantScoreQuery) parsedQuery).getFilter()).clauses().size(), is(2));
+
+        query = copyToStringFromClasspath("/org/elasticsearch/index/query/date_range_in_boolean_with_long_value.json");
+        parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(ConstantScoreQuery.class));
+        assertThat(((ConstantScoreQuery) parsedQuery).getFilter(), instanceOf(XBooleanFilter.class));
+        assertThat(((XBooleanFilter) ((ConstantScoreQuery) parsedQuery).getFilter()).clauses().get(1).getFilter(), instanceOf(CachedFilter.class));
+        assertThat(((XBooleanFilter) ((ConstantScoreQuery) parsedQuery).getFilter()).clauses().size(), is(2));
+
+        query = copyToStringFromClasspath("/org/elasticsearch/index/query/date_range_in_boolean_with_long_value_not_cached.json");
+        parsedQuery = queryParser.parse(query).query();
         assertThat(parsedQuery, instanceOf(ConstantScoreQuery.class));
         assertThat(((ConstantScoreQuery) parsedQuery).getFilter(), instanceOf(XBooleanFilter.class));
         assertThat(((XBooleanFilter) ((ConstantScoreQuery) parsedQuery).getFilter()).clauses().get(1).getFilter(), instanceOf(NoCacheFilter.class));

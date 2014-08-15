@@ -32,7 +32,6 @@ import org.elasticsearch.discovery.zen.ZenDiscoveryModule;
 import org.elasticsearch.transport.TransportModule;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty.NettyTransportModule;
-import org.hamcrest.CoreMatchers;
 import org.junit.Before;
 import org.junit.Ignore;
 
@@ -89,6 +88,9 @@ public abstract class ElasticsearchBackwardsCompatIntegrationTest extends Elasti
             throw new IllegalArgumentException("Invalid Backwards tests location path:" + path + " version: " + version);
         }
         File file = new File(path, "elasticsearch-" + version);
+        if (!file.exists()) {
+            throw new IllegalArgumentException("Backwards tests location is missing: " + file.getAbsolutePath());
+        }
         if (!file.isDirectory()) {
             throw new IllegalArgumentException("Backwards tests location is not a directory: " + file.getAbsolutePath());
         }
@@ -101,10 +103,15 @@ public abstract class ElasticsearchBackwardsCompatIntegrationTest extends Elasti
 
     protected TestCluster buildTestCluster(Scope scope) throws IOException {
         TestCluster cluster = super.buildTestCluster(scope);
-        ExternalNode externalNode = new ExternalNode(backwardsCompatibilityPath(), randomLong(), new NodeSettingsSource() {
+        ExternalNode externalNode = new ExternalNode(backwardsCompatibilityPath(), randomLong(), new SettingsSource() {
             @Override
-            public Settings settings(int nodeOrdinal) {
+            public Settings node(int nodeOrdinal) {
                 return externalNodeSettings(nodeOrdinal);
+            }
+
+            @Override
+            public Settings transportClient() {
+                return transportClientSettings();
             }
         });
         return new CompositeTestCluster((InternalTestCluster) cluster, between(minExternalNodes(), maxExternalNodes()), externalNode);

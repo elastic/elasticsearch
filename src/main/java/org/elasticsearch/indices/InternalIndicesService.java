@@ -74,14 +74,12 @@ import org.elasticsearch.plugins.PluginsService;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import static com.google.common.collect.Maps.newHashMap;
-import static com.google.common.collect.Sets.newHashSet;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
@@ -239,8 +237,8 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
         return indices.containsKey(index);
     }
 
-    public Set<String> indices() {
-        return newHashSet(indices.keySet());
+    public ImmutableMap<String, IndexService> indices() {
+        return indices;
     }
 
     public IndexService indexService(String index) {

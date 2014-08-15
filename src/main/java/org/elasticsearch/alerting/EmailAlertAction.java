@@ -6,10 +6,14 @@
 package org.elasticsearch.alerting;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -45,6 +49,27 @@ public class EmailAlertAction implements AlertAction {
 
     public void displayField(String displayField){
         this.displayField = displayField;
+    }
+
+    @Override
+    public String getActionName() {
+        return "email";
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder) throws IOException {
+        builder.startObject();
+        builder.field("addresses");
+        builder.startArray();
+        for (Address emailAddress : emailAddresses){
+            builder.value(emailAddress.toString());
+        }
+        builder.endArray();
+        if (displayField != null) {
+            builder.field("display", displayField);
+        }
+        builder.endObject();
+        return builder;
     }
 
     @Override

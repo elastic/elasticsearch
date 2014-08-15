@@ -47,6 +47,15 @@ public class AlertScheduler extends AbstractLifecycleComponent {
         }
     }
 
+    public boolean deleteAlertFromSchedule(String alertName) {
+        try {
+            scheduler.deleteJob(new JobKey(alertName));
+            return true;
+        } catch (SchedulerException se){
+            throw new ElasticsearchException("Failed to remove [" + alertName + "] from the scheduler", se);
+        }
+    }
+
     public void clearAlerts() {
         try {
             scheduler.clear();

@@ -9,7 +9,14 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.*;
+import org.omg.CORBA.NO_IMPLEMENT;
+
+import java.util.Map;
 
 import static org.elasticsearch.rest.RestStatus.*;
 import static org.elasticsearch.rest.RestRequest.Method.*;
@@ -30,9 +37,40 @@ public class AlertRestHandler implements RestHandler {
     @Override
     public void handleRequest(RestRequest request, RestChannel restChannel) throws Exception {
         logger.warn("GOT REST REQUEST");
-        if (request.method() == POST && request.path().contains("/_refresh") ) {
+        //@TODO : change these direct calls to actions/request/response/listener once we create the java client API
+        if (request.method() == POST && request.path().contains("/_refresh")) {
             alertManager.refreshAlerts();
+            restChannel.sendResponse(new BytesRestResponse(OK));
+            return;
+        } else if (request.method() == GET && request.path().contains("/_list")) {
+            Map<String, Alert> alertMap = alertManager.getSafeAlertMap();
+            XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
+            builder.startObject();
+            for (Map.Entry<String, Alert> alertEntry : alertMap.entrySet()) {
+                builder.field(alertEntry.getKey());
+                alertEntry.getValue().toXContent(builder);
+            }
+            builder.endObject();
+            restChannel.sendResponse(new BytesRestResponse(OK,builder));
+            return;
+        } else if (request.method() == POST && request.path().contains("/_create")) {
+            //TODO : this should all be moved to an action
+            Alert alert = alertManager.parseAlert(request.param("name"), XContentHelper.convertToMap(request.content(), request.contentUnsafe()).v2());
+            boolean added = alertManager.addAlert(alert.alertName(), alert, true);
+            XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
+            alert.toXContent(builder);
+            restChannel.sendResponse(new BytesRestResponse(OK,builder));
+            return;
+        } else if (request.method() == DELETE) {
+            String alertName = request.param("name");
+            alertManager.deleteAlert(alertName);
+            restChannel.sendResponse(new BytesRestResponse(OK));
+            return;
         }
-        restChannel.sendResponse(new BytesRestResponse(OK));
+
+        restChannel.sendResponse(new BytesRestResponse(NOT_IMPLEMENTED));
     }
+
+
+
 }

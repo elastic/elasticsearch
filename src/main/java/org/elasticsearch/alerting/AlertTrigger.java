@@ -6,6 +6,11 @@
 package org.elasticsearch.alerting;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
+
+import java.io.IOException;
 
 /**
  * Created by brian on 8/12/14.
@@ -100,6 +105,13 @@ public class AlertTrigger {
         public String toString(){
             return asString(this);
         }
+    }
+
+    public XContentBuilder toXContent(XContentBuilder builder) throws IOException {
+        builder.startObject();
+        builder.field(triggerType.toString(),trigger.toString()+value);
+        builder.endObject();
+        return builder;
     }
 
     public static enum TriggerType {

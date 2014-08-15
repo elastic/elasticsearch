@@ -7,7 +7,11 @@ package org.elasticsearch.alerting;
 
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 
+import java.io.IOException;
 import java.util.List;
 
 /**
@@ -98,7 +102,21 @@ public class Alert {
         this.indices = indices;
     }
 
-    public String toJSON(){
-        return null;
+    public XContentBuilder toXContent(XContentBuilder builder) throws IOException {
+        builder.startObject();
+        builder.field(AlertManager.QUERY_FIELD.getPreferredName(), queryName);
+        builder.field(AlertManager.SCHEDULE_FIELD.getPreferredName(), schedule);
+        builder.field(AlertManager.TIMEPERIOD_FIELD.getPreferredName(), timePeriod);
+        builder.field(AlertManager.LASTRAN_FIELD.getPreferredName(), lastRan);
+        builder.field(AlertManager.TRIGGER_FIELD.getPreferredName());
+        trigger.toXContent(builder);
+        builder.field(AlertManager.ACTION_FIELD.getPreferredName());
+        builder.startObject();
+        for (AlertAction action : actions){
+            builder.field(action.getActionName());
+            action.toXContent(builder);
+        }
+        builder.endObject();
+        return builder;
     }
 }

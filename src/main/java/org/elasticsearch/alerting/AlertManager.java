@@ -7,10 +7,14 @@ package org.elasticsearch.alerting;
 
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
@@ -21,8 +25,12 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHitField;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -36,13 +44,13 @@ public class AlertManager extends AbstractLifecycleComponent {
     public final String ALERT_TYPE = "alert";
     public final String QUERY_TYPE = "alertQuery";
 
-    public final ParseField QUERY_FIELD =  new ParseField("query");
-    public final ParseField SCHEDULE_FIELD =  new ParseField("schedule");
-    public final ParseField TRIGGER_FIELD = new ParseField("trigger");
-    public final ParseField TIMEPERIOD_FIELD = new ParseField("timeperiod");
-    public final ParseField ACTION_FIELD = new ParseField("action");
-    public final ParseField LASTRAN_FIELD = new ParseField("lastRan");
-    public final ParseField INDICES = new ParseField("indices");
+    public static final ParseField QUERY_FIELD =  new ParseField("query");
+    public static final ParseField SCHEDULE_FIELD =  new ParseField("schedule");
+    public static final ParseField TRIGGER_FIELD = new ParseField("trigger");
+    public static final ParseField TIMEPERIOD_FIELD = new ParseField("timeperiod");
+    public static final ParseField ACTION_FIELD = new ParseField("action");
+    public static final ParseField LASTRAN_FIELD = new ParseField("lastRan");
+    public static final ParseField INDICES = new ParseField("indices");
 
     private final Client client;
     private AlertScheduler scheduler;
@@ -72,13 +80,11 @@ public class AlertManager extends AbstractLifecycleComponent {
             }
             logger.warn("Loading alerts");
             try {
-                loadAlerts();
+                refreshAlerts();
                 started.set(true);
             } catch (Throwable t) {
                 logger.error("Failed to load alerts", t);
             }
-            //Build the mapping for the scheduler
-            sendAlertsToScheduler();
         }
     }
 
@@ -149,7 +155,6 @@ public class AlertManager extends AbstractLifecycleComponent {
                 alertMap.clear();
                 loadAlerts();
                 sendAlertsToScheduler();
-
             }
         } catch (Exception e){
             throw new ElasticsearchException("Failed to refresh alerts",e);
@@ -170,18 +175,82 @@ public class AlertManager extends AbstractLifecycleComponent {
             ).setTypes(ALERT_TYPE).setIndices(ALERT_INDEX).execute().get();
             for (SearchHit sh : searchResponse.getHits()) {
                 String alertId = sh.getId();
-                Alert alert = parseAlert(sh, alertId);
+                Alert alert = parseAlert(alertId, sh);
                 alertMap.put(alertId, alert);
             }
             logger.warn("Loaded [{}] alerts from the alert index.", alertMap.size());
         }
     }
 
-    private Alert parseAlert(SearchHit sh, String alertId) {
-        logger.warn("Found : [{}]", alertId);
-        Map<String,Object> fields = sh.sourceAsMap();
-        //Map<String,SearchHitField> fields = sh.getFields();
+    public boolean deleteAlert(String alertName) throws InterruptedException, ExecutionException{
+        synchronized (alertMap) {
+            if (alertMap.containsKey(alertName)) {
+                scheduler.deleteAlertFromSchedule(alertName);
+                alertMap.remove(alertName);
+                try {
+                    DeleteRequest deleteRequest = new DeleteRequest();
+                    deleteRequest.id(alertName);
+                    deleteRequest.index(ALERT_INDEX);
+                    deleteRequest.type(ALERT_TYPE);
+                    deleteRequest.operationThreaded(false);
+                    deleteRequest.refresh(true);
+                    if (client.delete(deleteRequest).actionGet().isFound()) {
+                        return true;
+                    } else {
+                        logger.warn("Couldn't find [{}] in the index triggering a full refresh", alertName);
+                        //Something went wrong refresh
+                        refreshAlerts();
+                        return false;
+                    }
+                }
+                catch (Exception e){
+                    logger.warn("Something went wrong when deleting [{}] from the index triggering a full refresh", e, alertName);
+                    //Something went wrong refresh
+                    refreshAlerts();
+                    throw e;
+                }
+            }
+        }
+        return false;
+    }
 
+    public boolean addAlert(String alertName, Alert alert, boolean persist) throws InterruptedException, ExecutionException{
+        synchronized (alertMap) {
+            if (alertMap.containsKey(alertName)) {
+                throw new ElasticsearchIllegalArgumentException("There is already an alert named ["+alertName+"]");
+            } else {
+                alertMap.put(alertName, alert);
+                scheduler.addAlert(alertName,alert);
+                if (persist) {
+                    XContentBuilder builder;
+                    try {
+                        builder = XContentFactory.jsonBuilder();
+                        IndexRequest indexRequest = new IndexRequest(ALERT_INDEX, ALERT_TYPE, alertName);
+                        indexRequest.listenerThreaded(false);
+                        indexRequest.operationThreaded(false);
+                        indexRequest.refresh(true); //Always refresh after indexing an alert
+                        indexRequest.source(alert.toXContent(builder).bytes(), true);
+                        indexRequest.opType(IndexRequest.OpType.CREATE);
+                        return client.index(indexRequest).get().isCreated();
+                    } catch (IOException ie) {
+                        throw new ElasticsearchIllegalStateException("Unable to convert alert to JSON", ie);
+                    }
+                } else {
+                    return true;
+                }
+            }
+        }
+    }
+
+    private Alert parseAlert(String alertId, SearchHit sh) {
+
+        Map<String, Object> fields = sh.sourceAsMap();
+        return parseAlert(alertId,fields);
+    }
+
+    public Alert parseAlert(String alertId, Map<String, Object> fields) {
+        //Map<String,SearchHitField> fields = sh.getFields();
+        logger.warn("Parsing : [{}]", alertId);
         for (String field : fields.keySet() ) {
             logger.warn("Field : [{}]", field);
         }
@@ -217,6 +286,12 @@ public class AlertManager extends AbstractLifecycleComponent {
         }
 
         return new Alert(alertId, query, trigger, timePeriod, actions, schedule, lastRan, indices);
+    }
+
+    public Map<String,Alert> getSafeAlertMap() {
+        synchronized (alertMap) {
+            return new HashMap<>(alertMap);
+        }
     }
 
     public Alert getAlertForName(String alertName) {

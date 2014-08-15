@@ -6,6 +6,7 @@
 package org.elasticsearch.alerting;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 
 import java.util.List;
 import java.util.Map;
@@ -32,6 +33,8 @@ public class EmailAlertActionFactory implements AlertActionFactory{
             if (displayField != null){
                 action.displayField(displayField.toString());
             }
+        } else {
+            throw new ElasticsearchIllegalArgumentException("Unable to parse [" + parameters + "] as an EmailAlertAction");
         }
         return action;
     }

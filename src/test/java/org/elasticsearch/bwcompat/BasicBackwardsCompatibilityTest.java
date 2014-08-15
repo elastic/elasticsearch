@@ -65,6 +65,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -451,6 +452,7 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
     }
 
     @Test
+    @TestLogging("index.snapshots:TRACE,index.shard.service:TRACE")
     public void testSnapshotAndRestore() throws ExecutionException, InterruptedException, IOException {
         logger.info("-->  creating repository");
         assertAcked(client().admin().cluster().preparePutRepository("test-repo")

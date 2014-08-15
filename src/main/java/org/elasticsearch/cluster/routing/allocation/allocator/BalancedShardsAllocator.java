@@ -75,7 +75,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
     private static final float DEFAULT_INDEX_BALANCE_FACTOR = 0.5f;
     private static final float DEFAULT_SHARD_BALANCE_FACTOR = 0.45f;
     private static final float DEFAULT_PRIMARY_BALANCE_FACTOR = 0.05f;
-    private static final float DEFAULT_SHARD_SIZE_BALANCE_FACTOR = 0f;
+    public static final float DEFAULT_SHARD_SIZE_BALANCE_FACTOR = 0f;
 
     class ApplySettings implements NodeSettingsService.Listener {
         @Override

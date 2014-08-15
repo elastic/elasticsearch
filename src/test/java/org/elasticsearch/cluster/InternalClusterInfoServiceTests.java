@@ -20,6 +20,9 @@
 package org.elasticsearch.cluster;
 
 import com.google.common.collect.ImmutableSet;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.TransportNodesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.*;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
@@ -27,8 +30,11 @@ import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
@@ -40,7 +46,6 @@ import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 
@@ -60,7 +65,7 @@ import static org.mockito.Mockito.*;
 public class InternalClusterInfoServiceTests extends ElasticsearchTestCase {
     private ImmutableSettings settings;
     private NodeSettingsService nodeSettingsService;
-    private TransportNodesStatsAction nodesStatsAction;
+    private DummyTransportNodesStatsAction nodesStatsAction;
     private TransportIndicesStatsAction indicesStatsAction;
     private ClusterService clusterService;
     private ThreadPool threadPool;
@@ -71,6 +76,8 @@ public class InternalClusterInfoServiceTests extends ElasticsearchTestCase {
 
     @Test
     public void onlyMasterSchedulesJobs() {
+        setup();
+
         verify(threadPool, never()).schedule(any(TimeValue.class), anyString(), any(Runnable.class));
 
         service.onMaster();
@@ -83,8 +90,18 @@ public class InternalClusterInfoServiceTests extends ElasticsearchTestCase {
         verify(threadPool, times(2)).schedule(any(TimeValue.class), anyString(), any(Runnable.class));
     }
 
+    @SuppressWarnings("unchecked")
     @Test
-    public void onlyMasterReschedulesJobs() {
+    public void onlyMasterReschedulesJobsAndOnlyEnabledRunsThem() {
+        boolean enabled = getRandom().nextBoolean();
+        ImmutableSettings.Builder settings = ImmutableSettings.builder();
+        if (!enabled) {
+            settings
+                .put(BalancedShardsAllocator.SETTING_SHARD_SIZE_BALANCE_FACTOR, 0f)
+                .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED, false);
+        }
+        setup(settings);
+
         // Snag the reschedule job
         service.onMaster();
         ArgumentCaptor<Runnable> rescheduleJob = ArgumentCaptor.forClass(Runnable.class);
@@ -102,10 +119,14 @@ public class InternalClusterInfoServiceTests extends ElasticsearchTestCase {
         }
         updateJob.getValue().run();
         verify(threadPool, demaster ? times(1) : times(2)).schedule(any(TimeValue.class), anyString(), rescheduleJob.capture());
+
+        verify(nodesStatsAction, enabled ? times(1) : never()).doExecute(any(NodesStatsRequest.class), any(ActionListener.class));
     }
 
     @Test
     public void indicesStatsCalculateCorrectly() {
+        setup();
+
         List<ShardStats> shards = new ArrayList<>();
         shards.add(stats("1", 0, true, "1mb"));
         shards.add(stats("1", 0, false, "1.2mb"));
@@ -154,10 +175,14 @@ public class InternalClusterInfoServiceTests extends ElasticsearchTestCase {
         }
         return total / sizes.length;
     }
-    @Before
-    public void setup() {
+
+    private void setup() {
+        setup(ImmutableSettings.builder());
+    }
+
+    private void setup(ImmutableSettings.Builder settingsBuilder) {
         ClusterName clusterName = new ClusterName("test");
-        settings = (ImmutableSettings) ImmutableSettings.builder().build();
+        settings = (ImmutableSettings) settingsBuilder.build();
         nodeSettingsService = new NodeSettingsService(settings);
         clusterService = mock(ClusterService.class, RETURNS_DEEP_STUBS);
         threadPool = mock(ThreadPool.class, RETURNS_DEEP_STUBS);
@@ -172,12 +197,27 @@ public class InternalClusterInfoServiceTests extends ElasticsearchTestCase {
 
         // Setup actions - these can't be mocked due to final methods.
         ActionFilters actionFilters = new ActionFilters(ImmutableSet.<ActionFilter> of());
-        nodesStatsAction = new TransportNodesStatsAction(settings, clusterName, threadPool, clusterService, transportService, nodeService,
-                actionFilters);
+        nodesStatsAction = spy(new DummyTransportNodesStatsAction(settings, clusterName, threadPool, clusterService, transportService,
+                nodeService, actionFilters));
         indicesStatsAction = new TransportIndicesStatsAction(settings, threadPool, clusterService, transportService, indicesService,
                 actionFilters);
 
         service = new InternalClusterInfoService(settings, nodeSettingsService, nodesStatsAction,
                 indicesStatsAction, clusterService, threadPool);
+    }
+
+    /**
+     * Dummy version of TransportNodeStatsAction that does nothing and has just
+     * enough guts exposed so it can be spied.
+     */
+    public static class DummyTransportNodesStatsAction extends TransportNodesStatsAction {
+        public DummyTransportNodesStatsAction(Settings settings, ClusterName clusterName, ThreadPool threadPool,
+                ClusterService clusterService, TransportService transportService, NodeService nodeService, ActionFilters actionFilters) {
+            super(settings, clusterName, threadPool, clusterService, transportService, nodeService, actionFilters);
+        }
+
+        @Override
+        public void doExecute(NodesStatsRequest request, ActionListener<NodesStatsResponse> listener) {
+        }
     }
 }

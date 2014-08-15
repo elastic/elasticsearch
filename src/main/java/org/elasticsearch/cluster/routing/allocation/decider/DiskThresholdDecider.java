@@ -77,7 +77,7 @@ public class DiskThresholdDecider extends AllocationDecider {
         public void onRefreshSettings(Settings settings) {
             String newLowWatermark = settings.get(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK, null);
             String newHighWatermark = settings.get(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK, null);
-            Boolean newEnableSetting =  settings.getAsBoolean(CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED, null);
+            Boolean newEnableSetting = settings.getAsBoolean(CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED, null);
 
             if (newEnableSetting != null) {
                 logger.info("updating [{}] from [{}] to [{}]", CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED,
@@ -126,8 +126,16 @@ public class DiskThresholdDecider extends AllocationDecider {
         this.freeBytesThresholdLow = thresholdBytesFromWatermark(lowWatermark);
         this.freeBytesThresholdHigh = thresholdBytesFromWatermark(highWatermark);
 
-        this.enabled = settings.getAsBoolean(CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED, true);
+        this.enabled = enabled(settings);
         nodeSettingsService.addListener(new ApplySettings());
+    }
+
+    /**
+     * @param settings settings to check
+     * @return do these settings enable the decider?
+     */
+    public static boolean enabled(Settings settings) {
+        return settings.getAsBoolean(CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED, true);
     }
 
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {

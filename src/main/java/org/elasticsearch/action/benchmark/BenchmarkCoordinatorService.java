@@ -19,6 +19,7 @@
 package org.elasticsearch.action.benchmark;
 
 import com.google.common.base.Joiner;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.ActionListener;
@@ -100,6 +101,11 @@ public class BenchmarkCoordinatorService extends AbstractBenchmarkService<Benchm
     @Override
     protected void doClose() throws ElasticsearchException { }
 
+    /**
+     * Listens for and responds to state transitions.
+     *
+     * @param event Cluster change event
+     */
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
 
@@ -117,7 +123,16 @@ public class BenchmarkCoordinatorService extends AbstractBenchmarkService<Benchm
             log(entry);
             final InternalCoordinatorState ics = benchmarks.get(entry.benchmarkId());
             if (ics == null) {
+                // Remove any unknown benchmark state from the cluster metadata
                 logger.warn("unknown benchmark in cluster metadata [{}]", entry.benchmarkId());
+                manager.clear(entry.benchmarkId(), new ActionListener() {
+                    @Override
+                    public void onResponse(Object o) { /* no-op */ }
+                    @Override
+                    public void onFailure(Throwable e) {
+                        logger.error("benchmark [{}]: failed to remove unknown benchmark from metadata", e, entry.benchmarkId());
+                    }
+                });
                 continue;
             }
 
@@ -163,10 +178,8 @@ public class BenchmarkCoordinatorService extends AbstractBenchmarkService<Benchm
                     }
                     break;
                 case FAILED:
-
-                    // NOCOMMIT - Finish
-                    throw new UnsupportedOperationException("Unimplemented");
-
+                    ics.onFailed.onStateChange(entry, new ElasticsearchException("benchmark [" + entry.benchmarkId() + "]: failed"));
+                    break;
                 case ABORTED:
                     if (allNodesAborted(entry)) {
                         assert ics.onAbort != null;
@@ -200,9 +213,10 @@ public class BenchmarkCoordinatorService extends AbstractBenchmarkService<Benchm
 
                 final InternalCoordinatorState ics = new InternalCoordinatorState(request, listener);
 
-                ics.onReady = new OnReadyStateChangeListener(ics);
+                ics.onReady    = new OnReadyStateChangeListener(ics);
                 ics.onFinished = new OnFinishedStateChangeListener(ics);
                 ics.onComplete = new OnCompleteStateChangeListener(ics);
+                ics.onFailed   = new OnFailedStateChangeListener(ics);
 
                 benchmarks.put(request.benchmarkId(), ics);
             }
@@ -366,34 +380,29 @@ public class BenchmarkCoordinatorService extends AbstractBenchmarkService<Benchm
 
     /* ** State Change Listeners ** */
 
-    private interface  StateChangeListener {
-        void onStateChange(BenchmarkMetaData.Entry entry);
-    }
-
     /**
      * Called when all executor nodes have reported {@link org.elasticsearch.cluster.metadata.BenchmarkMetaData.Entry.NodeState#READY}.
      * Sets top-level state to {@link org.elasticsearch.cluster.metadata.BenchmarkMetaData.State#RUNNING} and
      * per-node state to {@link org.elasticsearch.cluster.metadata.BenchmarkMetaData.Entry.NodeState#RUNNING}.
      */
-    private final class OnReadyStateChangeListener implements StateChangeListener {
+    private final class OnReadyStateChangeListener {
 
         final InternalCoordinatorState ics;
 
-        OnReadyStateChangeListener(InternalCoordinatorState ics) {
+        OnReadyStateChangeListener(final InternalCoordinatorState ics) {
             this.ics = ics;
         }
 
-        @Override
         public synchronized void onStateChange(final BenchmarkMetaData.Entry entry) {
 
-            manager.update(ics.benchmarkId, BenchmarkMetaData.State.RUNNING, BenchmarkMetaData.Entry.NodeState.RUNNING,
+            manager.update(entry.benchmarkId(), BenchmarkMetaData.State.RUNNING, BenchmarkMetaData.Entry.NodeState.RUNNING,
                     new ActionListener() {
                         @Override
                         public void onResponse(Object o) { /* no-op */ }
 
                         @Override
                         public void onFailure(Throwable e) {
-                            ics.onFailure(e);
+                            ics.onFailed.onStateChange(entry, e);
                         }
                     });
         }
@@ -405,15 +414,14 @@ public class BenchmarkCoordinatorService extends AbstractBenchmarkService<Benchm
      * Sets top-level state to {@link org.elasticsearch.cluster.metadata.BenchmarkMetaData.State#COMPLETED} and
      * per-node state to {@link org.elasticsearch.cluster.metadata.BenchmarkMetaData.Entry.NodeState#COMPLETED}.
      */
-    private final class OnFinishedStateChangeListener implements StateChangeListener {
+    private final class OnFinishedStateChangeListener {
 
         final InternalCoordinatorState ics;
 
-        OnFinishedStateChangeListener(InternalCoordinatorState ics) {
+        OnFinishedStateChangeListener(final InternalCoordinatorState ics) {
             this.ics = ics;
         }
 
-        @Override
         public synchronized void onStateChange(final BenchmarkMetaData.Entry entry) {
 
             try {
@@ -421,21 +429,17 @@ public class BenchmarkCoordinatorService extends AbstractBenchmarkService<Benchm
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 logger.error("benchmark [{}]: failed to read status", e, entry.benchmarkId());
-
-                // NOCOMMIT - Should we respond to the listener here or set the state to FAILED and
-                //            initiate failure procedure?
-
-                ics.onFailure(e);
+                ics.onFailed.onStateChange(entry, e);
             }
 
-            manager.update(ics.benchmarkId, BenchmarkMetaData.State.COMPLETED, BenchmarkMetaData.Entry.NodeState.COMPLETED,
+            manager.update(entry.benchmarkId(), BenchmarkMetaData.State.COMPLETED, BenchmarkMetaData.Entry.NodeState.COMPLETED,
                     new ActionListener() {
                         @Override
                         public void onResponse(Object o) { /* no-op */ }
 
                         @Override
                         public void onFailure(Throwable e) {
-                            ics.onFailure(e);
+                            ics.onFailed.onStateChange(entry, e);
                         }
                     });
         }
@@ -444,7 +448,7 @@ public class BenchmarkCoordinatorService extends AbstractBenchmarkService<Benchm
     /**
      * Called when top-level state has been reported as {@link org.elasticsearch.cluster.metadata.BenchmarkMetaData.State#COMPLETED}.
      */
-    private final class OnCompleteStateChangeListener implements StateChangeListener {
+    private final class OnCompleteStateChangeListener {
 
         final InternalCoordinatorState ics;
 
@@ -452,19 +456,18 @@ public class BenchmarkCoordinatorService extends AbstractBenchmarkService<Benchm
             this.ics = ics;
         }
 
-        @Override
         public synchronized void onStateChange(final BenchmarkMetaData.Entry entry) {
 
-             manager.clear(ics.benchmarkId, new ActionListener() {
+             manager.clear(entry.benchmarkId(), new ActionListener() {
                 @Override
                 public void onResponse(Object o) {
-                    benchmarks.remove(ics.benchmarkId);
+                    benchmarks.remove(entry.benchmarkId());
                     ics.onResponse();
                 }
 
                 @Override
                 public void onFailure(Throwable e) {
-                    benchmarks.remove(ics.benchmarkId);
+                    benchmarks.remove(entry.benchmarkId());
                     ics.onFailure(e);
                 }
             });
@@ -475,7 +478,7 @@ public class BenchmarkCoordinatorService extends AbstractBenchmarkService<Benchm
      * Called when top-level state has been reported as {@link org.elasticsearch.cluster.metadata.BenchmarkMetaData.State#ABORTED}
      * and all executor nodes have reported {@link org.elasticsearch.cluster.metadata.BenchmarkMetaData.Entry.NodeState#ABORTED}.
      */
-    private final class OnAbortStateChangeListener implements StateChangeListener {
+    private final class OnAbortStateChangeListener {
 
         final CountDown                              countdown;
         final ActionListener<BenchmarkAbortResponse> listener;
@@ -487,8 +490,7 @@ public class BenchmarkCoordinatorService extends AbstractBenchmarkService<Benchm
             this.response  = new BenchmarkAbortResponse();
         }
 
-        @Override
-        public synchronized void onStateChange(BenchmarkMetaData.Entry entry) {
+        public synchronized void onStateChange(final BenchmarkMetaData.Entry entry) {
 
             try {
                 for (Map.Entry<String, BenchmarkMetaData.Entry.NodeState> e : entry.nodeStateMap().entrySet()) {
@@ -512,7 +514,7 @@ public class BenchmarkCoordinatorService extends AbstractBenchmarkService<Benchm
      * Called when top-level state has been reported as {@link org.elasticsearch.cluster.metadata.BenchmarkMetaData.State#PAUSED}
      * and all executor nodes have reported {@link org.elasticsearch.cluster.metadata.BenchmarkMetaData.Entry.NodeState#PAUSED}.
      */
-    private final class OnPausedStateChangeListener implements StateChangeListener {
+    private final class OnPausedStateChangeListener {
 
         final CountDown                              countdown;
         final ActionListener<BenchmarkPauseResponse> listener;
@@ -524,8 +526,7 @@ public class BenchmarkCoordinatorService extends AbstractBenchmarkService<Benchm
             this.response  = new BenchmarkPauseResponse();
         }
 
-        @Override
-        public synchronized void onStateChange(BenchmarkMetaData.Entry entry) {
+        public synchronized void onStateChange(final BenchmarkMetaData.Entry entry) {
 
             try {
                 for (Map.Entry<String, BenchmarkMetaData.Entry.NodeState> e : entry.nodeStateMap().entrySet()) {
@@ -543,7 +544,7 @@ public class BenchmarkCoordinatorService extends AbstractBenchmarkService<Benchm
     /**
      * Called when top-level state has been reported as {@link org.elasticsearch.cluster.metadata.BenchmarkMetaData.State#RESUMING}.
      */
-    private final class OnResumedStateChangeListener implements StateChangeListener {
+    private final class OnResumedStateChangeListener {
 
         final CountDown                               countdown;
         final ActionListener<BenchmarkResumeResponse> listener;
@@ -555,8 +556,7 @@ public class BenchmarkCoordinatorService extends AbstractBenchmarkService<Benchm
             this.response  = new BenchmarkResumeResponse();
         }
 
-        @Override
-        public synchronized void onStateChange(BenchmarkMetaData.Entry entry) {
+        public synchronized void onStateChange(final BenchmarkMetaData.Entry entry) {
 
             try {
                 for (Map.Entry<String, BenchmarkMetaData.Entry.NodeState> e : entry.nodeStateMap().entrySet()) {
@@ -565,17 +565,14 @@ public class BenchmarkCoordinatorService extends AbstractBenchmarkService<Benchm
 
                 final InternalCoordinatorState ics = benchmarks.get(entry.benchmarkId());
 
-                manager.update(ics.benchmarkId, BenchmarkMetaData.State.RUNNING, BenchmarkMetaData.Entry.NodeState.RUNNING,
+                manager.update(entry.benchmarkId(), BenchmarkMetaData.State.RUNNING, BenchmarkMetaData.Entry.NodeState.RUNNING,
                         new ActionListener() {
                             @Override
                             public void onResponse(Object o) { /* no-op */ }
 
                             @Override
                             public void onFailure(Throwable e) {
-
-                                // NOCOMMIT - Add this to node response?
-
-                                ics.onFailure(e);
+                                ics.onFailed.onStateChange(entry, e);
                             }
                         });
             } finally {
@@ -583,6 +580,35 @@ public class BenchmarkCoordinatorService extends AbstractBenchmarkService<Benchm
                     listener.onResponse(response);
                 }
             }
+        }
+    }
+
+    private final class OnFailedStateChangeListener {
+
+        final InternalCoordinatorState ics;
+
+        OnFailedStateChangeListener(final InternalCoordinatorState ics) {
+            this.ics = ics;
+        }
+
+        public synchronized void onStateChange(final BenchmarkMetaData.Entry entry, final Throwable cause) {
+
+            manager.clear(entry.benchmarkId(), new ActionListener() {
+                @Override
+                public void onResponse(Object o) {
+                    respond(entry.benchmarkId(), cause);
+                }
+
+                @Override
+                public void onFailure(Throwable e) {
+                    respond(entry.benchmarkId(), cause);
+                }
+            });
+        }
+
+        private void respond(final String benchmarkId, final Throwable cause) {
+            benchmarks.remove(benchmarkId);
+            ics.onFailure(cause);
         }
     }
 
@@ -609,8 +635,9 @@ public class BenchmarkCoordinatorService extends AbstractBenchmarkService<Benchm
         OnPausedStateChangeListener   onPaused;
         OnResumedStateChangeListener  onResumed;
         OnAbortStateChangeListener    onAbort;
+        OnFailedStateChangeListener   onFailed;
 
-        InternalCoordinatorState(BenchmarkStartRequest request, final ActionListener<BenchmarkStartResponse> listener) {
+        InternalCoordinatorState(final BenchmarkStartRequest request, final ActionListener<BenchmarkStartResponse> listener) {
             this.benchmarkId = request.benchmarkId();
             this.request     = request;
             this.listener    = listener;
@@ -669,7 +696,7 @@ public class BenchmarkCoordinatorService extends AbstractBenchmarkService<Benchm
         }
     }
 
-    private void preconditions(int num) {
+    protected void preconditions(int num) {
         final int n = BenchmarkUtility.executors(clusterService.state().nodes(), num).size();
         if (n < num) {
             throw new BenchmarkNodeMissingException(

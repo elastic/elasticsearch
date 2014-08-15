@@ -52,7 +52,7 @@ import java.util.*;
 /**
  * Manages cluster metadata state for benchmarks
  */
-public final class BenchmarkStateManager {
+public class BenchmarkStateManager {
 
     private static final ESLogger logger = ESLoggerFactory.getLogger(BenchmarkStateManager.class.getName());
 

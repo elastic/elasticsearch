@@ -38,12 +38,14 @@ import static org.junit.Assert.*;
  */
 public class MockBenchmarkCoordinatorService extends BenchmarkCoordinatorService {
 
+    private final MockBenchmarkStateManager mockStateManager;
     private final Map<String, Lifecycle> lifecycles = new HashMap<>();
 
     @Inject
     public MockBenchmarkCoordinatorService(Settings settings, ClusterService clusterService, ThreadPool threadPool,
-                                           TransportService transportService, BenchmarkStateManager manager) {
+                                           TransportService transportService, MockBenchmarkStateManager manager) {
         super(settings, clusterService, threadPool, transportService, manager);
+        this.mockStateManager = manager;
     }
 
     @Override
@@ -108,6 +110,7 @@ public class MockBenchmarkCoordinatorService extends BenchmarkCoordinatorService
 
     public void clearMockState() {
         lifecycles.clear();
+        mockStateManager.forceFailureOnUpdate = false;
     }
 
     public static class Lifecycle {
@@ -212,5 +215,9 @@ public class MockBenchmarkCoordinatorService extends BenchmarkCoordinatorService
         for (BenchmarkMetaData.Entry entry : meta.entries()) {
             assertFalse(benchmarkId.equals(entry.benchmarkId()));
         }
+    }
+
+    public MockBenchmarkStateManager mockBenchmarkStateManager() {
+        return mockStateManager;
     }
 }

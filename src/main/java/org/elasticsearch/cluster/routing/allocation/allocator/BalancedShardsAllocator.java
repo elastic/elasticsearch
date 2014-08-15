@@ -207,12 +207,12 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
         private final float shardSizeBalance;
         private final EnumMap<Operation, float[]> thetaMap = new EnumMap<>(Operation.class);
 
-        public WeightFunction(float indexBalance, float shardBalance, float primaryBalance, float sizeBalance) {
-            float sum = indexBalance + shardBalance + primaryBalance + sizeBalance;
+        public WeightFunction(float indexBalance, float shardBalance, float primaryBalance, float shardSizeBalance) {
+            float sum = indexBalance + shardBalance + primaryBalance + shardSizeBalance;
             if (sum <= 0.0f) {
                 throw new ElasticsearchIllegalArgumentException("Balance factors must sum to a value > 0 but was: " + sum);
             }
-            final float[] defaultTheta = new float[]{shardBalance / sum, indexBalance / sum, primaryBalance / sum, sizeBalance / sum};
+            final float[] defaultTheta = new float[]{shardBalance / sum, indexBalance / sum, primaryBalance / sum, shardSizeBalance / sum};
             for (Operation operation : Operation.values()) {
                 switch (operation) {
                     case THRESHOLD_CHECK:
@@ -220,7 +220,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                         if (sum <= 0.0f) {
                             thetaMap.put(operation, defaultTheta);
                         } else {
-                            thetaMap.put(operation, new float[]{shardBalance / sum, indexBalance / sum, 0, sizeBalance / sum});
+                            thetaMap.put(operation, new float[]{shardBalance / sum, indexBalance / sum, 0, shardSizeBalance / sum});
                         }
                         break;
                     case BALANCE:
@@ -235,7 +235,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             this.indexBalance = indexBalance;
             this.shardBalance = shardBalance;
             this.primaryBalance = primaryBalance;
-            this.shardSizeBalance = sizeBalance;
+            this.shardSizeBalance = shardSizeBalance;
         }
 
         public float weight(Operation operation, Balancer balancer, ModelNode node, String index) {

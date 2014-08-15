@@ -94,11 +94,36 @@ a different default field.
 [float]
 ==== Multi Field
 
-The `query_string` query can also run against multiple fields. The idea
-of running the `query_string` query against multiple fields is by
-internally creating several queries for the same query string, each with
-`default_field` that match the fields provided. Since several queries
-are generated, combining them can be automatically done either using a
+The `query_string` query can also run against multiple fields. Fields can be provided via the `"fields"` parameter (example below).
+
+The idea of running the `query_string` query against multiple fields is to expand each query term to an OR clause like this
+`field1:query_term OR field2:query_term | ...`.
+
+For example, the following query 
+
+[source,js]
+--------------------------------------------------
+{
+    "query_string" : {
+        "fields" : ["content", "name"],
+        "query" : "this AND that"
+    }
+}
+--------------------------------------------------
+
+matches the same words as
+
+
+[source,js]
+--------------------------------------------------
+{
+    "query_string": {
+      "query": "(content:this OR content:thus) AND (name:this OR name:thus)"
+    }
+}
+--------------------------------------------------
+
+Since several queries are generated from the individual searchterms, combining them can be automatically done either using a
 `dis_max` query or a simple `bool` query. For example (the `name` is
 boosted by 5 using `^5` notation):
 

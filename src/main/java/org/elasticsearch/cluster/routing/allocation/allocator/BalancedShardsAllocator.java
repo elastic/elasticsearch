@@ -361,9 +361,11 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                 return 0;
             }
 
+            Set<String> shardsSet = new HashSet<String>();
+            shardsSet.addAll(shards);
             for (Map.Entry<String, ModelIndex> currentIndex: weighingNode.indices.entrySet()) {
                 for (MutableShardRouting shard: currentIndex.getValue().getAllShards()) {
-                    if (shards.contains(InternalClusterInfoService.shardIdentifierFromRouting(shard))) {
+                    if (shardsSet.contains(InternalClusterInfoService.shardIdentifierFromRouting(shard))) {
                         nodeCount++;
                     }
                 }
@@ -509,7 +511,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
          */
         private boolean readyToBalance() {
             // Is size balance required but not ready?
-            return weight.shardSizeBalance == 0 || allocation.clusterInfo().getShardsBucketedBySize().isEmpty();
+            return weight.shardSizeBalance == 0 || !allocation.clusterInfo().getShardsBucketedBySize().isEmpty();
         }
 
         /**

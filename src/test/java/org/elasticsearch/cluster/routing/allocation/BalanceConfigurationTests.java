@@ -294,7 +294,6 @@ public class BalanceConfigurationTests extends ElasticsearchAllocationTestCase {
             for (IndexShardRoutingTable shard: index) {
                 for (ShardRouting replica: shard) {
                     if (!replica.started()) {
-                        logger.info("Not started");
                         return false;
                     }
                 }
@@ -467,8 +466,10 @@ public class BalanceConfigurationTests extends ElasticsearchAllocationTestCase {
                 String sid = String.format(Locale.US, "[test%s][%s]", i, s);
                 shardSizes.put(sid + "[p]", sizes[i]);
                 shardSizes.put(sid + "[r]", sizes[i]);
-                shardsBucketedBySize.add(sizes[i], sid);
-                shardsBucketedBySize.add(sizes[i], sid);
+                shardsBucketedBySize.add(sizes[i], sid + "[p]");
+                for (int r = 0; r < numberOfReplicas; r++) {
+                    shardsBucketedBySize.add(sizes[i], sid + "[r]");
+                }
             }
         }
         clusterInfo = new ClusterInfo(ImmutableMap.<String, DiskUsage> of(), shardSizes.build(), indexToAverageShardSize.build(),

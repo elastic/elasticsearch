@@ -45,12 +45,12 @@ import java.util.Set;
  * </ul>
  */
 @AnalysisSettingsRequired
-public class KeepTypeFilterFactory extends AbstractTokenFilterFactory {
+public class KeepTypesFilterFactory extends AbstractTokenFilterFactory {
     private final Set<String> keepTypes;
     private static final String KEEP_TYPES_KEY = "types";
 
     @Inject
-    public KeepTypeFilterFactory(Index index, @IndexSettings Settings indexSettings,
+    public KeepTypesFilterFactory(Index index, @IndexSettings Settings indexSettings,
                                  Environment env, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
 

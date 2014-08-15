@@ -147,7 +147,7 @@ public class AnalysisFactoryTests extends ElasticsearchTestCase {
         put("trim",                      TrimTokenFilterFactory.class);
         put("truncate",                  TruncateTokenFilterFactory.class);
         put("turkishlowercase",          LowerCaseTokenFilterFactory.class);
-        put("type",                      KeepTypeFilterFactory.class);
+        put("type",                      KeepTypesFilterFactory.class);
         put("uppercase",                 UpperCaseTokenFilterFactory.class);
         put("worddelimiter",             WordDelimiterTokenFilterFactory.class);
                 

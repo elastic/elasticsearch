@@ -41,7 +41,7 @@ public class KeepTypeFilterFactoryTests extends ElasticsearchTokenStreamTestCase
                 .build();
         AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settings);
         TokenFilterFactory tokenFilter = analysisService.tokenFilter("keep_numbers");
-        assertThat(tokenFilter, instanceOf(KeepTypeFilterFactory.class));
+        assertThat(tokenFilter, instanceOf(KeepTypesFilterFactory.class));
         String source = "Hello 123 world";
         String[] expected = new String[]{"123"};
         Tokenizer tokenizer = new StandardTokenizer(TEST_VERSION_CURRENT, new StringReader(source));

@@ -111,11 +111,23 @@ public class Alert {
         builder.field(AlertManager.TRIGGER_FIELD.getPreferredName());
         trigger.toXContent(builder);
         builder.field(AlertManager.ACTION_FIELD.getPreferredName());
+
         builder.startObject();
         for (AlertAction action : actions){
             builder.field(action.getActionName());
             action.toXContent(builder);
         }
+        builder.endObject();
+
+        if (indices != null && !indices.isEmpty()) {
+            builder.field(AlertManager.INDICES.getPreferredName());
+            builder.startArray();
+            for (String index : indices){
+                builder.value(index);
+            }
+            builder.endArray();
+        }
+
         builder.endObject();
         return builder;
     }

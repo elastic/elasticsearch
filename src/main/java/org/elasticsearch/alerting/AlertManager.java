@@ -16,8 +16,11 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -27,10 +30,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -42,7 +48,7 @@ public class AlertManager extends AbstractLifecycleComponent {
 
     public final String ALERT_INDEX = ".alerts";
     public final String ALERT_TYPE = "alert";
-    public final String QUERY_TYPE = "alertQuery";
+    public final String ALERT_HISTORY_TYPE = "alertHistory";
 
     public static final ParseField QUERY_FIELD =  new ParseField("query");
     public static final ParseField SCHEDULE_FIELD =  new ParseField("schedule");
@@ -182,6 +188,65 @@ public class AlertManager extends AbstractLifecycleComponent {
         }
     }
 
+    public long getLastEventCount(String alertName){
+        return 0;
+    }
+
+    public boolean updateLastRan(String alertName, DateTime fireTime) throws Exception {
+        try {
+            synchronized (alertMap) {
+                Alert alert = getAlertForName(alertName);
+                alert.lastRan(fireTime);
+                XContentBuilder alertBuilder = XContentFactory.jsonBuilder().prettyPrint();
+                alert.toXContent(alertBuilder);
+                UpdateRequest updateRequest = new UpdateRequest();
+                updateRequest.id(alertName);
+                updateRequest.index(ALERT_INDEX);
+                updateRequest.type(ALERT_TYPE);
+                updateRequest.doc(alertBuilder);
+                updateRequest.refresh(true);
+                client.update(updateRequest).actionGet();
+                return true;
+            }
+        } catch (Throwable t) {
+            logger.error("Failed to update alert [{}] with lastRan of [{}]",t, alertName, fireTime);
+            return false;
+        }
+    }
+
+    public boolean addHistory(String alertName, boolean triggered,
+                              DateTime fireTime, XContentBuilder triggeringQuery,
+                              AlertTrigger trigger, long numberOfResults,
+                              @Nullable List<String> indices) throws Exception {
+        XContentBuilder historyEntry = XContentFactory.jsonBuilder();
+        historyEntry.startObject();
+        historyEntry.field("alertName", alertName);
+        historyEntry.field("triggered", triggered);
+        historyEntry.field("fireTime", fireTime.toDateTimeISO());
+        historyEntry.field("trigger");
+        trigger.toXContent(historyEntry);
+        historyEntry.field("queryRan", XContentHelper.convertToJson(triggeringQuery.bytes(),false,true));
+        historyEntry.field("numberOfResults", numberOfResults);
+        if (indices != null) {
+            historyEntry.field("indices");
+            historyEntry.startArray();
+            for (String index : indices) {
+                historyEntry.value(index);
+            }
+            historyEntry.endArray();
+        }
+        historyEntry.endObject();
+        IndexRequest indexRequest = new IndexRequest();
+        indexRequest.index(ALERT_INDEX);
+        indexRequest.type(ALERT_HISTORY_TYPE);
+        indexRequest.source(historyEntry);
+        indexRequest.listenerThreaded(false);
+        indexRequest.operationThreaded(false);
+        indexRequest.refresh(true); //Always refresh after indexing an alert
+        indexRequest.opType(IndexRequest.OpType.CREATE);
+        return client.index(indexRequest).get().isCreated();
+    }
+
     public boolean deleteAlert(String alertName) throws InterruptedException, ExecutionException{
         synchronized (alertMap) {
             if (alertMap.containsKey(alertName)) {
@@ -225,11 +290,12 @@ public class AlertManager extends AbstractLifecycleComponent {
                     XContentBuilder builder;
                     try {
                         builder = XContentFactory.jsonBuilder();
+                        alert.toXContent(builder);
                         IndexRequest indexRequest = new IndexRequest(ALERT_INDEX, ALERT_TYPE, alertName);
                         indexRequest.listenerThreaded(false);
                         indexRequest.operationThreaded(false);
                         indexRequest.refresh(true); //Always refresh after indexing an alert
-                        indexRequest.source(alert.toXContent(builder).bytes(), true);
+                        indexRequest.source(builder);
                         indexRequest.opType(IndexRequest.OpType.CREATE);
                         return client.index(indexRequest).get().isCreated();
                     } catch (IOException ie) {
@@ -278,11 +344,18 @@ public class AlertManager extends AbstractLifecycleComponent {
             throw new ElasticsearchException("Unable to parse actions [" + triggerObj + "]");
         }
 
-        DateTime lastRan = new DateTime(fields.get("lastRan").toString());
+        DateTime lastRan = new DateTime(0);
+        if( fields.get(LASTRAN_FIELD.getPreferredName()) != null){
+            lastRan = new DateTime(fields.get(LASTRAN_FIELD.getPreferredName()).toString());
+        } else if (fields.get("lastRan") != null) {
+            lastRan = new DateTime(fields.get("lastRan").toString());
+        }
 
-        List<String> indices = null;
+        List<String> indices = new ArrayList<>();
         if (fields.get(INDICES.getPreferredName()) != null && fields.get(INDICES.getPreferredName()) instanceof List){
             indices = (List<String>)fields.get(INDICES.getPreferredName());
+        } else {
+            logger.warn("Indices : " + fields.get(INDICES.getPreferredName()) + " class " + fields.get(INDICES.getPreferredName()).getClass() );
         }
 
         return new Alert(alertId, query, trigger, timePeriod, actions, schedule, lastRan, indices);

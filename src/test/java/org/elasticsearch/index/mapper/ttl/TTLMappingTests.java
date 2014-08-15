@@ -19,16 +19,18 @@
 
 package org.elasticsearch.index.mapper.ttl;
 
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.DocumentMapperParser;
-import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.internal.TTLFieldMapper;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
 
+import java.io.IOException;
+
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -137,5 +139,67 @@ public class TTLMappingTests extends ElasticsearchSingleNodeTest {
 
         assertThat(mergeResult.hasConflicts(), equalTo(false));
         assertThat(initialMapper.TTLFieldMapper().enabled(), equalTo(true));
+    }
+
+    @Test
+    public void testThatDisablingTTLReportsConflict() throws Exception {
+        String mappingWithTtl = getMappingWithTtlEnabled();
+        String mappingWithTtlDisabled = getMappingWithTtlDisabled();
+        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+        DocumentMapper initialMapper = parser.parse(mappingWithTtl);
+        DocumentMapper updatedMapper = parser.parse(mappingWithTtlDisabled);
+
+        DocumentMapper.MergeFlags mergeFlags = DocumentMapper.MergeFlags.mergeFlags().simulate(true);
+        DocumentMapper.MergeResult mergeResult = initialMapper.merge(updatedMapper, mergeFlags);
+
+        assertThat(mergeResult.hasConflicts(), equalTo(true));
+        assertThat(initialMapper.TTLFieldMapper().enabled(), equalTo(true));
+    }
+
+    @Test
+    public void testThatDisablingTTLReportsConflictOnCluster() throws Exception {
+        String mappingWithTtl = getMappingWithTtlEnabled();
+        String mappingWithTtlDisabled = getMappingWithTtlDisabled();
+        assertAcked(client().admin().indices().prepareCreate("testindex").addMapping("type", mappingWithTtl));
+        GetMappingsResponse mappingsBeforeUpdateResponse = client().admin().indices().prepareGetMappings("testindex").addTypes("type").get();
+        try {
+            client().admin().indices().preparePutMapping("testindex").setSource(mappingWithTtlDisabled).setType("type").get();
+            fail();
+        } catch (MergeMappingException mme) {
+            assertThat(mme.getDetailedMessage(),containsString("_ttl cannot be disabled once it was enabled."));
+        }
+        GetMappingsResponse mappingsAfterUpdateResponse = client().admin().indices().prepareGetMappings("testindex").addTypes("type").get();
+        assertThat(mappingsBeforeUpdateResponse.getMappings().get("testindex").get("type").source(), equalTo(mappingsAfterUpdateResponse.getMappings().get("testindex").get("type").source()));
+    }
+
+    @Test
+    public void testThatEnablingTTLAfterFirstDisablingWorks() throws Exception {
+        String mappingWithTtl = getMappingWithTtlEnabled();
+        String withTtlDisabled = getMappingWithTtlDisabled();
+        assertAcked(client().admin().indices().prepareCreate("testindex").addMapping("type", withTtlDisabled));
+        GetMappingsResponse mappingsAfterUpdateResponse = client().admin().indices().prepareGetMappings("testindex").addTypes("type").get();
+        assertThat(mappingsAfterUpdateResponse.getMappings().get("testindex").get("type").sourceAsMap().get("_ttl").toString(), equalTo("{enabled=false}"));
+        client().admin().indices().preparePutMapping("testindex").setSource(mappingWithTtl).setType("type").get();
+        mappingsAfterUpdateResponse = client().admin().indices().prepareGetMappings("testindex").addTypes("type").get();
+        assertThat(mappingsAfterUpdateResponse.getMappings().get("testindex").get("type").sourceAsMap().get("_ttl").toString(), equalTo("{enabled=true}"));
+    }
+
+    private String getMappingWithTtlEnabled() throws IOException {
+        return XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("_ttl")
+                .field("enabled", true)
+                .endObject()
+                .startObject("properties").field("field").startObject().field("type", "string").endObject().endObject()
+                .endObject().endObject().string();
+    }
+
+    private String getMappingWithTtlDisabled() throws IOException {
+        return XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("_ttl")
+                .field("default", "1w")
+                .field("enabled", false)
+                .endObject()
+                .startObject("properties").field("field").startObject().field("type", "string").endObject().endObject()
+                .endObject().endObject().string();
     }
 }

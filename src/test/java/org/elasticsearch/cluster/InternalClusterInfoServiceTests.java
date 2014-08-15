@@ -126,14 +126,13 @@ public class InternalClusterInfoServiceTests extends ElasticsearchTestCase {
         assertEquals((Long)ByteSizeValue.parseBytesSizeValue("1mb").bytes(), info.getShardSizes().get("[1][0][p]"));
         // The shard size is actually the last shard size with the same id.  Maybe it should be the max?
         assertEquals((Long)ByteSizeValue.parseBytesSizeValue("1.5mb").bytes(), info.getShardSizes().get("[1][0][r]"));
-        assertEquals(6, info.getShardSizeBinToShard().get(0).size());
+        assertEquals(6, info.getShardsBucketedBySize().shardsInSameBucket(0).size());
         assertEquals(averageShardSize("1mb", "1.2mb", "1.5mb", "2mb", "2.1mb", "1.9mb"), info.getIndexToAverageShardSize().get("1"));
 
         assertEquals((Long)ByteSizeValue.parseBytesSizeValue("100gb").bytes(), info.getShardSizes().get("[2][0][p]"));
         assertNull(info.getShardSizes().get("[2][0][r]"));
-        assertEquals(1, info.getShardSizeBinToShard().get(11).size());
+        assertEquals(1, info.getShardsBucketedBySize().shardsInSameBucket(ByteSizeValue.parseBytesSizeValue("100gb").bytes()).size());
         assertEquals((Long)ByteSizeValue.parseBytesSizeValue("100gb").bytes(), info.getIndexToAverageShardSize().get("2"));
-
     }
 
     private ShardStats stats(String index, int shardId, boolean primary, String size) {

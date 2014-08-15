@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster;
 
-import com.google.common.collect.ImmutableListMultimap;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
@@ -30,6 +29,7 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.admin.indices.stats.TransportIndicesStatsAction;
+import org.elasticsearch.cluster.ClusterInfo.ShardsBucketedBySize;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -48,9 +48,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.TreeMap;
-
-import static java.lang.Math.floor;
-import static java.lang.Math.log10;
 
 /**
  * InternalClusterInfoService provides the ClusterInfoService interface,
@@ -79,7 +76,7 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
     private volatile ImmutableMap<String, DiskUsage> usages;
     private volatile ImmutableMap<String, Long> shardSizes;
     private volatile ImmutableMap<String, Long> indexToAverageShardSize;
-    private volatile ImmutableListMultimap<Integer, String> shardSizeBinToShard;
+    private volatile ShardsBucketedBySize shardsBucketedBySize;
     private volatile MetaData metaData;
 
     private volatile boolean isMaster = false;
@@ -100,10 +97,6 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
                                       TransportIndicesStatsAction transportIndicesStatsAction, ClusterService clusterService,
                                       ThreadPool threadPool) {
         super(settings);
-        this.usages = ImmutableMap.of();
-        this.shardSizes = ImmutableMap.of();
-        this.indexToAverageShardSize = ImmutableMap.of();
-        this.shardSizeBinToShard = ImmutableListMultimap.of();
         this.transportNodesStatsAction = transportNodesStatsAction;
         this.transportIndicesStatsAction = transportIndicesStatsAction;
         this.clusterService = clusterService;
@@ -112,6 +105,10 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
         // class on startup
         this.updateFrequency = settings.getAsTime(INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL, TimeValue.timeValueSeconds(30));
         smallShardLimit = settings.getAsBytesSize(SMALL_SHARD_LIMIT, DEFAULT_SMALL_SHARD_LIMIT);
+        this.usages = ImmutableMap.of();
+        this.shardSizes = ImmutableMap.of();
+        this.indexToAverageShardSize = ImmutableMap.of();
+        this.shardsBucketedBySize = ShardsBucketedBySize.builder(smallShardLimit.bytes()).build();
         nodeSettingsService.addListener(new ApplySettings());
 
         // Add InternalClusterInfoService to listen for Master changes
@@ -209,7 +206,7 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
 
     @Override
     public ClusterInfo getClusterInfo() {
-        return new ClusterInfo(usages, shardSizes, indexToAverageShardSize, shardSizeBinToShard);
+        return new ClusterInfo(usages, shardSizes, indexToAverageShardSize, shardsBucketedBySize);
     }
 
     /**
@@ -347,19 +344,10 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
         return shardRouting.shardId().toString() + "[" + (shardRouting.primary() ? "p" : "r") + "]";
     }
 
-    /**
-     * Get the size based bin that shards of this size should be in.
-     * @param size shard size in bytes
-     * @return bin number
-     */
-    public static int shardBinBySize(long size) {
-        return size <= DEFAULT_SMALL_SHARD_LIMIT.bytes() ? 0 : (int)floor(log10(size));
-    }
-
     void updateIndicesStats(IndicesStatsResponse indicesStatsResponse) {
         Map<String, AverageWork> averageShardSizesWork = new TreeMap<>();
         Map<String, Long> newShardSizes = new HashMap<>();
-        ImmutableListMultimap.Builder<Integer, String> newShardSizeBinToShard = ImmutableListMultimap.builder();
+        ShardsBucketedBySize.Builder newShardsBucketedBySize = ShardsBucketedBySize.builder(smallShardLimit.bytes());
         for (ShardStats s : indicesStatsResponse.getShards()) {
             // Default to the configured "default" size if there is
             // one that isn't expired and is larger then the actual
@@ -373,7 +361,7 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
                 logger.trace("shard: {} size: {}", sid, size);
             }
             newShardSizes.put(sid, size);
-            newShardSizeBinToShard.put(shardBinBySize(size), sid);
+            newShardsBucketedBySize.add(size, sid);
             AverageWork avgWork = averageShardSizesWork.get(s.getIndex());
             if (avgWork == null) {
                 avgWork = new AverageWork(size);
@@ -383,7 +371,7 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
             }
         }
         shardSizes = ImmutableMap.copyOf(newShardSizes);
-        shardSizeBinToShard = newShardSizeBinToShard.build();
+        shardsBucketedBySize = newShardsBucketedBySize.build();
 
         ImmutableMap.Builder<String, Long> newIndexToAverageShardSize = ImmutableMap.builder();
         for (Map.Entry<String, AverageWork> entry : averageShardSizesWork.entrySet()) {

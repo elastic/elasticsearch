@@ -19,10 +19,14 @@
 
 package org.elasticsearch.cluster;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableListMultimap;
 import com.google.common.collect.ImmutableMap;
 
 import java.util.Map;
+
+import static java.lang.Math.floor;
+import static java.lang.Math.log10;
 
 /**
  * ClusterInfo contains information like {@link DiskUsage}, shard sizes, and
@@ -32,14 +36,14 @@ public class ClusterInfo {
     private final ImmutableMap<String, DiskUsage> usages;
     private final ImmutableMap<String, Long> shardSizes;
     private final ImmutableMap<String, Long> indexToAverageShardSize;
-    private final ImmutableListMultimap<Integer, String> shardSizeBinToShard;
+    private final ShardsBucketedBySize shardsBucketedBySize;
 
     public ClusterInfo(ImmutableMap<String, DiskUsage> usages, ImmutableMap<String, Long> shardSizes,
-            ImmutableMap<String, Long> indexToAverageShardSize, ImmutableListMultimap<Integer, String> shardSizeBinToShard) {
+            ImmutableMap<String, Long> indexToAverageShardSize, ShardsBucketedBySize shardsBucketedBySize) {
         this.usages = usages;
         this.shardSizes = shardSizes;
         this.indexToAverageShardSize = indexToAverageShardSize;
-        this.shardSizeBinToShard = shardSizeBinToShard;
+        this.shardsBucketedBySize = shardsBucketedBySize;
 
     }
 
@@ -62,12 +66,64 @@ public class ClusterInfo {
     }
 
     /**
-     * @return multimap from
-     *         {@link InternalClusterInfoService#shardBinBySize(long)} to
+     * @return looks up all shards (as
      *         {@link InternalClusterInfoService#shardIdentifierFromRouting(String)}
-     *         .
+     *         ) that fall into size range buckets
      */
-    public ImmutableListMultimap<Integer, String> getShardSizeBinToShard() {
-        return shardSizeBinToShard;
+    public ShardsBucketedBySize getShardsBucketedBySize() {
+        return shardsBucketedBySize;
+    }
+
+    /**
+     * Looks up all shards that fall into size range buckets.
+     */
+    public static class ShardsBucketedBySize {
+        public static Builder builder(long smallShardLimit) {
+            return new Builder(smallShardLimit);
+        }
+
+        private ImmutableListMultimap<Integer, String> bucketToShard;
+        private final long smallShardLimit;
+
+        private ShardsBucketedBySize(ImmutableListMultimap<Integer, String> bucketToShard, long smallShardLimit) {
+            this.bucketToShard = bucketToShard;
+            this.smallShardLimit = smallShardLimit;
+        }
+
+        /**
+         * @param size size in bytes
+         * @return get all shards in the same bucket as a shard with this size
+         */
+        public ImmutableList<String> shardsInSameBucket(long size) {
+            return bucketToShard.get(bucket(smallShardLimit, size));
+        }
+
+        /**
+         * @return does this object store no shard information at all?
+         */
+        public boolean isEmpty() {
+            return bucketToShard.isEmpty();
+        }
+
+        static int bucket(long smallShardLimit, long size) {
+            return size <= smallShardLimit ? 0 : (int)floor(log10(size));
+        }
+
+        public static class Builder {
+            private final ImmutableListMultimap.Builder<Integer, String> bucketToShard = ImmutableListMultimap.builder();
+            private final long smallShardLimit;
+
+            private Builder(long smallShardLimit) {
+                this.smallShardLimit = smallShardLimit;
+            }
+
+            public void add(long size, String id) {
+                bucketToShard.put(bucket(smallShardLimit, size), id);
+            }
+
+            public ShardsBucketedBySize build() {
+                return new ShardsBucketedBySize(bucketToShard.build(), smallShardLimit);
+            }
+        }
     }
 }

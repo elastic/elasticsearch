@@ -356,12 +356,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             indexShardSize = indexShardSize == null ? 0 : indexShardSize;
 
             int nodeCount = 0;
-            // TODO if the sizes aren't available abort balancing?
-            if (allocation.clusterInfo().getShardSizeBinToShard() == null) {
-                return 0;
-            }
-            List<String> shards = allocation.clusterInfo().getShardSizeBinToShard()
-                    .get(InternalClusterInfoService.shardBinBySize(indexShardSize));
+            List<String> shards = allocation.clusterInfo().getShardsBucketedBySize().shardsInSameBucket(indexShardSize);
             if (shards == null) {
                 return 0;
             }
@@ -514,7 +509,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
          */
         private boolean readyToBalance() {
             // Is size balance required but not ready?
-            return weight.shardSizeBalance == 0 || allocation.clusterInfo().getShardSizeBinToShard().size() != 0;
+            return weight.shardSizeBalance == 0 || allocation.clusterInfo().getShardsBucketedBySize().isEmpty();
         }
 
         /**

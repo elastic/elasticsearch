@@ -31,7 +31,7 @@ import java.io.StringReader;
 
 import static org.hamcrest.Matchers.instanceOf;
 
-public class KeepTypeFilterFactoryTests extends ElasticsearchTokenStreamTestCase {
+public class KeepTypesFilterFactoryTests extends ElasticsearchTokenStreamTestCase {
 
     @Test
     public void testKeepTypes() throws IOException {

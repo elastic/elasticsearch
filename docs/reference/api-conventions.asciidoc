@@ -48,6 +48,10 @@ to. If `open` is specified then the wildcard expression is expanded to only
 open indices and if `closed` is specified then the wildcard expression is
 expanded only to closed indices. Also both values (`open,closed`) can be
 specified to expand to all indices.
++
+If `none` is specified then wildcard expansion will be disabled and if `all` 
+is specified, wildcard expressions will expand to all indices (this is equivalent 
+to specifying `open,closed`). coming[1.4.0]
 
 The defaults settings for the above parameters depend on the api being used.
 

@@ -694,7 +694,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                         reusedTotalSize += md.length();
                         recoveryState.getIndex().addReusedFileDetail(fileInfo.name(), fileInfo.length());
                         if (logger.isTraceEnabled()) {
-                            logger.trace("not_recovering [{}], exists in local store and is same", fileInfo.physicalName());
+                            logger.trace("[{}] [{}] not_recovering [{}] from [{}], exists in local store and is same", shardId, snapshotId, fileInfo.physicalName(), fileInfo.name());
                         }
                     } else {
                         totalSize += fileInfo.length();
@@ -702,9 +702,9 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                         recoveryState.getIndex().addFileDetail(fileInfo.name(), fileInfo.length());
                         if (logger.isTraceEnabled()) {
                             if (md == null) {
-                                logger.trace("recovering [{}], does not exists in local store", fileInfo.physicalName());
+                                logger.trace("[{}] [{}] recovering [{}] from [{}], does not exists in local store", shardId, snapshotId, fileInfo.physicalName(), fileInfo.name());
                             } else {
-                                logger.trace("recovering [{}], exists in local store but is different", fileInfo.physicalName());
+                                logger.trace("[{}] [{}] recovering [{}] from [{}], exists in local store but is different", shardId, snapshotId, fileInfo.physicalName(), fileInfo.name());
                             }
                         }
                     }

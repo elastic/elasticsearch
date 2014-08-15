@@ -35,7 +35,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -111,8 +110,8 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
         this.threadPool = threadPool;
         // The next two values get their configuration in the ApplySettings
         // class on startup
-        this.updateFrequency = TimeValue.timeValueSeconds(30);
-        smallShardLimit = DEFAULT_SMALL_SHARD_LIMIT;
+        this.updateFrequency = settings.getAsTime(INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL, TimeValue.timeValueSeconds(30));
+        smallShardLimit = settings.getAsBytesSize(SMALL_SHARD_LIMIT, DEFAULT_SMALL_SHARD_LIMIT);
         nodeSettingsService.addListener(new ApplySettings());
 
         // Add InternalClusterInfoService to listen for Master changes
@@ -358,7 +357,7 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
     }
 
     void updateIndicesStats(IndicesStatsResponse indicesStatsResponse) {
-        Map<String, Tuple<Long, Integer>> averageShardSizesWork = new TreeMap<>();
+        Map<String, AverageWork> averageShardSizesWork = new TreeMap<>();
         Map<String, Long> newShardSizes = new HashMap<>();
         ImmutableListMultimap.Builder<Integer, String> newShardSizeBinToShard = ImmutableListMultimap.builder();
         for (ShardStats s : indicesStatsResponse.getShards()) {
@@ -375,21 +374,21 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
             }
             newShardSizes.put(sid, size);
             newShardSizeBinToShard.put(shardBinBySize(size), sid);
-            Tuple<Long, Integer> avgWork = averageShardSizesWork.get(s.getIndex());
+            AverageWork avgWork = averageShardSizesWork.get(s.getIndex());
             if (avgWork == null) {
-                avgWork = new Tuple<>(size, 1);
+                avgWork = new AverageWork(size);
+                averageShardSizesWork.put(s.getIndex(), avgWork);
             } else {
-                avgWork = new Tuple<>(avgWork.v1() + size, avgWork.v2() + 1);
+                avgWork.add(size);
             }
-            averageShardSizesWork.put(s.getIndex(), avgWork);
         }
         shardSizes = ImmutableMap.copyOf(newShardSizes);
         shardSizeBinToShard = newShardSizeBinToShard.build();
 
         ImmutableMap.Builder<String, Long> newIndexToAverageShardSize = ImmutableMap.builder();
-        for (Map.Entry<String, Tuple<Long, Integer>> entry : averageShardSizesWork.entrySet()) {
-            // TODO support for newly created indexes returning a configured value for a while
-            newIndexToAverageShardSize.put(entry.getKey(), entry.getValue().v1() / entry.getValue().v2());
+        for (Map.Entry<String, AverageWork> entry : averageShardSizesWork.entrySet()) {
+            // TODO support for newly created indexes returning the average shard size for a while?
+            newIndexToAverageShardSize.put(entry.getKey(), entry.getValue().average());
         }
         indexToAverageShardSize = newIndexToAverageShardSize.build();
     }
@@ -409,5 +408,27 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
             return -1;
         }
         return minimumSize.bytes();
+    }
+
+    /**
+     * Holds work items for average calculations.
+     */
+    private class AverageWork {
+        private long total;
+        private int count;
+
+        public AverageWork(long size) {
+            total = size;
+            count = 1;
+        }
+
+        public void add(long size) {
+            total += size;
+            count++;
+        }
+
+        public long average() {
+            return total / count;
+        }
     }
 }

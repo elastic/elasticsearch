@@ -27,7 +27,6 @@ import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.joda.time.DateTime;
 
 import java.util.Map;
 import java.util.Set;
@@ -193,18 +192,6 @@ public interface Settings extends ToXContent {
      * returns the default value provided.
      */
     TimeValue getAsTime(String[] settings, TimeValue defaultValue) throws SettingsException;
-
-    /**
-     * Returns the setting value (as a Joda DateTime) associated with the setting key. If it does not exists,
-     * returns the default value provided.
-     */
-    DateTime getAsDateTime(String setting, DateTime defaultValue) throws SettingsException;
-
-    /**
-     * Returns the setting value (as a Joda DateTime) associated with the setting key. If it does not exists,
-     * returns the default value provided.
-     */
-    DateTime getAsDateTime(String[] settings, DateTime defaultValue) throws SettingsException;
 
     /**
      * Returns the setting value (as size) associated with the setting key. If it does not exists,

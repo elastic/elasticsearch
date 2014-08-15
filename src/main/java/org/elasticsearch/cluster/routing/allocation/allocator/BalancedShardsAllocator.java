@@ -75,7 +75,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
     private static final float DEFAULT_INDEX_BALANCE_FACTOR = 0.5f;
     private static final float DEFAULT_SHARD_BALANCE_FACTOR = 0.45f;
     private static final float DEFAULT_PRIMARY_BALANCE_FACTOR = 0.05f;
-    private static final float DEFAULT_SIZE_BALANCE_FACTOR = 0f;
+    private static final float DEFAULT_SHARD_SIZE_BALANCE_FACTOR = 0f;
 
     class ApplySettings implements NodeSettingsService.Listener {
         @Override
@@ -83,18 +83,18 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             final float indexBalance = settings.getAsFloat(SETTING_INDEX_BALANCE_FACTOR, weightFunction.indexBalance);
             final float shardBalance = settings.getAsFloat(SETTING_SHARD_BALANCE_FACTOR, weightFunction.shardBalance);
             final float primaryBalance = settings.getAsFloat(SETTING_PRIMARY_BALANCE_FACTOR, weightFunction.primaryBalance);
-            final float sizeBalance = settings.getAsFloat(SETTING_SHARD_SIZE_BALANCE_FACTOR, weightFunction.shardSizeBalance);
+            final float shardSizeBalance = settings.getAsFloat(SETTING_SHARD_SIZE_BALANCE_FACTOR, weightFunction.shardSizeBalance);
             float threshold = settings.getAsFloat(SETTING_THRESHOLD, BalancedShardsAllocator.this.threshold);
             if (threshold <= 0.0f) {
                 throw new ElasticsearchIllegalArgumentException("threshold must be greater than 0.0f but was: " + threshold);
             }
             BalancedShardsAllocator.this.threshold = threshold;
-            BalancedShardsAllocator.this.weightFunction = new WeightFunction(indexBalance, shardBalance, primaryBalance, sizeBalance);
+            BalancedShardsAllocator.this.weightFunction = new WeightFunction(indexBalance, shardBalance, primaryBalance, shardSizeBalance);
         }
     }
 
     private volatile WeightFunction weightFunction = new WeightFunction(DEFAULT_INDEX_BALANCE_FACTOR, DEFAULT_SHARD_BALANCE_FACTOR,
-            DEFAULT_PRIMARY_BALANCE_FACTOR, DEFAULT_SIZE_BALANCE_FACTOR);
+            DEFAULT_PRIMARY_BALANCE_FACTOR, DEFAULT_SHARD_SIZE_BALANCE_FACTOR);
 
     private volatile float threshold = 1.0f;
 
@@ -244,15 +244,15 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             final float weightShard = node.numShards() - balancer.avgShardsPerNode();
             final float weightIndex = node.numShards(index) - balancer.avgShardsPerNode(index);
             final float weightPrimary = node.numPrimaries() - balancer.avgPrimariesPerNode();
-            float weightSize;
+            float weightShardSize;
             if (theta[3] == 0) {
-                // No need to calculate the size weight if we aren't using it.
-                weightSize = 0;
+                // No need to calculate the shard size weight if we aren't using it.
+                weightShardSize = 0;
             } else {
-                weightSize = balancer.sizeWeight(node, index);
+                weightShardSize = balancer.shardSizeWeight(node, index);
             }
             assert theta != null;
-            return theta[0] * weightShard + theta[1] * weightIndex + theta[2] * weightPrimary + theta[3] * weightSize;
+            return theta[0] * weightShard + theta[1] * weightIndex + theta[2] * weightPrimary + theta[3] * weightShardSize;
         }
 
     }
@@ -351,7 +351,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             return ((float) metaData.index(index).numberOfShards()) / nodes.size();
         }
 
-        public float sizeWeight(ModelNode weighingNode, String index) {
+        public float shardSizeWeight(ModelNode weighingNode, String index) {
             Long indexShardSize = allocation.clusterInfo().getIndexToAverageShardSize().get(index);
             indexShardSize = indexShardSize == null ? 0 : indexShardSize;
 

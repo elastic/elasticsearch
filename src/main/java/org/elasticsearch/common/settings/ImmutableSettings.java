@@ -38,7 +38,6 @@ import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.settings.loader.SettingsLoaderFactory;
 import org.elasticsearch.common.unit.*;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.joda.time.DateTime;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -385,16 +384,6 @@ public class ImmutableSettings implements Settings {
     }
 
     @Override
-    public DateTime getAsDateTime(String setting, DateTime defaultValue) {
-        return parseDateTime(get(setting), defaultValue);
-    }
-
-    @Override
-    public DateTime getAsDateTime(String[] settings, DateTime defaultValue) {
-        return parseDateTime(get(settings), defaultValue);
-    }
-
-    @Override
     public ByteSizeValue getAsBytesSize(String setting, ByteSizeValue defaultValue) throws SettingsException {
         return parseBytesSizeValue(get(setting), defaultValue);
     }
@@ -667,12 +656,6 @@ public class ImmutableSettings implements Settings {
         return builder;
     }
 
-    private DateTime parseDateTime(String value, DateTime defaultValue) {
-        if (value == null) {
-            return defaultValue;
-        }
-        return DATE_FORMAT.parser().parseDateTime(value);
-    }
     /**
      * A builder allowing to put different settings and then {@link #build()} an immutable
      * settings implementation. Use {@link ImmutableSettings#settingsBuilder()} in order to

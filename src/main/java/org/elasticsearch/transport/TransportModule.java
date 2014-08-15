@@ -19,48 +19,74 @@
 
 package org.elasticsearch.transport;
 
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.inject.Modules;
-import org.elasticsearch.common.inject.SpawnModules;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.transport.local.LocalTransportModule;
-import org.elasticsearch.transport.netty.NettyTransportModule;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.transport.local.LocalTransport;
+import org.elasticsearch.transport.netty.NettyTransport;
+
+import static org.elasticsearch.common.Preconditions.checkNotNull;
 
 /**
  *
  */
-public class TransportModule extends AbstractModule implements SpawnModules {
+public class TransportModule extends AbstractModule {
 
-    private final Settings settings;
-    
     public static final String TRANSPORT_TYPE_KEY = "transport.type";
     public static final String TRANSPORT_SERVICE_TYPE_KEY = "transport.service.type";
 
+    private final ESLogger logger;
+    private final Settings settings;
+
+    private Class<? extends TransportService> configuredTransportService;
+    private Class<? extends Transport> configuredTransport;
+    private String configuredTransportServiceSource;
+    private String configuredTransportSource;
+
     public TransportModule(Settings settings) {
         this.settings = settings;
-    }
-
-    @Override
-    public Iterable<? extends Module> spawnModules() {
-        Class<? extends Module> defaultTransportModule;
-        if (DiscoveryNode.localNode(settings)) {
-            defaultTransportModule = LocalTransportModule.class;
-        } else {
-            defaultTransportModule = NettyTransportModule.class;
-        }
-        return ImmutableList.of(Modules.createModule(settings.getAsClass(TRANSPORT_TYPE_KEY, defaultTransportModule, "org.elasticsearch.transport.", "TransportModule"), settings));
+        this.logger = Loggers.getLogger(getClass(), settings);
     }
 
     @Override
     protected void configure() {
-        Class<? extends TransportService> transportService = settings.getAsClass(TRANSPORT_SERVICE_TYPE_KEY, TransportService.class, "org.elasticsearch.transport.", "TransportService");
-        if (!TransportService.class.equals(transportService)) {
-            bind(TransportService.class).to(transportService).asEagerSingleton();
+        if (configuredTransportService != null) {
+            logger.info("Using [{}] as transport service, overridden by [{}]", configuredTransportService.getName(), configuredTransportServiceSource);
+            bind(TransportService.class).to(configuredTransportService).asEagerSingleton();
         } else {
-            bind(TransportService.class).asEagerSingleton();
+            Class<? extends TransportService> defaultTransportService = TransportService.class;
+            Class<? extends TransportService> transportService = settings.getAsClass(TRANSPORT_SERVICE_TYPE_KEY, defaultTransportService, "org.elasticsearch.transport.", "TransportService");
+            if (!TransportService.class.equals(transportService)) {
+                bind(TransportService.class).to(transportService).asEagerSingleton();
+            } else {
+                bind(TransportService.class).asEagerSingleton();
+            }
         }
+
+        if (configuredTransport != null) {
+            logger.info("Using [{}] as transport, overridden by [{}]", configuredTransport.getName(), configuredTransportSource);
+            bind(Transport.class).to(configuredTransport).asEagerSingleton();
+        } else {
+            Class<? extends Transport> defaultTransport = DiscoveryNode.localNode(settings) ? LocalTransport.class : NettyTransport.class;
+            Class<? extends Transport> transport = settings.getAsClass(TRANSPORT_TYPE_KEY, defaultTransport, "org.elasticsearch.transport.", "Transport");
+            bind(Transport.class).to(transport).asEagerSingleton();
+        }
+    }
+
+    public void setTransportService(Class<? extends TransportService> transportService, String source) {
+        checkNotNull(transportService, "Configured transport service may not be null");
+        checkNotNull(source, "Plugin, that changes transport service may not be null");
+        this.configuredTransportService = transportService;
+        this.configuredTransportServiceSource = source;
+    }
+
+    public void setTransport(Class<? extends Transport> transport, String source) {
+        checkNotNull(transport, "Configured transport may not be null");
+        checkNotNull(source, "Plugin, that changes transport may not be null");
+        this.configuredTransport = transport;
+        this.configuredTransportSource = source;
     }
 }

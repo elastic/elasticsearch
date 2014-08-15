@@ -79,7 +79,7 @@ import org.elasticsearch.test.cache.recycler.MockBigArraysModule;
 import org.elasticsearch.test.cache.recycler.MockPageCacheRecyclerModule;
 import org.elasticsearch.test.engine.MockEngineModule;
 import org.elasticsearch.test.store.MockFSIndexStoreModule;
-import org.elasticsearch.test.transport.AssertingLocalTransportModule;
+import org.elasticsearch.test.transport.AssertingLocalTransport;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
@@ -103,7 +103,6 @@ import static com.carrotsearch.randomizedtesting.RandomizedTest.systemPropertyAs
 import static junit.framework.Assert.fail;
 import static org.apache.lucene.util.LuceneTestCase.rarely;
 import static org.apache.lucene.util.LuceneTestCase.usually;
-import static org.elasticsearch.common.settings.ImmutableSettings.EMPTY;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 import static org.elasticsearch.test.ElasticsearchTestCase.assertBusy;
@@ -331,7 +330,7 @@ public final class InternalTestCluster extends TestCluster {
             builder.put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, MockTransportService.class.getName());
         }
         if (isLocalTransportConfigured()) {
-            builder.put(TransportModule.TRANSPORT_TYPE_KEY, AssertingLocalTransportModule.class.getName());
+            builder.put(TransportModule.TRANSPORT_TYPE_KEY, AssertingLocalTransport.class.getName());
         } else {
             builder.put(Transport.TransportSettings.TRANSPORT_TCP_COMPRESS, rarely(random));
         }

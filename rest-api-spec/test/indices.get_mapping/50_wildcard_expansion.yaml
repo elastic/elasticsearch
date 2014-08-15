@@ -1,0 +1,96 @@
+---
+setup:
+  - do:
+        indices.create:
+          index: test-xxx
+          body:
+              mappings:
+                type_1: {}
+  - do:
+        indices.create:
+          index: test-xxy
+          body:
+              mappings:
+                type_2: {}
+  - do:
+        indices.create:
+          index: test-xyy
+          body:
+              mappings:
+                type_3: {}
+  - do:
+        indices.create:
+          index: test-yyy
+          body:
+              mappings:
+                type_4: {}
+
+  - do:
+      indices.close:
+        index: test-xyy
+
+---
+"Get test-* with defaults":
+
+ - do:
+    indices.get_mapping:
+        index: test-x*
+
+ - match: { test-xxx.mappings.type_1.properties: {}}
+ - match: { test-xxy.mappings.type_2.properties: {}}
+
+---
+"Get test-* with wildcard_expansion=all":
+
+ - do:
+    indices.get_mapping:
+        index: test-x*
+        expand_wildcards: all
+
+ - match: { test-xxx.mappings.type_1.properties: {}}
+ - match: { test-xxy.mappings.type_2.properties: {}}
+ - match: { test-xyy.mappings.type_3.properties: {}}
+
+---
+"Get test-* with wildcard_expansion=open":
+
+ - do:
+    indices.get_mapping:
+        index: test-x*
+        expand_wildcards: open
+
+ - match: { test-xxx.mappings.type_1.properties: {}}
+ - match: { test-xxy.mappings.type_2.properties: {}}
+
+---
+"Get test-* with wildcard_expansion=closed":
+
+ - do:
+    indices.get_mapping:
+        index: test-x*
+        expand_wildcards: closed
+
+ - match: { test-xyy.mappings.type_3.properties: {}}
+
+---
+"Get test-* with wildcard_expansion=none":
+
+ - do:
+    catch: missing
+    indices.get_mapping:
+        index: test-x*
+        expand_wildcards: none
+
+---
+"Get test-* with wildcard_expansion=open,closed":
+
+ - do:
+    indices.get_mapping:
+        index: test-x*
+        expand_wildcards: open,closed
+
+ - match: { test-xxx.mappings.type_1.properties: {}}
+ - match: { test-xxy.mappings.type_2.properties: {}}
+ - match: { test-xyy.mappings.type_3.properties: {}}
+
+

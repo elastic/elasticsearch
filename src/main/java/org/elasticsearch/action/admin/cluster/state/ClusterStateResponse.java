@@ -38,7 +38,7 @@ public class ClusterStateResponse extends ActionResponse {
     public ClusterStateResponse() {
     }
 
-    ClusterStateResponse(ClusterName clusterName, ClusterState clusterState) {
+    public ClusterStateResponse(ClusterName clusterName, ClusterState clusterState) {
         this.clusterName = clusterName;
         this.clusterState = clusterState;
     }

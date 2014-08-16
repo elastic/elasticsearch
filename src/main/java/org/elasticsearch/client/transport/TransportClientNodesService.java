@@ -33,6 +33,7 @@ import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -69,6 +70,8 @@ public class TransportClientNodesService extends AbstractComponent {
 
     private final Version minCompatibilityVersion;
 
+    private final Headers headers;
+
     // nodes that are added to be discovered
     private volatile ImmutableList<DiscoveryNode> listedNodes = ImmutableList.of();
 
@@ -90,12 +93,14 @@ public class TransportClientNodesService extends AbstractComponent {
     private volatile boolean closed;
 
     @Inject
-    public TransportClientNodesService(Settings settings, ClusterName clusterName, TransportService transportService, ThreadPool threadPool, Version version) {
+    public TransportClientNodesService(Settings settings, ClusterName clusterName, TransportService transportService,
+                                       ThreadPool threadPool, Headers headers, Version version) {
         super(settings);
         this.clusterName = clusterName;
         this.transportService = transportService;
         this.threadPool = threadPool;
         this.minCompatibilityVersion = version.minimumCompatibilityVersion();
+        this.headers = headers;
 
         this.nodesSamplerInterval = componentSettings.getAsTime("nodes_sampler_interval", timeValueSeconds(5));
         this.pingTimeout = componentSettings.getAsTime("ping_timeout", timeValueSeconds(5)).millis();
@@ -342,7 +347,7 @@ public class TransportClientNodesService extends AbstractComponent {
                 }
                 try {
                     NodesInfoResponse nodeInfo = transportService.submitRequest(listedNode, NodesInfoAction.NAME,
-                            Requests.nodesInfoRequest("_local"),
+                            headers.applyTo(Requests.nodesInfoRequest("_local")),
                             TransportRequestOptions.options().withType(TransportRequestOptions.Type.STATE).withTimeout(pingTimeout),
                             new FutureTransportResponseHandler<NodesInfoResponse>() {
                                 @Override
@@ -413,8 +418,7 @@ public class TransportClientNodesService extends AbstractComponent {
                                 }
                             }
                             transportService.sendRequest(listedNode, ClusterStateAction.NAME,
-                                    Requests.clusterStateRequest()
-                                            .clear().nodes(true).local(true),
+                                    headers.applyTo(Requests.clusterStateRequest().clear().nodes(true).local(true)),
                                     TransportRequestOptions.options().withType(TransportRequestOptions.Type.STATE).withTimeout(pingTimeout),
                                     new BaseTransportResponseHandler<ClusterStateResponse>() {
 

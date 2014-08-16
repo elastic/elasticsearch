@@ -34,11 +34,11 @@ import static org.hamcrest.Matchers.is;
 public class TransportMessageTests extends ElasticsearchTestCase {
 
     @Test
-    public void testTransientContext() throws Exception {
+    public void testSerialization() throws Exception {
         Message message = new Message();
         message.putHeader("key1", "value1");
         message.putHeader("key2", "value2");
-        message.context().put("key3", "value3");
+        message.putInContext("key3", "value3");
 
         BytesStreamOutput out = new BytesStreamOutput();
         out.setVersion(Version.CURRENT);
@@ -50,7 +50,7 @@ public class TransportMessageTests extends ElasticsearchTestCase {
         assertThat(message.getHeaders().size(), is(2));
         assertThat((String) message.getHeader("key1"), equalTo("value1"));
         assertThat((String) message.getHeader("key2"), equalTo("value2"));
-        assertThat(message.context().isEmpty(), is(true));
+        assertThat(message.isContextEmpty(), is(true));
     }
 
     @Test
@@ -58,14 +58,14 @@ public class TransportMessageTests extends ElasticsearchTestCase {
         Message m1 = new Message();
         m1.putHeader("key1", "value1");
         m1.putHeader("key2", "value2");
-        m1.context().put("key3", "value3");
+        m1.putInContext("key3", "value3");
 
         Message m2 = new Message(m1);
 
         assertThat(m2.getHeaders().size(), is(2));
         assertThat((String) m2.getHeader("key1"), equalTo("value1"));
         assertThat((String) m2.getHeader("key2"), equalTo("value2"));
-        assertThat((String) m2.context().get("key3"), equalTo("value3"));
+        assertThat((String) m2.getFromContext("key3"), equalTo("value3"));
     }
 
     private static class Message extends TransportMessage<Message> {

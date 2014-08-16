@@ -132,6 +132,24 @@ public abstract class AbstractClientHeadersTests extends ElasticsearchTestCase {
         client.admin().indices().prepareFlush().execute().addListener(new AssertingActionListener<FlushResponse>(FlushAction.NAME));
     }
 
+    protected static void assertHeaders(Map<String, Object> headers) {
+        assertThat(headers, notNullValue());
+        assertThat(headers.size(), is(2));
+        assertThat(headers.get("key1"), notNullValue());
+        assertThat(headers.get("key1").toString(), equalTo("val1"));
+        assertThat(headers.get("key2"), notNullValue());
+        assertThat(headers.get("key2").toString(), equalTo("val 2"));
+    }
+
+    protected static void assertHeaders(TransportMessage<?> message) {
+        assertThat(message.getHeaders(), notNullValue());
+        assertThat(message.getHeaders().size(), is(2));
+        assertThat(message.getHeader("key1"), notNullValue());
+        assertThat(message.getHeader("key1").toString(), equalTo("val1"));
+        assertThat(message.getHeader("key2"), notNullValue());
+        assertThat(message.getHeader("key2").toString(), equalTo("val 2"));
+    }
+
     protected static class InternalException extends Exception {
 
         private final String action;
@@ -165,12 +183,7 @@ public abstract class AbstractClientHeadersTests extends ElasticsearchTestCase {
             assertThat("expected action [" + action + "] to throw an internal exception", e, notNullValue());
             assertThat(action, equalTo(((InternalException) e).action));
             Map<String, Object> headers = ((InternalException) e).headers;
-            assertThat(headers, notNullValue());
-            assertThat(headers.size(), is(2));
-            assertThat(headers.get("key1"), notNullValue());
-            assertThat(headers.get("key1").toString(), equalTo("val1"));
-            assertThat(headers.get("key2"), notNullValue());
-            assertThat(headers.get("key2").toString(), equalTo("val 2"));
+            assertHeaders(headers);
         }
 
         public Throwable unwrap(Throwable t, Class<? extends Throwable> exceptionType) {

@@ -19,10 +19,10 @@
 
 package org.elasticsearch.client.support;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.transport.TransportMessage;
 
 /**
  * Client request headers picked up from the client settings. Applied to every
@@ -34,7 +34,8 @@ public class Headers {
 
     public static final Headers EMPTY = new Headers(ImmutableSettings.EMPTY) {
         @Override
-        public void applyTo(ActionRequest request) {
+        public <M extends TransportMessage<?>> M applyTo(M message) {
+            return message;
         }
     };
 
@@ -45,10 +46,11 @@ public class Headers {
         headers = resolveHeaders(settings);
     }
 
-    public void applyTo(ActionRequest request) {
+    public <M extends TransportMessage<?>> M applyTo(M message) {
         for (String key : headers.names()) {
-            request.putHeader(key, headers.get(key));
+            message.putHeader(key, headers.get(key));
         }
+        return message;
     }
 
     static Settings resolveHeaders(Settings settings) {

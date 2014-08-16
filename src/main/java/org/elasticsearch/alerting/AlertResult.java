@@ -13,6 +13,17 @@ import java.util.Arrays;
 public class AlertResult {
     public SearchResponse searchResponse;
     public AlertTrigger trigger;
+    public String alertName;
+
+    public AlertResult(String alertName, SearchResponse searchResponse, AlertTrigger trigger, boolean isTriggered, XContentBuilder query, String[] indices) {
+        this.searchResponse = searchResponse;
+        this.trigger = trigger;
+        this.isTriggered = isTriggered;
+        this.query = query;
+        this.indices = indices;
+        this.alertName = alertName;
+    }
+
     public boolean isTriggered;
     public XContentBuilder query;
     public String[] indices;

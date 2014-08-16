@@ -14,7 +14,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.*;
-import org.elasticsearch.script.ScriptService;
 import org.quartz.*;
 import org.quartz.impl.StdSchedulerFactory;
 import org.quartz.simpl.SimpleJobFactory;
@@ -81,13 +80,7 @@ public class AlertScheduler extends AbstractLifecycleComponent {
             }
             SearchResponse sr = srb.execute().get();
             logger.warn("Got search response hits : [{}]", sr.getHits().getTotalHits() );
-            AlertResult result = new AlertResult();
-            //TODO: move these to ctr
-            result.isTriggered = triggerManager.isTriggered(alertName,sr);
-            result.searchResponse = sr;
-            result.trigger = alert.trigger();
-            result.query = builder;
-            result.indices = indices;
+            AlertResult result = new AlertResult(alertName, sr, alert.trigger(), triggerManager.isTriggered(alertName,sr), builder, indices);
 
             if (result.isTriggered) {
                 logger.warn("We have triggered");

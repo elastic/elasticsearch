@@ -100,7 +100,7 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
  */
 public class TransportClient extends AbstractClient {
 
-    private final Injector injector;
+    final Injector injector;
 
     private final Settings settings;
 

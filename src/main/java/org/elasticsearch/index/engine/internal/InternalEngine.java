@@ -1307,7 +1307,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                     return;
                 }
                 try {
-                    logger.warn("failed engine [{}]", reason, failure);
+                    logger.warn("failed engine [{}]", failure, reason);
                     // we must set a failure exception, generate one if not supplied
                     failedEngine = failure;
                     for (FailedEngineListener listener : failedEngineListeners) {

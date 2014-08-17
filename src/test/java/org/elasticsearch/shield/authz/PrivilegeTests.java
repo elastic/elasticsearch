@@ -6,16 +6,23 @@
 package org.elasticsearch.shield.authz;
 
 import org.apache.lucene.util.LuceneTestCase;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.shield.support.AutomatonPredicate;
+import org.elasticsearch.shield.support.Automatons;
 import org.elasticsearch.test.ElasticsearchTestCase;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
  */
 public class PrivilegeTests extends ElasticsearchTestCase {
+
+    @Rule
+    public ExpectedException thrown = ExpectedException.none();
 
     @Test
     public void testName() throws Exception {
@@ -34,6 +41,14 @@ public class PrivilegeTests extends ElasticsearchTestCase {
         assertThat(none, is(Privilege.Name.NONE));
     }
 
+    @Test
+    public void testSubActionPattern() throws Exception {
+        AutomatonPredicate predicate = new AutomatonPredicate(Automatons.patterns("foo" + Privilege.SUB_ACTION_SUFFIX_PATTERN));
+        assertThat(predicate.apply("foo[n][nodes]"), is(true));
+        assertThat(predicate.apply("foo[n]"), is(true));
+        assertThat(predicate.apply("bar[n][nodes]"), is(false));
+        assertThat(predicate.apply("[n][nodes]"), is(false));
+    }
 
     @Test
     public void testCluster() throws Exception {
@@ -54,6 +69,31 @@ public class PrivilegeTests extends ElasticsearchTestCase {
         Privilege.Name name2 = new Privilege.Name("none", "monitor");
         Privilege.Cluster cluster2 = Privilege.Cluster.get(name2);
         assertThat(cluster, is(cluster2));
+    }
+
+    @Test
+    public void testCluster_InvalidNaem() throws Exception {
+        thrown.expect(ElasticsearchIllegalArgumentException.class);
+        Privilege.Name actionName = new Privilege.Name("foobar");
+        Privilege.Cluster.get(actionName);
+    }
+
+    @Test
+    public void testClusterAction() throws Exception {
+        Privilege.Name actionName = new Privilege.Name("cluster:admin/snapshot/delete");
+        Privilege.Cluster cluster = Privilege.Cluster.get(actionName);
+        assertThat(cluster, notNullValue());
+        assertThat(cluster.predicate().apply("cluster:admin/snapshot/delete"), is(true));
+        assertThat(cluster.predicate().apply("cluster:admin/snapshot/dele"), is(false));
+    }
+
+    @Test
+    public void testIndexAction() throws Exception {
+        Privilege.Name actionName = new Privilege.Name("indices:admin/mapping/delete");
+        Privilege.Index index = Privilege.Index.get(actionName);
+        assertThat(index, notNullValue());
+        assertThat(index.predicate().apply("indices:admin/mapping/delete"), is(true));
+        assertThat(index.predicate().apply("indices:admin/mapping/dele"), is(false));
     }
 
     @Test

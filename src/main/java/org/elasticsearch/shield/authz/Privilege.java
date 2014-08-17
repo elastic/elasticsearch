@@ -7,6 +7,8 @@ package org.elasticsearch.shield.authz;
 
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.BasicAutomata;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.common.Strings;
@@ -16,6 +18,7 @@ import org.elasticsearch.common.cache.CacheLoader;
 import org.elasticsearch.common.cache.LoadingCache;
 import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.collect.Sets;
+import org.elasticsearch.common.util.concurrent.UncheckedExecutionException;
 import org.elasticsearch.shield.support.AutomatonPredicate;
 import org.elasticsearch.shield.support.Automatons;
 
@@ -26,6 +29,8 @@ import java.util.Set;
  *
  */
 public abstract class Privilege<P extends Privilege<P>> {
+
+    static final String SUB_ACTION_SUFFIX_PATTERN = ".*";
 
     public static final Internal INTERNAL = new Internal();
 
@@ -128,12 +133,16 @@ public abstract class Privilege<P extends Privilege<P>> {
             return NONE;
         }
 
-        public static Index get(Name name) {
-            return cache.getUnchecked(name);
+        public static Index action(String action) {
+            return new Index(action, actionToPattern(action));
         }
 
-        public static Index action(String action) {
-            return new Index(action, action);
+        public static Index get(Name name) {
+            try {
+                return cache.getUnchecked(name);
+            } catch (UncheckedExecutionException e) {
+                throw (ElasticsearchException) e.getCause();
+            }
         }
 
         public static Index union(Index... indices) {
@@ -146,12 +155,17 @@ public abstract class Privilege<P extends Privilege<P>> {
 
         private static Index resolve(String name) {
             name = name.toLowerCase(Locale.ROOT);
+            if (name.startsWith("indices:")) {
+                return action(name);
+            }
             for (Index index : values) {
                 if (name.toLowerCase(Locale.ROOT).equals(index.name.toString())) {
                     return index;
                 }
             }
-            throw new IllegalArgumentException("Unknown index privilege [" + name + "]");
+            throw new ElasticsearchIllegalArgumentException("Unknown index privilege [" + name + "]. A privilege must either " +
+                    "on of the predefined fixed indices privileges [" + Strings.arrayToCommaDelimitedString(values) +
+                    "] or a pattern over one of the available index actions (the pattern must begin with \"indices:\" prefix)");
         }
 
     }
@@ -205,19 +219,37 @@ public abstract class Privilege<P extends Privilege<P>> {
             return NONE;
         }
 
+        public static Cluster action(String action) {
+            String pattern = actionToPattern(action);
+            return new Cluster(action, pattern);
+        }
+
         public static Cluster get(Name name) {
-            return cache.getUnchecked(name);
+            try {
+                return cache.getUnchecked(name);
+            } catch (UncheckedExecutionException e) {
+                throw (ElasticsearchException) e.getCause();
+            }
         }
 
         private static Cluster resolve(String name) {
             name = name.toLowerCase(Locale.ROOT);
+            if (name.startsWith("cluster:")) {
+                return action(name);
+            }
             for (Cluster cluster : values) {
                 if (name.equals(cluster.name.toString())) {
                     return cluster;
                 }
             }
-            throw new IllegalArgumentException("Unknown cluster privilege [" + name + "]");
+            throw new ElasticsearchIllegalArgumentException("Unknown cluster privilege [" + name + "]. A privilege must either " +
+                    "on of the predefined fixed cluster privileges [" + Strings.arrayToCommaDelimitedString(values) +
+                    "] or a pattern over one of the available cluster actions (the pattern must begin with \"cluster:\" prefix)");
         }
+    }
+
+    static String actionToPattern(String text) {
+        return text.replace(":", "\\:") + SUB_ACTION_SUFFIX_PATTERN;
     }
 
     @SuppressWarnings("unchecked")

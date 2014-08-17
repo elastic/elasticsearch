@@ -80,7 +80,9 @@ public class AlertScheduler extends AbstractLifecycleComponent {
             }
             SearchResponse sr = srb.execute().get();
             logger.warn("Got search response hits : [{}]", sr.getHits().getTotalHits() );
-            AlertResult result = new AlertResult(alertName, sr, alert.trigger(), triggerManager.isTriggered(alertName,sr), builder, indices);
+            AlertResult result = new AlertResult(alertName, sr, alert.trigger(),
+                    triggerManager.isTriggered(alertName,sr), builder, indices,
+                    new DateTime(jobExecutionContext.getScheduledFireTime()));
 
             if (result.isTriggered) {
                 logger.warn("We have triggered");

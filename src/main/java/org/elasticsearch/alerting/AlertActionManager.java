@@ -25,6 +25,7 @@ public class AlertActionManager extends AbstractComponent {
         this.alertManager = alertManager;
         this.actionImplemented = new HashMap<>();
         registerAction("email", new EmailAlertActionFactory());
+        registerAction("index", new IndexAlertActionFactory());
     }
 
     public void registerAction(String name, AlertActionFactory actionFactory){

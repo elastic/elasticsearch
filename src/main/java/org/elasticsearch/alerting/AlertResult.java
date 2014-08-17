@@ -6,6 +6,7 @@
 package org.elasticsearch.alerting;
 
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.util.Arrays;
@@ -14,14 +15,16 @@ public class AlertResult {
     public SearchResponse searchResponse;
     public AlertTrigger trigger;
     public String alertName;
+    public DateTime fireTime;
 
-    public AlertResult(String alertName, SearchResponse searchResponse, AlertTrigger trigger, boolean isTriggered, XContentBuilder query, String[] indices) {
+    public AlertResult(String alertName, SearchResponse searchResponse, AlertTrigger trigger, boolean isTriggered, XContentBuilder query, String[] indices, DateTime fireTime) {
         this.searchResponse = searchResponse;
         this.trigger = trigger;
         this.isTriggered = isTriggered;
         this.query = query;
         this.indices = indices;
         this.alertName = alertName;
+        this.fireTime = fireTime;
     }
 
     public boolean isTriggered;

@@ -9,15 +9,20 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 
 import java.io.IOException;
 
-public class IndexAlertAction implements AlertAction {
+public class IndexAlertAction implements AlertAction, ToXContent {
     private final String index;
     private final String type;
     private Client client = null;
+    ESLogger logger = Loggers.getLogger(IndexAlertAction.class);
 
     @Inject
     public IndexAlertAction(String index, String type, Client client){
@@ -33,7 +38,7 @@ public class IndexAlertAction implements AlertAction {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder) throws IOException {
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field("index", index);
         builder.field("type", type);
@@ -47,9 +52,11 @@ public class IndexAlertAction implements AlertAction {
         indexRequest.index(index);
         indexRequest.type(type);
         try {
-            XContentBuilder resultBuilder = XContentFactory.jsonBuilder();
-            alertResult.searchResponse.toXContent(resultBuilder,null);
+            XContentBuilder resultBuilder = XContentFactory.jsonBuilder().prettyPrint();
+            resultBuilder.startObject();
+            resultBuilder = alertResult.searchResponse.toXContent(resultBuilder, ToXContent.EMPTY_PARAMS);
             resultBuilder.field("timestamp", alertResult.fireTime);
+            resultBuilder.endObject();
             indexRequest.source(resultBuilder);
         } catch (IOException ie) {
             throw new ElasticsearchException("Unable to create XContentBuilder",ie);

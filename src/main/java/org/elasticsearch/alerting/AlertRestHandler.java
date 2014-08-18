@@ -9,10 +9,7 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.xcontent.XContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.rest.*;
 
 import java.io.IOException;
@@ -70,7 +67,7 @@ public class AlertRestHandler implements RestHandler {
                 boolean added = alertManager.addAlert(alert.alertName(), alert, true);
                 if (added) {
                     XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
-                    alert.toXContent(builder);
+                    alert.toXContent(builder, ToXContent.EMPTY_PARAMS);
                     restChannel.sendResponse(new BytesRestResponse(OK, builder));
                 } else {
                     restChannel.sendResponse(new BytesRestResponse(BAD_REQUEST));
@@ -103,7 +100,7 @@ public class AlertRestHandler implements RestHandler {
         builder.startObject();
         for (Map.Entry<String, Alert> alertEntry : alertMap.entrySet()) {
             builder.field(alertEntry.getKey());
-            alertEntry.getValue().toXContent(builder);
+            alertEntry.getValue().toXContent(builder, ToXContent.EMPTY_PARAMS);
         }
         builder.endObject();
         return builder;

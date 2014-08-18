@@ -6,16 +6,14 @@
 package org.elasticsearch.alerting;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 
-/**
- * Created by brian on 8/12/14.
- */
-public class AlertTrigger {
+public class AlertTrigger implements ToXContent {
 
     private SimpleTrigger trigger;
     private TriggerType triggerType;
@@ -107,9 +105,10 @@ public class AlertTrigger {
         }
     }
 
-    public XContentBuilder toXContent(XContentBuilder builder) throws IOException {
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(triggerType.toString(),trigger.toString()+value);
+        builder.field(triggerType.toString(), trigger.toString() + value);
         builder.endObject();
         return builder;
     }

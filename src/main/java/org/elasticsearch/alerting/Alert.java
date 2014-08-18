@@ -7,6 +7,7 @@ package org.elasticsearch.alerting;
 
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -17,7 +18,7 @@ import java.util.List;
 /**
  * Created by brian on 8/12/14.
  */
-public class Alert {
+public class Alert implements ToXContent{
     private final String alertName;
     private String queryName;
     private AlertTrigger trigger;
@@ -121,7 +122,8 @@ public class Alert {
         this.running = running;
     }
 
-    public XContentBuilder toXContent(XContentBuilder builder) throws IOException {
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
 
         //Note we deliberately don't serialize the version here
         builder.startObject();
@@ -131,13 +133,13 @@ public class Alert {
         builder.field(AlertManager.LASTRAN_FIELD.getPreferredName(), lastRan);
         builder.field(AlertManager.CURRENTLY_RUNNING.getPreferredName(), running);
         builder.field(AlertManager.TRIGGER_FIELD.getPreferredName());
-        trigger.toXContent(builder);
+        trigger.toXContent(builder, params);
         builder.field(AlertManager.ACTION_FIELD.getPreferredName());
 
         builder.startObject();
         for (AlertAction action : actions){
             builder.field(action.getActionName());
-            action.toXContent(builder);
+            action.toXContent(builder, params);
         }
         builder.endObject();
 

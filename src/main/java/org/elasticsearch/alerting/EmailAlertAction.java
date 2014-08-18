@@ -57,7 +57,7 @@ public class EmailAlertAction implements AlertAction {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder) throws IOException {
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field("addresses");
         builder.startArray();

@@ -9,7 +9,6 @@ package org.elasticsearch.alerting;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
@@ -19,7 +18,6 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.update.UpdateRequest;
-import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Nullable;
@@ -30,12 +28,11 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchHitField;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -177,7 +174,7 @@ public class AlertManager extends AbstractLifecycleComponent {
         XContentBuilder alertBuilder;
         try {
             alertBuilder = XContentFactory.jsonBuilder();
-            alert.toXContent(alertBuilder);
+            alert.toXContent(alertBuilder, ToXContent.EMPTY_PARAMS);
         } catch (IOException ie) {
             throw new ElasticsearchException("Unable to serialize alert ["+ alertName + "]", ie);
         }
@@ -190,13 +187,13 @@ public class AlertManager extends AbstractLifecycleComponent {
             logger.error("Failed to update in claim", ee);
             return false;
         }
-        synchronized (alertMap) { //Update the alert map 
+
+        synchronized (alertMap) { //Update the alert map
             if (alertMap.containsKey(alertName)) {
                 alertMap.get(alertName).running(scheduleRunTime);
             }
         }
         return true;
-
     }
 
     private Alert getAlertFromIndex(String alertName) {
@@ -260,7 +257,7 @@ public class AlertManager extends AbstractLifecycleComponent {
                 Alert alert = getAlertForName(alertName);
                 alert.lastRan(fireTime);
                 XContentBuilder alertBuilder = XContentFactory.jsonBuilder().prettyPrint();
-                alert.toXContent(alertBuilder);
+                alert.toXContent(alertBuilder, ToXContent.EMPTY_PARAMS);
                 UpdateRequest updateRequest = new UpdateRequest();
                 updateRequest.id(alertName);
                 updateRequest.index(ALERT_INDEX);
@@ -286,7 +283,7 @@ public class AlertManager extends AbstractLifecycleComponent {
         historyEntry.field("triggered", triggered);
         historyEntry.field("fireTime", fireTime.toDateTimeISO());
         historyEntry.field("trigger");
-        trigger.toXContent(historyEntry);
+        trigger.toXContent(historyEntry, ToXContent.EMPTY_PARAMS);
         historyEntry.field("queryRan", XContentHelper.convertToJson(triggeringQuery.bytes(),false,true));
         historyEntry.field("numberOfResults", numberOfResults);
         if (indices != null) {
@@ -352,7 +349,7 @@ public class AlertManager extends AbstractLifecycleComponent {
                     XContentBuilder builder;
                     try {
                         builder = XContentFactory.jsonBuilder();
-                        alert.toXContent(builder);
+                        alert.toXContent(builder, ToXContent.EMPTY_PARAMS);
                         IndexRequest indexRequest = new IndexRequest(ALERT_INDEX, ALERT_TYPE, alertName);
                         indexRequest.listenerThreaded(false);
                         indexRequest.operationThreaded(false);

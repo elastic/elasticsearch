@@ -44,7 +44,7 @@ path.data: ["/mnt/first", "/mnt/second"]
 
 
 [float]
-[[Default Paths]]
+[[default-paths]]
 === Default Paths
 
 Below are the default paths that elasticsearch will use, if not explictly changed.

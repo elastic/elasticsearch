@@ -66,9 +66,12 @@ public class AlertScheduler extends AbstractLifecycleComponent {
     public void executeAlert(String alertName, JobExecutionContext jobExecutionContext){
         logger.warn("Running [{}]",alertName);
         Alert alert = alertManager.getAlertForName(alertName);
-
-        //@TODO : claim alert
+        DateTime scheduledTime =  new DateTime(jobExecutionContext.getScheduledFireTime());
         try {
+            if (!alertManager.claimAlertRun(alertName, scheduledTime) ){
+                logger.warn("Another process has already run this alert.");
+                return;
+            }
             XContentBuilder builder = createClampedQuery(jobExecutionContext, alert);
             logger.warn("Running the following query : [{}]", builder.string());
 
@@ -99,7 +102,7 @@ public class AlertScheduler extends AbstractLifecycleComponent {
                 logger.warn("Failed to store history for alert [{}]", alertName);
             }
         } catch (Exception e) {
-            logger.error("Failed execute alert [{}]",e, alert.queryName());
+            logger.error("Failed execute alert [{}]", e, alertName);
         }
     }
 

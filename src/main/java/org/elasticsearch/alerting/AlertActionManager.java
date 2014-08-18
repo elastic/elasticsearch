@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.alerting;
 
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -20,12 +21,12 @@ public class AlertActionManager extends AbstractComponent {
     private final Map<String, AlertActionFactory> actionImplemented;
 
     @Inject
-    public AlertActionManager(Settings settings, AlertManager alertManager) {
+    public AlertActionManager(Settings settings, AlertManager alertManager, Client client) {
         super(settings);
         this.alertManager = alertManager;
         this.actionImplemented = new HashMap<>();
         registerAction("email", new EmailAlertActionFactory());
-        registerAction("index", new IndexAlertActionFactory());
+        registerAction("index", new IndexAlertActionFactory(client));
     }
 
     public void registerAction(String name, AlertActionFactory actionFactory){

@@ -14,6 +14,8 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -57,6 +59,7 @@ public class AlertManager extends AbstractLifecycleComponent {
     public static final ParseField ACTION_FIELD = new ParseField("action");
     public static final ParseField LASTRAN_FIELD = new ParseField("lastRan");
     public static final ParseField INDICES = new ParseField("indices");
+    public static final ParseField CURRENTLY_RUNNING = new ParseField("running");
 
     private final Client client;
     private AlertScheduler scheduler;
@@ -146,12 +149,66 @@ public class AlertManager extends AbstractLifecycleComponent {
         this.scheduler = scheduler;
     }
 
-    private ClusterHealthStatus createAlertsIndex() throws InterruptedException, ExecutionException {
-        CreateIndexResponse cir = client.admin().indices().prepareCreate(ALERT_INDEX).addMapping(ALERT_TYPE).execute().get(); //TODO FIX MAPPINGS
+    private ClusterHealthStatus createAlertsIndex() {
+        CreateIndexResponse cir = client.admin().indices().prepareCreate(ALERT_INDEX).addMapping(ALERT_TYPE).execute().actionGet(); //TODO FIX MAPPINGS
         logger.warn(cir.toString());
         ClusterHealthResponse actionGet = client.admin().cluster()
                 .health(Requests.clusterHealthRequest(ALERT_INDEX).waitForGreenStatus().waitForEvents(Priority.LANGUID).waitForRelocatingShards(0)).actionGet();
         return actionGet.getStatus();
+    }
+
+    public boolean claimAlertRun(String alertName, DateTime scheduleRunTime) {
+        Alert alert;
+        try {
+            alert = getAlertFromIndex(alertName);
+            if (alert.running().equals(scheduleRunTime) || alert.running().isAfter(scheduleRunTime)) {
+                //Someone else is already running this alert or this alert time has passed
+                return false;
+            }
+        } catch (Throwable t) {
+            throw new ElasticsearchException("Unable to load alert from index",t);
+        }
+        alert.running(scheduleRunTime);
+        UpdateRequest updateRequest = new UpdateRequest();
+        updateRequest.index(ALERT_INDEX);
+        updateRequest.type(ALERT_TYPE);
+        updateRequest.id(alertName);
+        updateRequest.version(alert.version());//Since we loaded this alert directly from the index the version should be correct
+        XContentBuilder alertBuilder;
+        try {
+            alertBuilder = XContentFactory.jsonBuilder();
+            alert.toXContent(alertBuilder);
+        } catch (IOException ie) {
+            throw new ElasticsearchException("Unable to serialize alert ["+ alertName + "]", ie);
+        }
+        updateRequest.doc(alertBuilder);
+        updateRequest.retryOnConflict(0);
+
+        try {
+            client.update(updateRequest).actionGet();
+        } catch (ElasticsearchException ee) {
+            logger.error("Failed to update in claim", ee);
+            return false;
+        }
+        synchronized (alertMap) { //Update the alert map 
+            if (alertMap.containsKey(alertName)) {
+                alertMap.get(alertName).running(scheduleRunTime);
+            }
+        }
+        return true;
+
+    }
+
+    private Alert getAlertFromIndex(String alertName) {
+        GetRequest getRequest = Requests.getRequest(ALERT_INDEX);
+        getRequest.type(ALERT_TYPE);
+        getRequest.id(alertName);
+        GetResponse getResponse = client.get(getRequest).actionGet();
+        if (getResponse.isExists()) {
+            return parseAlert(alertName, getResponse.getSourceAsMap(), getResponse.getVersion());
+        } else {
+            throw new ElasticsearchException("Unable to find [" + alertName + "] in the [" +ALERT_INDEX + "]" );
+        }
     }
 
     public void refreshAlerts() {
@@ -167,8 +224,8 @@ public class AlertManager extends AbstractLifecycleComponent {
         }
     }
 
-    private void loadAlerts() throws InterruptedException, ExecutionException{
-        if (!client.admin().indices().prepareExists(ALERT_INDEX).execute().get().isExists()) {
+    private void loadAlerts() {
+        if (!client.admin().indices().prepareExists(ALERT_INDEX).execute().actionGet().isExists()) {
             createAlertsIndex();
         }
 
@@ -178,11 +235,16 @@ public class AlertManager extends AbstractLifecycleComponent {
                             "{ \"match_all\" :  {}}," +
                             "\"size\" : \"100\"" +
                     "}"
-            ).setTypes(ALERT_TYPE).setIndices(ALERT_INDEX).execute().get();
+            ).setTypes(ALERT_TYPE).setIndices(ALERT_INDEX).execute().actionGet();
             for (SearchHit sh : searchResponse.getHits()) {
                 String alertId = sh.getId();
-                Alert alert = parseAlert(alertId, sh);
-                alertMap.put(alertId, alert);
+                try {
+                    Alert alert = parseAlert(alertId, sh);
+                    alertMap.put(alertId, alert);
+                } catch (ElasticsearchException e) {
+                    logger.error("Unable to parse [{}] as an alert this alert will be skipped.",e,sh);
+                }
+
             }
             logger.warn("Loaded [{}] alerts from the alert index.", alertMap.size());
         }
@@ -244,7 +306,7 @@ public class AlertManager extends AbstractLifecycleComponent {
         indexRequest.operationThreaded(false);
         indexRequest.refresh(true); //Always refresh after indexing an alert
         indexRequest.opType(IndexRequest.OpType.CREATE);
-        return client.index(indexRequest).get().isCreated();
+        return client.index(indexRequest).actionGet().isCreated();
     }
 
     public boolean deleteAlert(String alertName) throws InterruptedException, ExecutionException{
@@ -279,7 +341,7 @@ public class AlertManager extends AbstractLifecycleComponent {
         return false;
     }
 
-    public boolean addAlert(String alertName, Alert alert, boolean persist) throws InterruptedException, ExecutionException{
+    public boolean addAlert(String alertName, Alert alert, boolean persist) {
         synchronized (alertMap) {
             if (alertMap.containsKey(alertName)) {
                 throw new ElasticsearchIllegalArgumentException("There is already an alert named ["+alertName+"]");
@@ -297,7 +359,7 @@ public class AlertManager extends AbstractLifecycleComponent {
                         indexRequest.refresh(true); //Always refresh after indexing an alert
                         indexRequest.source(builder);
                         indexRequest.opType(IndexRequest.OpType.CREATE);
-                        return client.index(indexRequest).get().isCreated();
+                        return client.index(indexRequest).actionGet().isCreated();
                     } catch (IOException ie) {
                         throw new ElasticsearchIllegalStateException("Unable to convert alert to JSON", ie);
                     }
@@ -311,10 +373,17 @@ public class AlertManager extends AbstractLifecycleComponent {
     private Alert parseAlert(String alertId, SearchHit sh) {
 
         Map<String, Object> fields = sh.sourceAsMap();
-        return parseAlert(alertId,fields);
+        return parseAlert(alertId, fields, sh.getVersion());
     }
 
+
+
     public Alert parseAlert(String alertId, Map<String, Object> fields) {
+        return parseAlert(alertId, fields, -1);
+    }
+
+    public Alert parseAlert(String alertId, Map<String, Object> fields, long version ) {
+
         //Map<String,SearchHitField> fields = sh.getFields();
         logger.warn("Parsing : [{}]", alertId);
         for (String field : fields.keySet() ) {
@@ -351,6 +420,11 @@ public class AlertManager extends AbstractLifecycleComponent {
             lastRan = new DateTime(fields.get("lastRan").toString());
         }
 
+        DateTime running = new DateTime(0);
+        if (fields.get(CURRENTLY_RUNNING.getPreferredName()) != null) {
+            running = new DateTime(fields.get(CURRENTLY_RUNNING.getPreferredName()).toString());
+        }
+
         List<String> indices = new ArrayList<>();
         if (fields.get(INDICES.getPreferredName()) != null && fields.get(INDICES.getPreferredName()) instanceof List){
             indices = (List<String>)fields.get(INDICES.getPreferredName());
@@ -358,7 +432,7 @@ public class AlertManager extends AbstractLifecycleComponent {
             logger.warn("Indices : " + fields.get(INDICES.getPreferredName()) + " class " + fields.get(INDICES.getPreferredName()).getClass() );
         }
 
-        return new Alert(alertId, query, trigger, timePeriod, actions, schedule, lastRan, indices);
+        return new Alert(alertId, query, trigger, timePeriod, actions, schedule, lastRan, indices, running, version);
     }
 
     public Map<String,Alert> getSafeAlertMap() {

@@ -25,6 +25,24 @@ public class Alert {
     private List<AlertAction> actions;
     private String schedule;
     private DateTime lastRan;
+    private long version;
+    private DateTime running;
+
+    public DateTime running() {
+        return running;
+    }
+
+    public void running(DateTime running) {
+        this.running = running;
+    }
+
+    public long version() {
+        return version;
+    }
+
+    public void version(long version) {
+        this.version = version;
+    }
 
     public List<String> indices() {
         return indices;
@@ -35,7 +53,6 @@ public class Alert {
     }
 
     private List<String> indices;
-
 
     public String alertName() {
         return alertName;
@@ -91,7 +108,7 @@ public class Alert {
 
     public Alert(String alertName, String queryName, AlertTrigger trigger,
                  TimeValue timePeriod, List<AlertAction> actions, String schedule, DateTime lastRan,
-                 List<String> indices){
+                 List<String> indices, DateTime running, long version){
         this.alertName = alertName;
         this.queryName = queryName;
         this.trigger = trigger;
@@ -100,14 +117,19 @@ public class Alert {
         this.lastRan = lastRan;
         this.schedule = schedule;
         this.indices = indices;
+        this.version = version;
+        this.running = running;
     }
 
     public XContentBuilder toXContent(XContentBuilder builder) throws IOException {
+
+        //Note we deliberately don't serialize the version here
         builder.startObject();
         builder.field(AlertManager.QUERY_FIELD.getPreferredName(), queryName);
         builder.field(AlertManager.SCHEDULE_FIELD.getPreferredName(), schedule);
         builder.field(AlertManager.TIMEPERIOD_FIELD.getPreferredName(), timePeriod);
         builder.field(AlertManager.LASTRAN_FIELD.getPreferredName(), lastRan);
+        builder.field(AlertManager.CURRENTLY_RUNNING.getPreferredName(), running);
         builder.field(AlertManager.TRIGGER_FIELD.getPreferredName());
         trigger.toXContent(builder);
         builder.field(AlertManager.ACTION_FIELD.getPreferredName());

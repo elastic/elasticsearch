@@ -19,15 +19,13 @@ public class IndexAlertAction implements AlertAction {
     private final String type;
     private Client client = null;
 
-    public IndexAlertAction(String index, String type){
+    @Inject
+    public IndexAlertAction(String index, String type, Client client){
         this.index = index;
         this.type = type;
-    }
-
-    @Inject
-    public void setClient(Client client){
         this.client = client;
     }
+
 
     @Override
     public String getActionName() {

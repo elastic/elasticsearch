@@ -58,7 +58,7 @@ public class CompressedStringTests extends ElasticsearchTestCase {
         String compressor = "lzf";
         CompressorFactory.configure(ImmutableSettings.settingsBuilder().put("compress.default.type", compressor).build());
         Random r = getRandom();
-        for (int i = 0; i < 2000; i++) {
+        for (int i = 0; i < 1000; i++) {
             String string = TestUtil.randomUnicodeString(r, 10000);
             CompressedString compressedString = new CompressedString(string);
             assertThat(compressedString.string(), equalTo(string));

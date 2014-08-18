@@ -49,6 +49,7 @@ path.data: ["/mnt/first", "/mnt/second"]
 
 Below are the default paths that elasticsearch will use, if not explictly changed.
 
+[float]
 ==== deb and rpm
 [cols="<h,<,<m,<m",options="header",]
 |=======================================================================
@@ -69,6 +70,7 @@ on the node. | /var/lib/elasticsearch/data | /var/lib/elasticsearch
 | plugins | Plugin files location. Each plugin will be contained in a subdirectory. | /usr/share/elasticsearch/plugins | /usr/share/elasticsearch/plugins
 |=======================================================================
 
+[float]
 ==== zip and tar.gz
 [cols="<h,<,<m",options="header",]
 |=======================================================================

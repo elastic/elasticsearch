@@ -760,42 +760,44 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
         Map<SnapshotId, Map<ShardId, IndexShardSnapshotStatus>> newSnapshots = newHashMap();
         // Now go through all snapshots and update existing or create missing
         final String localNodeId = clusterService.localNode().id();
-        for (SnapshotMetaData.Entry entry : snapshotMetaData.entries()) {
-            if (entry.state() == State.STARTED) {
-                Map<ShardId, IndexShardSnapshotStatus> startedShards = newHashMap();
-                SnapshotShards snapshotShards = shardSnapshots.get(entry.snapshotId());
-                for (Map.Entry<ShardId, SnapshotMetaData.ShardSnapshotStatus> shard : entry.shards().entrySet()) {
-                    // Add all new shards to start processing on
-                    if (localNodeId.equals(shard.getValue().nodeId())) {
-                        if (shard.getValue().state() == State.INIT && (snapshotShards == null || !snapshotShards.shards.containsKey(shard.getKey()))) {
-                            logger.trace("[{}] - Adding shard to the queue", shard.getKey());
-                            startedShards.put(shard.getKey(), new IndexShardSnapshotStatus());
+        if (snapshotMetaData != null) {
+            for (SnapshotMetaData.Entry entry : snapshotMetaData.entries()) {
+                if (entry.state() == State.STARTED) {
+                    Map<ShardId, IndexShardSnapshotStatus> startedShards = newHashMap();
+                    SnapshotShards snapshotShards = shardSnapshots.get(entry.snapshotId());
+                    for (Map.Entry<ShardId, SnapshotMetaData.ShardSnapshotStatus> shard : entry.shards().entrySet()) {
+                        // Add all new shards to start processing on
+                        if (localNodeId.equals(shard.getValue().nodeId())) {
+                            if (shard.getValue().state() == State.INIT && (snapshotShards == null || !snapshotShards.shards.containsKey(shard.getKey()))) {
+                                logger.trace("[{}] - Adding shard to the queue", shard.getKey());
+                                startedShards.put(shard.getKey(), new IndexShardSnapshotStatus());
+                            }
                         }
                     }
-                }
-                if (!startedShards.isEmpty()) {
-                    newSnapshots.put(entry.snapshotId(), startedShards);
-                    if (snapshotShards != null) {
-                        // We already saw this snapshot but we need to add more started shards
-                        ImmutableMap.Builder<ShardId, IndexShardSnapshotStatus> shards = ImmutableMap.builder();
-                        // Put all shards that were already running on this node
-                        shards.putAll(snapshotShards.shards);
-                        // Put all newly started shards
-                        shards.putAll(startedShards);
-                        survivors.put(entry.snapshotId(), new SnapshotShards(shards.build()));
-                    } else {
-                        // Brand new snapshot that we haven't seen before
-                        survivors.put(entry.snapshotId(), new SnapshotShards(ImmutableMap.copyOf(startedShards)));
+                    if (!startedShards.isEmpty()) {
+                        newSnapshots.put(entry.snapshotId(), startedShards);
+                        if (snapshotShards != null) {
+                            // We already saw this snapshot but we need to add more started shards
+                            ImmutableMap.Builder<ShardId, IndexShardSnapshotStatus> shards = ImmutableMap.builder();
+                            // Put all shards that were already running on this node
+                            shards.putAll(snapshotShards.shards);
+                            // Put all newly started shards
+                            shards.putAll(startedShards);
+                            survivors.put(entry.snapshotId(), new SnapshotShards(shards.build()));
+                        } else {
+                            // Brand new snapshot that we haven't seen before
+                            survivors.put(entry.snapshotId(), new SnapshotShards(ImmutableMap.copyOf(startedShards)));
+                        }
                     }
-                }
-            } else if (entry.state() == State.ABORTED) {
-                // Abort all running shards for this snapshot
-                SnapshotShards snapshotShards = shardSnapshots.get(entry.snapshotId());
-                if (snapshotShards != null) {
-                    for (Map.Entry<ShardId, SnapshotMetaData.ShardSnapshotStatus> shard : entry.shards().entrySet()) {
-                        IndexShardSnapshotStatus snapshotStatus = snapshotShards.shards.get(shard.getKey());
-                        if (snapshotStatus != null) {
-                            snapshotStatus.abort();
+                } else if (entry.state() == State.ABORTED) {
+                    // Abort all running shards for this snapshot
+                    SnapshotShards snapshotShards = shardSnapshots.get(entry.snapshotId());
+                    if (snapshotShards != null) {
+                        for (Map.Entry<ShardId, SnapshotMetaData.ShardSnapshotStatus> shard : entry.shards().entrySet()) {
+                            IndexShardSnapshotStatus snapshotStatus = snapshotShards.shards.get(shard.getKey());
+                            if (snapshotStatus != null) {
+                                snapshotStatus.abort();
+                            }
                         }
                     }
                 }

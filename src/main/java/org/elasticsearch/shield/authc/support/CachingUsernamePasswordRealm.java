@@ -16,7 +16,6 @@ import org.elasticsearch.shield.authc.AuthenticationToken;
 import org.elasticsearch.shield.authc.Realm;
 import org.elasticsearch.transport.TransportMessage;
 
-import java.util.Arrays;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -24,8 +23,9 @@ import java.util.concurrent.TimeUnit;
 public abstract class CachingUsernamePasswordRealm extends AbstractComponent implements Realm<UsernamePasswordToken> {
 
     private static final TimeValue DEFAULT_TTL = TimeValue.timeValueHours(1);
+    private static final int DEFAULT_MAX_USERS = 100000; //100k users
 
-    private final Cache<CacheKey, User> cache;
+    private final Cache<String, UserWithHash> cache;
 
     protected CachingUsernamePasswordRealm(Settings settings) {
         super(settings);
@@ -33,7 +33,7 @@ public abstract class CachingUsernamePasswordRealm extends AbstractComponent imp
         if (ttl.millis() > 0) {
             cache = CacheBuilder.newBuilder()
                     .expireAfterWrite(ttl.getMillis(), TimeUnit.MILLISECONDS)
-                    .maximumSize(settings.getAsInt("cache.max_users", -1))
+                    .maximumSize(settings.getAsInt("cache.max_users", DEFAULT_MAX_USERS))
                     .build();
         } else {
             cache = null;
@@ -62,54 +62,59 @@ public abstract class CachingUsernamePasswordRealm extends AbstractComponent imp
         }
     }
 
+    /**
+     * If the user exists in the cache (keyed by the principle name), then the password is validated
+     * against a hash also stored in the cache.  Otherwise the subclass authenticates the user via
+     * doAuthenticate
+     *
+     * @param token The authentication token
+     * @return an authenticated user with roles
+     */
     @Override
     public User authenticate(final UsernamePasswordToken token) {
         if (cache == null) {
             return doAuthenticate(token);
         }
 
-        try {
-            return cache.get(new CacheKey(token), new Callable<User>() {
-                @Override
-                public User call() throws Exception {
-                    return doAuthenticate(token);
+        Callable<UserWithHash> callback = new Callable<UserWithHash>() {
+            @Override
+            public UserWithHash call() throws Exception {
+                User user = doAuthenticate(token);
+                if (user == null) {
+                    throw new AuthenticationException("Could not authenticate ['" + token.principal() + "]");
                 }
-            });
+                return new UserWithHash(user, token.credentials());
+            }
+        };
+
+        try {
+            UserWithHash userWithHash = cache.get(token.principal(), callback);
+            if (userWithHash.verify(token.credentials())) {
+                return userWithHash.user;
+            }
+            //this handles when a user's password has changed:
+            expire(token.principal());
+            userWithHash = cache.get(token.principal(), callback);
+            return userWithHash.user;
+            
         } catch (ExecutionException ee) {
-            throw new AuthenticationException("Could not authenticate ['" + token.principal() + "]", ee);
+            logger.warn("Could not authenticate ['" + token.principal() + "]", ee);
+            return null;
         }
     }
 
     protected abstract User doAuthenticate(UsernamePasswordToken token);
 
-    static class CacheKey {
-
-        private final String username;
-        private final char[] passwdHash;
-
-        CacheKey(UsernamePasswordToken token) {
-            this.username = token.principal();
-            this.passwdHash = Hasher.HTPASSWD.hash(token.credentials());
+    public static class UserWithHash {
+        User user;
+        char[] hash;
+        public UserWithHash(User user, char[] password){
+            this.user = user;
+            this.hash = Hasher.HTPASSWD.hash(password);
         }
 
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-
-            CacheKey cacheKey = (CacheKey) o;
-
-            if (!Arrays.equals(passwdHash, cacheKey.passwdHash)) return false;
-            if (!username.equals(cacheKey.username)) return false;
-
-            return true;
-        }
-
-        @Override
-        public int hashCode() {
-            int result = username.hashCode();
-            result = 31 * result + Arrays.hashCode(passwdHash);
-            return result;
+        public boolean verify(char[] password){
+            return Hasher.HTPASSWD.verify(password, hash);
         }
     }
 }

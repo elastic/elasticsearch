@@ -28,17 +28,11 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.search.SearchHit;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -57,6 +51,7 @@ public class AlertManager extends AbstractLifecycleComponent {
     public static final ParseField LASTRAN_FIELD = new ParseField("lastRan");
     public static final ParseField INDICES = new ParseField("indices");
     public static final ParseField CURRENTLY_RUNNING = new ParseField("running");
+    public static final ParseField ENABLED = new ParseField("enabled");
 
     private final Client client;
     private AlertScheduler scheduler;
@@ -429,7 +424,26 @@ public class AlertManager extends AbstractLifecycleComponent {
             logger.warn("Indices : " + fields.get(INDICES.getPreferredName()) + " class " + fields.get(INDICES.getPreferredName()).getClass() );
         }
 
-        return new Alert(alertId, query, trigger, timePeriod, actions, schedule, lastRan, indices, running, version);
+        boolean enabled = true;
+        if (fields.get(ENABLED.getPreferredName()) != null ) {
+            Object enabledObj = fields.get(ENABLED.getPreferredName());
+            if (enabledObj instanceof Boolean){
+                enabled = (Boolean)enabledObj;
+            } else {
+                if (enabledObj.toString().toLowerCase(Locale.ROOT).equals("true") ||
+                        enabledObj.toString().toLowerCase(Locale.ROOT).equals("1")) {
+                    enabled = true;
+                } else if ( enabledObj.toString().toLowerCase(Locale.ROOT).equals("false") ||
+                        enabledObj.toString().toLowerCase(Locale.ROOT).equals("0")) {
+                    enabled = false;
+                } else {
+                    throw new ElasticsearchIllegalArgumentException("Unable to parse [" + enabledObj + "] as a boolean");
+                }
+            }
+        }
+
+
+        return new Alert(alertId, query, trigger, timePeriod, actions, schedule, lastRan, indices, running, version, enabled);
     }
 
     public Map<String,Alert> getSafeAlertMap() {

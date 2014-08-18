@@ -67,6 +67,9 @@ public class AlertScheduler extends AbstractLifecycleComponent {
         logger.warn("Running [{}]",alertName);
         Alert alert = alertManager.getAlertForName(alertName);
         DateTime scheduledTime =  new DateTime(jobExecutionContext.getScheduledFireTime());
+        if (!alert.enabled()) {
+            logger.warn("Alert [{}] is not enabled", alertName);
+        }
         try {
             if (!alertManager.claimAlertRun(alertName, scheduledTime) ){
                 logger.warn("Another process has already run this alert.");

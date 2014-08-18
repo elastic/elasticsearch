@@ -8,8 +8,6 @@ package org.elasticsearch.alerting;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 
@@ -18,6 +16,16 @@ public class AlertTrigger implements ToXContent {
     private SimpleTrigger trigger;
     private TriggerType triggerType;
     private int value;
+
+    public ScriptedAlertTrigger scriptedTrigger() {
+        return scriptedTrigger;
+    }
+
+    public void scriptedTrigger(ScriptedAlertTrigger scriptedTrigger) {
+        this.scriptedTrigger = scriptedTrigger;
+    }
+
+    private ScriptedAlertTrigger scriptedTrigger;
 
     public SimpleTrigger trigger() {
         return trigger;
@@ -49,8 +57,17 @@ public class AlertTrigger implements ToXContent {
         this.value = value;
     }
 
+    public AlertTrigger(ScriptedAlertTrigger scriptedTrigger){
+        this.scriptedTrigger = scriptedTrigger;
+        this.triggerType = TriggerType.SCRIPT;
+    }
+
     public String toString(){
-        return triggerType + " "  + trigger + " " + value;
+        if(triggerType != TriggerType.SCRIPT) {
+            return triggerType + " " + trigger + " " + value;
+        } else {
+            return scriptedTrigger.toString();
+        }
     }
 
     public static enum SimpleTrigger {
@@ -107,19 +124,26 @@ public class AlertTrigger implements ToXContent {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.field(triggerType.toString(), trigger.toString() + value);
-        builder.endObject();
-        return builder;
+        if (triggerType != TriggerType.SCRIPT) {
+            builder.startObject();
+            builder.field(triggerType.toString(), trigger.toString() + value);
+            builder.endObject();
+            return builder;
+        } else {
+            return scriptedTrigger.toXContent(builder, params);
+        }
     }
 
     public static enum TriggerType {
-        NUMBER_OF_EVENTS;
+        NUMBER_OF_EVENTS,
+        SCRIPT;
 
         public static TriggerType fromString(final String sTriggerType) {
             switch (sTriggerType) {
                 case "numberOfEvents":
                     return NUMBER_OF_EVENTS;
+                case "script":
+                    return SCRIPT;
                 default:
                     throw new ElasticsearchIllegalArgumentException("Unknown AlertTrigger:TriggerType [" + sTriggerType + "]");
             }
@@ -129,6 +153,8 @@ public class AlertTrigger implements ToXContent {
             switch (triggerType) {
                 case NUMBER_OF_EVENTS:
                     return "numberOfEvents";
+                case SCRIPT:
+                    return "script";
                 default:
                     return "unknown";
             }

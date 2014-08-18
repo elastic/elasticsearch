@@ -4,31 +4,42 @@ setup:
         indices.create:
           index: test-xxx
           body:
-              mappings:
-                type_1: {}
+            settings:
+              index:
+                number_of_replicas: 0
+            mappings:
+              type_1: {}
   - do:
         indices.create:
           index: test-xxy
           body:
-              mappings:
-                type_2: {}
+            settings:
+              index:
+                number_of_replicas: 0
+            mappings:
+              type_2: {}
   - do:
         indices.create:
           index: test-xyy
           body:
-              mappings:
-                type_3: {}
+            settings:
+              index:
+                number_of_replicas: 0
+            mappings:
+              type_3: {}
   - do:
         indices.create:
           index: test-yyy
           body:
-              mappings:
-                type_4: {}
+            settings:
+              index:
+                number_of_replicas: 0
+            mappings:
+              type_4: {}
 
   - do:
         cluster.health:
             wait_for_status: green
-            timeout: 1s
 
   - do:
       indices.close:
@@ -37,7 +48,6 @@ setup:
   - do:
         cluster.health:
             wait_for_status: green
-            timeout: 1s
 
 ---
 "Get test-* with defaults":

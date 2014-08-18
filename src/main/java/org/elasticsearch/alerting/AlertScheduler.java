@@ -69,6 +69,7 @@ public class AlertScheduler extends AbstractLifecycleComponent {
         DateTime scheduledTime =  new DateTime(jobExecutionContext.getScheduledFireTime());
         if (!alert.enabled()) {
             logger.warn("Alert [{}] is not enabled", alertName);
+            return;
         }
         try {
             if (!alertManager.claimAlertRun(alertName, scheduledTime) ){

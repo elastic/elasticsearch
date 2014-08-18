@@ -195,4 +195,4 @@ relevancy order of the most relevant document in a bucket.
 
 At the moment the `max` (or `min`) aggregator is needed to make sure the buckets from the `terms` aggregator are
 ordered according to the score of the most relevant webpage per domain. The `top_hits` aggregator isn't a metric aggregator
-and therefor can't be used in the `order` option of the `terms` aggregator.
+and therefore can't be used in the `order` option of the `terms` aggregator.

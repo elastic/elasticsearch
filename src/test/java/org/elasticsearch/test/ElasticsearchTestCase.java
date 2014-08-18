@@ -19,14 +19,10 @@
 package org.elasticsearch.test;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
-import com.carrotsearch.randomizedtesting.annotations.Listeners;
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
+import com.carrotsearch.randomizedtesting.annotations.*;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
-import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
 import org.apache.lucene.search.FieldCache;
 import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.util.AbstractRandomizedTest;
@@ -297,18 +293,82 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
         SORTED_VERSIONS = version.build();
     }
 
+    /**
+     * @return the {@link Version} before the {@link Version#CURRENT}
+     */
     public static Version getPreviousVersion() {
         Version version = SORTED_VERSIONS.get(1);
         assert version.before(Version.CURRENT);
         return version;
     }
-
+    
+    /**
+     * A random {@link Version}.
+     *
+     * @return a random {@link Version} from all available versions
+     */
     public static Version randomVersion() {
         return randomVersion(getRandom());
     }
-
+    
+    /**
+     * A random {@link Version}.
+     * 
+     * @param random
+     *            the {@link Random} to use to generate the random version
+     *
+     * @return a random {@link Version} from all available versions
+     */
     public static Version randomVersion(Random random) {
         return SORTED_VERSIONS.get(random.nextInt(SORTED_VERSIONS.size()));
+    }
+
+    /**
+     * A random {@link Version} from <code>minVersion</code> to
+     * <code>maxVersion</code> (inclusive).
+     * 
+     * @param minVersion
+     *            the minimum version (inclusive)
+     * @param maxVersion
+     *            the maximum version (inclusive)
+     * @return a random {@link Version} from <code>minVersion</code> to
+     *         <code>maxVersion</code> (inclusive)
+     */
+    public static Version randomVersionBetween(Version minVersion, Version maxVersion) {
+        return randomVersionBetween(getRandom(), minVersion, maxVersion);
+    }
+
+    /**
+     * A random {@link Version} from <code>minVersion</code> to
+     * <code>maxVersion</code> (inclusive).
+     * 
+     * @param random
+     *            the {@link Random} to use to generate the random version
+     * @param minVersion
+     *            the minimum version (inclusive)
+     * @param maxVersion
+     *            the maximum version (inclusive)
+     * @return a random {@link Version} from <code>minVersion</code> to
+     *         <code>maxVersion</code> (inclusive)
+     */
+    public static Version randomVersionBetween(Random random, Version minVersion, Version maxVersion) {
+        int minVersionIndex = SORTED_VERSIONS.size();
+        if (minVersion != null) {
+            minVersionIndex = SORTED_VERSIONS.indexOf(minVersion);
+        }
+        int maxVersionIndex = 0;
+        if (maxVersion != null) {
+            maxVersionIndex = SORTED_VERSIONS.indexOf(maxVersion);
+        }
+        if (minVersionIndex == -1) {
+            throw new IllegalArgumentException("minVersion [" + minVersion + "] does not exist.");
+        } else if (maxVersionIndex == -1) {
+            throw new IllegalArgumentException("maxVersion [" + maxVersion + "] does not exist.");
+        } else {
+            // minVersionIndex is inclusive so need to add 1 to this index
+            int range = minVersionIndex + 1 - maxVersionIndex;
+            return SORTED_VERSIONS.get(maxVersionIndex + random.nextInt(range));
+        }
     }
 
     static final class ElasticsearchUncaughtExceptionHandler implements Thread.UncaughtExceptionHandler {

@@ -45,6 +45,7 @@ public class AlertRestHandler implements RestHandler {
             builder.field("error", t.getMessage());
             builder.field("stack", t.getStackTrace());
             builder.endObject();
+            restChannel.sendResponse(new BytesRestResponse(INTERNAL_SERVER_ERROR, builder));
         }
         restChannel.sendResponse(new BytesRestResponse(NOT_IMPLEMENTED));
     }
@@ -62,7 +63,13 @@ public class AlertRestHandler implements RestHandler {
             return true;
         } else if (request.method() == POST && request.path().contains("/_create")) {
             //TODO : this should all be moved to an action
-            Alert alert = alertManager.parseAlert(request.param("name"), XContentHelper.convertToMap(request.content(), request.contentUnsafe()).v2());
+            Alert alert;
+            try {
+                alert = alertManager.parseAlert(request.param("name"), XContentHelper.convertToMap(request.content(), request.contentUnsafe()).v2());
+            } catch (Exception e) {
+                logger.error("Failed to parse alert", e);
+                throw e;
+            }
             try {
                 boolean added = alertManager.addAlert(alert.alertName(), alert, true);
                 if (added) {

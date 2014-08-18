@@ -26,8 +26,18 @@ setup:
                 type_4: {}
 
   - do:
+        cluster.health:
+            wait_for_status: green
+            timeout: 1s
+
+  - do:
       indices.close:
         index: test-xyy
+
+  - do:
+        cluster.health:
+            wait_for_status: green
+            timeout: 1s
 
 ---
 "Get test-* with defaults":

@@ -48,8 +48,8 @@ public class CompressedStreamTests extends ElasticsearchTestCase {
 
     public void testRandom() throws IOException {
         Random r = getRandom();
-        for (int i = 0; i < 100; i++) {
-            byte bytes[] = new byte[TestUtil.nextInt(r, 1, 4000000)];
+        for (int i = 0; i < 10; i++) {
+            byte bytes[] = new byte[TestUtil.nextInt(r, 1, 400000)];
             r.nextBytes(bytes);
             doTest(bytes);
         }
@@ -68,7 +68,7 @@ public class CompressedStreamTests extends ElasticsearchTestCase {
                     try {
                         Random r = new Random(seed);
                         startingGun.await();
-                        for (int i = 0; i < 100; i++) {
+                        for (int i = 0; i < 10; i++) {
                             byte bytes[] = new byte[TestUtil.nextInt(r, 1, 100000)];
                             r.nextBytes(bytes);
                             doTest(bytes);
@@ -89,7 +89,7 @@ public class CompressedStreamTests extends ElasticsearchTestCase {
     public void testLineDocs() throws IOException {
         Random r = getRandom();
         LineFileDocs lineFileDocs = new LineFileDocs(r);
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < 10; i++) {
             int numDocs = TestUtil.nextInt(r, 1, 200);
             ByteArrayOutputStream bos = new ByteArrayOutputStream();
             for (int j = 0; j < numDocs; j++) {
@@ -115,7 +115,7 @@ public class CompressedStreamTests extends ElasticsearchTestCase {
                         Random r = new Random(seed);
                         startingGun.await();
                         LineFileDocs lineFileDocs = new LineFileDocs(r);
-                        for (int i = 0; i < 100; i++) {
+                        for (int i = 0; i < 10; i++) {
                             int numDocs = TestUtil.nextInt(r, 1, 200);
                             ByteArrayOutputStream bos = new ByteArrayOutputStream();
                             for (int j = 0; j < numDocs; j++) {
@@ -140,7 +140,7 @@ public class CompressedStreamTests extends ElasticsearchTestCase {
     
     public void testRepetitionsL() throws IOException {
         Random r = getRandom();
-        for (int i = 0; i < 200; i++) {
+        for (int i = 0; i < 10; i++) {
             int numLongs = TestUtil.nextInt(r, 1, 10000);
             ByteArrayOutputStream bos = new ByteArrayOutputStream();
             long theValue = r.nextLong();
@@ -174,7 +174,7 @@ public class CompressedStreamTests extends ElasticsearchTestCase {
                     try {
                         Random r = new Random(seed);
                         startingGun.await();
-                        for (int i = 0; i < 200; i++) {
+                        for (int i = 0; i < 10; i++) {
                             int numLongs = TestUtil.nextInt(r, 1, 10000);
                             ByteArrayOutputStream bos = new ByteArrayOutputStream();
                             long theValue = r.nextLong();
@@ -208,7 +208,7 @@ public class CompressedStreamTests extends ElasticsearchTestCase {
     
     public void testRepetitionsI() throws IOException {
         Random r = getRandom();
-        for (int i = 0; i < 200; i++) {
+        for (int i = 0; i < 10; i++) {
             int numInts = TestUtil.nextInt(r, 1, 20000);
             ByteArrayOutputStream bos = new ByteArrayOutputStream();
             int theValue = r.nextInt();
@@ -238,7 +238,7 @@ public class CompressedStreamTests extends ElasticsearchTestCase {
                     try {
                         Random r = new Random(seed);
                         startingGun.await();
-                        for (int i = 0; i < 200; i++) {
+                        for (int i = 0; i < 10; i++) {
                             int numInts = TestUtil.nextInt(r, 1, 20000);
                             ByteArrayOutputStream bos = new ByteArrayOutputStream();
                             int theValue = r.nextInt();
@@ -268,7 +268,7 @@ public class CompressedStreamTests extends ElasticsearchTestCase {
     
     public void testRepetitionsS() throws IOException {
         Random r = getRandom();
-        for (int i = 0; i < 200; i++) {
+        for (int i = 0; i < 10; i++) {
             int numShorts = TestUtil.nextInt(r, 1, 40000);
             ByteArrayOutputStream bos = new ByteArrayOutputStream();
             short theValue = (short) r.nextInt(65535);
@@ -286,11 +286,11 @@ public class CompressedStreamTests extends ElasticsearchTestCase {
     public void testMixed() throws IOException {
         Random r = getRandom();
         LineFileDocs lineFileDocs = new LineFileDocs(r);
-        for (int i = 0; i < 100; ++i) {
+        for (int i = 0; i < 2; ++i) {
             ByteArrayOutputStream bos = new ByteArrayOutputStream();
             int prevInt = r.nextInt();
             long prevLong = r.nextLong();
-            while (bos.size() < 4000000) {
+            while (bos.size() < 400000) {
                 switch (r.nextInt(4)) {
                 case 0:
                     addInt(r, prevInt, bos);
@@ -362,7 +362,7 @@ public class CompressedStreamTests extends ElasticsearchTestCase {
                     try {
                         Random r = new Random(seed);
                         startingGun.await();
-                        for (int i = 0; i < 200; i++) {
+                        for (int i = 0; i < 10; i++) {
                             int numShorts = TestUtil.nextInt(r, 1, 40000);
                             ByteArrayOutputStream bos = new ByteArrayOutputStream();
                             short theValue = (short) r.nextInt(65535);

@@ -7,10 +7,12 @@ package org.elasticsearch.shield.authc.support;
 
 import com.google.common.base.Charsets;
 import org.apache.commons.codec.binary.Base64;
+import org.elasticsearch.shield.authc.AuthenticationException;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.junit.Test;
 
+import static org.elasticsearch.shield.test.ShieldAssertions.assertContainsWWWAuthenticateHeader;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -48,5 +50,18 @@ public class UsernamePasswordTokenTests extends ElasticsearchTestCase {
         // making sure that indeed, once resolved the instance is reused across multiple resolve calls
         UsernamePasswordToken token2 = UsernamePasswordToken.extractToken(request, null);
         assertThat(token, is(token2));
+    }
+
+    @Test
+    public void testThatAuthorizationExceptionContainsResponseHeaders() {
+        TransportRequest request = new TransportRequest() {};
+        String header = "BasicBroken";
+        request.putHeader(UsernamePasswordToken.BASIC_AUTH_HEADER, header);
+        try {
+            UsernamePasswordToken.extractToken(request, null);
+            fail("Expected exception but did not happen");
+        } catch (AuthenticationException e) {
+            assertContainsWWWAuthenticateHeader(e);
+        }
     }
 }

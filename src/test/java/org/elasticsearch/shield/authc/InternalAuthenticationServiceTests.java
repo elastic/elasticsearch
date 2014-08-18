@@ -6,6 +6,7 @@
 package org.elasticsearch.shield.authc;
 
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.audit.AuditTrail;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -13,6 +14,7 @@ import org.elasticsearch.transport.TransportMessage;
 import org.junit.Before;
 import org.junit.Test;
 
+import static org.elasticsearch.shield.test.ShieldAssertions.assertContainsWWWAuthenticateHeader;
 import static org.hamcrest.Matchers.*;
 import static org.mockito.Mockito.*;
 
@@ -62,6 +64,7 @@ public class InternalAuthenticationServiceTests extends ElasticsearchTestCase {
             fail("expected authentication exception with missing auth token");
         } catch (AuthenticationException ae) {
             assertThat(ae.getMessage(), equalTo("Missing authentication token for request [_action]"));
+            assertContainsWWWAuthenticateHeader(ae);
         }
         verify(auditTrail).anonymousAccess("_action", message);
         verifyNoMoreInteractions(auditTrail);

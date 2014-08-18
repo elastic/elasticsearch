@@ -592,8 +592,15 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
     private void serializeArray(ParseContext context, String lastFieldName) throws IOException {
         String arrayFieldName = lastFieldName;
         Mapper mapper = mappers.get(lastFieldName);
-        if (mapper != null && mapper instanceof ArrayValueMapperParser) {
-            mapper.parse(context);
+        if (mapper != null) {
+            // There is a concrete mapper for this field already. Need to check if the mapper 
+            // expects an array, if so we pass the context straight to the mapper and if not 
+            // we serialize the array components
+            if (mapper instanceof ArrayValueMapperParser) {
+                mapper.parse(context);
+            } else {
+                serializeNonDynamicArray(context, lastFieldName, arrayFieldName);
+            }
         } else {
 
             Dynamic dynamic = this.dynamic;

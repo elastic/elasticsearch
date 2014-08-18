@@ -498,7 +498,6 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         if (routingNode == null) {
             return null;
         }
-        assert assertShardStats(this);
         return new RoutingNodeIterator(routingNode);
     }
 

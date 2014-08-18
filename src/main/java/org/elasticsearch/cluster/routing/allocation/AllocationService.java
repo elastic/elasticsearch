@@ -261,7 +261,6 @@ public class AllocationService extends AbstractComponent {
                 if (!moved) {
                     logger.debug("[{}][{}] can't move", shardRouting.index(), shardRouting.id());
                 } else {
-                    assert RoutingNodes.assertShardStats(allocation.routingNodes());
                     changed = true;
                 }
             }

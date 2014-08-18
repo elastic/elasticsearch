@@ -2,32 +2,37 @@ Mapper Attachments Type for Elasticsearch
 =========================================
 
 The mapper attachments plugin adds the `attachment` type to Elasticsearch using [Apache Tika](http://lucene.apache.org/tika/).
-
-In order to install the plugin, simply run: `bin/plugin -install elasticsearch/elasticsearch-mapper-attachments/2.0.0`.
-
-* For master elasticsearch versions, look at [master branch](https://github.com/elasticsearch/elasticsearch-mapper-attachments/tree/master).
-* For 1.4.x elasticsearch versions, look at [es-1.4 branch](https://github.com/elasticsearch/elasticsearch-mapper-attachments/tree/es-1.4).
-* For 1.3.x elasticsearch versions, look at [es-1.3 branch](https://github.com/elasticsearch/elasticsearch-mapper-attachments/tree/es-1.3).
-* For 1.2.x elasticsearch versions, look at [es-1.2 branch](https://github.com/elasticsearch/elasticsearch-mapper-attachments/tree/es-1.2).
-* For 1.1.x elasticsearch versions, look at [es-1.1 branch](https://github.com/elasticsearch/elasticsearch-mapper-attachments/tree/es-1.1).
-* For 1.0.x elasticsearch versions, look at [es-1.0 branch](https://github.com/elasticsearch/elasticsearch-mapper-attachments/tree/es-1.0).
-* For 0.90.x elasticsearch versions, look at [es-0.90 branch](https://github.com/elasticsearch/elasticsearch-mapper-attachments/tree/es-0.90).
-
-
-|   Attachment Mapper Plugin  | elasticsearch         |  Tika  | Release date |
-|-----------------------------|-----------------------|--------|:------------:|
-| 3.0.0-SNAPSHOT              | master                |  1.5   |  XXXX-XX-XX  |
-
-Please read documentation relative to the version you are using:
-
-* [3.0.0-SNAPSHOT](https://github.com/elasticsearch/elasticsearch-analysis-stempel/blob/master/README.md)
-
 The `attachment` type allows to index different "attachment" type field (encoded as `base64`), for example,
 microsoft office formats, open document formats, ePub, HTML, and so on (full list can be found [here](http://tika.apache.org/1.5/formats.html)).
 
-The `attachment` type is provided as a plugin extension. The plugin is a simple zip file that can be downloaded and 
-placed under `$ES_HOME/plugins/mapper-attachments` location. When the node will start, it will be automatically detected 
-and the `attachment` type will be added.
+In order to install the plugin, run: 
+
+```sh
+bin/plugin -install elasticsearch/elasticsearch-mapper-attachments/2.3.0
+```
+
+You need to install a version matching your Elasticsearch version:
+
+|       Elasticsearch    | Attachments Plugin|                                                             Docs                                                                   |
+|------------------------|-------------------|------------------------------------------------------------------------------------------------------------------------------------|
+|    master              | Build from source | See below                                                                                                                          |
+|    es-1.x              | Build from source | [2.4.0-SNAPSHOT](https://github.com/elasticsearch/elasticsearch-mapper-attachments/tree/es-1.x/#version-240-snapshot-for-elasticsearch-1x)|
+|    es-1.3              |     2.3.0         | [2.3.0](https://github.com/elasticsearch/elasticsearch-mapper-attachments/tree/v2.3.0/#mapper-attachments-type-for-elasticsearch)  |
+|    es-1.2              |     2.2.0         | [2.2.0](https://github.com/elasticsearch/elasticsearch-mapper-attachments/tree/v2.2.0/#mapper-attachments-type-for-elasticsearch)  |
+|    es-1.1              |     2.0.0         | [2.0.0](https://github.com/elasticsearch/elasticsearch-mapper-attachments/tree/v2.0.0/#mapper-attachments-type-for-elasticsearch)  |
+|    es-1.0              |     2.0.0         | [2.0.0](https://github.com/elasticsearch/elasticsearch-mapper-attachments/tree/v2.0.0/#mapper-attachments-type-for-elasticsearch)  |
+|    es-0.90             |     1.9.0         | [1.9.0](https://github.com/elasticsearch/elasticsearch-mapper-attachments/tree/v1.9.0/#mapper-attachments-type-for-elasticsearch)  |
+
+To build a `SNAPSHOT` version, you need to build it with Maven:
+
+```bash
+mvn clean install
+plugin --install mapper-attachments \ 
+       --url file:target/releases/elasticsearch-mapper-attachments-X.X.X-SNAPSHOT.zip
+```
+
+Using mapper attachments
+------------------------
 
 Using the attachment type is simple, in your mapping JSON, simply set a certain JSON element as attachment, for example:
 

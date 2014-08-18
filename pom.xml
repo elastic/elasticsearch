@@ -33,7 +33,7 @@
     <properties>
         <elasticsearch.version>2.0.0-SNAPSHOT</elasticsearch.version>
         <lucene.version>4.9.0</lucene.version>
-        <poi.version>3.11-beta1</poi.version>
+        <poi.version>3.10.1</poi.version>
         <tests.jvms>1</tests.jvms>
         <tests.shuffle>true</tests.shuffle>
         <tests.output>onerror</tests.output>

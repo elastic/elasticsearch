@@ -1097,7 +1097,11 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
 
     @Override
     public String toString() {
-        return internalBuilder().toString();
+        if (request.source() != null) {
+            return request.source().toUtf8();
+        } else {
+            return internalBuilder().toString();
+        }
     }
 
     @Override

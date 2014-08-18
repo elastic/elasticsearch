@@ -9,17 +9,23 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.index.query.*;
+import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.ScriptService;
 import org.quartz.*;
 import org.quartz.impl.StdSchedulerFactory;
 import org.quartz.simpl.SimpleJobFactory;
 
 import java.io.IOException;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
 
 public class AlertScheduler extends AbstractLifecycleComponent {
 
@@ -28,15 +34,19 @@ public class AlertScheduler extends AbstractLifecycleComponent {
     private final Client client;
     private final TriggerManager triggerManager;
     private final AlertActionManager actionManager;
+    private final ScriptService scriptService;
+
 
     @Inject
     public AlertScheduler(Settings settings, AlertManager alertManager, Client client,
-                          TriggerManager triggerManager, AlertActionManager actionManager) {
+                          TriggerManager triggerManager, AlertActionManager actionManager,
+                          ScriptService scriptService) {
         super(settings);
         this.alertManager = alertManager;
         this.client = client;
         this.triggerManager = triggerManager;
         this.actionManager = actionManager;
+        this.scriptService = scriptService;
         try {
             SchedulerFactory schFactory = new StdSchedulerFactory();
             scheduler = schFactory.getScheduler();
@@ -76,19 +86,23 @@ public class AlertScheduler extends AbstractLifecycleComponent {
                 logger.warn("Another process has already run this alert.");
                 return;
             }
-            XContentBuilder builder = createClampedQuery(jobExecutionContext, alert);
-            logger.warn("Running the following query : [{}]", builder.string());
 
-            SearchRequestBuilder srb = client.prepareSearch().setSource(builder);
+            SearchRequestBuilder srb = createClampedRequest(client, jobExecutionContext, alert);
             String[] indices = alert.indices().toArray(new String[0]);
+
             if (alert.indices() != null ){
                 logger.warn("Setting indices to : " + alert.indices());
                 srb.setIndices(indices);
             }
+
+            //if (logger.isDebugEnabled()) {
+            logger.warn("Running query [{}]", XContentHelper.convertToJson(srb.request().source(),false,true));
+            //}
+
             SearchResponse sr = srb.execute().get();
             logger.warn("Got search response hits : [{}]", sr.getHits().getTotalHits() );
             AlertResult result = new AlertResult(alertName, sr, alert.trigger(),
-                    triggerManager.isTriggered(alertName,sr), builder, indices,
+                    triggerManager.isTriggered(alertName,sr), srb, indices,
                     new DateTime(jobExecutionContext.getScheduledFireTime()));
 
             if (result.isTriggered) {
@@ -110,40 +124,25 @@ public class AlertScheduler extends AbstractLifecycleComponent {
         }
     }
 
-    private XContentBuilder createClampedQuery(JobExecutionContext jobExecutionContext, Alert alert) throws IOException {
+    private SearchRequestBuilder createClampedRequest(Client client, JobExecutionContext jobExecutionContext, Alert alert){
         Date scheduledFireTime = jobExecutionContext.getScheduledFireTime();
         DateTime clampEnd = new DateTime(scheduledFireTime);
         DateTime clampStart = clampEnd.minusSeconds((int)alert.timePeriod().seconds());
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        builder.startObject();
-        builder.field("query");
-        builder.startObject();
-        builder.field("filtered");
-        builder.startObject();
-        builder.field("query");
-        builder.startObject();
-        builder.field("template");
-        builder.startObject();
-        builder.field("id");
-        builder.value(alert.queryName());
-        builder.endObject();
-        builder.endObject();
-        builder.field("filter");
-        builder.startObject();
-        builder.field("range");
-        builder.startObject();
-        builder.field("@timestamp");
-        builder.startObject();
-        builder.field("gte");
-        builder.value(clampStart);
-        builder.field("lt");
-        builder.value(clampEnd);
-        builder.endObject();
-        builder.endObject();
-        builder.endObject();
-        builder.endObject();
-        builder.endObject();
-        return builder;
+        if (alert.simpleQuery()) {
+            TemplateQueryBuilder queryBuilder = new TemplateQueryBuilder(alert.queryName(), ScriptService.ScriptType.INDEXED, new HashMap<String, Object>());
+            RangeFilterBuilder filterBuilder = new RangeFilterBuilder(alert.timestampString());
+            filterBuilder.gte(clampStart);
+            filterBuilder.lt(clampEnd);
+            return client.prepareSearch().setQuery(new FilteredQueryBuilder(queryBuilder, filterBuilder));
+        } else {
+            Map<String,Object> fromToMap = new HashMap<>();
+            fromToMap.put("from", clampStart);
+            fromToMap.put("to", clampEnd);
+            //Go and get the search template from the script service :(
+            ExecutableScript script =  scriptService.executable("mustache", alert.queryName(), ScriptService.ScriptType.INDEXED, fromToMap);
+            BytesReference requestBytes = (BytesReference)(script.run());
+            return client.prepareSearch().setSource(requestBytes);
+        }
     }
 
     public void addAlert(String alertName, Alert alert) {

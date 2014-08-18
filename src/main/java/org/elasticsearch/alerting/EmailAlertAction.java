@@ -94,7 +94,7 @@ public class EmailAlertAction implements AlertAction {
             StringBuffer output = new StringBuffer();
             output.append("The following query triggered because " + result.trigger.toString() + "\n");
             output.append("The total number of hits returned : " + result.searchResponse.getHits().getTotalHits() + "\n");
-            output.append("For query : " + XContentHelper.convertToJson(result.query.bytes(),true,true) + "\n");
+            output.append("For query : " + result.query.toString());
             output.append("\n");
             output.append("Indices : ");
             for (String index : result.indices) {

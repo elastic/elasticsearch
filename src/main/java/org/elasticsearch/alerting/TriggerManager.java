@@ -6,6 +6,7 @@
 package org.elasticsearch.alerting;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -17,7 +18,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptService;
 
-import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 
@@ -50,13 +51,13 @@ public class TriggerManager extends AbstractComponent {
             Map<String,Object> valueMap = (Map<String,Object>)value;
             try {
                 return new ScriptedAlertTrigger(valueMap.get("script").toString(),
-                        ScriptService.ScriptType.valueOf(valueMap.get("script_type").toString()),
+                        ScriptService.ScriptType.valueOf(valueMap.get("script_type").toString().toUpperCase(Locale.ROOT)), ///TODO : Fix ScriptType to parse strings properly, currently only accepts uppercase versions of the enum names
                         valueMap.get("script_lang").toString());
             } catch (Exception e){
-                throw new ElasticsearchIllegalArgumentException("Unable to parse " + value + " as a ScriptedAlertTrigger");
+                throw new ElasticsearchIllegalArgumentException("Unable to parse " + value + " as a ScriptedAlertTrigger", e);
             }
         } else {
-            throw new ElasticsearchIllegalArgumentException("Unable to parse " + value + " as a ScriptedAlertTrigger");
+            throw new ElasticsearchIllegalArgumentException("Unable to parse " + value + " as a ScriptedAlertTrigger, not a Map");
         }
     }
 
@@ -70,12 +71,22 @@ public class TriggerManager extends AbstractComponent {
     public boolean doScriptTrigger(ScriptedAlertTrigger scriptTrigger, SearchResponse response) {
         try {
             XContentBuilder builder = XContentFactory.jsonBuilder();
+            builder.startObject();
             builder = response.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            builder.endObject();
             Map<String, Object> responseMap = XContentHelper.convertToMap(builder.bytes(), false).v2();
+
             ExecutableScript executable = scriptService.executable(scriptTrigger.scriptLang, scriptTrigger.script,
                     scriptTrigger.scriptType, responseMap);
+
             Object returnValue = executable.run();
             logger.warn("Returned [{}] from script", returnValue);
+            if (returnValue instanceof Boolean) {
+                return (Boolean) returnValue;
+            } else {
+                throw new ElasticsearchIllegalStateException("Trigger script [" + scriptTrigger.script + "] " +
+                        "did not return a Boolean");
+            }
         } catch (Exception e ){
             logger.error("Failed to execute script trigger", e);
         }

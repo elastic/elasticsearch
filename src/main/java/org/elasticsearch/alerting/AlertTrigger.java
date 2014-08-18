@@ -128,10 +128,13 @@ public class AlertTrigger implements ToXContent {
             builder.startObject();
             builder.field(triggerType.toString(), trigger.toString() + value);
             builder.endObject();
-            return builder;
         } else {
-            return scriptedTrigger.toXContent(builder, params);
+            builder.startObject();
+            builder.field(triggerType.toString());
+            scriptedTrigger.toXContent(builder, params);
+            builder.endObject();
         }
+        return builder;
     }
 
     public static enum TriggerType {

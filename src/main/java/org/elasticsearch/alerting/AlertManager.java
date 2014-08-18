@@ -16,6 +16,7 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.Client;
@@ -52,6 +53,8 @@ public class AlertManager extends AbstractLifecycleComponent {
     public static final ParseField INDICES = new ParseField("indices");
     public static final ParseField CURRENTLY_RUNNING = new ParseField("running");
     public static final ParseField ENABLED = new ParseField("enabled");
+    public static final ParseField SIMPLE_QUERY = new ParseField("simple");
+    public static final ParseField TIMESTAMP_FIELD = new ParseField("timefield");
 
     private final Client client;
     private AlertScheduler scheduler;
@@ -269,7 +272,7 @@ public class AlertManager extends AbstractLifecycleComponent {
     }
 
     public boolean addHistory(String alertName, boolean triggered,
-                              DateTime fireTime, XContentBuilder triggeringQuery,
+                              DateTime fireTime, SearchRequestBuilder triggeringQuery,
                               AlertTrigger trigger, long numberOfResults,
                               @Nullable List<String> indices) throws Exception {
         XContentBuilder historyEntry = XContentFactory.jsonBuilder();
@@ -279,7 +282,7 @@ public class AlertManager extends AbstractLifecycleComponent {
         historyEntry.field("fireTime", fireTime.toDateTimeISO());
         historyEntry.field("trigger");
         trigger.toXContent(historyEntry, ToXContent.EMPTY_PARAMS);
-        historyEntry.field("queryRan", XContentHelper.convertToJson(triggeringQuery.bytes(),false,true));
+        historyEntry.field("queryRan", triggeringQuery.toString());
         historyEntry.field("numberOfResults", numberOfResults);
         if (indices != null) {
             historyEntry.field("indices");
@@ -426,24 +429,43 @@ public class AlertManager extends AbstractLifecycleComponent {
 
         boolean enabled = true;
         if (fields.get(ENABLED.getPreferredName()) != null ) {
+            logger.error(ENABLED.getPreferredName() + " " + fields.get(ENABLED.getPreferredName()));
             Object enabledObj = fields.get(ENABLED.getPreferredName());
-            if (enabledObj instanceof Boolean){
-                enabled = (Boolean)enabledObj;
-            } else {
-                if (enabledObj.toString().toLowerCase(Locale.ROOT).equals("true") ||
-                        enabledObj.toString().toLowerCase(Locale.ROOT).equals("1")) {
-                    enabled = true;
-                } else if ( enabledObj.toString().toLowerCase(Locale.ROOT).equals("false") ||
-                        enabledObj.toString().toLowerCase(Locale.ROOT).equals("0")) {
-                    enabled = false;
-                } else {
-                    throw new ElasticsearchIllegalArgumentException("Unable to parse [" + enabledObj + "] as a boolean");
-                }
-            }
+            enabled = parseAsBoolean(enabledObj);
         }
 
+        boolean simpleQuery = true;
+        if (fields.get(SIMPLE_QUERY.getPreferredName()) != null ) {
+            logger.error(SIMPLE_QUERY.getPreferredName() + " " + fields.get(SIMPLE_QUERY.getPreferredName()));
+            Object enabledObj = fields.get(SIMPLE_QUERY.getPreferredName());
+            simpleQuery = parseAsBoolean(enabledObj);
+        }
 
-        return new Alert(alertId, query, trigger, timePeriod, actions, schedule, lastRan, indices, running, version, enabled);
+        Alert alert =  new Alert(alertId, query, trigger, timePeriod, actions, schedule, lastRan, indices, running, version, enabled, simpleQuery);
+
+        if (fields.get(TIMESTAMP_FIELD.getPreferredName()) != null) {
+            alert.timestampString(fields.get(TIMESTAMP_FIELD.getPreferredName()).toString());
+        }
+
+        return alert;
+    }
+
+    private boolean parseAsBoolean(Object enabledObj) {
+        boolean enabled;
+        if (enabledObj instanceof Boolean){
+            enabled = (Boolean)enabledObj;
+        } else {
+            if (enabledObj.toString().toLowerCase(Locale.ROOT).equals("true") ||
+                    enabledObj.toString().toLowerCase(Locale.ROOT).equals("1")) {
+                enabled = true;
+            } else if ( enabledObj.toString().toLowerCase(Locale.ROOT).equals("false") ||
+                    enabledObj.toString().toLowerCase(Locale.ROOT).equals("0")) {
+                enabled = false;
+            } else {
+                throw new ElasticsearchIllegalArgumentException("Unable to parse [" + enabledObj + "] as a boolean");
+            }
+        }
+        return enabled;
     }
 
     public Map<String,Alert> getSafeAlertMap() {

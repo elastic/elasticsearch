@@ -20,6 +20,7 @@
 package org.elasticsearch.index.snapshots.blobstore;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.store.*;
@@ -49,10 +50,7 @@ import org.elasticsearch.repositories.RepositoryName;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -716,9 +714,9 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                 long totalSize = 0;
                 int numberOfReusedFiles = 0;
                 long reusedTotalSize = 0;
-                Map<String, StoreFileMetaData> metadata = Collections.emptyMap();
+                Store.MetadataSnapshot recoveryTargetMetadata = Store.MetadataSnapshot.EMPTY;
                 try {
-                    metadata = store.getMetadata().asMap();
+                    recoveryTargetMetadata = store.getMetadata();
                 } catch (CorruptIndexException e) {
                     logger.warn("{} Can't read metadata from store", e, shardId);
                     throw new IndexShardRestoreFailedException(shardId, "Can't restore corrupted shard", e);
@@ -727,33 +725,42 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                     logger.warn("{} Can't read metadata from store", e, shardId);
                 }
 
-                List<FileInfo> filesToRecover = Lists.newArrayList();
-                for (FileInfo fileInfo : snapshot.indexFiles()) {
-                    String fileName = fileInfo.physicalName();
-                    final StoreFileMetaData md = metadata.get(fileName);
+                final List<FileInfo> filesToRecover = Lists.newArrayList();
+                final Map<String, StoreFileMetaData> snapshotMetaData = new HashMap<>();
+                final Map<String, FileInfo> fileInfos = new HashMap<>();
+
+                for (final FileInfo fileInfo : snapshot.indexFiles()) {
+                    snapshotMetaData.put(fileInfo.metadata().name(), fileInfo.metadata());
+                    fileInfos.put(fileInfo.metadata().name(), fileInfo);
+                }
+                final Store.MetadataSnapshot sourceMetaData = new Store.MetadataSnapshot(snapshotMetaData);
+                final Store.RecoveryDiff diff = sourceMetaData.recoveryDiff(recoveryTargetMetadata);
+                for (StoreFileMetaData md : diff.identical) {
+                    FileInfo fileInfo = fileInfos.get(md.name());
                     numberOfFiles++;
-                    if (md != null && fileInfo.isSame(md)) {
-                        totalSize += md.length();
-                        numberOfReusedFiles++;
-                        reusedTotalSize += md.length();
-                        recoveryState.getIndex().addReusedFileDetail(fileInfo.name(), fileInfo.length());
-                        if (logger.isTraceEnabled()) {
-                            logger.trace("[{}] [{}] not_recovering [{}] from [{}], exists in local store and is same", shardId, snapshotId, fileInfo.physicalName(), fileInfo.name());
-                        }
-                    } else {
-                        totalSize += fileInfo.length();
-                        filesToRecover.add(fileInfo);
-                        recoveryState.getIndex().addFileDetail(fileInfo.name(), fileInfo.length());
-                        if (logger.isTraceEnabled()) {
-                            if (md == null) {
-                                logger.trace("[{}] [{}] recovering [{}] from [{}], does not exists in local store", shardId, snapshotId, fileInfo.physicalName(), fileInfo.name());
-                            } else {
-                                logger.trace("[{}] [{}] recovering [{}] from [{}], exists in local store but is different", shardId, snapshotId, fileInfo.physicalName(), fileInfo.name());
-                            }
-                        }
+                    totalSize += md.length();
+                    numberOfReusedFiles++;
+                    reusedTotalSize += md.length();
+                    recoveryState.getIndex().addReusedFileDetail(fileInfo.name(), fileInfo.length());
+                    if (logger.isTraceEnabled()) {
+                        logger.trace("[{}] [{}] not_recovering [{}] from [{}], exists in local store and is same", shardId, snapshotId, fileInfo.physicalName(), fileInfo.name());
                     }
                 }
 
+                for (StoreFileMetaData md : Iterables.concat(diff.different, diff.missing)) {
+                    FileInfo fileInfo = fileInfos.get(md.name());
+                    numberOfFiles++;
+                    totalSize += fileInfo.length();
+                    filesToRecover.add(fileInfo);
+                    recoveryState.getIndex().addFileDetail(fileInfo.name(), fileInfo.length());
+                    if (logger.isTraceEnabled()) {
+                        if (md == null) {
+                            logger.trace("[{}] [{}] recovering [{}] from [{}], does not exists in local store", shardId, snapshotId, fileInfo.physicalName(), fileInfo.name());
+                        } else {
+                            logger.trace("[{}] [{}] recovering [{}] from [{}], exists in local store but is different", shardId, snapshotId, fileInfo.physicalName(), fileInfo.name());
+                        }
+                    }
+                }
                 final RecoveryState.Index index = recoveryState.getIndex();
                 index.totalFileCount(numberOfFiles);
                 index.totalByteCount(totalSize);

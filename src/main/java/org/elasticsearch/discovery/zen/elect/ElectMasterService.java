@@ -24,12 +24,10 @@ import com.google.common.collect.Lists;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.Iterator;
-import java.util.List;
+import java.util.*;
 
 /**
  *
@@ -42,6 +40,7 @@ public class ElectMasterService extends AbstractComponent {
 
     private volatile int minimumMasterNodes;
 
+    @Inject
     public ElectMasterService(Settings settings) {
         super(settings);
         this.minimumMasterNodes = settings.getAsInt(DISCOVERY_ZEN_MINIMUM_MASTER_NODES, -1);
@@ -67,6 +66,18 @@ public class ElectMasterService extends AbstractComponent {
             }
         }
         return count >= minimumMasterNodes;
+    }
+
+    /**
+     * Returns the given nodes sorted by likelyhood of being elected as master, most likely first.
+     * Non-master nodes are not removed but are rather put in the end
+     * @param nodes
+     * @return
+     */
+    public List<DiscoveryNode> sortByMasterLikelihood(Iterable<DiscoveryNode> nodes) {
+        ArrayList<DiscoveryNode> sortedNodes = Lists.newArrayList(nodes);
+        CollectionUtil.introSort(sortedNodes, nodeComparator);
+        return sortedNodes;
     }
 
     /**
@@ -120,6 +131,12 @@ public class ElectMasterService extends AbstractComponent {
 
         @Override
         public int compare(DiscoveryNode o1, DiscoveryNode o2) {
+            if (o1.masterNode() && !o2.masterNode()) {
+                return -1;
+            }
+            if (!o1.masterNode() && o2.masterNode()) {
+                return 1;
+            }
             return o1.id().compareTo(o2.id());
         }
     }

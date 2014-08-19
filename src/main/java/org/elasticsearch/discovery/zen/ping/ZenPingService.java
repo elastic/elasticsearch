@@ -34,6 +34,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
+import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.discovery.zen.ping.multicast.MulticastZenPing;
 import org.elasticsearch.discovery.zen.ping.unicast.UnicastHostsProvider;
 import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
@@ -55,20 +56,20 @@ public class ZenPingService extends AbstractLifecycleComponent<ZenPing> implemen
 
     // here for backward comp. with discovery plugins
     public ZenPingService(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterName clusterName, NetworkService networkService,
-                          @Nullable Set<UnicastHostsProvider> unicastHostsProviders) {
-        this(settings, threadPool, transportService, clusterName, networkService, Version.CURRENT, unicastHostsProviders);
+                          ElectMasterService electMasterService, @Nullable Set<UnicastHostsProvider> unicastHostsProviders) {
+        this(settings, threadPool, transportService, clusterName, networkService, Version.CURRENT, electMasterService, unicastHostsProviders);
     }
 
     @Inject
     public ZenPingService(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterName clusterName, NetworkService networkService,
-                          Version version, @Nullable Set<UnicastHostsProvider> unicastHostsProviders) {
+                          Version version, ElectMasterService electMasterService, @Nullable Set<UnicastHostsProvider> unicastHostsProviders) {
         super(settings);
         ImmutableList.Builder<ZenPing> zenPingsBuilder = ImmutableList.builder();
         if (componentSettings.getAsBoolean("multicast.enabled", true)) {
             zenPingsBuilder.add(new MulticastZenPing(settings, threadPool, transportService, clusterName, networkService, version));
         }
         // always add the unicast hosts, so it will be able to receive unicast requests even when working in multicast
-        zenPingsBuilder.add(new UnicastZenPing(settings, threadPool, transportService, clusterName, version, unicastHostsProviders));
+        zenPingsBuilder.add(new UnicastZenPing(settings, threadPool, transportService, clusterName, version, electMasterService, unicastHostsProviders));
 
         this.zenPings = zenPingsBuilder.build();
     }

@@ -30,6 +30,7 @@ import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
+import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -55,6 +56,7 @@ public class UnicastZenPingTests extends ElasticsearchTestCase {
         ThreadPool threadPool = new ThreadPool(getClass().getName());
         ClusterName clusterName = new ClusterName("test");
         NetworkService networkService = new NetworkService(settings);
+        ElectMasterService electMasterService = new ElectMasterService(settings);
 
         NettyTransport transportA = new NettyTransport(settings, threadPool, networkService, BigArrays.NON_RECYCLING_INSTANCE, Version.CURRENT);
         final TransportService transportServiceA = new TransportService(transportA, threadPool).start();
@@ -73,7 +75,7 @@ public class UnicastZenPingTests extends ElasticsearchTestCase {
                 addressB.address().getAddress().getHostAddress() + ":" + addressB.address().getPort())
                 .build();
 
-        UnicastZenPing zenPingA = new UnicastZenPing(hostsSettings, threadPool, transportServiceA, clusterName, Version.CURRENT, null);
+        UnicastZenPing zenPingA = new UnicastZenPing(hostsSettings, threadPool, transportServiceA, clusterName, Version.CURRENT, electMasterService, null);
         zenPingA.setNodesProvider(new DiscoveryNodesProvider() {
             @Override
             public DiscoveryNodes nodes() {
@@ -87,7 +89,7 @@ public class UnicastZenPingTests extends ElasticsearchTestCase {
         });
         zenPingA.start();
 
-        UnicastZenPing zenPingB = new UnicastZenPing(hostsSettings, threadPool, transportServiceB, clusterName, Version.CURRENT, null);
+        UnicastZenPing zenPingB = new UnicastZenPing(hostsSettings, threadPool, transportServiceB, clusterName, Version.CURRENT, electMasterService, null);
         zenPingB.setNodesProvider(new DiscoveryNodesProvider() {
             @Override
             public DiscoveryNodes nodes() {

@@ -649,6 +649,42 @@ public class DiscoveryWithServiceDisruptions extends ElasticsearchIntegrationTes
         assertMaster(masterNode, nodes);
     }
 
+    @Test
+    @TestLogging("discovery.zen:TRACE,action:TRACE")
+    public void isolatedUnicastNodes() throws Exception {
+        List<String> nodes = startUnicastCluster(3, new int[]{0}, -1);
+        // Figure out what is the elected master node
+        final String unicastTarget = nodes.get(0);
+
+        Set<String> unicastTargetSide = new HashSet<>();
+        unicastTargetSide.add(unicastTarget);
+
+        Set<String> restOfClusterSide = new HashSet<>();
+        restOfClusterSide.addAll(nodes);
+        restOfClusterSide.remove(unicastTarget);
+
+        // Forcefully clean temporal response lists on all nodes. Otherwise the node in the unicast host list
+        // includes all the other nodes that have pinged it and the issue doesn't manifest
+        for (ZenPingService pingService : internalCluster().getInstances(ZenPingService.class)) {
+            for (ZenPing zenPing : pingService.zenPings()) {
+                ((UnicastZenPing) zenPing).clearTemporalReponses();
+            }
+        }
+
+        // Simulate a network issue between the unicast target node and the rest of the cluster
+        NetworkDisconnectPartition networkDisconnect = new NetworkDisconnectPartition(unicastTargetSide, restOfClusterSide, getRandom());
+        setDisruptionScheme(networkDisconnect);
+        networkDisconnect.startDisrupting();
+        // Wait until elected master has removed that the unlucky node...
+        ensureStableCluster(2, nodes.get(1));
+
+        // The isolate master node must report no master, so it starts with pinging
+        assertNoMaster(unicastTarget);
+        networkDisconnect.stopDisrupting();
+        // Wait until the master node sees all 3 nodes again.
+        ensureStableCluster(3);
+    }
+
 
     /** Test cluster join with issues in cluster state publishing * */
     @Test
@@ -695,7 +731,6 @@ public class DiscoveryWithServiceDisruptions extends ElasticsearchIntegrationTes
         nonMasterTransportService.clearRule(discoveryNodes.masterNode());
 
         ensureStableCluster(2);
-
     }
 
 

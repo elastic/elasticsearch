@@ -24,7 +24,10 @@ import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.query.QueryBuilder;
+
+import java.io.IOException;
 
 /**
  * A count action request builder.
@@ -143,4 +146,22 @@ public class CountRequestBuilder extends BroadcastOperationRequestBuilder<CountR
         }
         return sourceBuilder;
     }
+
+    @Override
+    public String toString() {
+        if (request.source() != null) {
+            try {
+                return XContentHelper.convertToJson(request.source(), false, false);
+            } catch (IOException |NullPointerException e) {
+                return request().source().toUtf8();
+            }
+        } else {
+            if (sourceBuilder != null){
+                return sourceBuilder().toString();
+            } else {
+                return "{}"; //Nothing has been set return the empty query
+            }
+        }
+    }
+
 }

@@ -1106,7 +1106,11 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
                 return request().source().toUtf8();
             }
         } else {
-            return internalBuilder().toString();
+            if (sourceBuilder != null) {
+                return sourceBuilder.toString();
+            } else {
+                return "{}"; //Nothing has been set return the empty query
+            }
         }
     }
 

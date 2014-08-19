@@ -135,19 +135,19 @@ public class SecuredTransportService extends TransportService {
 
         @Override
         public void sendResponse(TransportResponse response) throws IOException {
-            if (proceed(response)) {
+            if (filter(response)) {
                 channel.sendResponse(response);
             }
         }
 
         @Override
         public void sendResponse(TransportResponse response, TransportResponseOptions options) throws IOException {
-            if (proceed(response)) {
+            if (filter(response)) {
                 channel.sendResponse(response, options);
             }
         }
 
-        private boolean proceed(TransportResponse response) throws IOException {
+        private boolean filter(TransportResponse response) throws IOException {
             try {
                 filter.outboundResponse(channel.action(), response);
             } catch (Throwable t) {

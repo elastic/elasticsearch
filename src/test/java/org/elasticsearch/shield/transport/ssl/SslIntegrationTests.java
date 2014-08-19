@@ -89,7 +89,6 @@ public class SslIntegrationTests extends ElasticsearchIntegrationTest {
                 .put("shield.http.ssl.truststore_password", "testnode")
                 // SSL SETUP
                 .put("http.type", NettySecuredHttpServerTransportModule.class.getName())
-                .put("plugins.load_classpath_plugins", false)
                 .put("plugin.types", N2NPlugin.class.getName())
                 .put(TransportModule.TRANSPORT_TYPE_KEY, NettySecuredTransportModule.class.getName())
                 .put("shield.n2n.file", ipFilterFile.getPath());

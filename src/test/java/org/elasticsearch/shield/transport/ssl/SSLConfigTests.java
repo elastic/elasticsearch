@@ -25,7 +25,7 @@ public class SSLConfigTests extends ElasticsearchTestCase {
 
     @Before
     public void setup() throws Exception {
-        testnodeStore = new File(getClass().getResource("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks").toURI());
+        testnodeStore = new File(getClass().getResource("certs/simple/testnode.jks").toURI());
     }
 
     @Test

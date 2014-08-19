@@ -234,11 +234,11 @@ public interface Permission {
                             }
                         }
                     }
-                }
-
-                for (String index : explodeWildcards((IndicesRequest) request, metaData)) {
-                    if (!indexNameMatcher.apply(index)) {
-                        return false;
+                } else {
+                    for (String index : explodeWildcards((IndicesRequest) request, metaData)) {
+                        if (!indexNameMatcher.apply(index)) {
+                            return false;
+                        }
                     }
                 }
 

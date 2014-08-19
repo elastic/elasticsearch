@@ -56,6 +56,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static com.google.common.collect.Maps.newHashMap;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
 import static org.elasticsearch.common.settings.ImmutableSettings.builder;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -136,12 +137,13 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
 
         // index simple data
         client().prepareIndex("test", "foo", "1").setSource("foo", 1).get();
-        client().prepareIndex("test", "test").setSource("foo", 1).setParent("1").get();
+        client().prepareIndex("test", "test", "2").setSource("foo", 1).setParent("1").get();
         refresh();
-
-        SearchResponse searchResponse = client().prepareSearch("test").setSource("{\"query\":{\"filtered\":{\"filter\":{\"has_parent\":{\"type\":\"test\",\"query\":{\"bool\":{\"must\":[],\"must_not\":[],\"should\":[]}}},\"query\":[]}}}}").get();
+        String query = copyToStringFromClasspath("/org/elasticsearch/search/child/bool-query-with-empty-clauses.json");
+        SearchResponse searchResponse = client().prepareSearch("test").setSource(query).get();
         assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("2"));
     }
 
     @Test

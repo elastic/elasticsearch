@@ -161,7 +161,7 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
         return createIndex(index, createIndexRequestBuilder);
     }
 
-    private static IndexService createIndex(String index, CreateIndexRequestBuilder createIndexRequestBuilder) {
+    protected static IndexService createIndex(String index, CreateIndexRequestBuilder createIndexRequestBuilder) {
         assertAcked(createIndexRequestBuilder.get());
         // Wait for the index to be allocated so that cluster state updates don't override
         // changes that would have been done locally

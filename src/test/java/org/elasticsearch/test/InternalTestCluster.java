@@ -37,7 +37,6 @@ import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.cache.recycler.PageCacheRecyclerModule;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
@@ -99,6 +98,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.frequently;
+import static com.carrotsearch.randomizedtesting.RandomizedTest.isNightly;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.systemPropertyAsBoolean;
 import static junit.framework.Assert.fail;
 import static org.apache.lucene.util.LuceneTestCase.rarely;
@@ -519,7 +519,7 @@ public final class InternalTestCluster extends TestCluster {
                 .put("tests.mock.version", version)
                 .build();
         Node node = nodeBuilder().settings(finalSettings).build();
-        return new NodeAndClient(name, node, new RandomClientFactory(settingsSource));
+        return new NodeAndClient(name, node);
     }
 
     private String buildNodeName(int id) {
@@ -668,17 +668,14 @@ public final class InternalTestCluster extends TestCluster {
 
     private final class NodeAndClient implements Closeable {
         private InternalNode node;
-        private Client client;
         private Client nodeClient;
         private Client transportClient;
         private final AtomicBoolean closed = new AtomicBoolean(false);
-        private final ClientFactory clientFactory;
         private final String name;
 
-        NodeAndClient(String name, Node node, ClientFactory factory) {
+        NodeAndClient(String name, Node node) {
             this.node = (InternalNode) node;
             this.name = name;
-            this.clientFactory = factory;
         }
 
         Node node() {
@@ -692,54 +689,60 @@ public final class InternalTestCluster extends TestCluster {
             if (closed.get()) {
                 throw new RuntimeException("already closed");
             }
-            if (client != null) {
-                return client;
+            double nextDouble = random.nextDouble();
+            if (nextDouble < transportClientRatio) {
+                if (logger.isDebugEnabled()) {
+                    logger.debug("Using transport client for node [{}] sniff: [{}]", node.settings().get("name"), false);
+                }
+                return getOrBuildTransportClient();
+            } else {
+                return getOrBuildNodeClient();
             }
-            return client = clientFactory.client(node, clusterName, random);
         }
 
         Client nodeClient() {
             if (closed.get()) {
                 throw new RuntimeException("already closed");
             }
-            if (nodeClient == null) {
-                Client maybeNodeClient = client(random);
-                if (client instanceof NodeClient) {
-                    nodeClient = maybeNodeClient;
-                } else {
-                    nodeClient = node.client();
-                }
-            }
-            return nodeClient;
+            return getOrBuildNodeClient();
         }
 
         Client transportClient() {
             if (closed.get()) {
                 throw new RuntimeException("already closed");
             }
-            if (transportClient == null) {
-                Client maybeTransportClient = client(random);
-                if (maybeTransportClient instanceof TransportClient) {
-                    transportClient = maybeTransportClient;
-                } else {
-                    transportClient = TransportClientFactory.noSniff(settingsSource.transportClient()).client(node, clusterName, random);
-                }
+            return getOrBuildTransportClient();
+        }
+
+        private Client getOrBuildNodeClient() {
+            if (nodeClient != null) {
+                return nodeClient;
             }
-            return transportClient;
+            return nodeClient = node.client();
+        }
+
+        private Client getOrBuildTransportClient() {
+            if (transportClient != null) {
+                return transportClient;
+            }
+            /* no sniff client for now - doesn't work will all tests since it might throw NoNodeAvailableException if nodes are shut down.
+             * we first need support of transportClientRatio as annotations or so
+             */
+            return transportClient = TransportClientFactory.noSniff(settingsSource.transportClient()).client(node, clusterName, random);
         }
 
         void resetClient() throws IOException {
             if (closed.get()) {
                 throw new RuntimeException("already closed");
             }
-            Releasables.close(client, nodeClient, transportClient);
-            client = null;
+            Releasables.close(nodeClient, transportClient);
             nodeClient = null;
             transportClient = null;
         }
 
         void restart(RestartCallback callback) throws Exception {
             assert callback != null;
+            resetClient();
             if (!node.isClosed()) {
                 node.close();
             }
@@ -754,29 +757,19 @@ public final class InternalTestCluster extends TestCluster {
                 }
             }
             node = (InternalNode) nodeBuilder().settings(node.settings()).settings(newSettings).node();
-            resetClient();
         }
 
 
         @Override
         public void close() throws IOException {
+            resetClient();
             closed.set(true);
-            Releasables.close(client, nodeClient);
-            client = null;
-            nodeClient = null;
             node.close();
         }
     }
 
-    static class ClientFactory {
-
-        public Client client(Node node, String clusterName, Random random) {
-            return node.client();
-        }
-    }
-
     public static final String TRANSPORT_CLIENT_PREFIX = "transport_client_";
-    static class TransportClientFactory extends ClientFactory {
+    static class TransportClientFactory {
 
         private static TransportClientFactory NO_SNIFF_CLIENT_FACTORY = new TransportClientFactory(false, ImmutableSettings.EMPTY);
         private static TransportClientFactory SNIFF_CLIENT_FACTORY = new TransportClientFactory(true, ImmutableSettings.EMPTY);
@@ -803,7 +796,6 @@ public final class InternalTestCluster extends TestCluster {
             this.settings = settings != null ? settings : ImmutableSettings.EMPTY;
         }
 
-        @Override
         public Client client(Node node, String clusterName, Random random) {
             TransportAddress addr = ((InternalNode) node).injector().getInstance(TransportService.class).boundAddress().publishAddress();
             Settings nodeSettings = node.settings();
@@ -825,31 +817,6 @@ public final class InternalTestCluster extends TestCluster {
         }
     }
 
-    class RandomClientFactory extends ClientFactory {
-
-        private SettingsSource settingsSource;
-
-        RandomClientFactory(SettingsSource settingsSource) {
-            this.settingsSource = settingsSource;
-        }
-
-        @Override
-        public Client client(Node node, String clusterName, Random random) {
-            double nextDouble = random.nextDouble();
-            if (nextDouble < transportClientRatio) {
-                if (logger.isDebugEnabled()) {
-                    logger.debug("Using transport client for node [{}] sniff: [{}]", node.settings().get("name"), false);
-                }
-                /* no sniff client for now - doesn't work will all tests since it might throw NoNodeAvailableException if nodes are shut down.
-                 * we first need support of transportClientRatio as annotations or so
-                 */
-                return TransportClientFactory.noSniff(settingsSource.transportClient()).client(node, clusterName, random);
-            } else {
-                return node.client();
-            }
-        }
-    }
-
     @Override
     public synchronized void beforeTest(Random random, double transportClientRatio) throws IOException {
         super.beforeTest(random, transportClientRatio);
@@ -857,7 +824,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     private synchronized void reset(boolean wipeData) throws IOException {
-        resetClients(); /* reset all clients - each test gets its own client based on the Random instance created above. */
+        randomlyResetClients();
         if (wipeData) {
             wipeDataDirectories();
         }
@@ -937,13 +904,16 @@ public final class InternalTestCluster extends TestCluster {
     @Override
     public synchronized void afterTest() throws IOException {
         wipeDataDirectories();
-        resetClients(); /* reset all clients - each test gets its own client based on the Random instance created above. */
+        randomlyResetClients(); /* reset all clients - each test gets its own client based on the Random instance created above. */
     }
 
-    private void resetClients() throws IOException {
-        final Collection<NodeAndClient> nodesAndClients = nodes.values();
-        for (NodeAndClient nodeAndClient : nodesAndClients) {
-            nodeAndClient.resetClient();
+    private void randomlyResetClients() throws IOException {
+        // only reset the clients on nightly tests, it causes heavy load...
+        if (isNightly() && rarely(random)) {
+            final Collection<NodeAndClient> nodesAndClients = nodes.values();
+            for (NodeAndClient nodeAndClient : nodesAndClients) {
+                nodeAndClient.resetClient();
+            }
         }
     }
 

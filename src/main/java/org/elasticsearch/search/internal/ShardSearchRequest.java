@@ -227,6 +227,11 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         return this.queryCache;
     }
 
+    public ShardSearchRequest queryCache(Boolean queryCache) {
+        this.queryCache = queryCache;
+        return this;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);

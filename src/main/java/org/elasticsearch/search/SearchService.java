@@ -928,11 +928,22 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                         try {
                             long now = System.nanoTime();
                             ShardSearchRequest request = new ShardSearchRequest(indexShard.shardId().index().name(), indexShard.shardId().id(), indexMetaData.numberOfShards(),
-                                    SearchType.QUERY_THEN_FETCH /* we don't use COUNT so sorting will also kick in whatever warming logic*/)
+                                    SearchType.QUERY_THEN_FETCH)
                                     .source(entry.source())
-                                    .types(entry.types());
+                                    .types(entry.types())
+                                    .queryCache(entry.queryCache());
                             context = createContext(request, warmerContext.newSearcher());
-                            queryPhase.execute(context);
+                            // if we use sort, we need to do query to sort on it and load relevant field data
+                            // if not, we might as well use COUNT (and cache if needed)
+                            if (context.sort() == null) {
+                                context.searchType(SearchType.COUNT);
+                            }
+                            boolean canCache = indicesQueryCache.canCache(request, context);
+                            if (canCache) {
+                                indicesQueryCache.load(request, context, queryPhase);
+                            } else {
+                                queryPhase.execute(context);
+                            }
                             long took = System.nanoTime() - now;
                             if (indexShard.warmerService().logger().isTraceEnabled()) {
                                 indexShard.warmerService().logger().trace("warmed [{}], took [{}]", entry.name(), TimeValue.timeValueNanos(took));

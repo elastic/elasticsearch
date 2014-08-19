@@ -38,6 +38,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.mapper.FieldMapper.Loading;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.warmer.IndexWarmerMissingException;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
@@ -336,4 +337,39 @@ public class SimpleIndicesWarmerTests extends ElasticsearchIntegrationTest {
         }
     }
 
+    public void testQueryCacheOnWarmer() {
+        createIndex("test");
+        ensureGreen();
+
+        logger.info("register warmer with no query cache, validate no cache is used");
+        assertAcked(client().admin().indices().preparePutWarmer("warmer_1")
+                .setSearchRequest(client().prepareSearch("test").setTypes("a1").setQuery(QueryBuilders.matchAllQuery()))
+                .get());
+
+        client().prepareIndex("test", "type1", "1").setSource("field", "value1").setRefresh(true).execute().actionGet();
+        assertThat(client().admin().indices().prepareStats("test").setQueryCache(true).get().getTotal().getQueryCache().getMemorySizeInBytes(), equalTo(0l));
+
+        logger.info("register warmer with query cache, validate caching happened");
+        assertAcked(client().admin().indices().preparePutWarmer("warmer_1")
+                .setSearchRequest(client().prepareSearch("test").setTypes("a1").setQuery(QueryBuilders.matchAllQuery()).setQueryCache(true))
+                .get());
+
+        // index again, to make sure it gets refreshed
+        client().prepareIndex("test", "type1", "1").setSource("field", "value1").setRefresh(true).execute().actionGet();
+        assertThat(client().admin().indices().prepareStats("test").setQueryCache(true).get().getTotal().getQueryCache().getMemorySizeInBytes(), greaterThan(0l));
+
+        client().admin().indices().prepareClearCache().setQueryCache(true).get(); // clean the cache
+        assertThat(client().admin().indices().prepareStats("test").setQueryCache(true).get().getTotal().getQueryCache().getMemorySizeInBytes(), equalTo(0l));
+
+        logger.info("enable default query caching on the index level, and test that no flag on warmer still caches");
+        assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder().put(IndicesQueryCache.INDEX_CACHE_QUERY_ENABLED, true)));
+
+        assertAcked(client().admin().indices().preparePutWarmer("warmer_1")
+                .setSearchRequest(client().prepareSearch("test").setTypes("a1").setQuery(QueryBuilders.matchAllQuery()))
+                .get());
+
+        // index again, to make sure it gets refreshed
+        client().prepareIndex("test", "type1", "1").setSource("field", "value1").setRefresh(true).execute().actionGet();
+        assertThat(client().admin().indices().prepareStats("test").setQueryCache(true).get().getTotal().getQueryCache().getMemorySizeInBytes(), greaterThan(0l));
+    }
 }

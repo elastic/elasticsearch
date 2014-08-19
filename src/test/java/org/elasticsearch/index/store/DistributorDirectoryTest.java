@@ -18,19 +18,21 @@
  */
 package org.elasticsearch.index.store;
 
+import java.io.File;
+import java.io.IOException;
+
+import org.apache.lucene.store.BaseDirectoryTestCase;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.util.TimeUnits;
+import org.elasticsearch.index.store.distributor.Distributor;
+import org.elasticsearch.test.ElasticsearchThreadFilter;
+import org.elasticsearch.test.junit.listeners.LoggingListener;
 import com.carrotsearch.randomizedtesting.annotations.Listeners;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
-import org.apache.lucene.store.BaseDirectoryTestCase;
-import org.apache.lucene.store.Directory;
-import org.apache.lucene.util.LuceneTestCase;
-import org.apache.lucene.util.TimeUnits;
-import org.elasticsearch.test.ElasticsearchThreadFilter;
-import org.elasticsearch.test.junit.listeners.LoggingListener;
-
-import java.io.File;
-import java.io.IOException;
 
 @ThreadLeakFilters(defaultFilters = true, filters = {ElasticsearchThreadFilter.class})
 @ThreadLeakScope(ThreadLeakScope.Scope.NONE)
@@ -48,4 +50,40 @@ public class DistributorDirectoryTest extends BaseDirectoryTestCase {
         return new DistributorDirectory(directories);
     }
 
+    // #7306: don't invoke the distributor when we are opening an already existing file
+    public void testDoNotCallDistributorOnRead() throws Exception {      
+        Directory dir = newDirectory();
+        dir.createOutput("one.txt", IOContext.DEFAULT).close();
+
+        final Directory[] dirs = new Directory[] {dir};
+
+        Distributor distrib = new Distributor() {
+
+            @Override
+            public Directory primary() {
+                return dirs[0];
+            }
+
+            @Override
+            public Directory[] all() {
+                return dirs;
+            }
+
+            @Override
+            public synchronized Directory any() {
+                throw new IllegalStateException("any should not be called");
+            }
+            };
+
+        Directory dd = new DistributorDirectory(distrib);
+        assertEquals(0, dd.fileLength("one.txt"));
+        dd.openInput("one.txt", IOContext.DEFAULT).close();
+        try {
+            dd.createOutput("three.txt", IOContext.DEFAULT).close();
+            fail("didn't hit expected exception");
+        } catch (IllegalStateException ise) {
+            // expected
+        }
+        dd.close();
+    }
 }

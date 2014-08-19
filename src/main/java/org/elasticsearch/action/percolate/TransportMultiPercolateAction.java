@@ -93,7 +93,7 @@ public class TransportMultiPercolateAction extends HandledTransportAction<MultiP
         }
 
         if (!existingDocsRequests.isEmpty()) {
-            final MultiGetRequest multiGetRequest = new MultiGetRequest();
+            final MultiGetRequest multiGetRequest = new MultiGetRequest(request);
             for (GetRequest getRequest : existingDocsRequests) {
                 multiGetRequest.add(
                         new MultiGetRequest.Item(getRequest.index(), getRequest.type(), getRequest.id())

@@ -43,6 +43,10 @@ public abstract class SingleShardOperationRequest<T extends SingleShardOperation
     protected SingleShardOperationRequest() {
     }
 
+    protected SingleShardOperationRequest(ActionRequest request) {
+        super(request);
+    }
+
     public SingleShardOperationRequest(String index) {
         this.index = index;
     }

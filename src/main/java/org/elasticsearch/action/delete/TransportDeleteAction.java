@@ -74,7 +74,7 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
     protected void doExecute(final DeleteRequest request, final ActionListener<DeleteResponse> listener) {
         if (autoCreateIndex.shouldAutoCreate(request.index(), clusterService.state())) {
             request.beforeLocalFork();
-            createIndexAction.execute(new CreateIndexRequest(request.index()).cause("auto(delete api)").masterNodeTimeout(request.timeout()), new ActionListener<CreateIndexResponse>() {
+            createIndexAction.execute(new CreateIndexRequest(request).index(request.index()).cause("auto(delete api)").masterNodeTimeout(request.timeout()), new ActionListener<CreateIndexResponse>() {
                 @Override
                 public void onResponse(CreateIndexResponse result) {
                     innerExecute(request, listener);

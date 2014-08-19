@@ -120,7 +120,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             ClusterState state = clusterService.state();
             for (final String index : indices) {
                 if (autoCreateIndex.shouldAutoCreate(index, state)) {
-                    createIndexAction.execute(new CreateIndexRequest(index).cause("auto(bulk api)").masterNodeTimeout(bulkRequest.timeout()), new ActionListener<CreateIndexResponse>() {
+                    createIndexAction.execute(new CreateIndexRequest(bulkRequest).index(index).cause("auto(bulk api)").masterNodeTimeout(bulkRequest.timeout()), new ActionListener<CreateIndexResponse>() {
                         @Override
                         public void onResponse(CreateIndexResponse result) {
                             if (counter.decrementAndGet() == 0) {

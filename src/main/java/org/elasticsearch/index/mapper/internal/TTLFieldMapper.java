@@ -240,11 +240,15 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
     public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
         TTLFieldMapper ttlMergeWith = (TTLFieldMapper) mergeWith;
         if (ttlMergeWith.defaultTTL != -1) {
-            this.defaultTTL = ttlMergeWith.defaultTTL;
+            if (!mergeContext.mergeFlags().simulate()) {
+                this.defaultTTL = ttlMergeWith.defaultTTL;
+            }
         }
         if ((ttlMergeWith.enabledState != enabledState) &&!(ttlMergeWith.enabledState == Defaults.ENABLED_STATE)) {
             if (ttlMergeWith.enabledState != EnabledAttributeMapper.DISABLED) {
-                this.enabledState = ttlMergeWith.enabledState;
+                if (!mergeContext.mergeFlags().simulate()) {
+                    this.enabledState = ttlMergeWith.enabledState;
+                }
             } else {
                 mergeContext.addConflict("_ttl cannot be disabled once it was enabled.");
             }

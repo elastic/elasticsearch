@@ -41,16 +41,22 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.search.NumericRangeFieldDataFilter;
+import org.elasticsearch.index.search.child.CustomQueryWrappingFilter;
+import org.elasticsearch.index.search.child.ParentConstantScoreQuery;
 import org.elasticsearch.index.search.geo.GeoDistanceFilter;
 import org.elasticsearch.index.search.geo.GeoPolygonFilter;
 import org.elasticsearch.index.search.geo.InMemoryGeoBoundingBoxFilter;
 import org.elasticsearch.index.search.morelikethis.MoreLikeThisFetchService;
 import org.elasticsearch.index.search.morelikethis.MoreLikeThisFetchService.LikeText;
+import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.elasticsearch.test.index.service.StubIndexService;
 import org.hamcrest.Matchers;
@@ -65,6 +71,7 @@ import java.util.List;
 
 import static org.elasticsearch.common.io.Streams.copyToBytesFromClasspath;
 import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.index.query.RegexpFlag.*;
@@ -2315,5 +2322,42 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         assertThat( ((FuzzyQuery) parsedQuery).getTranspositions(), equalTo(false));
     }
 
+    // https://github.com/elasticsearch/elasticsearch/issues/7240
+    @Test
+    public void testEmptyBooleanQuery() throws Exception {
+        IndexQueryParserService queryParser = queryParser();
+        String query = jsonBuilder().startObject().startObject("bool").endObject().endObject().string();
+        Query parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(MatchAllDocsQuery.class));
+    }
 
+    // https://github.com/elasticsearch/elasticsearch/issues/7240
+    @Test
+    public void testEmptyBooleanQueryInsideFQuery() throws Exception {
+        IndexQueryParserService queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/fquery-with-empty-bool-query.json");
+        XContentParser parser = XContentHelper.createParser(new BytesArray(query));
+        ParsedFilter parsedQuery = queryParser.parseInnerFilter(parser);
+        assertThat(parsedQuery.filter(), instanceOf(QueryWrapperFilter.class));
+        assertThat(((QueryWrapperFilter) parsedQuery.filter()).getQuery(), instanceOf(XFilteredQuery.class));
+        assertThat(((XFilteredQuery) ((QueryWrapperFilter) parsedQuery.filter()).getQuery()).getFilter(), instanceOf(TermFilter.class));
+        TermFilter filter = (TermFilter) ((XFilteredQuery) ((QueryWrapperFilter) parsedQuery.filter()).getQuery()).getFilter();
+        assertThat(filter.getTerm().toString(), equalTo("text:apache"));
+    }
+
+    // https://github.com/elasticsearch/elasticsearch/issues/6722
+    public void testEmptyBoolSubClausesIsMatchAll() throws ElasticsearchException, IOException {
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/bool-query-with-empty-clauses-for-parsing.json");
+        IndexService indexService = createIndex("testidx", client().admin().indices().prepareCreate("testidx")
+                .addMapping("foo")
+                .addMapping("test", "_parent", "type=foo"));
+        SearchContext.setCurrent(createSearchContext(indexService));
+        IndexQueryParserService queryParser = indexService.queryParserService();
+        Query parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(XConstantScoreQuery.class));
+        assertThat(((XConstantScoreQuery) parsedQuery).getFilter(), instanceOf(CustomQueryWrappingFilter.class));
+        assertThat(((CustomQueryWrappingFilter) ((XConstantScoreQuery) parsedQuery).getFilter()).getQuery(), instanceOf(ParentConstantScoreQuery.class));
+        assertThat(((CustomQueryWrappingFilter) ((XConstantScoreQuery) parsedQuery).getFilter()).getQuery().toString(), equalTo("parent_filter[foo](*:*)"));
+        SearchContext.removeCurrent();
+    }
 }

@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -131,7 +132,7 @@ public class BoolQueryParser implements QueryParser {
         }
 
         if (clauses.isEmpty()) {
-            return null;
+            return new MatchAllDocsQuery();
         }
 
         BooleanQuery booleanQuery = new BooleanQuery(disableCoord);

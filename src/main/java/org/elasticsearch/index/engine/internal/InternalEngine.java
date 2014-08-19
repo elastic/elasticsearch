@@ -1387,10 +1387,10 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                 public void warm(AtomicReader reader) throws IOException {
                     try {
                         assert isMergedSegment(reader);
-                        final Engine.Searcher searcher = new SimpleSearcher("warmer", new IndexSearcher(reader));
-                        final IndicesWarmer.WarmerContext context = new IndicesWarmer.WarmerContext(shardId, searcher);
                         if (warmer != null) {
-                            warmer.warm(context);
+                            final Engine.Searcher searcher = new SimpleSearcher("warmer", new IndexSearcher(reader));
+                            final IndicesWarmer.WarmerContext context = new IndicesWarmer.WarmerContext(shardId, searcher);
+                            warmer.warmNewReaders(context);
                         }
                     } catch (Throwable t) {
                         // Don't fail a merge if the warm-up failed
@@ -1576,11 +1576,10 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                     }
 
                     if (newSearcher != null) {
-                        IndicesWarmer.WarmerContext context = new IndicesWarmer.WarmerContext(shardId,
-                                new SimpleSearcher("warmer", newSearcher));
-                        warmer.warm(context);
+                        IndicesWarmer.WarmerContext context = new IndicesWarmer.WarmerContext(shardId, new SimpleSearcher("warmer", newSearcher));
+                        warmer.warmNewReaders(context);
                     }
-                    warmer.warmTop(new IndicesWarmer.WarmerContext(shardId, searcher.getIndexReader()));
+                    warmer.warmTopReader(new IndicesWarmer.WarmerContext(shardId, new SimpleSearcher("warmer", searcher)));
                 } catch (Throwable e) {
                     if (!closed) {
                         logger.warn("failed to prepare/warm", e);

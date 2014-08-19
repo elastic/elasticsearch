@@ -180,7 +180,7 @@ public class IndicesQueryCache extends AbstractComponent implements RemovalListe
             return false;
         }
         // for now, only enable it for search type count
-        if (request.searchType() != SearchType.COUNT) {
+        if (context.searchType() != SearchType.COUNT) {
             return false;
         }
         IndexMetaData index = clusterService.state().getMetaData().index(request.index());

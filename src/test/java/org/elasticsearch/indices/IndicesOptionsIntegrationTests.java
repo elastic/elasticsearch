@@ -606,7 +606,7 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
     @Test
     public void testDeleteWarmer() throws Exception {
         IndexWarmersMetaData.Entry entry = new IndexWarmersMetaData.Entry(
-                "test1", new String[]{"typ1"}, new BytesArray("{\"query\" : { \"match_all\" : {}}}")
+                "test1", new String[]{"typ1"}, false, new BytesArray("{\"query\" : { \"match_all\" : {}}}")
         );
         assertAcked(prepareCreate("foobar").addCustom(new IndexWarmersMetaData(entry)));
         ensureYellow();
@@ -622,7 +622,7 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
         verify(client().admin().indices().prepareDeleteWarmer().setIndices("_all").setNames("test1"), true);
 
         IndexWarmersMetaData.Entry entry = new IndexWarmersMetaData.Entry(
-                "test1", new String[]{"type1"}, new BytesArray("{\"query\" : { \"match_all\" : {}}}")
+                "test1", new String[]{"type1"}, false, new BytesArray("{\"query\" : { \"match_all\" : {}}}")
         );
         assertAcked(prepareCreate("foo").addCustom(new IndexWarmersMetaData(entry)));
         assertAcked(prepareCreate("foobar").addCustom(new IndexWarmersMetaData(entry)));

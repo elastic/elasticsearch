@@ -21,7 +21,9 @@ package org.elasticsearch.action.admin.indices.warmer.get;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.collect.ImmutableList;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -60,10 +62,18 @@ public class GetWarmersResponse extends ActionResponse {
             int valueSize = in.readVInt();
             ImmutableList.Builder<IndexWarmersMetaData.Entry> warmerEntryBuilder = ImmutableList.builder();
             for (int j = 0; j < valueSize; j++) {
+                String name = in.readString();
+                String[] types = in.readStringArray();
+                BytesReference source = in.readBytesReference();
+                Boolean queryCache = null;
+                if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
+                    queryCache = in.readOptionalBoolean();
+                }
                 warmerEntryBuilder.add(new IndexWarmersMetaData.Entry(
-                        in.readString(),
-                        in.readStringArray(),
-                        in.readBytesReference())
+                                name,
+                                types,
+                                queryCache,
+                                source)
                 );
             }
             indexMapBuilder.put(key, warmerEntryBuilder.build());
@@ -82,6 +92,9 @@ public class GetWarmersResponse extends ActionResponse {
                 out.writeString(warmerEntry.name());
                 out.writeStringArray(warmerEntry.types());
                 out.writeBytesReference(warmerEntry.source());
+                if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
+                    out.writeOptionalBoolean(warmerEntry.queryCache());
+                }
             }
         }
     }

@@ -1,0 +1,17 @@
+{
+  "filtered": {
+    "filter": {
+      "has_parent": {
+        "type": "test",
+        "query": {
+          "bool": {
+            "must": [],
+            "must_not": [],
+            "should": []
+          }
+        }
+      },
+      "query": []
+    }
+  }
+}

@@ -27,7 +27,7 @@ import org.elasticsearch.client.IndicesAdminClient;
 public class PutIndexTemplateAction extends IndicesAction<PutIndexTemplateRequest, PutIndexTemplateResponse, PutIndexTemplateRequestBuilder> {
 
     public static final PutIndexTemplateAction INSTANCE = new PutIndexTemplateAction();
-    public static final String NAME = "indices:admin/template/put";
+    public static final String NAME = "cluster:admin/template/put";
 
     private PutIndexTemplateAction() {
         super(NAME);

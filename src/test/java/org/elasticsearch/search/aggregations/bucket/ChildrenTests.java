@@ -173,6 +173,7 @@ public class ChildrenTests extends ElasticsearchIntegrationTest {
         assertThat(childrenBucket.getName(), equalTo("to_comment"));
         assertThat(childrenBucket.getDocCount(), equalTo(2l));
         TopHits topHits = childrenBucket.getAggregations().get("top_comments");
+        assertThat(topHits.getHits().totalHits(), equalTo(2l));
         assertThat(topHits.getHits().getAt(0).getId(), equalTo("a"));
         assertThat(topHits.getHits().getAt(1).getId(), equalTo("c"));
 
@@ -183,6 +184,9 @@ public class ChildrenTests extends ElasticsearchIntegrationTest {
         childrenBucket = categoryBucket.getAggregations().get("to_comment");
         assertThat(childrenBucket.getName(), equalTo("to_comment"));
         assertThat(childrenBucket.getDocCount(), equalTo(1l));
+        topHits = childrenBucket.getAggregations().get("top_comments");
+        assertThat(topHits.getHits().totalHits(), equalTo(1l));
+        assertThat(topHits.getHits().getAt(0).getId(), equalTo("c"));
 
         categoryBucket = categoryTerms.getBucketByKey("c");
         assertThat(categoryBucket.getKey(), equalTo("c"));
@@ -191,6 +195,9 @@ public class ChildrenTests extends ElasticsearchIntegrationTest {
         childrenBucket = categoryBucket.getAggregations().get("to_comment");
         assertThat(childrenBucket.getName(), equalTo("to_comment"));
         assertThat(childrenBucket.getDocCount(), equalTo(1l));
+        topHits = childrenBucket.getAggregations().get("top_comments");
+        assertThat(topHits.getHits().totalHits(), equalTo(1l));
+        assertThat(topHits.getHits().getAt(0).getId(), equalTo("c"));
     }
 
     private static final class Control {

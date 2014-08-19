@@ -59,6 +59,10 @@ public class RestGetSearchTemplateAction extends BaseRestHandler {
             public RestResponse buildResponse(GetIndexedScriptResponse response) throws Exception {
                 XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
                 if (!response.isExists()) {
+                    builder.startObject();
+                    builder.field("status", NOT_FOUND.getStatus());
+                    builder.field("error", "IndexedTemplateMissingException[[" + request.param("id") + "] not found]");
+                    builder.endObject();
                     return new BytesRestResponse(NOT_FOUND, builder);
                 } else {
                     try{

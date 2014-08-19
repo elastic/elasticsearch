@@ -54,15 +54,20 @@ public class RestDeleteIndexedScriptAction extends BaseRestHandler {
         scriptService.deleteScriptFromIndex(client,request.param("lang"), id, version, new RestBuilderListener<DeleteResponse>(channel) {
             @Override
             public RestResponse buildResponse(DeleteResponse result, XContentBuilder builder) throws Exception {
-                builder.startObject()
-                        .field(Fields.FOUND, result.isFound())
-                        .field(Fields._INDEX, result.getIndex())
-                        .field(Fields._TYPE, result.getType())
-                        .field(Fields._ID, result.getId())
-                        .field(Fields._VERSION, result.getVersion())
-                        .endObject();
                 RestStatus status = OK;
-                if (!result.isFound()) {
+                if (result.isFound()) {
+                    builder.startObject()
+                            .field(Fields.FOUND, result.isFound())
+                            .field(Fields._INDEX, result.getIndex())
+                            .field(Fields._TYPE, result.getType())
+                            .field(Fields._ID, result.getId())
+                            .field(Fields._VERSION, result.getVersion())
+                            .endObject();
+                } else {
+                    builder.startObject();
+                    builder.field("status", NOT_FOUND.getStatus());
+                    builder.field("error", "IndexedScriptMissingException[[" + id + "] not found]");
+                    builder.endObject();
                     status = NOT_FOUND;
                 }
                 return new BytesRestResponse(status, builder);

@@ -51,3 +51,22 @@
         lang: "foobar"
         body: { "script" :  "_score * doc[\"myParent.weight\"].value" }
 
+
+  - do:
+    catch: missing
+    get_script:
+      id: "foobar"
+      lang: "groovy"
+  - match: { "error": "IndexedScriptMissingException[[foobar] not found]" }
+  - match: { "status": 404 }
+
+
+  - do:
+    catch: missing
+    delete_script:
+      id: "foobar"
+      lang: "groovy"
+  - match: { "error": "IndexedScriptMissingException[[foobar] not found]" }
+  - match: { "status": 404 }
+
+

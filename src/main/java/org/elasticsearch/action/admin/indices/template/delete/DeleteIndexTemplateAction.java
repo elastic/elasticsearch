@@ -27,7 +27,7 @@ import org.elasticsearch.client.IndicesAdminClient;
 public class DeleteIndexTemplateAction extends IndicesAction<DeleteIndexTemplateRequest, DeleteIndexTemplateResponse, DeleteIndexTemplateRequestBuilder> {
 
     public static final DeleteIndexTemplateAction INSTANCE = new DeleteIndexTemplateAction();
-    public static final String NAME = "indices:admin/template/delete";
+    public static final String NAME = "cluster:admin/template/delete";
 
     private DeleteIndexTemplateAction() {
         super(NAME);

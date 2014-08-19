@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices.recovery;
 
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import org.apache.lucene.index.CorruptIndexException;
@@ -141,35 +142,32 @@ public class RecoverySource extends AbstractComponent {
                 store.incRef();
                 try {
                     StopWatch stopWatch = new StopWatch().start();
-                    final Store.MetadataSnapshot metadata;
-                    metadata = store.getMetadata(snapshot);
+                    final Store.MetadataSnapshot recoverySourceMetadata = store.getMetadata(snapshot);
                     for (String name : snapshot.getFiles()) {
-                        final StoreFileMetaData md = metadata.get(name);
+                        final StoreFileMetaData md = recoverySourceMetadata.get(name);
                         if (md == null) {
-                            logger.info("Snapshot differs from actual index for file: {} meta: {}", name, metadata.asMap());
-                            throw new CorruptIndexException("Snapshot differs from actual index - maybe index was removed metadata has " + metadata.asMap().size() + " files");
+                            logger.info("Snapshot differs from actual index for file: {} meta: {}", name, recoverySourceMetadata.asMap());
+                            throw new CorruptIndexException("Snapshot differs from actual index - maybe index was removed metadata has " + recoverySourceMetadata.asMap().size() + " files");
                         }
-                        boolean useExisting = false;
-                        if (request.existingFiles().containsKey(name)) {
-                            if (md.isSame(request.existingFiles().get(name))) {
-                                response.phase1ExistingFileNames.add(name);
-                                response.phase1ExistingFileSizes.add(md.length());
-                                existingTotalSize += md.length();
-                                useExisting = true;
-                                if (logger.isTraceEnabled()) {
-                                    logger.trace("[{}][{}] recovery [phase1] to {}: not recovering [{}], exists in local store and has checksum [{}], size [{}]", request.shardId().index().name(), request.shardId().id(), request.targetNode(), name, md.checksum(), md.length());
-                                }
-                            }
+                    }
+                    final Store.RecoveryDiff diff = recoverySourceMetadata.recoveryDiff(new Store.MetadataSnapshot(request.existingFiles()));
+                    for (StoreFileMetaData md : diff.identical) {
+                        response.phase1ExistingFileNames.add(md.name());
+                        response.phase1ExistingFileSizes.add(md.length());
+                        existingTotalSize += md.length();
+                        if (logger.isTraceEnabled()) {
+                            logger.trace("[{}][{}] recovery [phase1] to {}: not recovering [{}], exists in local store and has checksum [{}], size [{}]", request.shardId().index().name(), request.shardId().id(), request.targetNode(), md.name(), md.checksum(), md.length());
                         }
-                        if (!useExisting) {
-                            if (request.existingFiles().containsKey(name)) {
-                                logger.trace("[{}][{}] recovery [phase1] to {}: recovering [{}], exists in local store, but is different: remote [{}], local [{}]", request.shardId().index().name(), request.shardId().id(), request.targetNode(), name, request.existingFiles().get(name), md);
-                            } else {
-                                logger.trace("[{}][{}] recovery [phase1] to {}: recovering [{}], does not exists in remote", request.shardId().index().name(), request.shardId().id(), request.targetNode(), name);
-                            }
-                            response.phase1FileNames.add(name);
-                            response.phase1FileSizes.add(md.length());
+                        totalSize += md.length();
+                    }
+                    for (StoreFileMetaData md : Iterables.concat(diff.different, diff.missing)) {
+                        if (request.existingFiles().containsKey(md.name())) {
+                            logger.trace("[{}][{}] recovery [phase1] to {}: recovering [{}], exists in local store, but is different: remote [{}], local [{}]", request.shardId().index().name(), request.shardId().id(), request.targetNode(), md.name(), request.existingFiles().get(md.name()), md);
+                        } else {
+                            logger.trace("[{}][{}] recovery [phase1] to {}: recovering [{}], does not exists in remote", request.shardId().index().name(), request.shardId().id(), request.targetNode(), md.name());
                         }
+                        response.phase1FileNames.add(md.name());
+                        response.phase1FileSizes.add(md.length());
                         totalSize += md.length();
                     }
                     response.phase1TotalSize = totalSize;
@@ -199,7 +197,7 @@ public class RecoverySource extends AbstractComponent {
                             public void run() {
                                 IndexInput indexInput = null;
                                 store.incRef();
-                                final StoreFileMetaData md = metadata.get(name);
+                                final StoreFileMetaData md = recoverySourceMetadata.get(name);
                                 try {
                                     final int BUFFER_SIZE = (int) recoverySettings.fileChunkSize().bytes();
                                     byte[] buf = new byte[BUFFER_SIZE];

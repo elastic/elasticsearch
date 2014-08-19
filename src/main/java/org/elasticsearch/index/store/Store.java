@@ -21,12 +21,12 @@ package org.elasticsearch.index.store;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Iterables;
 import org.apache.lucene.codecs.CodecUtil;
-import org.apache.lucene.index.CorruptIndexException;
-import org.apache.lucene.index.IndexCommit;
-import org.apache.lucene.index.SegmentCommitInfo;
-import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.codecs.lucene46.Lucene46SegmentInfoFormat;
+import org.apache.lucene.index.*;
 import org.apache.lucene.store.*;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ExceptionsHelper;
@@ -458,7 +458,17 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
      * @see StoreFileMetaData
      */
     public final static class MetadataSnapshot implements Iterable<StoreFileMetaData> {
-        private final ImmutableMap<String, StoreFileMetaData> metadata;
+        private final Map<String, StoreFileMetaData> metadata;
+
+        public static final MetadataSnapshot EMPTY = new MetadataSnapshot();
+
+        public MetadataSnapshot(Map<String, StoreFileMetaData> metadata) {
+            this.metadata = metadata;
+        }
+
+        MetadataSnapshot() {
+            this.metadata = Collections.emptyMap();
+        }
 
         MetadataSnapshot(IndexCommit commit, Directory directory, ESLogger logger) throws IOException {
             metadata = buildMetadata(commit, directory, logger);
@@ -485,7 +495,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
                     for (String file : info.files()) {
                         String legacyChecksum = checksumMap.get(file);
                         if (version.onOrAfter(Version.LUCENE_4_8) && legacyChecksum == null) {
-                            checksumFromLuceneFile(directory, file, builder, logger, version);
+                            checksumFromLuceneFile(directory, file, builder, logger, version, Lucene46SegmentInfoFormat.SI_EXTENSION.equals(IndexFileNames.getExtension(file)));
                         } else {
                             builder.put(file, new StoreFileMetaData(file, directory.fileLength(file), legacyChecksum, null));
                         }
@@ -494,7 +504,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
                 final String segmentsFile = segmentCommitInfos.getSegmentsFileName();
                 String legacyChecksum = checksumMap.get(segmentsFile);
                 if (maxVersion.onOrAfter(Version.LUCENE_4_8) && legacyChecksum == null) {
-                    checksumFromLuceneFile(directory, segmentsFile, builder, logger, maxVersion);
+                    checksumFromLuceneFile(directory, segmentsFile, builder, logger, maxVersion, true);
                 } else {
                     builder.put(segmentsFile, new StoreFileMetaData(segmentsFile, directory.fileLength(segmentsFile), legacyChecksum, null));
                 }
@@ -544,19 +554,28 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
             }
         }
 
-        private static void checksumFromLuceneFile(Directory directory, String file, ImmutableMap.Builder<String, StoreFileMetaData> builder,  ESLogger logger, Version version) throws IOException {
+        private static void checksumFromLuceneFile(Directory directory, String file, ImmutableMap.Builder<String, StoreFileMetaData> builder,  ESLogger logger, Version version, boolean readFileAsHash) throws IOException {
+            final String checksum;
+            BytesRef fileHash = new BytesRef();
             try (IndexInput in = directory.openInput(file, IOContext.READONCE)) {
                 try {
                     if (in.length() < CodecUtil.footerLength()) {
                         // truncated files trigger IAE if we seek negative... these files are really corrupted though
                         throw new CorruptIndexException("Can't retrieve checksum from file: " + file + " file length must be >= " + CodecUtil.footerLength() + " but was: " + in.length());
                     }
-                    String checksum = digestToString(CodecUtil.retrieveChecksum(in));
-                    builder.put(file, new StoreFileMetaData(file, directory.fileLength(file), checksum, version));
+                    if (readFileAsHash) {
+                        final int len = (int)Math.min(1024 * 1024, in.length()); // for safety we limit this to 1MB
+                        fileHash.bytes = new byte[len];
+                        in.readBytes(fileHash.bytes, 0, len);
+                        fileHash.length = len;
+                    }
+                    checksum = digestToString(CodecUtil.retrieveChecksum(in));
+
                 } catch (Throwable ex) {
                     logger.debug("Can retrieve checksum from file [{}]", ex, file);
                     throw ex;
                 }
+                builder.put(file, new StoreFileMetaData(file, directory.fileLength(file), checksum, version, fileHash));
             }
         }
 
@@ -572,6 +591,134 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
 
         public Map<String, StoreFileMetaData> asMap() {
             return metadata;
+        }
+
+        private static final String DEL_FILE_EXTENSION = "del";  // TODO think about how we can detect if this changes?
+        private static final String FIELD_INFOS_FILE_EXTENSION = "fnm";
+
+        /**
+         * Returns a diff between the two snapshots that can be used for recovery. The given snapshot is treated as the
+         * recovery target and this snapshot as the source. The returned diff will hold a list of files that are:
+         *  <ul>
+         *      <li>identical: they exist in both snapshots and they can be considered the same ie. they don't need to be recovered</li>
+         *      <li>different: they exist in both snapshots but their they are not identical</li>
+         *      <li>missing: files that exist in the source but not in the target</li>
+         *  </ul>
+         * This method groups file into per-segment files and per-commit files. A file is treated as
+         * identical if and on if all files in it's group are identical. On a per-segment level files for a segment are treated
+         * as identical iff:
+         * <ul>
+         *     <li>all files in this segment have the same checksum</li>
+         *     <li>all files in this segment have the same length</li>
+         *     <li>the segments <tt>.si</tt> files hashes are byte-identical Note: This is a using a perfect hash function, The metadata transfers the <tt>.si</tt> file content as it's hash</li>
+         * </ul>
+         *
+         * The <tt>.si</tt> file contains a lot of diagnostics including a timestamp etc. in the future there might be
+         * unique segment identifiers in there hardening this method further.
+         *
+         * The per-commit files handles very similar. A commit is composed of the <tt>segments_N</tt> files as well as generational files like
+         * deletes (<tt>_x_y.del</tt>) or field-info (<tt>_x_y.fnm</tt>) files. On a per-commit level files for a commit are treated
+         * as identical iff:
+         * <ul>
+         *     <li>all files belonging to this commit have the same checksum</li>
+         *     <li>all files belonging to this commit have the same length</li>
+         *     <li>the segments file <tt>segments_N</tt> files hashes are byte-identical Note: This is a using a perfect hash function, The metadata transfers the <tt>segments_N</tt> file content as it's hash</li>
+         * </ul>
+         *
+         * NOTE: this diff will not contain the <tt>segments.gen</tt> file. This file is omitted on recovery.
+         */
+        public RecoveryDiff recoveryDiff(MetadataSnapshot recoveryTargetSnapshot) {
+            final ImmutableList.Builder<StoreFileMetaData> identical =  ImmutableList.builder();
+            final ImmutableList.Builder<StoreFileMetaData> different =  ImmutableList.builder();
+            final ImmutableList.Builder<StoreFileMetaData> missing =  ImmutableList.builder();
+            final Map<String, List<StoreFileMetaData>> perSegment = new HashMap<>();
+            final List<StoreFileMetaData> perCommitStoreFiles = new ArrayList<>();
+
+            for (StoreFileMetaData meta : this) {
+                if (IndexFileNames.SEGMENTS_GEN.equals(meta.name())) {
+                    continue; // we don't need that file at all
+                }
+                final String segmentId = IndexFileNames.parseSegmentName(meta.name());
+                final String extension = IndexFileNames.getExtension(meta.name());
+                assert FIELD_INFOS_FILE_EXTENSION.equals(extension) == false || IndexFileNames.stripExtension(IndexFileNames.stripSegmentName(meta.name())).isEmpty() : "FieldInfos are generational but updateable DV are not supported in elasticsearch";
+                if (IndexFileNames.SEGMENTS.equals(segmentId) || DEL_FILE_EXTENSION.equals(extension)) {
+                        // only treat del files as per-commit files fnm files are generational but only for upgradable DV
+                    perCommitStoreFiles.add(meta);
+                } else {
+                    List<StoreFileMetaData> perSegStoreFiles = perSegment.get(segmentId);
+                    if (perSegStoreFiles == null) {
+                        perSegStoreFiles = new ArrayList<>();
+                        perSegment.put(segmentId, perSegStoreFiles);
+                    }
+                    perSegStoreFiles.add(meta);
+                }
+            }
+            final ArrayList<StoreFileMetaData> identicalFiles = new ArrayList<>();
+            for (List<StoreFileMetaData> segmentFiles : Iterables.concat(perSegment.values(), Collections.singleton(perCommitStoreFiles))) {
+                identicalFiles.clear();
+                boolean consistent = true;
+                for (StoreFileMetaData meta : segmentFiles) {
+                    StoreFileMetaData storeFileMetaData = recoveryTargetSnapshot.get(meta.name());
+                    if (storeFileMetaData == null) {
+                        consistent = false;
+                        missing.add(meta);
+                    } else if (storeFileMetaData.isSame(meta) == false) {
+                        consistent = false;
+                        different.add(meta);
+                    } else {
+                        identicalFiles.add(meta);
+                    }
+                }
+                if (consistent) {
+                    identical.addAll(identicalFiles);
+                } else {
+                    // make sure all files are added - this can happen if only the deletes are different
+                    different.addAll(identicalFiles);
+                }
+            }
+            RecoveryDiff recoveryDiff = new RecoveryDiff(identical.build(), different.build(), missing.build());
+            assert recoveryDiff.size() == this.metadata.size() - (metadata.containsKey(IndexFileNames.SEGMENTS_GEN) ? 1: 0)
+                    : "some files are missing recoveryDiff size: [" + recoveryDiff.size() + "] metadata size: [" + this.metadata.size()  + "] contains  segments.gen: [" + metadata.containsKey(IndexFileNames.SEGMENTS_GEN) + "]"   ;
+            return recoveryDiff;
+        }
+
+        /**
+         * Returns the number of files in this snapshot
+         */
+        public int size() {
+            return metadata.size();
+        }
+    }
+
+    /**
+     * A class representing the diff between a recovery source and recovery target
+     * @see MetadataSnapshot#recoveryDiff(org.elasticsearch.index.store.Store.MetadataSnapshot)
+     */
+    public static final class RecoveryDiff {
+        /**
+         *  Files that exist in both snapshots and they can be considered the same ie. they don't need to be recovered
+         */
+        public final List<StoreFileMetaData> identical;
+        /**
+         * Files that exist in both snapshots but their they are not identical
+         */
+        public final List<StoreFileMetaData> different;
+        /**
+         * Files that exist in the source but not in the target
+         */
+        public final List<StoreFileMetaData> missing;
+
+        RecoveryDiff(List<StoreFileMetaData> identical, List<StoreFileMetaData> different, List<StoreFileMetaData> missing) {
+            this.identical = identical;
+            this.different = different;
+            this.missing = missing;
+        }
+
+        /**
+         * Returns the sum of the files in this diff.
+         */
+        public int size() {
+            return identical.size() + different.size() + missing.size();
         }
     }
 

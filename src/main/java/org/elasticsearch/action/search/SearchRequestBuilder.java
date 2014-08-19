@@ -28,6 +28,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.script.ScriptService;
@@ -41,6 +42,7 @@ import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 
+import java.io.IOException;
 import java.util.Map;
 
 /**
@@ -1098,7 +1100,11 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     @Override
     public String toString() {
         if (request.source() != null) {
-            return request.source().toUtf8();
+            try {
+                return XContentHelper.convertToJson(request.source(), false, false);
+            } catch (IOException|NullPointerException e) {
+                return request().source().toUtf8();
+            }
         } else {
             return internalBuilder().toString();
         }

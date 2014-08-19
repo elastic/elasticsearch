@@ -239,18 +239,20 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
     @Override
     public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
         TTLFieldMapper ttlMergeWith = (TTLFieldMapper) mergeWith;
-        if (ttlMergeWith.defaultTTL != -1) {
-            if (!mergeContext.mergeFlags().simulate()) {
-                this.defaultTTL = ttlMergeWith.defaultTTL;
-            }
-        }
-        if ((ttlMergeWith.enabledState != enabledState) &&!(ttlMergeWith.enabledState == Defaults.ENABLED_STATE)) {
-            if (ttlMergeWith.enabledState != EnabledAttributeMapper.DISABLED) {
+        if (((TTLFieldMapper) mergeWith).enabledState != Defaults.ENABLED_STATE) {//only do something if actually something was set for the document mapper that we merge with
+            if (this.enabledState == EnabledAttributeMapper.ENABLED && ((TTLFieldMapper) mergeWith).enabledState == EnabledAttributeMapper.DISABLED) {
+                mergeContext.addConflict("_ttl cannot be disabled once it was enabled.");
+            } else {
                 if (!mergeContext.mergeFlags().simulate()) {
                     this.enabledState = ttlMergeWith.enabledState;
                 }
-            } else {
-                mergeContext.addConflict("_ttl cannot be disabled once it was enabled.");
+            }
+        }
+        if (ttlMergeWith.defaultTTL != -1) {
+            // we never build the default when the field is disabled so we should also not set it
+            // (it does not make a difference though as everything that is not build in toXContent will also not be set in the cluster)
+            if (!mergeContext.mergeFlags().simulate() && (enabledState == EnabledAttributeMapper.ENABLED)) {
+                this.defaultTTL = ttlMergeWith.defaultTTL;
             }
         }
     }

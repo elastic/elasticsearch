@@ -20,6 +20,7 @@
 package org.elasticsearch.action.get;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.single.shard.SingleShardOperationRequest;
@@ -64,6 +65,26 @@ public class GetRequest extends SingleShardOperationRequest<GetRequest> {
 
     GetRequest() {
         type = "_all";
+    }
+
+    /**
+     * Copy constructor that creates a new get request that is a copy of the one provided as an argument.
+     * The new request will inherit though headers and context from the original request that caused it.
+     */
+    public GetRequest(GetRequest getRequest, ActionRequest originalRequest) {
+        super(originalRequest);
+        this.index = getRequest.index;
+        this.type = getRequest.type;
+        this.id = getRequest.id;
+        this.routing = getRequest.routing;
+        this.preference = getRequest.preference;
+        this.fields = getRequest.fields;
+        this.fetchSourceContext = getRequest.fetchSourceContext;
+        this.refresh = getRequest.refresh;
+        this.realtime = getRequest.realtime;
+        this.version = getRequest.version;
+        this.versionType = getRequest.versionType;
+        this.ignoreErrorsOnGeneratedFields = getRequest.ignoreErrorsOnGeneratedFields;
     }
 
     /**

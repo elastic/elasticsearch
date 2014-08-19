@@ -22,6 +22,50 @@ public class Alert implements ToXContent{
     private TimeValue timePeriod;
     private List<AlertAction> actions;
     private String schedule;
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        Alert alert = (Alert) o;
+
+        if (enabled != alert.enabled) return false;
+        if (simpleQuery != alert.simpleQuery) return false;
+        if (version != alert.version) return false;
+        if (actions != null ? !actions.equals(alert.actions) : alert.actions != null) return false;
+        if (alertName != null ? !alertName.equals(alert.alertName) : alert.alertName != null) return false;
+        if (indices != null ? !indices.equals(alert.indices) : alert.indices != null) return false;
+        if (lastRan != null ? !lastRan.equals(alert.lastRan) : alert.lastRan != null) return false;
+        if (queryName != null ? !queryName.equals(alert.queryName) : alert.queryName != null) return false;
+        if (running != null ? !running.equals(alert.running) : alert.running != null) return false;
+        if (schedule != null ? !schedule.equals(alert.schedule) : alert.schedule != null) return false;
+        if (timePeriod != null ? !timePeriod.equals(alert.timePeriod) : alert.timePeriod != null) return false;
+        if (timestampString != null ? !timestampString.equals(alert.timestampString) : alert.timestampString != null)
+            return false;
+        if (trigger != null ? !trigger.equals(alert.trigger) : alert.trigger != null) return false;
+
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        int result = alertName != null ? alertName.hashCode() : 0;
+        result = 31 * result + (queryName != null ? queryName.hashCode() : 0);
+        result = 31 * result + (trigger != null ? trigger.hashCode() : 0);
+        result = 31 * result + (timePeriod != null ? timePeriod.hashCode() : 0);
+        result = 31 * result + (actions != null ? actions.hashCode() : 0);
+        result = 31 * result + (schedule != null ? schedule.hashCode() : 0);
+        result = 31 * result + (lastRan != null ? lastRan.hashCode() : 0);
+        result = 31 * result + (int) (version ^ (version >>> 32));
+        result = 31 * result + (running != null ? running.hashCode() : 0);
+        result = 31 * result + (enabled ? 1 : 0);
+        result = 31 * result + (simpleQuery ? 1 : 0);
+        result = 31 * result + (timestampString != null ? timestampString.hashCode() : 0);
+        result = 31 * result + (indices != null ? indices.hashCode() : 0);
+        return result;
+    }
+
     private DateTime lastRan;
     private long version;
     private DateTime running;
@@ -185,5 +229,24 @@ public class Alert implements ToXContent{
 
         builder.endObject();
         return builder;
+    }
+
+    public boolean isSameAlert(Alert otherAlert) {
+
+        if (this == otherAlert) return true;
+
+        if (enabled != otherAlert.enabled) return false;
+        if (simpleQuery != otherAlert.simpleQuery) return false;
+        if (actions != null ? !actions.equals(otherAlert.actions) : otherAlert.actions != null) return false;
+        if (alertName != null ? !alertName.equals(otherAlert.alertName) : otherAlert.alertName != null) return false;
+        if (indices != null ? !indices.equals(otherAlert.indices) : otherAlert.indices != null) return false;
+        if (queryName != null ? !queryName.equals(otherAlert.queryName) : otherAlert.queryName != null) return false;
+        if (schedule != null ? !schedule.equals(otherAlert.schedule) : otherAlert.schedule != null) return false;
+        if (timePeriod != null ? !timePeriod.equals(otherAlert.timePeriod) : otherAlert.timePeriod != null) return false;
+        if (timestampString != null ? !timestampString.equals(otherAlert.timestampString) : otherAlert.timestampString != null)
+            return false;
+        if (trigger != null ? !trigger.equals(otherAlert.trigger) : otherAlert.trigger != null) return false;
+
+        return true;
     }
 }

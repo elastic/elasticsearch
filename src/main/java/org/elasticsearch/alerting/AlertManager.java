@@ -16,6 +16,7 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -153,26 +154,45 @@ public class AlertManager extends AbstractLifecycleComponent {
     }
 
     public boolean claimAlertRun(String alertName, DateTime scheduleRunTime) {
-        Alert alert;
+        Alert indexedAlert;
         try {
-            alert = getAlertFromIndex(alertName);
-            if (alert.running().equals(scheduleRunTime) || alert.running().isAfter(scheduleRunTime)) {
+            indexedAlert = getAlertFromIndex(alertName);
+            synchronized (alertMap) {
+                Alert inMemoryAlert = alertMap.get(alertName);
+                if (indexedAlert == null) {
+                    //Alert has been deleted out from underneath us
+                    alertMap.remove(alertName);
+                    return false;
+                } else if (inMemoryAlert == null) {
+                    logger.warn("Got claim attempt for alert [{}] that alert manager does not have but is in the index.", alertName);
+                    alertMap.put(alertName, indexedAlert); //This is an odd state to get into
+                } else {
+                    if (!inMemoryAlert.isSameAlert(indexedAlert)) {
+                        alertMap.put(alertName, indexedAlert); //Probably has been changed by another process and we missed the notification
+                    }
+                }
+                if (!indexedAlert.enabled()) {
+                    return false;
+                }
+            }
+            if (indexedAlert.running().equals(scheduleRunTime) || indexedAlert.running().isAfter(scheduleRunTime)) {
                 //Someone else is already running this alert or this alert time has passed
                 return false;
             }
         } catch (Throwable t) {
             throw new ElasticsearchException("Unable to load alert from index",t);
         }
-        alert.running(scheduleRunTime);
+
+        indexedAlert.running(scheduleRunTime);
         UpdateRequest updateRequest = new UpdateRequest();
         updateRequest.index(ALERT_INDEX);
         updateRequest.type(ALERT_TYPE);
         updateRequest.id(alertName);
-        updateRequest.version(alert.version());//Since we loaded this alert directly from the index the version should be correct
+        updateRequest.version(indexedAlert.version());//Since we loaded this alert directly from the index the version should be correct
         XContentBuilder alertBuilder;
         try {
             alertBuilder = XContentFactory.jsonBuilder();
-            alert.toXContent(alertBuilder, ToXContent.EMPTY_PARAMS);
+            indexedAlert.toXContent(alertBuilder, ToXContent.EMPTY_PARAMS);
         } catch (IOException ie) {
             throw new ElasticsearchException("Unable to serialize alert ["+ alertName + "]", ie);
         }
@@ -187,7 +207,7 @@ public class AlertManager extends AbstractLifecycleComponent {
         }
 
         synchronized (alertMap) { //Update the alert map
-            if (alertMap.containsKey(alertName)) {
+            if (alertMap.containsKey(alertName)) { //Check here since it may have been deleted
                 alertMap.get(alertName).running(scheduleRunTime);
             }
         }
@@ -343,25 +363,58 @@ public class AlertManager extends AbstractLifecycleComponent {
             } else {
                 alertMap.put(alertName, alert);
                 scheduler.addAlert(alertName,alert);
+
                 if (persist) {
-                    XContentBuilder builder;
-                    try {
-                        builder = XContentFactory.jsonBuilder();
-                        alert.toXContent(builder, ToXContent.EMPTY_PARAMS);
-                        IndexRequest indexRequest = new IndexRequest(ALERT_INDEX, ALERT_TYPE, alertName);
-                        indexRequest.listenerThreaded(false);
-                        indexRequest.operationThreaded(false);
-                        indexRequest.refresh(true); //Always refresh after indexing an alert
-                        indexRequest.source(builder);
-                        indexRequest.opType(IndexRequest.OpType.CREATE);
-                        return client.index(indexRequest).actionGet().isCreated();
-                    } catch (IOException ie) {
-                        throw new ElasticsearchIllegalStateException("Unable to convert alert to JSON", ie);
-                    }
+                    return persistAlert(alertName, alert, IndexRequest.OpType.CREATE);
                 } else {
                     return true;
                 }
             }
+        }
+    }
+
+    public boolean disableAlert(String alertName) {
+        synchronized (alertMap) {
+            Alert alert = alertMap.get(alertName);
+            if (alert == null) {
+                throw new ElasticsearchIllegalArgumentException("Could not find an alert named [" + alertName + "]");
+            }
+            alert.enabled(false);
+            return persistAlert(alertName, alert, IndexRequest.OpType.INDEX);
+        }
+    }
+
+    public boolean enableAlert(String alertName) {
+        synchronized (alertMap) {
+            Alert alert = alertMap.get(alertName);
+            if (alert == null) {
+                throw new ElasticsearchIllegalArgumentException("Could not find an alert named [" + alertName + "]");
+            }
+            alert.enabled(true);
+            return persistAlert(alertName, alert, IndexRequest.OpType.INDEX);
+        }
+    }
+
+    private boolean persistAlert(String alertName, Alert alert, IndexRequest.OpType opType) {
+        XContentBuilder builder;
+        try {
+            builder = XContentFactory.jsonBuilder();
+            alert.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            IndexRequest indexRequest = new IndexRequest(ALERT_INDEX, ALERT_TYPE, alertName);
+            indexRequest.listenerThreaded(false);
+            indexRequest.operationThreaded(false);
+            indexRequest.refresh(true); //Always refresh after indexing an alert
+            indexRequest.source(builder);
+            indexRequest.opType(opType);
+            IndexResponse indexResponse = client.index(indexRequest).actionGet();
+            //@TODO : broadcast refresh here
+            if (opType.equals(IndexRequest.OpType.CREATE)) {
+                return indexResponse.isCreated();
+            } else {
+                return true;
+            }
+        } catch (IOException ie) {
+            throw new ElasticsearchIllegalStateException("Unable to convert alert to JSON", ie);
         }
     }
 

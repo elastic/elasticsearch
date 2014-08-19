@@ -86,6 +86,7 @@ public class AlertScheduler extends AbstractLifecycleComponent {
                 logger.warn("Another process has already run this alert.");
                 return;
             }
+            alert = alertManager.getAlertForName(alertName); //The claim may have triggered a refresh
 
             SearchRequestBuilder srb = createClampedRequest(client, jobExecutionContext, alert);
             String[] indices = alert.indices().toArray(new String[0]);
@@ -135,8 +136,9 @@ public class AlertScheduler extends AbstractLifecycleComponent {
             filterBuilder.lt(clampEnd);
             return client.prepareSearch().setQuery(new FilteredQueryBuilder(queryBuilder, filterBuilder));
         } else {
+            //We can't just wrap the template here since it probably contains aggs or something else that doesn't play nice with FilteredQuery
             Map<String,Object> fromToMap = new HashMap<>();
-            fromToMap.put("from", clampStart);
+            fromToMap.put("from", clampStart); //@TODO : make these parameters configurable ? Don't want to bloat the API too much tho
             fromToMap.put("to", clampEnd);
             //Go and get the search template from the script service :(
             ExecutableScript script =  scriptService.executable("mustache", alert.queryName(), ScriptService.ScriptType.INDEXED, fromToMap);

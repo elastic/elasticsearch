@@ -29,12 +29,16 @@ public class AlertRestHandler implements RestHandler {
         restController.registerHandler(GET, "/_alerting/_list",this);
         restController.registerHandler(POST, "/_alerting/_create/{name}", this);
         restController.registerHandler(DELETE, "/_alerting/_delete/{name}", this);
+        restController.registerHandler(GET, "/_alerting/_enable/{name}", this);
+        restController.registerHandler(GET, "/_alerting/_disable/{name}", this);
+        restController.registerHandler(POST, "/_alerting/_enable/{name}", this);
+        restController.registerHandler(POST, "/_alerting/_disable/{name}", this);
+
         this.alertManager = alertManager;
     }
 
     @Override
     public void handleRequest(RestRequest request, RestChannel restChannel) throws Exception {
-        logger.warn("GOT REST REQUEST");
         try {
             if (dispatchRequest(request, restChannel)) {
                 return;
@@ -61,6 +65,10 @@ public class AlertRestHandler implements RestHandler {
             XContentBuilder builder = getListOfAlerts();
             restChannel.sendResponse(new BytesRestResponse(OK,builder));
             return true;
+        } else if (request.path().contains("/_enable")) {
+            return alertManager.enableAlert(request.param("name"));
+        } else if (request.path().contains("/_disable")) {
+            return alertManager.disableAlert(request.param("name"));
         } else if (request.method() == POST && request.path().contains("/_create")) {
             //TODO : this should all be moved to an action
             Alert alert;

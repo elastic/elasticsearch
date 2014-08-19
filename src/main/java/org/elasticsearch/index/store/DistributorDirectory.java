@@ -159,11 +159,14 @@ public final class DistributorDirectory extends BaseDirectory {
         if (usePrimary(name)) {
             return distributor.primary();
         }
-        if (!nameDirMapping.containsKey(name)) {
-            if (iterate) { // in order to get stuff like "write.lock" that might not be written though this directory
+        Directory directory = nameDirMapping.get(name);
+        if (directory == null) {
+            // name is not yet bound to a directory:
+
+            if (iterate) { // in order to get stuff like "write.lock" that might not be written through this directory
                 for (Directory dir : distributor.all()) {
                     if (dir.fileExists(name)) {
-                        final Directory directory = nameDirMapping.putIfAbsent(name, dir);
+                        directory = nameDirMapping.putIfAbsent(name, dir);
                         return directory == null ? dir : directory;
                     }
                 }
@@ -172,10 +175,17 @@ public final class DistributorDirectory extends BaseDirectory {
             if (failIfNotAssociated) {
                 throw new FileNotFoundException("No such file [" + name + "]");
             }
+
+            // Pick a directory and associate this new file with it:
+            final Directory dir = distributor.any();
+            directory = nameDirMapping.putIfAbsent(name, dir);
+            if (directory == null) {
+                // putIfAbsent did in fact put dir:
+                directory = dir;
+            }
         }
-        final Directory dir = distributor.any();
-        final Directory directory = nameDirMapping.putIfAbsent(name, dir);
-        return directory == null ? dir : directory;
+            
+        return directory;
     }
 
     @Override

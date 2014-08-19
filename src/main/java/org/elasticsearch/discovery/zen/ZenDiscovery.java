@@ -141,7 +141,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     @Inject
     public ZenDiscovery(Settings settings, ClusterName clusterName, ThreadPool threadPool,
                         TransportService transportService, ClusterService clusterService, NodeSettingsService nodeSettingsService,
-                        DiscoveryNodeService discoveryNodeService, ZenPingService pingService, Version version,
+                        DiscoveryNodeService discoveryNodeService, ZenPingService pingService, ElectMasterService electMasterService, Version version,
                         DiscoverySettings discoverySettings) {
         super(settings);
         this.clusterName = clusterName;
@@ -152,6 +152,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         this.discoverySettings = discoverySettings;
         this.pingService = pingService;
         this.version = version;
+        this.electMaster = electMasterService;
+
 
         // also support direct discovery.zen settings, for cases when it gets extended
         this.pingTimeout = settings.getAsTime("discovery.zen.ping.timeout", settings.getAsTime("discovery.zen.ping_timeout", componentSettings.getAsTime("ping_timeout", componentSettings.getAsTime("initial_ping_timeout", timeValueSeconds(3)))));
@@ -167,7 +169,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
         logger.debug("using ping.timeout [{}], join.timeout [{}], master_election.filter_client [{}], master_election.filter_data [{}]", pingTimeout, joinTimeout, masterElectionFilterClientNodes, masterElectionFilterDataNodes);
 
-        this.electMaster = new ElectMasterService(settings);
         nodeSettingsService.addListener(new ApplySettings());
 
         this.masterFD = new MasterFaultDetection(settings, threadPool, transportService, this, clusterName);

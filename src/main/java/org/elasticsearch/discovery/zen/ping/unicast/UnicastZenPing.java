@@ -19,8 +19,12 @@
 
 package org.elasticsearch.discovery.zen.ping.unicast;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.collect.Lists;
-import org.elasticsearch.*;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -35,6 +39,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
+import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
@@ -62,6 +67,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
     private final ThreadPool threadPool;
     private final TransportService transportService;
     private final ClusterName clusterName;
+    private final ElectMasterService electMasterService;
 
     private final int concurrentConnects;
 
@@ -78,11 +84,13 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
 
     private final CopyOnWriteArrayList<UnicastHostsProvider> hostsProviders = new CopyOnWriteArrayList<>();
 
-    public UnicastZenPing(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterName clusterName, Version version, @Nullable Set<UnicastHostsProvider> unicastHostsProviders) {
+    public UnicastZenPing(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterName clusterName,
+                          Version version, ElectMasterService electMasterService, @Nullable Set<UnicastHostsProvider> unicastHostsProviders) {
         super(settings);
         this.threadPool = threadPool;
         this.transportService = transportService;
         this.clusterName = clusterName;
+        this.electMasterService = electMasterService;
 
         if (unicastHostsProviders != null) {
             for (UnicastHostsProvider unicastHostsProvider : unicastHostsProviders) {
@@ -244,17 +252,29 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
         DiscoveryNodes discoNodes = nodesProvider.nodes();
         pingRequest.pingResponse = new PingResponse(discoNodes.localNode(), discoNodes.masterNode(), clusterName);
 
-        HashSet<DiscoveryNode> nodesToPing = new HashSet<>(Arrays.asList(nodes));
+        HashSet<DiscoveryNode> nodesToPingSet = new HashSet<>();
         for (PingResponse temporalResponse : temporalResponses) {
             // Only send pings to nodes that have the same cluster name.
             if (clusterName.equals(temporalResponse.clusterName())) {
-                nodesToPing.add(temporalResponse.target());
+                nodesToPingSet.add(temporalResponse.target());
             }
         }
 
         for (UnicastHostsProvider provider : hostsProviders) {
-            nodesToPing.addAll(provider.buildDynamicNodes());
+            nodesToPingSet.addAll(provider.buildDynamicNodes());
         }
+
+        // add all possible master nodes that were active in the last known cluster configuration
+        for (ObjectCursor<DiscoveryNode> masterNode : discoNodes.getMasterNodes().values()) {
+            nodesToPingSet.add(masterNode.value);
+        }
+
+        // sort the nodes by likelihood of being an active master
+        List<DiscoveryNode> sortedNodesToPing = electMasterService.sortByMasterLikelihood(nodesToPingSet);
+
+        // new add the the unicast targets first
+        ArrayList<DiscoveryNode> nodesToPing = Lists.newArrayList(nodes);
+        nodesToPing.addAll(sortedNodesToPing);
 
         final CountDownLatch latch = new CountDownLatch(nodesToPing.size());
         for (final DiscoveryNode node : nodesToPing) {

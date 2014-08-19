@@ -280,6 +280,7 @@ public class SimpleIndicesWarmerTests extends ElasticsearchIntegrationTest {
             CreateIndexRequestBuilder createIndex(String indexName, String type, String fieldName) {
                 return client().admin().indices().prepareCreate(indexName).setSettings(ImmutableSettings.builder().put(SINGLE_SHARD_NO_REPLICA).put(SearchService.NORMS_LOADING_KEY, Loading.EAGER_VALUE));
             }
+
             @Override
             boolean isLazy() {
                 return false;
@@ -289,27 +290,30 @@ public class SimpleIndicesWarmerTests extends ElasticsearchIntegrationTest {
             @Override
             CreateIndexRequestBuilder createIndex(String indexName, String type, String fieldName) throws Exception {
                 return client().admin().indices().prepareCreate(indexName).setSettings(ImmutableSettings.builder().put(SINGLE_SHARD_NO_REPLICA).put(SearchService.NORMS_LOADING_KEY, Loading.LAZY_VALUE)).addMapping(type, JsonXContent.contentBuilder()
-                        .startObject()
-                        .startObject(type)
-                            .startObject("properties")
+                                .startObject()
+                                .startObject(type)
+                                .startObject("properties")
                                 .startObject(fieldName)
-                                    .field("type", "string")
-                                    .startObject("norms")
-                                        .field("loading", Loading.EAGER_VALUE)
-                                    .endObject()
+                                .field("type", "string")
+                                .startObject("norms")
+                                .field("loading", Loading.EAGER_VALUE)
                                 .endObject()
-                            .endObject()
-                        .endObject()
-                        .endObject()
-                        );
+                                .endObject()
+                                .endObject()
+                                .endObject()
+                                .endObject()
+                );
             }
+
             @Override
             boolean isLazy() {
                 return false;
             }
         };
         private static Settings SINGLE_SHARD_NO_REPLICA = ImmutableSettings.builder().put("number_of_shards", 1).put("number_of_replicas", 0).build();
+
         abstract CreateIndexRequestBuilder createIndex(String indexName, String type, String fieldName) throws Exception;
+
         boolean isLazy() {
             return true;
         }
@@ -341,6 +345,7 @@ public class SimpleIndicesWarmerTests extends ElasticsearchIntegrationTest {
         createIndex("test");
         ensureGreen();
 
+        assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder().put(IndicesQueryCache.INDEX_CACHE_QUERY_ENABLED, false)));
         logger.info("register warmer with no query cache, validate no cache is used");
         assertAcked(client().admin().indices().preparePutWarmer("warmer_1")
                 .setSearchRequest(client().prepareSearch("test").setTypes("a1").setQuery(QueryBuilders.matchAllQuery()))

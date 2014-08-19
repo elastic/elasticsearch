@@ -1387,10 +1387,10 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                 public void warm(AtomicReader reader) throws IOException {
                     try {
                         assert isMergedSegment(reader);
-                        final Engine.Searcher searcher = new SimpleSearcher("warmer", new IndexSearcher(reader));
-                        final IndicesWarmer.WarmerContext context = new IndicesWarmer.WarmerContext(shardId, searcher);
                         if (warmer != null) {
-                            warmer.warm(context);
+                            final Engine.Searcher searcher = new SimpleSearcher("warmer", new IndexSearcher(reader));
+                            final IndicesWarmer.WarmerContext context = new IndicesWarmer.WarmerContext(shardId, searcher);
+                            warmer.warmNewReaders(context);
                         }
                     } catch (Throwable t) {
                         // Don't fail a merge if the warm-up failed
@@ -1539,15 +1539,56 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             IndexSearcher searcher = new IndexSearcher(reader);
             searcher.setSimilarity(similarityService.similarity());
             if (warmer != null) {
+                // we need to pass a custom searcher that does not release anything on Engine.Search Release,
+                // we will release explicitly
+                Searcher currentSearcher = null;
+                IndexSearcher newSearcher = null;
+                boolean closeNewSearcher = false;
                 try {
-                    // we don't wan to release/decRef the searcher, so wrap it in a simple searcher
-                    IndicesWarmer.WarmerContext context = new IndicesWarmer.WarmerContext(shardId,
-                            new SimpleSearcher("warmer", searcher));
-                    warmer.warm(context);
-                    warmer.warmTop(new IndicesWarmer.WarmerContext(shardId, searcher.getIndexReader()));
+                    if (searcherManager == null) {
+                        // fresh index writer, just do on all of it
+                        newSearcher = searcher;
+                    } else {
+                        currentSearcher = acquireSearcher("search_factory");
+                        // figure out the newSearcher, with only the new readers that are relevant for us
+                        List<IndexReader> readers = Lists.newArrayList();
+                        for (AtomicReaderContext newReaderContext : searcher.getIndexReader().leaves()) {
+                            if (isMergedSegment(newReaderContext.reader())) {
+                                // merged segments are already handled by IndexWriterConfig.setMergedSegmentWarmer
+                                continue;
+                            }
+                            boolean found = false;
+                            for (AtomicReaderContext currentReaderContext : currentSearcher.reader().leaves()) {
+                                if (currentReaderContext.reader().getCoreCacheKey().equals(newReaderContext.reader().getCoreCacheKey())) {
+                                    found = true;
+                                    break;
+                                }
+                            }
+                            if (!found) {
+                                readers.add(newReaderContext.reader());
+                            }
+                        }
+                        if (!readers.isEmpty()) {
+                            // we don't want to close the inner readers, just increase ref on them
+                            newSearcher = new IndexSearcher(new MultiReader(readers.toArray(new IndexReader[readers.size()]), false));
+                            closeNewSearcher = true;
+                        }
+                    }
+
+                    if (newSearcher != null) {
+                        IndicesWarmer.WarmerContext context = new IndicesWarmer.WarmerContext(shardId, new SimpleSearcher("warmer", newSearcher));
+                        warmer.warmNewReaders(context);
+                    }
+                    warmer.warmTopReader(new IndicesWarmer.WarmerContext(shardId, new SimpleSearcher("warmer", searcher)));
                 } catch (Throwable e) {
                     if (!closed) {
                         logger.warn("failed to prepare/warm", e);
+                    }
+                } finally {
+                    // no need to release the fullSearcher, nothing really is done...
+                    Releasables.close(currentSearcher);
+                    if (newSearcher != null && closeNewSearcher) {
+                        IOUtils.closeWhileHandlingException(newSearcher.getIndexReader()); // ignore
                     }
                 }
             }

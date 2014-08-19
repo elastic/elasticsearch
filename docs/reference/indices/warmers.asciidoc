@@ -66,6 +66,12 @@ curl -XPUT localhost:9200/_template/template_1 -d '
 }'
 --------------------------------------------------
 
+coming[1.4.0]
+
+On the same level as `types` and `source`, the `query_cache` flag is supported
+to enable query caching for the warmed search request. If not specified, it will
+use the index level configuration of query caching.
+
 [float]
 [[warmer-adding]]
 === Put Warmer
@@ -136,6 +142,11 @@ where
 
 Instead of `_warmer` you can also use the plural `_warmers`.
 
+coming[1.4.0]
+
+The `query_cache` parameter can be used to enable query caching for
+the search request. If not specified, it will use the index level configuration
+of query caching.
 
 
 [float]

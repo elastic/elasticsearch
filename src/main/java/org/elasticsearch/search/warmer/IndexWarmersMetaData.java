@@ -21,6 +21,7 @@ package org.elasticsearch.search.warmer;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -47,11 +48,13 @@ public class IndexWarmersMetaData implements IndexMetaData.Custom {
         private final String name;
         private final String[] types;
         private final BytesReference source;
+        private final Boolean queryCache;
 
-        public Entry(String name, String[] types, BytesReference source) {
+        public Entry(String name, String[] types, Boolean queryCache, BytesReference source) {
             this.name = name;
             this.types = types == null ? Strings.EMPTY_ARRAY : types;
             this.source = source;
+            this.queryCache = queryCache;
         }
 
         public String name() {
@@ -65,6 +68,11 @@ public class IndexWarmersMetaData implements IndexMetaData.Custom {
         @Nullable
         public BytesReference source() {
             return this.source;
+        }
+
+        @Nullable
+        public Boolean queryCache() {
+            return this.queryCache;
         }
     }
 
@@ -95,7 +103,17 @@ public class IndexWarmersMetaData implements IndexMetaData.Custom {
         public IndexWarmersMetaData readFrom(StreamInput in) throws IOException {
             Entry[] entries = new Entry[in.readVInt()];
             for (int i = 0; i < entries.length; i++) {
-                entries[i] = new Entry(in.readString(), in.readStringArray(), in.readBoolean() ? in.readBytesReference() : null);
+                String name = in.readString();
+                String[] types = in.readStringArray();
+                BytesReference source = null;
+                if (in.readBoolean()) {
+                    source = in.readBytesReference();
+                }
+                Boolean queryCache = null;
+                if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
+                    queryCache = in.readOptionalBoolean();
+                }
+                entries[i] = new Entry(name, types, queryCache, source);
             }
             return new IndexWarmersMetaData(entries);
         }
@@ -111,6 +129,9 @@ public class IndexWarmersMetaData implements IndexMetaData.Custom {
                 } else {
                     out.writeBoolean(true);
                     out.writeBytesReference(entry.source());
+                }
+                if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
+                    out.writeOptionalBoolean(entry.queryCache());
                 }
             }
         }
@@ -142,6 +163,7 @@ public class IndexWarmersMetaData implements IndexMetaData.Custom {
                     String name = currentFieldName;
                     List<String> types = new ArrayList<>(2);
                     BytesReference source = null;
+                    Boolean queryCache = null;
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         if (token == XContentParser.Token.FIELD_NAME) {
                             currentFieldName = parser.currentName();
@@ -160,9 +182,13 @@ public class IndexWarmersMetaData implements IndexMetaData.Custom {
                             if ("source".equals(currentFieldName)) {
                                 source = new BytesArray(parser.binaryValue());
                             }
+                        } else if (token.isValue()) {
+                            if ("queryCache".equals(currentFieldName) || "query_cache".equals(currentFieldName)) {
+                                queryCache = parser.booleanValue();
+                            }
                         }
                     }
-                    entries.add(new Entry(name, types.size() == 0 ? Strings.EMPTY_ARRAY : types.toArray(new String[types.size()]), source));
+                    entries.add(new Entry(name, types.size() == 0 ? Strings.EMPTY_ARRAY : types.toArray(new String[types.size()]), queryCache, source));
                 }
             }
             return new IndexWarmersMetaData(entries.toArray(new Entry[entries.size()]));
@@ -183,6 +209,9 @@ public class IndexWarmersMetaData implements IndexMetaData.Custom {
             boolean binary = params.paramAsBoolean("binary", false);
             builder.startObject(entry.name(), XContentBuilder.FieldCaseConversion.NONE);
             builder.field("types", entry.types());
+            if (entry.queryCache() != null) {
+                builder.field("queryCache", entry.queryCache());
+            }
             builder.field("source");
             if (binary) {
                 builder.value(entry.source());

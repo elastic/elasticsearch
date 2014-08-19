@@ -333,11 +333,7 @@ public class ESUsersTool extends CliTool {
         private static final CliToolConfig.Cmd CMD = cmd(NAME, Useradd.class).build();
 
         public static Command parse(Terminal terminal, CommandLine cli) {
-            if (cli.getArgs().length == 0) {
-                return exitCmd(ExitStatus.USAGE, terminal, "username is missing");
-            }
-
-            String username = cli.getArgs()[0];
+            String username = (cli.getArgs().length > 0) ? cli.getArgs()[0] : null;
             return new ListUsersAndRoles(terminal, username);
         }
 

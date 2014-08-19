@@ -21,6 +21,10 @@ COMMANDS
 
     userdel    Removes an existing native user from the system
 
+    roles      Manage roles of a single user
+
+    list       List users and roles
+
 NOTES
 
     [*] For usage help on specific commands please type "security <command> -h"

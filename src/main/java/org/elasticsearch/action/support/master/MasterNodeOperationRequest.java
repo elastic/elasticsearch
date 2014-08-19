@@ -35,6 +35,14 @@ public abstract class MasterNodeOperationRequest<T extends MasterNodeOperationRe
 
     protected TimeValue masterNodeTimeout = DEFAULT_MASTER_NODE_TIMEOUT;
 
+    protected MasterNodeOperationRequest() {
+
+    }
+
+    protected MasterNodeOperationRequest(ActionRequest request) {
+        super(request);
+    }
+
     /**
      * A timeout value in case the master has not been discovered yet or disconnected.
      */

@@ -20,10 +20,7 @@ package org.elasticsearch.index.store;
 
 import org.apache.lucene.analysis.MockAnalyzer;
 import org.apache.lucene.codecs.CodecUtil;
-import org.apache.lucene.document.Document;
-import org.apache.lucene.document.Field;
-import org.apache.lucene.document.SortedDocValuesField;
-import org.apache.lucene.document.TextField;
+import org.apache.lucene.document.*;
 import org.apache.lucene.index.*;
 import org.apache.lucene.store.*;
 import org.apache.lucene.util.BytesRef;
@@ -41,9 +38,7 @@ import org.junit.Test;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.NoSuchFileException;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomInt;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomIntBetween;
@@ -110,7 +105,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
     @Test
     public void testWriteLegacyChecksums() throws IOException {
         final ShardId shardId = new ShardId(new Index("index"), 1);
-        DirectoryService directoryService = new LuceneManagedDirectoryService();
+        DirectoryService directoryService = new LuceneManagedDirectoryService(random());
         Store store = new Store(shardId, ImmutableSettings.EMPTY, null, null, directoryService, randomDistributor(directoryService));
         // set default codec - all segments need checksums
         IndexWriter writer = new IndexWriter(store.directory(), newIndexWriterConfig(random(), TEST_VERSION_CURRENT, new MockAnalyzer(random())).setCodec(actualDefaultCodec()));
@@ -173,7 +168,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
     @Test
     public void testNewChecksums() throws IOException {
         final ShardId shardId = new ShardId(new Index("index"), 1);
-        DirectoryService directoryService = new LuceneManagedDirectoryService();
+        DirectoryService directoryService = new LuceneManagedDirectoryService(random());
         Store store = new Store(shardId, ImmutableSettings.EMPTY, null, null, directoryService, randomDistributor(directoryService));
         // set default codec - all segments need checksums
         IndexWriter writer = new IndexWriter(store.directory(), newIndexWriterConfig(random(), TEST_VERSION_CURRENT, new MockAnalyzer(random())).setCodec(actualDefaultCodec()));
@@ -213,6 +208,9 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
                 assertThat("File: " + meta.name() + " has a different checksum", meta.checksum(), equalTo(checksum));
                 assertThat(meta.hasLegacyChecksum(), equalTo(false));
                 assertThat(meta.writtenBy(), equalTo(TEST_VERSION_CURRENT));
+                if (meta.name().endsWith(".si") || meta.name().startsWith("segments_")) {
+                    assertThat(meta.hash().length, greaterThan(0));
+                }
             }
         }
         assertConsistent(store, metadata);
@@ -225,7 +223,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
     @Test
     public void testMixedChecksums() throws IOException {
         final ShardId shardId = new ShardId(new Index("index"), 1);
-        DirectoryService directoryService = new LuceneManagedDirectoryService();
+        DirectoryService directoryService = new LuceneManagedDirectoryService(random());
         Store store = new Store(shardId, ImmutableSettings.EMPTY, null, null, directoryService, randomDistributor(directoryService));
         // this time random codec....
         IndexWriter writer = new IndexWriter(store.directory(), newIndexWriterConfig(random(), TEST_VERSION_CURRENT, new MockAnalyzer(random())).setCodec(actualDefaultCodec()));
@@ -311,7 +309,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
     @Test
     public void testRenameFile() throws IOException {
         final ShardId shardId = new ShardId(new Index("index"), 1);
-        DirectoryService directoryService = new LuceneManagedDirectoryService(false);
+        DirectoryService directoryService = new LuceneManagedDirectoryService(random(), false);
         Store store = new Store(shardId, ImmutableSettings.EMPTY, null, null, directoryService, randomDistributor(directoryService));
         {
             IndexOutput output = store.directory().createOutput("foo.bar", IOContext.DEFAULT);
@@ -450,20 +448,22 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         }
     }
 
-    private  final class LuceneManagedDirectoryService implements DirectoryService {
+    private static final class LuceneManagedDirectoryService implements DirectoryService {
         private final Directory[] dirs;
+        private final Random random;
 
-        public LuceneManagedDirectoryService() {
-            this(true);
+        public LuceneManagedDirectoryService(Random random) {
+            this(random, true);
         }
-        public LuceneManagedDirectoryService(boolean preventDoubleWrite) {
-            this.dirs = new Directory[1 + random().nextInt(5)];
+        public LuceneManagedDirectoryService(Random random, boolean preventDoubleWrite) {
+            this.dirs = new Directory[1 + random.nextInt(5)];
             for (int i = 0; i < dirs.length; i++) {
-                dirs[i]  = newDirectory();
+                dirs[i]  = newDirectory(random);
                 if (dirs[i] instanceof MockDirectoryWrapper) {
                     ((MockDirectoryWrapper)dirs[i]).setPreventDoubleWrite(preventDoubleWrite);
                 }
             }
+            this.random = random;
         }
         @Override
         public Directory[] build() throws IOException {
@@ -472,7 +472,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
 
         @Override
         public long throttleTimeInNanos() {
-            return random().nextInt(1000);
+            return random.nextInt(1000);
         }
 
         @Override
@@ -498,9 +498,159 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
             }
         }
     }
-
     private Distributor randomDistributor(DirectoryService service) throws IOException {
-        return random().nextBoolean() ? new LeastUsedDistributor(service) : new RandomWeightedDistributor(service);
+        return randomDistributor(random(), service);
+    }
+
+    private Distributor randomDistributor(Random random, DirectoryService service) throws IOException {
+        return random.nextBoolean() ? new LeastUsedDistributor(service) : new RandomWeightedDistributor(service);
+    }
+
+
+    @Test
+    public void testRecoveryDiff() throws IOException, InterruptedException {
+        int numDocs = 2 + random().nextInt(100);
+        List<Document> docs = new ArrayList<>();
+        for (int i = 0; i < numDocs; i++) {
+            Document doc = new Document();
+            doc.add(new StringField("id", "" + i, random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
+            doc.add(new TextField("body", TestUtil.randomRealisticUnicodeString(random()), random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
+            doc.add(new SortedDocValuesField("dv", new BytesRef(TestUtil.randomRealisticUnicodeString(random()))));
+            docs.add(doc);
+        }
+        long seed = random().nextLong();
+        Store.MetadataSnapshot first;
+        {
+            Random random = new Random(seed);
+            IndexWriterConfig iwc = new IndexWriterConfig(TEST_VERSION_CURRENT, new MockAnalyzer(random)).setCodec(actualDefaultCodec());
+            iwc.setMergePolicy(NoMergePolicy.INSTANCE);
+            iwc.setUseCompoundFile(random.nextBoolean());
+            iwc.setMaxThreadStates(1);
+            final ShardId shardId = new ShardId(new Index("index"), 1);
+            DirectoryService directoryService = new LuceneManagedDirectoryService(random);
+            Store store = new Store(shardId, ImmutableSettings.EMPTY, null, null, directoryService, randomDistributor(random, directoryService));
+            IndexWriter writer = new IndexWriter(store.directory(), iwc);
+            final boolean lotsOfSegments = rarely(random);
+            for (Document d : docs) {
+                writer.addDocument(d);
+                if (lotsOfSegments && random.nextBoolean()) {
+                    writer.commit();
+                } else if (rarely(random)) {
+                    writer.commit();
+                }
+            }
+            writer.close();
+            first = store.getMetadata();
+            assertDeleteContent(store, directoryService);
+            store.close();
+        }
+        long time = new Date().getTime();
+        while(time == new Date().getTime()) {
+            Thread.sleep(10); // bump the time
+        }
+        Store.MetadataSnapshot second;
+        Store store;
+        {
+            Random random = new Random(seed);
+            IndexWriterConfig iwc = new IndexWriterConfig(TEST_VERSION_CURRENT, new MockAnalyzer(random)).setCodec(actualDefaultCodec());
+            iwc.setMergePolicy(NoMergePolicy.INSTANCE);
+            iwc.setUseCompoundFile(random.nextBoolean());
+            iwc.setMaxThreadStates(1);
+            final ShardId shardId = new ShardId(new Index("index"), 1);
+            DirectoryService directoryService = new LuceneManagedDirectoryService(random);
+            store = new Store(shardId, ImmutableSettings.EMPTY, null, null, directoryService, randomDistributor(random, directoryService));
+            IndexWriter writer = new IndexWriter(store.directory(), iwc);
+            final boolean lotsOfSegments = rarely(random);
+            for (Document d : docs) {
+                writer.addDocument(d);
+                if (lotsOfSegments && random.nextBoolean()) {
+                    writer.commit();
+                } else if (rarely(random)) {
+                    writer.commit();
+                }
+            }
+            writer.close();
+            second = store.getMetadata();
+        }
+        Store.RecoveryDiff diff = first.recoveryDiff(second);
+        assertThat(first.size(), equalTo(second.size()));
+        for (StoreFileMetaData md : first) {
+            assertThat(second.get(md.name()), notNullValue());
+            // si files are different - containing timestamps etc
+            assertThat(second.get(md.name()).isSame(md), equalTo(md.name().endsWith(".si") == false));
+        }
+        assertThat(diff.different.size(), equalTo(first.size()-1));
+        assertThat(diff.identical.size(), equalTo(1)); // commit point is identical
+        assertThat(diff.missing, empty());
+
+        // check the self diff
+        Store.RecoveryDiff selfDiff = first.recoveryDiff(first);
+        assertThat(selfDiff.identical.size(), equalTo(first.size()));
+        assertThat(selfDiff.different, empty());
+        assertThat(selfDiff.missing, empty());
+
+
+        // lets add some deletes
+        Random random = new Random(seed);
+        IndexWriterConfig iwc = new IndexWriterConfig(TEST_VERSION_CURRENT, new MockAnalyzer(random)).setCodec(actualDefaultCodec());
+        iwc.setMergePolicy(NoMergePolicy.INSTANCE);
+        iwc.setUseCompoundFile(random.nextBoolean());
+        iwc.setMaxThreadStates(1);
+        iwc.setOpenMode(IndexWriterConfig.OpenMode.APPEND);
+        IndexWriter writer = new IndexWriter(store.directory(), iwc);
+        writer.deleteDocuments(new Term("id", Integer.toString(random().nextInt(numDocs))));
+        writer.close();
+        Store.MetadataSnapshot metadata = store.getMetadata();
+        StoreFileMetaData delFile = null;
+        for (StoreFileMetaData md : metadata) {
+            if (md.name().endsWith(".del")) {
+                delFile = md;
+                break;
+            }
+        }
+        Store.RecoveryDiff afterDeleteDiff = metadata.recoveryDiff(second);
+        if (delFile != null) {
+            assertThat(afterDeleteDiff.identical.size(), equalTo(metadata.size()-2)); // segments_N + del file
+            assertThat(afterDeleteDiff.different.size(), equalTo(0));
+            assertThat(afterDeleteDiff.missing.size(), equalTo(2));
+        } else {
+            // an entire segment must be missing (single doc segment got dropped)
+            assertThat(afterDeleteDiff.identical.size(), greaterThan(0));
+            assertThat(afterDeleteDiff.different.size(), equalTo(0));
+            assertThat(afterDeleteDiff.missing.size(), equalTo(1)); // the commit file is different
+        }
+
+        // check the self diff
+        selfDiff = metadata.recoveryDiff(metadata);
+        assertThat(selfDiff.identical.size(), equalTo(metadata.size()));
+        assertThat(selfDiff.different, empty());
+        assertThat(selfDiff.missing, empty());
+
+        // add a new commit
+        iwc = new IndexWriterConfig(TEST_VERSION_CURRENT, new MockAnalyzer(random)).setCodec(actualDefaultCodec());
+        iwc.setMergePolicy(NoMergePolicy.INSTANCE);
+        iwc.setUseCompoundFile(true); // force CFS - easier to test here since we know it will add 3 files
+        iwc.setMaxThreadStates(1);
+        iwc.setOpenMode(IndexWriterConfig.OpenMode.APPEND);
+        writer = new IndexWriter(store.directory(), iwc);
+        writer.addDocument(docs.get(0));
+        writer.close();
+
+        Store.MetadataSnapshot newCommitMetaData = store.getMetadata();
+        Store.RecoveryDiff newCommitDiff = newCommitMetaData.recoveryDiff(metadata);
+        if (delFile != null) {
+            assertThat(newCommitDiff.identical.size(), equalTo(newCommitMetaData.size()-5)); // segments_N, del file, cfs, cfe, si for the new segment
+            assertThat(newCommitDiff.different.size(), equalTo(1)); // the del file must be different
+            assertThat(newCommitDiff.different.get(0).name(), endsWith(".del"));
+            assertThat(newCommitDiff.missing.size(), equalTo(4)); // segments_N,cfs, cfe, si for the new segment
+        } else {
+            assertThat(newCommitDiff.identical.size(), equalTo(newCommitMetaData.size() - 4)); // segments_N, cfs, cfe, si for the new segment
+            assertThat(newCommitDiff.different.size(), equalTo(0));
+            assertThat(newCommitDiff.missing.size(), equalTo(4)); // an entire segment must be missing (single doc segment got dropped)  plus the commit is different
+        }
+
+        store.deleteContent();
+        IOUtils.close(store);
     }
 
 

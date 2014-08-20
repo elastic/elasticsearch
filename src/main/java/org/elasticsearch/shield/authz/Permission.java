@@ -5,16 +5,18 @@
  */
 package org.elasticsearch.shield.authz;
 
-import org.elasticsearch.action.CompositeIndicesRequest;
-import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.base.Predicate;
 import org.elasticsearch.common.collect.ImmutableList;
+import org.elasticsearch.shield.authz.indicesresolver.DefaultIndicesResolver;
+import org.elasticsearch.shield.authz.indicesresolver.IndicesResolver;
 import org.elasticsearch.shield.support.AutomatonPredicate;
 import org.elasticsearch.shield.support.Automatons;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Set;
 
 /**
  * Represents a permission in the system. There are 3 types of permissions:
@@ -136,6 +138,11 @@ public interface Permission {
             }
         };
 
+        public static IndicesResolver[] indicesResolvers = new IndicesResolver[] {
+                // add special resolvers here
+                new DefaultIndicesResolver()
+        };
+
         private Group[] groups;
 
         public Indices(Collection<Group> groups) {
@@ -178,21 +185,25 @@ public interface Permission {
             return new AutomatonPredicate(Automatons.patterns(indices.build()));
         }
 
-        @Override
+        @Override @SuppressWarnings("unchecked")
         public boolean check(String action, TransportRequest request, MetaData metaData) {
-            boolean isIndicesRequest = request instanceof CompositeIndicesRequest || request instanceof IndicesRequest;
-            if (!isIndicesRequest) {
-                return false;
+            Set<String> indices = Collections.emptySet();
+            for (IndicesResolver resolver : indicesResolvers) {
+                if (resolver.requestType().isInstance(request)) {
+                    indices = resolver.resolve(request, metaData);
+                    break;
+                }
             }
-            for (Group group : groups) {
-                if (group.check(action, request, metaData)) {
+
+            for (int i = 0; i < groups.length; i++) {
+                if (groups[i].check(action, indices)) {
                     return true;
                 }
             }
             return false;
         }
 
-        public static class Group implements Permission {
+        public static class Group {
 
             private final Privilege.Index privilege;
             private final Predicate<String> actionMatcher;
@@ -215,52 +226,22 @@ public interface Permission {
                 return indices;
             }
 
-            @Override
-            public boolean check(String action, TransportRequest request, MetaData metaData) {
-
-                assert request instanceof IndicesRequest || request instanceof CompositeIndicesRequest :
-                        "the only requests passing the action matcher should be IndicesRequests";
+            public boolean check(String action, Set<String> indices) {
 
                 if (!actionMatcher.apply(action)) {
                     return false;
                 }
 
-                if (request instanceof CompositeIndicesRequest) {
-                    CompositeIndicesRequest compositeIndicesRequest = (CompositeIndicesRequest) request;
-                    for (IndicesRequest indicesRequest : compositeIndicesRequest.subRequests()) {
-                        for (String index : explodeWildcards(indicesRequest, metaData)) {
-                            if (!indexNameMatcher.apply(index)) {
-                                return false;
-                            }
-                        }
-                    }
-                } else {
-                    for (String index : explodeWildcards((IndicesRequest) request, metaData)) {
-                        if (!indexNameMatcher.apply(index)) {
-                            return false;
-                        }
+                for (String index : indices) {
+                    if (!indexNameMatcher.apply(index)) {
+                        return false;
                     }
                 }
 
                 return true;
             }
 
-            private String[] explodeWildcards(IndicesRequest indicesRequest, MetaData metaData) {
-                if (indicesRequest.indicesOptions().expandWildcardsOpen() || indicesRequest.indicesOptions().expandWildcardsClosed()) {
-                    if (MetaData.isAllIndices(indicesRequest.indices())) {
-                        if (indicesRequest.indicesOptions().expandWildcardsOpen() && indicesRequest.indicesOptions().expandWildcardsClosed()) {
-                            return metaData.concreteAllIndices();
-                        }
-                        if (indicesRequest.indicesOptions().expandWildcardsOpen()) {
-                            return metaData.concreteAllOpenIndices();
-                        }
-                        return metaData.concreteAllClosedIndices();
 
-                    }
-                    return metaData.convertFromWildcards(indicesRequest.indices(), indicesRequest.indicesOptions());
-                }
-                return indicesRequest.indices();
-            }
         }
     }
 

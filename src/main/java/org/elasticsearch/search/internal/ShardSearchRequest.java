@@ -119,7 +119,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         this.shardId = shardId;
         this.numberOfShards = numberOfShards;
         this.searchType = searchType;
-        this.originalIndices = new OriginalIndices();
+        this.originalIndices = OriginalIndices.EMPTY;
     }
 
     public String index() {

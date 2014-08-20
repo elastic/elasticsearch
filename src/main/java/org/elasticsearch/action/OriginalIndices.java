@@ -31,24 +31,22 @@ import java.io.IOException;
  */
 public class OriginalIndices implements IndicesRequest {
 
+    public static OriginalIndices EMPTY = new OriginalIndices();
+
     private final String[] indices;
     private final IndicesOptions indicesOptions;
-    private final boolean missing;
 
-    public OriginalIndices() {
-        this.missing = true;
+    private OriginalIndices() {
         this.indices = null;
         this.indicesOptions = null;
     }
 
     public OriginalIndices(IndicesRequest indicesRequest) {
-        this.missing = false;
         this.indices = indicesRequest.indices();
         this.indicesOptions = indicesRequest.indicesOptions();
     }
 
     public OriginalIndices(String[] indices, IndicesOptions indicesOptions) {
-        this.missing = false;
         this.indices = indices;
         this.indicesOptions = indicesOptions;
     }
@@ -65,18 +63,19 @@ public class OriginalIndices implements IndicesRequest {
 
     public static OriginalIndices readOptionalOriginalIndices(StreamInput in) throws IOException {
         if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
-            boolean missing = in.readBoolean();
-            if (!missing) {
+            boolean empty = in.readBoolean();
+            if (!empty) {
                 return new OriginalIndices(in.readStringArray(), IndicesOptions.readIndicesOptions(in));
             }
         }
-        return new OriginalIndices();
+        return OriginalIndices.EMPTY;
     }
 
     public static void writeOptionalOriginalIndices(OriginalIndices originalIndices, StreamOutput out) throws IOException {
         if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
-            out.writeBoolean(originalIndices.missing);
-            if (!originalIndices.missing) {
+            boolean empty = originalIndices == EMPTY;
+            out.writeBoolean(empty);
+            if (!empty) {
                 out.writeStringArrayNullable(originalIndices.indices);
                 originalIndices.indicesOptions.writeIndicesOptions(out);
             }
@@ -87,7 +86,7 @@ public class OriginalIndices implements IndicesRequest {
         if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
             return new OriginalIndices(in.readStringArray(), IndicesOptions.readIndicesOptions(in));
         }
-        return new OriginalIndices();
+        return OriginalIndices.EMPTY;
     }
 
 

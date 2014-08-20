@@ -70,7 +70,7 @@ public class OriginalIndicesTests extends ElasticsearchTestCase {
             if (missing) {
                 originalIndices = randomOriginalIndices();
             } else {
-                originalIndices = new OriginalIndices();
+                originalIndices = OriginalIndices.EMPTY;
             }
 
             BytesStreamOutput out = new BytesStreamOutput();

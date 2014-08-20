@@ -567,7 +567,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
         SearchFreeContextRequest(TransportRequest request, long id) {
             super(request);
             this.id = id;
-            this.originalIndices = new OriginalIndices();
+            this.originalIndices = OriginalIndices.EMPTY;
         }
 
         public long id() {

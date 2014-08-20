@@ -73,7 +73,7 @@ public class FetchSearchRequest extends TransportRequest implements IndicesReque
         this.docIds = list.buffer;
         this.size = list.size();
         this.lastEmittedDoc = lastEmittedDoc;
-        this.originalIndices = new OriginalIndices();
+        this.originalIndices = OriginalIndices.EMPTY;
     }
 
     public long id() {

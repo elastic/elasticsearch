@@ -56,7 +56,7 @@ public class DeleteIndexTemplateRequest extends MasterNodeOperationRequest<Delet
     /**
      * The index template name to delete.
      */
-    String name() {
+    public String name() {
         return name;
     }
 

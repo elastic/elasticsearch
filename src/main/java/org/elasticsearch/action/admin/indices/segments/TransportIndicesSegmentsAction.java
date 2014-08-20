@@ -134,7 +134,7 @@ public class TransportIndicesSegmentsAction extends TransportBroadcastOperationA
         return new ShardSegments(indexShard.routingEntry(), indexShard.engine().segments());
     }
 
-    public static class IndexShardSegmentRequest extends BroadcastShardOperationRequest {
+    static class IndexShardSegmentRequest extends BroadcastShardOperationRequest {
 
         IndexShardSegmentRequest() {
         }

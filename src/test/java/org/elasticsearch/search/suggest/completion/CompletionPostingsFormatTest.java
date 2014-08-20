@@ -49,6 +49,7 @@ import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.util.*;
 
 import static org.hamcrest.Matchers.*;
@@ -228,13 +229,11 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
         final CompletionFieldMapper mapper = new CompletionFieldMapper(new Names("foo"), namedAnalzyer, namedAnalzyer, provider, null, usePayloads,
                 preserveSeparators, preservePositionIncrements, Integer.MAX_VALUE, AbstractFieldMapper.MultiFields.empty(), null, ContextMapping.EMPTY_MAPPING);
         Lookup buildAnalyzingLookup = buildAnalyzingLookup(mapper, titles, titles, weights);
-        // NOTE: as the suggestion entries are now tied to the lucene docs, all of the surface forms
-        // are stored; hence the TopNSearcher queue has to be made deeper
-        //Field field = buildAnalyzingLookup.getClass().getDeclaredField("maxAnalyzedPathsForOneInput");
-        //field.setAccessible(true);
-        //Field refField = reference.getClass().getDeclaredField("maxAnalyzedPathsForOneInput");
-        //refField.setAccessible(true);
-        //assertThat(refField.get(reference), equalTo(field.get(buildAnalyzingLookup)));
+        Field field = buildAnalyzingLookup.getClass().getDeclaredField("maxAnalyzedPathsForOneInput");
+        field.setAccessible(true);
+        Field refField = reference.getClass().getDeclaredField("maxAnalyzedPathsForOneInput");
+        refField.setAccessible(true);
+        assertThat(refField.get(reference), equalTo(field.get(buildAnalyzingLookup)));
 
         for (int i = 0; i < titles.length; i++) {
             int res = between(1, 10);

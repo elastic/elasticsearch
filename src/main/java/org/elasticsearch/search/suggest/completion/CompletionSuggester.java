@@ -75,11 +75,11 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
                     continue;
                 }
                 List<Lookup.LookupResult> lookupResults;
-                if (lookup instanceof XAnalyzingSuggester) {
-                    lookupResults = ((XAnalyzingSuggester) lookup).lookup(spare, suggestionContext.getSize(), atomicReader);
-                } else {
-                    lookupResults = lookup.lookup(spare, false, suggestionContext.getSize());
-                }
+                //if (lookup instanceof XAnalyzingSuggester) {
+                //    lookupResults = ((XAnalyzingSuggester) lookup).lookup(spare, suggestionContext.getSize(), atomicReader);
+                //} else {
+                lookupResults = lookup.lookup(spare, false, suggestionContext.getSize());
+                //}
                 for (Lookup.LookupResult res : lookupResults) {
 
                     final String key = res.key.toString();

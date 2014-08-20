@@ -63,8 +63,10 @@ public class Completion090PostingsFormat extends PostingsFormat {
 
     static {
         final CompletionLookupProvider provider = new AnalyzingCompletionLookupProvider(true, false, true, false);
+        // ONLY FOR TESTING (there is no way of using this codec from es)
+        final CompletionLookupProvider nrtProvider = new NRTCompletionLookupProvider(true, false, true, false);
         final Builder<String, CompletionLookupProvider> builder = ImmutableMap.builder();
-        providers = builder.put(provider.getName(), provider).build();
+        providers = builder.put(provider.getName(), provider).put(nrtProvider.getName(), nrtProvider).build();
     }
 
     public Completion090PostingsFormat(PostingsFormat delegatePostingsFormat, CompletionLookupProvider provider) {

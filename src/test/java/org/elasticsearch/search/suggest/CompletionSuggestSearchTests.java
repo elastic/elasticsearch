@@ -53,6 +53,7 @@ import org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestionFuzzyBuilder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -102,7 +103,7 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
         assertSuggestionsNotInOrder("t", "The Prodigy", "Turbonegro", "Turbonegro Get it on", "The Prodigy Firestarter");
     }
 
-    @Test
+    @Test @Ignore(value = "Not Supported yet")
     public void testNRTDeleteDocFiltering() throws Exception {
 
         createIndexAndMapping(completionMappingBuilder);
@@ -421,9 +422,9 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
         createIndexAndMapping(completionMappingBuilder);
 
         client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
-                .startObject().startArray(FIELD)
-                .value("The Prodigy Firestarter").value("Firestarter")
-                .endArray().endObject()
+                        .startObject().startArray(FIELD)
+                        .value("The Prodigy Firestarter").value("Firestarter")
+                        .endArray().endObject()
         ).get();
 
         refresh();

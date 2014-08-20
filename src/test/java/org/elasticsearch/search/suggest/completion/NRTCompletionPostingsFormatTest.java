@@ -31,6 +31,7 @@ import org.apache.lucene.search.suggest.Lookup;
 import org.apache.lucene.search.suggest.Lookup.LookupResult;
 import org.apache.lucene.search.suggest.analyzing.AnalyzingSuggester;
 import org.apache.lucene.search.suggest.analyzing.XAnalyzingSuggester;
+import org.apache.lucene.search.suggest.analyzing.XNRTSuggester;
 import org.apache.lucene.store.*;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
@@ -43,6 +44,7 @@ import org.elasticsearch.index.codec.postingsformat.PreBuiltPostingsFormatProvid
 import org.elasticsearch.index.mapper.FieldMapper.Names;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
+import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.search.suggest.SuggestUtils;
 import org.elasticsearch.search.suggest.context.ContextMapping;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -60,7 +62,7 @@ public class NRTCompletionPostingsFormatTest extends ElasticsearchTestCase {
         char[] chars = new char[len];
         for (int i = 0; i < len; i++) {
             char c = randomUnicodeOfLengthBetween(1,1).charAt(0);
-            while(CompletionFieldMapper.isReservedChar(c)) {
+            while(NRTCompletionFieldMapper.isReservedChar(c)) {
                 c = randomUnicodeOfLengthBetween(1,1).charAt(0);
             }
             chars[i] = c;
@@ -75,7 +77,7 @@ public class NRTCompletionPostingsFormatTest extends ElasticsearchTestCase {
         final boolean usePayloads = getRandom().nextBoolean();
         PostingsFormatProvider provider = new PreBuiltPostingsFormatProvider(new Elasticsearch090PostingsFormat());
         NamedAnalyzer namedAnalzyer = new NamedAnalyzer("foo", new StandardAnalyzer(TEST_VERSION_CURRENT));
-        final CompletionFieldMapper mapper = new CompletionFieldMapper(new Names("foo"), namedAnalzyer, namedAnalzyer, provider, null, usePayloads,
+        final NRTCompletionFieldMapper mapper = new NRTCompletionFieldMapper(new Names("foo"), namedAnalzyer, namedAnalzyer, provider, null, usePayloads,
                 preserveSeparators, preservePositionIncrements, Integer.MAX_VALUE, AbstractFieldMapper.MultiFields.empty(), null, ContextMapping.EMPTY_MAPPING);
 
         String prefixStr = generateRandomSuggestions(randomIntBetween(2, 6));
@@ -111,8 +113,8 @@ public class NRTCompletionPostingsFormatTest extends ElasticsearchTestCase {
         IndexReader reader = completionProvider.getReader();
         Lookup lookup = completionProvider.getLookup(reader).v1();
         reader.close();
-        assertTrue(lookup instanceof XAnalyzingSuggester);
-        XAnalyzingSuggester suggester = (XAnalyzingSuggester) lookup;
+        assertTrue(lookup instanceof XNRTSuggester);
+        XNRTSuggester suggester = (XNRTSuggester) lookup;
 
         List<LookupResult> lookupResults = suggester.lookup(prefix, null, false, res);
 
@@ -136,8 +138,8 @@ public class NRTCompletionPostingsFormatTest extends ElasticsearchTestCase {
         lookup = lookupAndReaderTuple.v1();
         AtomicReader atomicReader = lookupAndReaderTuple.v2();
 
-        assertTrue(lookup instanceof XAnalyzingSuggester);
-        XAnalyzingSuggester suggesterWithDeletes = (XAnalyzingSuggester) lookup;
+        assertTrue(lookup instanceof XNRTSuggester);
+        XNRTSuggester suggesterWithDeletes = (XNRTSuggester) lookup;
 
         lookupResults = suggesterWithDeletes.lookup(prefix, res, atomicReader);
 
@@ -162,7 +164,7 @@ public class NRTCompletionPostingsFormatTest extends ElasticsearchTestCase {
         final boolean usePayloads = getRandom().nextBoolean();
         PostingsFormatProvider provider = new PreBuiltPostingsFormatProvider(new Elasticsearch090PostingsFormat());
         NamedAnalyzer namedAnalzyer = new NamedAnalyzer("foo", new StandardAnalyzer(TEST_VERSION_CURRENT));
-        final CompletionFieldMapper mapper = new CompletionFieldMapper(new Names("foo"), namedAnalzyer, namedAnalzyer, provider, null, usePayloads,
+        final NRTCompletionFieldMapper mapper = new NRTCompletionFieldMapper(new Names("foo"), namedAnalzyer, namedAnalzyer, provider, null, usePayloads,
                 preserveSeparators, preservePositionIncrements, Integer.MAX_VALUE, AbstractFieldMapper.MultiFields.empty(), null, ContextMapping.EMPTY_MAPPING);
 
         String prefixStr = generateRandomSuggestions(randomIntBetween(4, 6));
@@ -205,8 +207,8 @@ public class NRTCompletionPostingsFormatTest extends ElasticsearchTestCase {
             final Tuple<Lookup, AtomicReader> lookupAndReader = completionProvider.getLookup(reader);
             Lookup lookup = lookupAndReader.v1();
             AtomicReader atomicReader = lookupAndReader.v2();
-            assertTrue(lookup instanceof XAnalyzingSuggester);
-            XAnalyzingSuggester suggester = (XAnalyzingSuggester) lookup;
+            assertTrue(lookup instanceof XNRTSuggester);
+            XNRTSuggester suggester = (XNRTSuggester) lookup;
             List<LookupResult> lookupResults = suggester.lookup(prefix, res, atomicReader);
             reader.close();
             for (LookupResult result : lookupResults) {
@@ -221,6 +223,156 @@ public class NRTCompletionPostingsFormatTest extends ElasticsearchTestCase {
                 assertThat(counter, notNullValue());
                 assertThat(counter, greaterThan(0));
                 deletedTerms.put(key, --counter);
+            }
+        }
+        completionProvider.close();
+    }
+
+
+    @Test
+    public void testDuellCompletions() throws IOException, NoSuchFieldException, SecurityException, IllegalArgumentException,
+            IllegalAccessException {
+        final boolean preserveSeparators = getRandom().nextBoolean();
+        final boolean preservePositionIncrements = getRandom().nextBoolean();
+        final boolean usePayloads = getRandom().nextBoolean();
+        final int options = preserveSeparators ? AnalyzingSuggester.PRESERVE_SEP : 0;
+
+        XAnalyzingSuggester reference = new XAnalyzingSuggester(new StandardAnalyzer(TEST_VERSION_CURRENT), null, new StandardAnalyzer(
+                TEST_VERSION_CURRENT), options, 256, -1, preservePositionIncrements, null, false, 1, XAnalyzingSuggester.SEP_LABEL, XAnalyzingSuggester.PAYLOAD_SEP, XAnalyzingSuggester.END_BYTE, XAnalyzingSuggester.HOLE_CHARACTER);
+        LineFileDocs docs = new LineFileDocs(getRandom());
+        int num = scaledRandomIntBetween(150, 300);
+        final String[] titles = new String[num];
+        final long[] weights = new long[num];
+        for (int i = 0; i < titles.length; i++) {
+            Document nextDoc = docs.nextDoc();
+            IndexableField field = nextDoc.getField("title");
+            titles[i] = field.stringValue();
+            weights[i] = between(0, 100);
+
+        }
+        docs.close();
+        final InputIterator primaryIter = new InputIterator() {
+            int index = 0;
+            long currentWeight = -1;
+
+            @Override
+            public Comparator<BytesRef> getComparator() {
+                return null;
+            }
+
+            @Override
+            public BytesRef next() throws IOException {
+                if (index < titles.length) {
+                    currentWeight = weights[index];
+                    return new BytesRef(titles[index++]);
+                }
+                return null;
+            }
+
+            @Override
+            public long weight() {
+                return currentWeight;
+            }
+
+            @Override
+            public BytesRef payload() {
+                return null;
+            }
+
+            @Override
+            public boolean hasPayloads() {
+                return false;
+            }
+
+            @Override
+            public Set<BytesRef> contexts() {
+                return null;
+            }
+
+            @Override
+            public boolean hasContexts() {
+                return false;
+            }
+
+        };
+        InputIterator iter;
+        if (usePayloads) {
+            iter = new InputIterator() {
+                @Override
+                public long weight() {
+                    return primaryIter.weight();
+                }
+
+                @Override
+                public Comparator<BytesRef> getComparator() {
+                    return primaryIter.getComparator();
+                }
+
+                @Override
+                public BytesRef next() throws IOException {
+                    return primaryIter.next();
+                }
+
+                @Override
+                public BytesRef payload() {
+                    return new BytesRef(Long.toString(weight()));
+                }
+
+                @Override
+                public boolean hasPayloads() {
+                    return true;
+                }
+
+                @Override
+                public Set<BytesRef> contexts() {
+                    return null;
+                }
+
+                @Override
+                public boolean hasContexts() {
+                    return false;
+                }
+            };
+        } else {
+            iter = primaryIter;
+        }
+        reference.build(iter);
+        PostingsFormatProvider provider = new PreBuiltPostingsFormatProvider(new Elasticsearch090PostingsFormat());
+
+        NamedAnalyzer namedAnalzyer = new NamedAnalyzer("foo", new StandardAnalyzer(TEST_VERSION_CURRENT));
+        final CompletionFieldMapper mapper = new NRTCompletionFieldMapper(new Names("foo"), namedAnalzyer, namedAnalzyer, provider, null, usePayloads,
+                preserveSeparators, preservePositionIncrements, Integer.MAX_VALUE, AbstractFieldMapper.MultiFields.empty(), null, ContextMapping.EMPTY_MAPPING);
+        CompletionProvider completionProvider = new CompletionProvider(mapper);
+        completionProvider.indexCompletions(titles, titles, weights);
+        IndexReader reader = completionProvider.getReader();
+        Lookup nrtLookup = completionProvider.getLookup(reader).v1();
+        assertThat(nrtLookup, instanceOf(XNRTSuggester.class));
+        reader.close();
+
+        for (String title : titles) {
+            int res = between(1, 10);
+            final StringBuilder builder = new StringBuilder();
+            SuggestUtils.analyze(namedAnalzyer.tokenStream("foo", title), new SuggestUtils.TokenConsumer() {
+                @Override
+                public void nextToken() throws IOException {
+                    if (builder.length() == 0) {
+                        builder.append(this.charTermAttr.toString());
+                    }
+                }
+            });
+            String firstTerm = builder.toString();
+            String prefix = firstTerm.isEmpty() ? "" : firstTerm.substring(0, between(1, firstTerm.length()));
+            List<LookupResult> refLookup = reference.lookup(prefix, false, res);
+            List<LookupResult> lookup = nrtLookup.lookup(prefix, false, res);
+            assertThat(refLookup.toString(), lookup.size(), equalTo(refLookup.size()));
+            for (int j = 0; j < refLookup.size(); j++) {
+                assertThat(lookup.get(j).key, equalTo(refLookup.get(j).key));
+                assertThat("prefix: " + prefix + " " + j + " -- missmatch cost: " + lookup.get(j).key + " - " + lookup.get(j).value + " | " + refLookup.get(j).key + " - " + refLookup.get(j).value,
+                        lookup.get(j).value, equalTo(refLookup.get(j).value));
+                assertThat(lookup.get(j).payload, equalTo(refLookup.get(j).payload));
+                if (usePayloads) {
+                    assertThat(lookup.get(j).payload.utf8ToString(), equalTo(Long.toString(lookup.get(j).value)));
+                }
             }
         }
         completionProvider.close();
@@ -321,4 +473,16 @@ public class NRTCompletionPostingsFormatTest extends ElasticsearchTestCase {
             dir.close();
         }
     }
+
+   static class NRTCompletionFieldMapper extends CompletionFieldMapper {
+
+       public NRTCompletionFieldMapper(Names names, NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer, PostingsFormatProvider postingsProvider, SimilarityProvider similarity, boolean payloads, boolean preserveSeparators, boolean preservePositionIncrements, int maxInputLength, MultiFields multiFields, CopyTo copyTo, SortedMap<String, ContextMapping> contextMappings) {
+           super(names, indexAnalyzer, searchAnalyzer, postingsProvider, similarity, payloads, preserveSeparators, preservePositionIncrements, maxInputLength, multiFields, copyTo, contextMappings);
+       }
+
+       @Override
+       protected CompletionLookupProvider buildLookupProvider() {
+           return new NRTCompletionLookupProvider(preserveSeparators, false, preservePositionIncrements, payloads);
+       }
+   }
 }

@@ -18,26 +18,26 @@
  */
 package org.apache.lucene.search.suggest.analyzing;
 
-import com.carrotsearch.hppc.ObjectIntOpenHashMap;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.TokenStreamToAutomaton;
+import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.search.suggest.InputIterator;
 import org.apache.lucene.search.suggest.Lookup;
 import org.apache.lucene.store.*;
+import org.apache.lucene.store.DataInput;
+import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.util.*;
+import org.apache.lucene.util.PriorityQueue;
 import org.apache.lucene.util.automaton.*;
 import org.apache.lucene.util.fst.*;
 import org.apache.lucene.util.fst.FST.BytesReader;
 import org.apache.lucene.util.fst.PairOutputs.Pair;
 import org.apache.lucene.util.fst.Util.Result;
 import org.apache.lucene.util.fst.Util.TopResults;
-import org.elasticsearch.common.collect.HppcMaps;
+import org.elasticsearch.common.bytes.BytesReference;
 
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
+import java.io.*;
 import java.util.*;
 
 /**
@@ -92,47 +92,47 @@ import java.util.*;
  * 
  * @lucene.experimental
  */
-public class XAnalyzingSuggester extends Lookup {
+public class XNRTSuggester extends Lookup {
 
   /**
-   * FST<Weight,Surface>:
+   * FST<Weight,Surface>: 
    *  input is the analyzed form, with a null byte between terms
    *  weights are encoded as costs: (Integer.MAX_VALUE-weight)
    *  surface is the original, unanalyzed form.
    */
   private FST<Pair<Long,BytesRef>> fst = null;
-
-  /**
+  
+  /** 
    * Analyzer that will be used for analyzing suggestions at
    * index time.
    */
   private final Analyzer indexAnalyzer;
 
-  /**
+  /** 
    * Analyzer that will be used for analyzing suggestions at
    * query time.
    */
   private final Analyzer queryAnalyzer;
-
-  /**
+  
+  /** 
    * True if exact match suggestions should always be returned first.
    */
   private final boolean exactFirst;
-
-  /**
+  
+  /** 
    * True if separator between tokens should be preserved.
    */
   private final boolean preserveSep;
 
   /** Include this flag in the options parameter to {@link
-   *  #XAnalyzingSuggester(org.apache.lucene.analysis.Analyzer, org.apache.lucene.analysis.Analyzer,int,int,int,boolean, org.apache.lucene.util.fst.FST,boolean,int,int,int,int,int)} to always
+   *  #XAnalyzingSuggester(Analyzer,Analyzer,int,int,int,boolean,FST,boolean,int,int,int,int,int)} to always
    *  return the exact match first, regardless of score.  This
    *  has no performance impact but could result in
    *  low-quality suggestions. */
   public static final int EXACT_FIRST = 1;
 
   /** Include this flag in the options parameter to {@link
-   *  #XAnalyzingSuggester(org.apache.lucene.analysis.Analyzer, org.apache.lucene.analysis.Analyzer,int,int,int,boolean, org.apache.lucene.util.fst.FST,boolean,int,int,int,int,int)} to preserve
+   *  #XAnalyzingSuggester(Analyzer,Analyzer,int,int,int,boolean,FST,boolean,int,int,int,int,int)} to preserve
    *  token separators when matching. */
   public static final int PRESERVE_SEP = 2;
 
@@ -168,36 +168,33 @@ public class XAnalyzingSuggester extends Lookup {
 
   public static final int PAYLOAD_SEP = '\u001F';
   public static final int HOLE_CHARACTER = '\u001E';
-
+  private static final int MAX_TOP_N_QUEUE_SIZE = 1000;
   private final Automaton queryPrefix;
 
   /** Whether position holes should appear in the automaton. */
   private boolean preservePositionIncrements;
 
-  /** Number of entries the lookup was built with */
-  private long count = 0;
-
     /**
-   * Calls {@link #XAnalyzingSuggester(org.apache.lucene.analysis.Analyzer, org.apache.lucene.analysis.Analyzer,int,int,int,boolean, org.apache.lucene.util.fst.FST,boolean,int,int,int,int,int)
+   * Calls {@link #XAnalyzingSuggester(Analyzer,Analyzer,int,int,int,boolean,FST,boolean,int,int,int,int,int)
    * AnalyzingSuggester(analyzer, analyzer, EXACT_FIRST |
    * PRESERVE_SEP, 256, -1)}
    */
-  public XAnalyzingSuggester(Analyzer analyzer) {
+  public XNRTSuggester(Analyzer analyzer) {
     this(analyzer, null, analyzer, EXACT_FIRST | PRESERVE_SEP, 256, -1, true, null, false, 0, SEP_LABEL, PAYLOAD_SEP, END_BYTE, HOLE_CHARACTER);
   }
 
   /**
-   * Calls {@link #XAnalyzingSuggester(org.apache.lucene.analysis.Analyzer, org.apache.lucene.analysis.Analyzer,int,int,int,boolean, org.apache.lucene.util.fst.FST,boolean,int,int,int,int,int)
+   * Calls {@link #XAnalyzingSuggester(Analyzer,Analyzer,int,int,int,boolean,FST,boolean,int,int,int,int,int)
    * AnalyzingSuggester(indexAnalyzer, queryAnalyzer, EXACT_FIRST |
    * PRESERVE_SEP, 256, -1)}
    */
-  public XAnalyzingSuggester(Analyzer indexAnalyzer, Analyzer queryAnalyzer) {
+  public XNRTSuggester(Analyzer indexAnalyzer, Analyzer queryAnalyzer) {
     this(indexAnalyzer, null, queryAnalyzer, EXACT_FIRST | PRESERVE_SEP, 256, -1, true, null, false, 0, SEP_LABEL, PAYLOAD_SEP, END_BYTE, HOLE_CHARACTER);
   }
 
   /**
    * Creates a new suggester.
-   *
+   * 
    * @param indexAnalyzer Analyzer that will be used for
    *   analyzing suggestions while building the index.
    * @param queryAnalyzer Analyzer that will be used for
@@ -211,10 +208,10 @@ public class XAnalyzingSuggester extends Lookup {
    *   to expand from the analyzed form.  Set this to -1 for
    *   no limit.
    */
-  public XAnalyzingSuggester(Analyzer indexAnalyzer, Automaton queryPrefix, Analyzer queryAnalyzer, int options, int maxSurfaceFormsPerAnalyzedForm, int maxGraphExpansions,
-                              boolean preservePositionIncrements, FST<Pair<Long, BytesRef>> fst, boolean hasPayloads, int maxAnalyzedPathsForOneInput,
-                              int sepLabel, int payloadSep, int endByte, int holeCharacter) {
-      // SIMON EDIT: I added fst, hasPayloads and maxAnalyzedPathsForOneInput
+  public XNRTSuggester(Analyzer indexAnalyzer, Automaton queryPrefix, Analyzer queryAnalyzer, int options, int maxSurfaceFormsPerAnalyzedForm, int maxGraphExpansions,
+                             boolean preservePositionIncrements, FST<Pair<Long, BytesRef>> fst, boolean hasPayloads, int maxAnalyzedPathsForOneInput,
+                             int sepLabel, int payloadSep, int endByte, int holeCharacter) {
+      // SIMON EDIT: I added fst, hasPayloads and maxAnalyzedPathsForOneInput 
     this.indexAnalyzer = indexAnalyzer;
     this.queryAnalyzer = queryAnalyzer;
     this.fst = fst;
@@ -227,7 +224,7 @@ public class XAnalyzingSuggester extends Lookup {
 
     // FLORIAN EDIT: I added <code>queryPrefix</code> for context dependent suggestions
     this.queryPrefix = queryPrefix;
-
+    
     // NOTE: this is just an implementation limitation; if
     // somehow this is a problem we could fix it by using
     // more than one byte to disambiguate ... but 256 seems
@@ -357,321 +354,30 @@ public class XAnalyzingSuggester extends Lookup {
     tsta.setPreservePositionIncrements(preservePositionIncrements);
     return tsta;
   }
-
-  private static class AnalyzingComparator implements Comparator<BytesRef> {
-
-    private final boolean hasPayloads;
-
-    public AnalyzingComparator(boolean hasPayloads) {
-      this.hasPayloads = hasPayloads;
-    }
-
-    private final ByteArrayDataInput readerA = new ByteArrayDataInput();
-    private final ByteArrayDataInput readerB = new ByteArrayDataInput();
-    private final BytesRef scratchA = new BytesRef();
-    private final BytesRef scratchB = new BytesRef();
-
-    @Override
-    public int compare(BytesRef a, BytesRef b) {
-
-      // First by analyzed form:
-      readerA.reset(a.bytes, a.offset, a.length);
-      scratchA.length = readerA.readShort();
-      scratchA.bytes = a.bytes;
-      scratchA.offset = readerA.getPosition();
-
-      readerB.reset(b.bytes, b.offset, b.length);
-      scratchB.bytes = b.bytes;
-      scratchB.length = readerB.readShort();
-      scratchB.offset = readerB.getPosition();
-
-      int cmp = scratchA.compareTo(scratchB);
-      if (cmp != 0) {
-        return cmp;
-      }
-      readerA.skipBytes(scratchA.length);
-      readerB.skipBytes(scratchB.length);
-      // Next by cost:
-      long aCost = readerA.readInt();
-      long bCost = readerB.readInt();
-      if (aCost < bCost) {
-        return -1;
-      } else if (aCost > bCost) {
-        return 1;
-      }
-
-      // Finally by surface form:
-      if (hasPayloads) {
-        scratchA.length = readerA.readShort();
-        scratchA.offset = readerA.getPosition();
-        scratchB.length = readerB.readShort();
-        scratchB.offset = readerB.getPosition();
-      } else {
-        scratchA.offset = readerA.getPosition();
-        scratchA.length = a.length - scratchA.offset;
-        scratchB.offset = readerB.getPosition();
-        scratchB.length = b.length - scratchB.offset;
-      }
-      return scratchA.compareTo(scratchB);
-    }
-  }
-
+  
   @Override
   public void build(InputIterator iterator) throws IOException {
-    String prefix = getClass().getSimpleName();
-    File directory = OfflineSorter.defaultTempDir();
-    File tempInput = File.createTempFile(prefix, ".input", directory);
-    File tempSorted = File.createTempFile(prefix, ".sorted", directory);
-
-    hasPayloads = iterator.hasPayloads();
-
-    OfflineSorter.ByteSequencesWriter writer = new OfflineSorter.ByteSequencesWriter(tempInput);
-    OfflineSorter.ByteSequencesReader reader = null;
-    BytesRef scratch = new BytesRef();
-
-    TokenStreamToAutomaton ts2a = getTokenStreamToAutomaton();
-
-    boolean success = false;
-    count = 0;
-    byte buffer[] = new byte[8];
-    try {
-      ByteArrayDataOutput output = new ByteArrayDataOutput(buffer);
-      BytesRef surfaceForm;
-
-      while ((surfaceForm = iterator.next()) != null) {
-        Set<IntsRef> paths = toFiniteStrings(surfaceForm, ts2a);
-
-        maxAnalyzedPathsForOneInput = Math.max(maxAnalyzedPathsForOneInput, paths.size());
-
-        for (IntsRef path : paths) {
-
-          Util.toBytesRef(path, scratch);
-
-          // length of the analyzed text (FST input)
-          if (scratch.length > Short.MAX_VALUE-2) {
-            throw new IllegalArgumentException("cannot handle analyzed forms > " + (Short.MAX_VALUE-2) + " in length (got " + scratch.length + ")");
-          }
-          short analyzedLength = (short) scratch.length;
-
-          // compute the required length:
-          // analyzed sequence + weight (4) + surface + analyzedLength (short)
-          int requiredLength = analyzedLength + 4 + surfaceForm.length + 2;
-
-          BytesRef payload;
-
-          if (hasPayloads) {
-            if (surfaceForm.length > (Short.MAX_VALUE-2)) {
-              throw new IllegalArgumentException("cannot handle surface form > " + (Short.MAX_VALUE-2) + " in length (got " + surfaceForm.length + ")");
-            }
-            payload = iterator.payload();
-            // payload + surfaceLength (short)
-            requiredLength += payload.length + 2;
-          } else {
-            payload = null;
-          }
-
-          buffer = ArrayUtil.grow(buffer, requiredLength);
-
-          output.reset(buffer);
-
-          output.writeShort(analyzedLength);
-
-          output.writeBytes(scratch.bytes, scratch.offset, scratch.length);
-
-          output.writeInt(encodeWeight(iterator.weight()));
-
-          if (hasPayloads) {
-            for(int i=0;i<surfaceForm.length;i++) {
-              if (surfaceForm.bytes[i] == payloadSep) {
-                throw new IllegalArgumentException("surface form cannot contain unit separator character U+001F; this character is reserved");
-              }
-            }
-            output.writeShort((short) surfaceForm.length);
-            output.writeBytes(surfaceForm.bytes, surfaceForm.offset, surfaceForm.length);
-            output.writeBytes(payload.bytes, payload.offset, payload.length);
-          } else {
-            output.writeBytes(surfaceForm.bytes, surfaceForm.offset, surfaceForm.length);
-          }
-
-          assert output.getPosition() == requiredLength: output.getPosition() + " vs " + requiredLength;
-
-          writer.write(buffer, 0, output.getPosition());
-        }
-        count++;
-      }
-      writer.close();
-
-      // Sort all input/output pairs (required by FST.Builder):
-      new OfflineSorter(new AnalyzingComparator(hasPayloads)).sort(tempInput, tempSorted);
-
-      // Free disk space:
-      tempInput.delete();
-
-      reader = new OfflineSorter.ByteSequencesReader(tempSorted);
-
-      PairOutputs<Long,BytesRef> outputs = new PairOutputs<>(PositiveIntOutputs.getSingleton(), ByteSequenceOutputs.getSingleton());
-      Builder<Pair<Long,BytesRef>> builder = new Builder<>(FST.INPUT_TYPE.BYTE1, outputs);
-
-      // Build FST:
-      BytesRef previousAnalyzed = null;
-      BytesRef analyzed = new BytesRef();
-      BytesRef surface = new BytesRef();
-      IntsRef scratchInts = new IntsRef();
-      ByteArrayDataInput input = new ByteArrayDataInput();
-
-      // Used to remove duplicate surface forms (but we
-      // still index the hightest-weight one).  We clear
-      // this when we see a new analyzed form, so it cannot
-      // grow unbounded (at most 256 entries):
-      Set<BytesRef> seenSurfaceForms = new HashSet<>();
-
-      int dedup = 0;
-      while (reader.read(scratch)) {
-        input.reset(scratch.bytes, scratch.offset, scratch.length);
-        short analyzedLength = input.readShort();
-        analyzed.grow(analyzedLength+2);
-        input.readBytes(analyzed.bytes, 0, analyzedLength);
-        analyzed.length = analyzedLength;
-
-        long cost = input.readInt();
-
-        surface.bytes = scratch.bytes;
-        if (hasPayloads) {
-          surface.length = input.readShort();
-          surface.offset = input.getPosition();
-        } else {
-          surface.offset = input.getPosition();
-          surface.length = scratch.length - surface.offset;
-        }
-
-        if (previousAnalyzed == null) {
-          previousAnalyzed = new BytesRef();
-          previousAnalyzed.copyBytes(analyzed);
-          seenSurfaceForms.add(BytesRef.deepCopyOf(surface));
-        } else if (analyzed.equals(previousAnalyzed)) {
-          dedup++;
-          if (dedup >= maxSurfaceFormsPerAnalyzedForm) {
-            // More than maxSurfaceFormsPerAnalyzedForm
-            // dups: skip the rest:
-            continue;
-          }
-          if (seenSurfaceForms.contains(surface)) {
-            continue;
-          }
-          seenSurfaceForms.add(BytesRef.deepCopyOf(surface));
-        } else {
-          dedup = 0;
-          previousAnalyzed.copyBytes(analyzed);
-          seenSurfaceForms.clear();
-          seenSurfaceForms.add(BytesRef.deepCopyOf(surface));
-        }
-
-        // TODO: I think we can avoid the extra 2 bytes when
-        // there is no dup (dedup==0), but we'd have to fix
-        // the exactFirst logic ... which would be sort of
-        // hairy because we'd need to special case the two
-        // (dup/not dup)...
-
-        // NOTE: must be byte 0 so we sort before whatever
-        // is next
-        analyzed.bytes[analyzed.offset+analyzed.length] = 0;
-        analyzed.bytes[analyzed.offset+analyzed.length+1] = (byte) dedup;
-        analyzed.length += 2;
-
-        Util.toIntsRef(analyzed, scratchInts);
-        //System.out.println("ADD: " + scratchInts + " -> " + cost + ": " + surface.utf8ToString());
-        if (!hasPayloads) {
-          builder.add(scratchInts, outputs.newPair(cost, BytesRef.deepCopyOf(surface)));
-        } else {
-          int payloadOffset = input.getPosition() + surface.length;
-          int payloadLength = scratch.length - payloadOffset;
-          BytesRef br = new BytesRef(surface.length + 1 + payloadLength);
-          System.arraycopy(surface.bytes, surface.offset, br.bytes, 0, surface.length);
-          br.bytes[surface.length] = (byte) payloadSep;
-          System.arraycopy(scratch.bytes, payloadOffset, br.bytes, surface.length+1, payloadLength);
-          br.length = br.bytes.length;
-          builder.add(scratchInts, outputs.newPair(cost, br));
-        }
-      }
-      fst = builder.finish();
-
-      //PrintWriter pw = new PrintWriter("/tmp/out.dot");
-      //Util.toDot(fst, pw, true, true);
-      //pw.close();
-
-      success = true;
-    } finally {
-      if (success) {
-        IOUtils.close(reader, writer);
-      } else {
-        IOUtils.closeWhileHandlingException(reader, writer);
-      }
-
-      tempInput.delete();
-      tempSorted.delete();
-    }
+    throw new UnsupportedOperationException();
   }
 
   @Override
   public boolean store(OutputStream output) throws IOException {
-    DataOutput dataOut = new OutputStreamDataOutput(output);
-    try {
-      if (fst == null) {
-        return false;
-      }
-
-      fst.save(dataOut);
-      dataOut.writeVInt(maxAnalyzedPathsForOneInput);
-      dataOut.writeByte((byte) (hasPayloads ? 1 : 0));
-    } finally {
-      IOUtils.close(output);
-    }
-    return true;
+    throw new UnsupportedOperationException();
   }
 
-    @Override
-    public long getCount() {
-        return count;
-    }
+  @Override
+  public long getCount() {
+    throw new UnsupportedOperationException();
+  }
 
-    @Override
+  @Override
   public boolean load(InputStream input) throws IOException {
-    DataInput dataIn = new InputStreamDataInput(input);
-    try {
-      this.fst = new FST<>(dataIn, new PairOutputs<>(PositiveIntOutputs.getSingleton(), ByteSequenceOutputs.getSingleton()));
-      maxAnalyzedPathsForOneInput = dataIn.readVInt();
-      hasPayloads = dataIn.readByte() == 1;
-    } finally {
-      IOUtils.close(input);
-    }
-    return true;
+    throw new UnsupportedOperationException();
   }
 
   private LookupResult getLookupResult(Long output1, BytesRef output2, CharsRef spare) {
-    LookupResult result;
-    if (hasPayloads) {
-      int sepIndex = -1;
-      for(int i=0;i<output2.length;i++) {
-        if (output2.bytes[output2.offset+i] == payloadSep) {
-          sepIndex = i;
-          break;
-        }
-      }
-      assert sepIndex != -1;
-      spare.grow(sepIndex);
-      final int payloadLen = output2.length - sepIndex - 1;
-      UnicodeUtil.UTF8toUTF16(output2.bytes, output2.offset, sepIndex, spare);
-      BytesRef payload = new BytesRef(payloadLen);
-      System.arraycopy(output2.bytes, sepIndex+1, payload.bytes, 0, payloadLen);
-      payload.length = payloadLen;
-      result = new LookupResult(spare.toString(), decodeWeight(output1), payload);
-    } else {
-      spare.grow(output2.length);
-      UnicodeUtil.UTF8toUTF16(output2, spare);
-      result = new LookupResult(spare.toString(), decodeWeight(output1));
-    }
-
-    return result;
+    XPayLoadProcessor.PayloadMetaData metaData = XPayLoadProcessor.parse(output2, hasPayloads, payloadSep, spare);
+    return new LookupResult(spare.toString(), decodeWeight(output1), metaData.payload);
   }
 
   private boolean sameSurfaceForm(BytesRef key, BytesRef output2) {
@@ -687,12 +393,31 @@ public class XAnalyzingSuggester extends Lookup {
       }
       return output2.bytes[output2.offset + key.length] == payloadSep;
     } else {
+      int docIDSepIndex = XPayLoadProcessor.getDocIDSepIndex(output2, false, payloadSep);
+      if (docIDSepIndex != -1) {
+        BytesRef spare = new BytesRef(output2.bytes, output2.offset, output2.length - 1 - docIDSepIndex);
+        return key.bytesEquals(spare);
+      }
       return key.bytesEquals(output2);
     }
   }
 
   @Override
   public List<LookupResult> lookup(final CharSequence key, Set<BytesRef> contexts, boolean onlyMorePopular, int num) {
+      return lookup(key, contexts, onlyMorePopular, num, null, 1.0d);
+  }
+
+  public List<LookupResult> lookup(final CharSequence key, final int num, final AtomicReader reader) {
+      double liveDocRatio = 1.0d;
+      if (reader.numDocs() > 0) {
+        liveDocRatio = (double) reader.numDocs() / reader.maxDoc();
+      } else {
+        return Collections.emptyList();
+      }
+      return lookup(key, null, false, num, reader.getLiveDocs(), liveDocRatio);
+  }
+
+  private List<LookupResult> lookup(final CharSequence key, Set<BytesRef> contexts, boolean onlyMorePopular, int num, final Bits liveDocs, final double liveDocsRatio) {
     assert num > 0;
 
     if (onlyMorePopular) {
@@ -719,7 +444,7 @@ public class XAnalyzingSuggester extends Lookup {
       final CharsRef spare = new CharsRef();
 
       //System.out.println("  now intersect exactFirst=" + exactFirst);
-
+    
       // Intersect automaton w/ suggest wFST and get all
       // prefix starting nodes & their outputs:
       //final PathIntersector intersector = getPathIntersector(lookupAutomaton, fst);
@@ -748,7 +473,19 @@ public class XAnalyzingSuggester extends Lookup {
         // Searcher just to find the single exact only
         // match, if present:
         Util.TopNSearcher<Pair<Long,BytesRef>> searcher;
-        searcher = new Util.TopNSearcher<>(fst, count * maxSurfaceFormsPerAnalyzedForm, count * maxSurfaceFormsPerAnalyzedForm, weightComparator);
+        searcher = new Util.TopNSearcher<Pair<Long, BytesRef>>(fst, count * maxSurfaceFormsPerAnalyzedForm, getMaxTopNSearcherQueueSize(count, liveDocsRatio), weightComparator) {
+
+          @Override
+          protected boolean acceptResult(IntsRef input, Pair<Long,BytesRef> output) {
+            XPayLoadProcessor.PayloadMetaData metaData = XPayLoadProcessor.parse(output.output2, hasPayloads, payloadSep, spare);
+            if (liveDocs != null && metaData.hasDocID()) {
+              if (!liveDocs.get(metaData.docID)) {
+                  return false;
+              }
+            }
+            return true;
+          }
+        };
 
         // NOTE: we could almost get away with only using
         // the first start node.  The only catch is if
@@ -763,7 +500,7 @@ public class XAnalyzingSuggester extends Lookup {
           }
         }
 
-        TopResults<Pair<Long,BytesRef>> completions = searcher.search();
+        Util.TopResults<Pair<Long,BytesRef>> completions = searcher.search();
 
         // NOTE: this is rather inefficient: we enumerate
         // every matching "exactly the same analyzed form"
@@ -794,27 +531,34 @@ public class XAnalyzingSuggester extends Lookup {
       Util.TopNSearcher<Pair<Long,BytesRef>> searcher;
       searcher = new Util.TopNSearcher<Pair<Long,BytesRef>>(fst,
                                                             num - results.size(),
-                                                            num * maxAnalyzedPathsForOneInput,
+                                                            getMaxTopNSearcherQueueSize(num, liveDocsRatio),
                                                             weightComparator) {
         private final Set<BytesRef> seen = new HashSet<>();
+        private CharsRef spare = new CharsRef();
 
         @Override
         protected boolean acceptResult(IntsRef input, Pair<Long,BytesRef> output) {
 
+          XPayLoadProcessor.PayloadMetaData metaData = XPayLoadProcessor.parse(output.output2, hasPayloads, payloadSep, spare);
+          if (liveDocs != null && metaData.hasDocID()) {
+            if (!liveDocs.get(metaData.docID)) {
+              return false;
+            }
+          }
           // Dedup: when the input analyzes to a graph we
           // can get duplicate surface forms:
-          if (seen.contains(output.output2)) {
-            return false;
+          if (seen.contains(metaData.surfaceForm)) {
+              return false;
           }
-          seen.add(output.output2);
-          
+          seen.add(metaData.surfaceForm);
+
           if (!exactFirst) {
             return true;
           } else {
             // In exactFirst mode, don't accept any paths
             // matching the surface form since that will
             // create duplicate results:
-            if (sameSurfaceForm(utf8Key, output.output2)) {
+            if (metaData.surfaceForm.bytesEquals(utf8Key)) {
               // We found exact match, which means we should
               // have already found it in the first search:
               assert results.size() == 1;
@@ -833,6 +577,9 @@ public class XAnalyzingSuggester extends Lookup {
       }
 
       TopResults<Pair<Long,BytesRef>> completions = searcher.search();
+      // search admissibility is not guaranteed
+      // see comment on getMaxTopNSearcherQueueSize
+      //assert completions.isComplete;
 
       for(Result<Pair<Long,BytesRef>> completion : completions) {
 
@@ -857,26 +604,29 @@ public class XAnalyzingSuggester extends Lookup {
     }
   }
 
+  /**
+   * Simple heuristics to try to avoid over-pruning potential suggestions by the
+   * TopNSearcher. Since suggestion entries can be rejected if they belong
+   * to a deleted document, the length of the TopNSearcher queue has to
+   * be increased by some factor, to account for the filtered out suggestions.
+   * This heuristic will try to make the searcher admissible, but the search
+   * can still lead to over-pruning
+   */
+  private int getMaxTopNSearcherQueueSize(int num, final double liveDocRatio) {
+    int maxQueueSize = num * maxAnalyzedPathsForOneInput;
+    // liveDocRatio can be at most 1.0 (if no docs were deleted)
+    assert liveDocRatio <= 1.0d;
+    return Math.min(MAX_TOP_N_QUEUE_SIZE, (int) (maxQueueSize / liveDocRatio));
+  }
+
   @Override
   public boolean store(DataOutput output) throws IOException {
-    output.writeVLong(count);
-    if (fst == null) {
-      return false;
-    }
-
-    fst.save(output);
-    output.writeVInt(maxAnalyzedPathsForOneInput);
-    output.writeByte((byte) (hasPayloads ? 1 : 0));
-    return true;
+    throw new UnsupportedOperationException();
   }
 
   @Override
   public boolean load(DataInput input) throws IOException {
-    count = input.readVLong();
-    this.fst = new FST<>(input, new PairOutputs<>(PositiveIntOutputs.getSingleton(), ByteSequenceOutputs.getSingleton()));
-    maxAnalyzedPathsForOneInput = input.readVInt();
-    hasPayloads = input.readByte() == 1;
-    return true;
+    throw new UnsupportedOperationException();
   }
 
     /** Returns all completion paths to initialize the search. */
@@ -887,11 +637,6 @@ public class XAnalyzingSuggester extends Lookup {
     return prefixPaths;
   }
 
-  public final Set<IntsRef> toFiniteStrings(final BytesRef surfaceForm, final TokenStreamToAutomaton ts2a) throws IOException {
-    // Analyze surface form:
-    TokenStream ts = indexAnalyzer.tokenStream("", surfaceForm.utf8ToString());
-    return toFiniteStrings(ts2a, ts);
-  }
   public final Set<IntsRef> toFiniteStrings(final TokenStreamToAutomaton ts2a, TokenStream ts) throws IOException {
       // Analyze surface form:
 
@@ -962,8 +707,7 @@ public class XAnalyzingSuggester extends Lookup {
       return left.output1.compareTo(right.output1);
     }
   };
-  
-  
+
     public static class XBuilder {
         private Builder<Pair<Long, BytesRef>> builder;
         private int maxSurfaceFormsPerAnalyzedForm;
@@ -971,10 +715,9 @@ public class XAnalyzingSuggester extends Lookup {
         private final PairOutputs<Long, BytesRef> outputs;
         private boolean hasPayloads;
         private BytesRef analyzed = new BytesRef();
-        private final SurfaceFormAndPayload[] surfaceFormsAndPayload;
-        private int count;
-        private ObjectIntOpenHashMap<BytesRef> seenSurfaceForms = HppcMaps.Object.Integer.ensureNoNullKeys(256, 0.75f);
+        private SurfaceFormPriorityQueue surfaceFormPriorityQueue;
         private int payloadSep;
+        private int docID;
 
         public XBuilder(int maxSurfaceFormsPerAnalyzedForm, boolean hasPayloads, int payloadSep) {
             this.payloadSep = payloadSep;
@@ -982,20 +725,26 @@ public class XAnalyzingSuggester extends Lookup {
             this.builder = new Builder<>(FST.INPUT_TYPE.BYTE1, outputs);
             this.maxSurfaceFormsPerAnalyzedForm = maxSurfaceFormsPerAnalyzedForm;
             this.hasPayloads = hasPayloads;
-            surfaceFormsAndPayload = new SurfaceFormAndPayload[maxSurfaceFormsPerAnalyzedForm];
-
+            this.surfaceFormPriorityQueue = new SurfaceFormPriorityQueue(maxSurfaceFormsPerAnalyzedForm);
         }
+
         public void startTerm(BytesRef analyzed) {
             this.analyzed.copyBytes(analyzed);
-            this.analyzed.grow(analyzed.length+2);
+            this.analyzed.grow(analyzed.length + 2);
+        }
+
+        public void setDocID(final int docID) {
+            this.docID = docID;
         }
 
         private final static class SurfaceFormAndPayload implements Comparable<SurfaceFormAndPayload> {
+            int docID;
             BytesRef payload;
             long weight;
-            
-            public SurfaceFormAndPayload(BytesRef payload, long cost) {
+
+            public SurfaceFormAndPayload(int docID, BytesRef payload, long cost) {
                 super();
+                this.docID = docID;
                 this.payload = payload;
                 this.weight = cost;
             }
@@ -1003,91 +752,187 @@ public class XAnalyzingSuggester extends Lookup {
             @Override
             public int compareTo(SurfaceFormAndPayload o) {
                 int res = compare(weight, o.weight);
-                if (res == 0 ){
+                if (res == 0) {
                     return payload.compareTo(o.payload);
                 }
                 return res;
             }
+
             public static int compare(long x, long y) {
                 return (x < y) ? -1 : ((x == y) ? 0 : 1);
             }
         }
 
-        public void addSurface(BytesRef surface, BytesRef payload, long cost) throws IOException {
-            int surfaceIndex = -1;
-            long encodedWeight = cost == -1 ? cost : encodeWeight(cost);
-            /*
-             * we need to check if we have seen this surface form, if so only use the 
-             * the surface form with the highest weight and drop the rest no matter if 
-             * the payload differs.
+        private final static class SurfaceFormPriorityQueue extends PriorityQueue<SurfaceFormAndPayload> {
+
+            public SurfaceFormPriorityQueue(int maxSize) {
+                super(maxSize);
+            }
+
+            @Override
+            protected boolean lessThan(SurfaceFormAndPayload a, SurfaceFormAndPayload b) {
+                return a.weight < b.weight;
+            }
+
+            /**
+             * Returns results in descending order followed by sorting <code>SurfaceFormAndPayloads</code>
+             * according to
+             * {@link SurfaceFormAndPayload#compareTo(SurfaceFormAndPayload)}
              */
-            if (count >= maxSurfaceFormsPerAnalyzedForm) {
-                // More than maxSurfaceFormsPerAnalyzedForm
-                // dups: skip the rest:
-                return;
-            }
-            BytesRef surfaceCopy;
-            if (count > 0 && seenSurfaceForms.containsKey(surface)) {
-                surfaceIndex = seenSurfaceForms.lget();
-                SurfaceFormAndPayload surfaceFormAndPayload = surfaceFormsAndPayload[surfaceIndex];
-                if (encodedWeight >= surfaceFormAndPayload.weight) {
-                    return;
+            public SurfaceFormAndPayload[] getResults() {
+                int size = size();
+                SurfaceFormAndPayload[] res = new SurfaceFormAndPayload[size];
+                for (int i = size - 1; i >= 0; i--) {
+                    res[i] = pop();
                 }
-                surfaceCopy = BytesRef.deepCopyOf(surface);
-            } else {
-                surfaceIndex = count++;
-                surfaceCopy = BytesRef.deepCopyOf(surface);
-                seenSurfaceForms.put(surfaceCopy, surfaceIndex);
+                ArrayUtil.timSort(res, 0, size);
+                return res;
             }
-           
-            BytesRef payloadRef;
-            if (!hasPayloads) {
-                payloadRef = surfaceCopy;
-            } else {
-                int len = surface.length + 1 + payload.length;
-                final BytesRef br = new BytesRef(len);
-                System.arraycopy(surface.bytes, surface.offset, br.bytes, 0, surface.length);
-                br.bytes[surface.length] = (byte) payloadSep;
-                System.arraycopy(payload.bytes, payload.offset, br.bytes, surface.length + 1, payload.length);
-                br.length = len;
-                payloadRef = br;
-            }
-            if (surfaceFormsAndPayload[surfaceIndex] == null) {
-                surfaceFormsAndPayload[surfaceIndex] = new SurfaceFormAndPayload(payloadRef, encodedWeight);
-            } else {
-                surfaceFormsAndPayload[surfaceIndex].payload = payloadRef;
-                surfaceFormsAndPayload[surfaceIndex].weight = encodedWeight;
-            }
-            return;
         }
-        
+
+        public int addSurface(BytesRef surface, BytesRef payload, long cost) throws IOException {
+            long encodedWeight = cost == -1 ? cost : encodeWeight(cost);
+            BytesRef payloadRef = XPayLoadProcessor.make(surface, payload, docID, payloadSep, hasPayloads);
+            surfaceFormPriorityQueue.insertWithOverflow(new SurfaceFormAndPayload(this.docID, payloadRef, encodedWeight));
+            return surfaceFormPriorityQueue.size();
+        }
+
         public void finishTerm(long defaultWeight) throws IOException {
-            ArrayUtil.timSort(surfaceFormsAndPayload, 0, count);
+            SurfaceFormAndPayload[] surfaceFormAndPayloads = surfaceFormPriorityQueue.getResults();
+            assert surfaceFormAndPayloads.length <= maxSurfaceFormsPerAnalyzedForm;
             int deduplicator = 0;
-            analyzed.bytes[analyzed.offset + analyzed.length] = 0;
+            analyzed.bytes[analyzed.offset + analyzed.length] = END_BYTE;
             analyzed.length += 2;
-            for (int i = 0; i < count; i++) {
-                analyzed.bytes[analyzed.offset + analyzed.length - 1 ] = (byte) deduplicator++;
+            for (int i = 0; i < surfaceFormAndPayloads.length; i++) {
+                analyzed.bytes[analyzed.offset + analyzed.length - 1] = (byte) deduplicator++;
                 Util.toIntsRef(analyzed, scratchInts);
-                SurfaceFormAndPayload candiate = surfaceFormsAndPayload[i];
-                long cost = candiate.weight == -1 ? encodeWeight(Math.min(Integer.MAX_VALUE, defaultWeight)) : candiate.weight;
-                builder.add(scratchInts, outputs.newPair(cost, candiate.payload));
+                SurfaceFormAndPayload candidate = surfaceFormAndPayloads[i];
+                long cost = candidate.weight == -1 ? encodeWeight(Math.min(Integer.MAX_VALUE, defaultWeight)) : candidate.weight;
+                builder.add(scratchInts, outputs.newPair(cost, candidate.payload));
             }
-            seenSurfaceForms.clear();
-            count = 0;
+            surfaceFormPriorityQueue.clear();
         }
 
         public FST<Pair<Long, BytesRef>> build() throws IOException {
             return builder.finish();
         }
-
-        public boolean hasPayloads() {
-            return hasPayloads;
-        }
-
-        public int maxSurfaceFormsPerAnalyzedForm() {
-            return maxSurfaceFormsPerAnalyzedForm;
-        }
-
     }
+
+  /**
+   * Helper to encode/decode payload with surface + PAYLOAD_SEP + payload + PAYLOAD_SEP + docID
+   */
+  static final class XPayLoadProcessor {
+      final static private int MAX_DOC_ID_LEN_WITH_SEP = 6; // vint takes at most 5 bytes
+      static class PayloadMetaData {
+          BytesRef payload;
+          BytesRef surfaceForm;
+          int docID = -1;
+
+          PayloadMetaData(BytesRef surfaceForm, BytesRef payload, int docID) {
+              this.payload = payload;
+              this.surfaceForm = surfaceForm;
+              this.docID = docID;
+          }
+
+          public boolean hasDocID() {
+              return docID != -1;
+          }
+      }
+
+      private static int getDocIDSepIndex(final BytesRef output, final int payloadSep, final int payloadSepIndex) {
+          int docSepIndex = -1;
+          int start = (payloadSepIndex < output.length - MAX_DOC_ID_LEN_WITH_SEP) ? output.length - MAX_DOC_ID_LEN_WITH_SEP : payloadSepIndex + 1;
+          // have to iterate forward, or else it will break if docID = PAYLOAD_SEP (31)
+          for (int i = start; i < output.length; i++) {
+              if (output.bytes[output.offset + i] == payloadSep) {
+                  docSepIndex = i;
+                  break;
+              }
+          }
+          return docSepIndex;
+      }
+
+      static int getDocIDSepIndex(final BytesRef output, final boolean hasPayloads, final int payloadSep) {
+          int docSepIndex = -1;
+          if (hasPayloads) {
+              int sepIndex = getPayloadSepIndex(output, payloadSep);
+              docSepIndex = getDocIDSepIndex(output, payloadSep, sepIndex);
+          } else {
+              int start = (output.length - MAX_DOC_ID_LEN_WITH_SEP < 0) ? 0 : output.length - MAX_DOC_ID_LEN_WITH_SEP;
+              for (int i = start; i < output.length; i++) {
+                  if (output.bytes[output.offset + i] == payloadSep) {
+                      docSepIndex = i;
+                      break;
+                  }
+              }
+          }
+          return docSepIndex;
+      }
+
+      static int getPayloadSepIndex(final BytesRef output, final int payloadSep) {
+          int sepIndex = -1;
+          for (int i = 0; i < output.length; i++) {
+              if (output.bytes[output.offset + i] == payloadSep) {
+                  sepIndex = i;
+                  break;
+              }
+          }
+          return sepIndex;
+      }
+
+      static PayloadMetaData parse(final BytesRef output, final boolean hasPayloads, final int payloadSep, CharsRef spare) {
+          BytesRef payload = null;
+          BytesRef surfaceForm;
+          int docID = -1;
+
+          boolean docIDExists = false;
+          int docSepIndex = -1;
+          if (hasPayloads) {
+              int sepIndex = getPayloadSepIndex(output, payloadSep);
+              assert sepIndex != -1;
+              docSepIndex = getDocIDSepIndex(output, payloadSep, sepIndex);
+              spare.grow(sepIndex);
+              docIDExists = docSepIndex != -1;
+              int payloadLen = output.length - sepIndex - 1;
+              if (docIDExists) {
+                  payloadLen = docSepIndex - sepIndex - 1;
+              }
+              UnicodeUtil.UTF8toUTF16(output.bytes, output.offset, sepIndex, spare);
+              payload = new BytesRef(payloadLen);
+              System.arraycopy(output.bytes, sepIndex + 1, payload.bytes, 0, payloadLen);
+              payload.length = payloadLen;
+              surfaceForm = new BytesRef(spare);
+          } else {
+              docSepIndex = getDocIDSepIndex(output, false, payloadSep);
+              docIDExists = docSepIndex != -1;
+              int len = (docIDExists) ? docSepIndex : output.length;
+              spare.grow(len);
+              UnicodeUtil.UTF8toUTF16(output.bytes, output.offset, len, spare);
+              surfaceForm = new BytesRef(spare);
+          }
+
+          if (docIDExists) {
+              ByteArrayDataInput input = new ByteArrayDataInput(output.bytes, docSepIndex + 1, output.length - docSepIndex);
+              docID = input.readVInt();
+          }
+          return new PayloadMetaData(surfaceForm, payload, docID);
+      }
+
+      static BytesRef make(BytesRef surface, final BytesRef payload, final int docID, final int payloadSep, final boolean hasPayloads) throws IOException {
+          int len = surface.length + ((hasPayloads) ? 1 + payload.length : 0) + MAX_DOC_ID_LEN_WITH_SEP;
+          byte[] buffer = new byte[len];
+          ByteArrayDataOutput output = new ByteArrayDataOutput(buffer);
+          output.writeBytes(surface.bytes, surface.length - surface.offset);
+          if (hasPayloads) {
+              output.writeByte((byte) payloadSep);
+              output.writeBytes(payload.bytes, payload.length - payload.offset);
+          }
+          output.writeByte((byte) payloadSep);
+          output.writeVInt(docID);
+
+          return new BytesRef(buffer, 0, output.getPosition());
+      }
+  }
+
+
 }

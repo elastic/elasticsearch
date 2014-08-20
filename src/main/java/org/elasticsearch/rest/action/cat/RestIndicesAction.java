@@ -129,6 +129,12 @@ public class RestIndicesAction extends AbstractCatAction {
         table.addCell("query_cache.evictions", "sibling:pri;alias:qce,queryCacheEvictions;default:false;text-align:right;desc:query cache evictions");
         table.addCell("pri.query_cache.evictions", "default:false;text-align:right;desc:query cache evictions");
 
+        table.addCell("query_cache.hit_count", "sibling:pri;alias:qchc,queryCacheHitCount;default:false;text-align:right;desc:query cache hit count");
+        table.addCell("pri.query_cache.hit_count", "default:false;text-align:right;desc:query cache hit count");
+
+        table.addCell("query_cache.miss_count", "sibling:pri;alias:qcmc,queryCacheMissCount;default:false;text-align:right;desc:query cache miss count");
+        table.addCell("pri.query_cache.miss_count", "default:false;text-align:right;desc:query cache miss count");
+
         table.addCell("flush.total", "sibling:pri;alias:ft,flushTotal;default:false;text-align:right;desc:number of flushes");
         table.addCell("pri.flush.total", "default:false;text-align:right;desc:number of flushes");
 
@@ -313,6 +319,12 @@ public class RestIndicesAction extends AbstractCatAction {
 
             table.addCell(indexStats == null ? null : indexStats.getTotal().getQueryCache().getEvictions());
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getQueryCache().getEvictions());
+
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getQueryCache().getHitCount());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getQueryCache().getHitCount());
+
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getQueryCache().getMissCount());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getQueryCache().getMissCount());
 
             table.addCell(indexStats == null ? null : indexStats.getTotal().getFlush().getTotal());
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getFlush().getTotal());

@@ -47,6 +47,7 @@ import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.*;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -104,11 +105,13 @@ public class BinaryFieldMapper extends AbstractFieldMapper<BytesReference> {
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             BinaryFieldMapper.Builder builder = binaryField(name);
             parseField(builder, name, node, parserContext);
-            for (Map.Entry<String, Object> entry : node.entrySet()) {
+            for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
+                Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("compress") && fieldNode != null) {
                     builder.compress(nodeBooleanValue(fieldNode));
+                    iterator.remove();
                 } else if (fieldName.equals("compress_threshold") && fieldNode != null) {
                     if (fieldNode instanceof Number) {
                         builder.compressThreshold(((Number) fieldNode).longValue());
@@ -117,6 +120,7 @@ public class BinaryFieldMapper extends AbstractFieldMapper<BytesReference> {
                         builder.compressThreshold(ByteSizeValue.parseBytesSizeValue(fieldNode.toString()).bytes());
                         builder.compress(true);
                     }
+                    iterator.remove();
                 }
             }
             return builder;

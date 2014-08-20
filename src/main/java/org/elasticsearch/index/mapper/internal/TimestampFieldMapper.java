@@ -39,6 +39,7 @@ import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -137,18 +138,23 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             TimestampFieldMapper.Builder builder = timestamp();
             parseField(builder, builder.name, node, parserContext);
-            for (Map.Entry<String, Object> entry : node.entrySet()) {
+            for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
+                Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("enabled")) {
                     EnabledAttributeMapper enabledState = nodeBooleanValue(fieldNode) ? EnabledAttributeMapper.ENABLED : EnabledAttributeMapper.DISABLED;
                     builder.enabled(enabledState);
+                    iterator.remove();
                 } else if (fieldName.equals("path")) {
                     builder.path(fieldNode.toString());
+                    iterator.remove();
                 } else if (fieldName.equals("format")) {
                     builder.dateTimeFormatter(parseDateTimeFormatter(fieldNode.toString()));
+                    iterator.remove();
                 } else if (fieldName.equals("default")) {
                     builder.defaultTimestamp(fieldNode == null ? null : fieldNode.toString());
+                    iterator.remove();
                 }
             }
             return builder;

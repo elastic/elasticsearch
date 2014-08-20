@@ -239,7 +239,7 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
         return shardStatus;
     }
 
-    static class IndexShardStatusRequest extends BroadcastShardOperationRequest {
+    public static class IndexShardStatusRequest extends BroadcastShardOperationRequest {
 
         boolean recovery;
 

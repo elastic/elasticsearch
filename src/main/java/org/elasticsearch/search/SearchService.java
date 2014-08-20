@@ -760,7 +760,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             final MapperService mapperService = indexShard.mapperService();
             final ObjectSet<String> warmUp = new ObjectOpenHashSet<>();
             for (DocumentMapper docMapper : mapperService.docMappers(false)) {
-                for (FieldMapper<?> fieldMapper : docMapper.mappers().mappers()) {
+                for (FieldMapper<?> fieldMapper : docMapper.mappers()) {
                     final String indexName = fieldMapper.names().indexName();
                     if (fieldMapper.fieldType().indexed() && !fieldMapper.fieldType().omitNorms() && fieldMapper.normsLoading(defaultLoading) == Loading.EAGER) {
                         warmUp.add(indexName);
@@ -816,7 +816,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             final MapperService mapperService = indexShard.mapperService();
             final Map<String, FieldMapper<?>> warmUp = new HashMap<>();
             for (DocumentMapper docMapper : mapperService.docMappers(false)) {
-                for (FieldMapper<?> fieldMapper : docMapper.mappers().mappers()) {
+                for (FieldMapper<?> fieldMapper : docMapper.mappers()) {
                     final FieldDataType fieldDataType = fieldMapper.fieldDataType();
                     if (fieldDataType == null) {
                         continue;
@@ -870,7 +870,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             final MapperService mapperService = indexShard.mapperService();
             final Map<String, FieldMapper<?>> warmUpGlobalOrdinals = new HashMap<>();
             for (DocumentMapper docMapper : mapperService.docMappers(false)) {
-                for (FieldMapper<?> fieldMapper : docMapper.mappers().mappers()) {
+                for (FieldMapper<?> fieldMapper : docMapper.mappers()) {
                     final FieldDataType fieldDataType = fieldMapper.fieldDataType();
                     if (fieldDataType == null) {
                         continue;

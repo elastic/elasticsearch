@@ -936,7 +936,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
             AbstractFieldMapper mergeWithMultiField = (AbstractFieldMapper) mergeWith;
 
-            List<FieldMapper> newFieldMappers = null;
+            List<FieldMapper<?>> newFieldMappers = null;
             ImmutableOpenMap.Builder<String, Mapper> newMappersBuilder = null;
 
             for (ObjectCursor<Mapper> cursor : mergeWithMultiField.multiFields.mappers.values()) {

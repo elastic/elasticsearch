@@ -25,6 +25,7 @@ import java.net.SocketException;
 import java.net.URL;
 import java.util.Locale;
 
+import static org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -33,6 +34,7 @@ import static org.hamcrest.Matchers.is;
  *
  */
 @ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE, numDataNodes = 1, transportClientRatio = 0.0, numClientNodes = 0)
+@AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch-shield/issues/36")
 public class IpFilteringIntegrationTests extends ElasticsearchIntegrationTest {
 
     @Override

@@ -15,7 +15,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.shield.n2n.N2NPlugin;
 import org.elasticsearch.shield.plugin.SecurityPlugin;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -34,12 +33,14 @@ import java.security.KeyStore;
 import java.security.SecureRandom;
 import java.util.Locale;
 
+import static org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import static org.hamcrest.Matchers.*;
 
 /**
  *
  */
 @ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE, numDataNodes = 1, transportClientRatio = 0.0, numClientNodes = 0)
+@AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch-shield/issues/36")
 public class SslRequireAuthTests extends ElasticsearchIntegrationTest {
 
     public static final HostnameVerifier HOSTNAME_VERIFIER = new HostnameVerifier() {

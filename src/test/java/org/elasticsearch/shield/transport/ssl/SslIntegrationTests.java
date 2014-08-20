@@ -21,7 +21,6 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
-import org.elasticsearch.shield.n2n.N2NPlugin;
 import org.elasticsearch.shield.plugin.SecurityPlugin;
 import org.elasticsearch.shield.transport.netty.NettySecuredTransport;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -40,12 +39,14 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.Locale;
 
+import static org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.hamcrest.Matchers.*;
 
 @ClusterScope(scope = Scope.SUITE, numDataNodes = 1, transportClientRatio = 0.0, numClientNodes = 0)
+@AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch-shield/issues/36")
 public class SslIntegrationTests extends ElasticsearchIntegrationTest {
 
     @ClassRule

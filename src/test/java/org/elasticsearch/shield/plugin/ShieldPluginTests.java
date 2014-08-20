@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+import static org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
@@ -33,6 +34,7 @@ import static org.hamcrest.Matchers.is;
  *
  */
 @ClusterScope(scope = Scope.SUITE, numDataNodes = 2, randomDynamicTemplates = false)
+@AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch-shield/issues/36")
 public class ShieldPluginTests extends ElasticsearchIntegrationTest {
 
 

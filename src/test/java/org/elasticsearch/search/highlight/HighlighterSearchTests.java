@@ -1477,7 +1477,7 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
     @Test
     public void testFastVectorHighlighterMultipleFields() {
         assertAcked(prepareCreate("test")
-                .addMapping("type1", "field1", "type=string,term_vectors=with_positions_offsets", "field2", "type=string,term_vectors=with_positions_offsets"));
+                .addMapping("type1", "field1", "type=string,term_vector=with_positions_offsets", "field2", "type=string,term_vector=with_positions_offsets"));
         ensureGreen();
 
         index("test", "type1", "1", "field1", "The <b>quick<b> brown fox", "field2", "The <b>slow<b> brown fox");

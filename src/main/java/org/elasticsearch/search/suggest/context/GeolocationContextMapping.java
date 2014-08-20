@@ -127,12 +127,16 @@ public class GeolocationContextMapping extends ContextMapping {
                 // ignore precision
             } else if (configPrecision instanceof Integer) {
                 builder.precision((Integer) configPrecision);
+                config.remove(FIELD_PRECISION);
             } else if (configPrecision instanceof Long) {
                 builder.precision((Long) configPrecision);
+                config.remove(FIELD_PRECISION);
             } else if (configPrecision instanceof Double) {
                 builder.precision((Double) configPrecision);
+                config.remove(FIELD_PRECISION);
             } else if (configPrecision instanceof Float) {
                 builder.precision((Float) configPrecision);
+                config.remove(FIELD_PRECISION);
             } else if (configPrecision instanceof Iterable) {
                 for (Object precision : (Iterable)configPrecision) {
                     if (precision instanceof Integer) {
@@ -147,13 +151,16 @@ public class GeolocationContextMapping extends ContextMapping {
                         builder.precision(precision.toString());
                     }
                 }
+                config.remove(FIELD_PRECISION);
             } else {
                 builder.precision(configPrecision.toString());
+                config.remove(FIELD_PRECISION);
             }
 
             final Object configNeighbors = config.get(FIELD_NEIGHBORS);
             if (configNeighbors != null) {
                 builder.neighbors((Boolean) configNeighbors);
+                config.remove(FIELD_NEIGHBORS);
             }
 
             final Object def = config.get(FIELD_MISSING);
@@ -176,11 +183,13 @@ public class GeolocationContextMapping extends ContextMapping {
                 } else {
                     throw new ElasticsearchParseException("field [" + FIELD_MISSING + "] must be of type string or list");
                 }
+                config.remove(FIELD_MISSING);
             }
 
             final Object fieldName = config.get(FIELD_FIELDNAME);
             if (fieldName != null) {
                 builder.field(fieldName.toString());
+                config.remove(FIELD_FIELDNAME);
             }
         }
         return builder.build();

@@ -43,7 +43,6 @@ public class ParentIdAggTests extends ElasticsearchIntegrationTest {
                 .startObject("childtype")
                 .startObject("_parent")
                 .field("type", "parenttype")
-                .field("store", true)
                 .endObject()
                 .endObject();
         assertAcked(prepareCreate("testidx").addMapping("childtype", mapping));

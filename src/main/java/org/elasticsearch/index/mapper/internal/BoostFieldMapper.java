@@ -48,6 +48,7 @@ import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.search.NumericRangeFieldDataFilter;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -103,14 +104,16 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder parse(String fieldName, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            String name = node.get("name") == null ? BoostFieldMapper.Defaults.NAME : node.get("name").toString();
+            String name = node.get("name") == null ? BoostFieldMapper.Defaults.NAME : node.remove("name").toString();
             BoostFieldMapper.Builder builder = MapperBuilders.boost(name);
             parseNumberField(builder, name, node, parserContext);
-            for (Map.Entry<String, Object> entry : node.entrySet()) {
+            for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
+                Map.Entry<String, Object> entry = iterator.next();
                 String propName = Strings.toUnderscoreCase(entry.getKey());
                 Object propNode = entry.getValue();
                 if (propName.equals("null_value")) {
                     builder.nullValue(nodeFloatValue(propNode));
+                    iterator.remove();
                 }
             }
             return builder;

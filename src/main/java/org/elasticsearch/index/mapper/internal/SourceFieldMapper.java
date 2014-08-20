@@ -48,6 +48,7 @@ import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -139,23 +140,32 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             SourceFieldMapper.Builder builder = source();
 
-            for (Map.Entry<String, Object> entry : node.entrySet()) {
+            for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
+                Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("enabled")) {
                     builder.enabled(nodeBooleanValue(fieldNode));
-                } else if (fieldName.equals("compress") && fieldNode != null) {
-                    builder.compress(nodeBooleanValue(fieldNode));
-                } else if (fieldName.equals("compress_threshold") && fieldNode != null) {
-                    if (fieldNode instanceof Number) {
-                        builder.compressThreshold(((Number) fieldNode).longValue());
-                        builder.compress(true);
-                    } else {
-                        builder.compressThreshold(ByteSizeValue.parseBytesSizeValue(fieldNode.toString()).bytes());
-                        builder.compress(true);
+                    iterator.remove();
+                } else if (fieldName.equals("compress")) {
+                    if (fieldNode != null) {
+                        builder.compress(nodeBooleanValue(fieldNode));
                     }
+                    iterator.remove();
+                } else if (fieldName.equals("compress_threshold")) {
+                    if (fieldNode != null) {
+                        if (fieldNode instanceof Number) {
+                            builder.compressThreshold(((Number) fieldNode).longValue());
+                            builder.compress(true);
+                        } else {
+                            builder.compressThreshold(ByteSizeValue.parseBytesSizeValue(fieldNode.toString()).bytes());
+                            builder.compress(true);
+                        }
+                    }
+                    iterator.remove();
                 } else if ("format".equals(fieldName)) {
                     builder.format(nodeStringValue(fieldNode, null));
+                    iterator.remove();
                 } else if (fieldName.equals("includes")) {
                     List<Object> values = (List<Object>) fieldNode;
                     String[] includes = new String[values.size()];
@@ -163,6 +173,7 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
                         includes[i] = values.get(i).toString();
                     }
                     builder.includes(includes);
+                    iterator.remove();
                 } else if (fieldName.equals("excludes")) {
                     List<Object> values = (List<Object>) fieldNode;
                     String[] excludes = new String[values.size()];
@@ -170,6 +181,7 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
                         excludes[i] = values.get(i).toString();
                     }
                     builder.excludes(excludes);
+                    iterator.remove();
                 }
             }
             return builder;

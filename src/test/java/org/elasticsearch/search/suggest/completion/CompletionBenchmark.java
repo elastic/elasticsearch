@@ -62,7 +62,6 @@ public class CompletionBenchmark extends ElasticsearchTestCase {
 
     private final static Random random = new Random(0xdeadbeef);
 
-
     private static class Input {
         private String term;
         private int weight;
@@ -146,6 +145,9 @@ public class CompletionBenchmark extends ElasticsearchTestCase {
         runPerformanceTest(minPrefixLen, maxPrefixLen, num);
     }
 
+    /**
+     * Test NRT lookup performance with varying percentage of deleted documents
+     */
     @Test
     public void testNRTDeletedDocFiltering() throws Exception {
         System.out.println("-- NRT Lookup performance with deleted doc filtering");
@@ -169,6 +171,9 @@ public class CompletionBenchmark extends ElasticsearchTestCase {
         }
     }
 
+    /**
+     * Test RAM consumption
+     */
     @Test
     public void testStorageNeeds() throws Exception {
         System.out.println("-- RAM consumption");
@@ -182,6 +187,9 @@ public class CompletionBenchmark extends ElasticsearchTestCase {
     }
 
 
+    /**
+     * Test time to build
+     */
     @Test
     public void testBuildPerformance() throws Exception {
         System.out.println("-- Build time");

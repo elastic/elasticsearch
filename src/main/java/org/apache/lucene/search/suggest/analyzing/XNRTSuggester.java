@@ -41,55 +41,19 @@ import java.io.*;
 import java.util.*;
 
 /**
- * Suggester that first analyzes the surface form, adds the
- * analyzed form to a weighted FST, and then does the same
- * thing at lookup time.  This means lookup is based on the
- * analyzed form while suggestions are still the surface
- * form(s).
+ * Currently A fork of {@link org.apache.lucene.search.suggest.analyzing.XAnalyzingSuggester}
+ * with very limited NRT capabilities.
+ * Only Supported NRT feature is deleted document filtering from suggestions.
+ * NOTE: This is still largely a work in progress.
  *
- * <p>
- * This can result in powerful suggester functionality.  For
- * example, if you use an analyzer removing stop words, 
- * then the partial text "ghost chr..." could see the
- * suggestion "The Ghost of Christmas Past".  Note that
- * position increments MUST NOT be preserved for this example
- * to work, so you should call the constructor with
- * <code>preservePositionIncrements</code> parameter set to
- * false
- *
- * <p>
- * If SynonymFilter is used to map wifi and wireless network to
- * hotspot then the partial text "wirele..." could suggest
- * "wifi router".  Token normalization like stemmers, accent
- * removal, etc., would allow suggestions to ignore such
- * variations.
- *
- * <p>
- * When two matching suggestions have the same weight, they
- * are tie-broken by the analyzed form.  If their analyzed
- * form is the same then the order is undefined.
- *
- * <p>
- * There are some limitations:
- * <ul>
- *
- *   <li> A lookup from a query like "net" in English won't
- *        be any different than "net " (ie, user added a
- *        trailing space) because analyzers don't reflect
- *        when they've seen a token separator and when they
- *        haven't.
- *
- *   <li> If you're using {@code StopFilter}, and the user will
- *        type "fast apple", but so far all they've typed is
- *        "fast a", again because the analyzer doesn't convey whether
- *        it's seen a token separator after the "a",
- *        {@code StopFilter} will remove that "a" causing
- *        far more matches than you'd expect.
- *
- *   <li> Lookups with the empty string return no results
- *        instead of all results.
- * </ul>
- * 
+ * TODO:
+ *   - Support optional surface form deduplication
+ *   - Flexible Scoring/Weighting:
+ *     - allow factoring in external factors (lookup key, surface form) to weighting suggestions
+ *     - support context using outputs
+ *   - Support returning arbitrary StoredFields from documents of resulting suggestions
+ *   - General Refactoring
+ *   
  * @lucene.experimental
  */
 public class XNRTSuggester extends Lookup {

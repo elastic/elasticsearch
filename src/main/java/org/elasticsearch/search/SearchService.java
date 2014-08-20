@@ -954,7 +954,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                             boolean canCache = indicesQueryCache.canCache(request, context);
                             // early terminate when we can cache, since we can only do proper caching on top level searcher
                             // also, if we can't cache, and its top, we don't need to execute it, since we already did when its not top
-                            if ((canCache && !top) || (!canCache && top)) {
+                            if (canCache != top) {
                                 return;
                             }
                             if (canCache) {

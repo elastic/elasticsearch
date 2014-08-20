@@ -7,8 +7,12 @@ package org.elasticsearch.shield.plugin;
 
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.http.HttpServerModule;
 import org.elasticsearch.plugins.AbstractPlugin;
 import org.elasticsearch.shield.SecurityModule;
+import org.elasticsearch.shield.transport.netty.NettySecuredHttpServerTransport;
+import org.elasticsearch.shield.transport.netty.NettySecuredTransport;
+import org.elasticsearch.transport.TransportModule;
 
 import java.util.Collection;
 

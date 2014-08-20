@@ -17,6 +17,8 @@ import org.elasticsearch.shield.authc.AuthenticationModule;
 import org.elasticsearch.shield.authz.AuthorizationModule;
 import org.elasticsearch.shield.n2n.N2NModule;
 import org.elasticsearch.shield.transport.SecuredTransportModule;
+import org.elasticsearch.shield.transport.netty.NettySecuredHttpServerTransportModule;
+import org.elasticsearch.shield.transport.netty.NettySecuredTransportModule;
 
 /**
  *
@@ -54,6 +56,8 @@ public class SecurityModule extends AbstractModule implements SpawnModules, PreP
                 new AuthorizationModule(),
                 new AuditTrailModule(settings),
                 new N2NModule(),
+                new NettySecuredHttpServerTransportModule(),
+                new NettySecuredTransportModule(),
                 new SecuredTransportModule(settings));
     }
 

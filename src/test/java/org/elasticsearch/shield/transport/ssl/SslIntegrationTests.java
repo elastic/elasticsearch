@@ -22,8 +22,8 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
 import org.elasticsearch.shield.n2n.N2NPlugin;
-import org.elasticsearch.shield.transport.netty.NettySecuredHttpServerTransportModule;
-import org.elasticsearch.shield.transport.netty.NettySecuredTransportModule;
+import org.elasticsearch.shield.plugin.SecurityPlugin;
+import org.elasticsearch.shield.transport.netty.NettySecuredTransport;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.Transport;
@@ -88,9 +88,7 @@ public class SslIntegrationTests extends ElasticsearchIntegrationTest {
                 .put("shield.http.ssl.truststore", testnodeStore.getPath())
                 .put("shield.http.ssl.truststore_password", "testnode")
                 // SSL SETUP
-                .put("http.type", NettySecuredHttpServerTransportModule.class.getName())
-                .put("plugin.types", N2NPlugin.class.getName())
-                .put(TransportModule.TRANSPORT_TYPE_KEY, NettySecuredTransportModule.class.getName())
+                .put("plugin.types", SecurityPlugin.class.getName())
                 .put("shield.n2n.file", ipFilterFile.getPath());
 
         if (OsUtils.MAC) {
@@ -125,6 +123,7 @@ public class SslIntegrationTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    @TestLogging("_root:DEBUG")
     public void testConnectNodeWorks() throws Exception {
         try (Node node = NodeBuilder.nodeBuilder().settings(getSettings("ssl_node")).node().start()) {
             try (Client client = node.client()) {
@@ -227,7 +226,7 @@ public class SslIntegrationTests extends ElasticsearchIntegrationTest {
                 .put("shield.transport.ssl.truststore", testClientTrustStore .getPath())
                 .put("shield.transport.ssl.truststore_password", "testclient")
                 .put("discovery.zen.ping.multicast.ping.enabled", false)
-                .put(TransportModule.TRANSPORT_TYPE_KEY, NettySecuredTransportModule.class.getName())
+                .put(TransportModule.TRANSPORT_TYPE_KEY, NettySecuredTransport.class.getName())
                 .put("shield.n2n.file", ipFilterFile.getPath())
                 .put("cluster.name", internalCluster().getClusterName());
     }

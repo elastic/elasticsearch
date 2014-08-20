@@ -16,11 +16,9 @@ import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.shield.n2n.N2NPlugin;
-import org.elasticsearch.shield.transport.netty.NettySecuredHttpServerTransportModule;
-import org.elasticsearch.shield.transport.netty.NettySecuredTransportModule;
+import org.elasticsearch.shield.plugin.SecurityPlugin;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.elasticsearch.transport.TransportModule;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Test;
@@ -91,11 +89,7 @@ public class SslRequireAuthTests extends ElasticsearchIntegrationTest {
                 .put("shield.http.ssl.keystore_password", "testnode")
                 .put("shield.http.ssl.truststore", testnodeStore.getPath())
                 .put("shield.http.ssl.truststore_password", "testnode")
-                // SSL SETUP
-                .put("http.type", NettySecuredHttpServerTransportModule.class.getName())
-                .put(TransportModule.TRANSPORT_TYPE_KEY, NettySecuredTransportModule.class.getName())
-                .put("plugins.load_classpath_plugins", false)
-                .put("plugin.types", N2NPlugin.class.getName())
+                .put("plugin.types", SecurityPlugin.class.getName())
                 .put("shield.n2n.file", ipFilterFile.getPath());
 
         if (OsUtils.MAC) {

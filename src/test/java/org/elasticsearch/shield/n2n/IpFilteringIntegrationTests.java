@@ -14,11 +14,8 @@ import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.shield.plugin.SecurityPlugin;
-import org.elasticsearch.shield.transport.netty.NettySecuredHttpServerTransportModule;
-import org.elasticsearch.shield.transport.netty.NettySecuredTransportModule;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportModule;
 import org.junit.Ignore;
 import org.junit.Test;
 
@@ -46,9 +43,7 @@ public class IpFilteringIntegrationTests extends ElasticsearchIntegrationTest {
                 .put("node.mode", "network")
                 // todo http tests fail without an explicit IP (needs investigation)
                 .put("network.host", randomBoolean() ? "127.0.0.1" : "::1")
-                .put("http.type", NettySecuredHttpServerTransportModule.class.getName())
-                .put(TransportModule.TRANSPORT_TYPE_KEY, NettySecuredTransportModule.class.getName())
-                .put("plugin.types", N2NPlugin.class.getName());
+                .put("plugin.types", SecurityPlugin.class.getName());
                 //.put("shield.n2n.file", configFile.getPath())
 
         if (OsUtils.MAC) {
@@ -67,7 +62,7 @@ public class IpFilteringIntegrationTests extends ElasticsearchIntegrationTest {
         logger.info("Opening connection to {}", url);
         HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
         connection.connect();
-        connection.getResponseCode();
+        logger.info("HTTP connection response code [{}]", connection.getResponseCode());
     }
 
     @Ignore("Need to investigate further, why this does not fail")

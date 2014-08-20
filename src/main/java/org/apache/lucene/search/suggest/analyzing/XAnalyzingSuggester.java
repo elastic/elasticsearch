@@ -95,44 +95,44 @@ import java.util.*;
 public class XAnalyzingSuggester extends Lookup {
 
   /**
-   * FST<Weight,Surface>:
+   * FST<Weight,Surface>: 
    *  input is the analyzed form, with a null byte between terms
    *  weights are encoded as costs: (Integer.MAX_VALUE-weight)
    *  surface is the original, unanalyzed form.
    */
   private FST<Pair<Long,BytesRef>> fst = null;
-
-  /**
+  
+  /** 
    * Analyzer that will be used for analyzing suggestions at
    * index time.
    */
   private final Analyzer indexAnalyzer;
 
-  /**
+  /** 
    * Analyzer that will be used for analyzing suggestions at
    * query time.
    */
   private final Analyzer queryAnalyzer;
-
-  /**
+  
+  /** 
    * True if exact match suggestions should always be returned first.
    */
   private final boolean exactFirst;
-
-  /**
+  
+  /** 
    * True if separator between tokens should be preserved.
    */
   private final boolean preserveSep;
 
   /** Include this flag in the options parameter to {@link
-   *  #XAnalyzingSuggester(org.apache.lucene.analysis.Analyzer, org.apache.lucene.analysis.Analyzer,int,int,int,boolean, org.apache.lucene.util.fst.FST,boolean,int,int,int,int,int)} to always
+   *  #XAnalyzingSuggester(Analyzer,Analyzer,int,int,int,boolean,FST,boolean,int,int,int,int,int)} to always
    *  return the exact match first, regardless of score.  This
    *  has no performance impact but could result in
    *  low-quality suggestions. */
   public static final int EXACT_FIRST = 1;
 
   /** Include this flag in the options parameter to {@link
-   *  #XAnalyzingSuggester(org.apache.lucene.analysis.Analyzer, org.apache.lucene.analysis.Analyzer,int,int,int,boolean, org.apache.lucene.util.fst.FST,boolean,int,int,int,int,int)} to preserve
+   *  #XAnalyzingSuggester(Analyzer,Analyzer,int,int,int,boolean,FST,boolean,int,int,int,int,int)} to preserve
    *  token separators when matching. */
   public static final int PRESERVE_SEP = 2;
 
@@ -168,7 +168,7 @@ public class XAnalyzingSuggester extends Lookup {
 
   public static final int PAYLOAD_SEP = '\u001F';
   public static final int HOLE_CHARACTER = '\u001E';
-
+  
   private final Automaton queryPrefix;
 
   /** Whether position holes should appear in the automaton. */
@@ -178,7 +178,7 @@ public class XAnalyzingSuggester extends Lookup {
   private long count = 0;
 
     /**
-   * Calls {@link #XAnalyzingSuggester(org.apache.lucene.analysis.Analyzer, org.apache.lucene.analysis.Analyzer,int,int,int,boolean, org.apache.lucene.util.fst.FST,boolean,int,int,int,int,int)
+   * Calls {@link #XAnalyzingSuggester(Analyzer,Analyzer,int,int,int,boolean,FST,boolean,int,int,int,int,int)
    * AnalyzingSuggester(analyzer, analyzer, EXACT_FIRST |
    * PRESERVE_SEP, 256, -1)}
    */
@@ -187,7 +187,7 @@ public class XAnalyzingSuggester extends Lookup {
   }
 
   /**
-   * Calls {@link #XAnalyzingSuggester(org.apache.lucene.analysis.Analyzer, org.apache.lucene.analysis.Analyzer,int,int,int,boolean, org.apache.lucene.util.fst.FST,boolean,int,int,int,int,int)
+   * Calls {@link #XAnalyzingSuggester(Analyzer,Analyzer,int,int,int,boolean,FST,boolean,int,int,int,int,int)
    * AnalyzingSuggester(indexAnalyzer, queryAnalyzer, EXACT_FIRST |
    * PRESERVE_SEP, 256, -1)}
    */
@@ -197,7 +197,7 @@ public class XAnalyzingSuggester extends Lookup {
 
   /**
    * Creates a new suggester.
-   *
+   * 
    * @param indexAnalyzer Analyzer that will be used for
    *   analyzing suggestions while building the index.
    * @param queryAnalyzer Analyzer that will be used for
@@ -212,9 +212,9 @@ public class XAnalyzingSuggester extends Lookup {
    *   no limit.
    */
   public XAnalyzingSuggester(Analyzer indexAnalyzer, Automaton queryPrefix, Analyzer queryAnalyzer, int options, int maxSurfaceFormsPerAnalyzedForm, int maxGraphExpansions,
-                              boolean preservePositionIncrements, FST<Pair<Long, BytesRef>> fst, boolean hasPayloads, int maxAnalyzedPathsForOneInput,
-                              int sepLabel, int payloadSep, int endByte, int holeCharacter) {
-      // SIMON EDIT: I added fst, hasPayloads and maxAnalyzedPathsForOneInput
+                             boolean preservePositionIncrements, FST<Pair<Long, BytesRef>> fst, boolean hasPayloads, int maxAnalyzedPathsForOneInput,
+                             int sepLabel, int payloadSep, int endByte, int holeCharacter) {
+      // SIMON EDIT: I added fst, hasPayloads and maxAnalyzedPathsForOneInput 
     this.indexAnalyzer = indexAnalyzer;
     this.queryAnalyzer = queryAnalyzer;
     this.fst = fst;
@@ -227,7 +227,7 @@ public class XAnalyzingSuggester extends Lookup {
 
     // FLORIAN EDIT: I added <code>queryPrefix</code> for context dependent suggestions
     this.queryPrefix = queryPrefix;
-
+    
     // NOTE: this is just an implementation limitation; if
     // somehow this is a problem we could fix it by using
     // more than one byte to disambiguate ... but 256 seems
@@ -357,7 +357,7 @@ public class XAnalyzingSuggester extends Lookup {
     tsta.setPreservePositionIncrements(preservePositionIncrements);
     return tsta;
   }
-
+  
   private static class AnalyzingComparator implements Comparator<BytesRef> {
 
     private final boolean hasPayloads;
@@ -440,13 +440,13 @@ public class XAnalyzingSuggester extends Lookup {
 
       while ((surfaceForm = iterator.next()) != null) {
         Set<IntsRef> paths = toFiniteStrings(surfaceForm, ts2a);
-
+        
         maxAnalyzedPathsForOneInput = Math.max(maxAnalyzedPathsForOneInput, paths.size());
 
         for (IntsRef path : paths) {
 
           Util.toBytesRef(path, scratch);
-
+          
           // length of the analyzed text (FST input)
           if (scratch.length > Short.MAX_VALUE-2) {
             throw new IllegalArgumentException("cannot handle analyzed forms > " + (Short.MAX_VALUE-2) + " in length (got " + scratch.length + ")");
@@ -469,9 +469,9 @@ public class XAnalyzingSuggester extends Lookup {
           } else {
             payload = null;
           }
-
+          
           buffer = ArrayUtil.grow(buffer, requiredLength);
-
+          
           output.reset(buffer);
 
           output.writeShort(analyzedLength);
@@ -508,7 +508,7 @@ public class XAnalyzingSuggester extends Lookup {
       tempInput.delete();
 
       reader = new OfflineSorter.ByteSequencesReader(tempSorted);
-
+     
       PairOutputs<Long,BytesRef> outputs = new PairOutputs<>(PositiveIntOutputs.getSingleton(), ByteSequenceOutputs.getSingleton());
       Builder<Pair<Long,BytesRef>> builder = new Builder<>(FST.INPUT_TYPE.BYTE1, outputs);
 
@@ -543,7 +543,7 @@ public class XAnalyzingSuggester extends Lookup {
           surface.offset = input.getPosition();
           surface.length = scratch.length - surface.offset;
         }
-
+        
         if (previousAnalyzed == null) {
           previousAnalyzed = new BytesRef();
           previousAnalyzed.copyBytes(analyzed);
@@ -606,7 +606,7 @@ public class XAnalyzingSuggester extends Lookup {
       } else {
         IOUtils.closeWhileHandlingException(reader, writer);
       }
-
+      
       tempInput.delete();
       tempSorted.delete();
     }
@@ -719,7 +719,7 @@ public class XAnalyzingSuggester extends Lookup {
       final CharsRef spare = new CharsRef();
 
       //System.out.println("  now intersect exactFirst=" + exactFirst);
-
+    
       // Intersect automaton w/ suggest wFST and get all
       // prefix starting nodes & their outputs:
       //final PathIntersector intersector = getPathIntersector(lookupAutomaton, fst);
@@ -763,7 +763,7 @@ public class XAnalyzingSuggester extends Lookup {
           }
         }
 
-        TopResults<Pair<Long,BytesRef>> completions = searcher.search();
+        Util.TopResults<Pair<Long,BytesRef>> completions = searcher.search();
 
         // NOTE: this is rather inefficient: we enumerate
         // every matching "exactly the same analyzed form"
@@ -989,7 +989,7 @@ public class XAnalyzingSuggester extends Lookup {
             this.analyzed.copyBytes(analyzed);
             this.analyzed.grow(analyzed.length+2);
         }
-
+        
         private final static class SurfaceFormAndPayload implements Comparable<SurfaceFormAndPayload> {
             BytesRef payload;
             long weight;
@@ -1058,7 +1058,6 @@ public class XAnalyzingSuggester extends Lookup {
                 surfaceFormsAndPayload[surfaceIndex].payload = payloadRef;
                 surfaceFormsAndPayload[surfaceIndex].weight = encodedWeight;
             }
-            return;
         }
         
         public void finishTerm(long defaultWeight) throws IOException {

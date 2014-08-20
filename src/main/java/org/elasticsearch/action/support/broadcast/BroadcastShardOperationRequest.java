@@ -49,6 +49,7 @@ public abstract class BroadcastShardOperationRequest extends TransportRequest im
 
     protected BroadcastShardOperationRequest(ShardId shardId) {
         this.shardId = shardId;
+        this.originalIndices = OriginalIndices.EMPTY;
     }
 
     public ShardId shardId() {

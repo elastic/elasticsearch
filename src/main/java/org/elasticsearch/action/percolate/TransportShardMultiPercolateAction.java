@@ -117,10 +117,10 @@ public class TransportShardMultiPercolateAction extends TransportShardSingleOper
         private String preference;
         private List<Item> items;
 
-        public Request() {
+        Request() {
         }
 
-        public Request(String concreteIndex, int shardId, String preference) {
+        Request(String concreteIndex, int shardId, String preference) {
             this.index = concreteIndex;
             this.shardId = shardId;
             this.preference = preference;

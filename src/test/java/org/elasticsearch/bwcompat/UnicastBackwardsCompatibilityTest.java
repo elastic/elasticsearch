@@ -45,7 +45,7 @@ public class UnicastBackwardsCompatibilityTest extends ElasticsearchBackwardsCom
                 .put("transport.tcp.port", 9390 + nodeOrdinal)
                 .put("discovery.zen.ping.multicast.enabled", false)
                 .put("discovery.zen.ping.unicast.hosts", "localhost:9380,localhost:9381,localhost:9390,localhost:9391")
-                .put(super.nodeSettings(nodeOrdinal))
+                .put(super.externalNodeSettings(nodeOrdinal))
                 .build();
     }
 

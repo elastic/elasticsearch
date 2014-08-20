@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-@ClusterScope(scope = Scope.SUITE, numDataNodes = 2)
+@ClusterScope(scope = Scope.SUITE, numDataNodes = 2, transportClientRatio = 0.0)
 public class PluggableTransportModuleTests extends ElasticsearchIntegrationTest {
 
     public static final AtomicInteger SENT_REQUEST_COUNTER = new AtomicInteger(0);

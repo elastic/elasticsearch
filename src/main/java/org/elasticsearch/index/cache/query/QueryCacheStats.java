@@ -35,18 +35,24 @@ public class QueryCacheStats implements Streamable, ToXContent {
 
     long memorySize;
     long evictions;
+    long hitCount;
+    long missCount;
 
     public QueryCacheStats() {
     }
 
-    public QueryCacheStats(long memorySize, long evictions) {
+    public QueryCacheStats(long memorySize, long evictions, long hitCount, long missCount) {
         this.memorySize = memorySize;
         this.evictions = evictions;
+        this.hitCount = hitCount;
+        this.missCount = missCount;
     }
 
     public void add(QueryCacheStats stats) {
         this.memorySize += stats.memorySize;
         this.evictions += stats.evictions;
+        this.hitCount += stats.hitCount;
+        this.missCount += stats.missCount;
     }
 
     public long getMemorySizeInBytes() {
@@ -61,16 +67,28 @@ public class QueryCacheStats implements Streamable, ToXContent {
         return this.evictions;
     }
 
+    public long getHitCount() {
+        return this.hitCount;
+    }
+
+    public long getMissCount() {
+        return this.missCount;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         memorySize = in.readVLong();
         evictions = in.readVLong();
+        hitCount = in.readVLong();
+        missCount = in.readVLong();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(memorySize);
         out.writeVLong(evictions);
+        out.writeVLong(hitCount);
+        out.writeVLong(missCount);
     }
 
     @Override
@@ -78,6 +96,8 @@ public class QueryCacheStats implements Streamable, ToXContent {
         builder.startObject(Fields.QUERY_CACHE_STATS);
         builder.byteSizeField(Fields.MEMORY_SIZE_IN_BYTES, Fields.MEMORY_SIZE, memorySize);
         builder.field(Fields.EVICTIONS, getEvictions());
+        builder.field(Fields.HIT_COUNT, getHitCount());
+        builder.field(Fields.MISS_COUNT, getMissCount());
         builder.endObject();
         return builder;
     }
@@ -87,5 +107,7 @@ public class QueryCacheStats implements Streamable, ToXContent {
         static final XContentBuilderString MEMORY_SIZE = new XContentBuilderString("memory_size");
         static final XContentBuilderString MEMORY_SIZE_IN_BYTES = new XContentBuilderString("memory_size_in_bytes");
         static final XContentBuilderString EVICTIONS = new XContentBuilderString("evictions");
+        static final XContentBuilderString HIT_COUNT = new XContentBuilderString("hit_count");
+        static final XContentBuilderString MISS_COUNT = new XContentBuilderString("miss_count");
     }
 }

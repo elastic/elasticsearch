@@ -40,6 +40,8 @@ public class ShardQueryCache extends AbstractIndexShardComponent implements Remo
 
     final CounterMetric evictionsMetric = new CounterMetric();
     final CounterMetric totalMetric = new CounterMetric();
+    final CounterMetric hitCount = new CounterMetric();
+    final CounterMetric missCount = new CounterMetric();
 
     @Inject
     public ShardQueryCache(ShardId shardId, @IndexSettings Settings indexSettings) {
@@ -47,7 +49,15 @@ public class ShardQueryCache extends AbstractIndexShardComponent implements Remo
     }
 
     public QueryCacheStats stats() {
-        return new QueryCacheStats(totalMetric.count(), evictionsMetric.count());
+        return new QueryCacheStats(totalMetric.count(), evictionsMetric.count(), hitCount.count(), missCount.count());
+    }
+
+    public void onHit() {
+        hitCount.inc();
+    }
+
+    public void onMiss() {
+        missCount.inc();
     }
 
     public void onCached(IndicesQueryCache.Key key, BytesReference value) {

@@ -124,6 +124,8 @@ public class RestNodesAction extends AbstractCatAction {
 
         table.addCell("query_cache.memory_size", "alias:qcm,queryCacheMemory;default:false;text-align:right;desc:used query cache");
         table.addCell("query_cache.evictions", "alias:qce,queryCacheEvictions;default:false;text-align:right;desc:query cache evictions");
+        table.addCell("query_cache.hit_count", "alias:qchc,queryCacheHitCount;default:false;text-align:right;desc:query cache hit counts");
+        table.addCell("query_cache.miss_count", "alias:qcmc,queryCacheMissCount;default:false;text-align:right;desc:query cache miss counts");
 
         table.addCell("flush.total", "alias:ft,flushTotal;default:false;text-align:right;desc:number of flushes");
         table.addCell("flush.total_time", "alias:ftt,flushTotalTime;default:false;text-align:right;desc:time spent in flush");
@@ -231,6 +233,8 @@ public class RestNodesAction extends AbstractCatAction {
 
             table.addCell(stats == null ? null : stats.getIndices().getQueryCache().getMemorySize());
             table.addCell(stats == null ? null : stats.getIndices().getQueryCache().getEvictions());
+            table.addCell(stats == null ? null : stats.getIndices().getQueryCache().getHitCount());
+            table.addCell(stats == null ? null : stats.getIndices().getQueryCache().getMissCount());
 
             table.addCell(stats == null ? null : stats.getIndices().getFlush().getTotal());
             table.addCell(stats == null ? null : stats.getIndices().getFlush().getTotalTime());

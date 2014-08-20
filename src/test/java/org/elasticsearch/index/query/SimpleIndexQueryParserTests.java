@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.index.*;
 import org.apache.lucene.index.memory.MemoryIndex;
@@ -193,8 +194,9 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         assertThat(parsedQuery, instanceOf(BooleanQuery.class));
         BooleanQuery bQuery = (BooleanQuery) parsedQuery;
         assertThat(bQuery.clauses().size(), equalTo(2));
-        assertThat(assertBooleanSubQuery(parsedQuery, TermQuery.class, 0).getTerm(), equalTo(new Term("name.first", "test")));
-        assertThat(assertBooleanSubQuery(parsedQuery, TermQuery.class, 1).getTerm(), equalTo(new Term("name.last", "test")));
+        assertEquals(Sets.newHashSet(new Term("name.first", "test"), new Term("name.last", "test")),
+                Sets.newHashSet(assertBooleanSubQuery(parsedQuery, TermQuery.class, 0).getTerm(),
+                        assertBooleanSubQuery(parsedQuery, TermQuery.class, 1).getTerm()));
     }
 
     @Test

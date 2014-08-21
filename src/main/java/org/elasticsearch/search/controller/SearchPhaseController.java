@@ -24,7 +24,6 @@ import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -73,7 +72,7 @@ public class SearchPhaseController extends AbstractComponent {
     private ScriptService scriptService;
 
     @Inject
-    public SearchPhaseController(Settings settings, CacheRecycler cacheRecycler, BigArrays bigArrays, ScriptService scriptService) {
+    public SearchPhaseController(Settings settings, BigArrays bigArrays, ScriptService scriptService) {
         super(settings);
         this.bigArrays = bigArrays;
         this.scriptService = scriptService;

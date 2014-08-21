@@ -21,9 +21,11 @@ package org.elasticsearch.index.store;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Iterables;
 import org.apache.lucene.codecs.CodecUtil;
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.SegmentCommitInfo;
+import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.*;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.Version;
@@ -457,21 +459,17 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
                     return ImmutableMap.of();
                 }
                 Version maxVersion = Version.LUCENE_3_0; // we don't know which version was used to write so we take the max version.
-                Set<String> added = new HashSet<>();
                 for (SegmentCommitInfo info : segmentCommitInfos) {
                     final Version version = Lucene.parseVersionLenient(info.info.getVersion(), Version.LUCENE_3_0);
                     if (version.onOrAfter(maxVersion)) {
                         maxVersion = version;
                     }
-                    for (String file : Iterables.concat(info.info.files(), info.files())) {
-                        if (!added.contains(file)) {
-                            String legacyChecksum = checksumMap.get(file);
-                            if (version.onOrAfter(Version.LUCENE_4_8) && legacyChecksum == null) {
-                                checksumFromLuceneFile(directory, file, builder, logger, version);
-                            } else {
-                                builder.put(file, new StoreFileMetaData(file, directory.fileLength(file), legacyChecksum, null));
-                            }
-                            added.add(file);
+                    for (String file : info.files()) {
+                        String legacyChecksum = checksumMap.get(file);
+                        if (version.onOrAfter(Version.LUCENE_4_8) && legacyChecksum == null) {
+                            checksumFromLuceneFile(directory, file, builder, logger, version);
+                        } else {
+                            builder.put(file, new StoreFileMetaData(file, directory.fileLength(file), legacyChecksum, null));
                         }
                     }
                 }

@@ -22,6 +22,7 @@ package org.elasticsearch.common.logging.log4j;
 import com.google.common.collect.ImmutableMap;
 import org.apache.log4j.PropertyConfigurator;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -29,8 +30,12 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.FailedToResolveConfigException;
 
 import java.io.IOException;
-import java.net.MalformedURLException;
-import java.nio.file.*;
+import java.net.URL;
+import java.nio.file.FileVisitOption;
+import java.nio.file.FileVisitResult;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.EnumSet;
 import java.util.Map;
@@ -104,24 +109,33 @@ public class LogConfigurator {
     public static void resolveConfig(Environment env, final ImmutableSettings.Builder settingsBuilder) {
 
         try {
-            Files.walkFileTree(env.configFile().toPath(), EnumSet.of(FileVisitOption.FOLLOW_LINKS), Integer.MAX_VALUE, new SimpleFileVisitor<Path>() {
-                @Override
-                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                    if (file.getFileName().toString().startsWith("logging.")) {
-                        loadConfig(file, settingsBuilder);
+
+            final String property = System.getProperty("es.logging");
+            if (Strings.hasText(property)) {
+
+                final URL url = env.resolveConfig(property);
+                loadConfig(settingsBuilder, url);
+            } else {
+
+                Files.walkFileTree(env.configFile().toPath(), EnumSet.of(FileVisitOption.FOLLOW_LINKS), Integer.MAX_VALUE, new SimpleFileVisitor<Path>() {
+                    @Override
+                    public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                        if (file.getFileName().toString().startsWith("logging.")) {
+                            loadConfig(settingsBuilder, file.toUri().toURL());
+                        }
+                        return FileVisitResult.CONTINUE;
                     }
-                    return FileVisitResult.CONTINUE;
-                }
-            });
+                });
+            }
         } catch (IOException ioe) {
             throw new ElasticsearchException("Failed to load logging configuration", ioe);
         }
     }
 
-    public static void loadConfig(Path file, ImmutableSettings.Builder settingsBuilder) {
+    public static void loadConfig(ImmutableSettings.Builder settingsBuilder, final URL url) {
         try {
-            settingsBuilder.loadFromUrl(file.toUri().toURL());
-        } catch (FailedToResolveConfigException | NoClassDefFoundError | MalformedURLException e) {
+            settingsBuilder.loadFromUrl(url);
+        } catch (FailedToResolveConfigException | NoClassDefFoundError e) {
             // ignore
         }
     }

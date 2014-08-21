@@ -309,4 +309,18 @@ All of the index level configuration can be found within each
 Elasticsearch uses an internal logging abstraction and comes, out of the
 box, with http://logging.apache.org/log4j/[log4j]. It tries to simplify
 log4j configuration by using http://www.yaml.org/[YAML] to configure it,
-and the logging configuration file is `config/logging.yml` file.
+and the logging configuration file is `config/logging.yml` file. Optionally,
+the location of the configuration file can be set externally using a system
+property, for example:
+
+[source,sh]
+--------------------------------------------------
+$ elasticsearch -Des.logging=/abs/path/to/logging/file.yml
+--------------------------------------------------
+
+or
+
+[source,sh]
+--------------------------------------------------
+$ elasticsearch -Des.logging=log_config_file_in_classpath.yml
+--------------------------------------------------

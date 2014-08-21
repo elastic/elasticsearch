@@ -72,6 +72,7 @@ import java.util.List;
 
 import static org.elasticsearch.common.io.Streams.copyToBytesFromClasspath;
 import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.index.query.RegexpFlag.*;
@@ -2298,7 +2299,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
     @Test
     public void testEmptyBooleanQuery() throws Exception {
         IndexQueryParserService queryParser = queryParser();
-        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/empty-bool-query.json");
+        String query = jsonBuilder().startObject().startObject("bool").endObject().endObject().string();
         Query parsedQuery = queryParser.parse(query).query();
         assertThat(parsedQuery, instanceOf(MatchAllDocsQuery.class));
     }

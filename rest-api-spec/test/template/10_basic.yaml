@@ -37,11 +37,11 @@
     get_template:
       id: "foobar"
   - match: { "status": 404 }
-  - match: { "error": "IndexedTemplateMissingException[[foobar] not found]" }
+  - match: { "error": "Template [foobar] not found" }
 
   - do:
     catch: missing
     delete_template:
       id: "foobar"
   - match: { "status": 404 }
-  - match: { "error": "IndexedTemplateMissingException[[foobar] not found]" }
+  - match: { "error": "Template [foobar] not found" }

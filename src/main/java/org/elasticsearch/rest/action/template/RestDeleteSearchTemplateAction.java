@@ -64,7 +64,7 @@ public class RestDeleteSearchTemplateAction extends BaseRestHandler {
                 } else {
                     builder.startObject();
                     builder.field("status", NOT_FOUND.getStatus());
-                    builder.field("error", "IndexedTemplateMissingException[[" + id + "] not found]");
+                    builder.field("error", "Template [" + id + "] not found");
                     builder.endObject();
                     status = NOT_FOUND;
                 }

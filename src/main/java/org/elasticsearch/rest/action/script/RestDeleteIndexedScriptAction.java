@@ -66,7 +66,7 @@ public class RestDeleteIndexedScriptAction extends BaseRestHandler {
                 } else {
                     builder.startObject();
                     builder.field("status", NOT_FOUND.getStatus());
-                    builder.field("error", "IndexedScriptMissingException[[" + id + "] not found]");
+                    builder.field("error", "Script [" + id + "] not found");
                     builder.endObject();
                     status = NOT_FOUND;
                 }

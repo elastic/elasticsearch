@@ -33,7 +33,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
 
-public class StringTermsWithoutClusterScopeTests extends ElasticsearchIntegrationTest {
+public class DedicatedAggregationTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void issue7240EmptyBoolShouldReturnMatchAll() throws IOException {

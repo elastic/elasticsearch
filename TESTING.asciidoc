@@ -176,6 +176,18 @@ even if tests are passing.
 mvn test -Dtests.output=always
 ------------------------------
 
+Configure the heap size.
+
+------------------------------
+mvn test -Dtests.heap.size=512m 
+------------------------------
+
+Pass arbitrary jvm arguments.
+
+------------------------------
+mvn test -Dtests.jvm.argline="-XX:HeapDumpPath=/path/to/heapdumps"
+------------------------------
+
 == Testing the REST layer
 
 The available integration tests make use of the java API to communicate with

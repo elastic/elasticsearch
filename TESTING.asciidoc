@@ -199,6 +199,18 @@ even if tests are passing.
 mvn test -Dtests.output=always
 ------------------------------
 
+Configure the heap size.
+
+------------------------------
+mvn test -Dtests.heap.size=512m 
+------------------------------
+
+Pass arbitrary jvm arguments.
+
+------------------------------
+mvn test -Dtests.jvm.argline="-XX:HeapDumpPath=/path/to/heapdumps"
+------------------------------
+
 == Backwards Compatibility Tests
 
 Running backwards compatibility tests is disabled by default since it

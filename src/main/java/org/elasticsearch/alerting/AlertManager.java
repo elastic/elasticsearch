@@ -43,6 +43,7 @@ public class AlertManager extends AbstractLifecycleComponent {
 
     public final String ALERT_INDEX = ".alerts";
     public final String ALERT_TYPE = "alert";
+    public final String ALERT_HISTORY_INDEX = "alerthistory";
     public final String ALERT_HISTORY_TYPE = "alertHistory";
 
     public static final ParseField QUERY_FIELD =  new ParseField("query");
@@ -56,6 +57,7 @@ public class AlertManager extends AbstractLifecycleComponent {
     public static final ParseField ENABLED = new ParseField("enabled");
     public static final ParseField SIMPLE_QUERY = new ParseField("simple");
     public static final ParseField TIMESTAMP_FIELD = new ParseField("timefield");
+    public static final ParseField LAST_ACTION_FIRE = new ParseField("lastactionfire");
 
     private final Client client;
     private AlertScheduler scheduler;
@@ -76,7 +78,7 @@ public class AlertManager extends AbstractLifecycleComponent {
             while (attempts < 2) {
                 try {
                     logger.warn("Sleeping [{}]", attempts);
-                    Thread.sleep(10000);
+                    Thread.sleep(20000);
                     logger.warn("Slept");
                     break;
                 } catch (InterruptedException ie) {
@@ -152,6 +154,17 @@ public class AlertManager extends AbstractLifecycleComponent {
                 .health(Requests.clusterHealthRequest(ALERT_INDEX).waitForGreenStatus().waitForEvents(Priority.LANGUID).waitForRelocatingShards(0)).actionGet();
         return actionGet.getStatus();
     }
+
+    public DateTime timeActionLastTriggered(String alertName) {
+        Alert indexedAlert;
+        indexedAlert = getAlertFromIndex(alertName);
+        if (indexedAlert == null) {
+            return null;
+        } else {
+            return indexedAlert.lastActionFire();
+        }
+    }
+
 
     public boolean claimAlertRun(String alertName, DateTime scheduleRunTime) {
         Alert indexedAlert;
@@ -259,7 +272,6 @@ public class AlertManager extends AbstractLifecycleComponent {
                 } catch (ElasticsearchException e) {
                     logger.error("Unable to parse [{}] as an alert this alert will be skipped.",e,sh);
                 }
-
             }
             logger.warn("Loaded [{}] alerts from the alert index.", alertMap.size());
         }
@@ -269,17 +281,23 @@ public class AlertManager extends AbstractLifecycleComponent {
         return 0;
     }
 
-    public boolean updateLastRan(String alertName, DateTime fireTime) throws Exception {
+    public boolean updateLastRan(String alertName, DateTime fireTime, DateTime scheduledTime, boolean firedAction) throws Exception {
         try {
             synchronized (alertMap) {
                 Alert alert = getAlertForName(alertName);
                 alert.lastRan(fireTime);
                 XContentBuilder alertBuilder = XContentFactory.jsonBuilder().prettyPrint();
+                if (firedAction) {
+                    logger.error("Fired action [{}]",firedAction);
+                    alert.lastActionFire(scheduledTime);
+                }
                 alert.toXContent(alertBuilder, ToXContent.EMPTY_PARAMS);
+                logger.error(XContentHelper.convertToJson(alertBuilder.bytes(),false,true));
                 UpdateRequest updateRequest = new UpdateRequest();
                 updateRequest.id(alertName);
                 updateRequest.index(ALERT_INDEX);
                 updateRequest.type(ALERT_TYPE);
+
                 updateRequest.doc(alertBuilder);
                 updateRequest.refresh(true);
                 client.update(updateRequest).actionGet();
@@ -294,6 +312,7 @@ public class AlertManager extends AbstractLifecycleComponent {
     public boolean addHistory(String alertName, boolean triggered,
                               DateTime fireTime, SearchRequestBuilder triggeringQuery,
                               AlertTrigger trigger, long numberOfResults,
+                              List<AlertAction> actions,
                               @Nullable List<String> indices) throws Exception {
         XContentBuilder historyEntry = XContentFactory.jsonBuilder();
         historyEntry.startObject();
@@ -304,6 +323,12 @@ public class AlertManager extends AbstractLifecycleComponent {
         trigger.toXContent(historyEntry, ToXContent.EMPTY_PARAMS);
         historyEntry.field("queryRan", triggeringQuery.toString());
         historyEntry.field("numberOfResults", numberOfResults);
+        historyEntry.field("actions");
+        historyEntry.startArray();
+        for (AlertAction action : actions) {
+            action.toXContent(historyEntry, ToXContent.EMPTY_PARAMS);
+        }
+        historyEntry.endArray();
         if (indices != null) {
             historyEntry.field("indices");
             historyEntry.startArray();
@@ -314,14 +339,15 @@ public class AlertManager extends AbstractLifecycleComponent {
         }
         historyEntry.endObject();
         IndexRequest indexRequest = new IndexRequest();
-        indexRequest.index(ALERT_INDEX);
+        indexRequest.index(ALERT_HISTORY_INDEX);
         indexRequest.type(ALERT_HISTORY_TYPE);
         indexRequest.source(historyEntry);
         indexRequest.listenerThreaded(false);
         indexRequest.operationThreaded(false);
         indexRequest.refresh(true); //Always refresh after indexing an alert
         indexRequest.opType(IndexRequest.OpType.CREATE);
-        return client.index(indexRequest).actionGet().isCreated();
+        client.index(indexRequest).actionGet().isCreated();
+        return true;
     }
 
     public boolean deleteAlert(String alertName) throws InterruptedException, ExecutionException{
@@ -473,6 +499,11 @@ public class AlertManager extends AbstractLifecycleComponent {
             running = new DateTime(fields.get(CURRENTLY_RUNNING.getPreferredName()).toString());
         }
 
+        DateTime lastActionFire = new DateTime(0);
+        if (fields.get(LAST_ACTION_FIRE.getPreferredName()) != null) {
+            lastActionFire = new DateTime(fields.get(LAST_ACTION_FIRE.getPreferredName()).toString());
+        }
+
         List<String> indices = new ArrayList<>();
         if (fields.get(INDICES.getPreferredName()) != null && fields.get(INDICES.getPreferredName()) instanceof List){
             indices = (List<String>)fields.get(INDICES.getPreferredName());
@@ -495,6 +526,7 @@ public class AlertManager extends AbstractLifecycleComponent {
         }
 
         Alert alert =  new Alert(alertId, query, trigger, timePeriod, actions, schedule, lastRan, indices, running, version, enabled, simpleQuery);
+        alert.lastActionFire(lastActionFire);
 
         if (fields.get(TIMESTAMP_FIELD.getPreferredName()) != null) {
             alert.timestampString(fields.get(TIMESTAMP_FIELD.getPreferredName()).toString());

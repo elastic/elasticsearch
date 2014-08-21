@@ -22,51 +22,8 @@ public class Alert implements ToXContent{
     private TimeValue timePeriod;
     private List<AlertAction> actions;
     private String schedule;
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        Alert alert = (Alert) o;
-
-        if (enabled != alert.enabled) return false;
-        if (simpleQuery != alert.simpleQuery) return false;
-        if (version != alert.version) return false;
-        if (actions != null ? !actions.equals(alert.actions) : alert.actions != null) return false;
-        if (alertName != null ? !alertName.equals(alert.alertName) : alert.alertName != null) return false;
-        if (indices != null ? !indices.equals(alert.indices) : alert.indices != null) return false;
-        if (lastRan != null ? !lastRan.equals(alert.lastRan) : alert.lastRan != null) return false;
-        if (queryName != null ? !queryName.equals(alert.queryName) : alert.queryName != null) return false;
-        if (running != null ? !running.equals(alert.running) : alert.running != null) return false;
-        if (schedule != null ? !schedule.equals(alert.schedule) : alert.schedule != null) return false;
-        if (timePeriod != null ? !timePeriod.equals(alert.timePeriod) : alert.timePeriod != null) return false;
-        if (timestampString != null ? !timestampString.equals(alert.timestampString) : alert.timestampString != null)
-            return false;
-        if (trigger != null ? !trigger.equals(alert.trigger) : alert.trigger != null) return false;
-
-        return true;
-    }
-
-    @Override
-    public int hashCode() {
-        int result = alertName != null ? alertName.hashCode() : 0;
-        result = 31 * result + (queryName != null ? queryName.hashCode() : 0);
-        result = 31 * result + (trigger != null ? trigger.hashCode() : 0);
-        result = 31 * result + (timePeriod != null ? timePeriod.hashCode() : 0);
-        result = 31 * result + (actions != null ? actions.hashCode() : 0);
-        result = 31 * result + (schedule != null ? schedule.hashCode() : 0);
-        result = 31 * result + (lastRan != null ? lastRan.hashCode() : 0);
-        result = 31 * result + (int) (version ^ (version >>> 32));
-        result = 31 * result + (running != null ? running.hashCode() : 0);
-        result = 31 * result + (enabled ? 1 : 0);
-        result = 31 * result + (simpleQuery ? 1 : 0);
-        result = 31 * result + (timestampString != null ? timestampString.hashCode() : 0);
-        result = 31 * result + (indices != null ? indices.hashCode() : 0);
-        return result;
-    }
-
     private DateTime lastRan;
+    private DateTime lastActionFire;
     private long version;
     private DateTime running;
     private boolean enabled;
@@ -81,7 +38,13 @@ public class Alert implements ToXContent{
         this.timestampString = timestampString;
     }
 
+    public DateTime lastActionFire() {
+        return lastActionFire;
+    }
 
+    public void lastActionFire(DateTime lastActionFire) {
+        this.lastActionFire = lastActionFire;
+    }
 
     public boolean simpleQuery() {
         return simpleQuery;
@@ -206,6 +169,7 @@ public class Alert implements ToXContent{
         builder.field(AlertManager.CURRENTLY_RUNNING.getPreferredName(), running);
         builder.field(AlertManager.ENABLED.getPreferredName(), enabled);
         builder.field(AlertManager.SIMPLE_QUERY.getPreferredName(), simpleQuery);
+        builder.field(AlertManager.LAST_ACTION_FIRE.getPreferredName(), lastActionFire);
 
         builder.field(AlertManager.TRIGGER_FIELD.getPreferredName());
         trigger.toXContent(builder, params);

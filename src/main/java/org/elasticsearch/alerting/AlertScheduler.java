@@ -14,6 +14,7 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.index.query.*;
 import org.elasticsearch.script.ExecutableScript;
@@ -97,7 +98,7 @@ public class AlertScheduler extends AbstractLifecycleComponent {
             }
 
             //if (logger.isDebugEnabled()) {
-            logger.warn("Running query [{}]", XContentHelper.convertToJson(srb.request().source(),false,true));
+            logger.warn("Running query [{}]", XContentHelper.convertToJson(srb.request().source(), false, true));
             //}
 
             SearchResponse sr = srb.execute().get();
@@ -106,17 +107,29 @@ public class AlertScheduler extends AbstractLifecycleComponent {
                     triggerManager.isTriggered(alertName,sr), srb, indices,
                     new DateTime(jobExecutionContext.getScheduledFireTime()));
 
+            boolean firedAction = false;
             if (result.isTriggered) {
                 logger.warn("We have triggered");
-                actionManager.doAction(alertName,result);
-                logger.warn("Did action !");
-            }else{
+                DateTime lastActionFire = alertManager.timeActionLastTriggered(alertName);
+                long msSinceLastAction = scheduledTime.getMillis() - lastActionFire.getMillis();
+                logger.error("last action fire [{}]", lastActionFire);
+                logger.error("msSinceLastAction [{}]", msSinceLastAction);
+
+                if (alert.timePeriod().getMillis() > msSinceLastAction) {
+                    logger.warn("Not firing action because it was fired in the timePeriod");
+                } else {
+                    actionManager.doAction(alertName, result);
+                    logger.warn("Did action !");
+                    firedAction = true;
+                }
+
+            } else {
                 logger.warn("We didn't trigger");
             }
-            alertManager.updateLastRan(alertName, new DateTime(jobExecutionContext.getFireTime()));
+            alertManager.updateLastRan(alertName, new DateTime(jobExecutionContext.getFireTime()),scheduledTime,firedAction);
             if (!alertManager.addHistory(alertName, result.isTriggered,
                     new DateTime(jobExecutionContext.getScheduledFireTime()), result.query,
-                    result.trigger, result.searchResponse.getHits().getTotalHits(), alert.indices()))
+                    result.trigger, result.searchResponse.getHits().getTotalHits(), alert.actions(), alert.indices()))
             {
                 logger.warn("Failed to store history for alert [{}]", alertName);
             }

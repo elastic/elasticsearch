@@ -26,6 +26,7 @@ public class AlertRestHandler implements RestHandler {
     @Inject
     public AlertRestHandler(RestController restController, AlertManager alertManager) {
         restController.registerHandler(POST, "/_alerting/_refresh",this);
+        restController.registerHandler(GET, "/_alerting/_refresh",this);
         restController.registerHandler(GET, "/_alerting/_list",this);
         restController.registerHandler(POST, "/_alerting/_create/{name}", this);
         restController.registerHandler(DELETE, "/_alerting/_delete/{name}", this);
@@ -56,7 +57,7 @@ public class AlertRestHandler implements RestHandler {
 
     private boolean dispatchRequest(RestRequest request, RestChannel restChannel) throws IOException, InterruptedException, ExecutionException {
         //@TODO : change these direct calls to actions/request/response/listener once we create the java client API
-        if (request.method() == POST && request.path().contains("/_refresh")) {
+        if (request.path().contains("/_refresh")) {
             alertManager.refreshAlerts();
             XContentBuilder builder = getListOfAlerts();
             restChannel.sendResponse(new BytesRestResponse(OK,builder));
@@ -66,9 +67,19 @@ public class AlertRestHandler implements RestHandler {
             restChannel.sendResponse(new BytesRestResponse(OK,builder));
             return true;
         } else if (request.path().contains("/_enable")) {
-            return alertManager.enableAlert(request.param("name"));
+            logger.warn("Enabling [{}]", request.param("name"));
+            String alertName = request.param("name");
+            boolean enabled = alertManager.enableAlert(alertName);
+            XContentBuilder responseBuilder = buildEnabledResponse(alertName, enabled);
+            restChannel.sendResponse(new BytesRestResponse(OK,responseBuilder));
+            return true;
         } else if (request.path().contains("/_disable")) {
-            return alertManager.disableAlert(request.param("name"));
+            logger.warn("Disabling [{}]", request.param("name"));
+            String alertName = request.param("name");
+            boolean enabled = alertManager.disableAlert(alertName);
+            XContentBuilder responseBuilder = buildEnabledResponse(alertName, enabled);
+            restChannel.sendResponse(new BytesRestResponse(OK,responseBuilder));
+            return true;
         } else if (request.method() == POST && request.path().contains("/_create")) {
             //TODO : this should all be moved to an action
             Alert alert;
@@ -106,6 +117,17 @@ public class AlertRestHandler implements RestHandler {
             return true;
         }
         return false;
+    }
+
+    private XContentBuilder buildEnabledResponse(String alertName, boolean enabled) throws IOException {
+        XContentBuilder responseBuilder = XContentFactory.jsonBuilder().prettyPrint();
+        responseBuilder.startObject();
+        responseBuilder.field(alertName);
+        responseBuilder.startObject();
+        responseBuilder.field("enabled",enabled);
+        responseBuilder.endObject();
+        responseBuilder.endObject();
+        return responseBuilder;
     }
 
     private XContentBuilder getListOfAlerts() throws IOException {

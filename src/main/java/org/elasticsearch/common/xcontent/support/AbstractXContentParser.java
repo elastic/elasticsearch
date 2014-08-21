@@ -313,4 +313,14 @@ public abstract class AbstractXContentParser implements XContentParser {
         }
         return null;
     }
+
+    @Override
+    public final BytesRef bytes() throws IOException {
+        return utf8Bytes();
+    }
+
+    @Override
+    public final BytesRef bytesOrNull() throws IOException {
+        return utf8BytesOrNull();
+    }
 }

@@ -114,16 +114,16 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
      * @throws IOException if the index is corrupted or the segments file is not present
      */
     public SegmentInfos readLastCommittedSegmentsInfo() throws IOException {
-        return readLastCommittedSegmentsInfo(directory());
+        return readSegmentsInfo(null, directory());
     }
 
     /**
-     * Returns the last committed segments info for the given directory
+     * Returns the segments info for the given commit or for the latest commit if the given commit is <code>null</code>
      * @throws IOException if the index is corrupted or the segments file is not present
      */
-    private static SegmentInfos readLastCommittedSegmentsInfo(Directory directory) throws IOException {
+    private static SegmentInfos readSegmentsInfo(IndexCommit commit, Directory directory) throws IOException {
         try {
-            return Lucene.readSegmentInfos(directory);
+            return commit == null ? Lucene.readSegmentInfos(directory) : Lucene.readSegmentInfos(commit, directory);
         } catch (EOFException eof) {
             // TODO this should be caught by lucene - EOF is almost certainly an index corruption
             throw new CorruptIndexException("Read past EOF while reading segment infos", eof);
@@ -137,13 +137,21 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
     }
 
     /**
-     * Returns a new MetadataSnapshot.
+     * Returns a new MetadataSnapshot for the latest commit in this store.
      */
     public MetadataSnapshot getMetadata() throws IOException {
+        return getMetadata(null);
+    }
+
+    /**
+     * Returns a new MetadataSnapshot for the given commit. If the given commit is <code>null</code>
+     * the latest commit point is used.
+     */
+    public MetadataSnapshot getMetadata(IndexCommit commit) throws IOException {
         ensureOpen();
         failIfCorrupted();
         try {
-            return new MetadataSnapshot(distributorDirectory, logger);
+            return new MetadataSnapshot(commit, distributorDirectory, logger);
         } catch (CorruptIndexException ex) {
             markStoreCorrupted(ex);
             throw ex;
@@ -270,7 +278,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
             }
             DistributorDirectory dir = new DistributorDirectory(dirs);
             failIfCorrupted(dir, new ShardId("", 1));
-            return new MetadataSnapshot(dir, logger);
+            return new MetadataSnapshot(null, dir, logger);
         } finally {
             IOUtils.close(dirs);
         }
@@ -447,17 +455,17 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
     public final static class MetadataSnapshot implements Iterable<StoreFileMetaData> {
         private final ImmutableMap<String, StoreFileMetaData> metadata;
 
-        MetadataSnapshot(Directory directory, ESLogger logger) throws IOException {
-            metadata = buildMetadata(directory, logger);
+        MetadataSnapshot(IndexCommit commit, Directory directory, ESLogger logger) throws IOException {
+            metadata = buildMetadata(commit, directory, logger);
         }
 
-        ImmutableMap<String, StoreFileMetaData> buildMetadata(Directory directory, ESLogger logger) throws IOException {
+        ImmutableMap<String, StoreFileMetaData> buildMetadata(IndexCommit commit, Directory directory, ESLogger logger) throws IOException {
             ImmutableMap.Builder<String, StoreFileMetaData> builder = ImmutableMap.builder();
             Map<String, String> checksumMap = readLegacyChecksums(directory);
             try {
                 final SegmentInfos segmentCommitInfos;
                 try {
-                    segmentCommitInfos = Store.readLastCommittedSegmentsInfo(directory);
+                    segmentCommitInfos = Store.readSegmentsInfo(commit, directory);
                 } catch (FileNotFoundException | NoSuchFileException ex) {
                     // no segments file -- can't read metadata
                     logger.trace("Can't read segment infos", ex);

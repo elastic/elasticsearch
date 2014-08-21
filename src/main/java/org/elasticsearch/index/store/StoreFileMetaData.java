@@ -53,11 +53,11 @@ public class StoreFileMetaData implements Streamable {
     }
 
     public StoreFileMetaData(String name, long length, String checksum) {
-        this(name, length, checksum, null, new BytesRef());
+        this(name, length, checksum, null, null);
     }
 
     public StoreFileMetaData(String name, long length, String checksum, Version writtenBy) {
-        this(name, length, checksum, writtenBy, new BytesRef());
+        this(name, length, checksum, writtenBy, null);
     }
 
     public StoreFileMetaData(String name, long length, String checksum, Version writtenBy, BytesRef hash) {
@@ -65,7 +65,7 @@ public class StoreFileMetaData implements Streamable {
         this.length = length;
         this.checksum = checksum;
         this.writtenBy = writtenBy;
-        this.hash = hash;
+        this.hash = hash == null ? new BytesRef() : hash;
     }
 
 
@@ -126,6 +126,8 @@ public class StoreFileMetaData implements Streamable {
         }
         if (in.getVersion().onOrAfter(org.elasticsearch.Version.V_1_4_0)) {
             hash = in.readBytesRef();
+        } else {
+            hash = new BytesRef();
         }
     }
 

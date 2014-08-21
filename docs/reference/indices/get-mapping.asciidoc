@@ -14,7 +14,7 @@ curl -XGET 'http://localhost:9200/twitter/_mapping/tweet'
 
 The get mapping API can be used to get more than one index or type
 mapping with a single call. General usage of the API follows the
-following syntax: `host:port/{index}/{type}/_mapping` where both
+following syntax: `host:port/{index}/_mapping/{type}` where both
 `{index}` and `{type}` can accept a comma-separated list of names. To
 get mappings for all indices you can use `_all` for `{index}`. The
 following are some examples:

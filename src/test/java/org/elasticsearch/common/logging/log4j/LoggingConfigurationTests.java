@@ -24,17 +24,17 @@ import org.apache.log4j.Logger;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.FailedToResolveConfigException;
 import org.elasticsearch.test.ElasticsearchTestCase;
-import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
@@ -148,7 +148,78 @@ public class LoggingConfigurationTests extends ElasticsearchTestCase {
         LogConfigurator.resolveConfig(environment, builder);
 
         Settings logSettings = builder.build();
-        assertThat(logSettings.get("yml"), Matchers.nullValue());
+        assertThat(logSettings.get("yml"), nullValue());
+    }
+
+    @Test
+    public void testResolveLoggingDirFromSystemProperty() throws Exception {
+        Path tempDir = createTempDir();
+        Path customLogConfig1 = tempDir.resolve(LoggingConfigurationTests.loggingConfiguration("yml"));
+        Files.write(customLogConfig1, "action: WARN".getBytes(StandardCharsets.UTF_8));
+        Path customLogConfig2 = tempDir.resolve(LoggingConfigurationTests.loggingConfiguration("yml"));
+        Files.write(customLogConfig2, "transport: TRACE".getBytes(StandardCharsets.UTF_8));
+        if (randomBoolean()) {
+            //gets ignored because the filename doesn't start with the "logging." prefix
+            Path ignoredLogConfig = tempDir.resolve("invalid_logging.yml");
+            Files.write(ignoredLogConfig, "invalid: TRACE".getBytes(StandardCharsets.UTF_8));
+        }
+        if (randomBoolean()) {
+            //gets ignored because the filename doesn't end with one of the allowed suffixes
+            Path ignoredLogConfig = tempDir.resolve("logging.unknown");
+            Files.write(ignoredLogConfig, "invalid: TRACE".getBytes(StandardCharsets.UTF_8));
+        }
+
+        try {
+            System.setProperty(LogConfigurator.ES_LOGGING_SYSPROP, tempDir.toString());
+            Environment environment = new Environment(Settings.EMPTY);
+            Settings.Builder builder = Settings.builder();
+            LogConfigurator.resolveConfig(environment, builder);
+
+            Settings logSettings = builder.build();
+            assertThat(logSettings.names().size(), equalTo(2));
+            assertThat(logSettings.get("action"), is("WARN"));
+            assertThat(logSettings.get("transport"), is("TRACE"));
+            assertThat(logSettings.get("invalid"), nullValue());
+        } finally {
+            System.clearProperty(LogConfigurator.ES_LOGGING_SYSPROP);
+        }
+    }
+
+    @Test
+    public void testResolveLoggingFileFromSystemProperty() throws Exception {
+        Path tempDir = createTempDir();
+        Path customLogConfig = tempDir.resolve(LoggingConfigurationTests.loggingConfiguration("yml"));
+        Files.write(customLogConfig, "action: WARN".getBytes(StandardCharsets.UTF_8));
+        if (randomBoolean()) {
+            //gets ignored because the sysprop points directly to the above file
+            Path ignoredLogConfig = tempDir.resolve(LoggingConfigurationTests.loggingConfiguration("yml"));
+            Files.write(ignoredLogConfig, "transport: TRACE".getBytes(StandardCharsets.UTF_8));
+        }
+
+        try {
+            System.setProperty(LogConfigurator.ES_LOGGING_SYSPROP, customLogConfig.toString());
+            Environment environment = new Environment(Settings.EMPTY);
+            Settings.Builder builder = Settings.builder();
+            LogConfigurator.resolveConfig(environment, builder);
+
+            Settings logSettings = builder.build();
+            assertThat(logSettings.names().size(), equalTo(1));
+            assertThat(logSettings.get("action"), is("WARN"));
+        } finally {
+            System.clearProperty(LogConfigurator.ES_LOGGING_SYSPROP);
+        }
+    }
+
+    @Test(expected = FailedToResolveConfigException.class)
+    public void testResolveNonExistingLoggingFileFromSystemProperty() throws IOException {
+        try {
+            System.setProperty(LogConfigurator.ES_LOGGING_SYSPROP, "non_existing.yml");
+            Environment environment = new Environment(Settings.builder().build());
+            Settings.Builder builder = Settings.builder();
+            LogConfigurator.resolveConfig(environment, builder);
+        } finally {
+            System.clearProperty(LogConfigurator.ES_LOGGING_SYSPROP);
+        }
     }
 
     private static String loggingConfiguration(String suffix) {

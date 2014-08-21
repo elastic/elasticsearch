@@ -338,6 +338,20 @@ Additional Appenders and other logging classes provided by
 http://logging.apache.org/log4j/extras/[log4j-extras] are also available, 
 out of the box.
 
+Optionally, the location of the configuration file can be set externally using
+a system property, for example:
+
+[source,sh]
+--------------------------------------------------
+$ elasticsearch -Des.logging=/abs/path/to/logging/file.yml
+--------------------------------------------------
+
+or
+
+[source,sh]
+--------------------------------------------------
+$ elasticsearch -Des.logging=log_config_file_in_classpath.yml
+
 [float]
 [[deprecation-logging]]
 ==== Deprecation logging

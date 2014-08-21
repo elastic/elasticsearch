@@ -24,13 +24,16 @@ import com.google.common.collect.ImmutableMap;
 
 import org.apache.log4j.PropertyConfigurator;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.FailedToResolveConfigException;
 
 import java.io.IOException;
 import java.net.MalformedURLException;
+import java.net.URISyntaxException;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.EnumSet;
@@ -46,6 +49,8 @@ import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 public class LogConfigurator {
 
     static final List<String> ALLOWED_SUFFIXES = ImmutableList.of(".yml", ".yaml", ".json", ".properties");
+
+    static final String ES_LOGGING_SYSPROP = "es.logging";
 
     private static boolean loaded;
 
@@ -121,7 +126,15 @@ public class LogConfigurator {
     public static void resolveConfig(Environment env, final Settings.Builder settingsBuilder) {
 
         try {
-            Files.walkFileTree(env.configFile(), EnumSet.of(FileVisitOption.FOLLOW_LINKS), Integer.MAX_VALUE, new SimpleFileVisitor<Path>() {
+            Path startingPath;
+            final String esLoggingDir = System.getProperty(ES_LOGGING_SYSPROP);
+            if (Strings.hasText(esLoggingDir)) {
+                startingPath = PathUtils.get(env.resolveConfig(esLoggingDir).toURI());
+            } else {
+                startingPath = env.configFile();
+            }
+
+            Files.walkFileTree(startingPath, EnumSet.of(FileVisitOption.FOLLOW_LINKS), Integer.MAX_VALUE, new SimpleFileVisitor<Path>() {
                 @Override
                 public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
                     String fileName = file.getFileName().toString();
@@ -136,8 +149,8 @@ public class LogConfigurator {
                     return FileVisitResult.CONTINUE;
                 }
             });
-        } catch (IOException ioe) {
-            throw new ElasticsearchException("Failed to load logging configuration", ioe);
+        } catch (IOException | URISyntaxException e) {
+            throw new ElasticsearchException("Failed to load logging configuration", e);
         }
     }
 

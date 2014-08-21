@@ -27,9 +27,8 @@ import org.elasticsearch.action.suggest.SuggestResponse;
 import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
@@ -112,6 +111,49 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
         assertEquals(suggestResponse.getSuggest().size(), 1);
         assertEquals("Hotel Amsterdam in Berlin", suggestResponse.getSuggest().getSuggestion(suggestionName).iterator().next().getOptions().iterator().next().getText().string());
     }
+    
+    @Test
+    public void testMultiLevelGeo() throws Exception {
+        assertAcked(prepareCreate(INDEX).addMapping(TYPE, createMapping(TYPE, ContextBuilder.location("st")
+                .precision(1)
+                .precision(2)
+                .precision(3)
+                .precision(4)
+                .precision(5)
+                .precision(6)
+                .precision(7)
+                .precision(8)
+                .precision(9)
+                .precision(10)
+                .precision(11)
+                .precision(12)
+                .neighbors(true))));
+        ensureYellow();
+
+        XContentBuilder source1 = jsonBuilder()
+                .startObject()
+                    .startObject(FIELD)
+                        .array("input", "Hotel Amsterdam", "Amsterdam")
+                        .field("output", "Hotel Amsterdam in Berlin")
+                        .startObject("context").latlon("st", 52.529172, 13.407333).endObject()
+                    .endObject()
+                .endObject();
+        client().prepareIndex(INDEX, TYPE, "1").setSource(source1).execute().actionGet();
+
+        client().admin().indices().prepareRefresh(INDEX).get();
+        
+        for (int precision = 1; precision <= 12; precision++) {
+            String suggestionName = randomAsciiOfLength(10);
+            CompletionSuggestionBuilder context = new CompletionSuggestionBuilder(suggestionName).field(FIELD).text("h").size(10)
+                    .addGeoLocation("st", 52.529172, 13.407333, precision);
+
+            SuggestRequestBuilder suggestionRequest = client().prepareSuggest(INDEX).addSuggestion(context);
+            SuggestResponse suggestResponse = suggestionRequest.execute().actionGet();
+            assertEquals(suggestResponse.getSuggest().size(), 1);
+            assertEquals("Hotel Amsterdam in Berlin", suggestResponse.getSuggest().getSuggestion(suggestionName).iterator().next()
+                    .getOptions().iterator().next().getText().string());
+        }
+    }    
 
     @Test
     public void testGeoField() throws Exception {

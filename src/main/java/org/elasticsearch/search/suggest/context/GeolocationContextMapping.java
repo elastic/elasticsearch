@@ -650,11 +650,11 @@ public class GeolocationContextMapping extends ContextMapping {
             for (String geohash : geohashes) {
                 for (int p : mapping.precision) {
                     int precision = Math.min(p, geohash.length());
-                    geohash = geohash.substring(0, precision);
+                    String truncatedGeohash = geohash.substring(0, precision);
                     if(mapping.neighbors) {
-                        GeoHashUtils.addNeighbors(geohash, precision, locations);
+                        GeoHashUtils.addNeighbors(truncatedGeohash, precision, locations);
                     }
-                    locations.add(geohash);
+                    locations.add(truncatedGeohash);
                 }
             }
 
@@ -692,7 +692,7 @@ public class GeolocationContextMapping extends ContextMapping {
             } else {
                 automaton = BasicAutomata.makeString(location.substring(0, Math.max(1, Math.min(location.length(), precisions[0]))));
                 for (int i = 1; i < precisions.length; i++) {
-                    final String cell = location.substring(0, Math.max(1, Math.min(location.length(), precisions[0])));
+                    final String cell = location.substring(0, Math.max(1, Math.min(location.length(), precisions[i])));
                     automaton = BasicOperations.union(automaton, BasicAutomata.makeString(cell));
                 }
             }

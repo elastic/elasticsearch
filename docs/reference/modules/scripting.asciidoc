@@ -201,7 +201,7 @@ setting, the default value is `sandbox`:
 -----------------------------------
 script.enable_dynamic: false
 -----------------------------------
-added[1.4.0]
+coming[1.4.0]
 
 While this still allows execution of named scripts provided in the config, or
 _native_ Java scripts registered through plugins, it also allows users to run
@@ -223,7 +223,7 @@ setting, the default value is `sandbox`:
 -----------------------------------
 script.disable_indexed: false
 -----------------------------------
-added[1.4.0]
+coming[1.4.0]
 deprecated[1.4.0,Replaced by `script.enable_indexed`]
 
 
@@ -250,7 +250,7 @@ setting, the default value is `sandbox`:
 -----------------------------------
 script.enable_indexed: false
 -----------------------------------
-added[1.4.0]
+coming[1.4.0]
 
 This allows users to store and run aribtary scriptsv ia the indexed scripts API. 
 This setting is independent of the dynamic script setting. This can be used in 

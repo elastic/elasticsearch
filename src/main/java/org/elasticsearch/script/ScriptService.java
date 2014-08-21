@@ -43,6 +43,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -83,8 +84,8 @@ public class ScriptService extends AbstractComponent {
     public static final String ENABLE_DYNAMIC_SCRIPTING_SETTING = "script.enable_dynamic";
     public static final String ENABLE_INDEXED_SCRIPTING_SETTING = "script.enable_indexed";
 
-    public static final String DISABLE_DYNAMIC_SCRIPTING_DEFAULT = "sandbox";
-    public static final String DISABLE_INDEXED_SCRIPTING_DEFAULT = "sandbox";
+    public static final String DYNAMIC_SCRIPTING_DEFAULT = "sandbox";
+    public static final String INDEXED_SCRIPTING_DEFAULT = "sandbox";
     public static final String SCRIPT_INDEX = ".scripts";
 
     //Make static so that it has visibility in IndexedScript
@@ -98,8 +99,8 @@ public class ScriptService extends AbstractComponent {
     private final Cache<CacheKey, CompiledScript> cache;
     private final File scriptsDirectory;
 
-    private final DynamicScriptDisabling dynamicScriptingDisabled;
-    private final IndexedScriptDisabling indexedScriptDisabled;
+    private final DynamicScriptExecution dynamicScriptExecution;
+    private final IndexedScriptExecution indexedScriptExecution;
 
     private Client client = null;
 
@@ -109,12 +110,12 @@ public class ScriptService extends AbstractComponent {
      * (all dynamic scripting is enabled), or SANDBOXED_ONLY (only sandboxed
      * scripting languages are allowed)
      */
-    enum DynamicScriptDisabling {
+    enum DynamicScriptExecution {
         EVERYTHING_ALLOWED,
         ONLY_DISK_ALLOWED,
         SANDBOXED_ONLY;
 
-        public static final DynamicScriptDisabling parse(String s) {
+        public static final DynamicScriptExecution parse(String s) {
             switch (s.toLowerCase(Locale.ROOT)) {
                 // true for "disable_dynamic" means only on-disk scripts are enabled
                 case "true":
@@ -133,7 +134,7 @@ public class ScriptService extends AbstractComponent {
             }
         }
 
-        public static final DynamicScriptDisabling parseEnabled(String s) {
+        public static final DynamicScriptExecution parseEnabled(String s) {
             switch (s.toLowerCase(Locale.ROOT)) {
                 // true for "disable_dynamic" means only on-disk scripts are enabled
                 case "true":
@@ -149,17 +150,28 @@ public class ScriptService extends AbstractComponent {
                     return SANDBOXED_ONLY;
                 default:
                     throw new ElasticsearchIllegalArgumentException("Unrecognized script allowance setting: [" + s + "]");
+            }
+        }
+
+        public boolean enabled(ScriptEngineService service) {
+            if (this == DynamicScriptExecution.EVERYTHING_ALLOWED) {
+                return true;
+            } else if (this == DynamicScriptExecution.ONLY_DISK_ALLOWED) {
+                return false;
+            } else {
+                return service.sandboxed();
             }
         }
 
     }
 
-    enum IndexedScriptDisabling {
+    enum IndexedScriptExecution {
         INDEXED_SCRIPTS_DISABLED,
         INDEXED_SCRIPTS_FULLY_ENABLED,
         INDEXED_SCRIPTS_SANDBOXED_ONLY;
 
-        public static final IndexedScriptDisabling parse(String s) {
+        public static final IndexedScriptExecution parse(String s) {
+            Loggers.getLogger(ScriptService.class).warn("Parsing indexed script disabled as [{}]", s);
             switch (s.toLowerCase(Locale.ROOT)) {
                 // true for "disable_scripted" means non index scripting will be disabled
                 case "true":
@@ -176,7 +188,8 @@ public class ScriptService extends AbstractComponent {
             }
         }
 
-        public static final IndexedScriptDisabling parseEnabled(String s) {
+        public static final IndexedScriptExecution parseEnabled(String s) {
+            Loggers.getLogger(ScriptService.class).warn("Parsing indexed script enabled as ", s);
             switch (s.toLowerCase(Locale.ROOT)) {
                 // true for "disable_scripted" means non index scripting will be disabled
                 case "true":
@@ -192,6 +205,17 @@ public class ScriptService extends AbstractComponent {
                     throw new ElasticsearchIllegalArgumentException("Unrecognized indexed script allowance setting: [" + s + "]");
             }
         }
+
+        private boolean enabled(ScriptEngineService service) {
+            if (this == IndexedScriptExecution.INDEXED_SCRIPTS_FULLY_ENABLED ) {
+                return true;
+            } else if (this == IndexedScriptExecution.INDEXED_SCRIPTS_DISABLED ) {
+                return false;
+            } else {
+                return service.sandboxed();
+            }
+        }
+
 
     }
 
@@ -292,19 +316,19 @@ public class ScriptService extends AbstractComponent {
         logger.debug("using script cache with max_size [{}], expire [{}]", cacheMaxSize, cacheExpire);
 
         this.defaultLang = settings.get(DEFAULT_SCRIPTING_LANGUAGE_SETTING, "groovy");
-        if (settings.names().contains(ENABLE_DYNAMIC_SCRIPTING_SETTING) ){
-            this.dynamicScriptingDisabled = DynamicScriptDisabling.parseEnabled(settings.get(ENABLE_DYNAMIC_SCRIPTING_SETTING, DISABLE_DYNAMIC_SCRIPTING_DEFAULT));
+        if (settings.get(ENABLE_DYNAMIC_SCRIPTING_SETTING) != null) {
+            this.dynamicScriptExecution = DynamicScriptExecution.parseEnabled(settings.get(ENABLE_DYNAMIC_SCRIPTING_SETTING, DYNAMIC_SCRIPTING_DEFAULT));
         } else {
-            this.dynamicScriptingDisabled = DynamicScriptDisabling.parse(settings.get(DISABLE_DYNAMIC_SCRIPTING_SETTING, DISABLE_DYNAMIC_SCRIPTING_DEFAULT));
+            this.dynamicScriptExecution = DynamicScriptExecution.parse(settings.get(DISABLE_DYNAMIC_SCRIPTING_SETTING, DYNAMIC_SCRIPTING_DEFAULT));
             logger.warn("Used [{}], this setting is deprecated please use [{}] instead.", DISABLE_DYNAMIC_SCRIPTING_SETTING, ENABLE_DYNAMIC_SCRIPTING_SETTING);
         }
 
-        if (settings.names().contains(ENABLE_INDEXED_SCRIPTING_SETTING) ) {
-            this.indexedScriptDisabled = IndexedScriptDisabling.parseEnabled(settings.get(ENABLE_INDEXED_SCRIPTING_SETTING,
-                    DISABLE_INDEXED_SCRIPTING_DEFAULT));
+        if (settings.get(ENABLE_INDEXED_SCRIPTING_SETTING) != null) {
+            this.indexedScriptExecution = IndexedScriptExecution.parseEnabled(settings.get(ENABLE_INDEXED_SCRIPTING_SETTING,
+                    INDEXED_SCRIPTING_DEFAULT));
         } else {
-            this.indexedScriptDisabled = IndexedScriptDisabling.parse(settings.get(DISABLE_INDEXED_SCRIPTING_SETTING,
-                    DISABLE_INDEXED_SCRIPTING_DEFAULT));
+            this.indexedScriptExecution = IndexedScriptExecution.parse(settings.get(DISABLE_INDEXED_SCRIPTING_SETTING,
+                    INDEXED_SCRIPTING_DEFAULT));
             logger.warn("Used [{}], this setting is deprecated please use [{}] instead.", DISABLE_INDEXED_SCRIPTING_SETTING, ENABLE_INDEXED_SCRIPTING_SETTING);
         }
 
@@ -621,23 +645,14 @@ public class ScriptService extends AbstractComponent {
         }
 
         if (scriptType == ScriptType.INDEXED) {
-            if (this.indexedScriptDisabled == IndexedScriptDisabling.INDEXED_SCRIPTS_FULLY_ENABLED ) {
-                return true;
-            } else if (this.indexedScriptDisabled == IndexedScriptDisabling.INDEXED_SCRIPTS_DISABLED ) {
-                return false;
-            } else {
-                return service.sandboxed();
-            }
-        } else {
-            if (this.dynamicScriptingDisabled == DynamicScriptDisabling.EVERYTHING_ALLOWED) {
-                return true;
-            } else if (this.dynamicScriptingDisabled == DynamicScriptDisabling.ONLY_DISK_ALLOWED) {
-                return false;
-            } else {
-                return service.sandboxed();
-            }
+            return this.indexedScriptExecution.enabled(service);
         }
+        else {
+            return this.dynamicScriptExecution.enabled(service);
+        }
+
     }
+
 
     private class ScriptChangesListener extends FileChangesListener {
 

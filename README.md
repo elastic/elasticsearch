@@ -3,33 +3,125 @@ alerting
 
 This is the elasticsearch alerting plugin repo.
 
-Sample Alert : 
 ````
-POST _search/template/myAlertQuery
+
+POST _search/template/webErrors
 { 
-  "template": { "match_all" : {}  }
+  "template": { "range" : {
+      "response" : {
+        "from" :400,
+        "to" : 600
+      }
+  }  
+  }
 }
 
-POST .alerts/alert/myTestAlert
+DELETE /_alerting/_delete/myNewAlert
+POST /_alerting/_create/myNewAlert
 {
-    "query" : "myAlertQuery",
-    "schedule" : "00 * * * * ?",
+    "query" : "webErrors",
+    "schedule" : "05 * * * * ?",
     "trigger" : {
          "numberOfEvents" : ">2"
      },
     "timeperiod" : "300s",
      "action" : {
          "email" : {
-           "addresses" : [ "brian.murphy@elasticsearch.com" ]
+           "addresses" : [ "brian.murphy@elasticsearch.com" ],
+           "display": "message"
          }
      },
-    "version" : 1,
-    "lastRan" : "2014-05-05T12:12:12.123Z", 
-    "indices" : [ "logstash*" ] 
+    "indices" : [ "logstash*" ],
+    "enabled" : false
 }
+
+
+
+POST /_alerting/_enable/myNewAlert
+
+DELETE /_alerting/_delete/myIndexAlert
+POST /_alerting/_create/myIndexAlert
+{
+    "query" : "webErrors",
+    "schedule" : "05 * * * * ?",
+    "trigger" : {
+         "numberOfEvents" : ">0"
+     },
+    "timeperiod" : "300s",
+     "action" : {
+         "index" : {
+           "index" : "weberrorhistory",
+           "type" : "weberrorresult"
+         }
+     },
+    "indices" : [ "logstash*" ],
+    "enabled" : true
+}
+
+
+POST /_search/template/testFilteredAgg
+{
+  "query" : { 
+    "filtered" : {
+      "query" : { 
+        "match_all" : {}
+     },
+     "filter": {
+       "range" : {
+         "@timestamp" : {
+             "gte" : "{{from}}",
+             "lt" : "{{to}}"
+         }
+       }
+     }
+    } 
+  },
+    "aggs" : { 
+      "response" : {
+        "terms" : {
+          "field" : "response",
+          "size" : 100
+        }
+      }
+}, "size" : 0  }
+
+
+POST /_scripts/groovy/testScript 
+{
+  "script" : "ok_count = 0.0;error_count = 0.0;for(bucket in aggregations.response.buckets) {if (bucket.key < 400){ok_count += bucket.doc_count;} else {error_count += bucket.doc_count;}}; return error_count/(ok_count+1) >= 0.1;"
+}
+
+DELETE /_alerting/_delete/myScriptedAlert
+POST /_alerting/_create/myScriptedAlert
+{
+    "query" : "testFilteredAgg",
+    "schedule" : "05 * * * * ?",
+    "trigger" : {
+         "script" : {
+           "script" : "testScript",
+           "script_lang" : "groovy",
+           "script_type" : "INDEXED"
+         }
+     },
+    "timeperiod" : "300s",
+     "action" : {
+         "index" : {
+           "index" : "weberrorhistory",
+           "type" : "weberrorresult"
+         },
+        "email" : {
+           "addresses" : [ "brian.murphy@elasticsearch.com" ],
+           "display": "message"
+         }
+
+     },
+    "indices" : [ "logstash*" ],
+    "enabled" : true,
+    "simple" : false
+}
+
 ````
 
-This will create an alert that runs over all events every minute looking at the last 5 minutes, sending an email to brian.murphy@elasticsearch.com when there are more than 2 events in a 5 minute window.
 
 The email will look like : 
 ````

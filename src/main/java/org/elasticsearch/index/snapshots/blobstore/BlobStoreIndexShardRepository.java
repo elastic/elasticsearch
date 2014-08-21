@@ -427,7 +427,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                 ArrayList<FileInfo> filesToSnapshot = newArrayList();
                 final Store.MetadataSnapshot metadata;
                 try {
-                    metadata = store.getMetadata();
+                    metadata = store.getMetadata(snapshotIndexCommit);
                 } catch (IOException e) {
                     throw new IndexShardSnapshotFailedException(shardId, "Failed to get store file metadata", e);
                 }

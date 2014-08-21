@@ -142,7 +142,7 @@ public class RecoverySource extends AbstractComponent {
                 try {
                     StopWatch stopWatch = new StopWatch().start();
                     final Store.MetadataSnapshot metadata;
-                    metadata = store.getMetadata();
+                    metadata = store.getMetadata(snapshot);
                     for (String name : snapshot.getFiles()) {
                         final StoreFileMetaData md = metadata.get(name);
                         if (md == null) {

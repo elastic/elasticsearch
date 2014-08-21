@@ -135,7 +135,7 @@ public class TopChildrenQueryParser implements QueryParser {
         // wrap the query with type query
         innerQuery = new XFilteredQuery(innerQuery, parseContext.cacheFilter(childDocMapper.typeFilter(), null));
         ParentChildIndexFieldData parentChildIndexFieldData = parseContext.getForField(parentFieldMapper);
-        TopChildrenQuery query = new TopChildrenQuery(parentChildIndexFieldData, innerQuery, childType, parentType, scoreType, factor, incrementalFactor, parseContext.cacheRecycler(), nonNestedDocsFilter);
+        TopChildrenQuery query = new TopChildrenQuery(parentChildIndexFieldData, innerQuery, childType, parentType, scoreType, factor, incrementalFactor, nonNestedDocsFilter);
         if (queryName != null) {
             parseContext.addNamedFilter(queryName, new CustomQueryWrappingFilter(query));
         }

@@ -26,7 +26,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.TransportBroadcastOperationAction;
-import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -66,18 +65,15 @@ public class TransportValidateQueryAction extends TransportBroadcastOperationAct
 
     private final ScriptService scriptService;
 
-    private final CacheRecycler cacheRecycler;
-
     private final PageCacheRecycler pageCacheRecycler;
 
     private final BigArrays bigArrays;
 
     @Inject
-    public TransportValidateQueryAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, IndicesService indicesService, ScriptService scriptService, CacheRecycler cacheRecycler, PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, ActionFilters actionFilters) {
+    public TransportValidateQueryAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, IndicesService indicesService, ScriptService scriptService, PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, ActionFilters actionFilters) {
         super(settings, ValidateQueryAction.NAME, threadPool, clusterService, transportService, actionFilters);
         this.indicesService = indicesService;
         this.scriptService = scriptService;
-        this.cacheRecycler = cacheRecycler;
         this.pageCacheRecycler = pageCacheRecycler;
         this.bigArrays = bigArrays;
     }
@@ -182,7 +178,7 @@ public class TransportValidateQueryAction extends TransportBroadcastOperationAct
                 new ShardSearchRequest(request).types(request.types()).nowInMillis(request.nowInMillis())
                         .filteringAliases(request.filteringAliases()),
                 null, indexShard.acquireSearcher("validate_query"), indexService, indexShard,
-                scriptService, cacheRecycler, pageCacheRecycler, bigArrays
+                scriptService, pageCacheRecycler, bigArrays
         );
         SearchContext.setCurrent(searchContext);
         try {

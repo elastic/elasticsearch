@@ -23,10 +23,8 @@ import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Filter;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.ReaderContextAware;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
-import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
@@ -47,7 +45,6 @@ public class ReverseNestedAggregator extends SingleBucketAggregator implements R
     private DocIdSetIterator parentDocs;
 
     // TODO: Add LongIntPagedHashMap?
-    private final Recycler.V<LongIntOpenHashMap> bucketOrdToLastCollectedParentDocRecycler;
     private final LongIntOpenHashMap bucketOrdToLastCollectedParentDoc;
 
     public ReverseNestedAggregator(String name, AggregatorFactories factories, String nestedPath, AggregationContext aggregationContext, Aggregator parent) {
@@ -74,8 +71,7 @@ public class ReverseNestedAggregator extends SingleBucketAggregator implements R
             }
             parentFilter = SearchContext.current().filterCache().cache(objectMapper.nestedTypeFilter());
         }
-        bucketOrdToLastCollectedParentDocRecycler = aggregationContext.searchContext().cacheRecycler().longIntMap(32);
-        bucketOrdToLastCollectedParentDoc = bucketOrdToLastCollectedParentDocRecycler.v();
+        bucketOrdToLastCollectedParentDoc = new LongIntOpenHashMap(32);
         aggregationContext.ensureScoreDocsInOrder();
     }
 
@@ -147,11 +143,6 @@ public class ReverseNestedAggregator extends SingleBucketAggregator implements R
 
     Filter getParentFilter() {
         return parentFilter;
-    }
-
-    @Override
-    protected void doClose() {
-        Releasables.close(bucketOrdToLastCollectedParentDocRecycler);
     }
 
     public static class Factory extends AggregatorFactory {

@@ -26,7 +26,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportShardSingleOperationAction;
-import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -63,8 +62,6 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
 
     private final ScriptService scriptService;
 
-    private final CacheRecycler cacheRecycler;
-
     private final PageCacheRecycler pageCacheRecycler;
 
     private final BigArrays bigArrays;
@@ -72,12 +69,11 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
     @Inject
     public TransportExplainAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                   TransportService transportService, IndicesService indicesService,
-                                  ScriptService scriptService, CacheRecycler cacheRecycler,
-                                  PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, ActionFilters actionFilters) {
+                                  ScriptService scriptService, PageCacheRecycler pageCacheRecycler,
+                                  BigArrays bigArrays, ActionFilters actionFilters) {
         super(settings, ExplainAction.NAME, threadPool, clusterService, transportService, actionFilters);
         this.indicesService = indicesService;
         this.scriptService = scriptService;
-        this.cacheRecycler = cacheRecycler;
         this.pageCacheRecycler = pageCacheRecycler;
         this.bigArrays = bigArrays;
     }
@@ -122,7 +118,7 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
                         .filteringAliases(request.filteringAlias())
                         .nowInMillis(request.nowInMillis),
                 null, result.searcher(), indexService, indexShard,
-                scriptService, cacheRecycler, pageCacheRecycler,
+                scriptService, pageCacheRecycler,
                 bigArrays
         );
         SearchContext.setCurrent(context);

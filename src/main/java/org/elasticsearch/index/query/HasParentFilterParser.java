@@ -18,26 +18,17 @@
  */
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.search.NotFilter;
-import org.elasticsearch.common.lucene.search.XBooleanFilter;
-import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.query.support.XContentStructure;
 import org.elasticsearch.index.search.child.CustomQueryWrappingFilter;
-import org.elasticsearch.index.search.child.ParentConstantScoreQuery;
 
 import java.io.IOException;
-import java.util.HashSet;
-import java.util.Set;
 
+import static org.elasticsearch.index.query.HasParentQueryParser.createParentQuery;
 import static org.elasticsearch.index.query.QueryParserUtils.ensureNotDeleteByQuery;
 
 /**
@@ -121,52 +112,14 @@ public class HasParentFilterParser implements FilterParser {
             return null;
         }
 
-        DocumentMapper parentDocMapper = parseContext.mapperService().documentMapper(parentType);
-        if (parentDocMapper == null) {
-            throw new QueryParsingException(parseContext.index(), "[has_parent] filter configured 'parent_type' [" + parentType + "] is not a valid type");
+        Query parentQuery = createParentQuery(query, parentType, false, parseContext);
+        if (parentQuery == null) {
+            return null;
         }
-
-        // wrap the query with type query
-        query = new XFilteredQuery(query, parseContext.cacheFilter(parentDocMapper.typeFilter(), null));
-
-        Set<String> parentTypes = new HashSet<>(5);
-        parentTypes.add(parentType);
-        ParentChildIndexFieldData parentChildIndexFieldData = null;
-        for (DocumentMapper documentMapper : parseContext.mapperService().docMappers(false)) {
-            ParentFieldMapper parentFieldMapper = documentMapper.parentFieldMapper();
-            if (parentFieldMapper.active()) {
-                DocumentMapper parentTypeDocumentMapper = parseContext.mapperService().documentMapper(parentFieldMapper.type());
-                parentChildIndexFieldData = parseContext.getForField(parentFieldMapper);
-                if (parentTypeDocumentMapper == null) {
-                    // Only add this, if this parentFieldMapper (also a parent)  isn't a child of another parent.
-                    parentTypes.add(parentFieldMapper.type());
-                }
-            }
-        }
-        if (parentChildIndexFieldData == null) {
-            throw new QueryParsingException(parseContext.index(), "[has_parent] no _parent field configured");
-        }
-
-        Filter parentFilter;
-        if (parentTypes.size() == 1) {
-            DocumentMapper documentMapper = parseContext.mapperService().documentMapper(parentTypes.iterator().next());
-            parentFilter = parseContext.cacheFilter(documentMapper.typeFilter(), null);
-        } else {
-            XBooleanFilter parentsFilter = new XBooleanFilter();
-            for (String parentTypeStr : parentTypes) {
-                DocumentMapper documentMapper = parseContext.mapperService().documentMapper(parentTypeStr);
-                Filter filter = parseContext.cacheFilter(documentMapper.typeFilter(), null);
-                parentsFilter.add(filter, BooleanClause.Occur.SHOULD);
-            }
-            parentFilter = parentsFilter;
-        }
-        Filter childrenFilter = parseContext.cacheFilter(new NotFilter(parentFilter), null);
-        Query parentConstantScoreQuery = new ParentConstantScoreQuery(parentChildIndexFieldData, query, parentType, childrenFilter);
-
         if (filterName != null) {
-            parseContext.addNamedFilter(filterName, new CustomQueryWrappingFilter(parentConstantScoreQuery));
+            parseContext.addNamedFilter(filterName, new CustomQueryWrappingFilter(parentQuery));
         }
-        return new CustomQueryWrappingFilter(parentConstantScoreQuery);
+        return new CustomQueryWrappingFilter(parentQuery);
     }
 
 }

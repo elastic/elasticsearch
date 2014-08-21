@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action;
 
-import com.google.common.collect.Lists;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
@@ -110,6 +109,7 @@ import org.junit.Test;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CopyOnWriteArraySet;
 
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
@@ -795,10 +795,6 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         }
     }
 
-    private static void assertSameIndices(String[] indices, String... actions) {
-        assertSameIndices(indices, false, actions);
-    }
-
     private static void assertSameIndicesOptionalRequests(String[] indices, String... actions) {
         assertSameIndices(indices, true, actions);
     }
@@ -942,7 +938,9 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
             @SuppressWarnings("unchecked")
             public void messageReceived(TransportRequest request, TransportChannel channel) throws Exception {
                 if (actions.contains(action)) {
-                    List<TransportRequest> transportRequests = requests.putIfAbsent(action, Lists.newArrayList(request));
+                    List<TransportRequest> requestList = new CopyOnWriteArrayList<>();
+                    requestList.add(request);
+                    List<TransportRequest> transportRequests = requests.putIfAbsent(action, requestList);
                     if (transportRequests != null) {
                         transportRequests.add(request);
                     }

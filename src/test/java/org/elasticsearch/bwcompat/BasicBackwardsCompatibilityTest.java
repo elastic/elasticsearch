@@ -757,7 +757,7 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
     @Test
     public void testMultiGet() throws ExecutionException, InterruptedException {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
-        ensureGreen("test");
+        ensureYellow("test");
 
         int numDocs = iterations(10, 50);
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[numDocs];

@@ -512,6 +512,10 @@ public final class XContentBuilder implements BytesStream, Releasable {
         return this;
     }
 
+    /**
+     * Writes the binary content of the given BytesReference
+     * Use {@link org.elasticsearch.common.xcontent.XContentParser#binaryValue()} to read the value back
+     */
     public XContentBuilder field(String name, BytesReference value) throws IOException {
         field(name);
         if (!value.hasArray()) {
@@ -521,6 +525,10 @@ public final class XContentBuilder implements BytesStream, Releasable {
         return this;
     }
 
+    /**
+     * Writes the binary content of the given BytesReference
+     * Use {@link org.elasticsearch.common.xcontent.XContentParser#binaryValue()} to read the value back
+     */
     public XContentBuilder field(XContentBuilderString name, BytesReference value) throws IOException {
         field(name);
         if (!value.hasArray()) {
@@ -530,6 +538,20 @@ public final class XContentBuilder implements BytesStream, Releasable {
         return this;
     }
 
+    /**
+     * Writes the binary content of the given BytesRef as UTF-8 bytes
+     * Use {@link XContentParser#utf8Bytes()} to read the value back
+     */
+    public XContentBuilder utf8Field(String name, BytesRef value) throws IOException {
+        field(name);
+        generator.writeUTF8String(value.bytes, value.offset, value.length);
+        return this;
+    }
+
+    /**
+     * Writes the binary content of the given BytesRef as UTF-8 bytes
+     * Use {@link XContentParser#utf8Bytes()} to read the value back
+     */
     public XContentBuilder utf8Field(XContentBuilderString name, BytesRef value) throws IOException {
         field(name);
         generator.writeUTF8String(value.bytes, value.offset, value.length);
@@ -999,6 +1021,22 @@ public final class XContentBuilder implements BytesStream, Releasable {
         return this;
     }
 
+    /**
+     * Writes the binary content of the given BytesRef
+     * Use {@link org.elasticsearch.common.xcontent.XContentParser#binaryValue()} to read the value back
+     */
+    public XContentBuilder value(BytesRef value) throws IOException {
+        if (value == null) {
+            return nullValue();
+        }
+        generator.writeBinary(value.bytes, value.offset, value.length);
+        return this;
+    }
+
+    /**
+     * Writes the binary content of the given BytesReference
+     * Use {@link org.elasticsearch.common.xcontent.XContentParser#binaryValue()} to read the value back
+     */
     public XContentBuilder value(BytesReference value) throws IOException {
         if (value == null) {
             return nullValue();
@@ -1183,6 +1221,9 @@ public final class XContentBuilder implements BytesStream, Releasable {
                 bytes = bytes.toBytesArray();
             }
             generator.writeBinary(bytes.array(), bytes.arrayOffset(), bytes.length());
+        } else if (value instanceof BytesRef) {
+            BytesRef bytes = (BytesRef) value;
+            generator.writeBinary(bytes.bytes, bytes.offset, bytes.length);
         } else if (value instanceof Text) {
             Text text = (Text) value;
             if (text.hasBytes() && text.bytes().hasArray()) {

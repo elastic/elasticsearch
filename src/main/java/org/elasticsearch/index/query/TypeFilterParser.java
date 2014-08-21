@@ -59,7 +59,7 @@ public class TypeFilterParser implements FilterParser {
         if (token != XContentParser.Token.VALUE_STRING) {
             throw new QueryParsingException(parseContext.index(), "[type] filter should have a value field, and the type name");
         }
-        BytesRef type = parser.bytes();
+        BytesRef type = parser.utf8Bytes();
         // move to the next token
         parser.nextToken();
 

@@ -112,7 +112,7 @@ public class TermsFacetParser extends AbstractComponent implements FacetParser {
                 if ("exclude".equals(currentFieldName)) {
                     ImmutableSet.Builder<BytesRef> builder = ImmutableSet.builder();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        builder.add(parser.bytes());
+                        builder.add(parser.utf8Bytes());
                     }
                     excluded = builder.build();
                 } else if ("fields".equals(currentFieldName)) {

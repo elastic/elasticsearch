@@ -126,8 +126,8 @@ public class TransportShardMultiPercolateAction extends TransportShardSingleOper
         Request() {
         }
 
-        Request(String concreteIndex, int shardId, String preference) {
-            this.index = concreteIndex;
+        Request(MultiPercolateRequest multiPercolateRequest, String concreteIndex, int shardId, String preference) {
+            super(multiPercolateRequest, concreteIndex);
             this.shardId = shardId;
             this.preference = preference;
             this.items = new ArrayList<>();

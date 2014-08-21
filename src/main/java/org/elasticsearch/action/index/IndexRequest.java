@@ -484,6 +484,15 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
     }
 
     /**
+     * Sets a string representation of the {@link #opType(org.elasticsearch.action.index.IndexRequest.OpType)}. Can
+     * be either "index" or "create".
+     */
+    public IndexRequest opType(String opType) throws ElasticsearchIllegalArgumentException {
+        return opType(OpType.fromString(opType));
+    }
+
+
+    /**
      * Set to <tt>true</tt> to force this index to use {@link OpType#CREATE}.
      */
     public IndexRequest create(boolean create) {

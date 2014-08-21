@@ -448,7 +448,10 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
      * Represents a snaphshot of the current directory build from the latest Lucene commit.
      * Only files that are part of the last commit are considered in this datastrucutre.
      * For backwards compatibility the snapshot might include legacy checksums that
-     * are derived from a dedicated checksum file written by older elastcisearch version pre 1.3
+     * are derived from a dedicated checksum file written by older elasticsearch version pre 1.3
+     *
+     * Note: This class will ignore the <tt>segments.gen</tt> file since it's optional and might
+     * change concurrently for safety reasons.
      *
      * @see StoreFileMetaData
      */
@@ -490,23 +493,12 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
                         }
                     }
                 }
-                for (String file : Arrays.asList(segmentCommitInfos.getSegmentsFileName(), IndexFileNames.SEGMENTS_GEN)) {
-                    if (!added.contains(file)) {
-                        try {
-                            String legacyChecksum = checksumMap.get(file);
-                            if (maxVersion.onOrAfter(Version.LUCENE_4_8) && legacyChecksum == null) {
-                                checksumFromLuceneFile(directory, file, builder, logger, maxVersion);
-                            } else {
-                                builder.put(file, new StoreFileMetaData(file, directory.fileLength(file), legacyChecksum, null));
-                            }
-                            added.add(file);
-                        } catch (FileNotFoundException | NoSuchFileException ex) {
-                            if (IndexFileNames.SEGMENTS_GEN.equals(file) == false) {
-                                // segments.gen is optional
-                                throw ex;
-                            }
-                        }
-                    }
+                final String segmentsFile = segmentCommitInfos.getSegmentsFileName();
+                String legacyChecksum = checksumMap.get(segmentsFile);
+                if (maxVersion.onOrAfter(Version.LUCENE_4_8) && legacyChecksum == null) {
+                    checksumFromLuceneFile(directory, segmentsFile, builder, logger, maxVersion);
+                } else {
+                    builder.put(segmentsFile, new StoreFileMetaData(segmentsFile, directory.fileLength(segmentsFile), legacyChecksum, null));
                 }
             } catch (CorruptIndexException ex) {
                 throw ex;

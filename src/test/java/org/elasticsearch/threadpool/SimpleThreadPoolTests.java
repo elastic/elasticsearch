@@ -109,7 +109,8 @@ public class SimpleThreadPoolTests extends ElasticsearchIntegrationTest {
             // ignore some shared threads we know that are created within the same VM, like the shared discovery one
             // or the ones that are occasionally come up from ElasticsearchSingleNodeTest
             if (threadName.contains("[" + MulticastChannel.SHARED_CHANNEL_NAME + "]")
-                || threadName.contains("[" + ElasticsearchSingleNodeTest.nodeName() + "]")) {
+                    || threadName.contains("[" + ElasticsearchSingleNodeTest.nodeName() + "]")
+                    || threadName.contains("Keep-Alive-Timer")) {
                 continue;
             }
             assertThat(threadName, anyOf(containsString("[" + node + "]"), containsString("[" + InternalTestCluster.TRANSPORT_CLIENT_PREFIX + node + "]")));

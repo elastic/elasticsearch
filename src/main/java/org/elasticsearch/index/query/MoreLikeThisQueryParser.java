@@ -167,28 +167,34 @@ public class MoreLikeThisQueryParser implements QueryParser {
         if (mltQuery.getLikeText() == null && items.isEmpty()) {
             throw new QueryParsingException(parseContext.index(), "more_like_this requires at least 'like_text' or 'ids/docs' to be specified");
         }
+        if (moreLikeFields != null && moreLikeFields.isEmpty()) {
+            throw new QueryParsingException(parseContext.index(), "more_like_this requires 'fields' to be non-empty");
+        }
 
+        // set analyzer
         if (analyzer == null) {
             analyzer = parseContext.mapperService().searchAnalyzer();
         }
         mltQuery.setAnalyzer(analyzer);
 
-        if (moreLikeFields == null) {
+        // set like text fields
+        boolean useDefaultField = (moreLikeFields == null);
+        if (useDefaultField) {
             moreLikeFields = Lists.newArrayList(parseContext.defaultField());
-        } else if (moreLikeFields.isEmpty()) {
-            throw new QueryParsingException(parseContext.index(), "more_like_this requires 'fields' to be non-empty");
         }
-
+        // possibly remove unsupported fields
         removeUnsupportedFields(moreLikeFields, analyzer, failOnUnsupportedField);
         if (moreLikeFields.isEmpty()) {
             return null;
         }
         mltQuery.setMoreLikeFields(moreLikeFields.toArray(Strings.EMPTY_ARRAY));
 
+        // support for named query
         if (queryName != null) {
             parseContext.addNamedQuery(queryName, mltQuery);
         }
 
+        // handle items
         if (!items.isEmpty()) {
             // set default index, type and fields if not specified
             for (MultiGetRequest.Item item : items) {
@@ -204,7 +210,11 @@ public class MoreLikeThisQueryParser implements QueryParser {
                     }
                 }
                 if (item.fields() == null && item.fetchSourceContext() == null) {
-                    item.fields(moreLikeFields.toArray(new String[moreLikeFields.size()]));
+                    if (useDefaultField) {
+                        item.fields("*");
+                    } else {
+                        item.fields(moreLikeFields.toArray(new String[moreLikeFields.size()]));
+                    }
                 }
             }
             // fetching the items with multi-termvectors API

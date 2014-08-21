@@ -444,16 +444,12 @@ public class Lucene {
         String description = in.readString();
 
         Explanation explanation;
-        if (in.getVersion().onOrAfter(org.elasticsearch.Version.V_1_4_0)) {
-            if (in.readBoolean()) {
-                Boolean match = in.readOptionalBoolean();
-                explanation = new ComplexExplanation();
-                ((ComplexExplanation) explanation).setMatch(match);
-                explanation.setValue(value);
-                explanation.setDescription(description);
-            } else {
-                explanation = new Explanation(value, description);
-            }
+        if (in.getVersion().onOrAfter(org.elasticsearch.Version.V_1_4_0) && in.readBoolean()) {
+            Boolean match = in.readOptionalBoolean();
+            explanation = new ComplexExplanation();
+            ((ComplexExplanation) explanation).setMatch(match);
+            explanation.setValue(value);
+            explanation.setDescription(description);
         } else {
             explanation = new Explanation(value, description);
         }

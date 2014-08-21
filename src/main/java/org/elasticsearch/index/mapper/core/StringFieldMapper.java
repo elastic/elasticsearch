@@ -320,7 +320,7 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else {
-                    if ("value".equals(currentFieldName) || "_value".equals(currentFieldName)) {
+                    if ("value.j.java".equals(currentFieldName) || "_value".equals(currentFieldName)) {
                         value = parser.textOrNull();
                     } else if ("boost".equals(currentFieldName) || "_boost".equals(currentFieldName)) {
                         boost = parser.floatValue();

@@ -22,6 +22,7 @@ package org.elasticsearch.common.xcontent.json;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -86,7 +87,7 @@ public class JsonXContentParser extends AbstractXContentParser {
     }
 
     @Override
-    public BytesRef bytes() throws IOException {
+    public BytesRef utf8Bytes() throws IOException {
         BytesRef bytes = new BytesRef();
         UnicodeUtil.UTF16toUTF8(parser.getTextCharacters(), parser.getTextOffset(), parser.getTextLength(), bytes);
         return bytes;
@@ -114,7 +115,7 @@ public class JsonXContentParser extends AbstractXContentParser {
     public Object objectBytes() throws IOException {
         JsonToken currentToken = parser.getCurrentToken();
         if (currentToken == JsonToken.VALUE_STRING) {
-            return bytes();
+            return utf8Bytes();
         } else if (currentToken == JsonToken.VALUE_NUMBER_INT || currentToken == JsonToken.VALUE_NUMBER_FLOAT) {
             return parser.getNumberValue();
         } else if (currentToken == JsonToken.VALUE_TRUE) {
@@ -124,7 +125,8 @@ public class JsonXContentParser extends AbstractXContentParser {
         } else if (currentToken == JsonToken.VALUE_NULL) {
             return null;
         } else {
-            return bytes();
+            //TODO should this really do UTF-8 conversion?
+            return utf8Bytes();
         }
     }
 
@@ -185,11 +187,7 @@ public class JsonXContentParser extends AbstractXContentParser {
 
     @Override
     public void close() {
-        try {
-            parser.close();
-        } catch (IOException e) {
-            // ignore
-        }
+        IOUtils.closeWhileHandlingException(parser);
     }
 
     private NumberType convertNumberType(JsonParser.NumberType numberType) {

@@ -440,19 +440,17 @@ public class Lucene {
     }
 
     public static Explanation readExplanation(StreamInput in) throws IOException {
-        float value = in.readFloat();
-        String description = in.readString();
-
         Explanation explanation;
         if (in.getVersion().onOrAfter(org.elasticsearch.Version.V_1_4_0) && in.readBoolean()) {
             Boolean match = in.readOptionalBoolean();
             explanation = new ComplexExplanation();
             ((ComplexExplanation) explanation).setMatch(match);
-            explanation.setValue(value);
-            explanation.setDescription(description);
+
         } else {
-            explanation = new Explanation(value, description);
+            explanation = new Explanation();
         }
+        explanation.setValue(in.readFloat());
+        explanation.setDescription(in.readString());
         if (in.readBoolean()) {
             int size = in.readVInt();
             for (int i = 0; i < size; i++) {
@@ -464,8 +462,6 @@ public class Lucene {
 
     public static void writeExplanation(StreamOutput out, Explanation explanation) throws IOException {
 
-        out.writeFloat(explanation.getValue());
-        out.writeString(explanation.getDescription());
         if (out.getVersion().onOrAfter(org.elasticsearch.Version.V_1_4_0)) {
             if (explanation instanceof ComplexExplanation) {
                 out.writeBoolean(true);
@@ -474,6 +470,8 @@ public class Lucene {
                 out.writeBoolean(false);
             }
         }
+        out.writeFloat(explanation.getValue());
+        out.writeString(explanation.getDescription());
         Explanation[] subExplanations = explanation.getDetails();
         if (subExplanations == null) {
             out.writeBoolean(false);

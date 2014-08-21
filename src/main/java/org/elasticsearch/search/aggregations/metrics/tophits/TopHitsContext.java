@@ -25,7 +25,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.analysis.AnalysisService;
@@ -314,11 +313,6 @@ public class TopHitsContext extends SearchContext {
     @Override
     public ScriptService scriptService() {
         return context.scriptService();
-    }
-
-    @Override
-    public CacheRecycler cacheRecycler() {
-        return context.cacheRecycler();
     }
 
     @Override

@@ -27,7 +27,6 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasables;
@@ -89,8 +88,6 @@ public class DefaultSearchContext extends SearchContext {
     private final Engine.Searcher engineSearcher;
 
     private final ScriptService scriptService;
-
-    private final CacheRecycler cacheRecycler;
 
     private final PageCacheRecycler pageCacheRecycler;
 
@@ -180,7 +177,7 @@ public class DefaultSearchContext extends SearchContext {
 
     public DefaultSearchContext(long id, ShardSearchRequest request, SearchShardTarget shardTarget,
                          Engine.Searcher engineSearcher, IndexService indexService, IndexShard indexShard,
-                         ScriptService scriptService, CacheRecycler cacheRecycler, PageCacheRecycler pageCacheRecycler,
+                         ScriptService scriptService, PageCacheRecycler pageCacheRecycler,
                          BigArrays bigArrays) {
         this.id = id;
         this.request = request;
@@ -188,7 +185,6 @@ public class DefaultSearchContext extends SearchContext {
         this.shardTarget = shardTarget;
         this.engineSearcher = engineSearcher;
         this.scriptService = scriptService;
-        this.cacheRecycler = cacheRecycler;
         this.pageCacheRecycler = pageCacheRecycler;
         // SearchContexts use a BigArrays that can circuit break
         this.bigArrays = bigArrays.withCircuitBreaking();
@@ -429,10 +425,6 @@ public class DefaultSearchContext extends SearchContext {
 
     public ScriptService scriptService() {
         return scriptService;
-    }
-
-    public CacheRecycler cacheRecycler() {
-        return cacheRecycler;
     }
 
     public PageCacheRecycler pageCacheRecycler() {

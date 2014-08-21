@@ -26,7 +26,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
@@ -202,8 +201,6 @@ public abstract class SearchContext implements Releasable {
     public abstract SimilarityService similarityService();
 
     public abstract ScriptService scriptService();
-
-    public abstract CacheRecycler cacheRecycler();
 
     public abstract PageCacheRecycler pageCacheRecycler();
 

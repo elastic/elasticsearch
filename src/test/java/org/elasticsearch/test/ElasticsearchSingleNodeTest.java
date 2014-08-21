@@ -21,7 +21,6 @@ package org.elasticsearch.test;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
-import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
@@ -179,9 +178,8 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
     protected static SearchContext createSearchContext(IndexService indexService) {
         BigArrays bigArrays = indexService.injector().getInstance(BigArrays.class);
         ThreadPool threadPool = indexService.injector().getInstance(ThreadPool.class);
-        CacheRecycler cacheRecycler = indexService.injector().getInstance(CacheRecycler.class);
         PageCacheRecycler pageCacheRecycler = indexService.injector().getInstance(PageCacheRecycler.class);
-        return new TestSearchContext(threadPool, cacheRecycler, pageCacheRecycler, bigArrays, indexService, indexService.cache().filter(), indexService.fieldData());
+        return new TestSearchContext(threadPool, pageCacheRecycler, bigArrays, indexService, indexService.cache().filter(), indexService.fieldData());
     }
 
 }

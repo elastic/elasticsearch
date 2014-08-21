@@ -24,7 +24,6 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.analysis.AnalysisService;
@@ -65,7 +64,6 @@ import java.util.List;
 
 public class TestSearchContext extends SearchContext {
 
-    final CacheRecycler cacheRecycler;
     final PageCacheRecycler pageCacheRecycler;
     final BigArrays bigArrays;
     final IndexService indexService;
@@ -78,8 +76,7 @@ public class TestSearchContext extends SearchContext {
     private int terminateAfter = DEFAULT_TERMINATE_AFTER;
     private String[] types;
 
-    public TestSearchContext(ThreadPool threadPool, CacheRecycler cacheRecycler, PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, IndexService indexService, FilterCache filterCache, IndexFieldDataService indexFieldDataService) {
-        this.cacheRecycler = cacheRecycler;
+    public TestSearchContext(ThreadPool threadPool,PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, IndexService indexService, FilterCache filterCache, IndexFieldDataService indexFieldDataService) {
         this.pageCacheRecycler = pageCacheRecycler;
         this.bigArrays = bigArrays.withCircuitBreaking();
         this.indexService = indexService;
@@ -89,7 +86,6 @@ public class TestSearchContext extends SearchContext {
     }
 
     public TestSearchContext() {
-        this.cacheRecycler = null;
         this.pageCacheRecycler = null;
         this.bigArrays = null;
         this.indexService = null;
@@ -308,11 +304,6 @@ public class TestSearchContext extends SearchContext {
     @Override
     public ScriptService scriptService() {
         return null;
-    }
-
-    @Override
-    public CacheRecycler cacheRecycler() {
-        return cacheRecycler;
     }
 
     @Override

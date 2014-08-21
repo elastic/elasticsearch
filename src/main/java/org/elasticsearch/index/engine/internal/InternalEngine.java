@@ -98,6 +98,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
     private volatile ByteSizeValue indexingBufferSize;
     private volatile int indexConcurrency;
     private volatile boolean compoundOnFlush = true;
+    private volatile boolean checksumOnMerge = false;
 
     private long gcDeletesInMillis;
 
@@ -201,6 +202,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         this.similarityService = similarityService;
         this.codecService = codecService;
         this.compoundOnFlush = indexSettings.getAsBoolean(INDEX_COMPOUND_ON_FLUSH, this.compoundOnFlush);
+        this.checksumOnMerge = indexSettings.getAsBoolean(INDEX_CHECKSUM_ON_MERGE, this.checksumOnMerge);
         this.indexConcurrency = indexSettings.getAsInt(INDEX_INDEX_CONCURRENCY, Math.max(IndexWriterConfig.DEFAULT_MAX_THREAD_STATES, (int) (EsExecutors.boundedNumberOfProcessors(indexSettings) * 0.65)));
         this.versionMap = new LiveVersionMap();
         this.dirtyLocks = new Object[indexConcurrency * 50]; // we multiply it to have enough...
@@ -1380,6 +1382,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
              * in combination with the default writelock timeout*/
             config.setWriteLockTimeout(5000);
             config.setUseCompoundFile(this.compoundOnFlush);
+            config.setCheckIntegrityAtMerge(checksumOnMerge);
             // Warm-up hook for newly-merged segments. Warming up segments here is better since it will be performed at the end
             // of the merge operation and won't slow down _refresh
             config.setMergedSegmentWarmer(new IndexReaderWarmer() {
@@ -1414,6 +1417,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
 
     public static final String INDEX_INDEX_CONCURRENCY = "index.index_concurrency";
     public static final String INDEX_COMPOUND_ON_FLUSH = "index.compound_on_flush";
+    public static final String INDEX_CHECKSUM_ON_MERGE = "index.checksum_on_merge";
     public static final String INDEX_GC_DELETES = "index.gc_deletes";
     public static final String INDEX_FAIL_ON_MERGE_FAILURE = "index.fail_on_merge_failure";
     public static final String INDEX_FAIL_ON_CORRUPTION = "index.fail_on_corruption";
@@ -1434,6 +1438,13 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                 logger.info("updating {} from [{}] to [{}]", InternalEngine.INDEX_COMPOUND_ON_FLUSH, InternalEngine.this.compoundOnFlush, compoundOnFlush);
                 InternalEngine.this.compoundOnFlush = compoundOnFlush;
                 indexWriter.getConfig().setUseCompoundFile(compoundOnFlush);
+            }
+            
+            final boolean checksumOnMerge = settings.getAsBoolean(INDEX_CHECKSUM_ON_MERGE, InternalEngine.this.checksumOnMerge);
+            if (checksumOnMerge != InternalEngine.this.checksumOnMerge) {
+                logger.info("updating {} from [{}] to [{}]", InternalEngine.INDEX_CHECKSUM_ON_MERGE, InternalEngine.this.checksumOnMerge, checksumOnMerge);
+                InternalEngine.this.checksumOnMerge = checksumOnMerge;
+                indexWriter.getConfig().setCheckIntegrityAtMerge(checksumOnMerge);
             }
 
             InternalEngine.this.failEngineOnCorruption = settings.getAsBoolean(INDEX_FAIL_ON_CORRUPTION, InternalEngine.this.failEngineOnCorruption);

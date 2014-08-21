@@ -113,6 +113,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         super.setUp();
         defaultSettings = ImmutableSettings.builder()
                 .put(InternalEngine.INDEX_COMPOUND_ON_FLUSH, getRandom().nextBoolean())
+                .put(InternalEngine.INDEX_CHECKSUM_ON_MERGE, getRandom().nextBoolean())
                 .put(InternalEngine.INDEX_GC_DELETES, "1h") // make sure this doesn't kick in on us
                 .put(InternalEngine.INDEX_FAIL_ON_CORRUPTION, randomBoolean())
                 .build(); // TODO randomize more settings

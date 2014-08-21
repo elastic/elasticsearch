@@ -155,6 +155,12 @@ added[1.0.0.RC1]
 
 `index.warmer.enabled`::
     See <<indices-warmers>>. Defaults to `true`.
+    
+coming[1.4.0]
+
+`index.checksum_on_merge`::
+    See <<index-checksum-on-merge,`index.checksum_on_merge>> in
+    <<index-modules-settings>>.
 
 [float]
 [[bulk]]

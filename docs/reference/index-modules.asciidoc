@@ -35,6 +35,11 @@ otherwise it is written in non-compound format.
     Should a new segment (create by indexing, not by merging) be written
     in compound format or non-compound format? Defaults to `true`.
     This is a dynamic setting.
+    
+[[index-checksum-on-merge]]`index.checksum_on_merge`::
+
+    Should merging first validate checksums on segments being merged? 
+    Defaults to `false`. This is a dynamic setting. coming[1.4.0]
 
 `index.refresh_interval`::
 	A time setting controlling how often the

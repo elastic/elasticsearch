@@ -2497,6 +2497,39 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
 
     }
 
+    @Test
+    public void testParentFieldToNonExistingType() {
+        assertAcked(prepareCreate("test").addMapping("parent").addMapping("child", "_parent", "type=parent2"));
+        client().prepareIndex("test", "parent", "1").setSource("{}").get();
+        client().prepareIndex("test", "child", "1").setParent("1").setSource("{}").get();
+        refresh();
+
+        try {
+            client().prepareSearch("test")
+                    .setQuery(QueryBuilders.hasChildQuery("child", matchAllQuery()))
+                    .get();
+            fail();
+        } catch (SearchPhaseExecutionException e) {
+        }
+
+        SearchResponse response = client().prepareSearch("test")
+                .setQuery(QueryBuilders.hasParentQuery("parent", matchAllQuery()))
+                .get();
+        assertHitCount(response, 0);
+
+        try {
+            client().prepareSearch("test")
+                    .setQuery(QueryBuilders.constantScoreQuery(FilterBuilders.hasChildFilter("child", matchAllQuery())))
+                    .get();
+            fail();
+        } catch (SearchPhaseExecutionException e) {
+        }
+
+        response = client().prepareSearch("test")
+                .setQuery(QueryBuilders.constantScoreQuery(FilterBuilders.hasParentFilter("parent", matchAllQuery())))
+                .get();
+        assertHitCount(response, 0);
+    }
 
     private static HasChildFilterBuilder hasChildFilter(String type, QueryBuilder queryBuilder) {
         HasChildFilterBuilder hasChildFilterBuilder = FilterBuilders.hasChildFilter(type, queryBuilder);

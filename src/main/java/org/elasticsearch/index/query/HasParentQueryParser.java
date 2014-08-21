@@ -131,15 +131,27 @@ public class HasParentQueryParser implements QueryParser {
         innerQuery.setBoost(boost);
         // wrap the query with type query
         innerQuery = new XFilteredQuery(innerQuery, parseContext.cacheFilter(parentDocMapper.typeFilter(), null));
+        Query query = createParentQuery(innerQuery, parentType, score, parseContext);
+        if (query == null) {
+            return null;
+        }
 
-        ParentChildIndexFieldData parentChildIndexFieldData = null;
+        query.setBoost(boost);
+        if (queryName != null) {
+            parseContext.addNamedFilter(queryName, new CustomQueryWrappingFilter(query));
+        }
+        return query;
+    }
+
+    static Query createParentQuery(Query innerQuery, String parentType, boolean score, QueryParseContext parseContext) {
         Set<String> parentTypes = new HashSet<>(5);
         parentTypes.add(parentType);
+        ParentChildIndexFieldData parentChildIndexFieldData = null;
         for (DocumentMapper documentMapper : parseContext.mapperService().docMappers(false)) {
             ParentFieldMapper parentFieldMapper = documentMapper.parentFieldMapper();
             if (parentFieldMapper.active()) {
-                parentChildIndexFieldData = parseContext.getForField(parentFieldMapper);
                 DocumentMapper parentTypeDocumentMapper = parseContext.mapperService().documentMapper(parentFieldMapper.type());
+                parentChildIndexFieldData = parseContext.getForField(parentFieldMapper);
                 if (parentTypeDocumentMapper == null) {
                     // Only add this, if this parentFieldMapper (also a parent)  isn't a child of another parent.
                     parentTypes.add(parentFieldMapper.type());
@@ -150,32 +162,34 @@ public class HasParentQueryParser implements QueryParser {
             throw new QueryParsingException(parseContext.index(), "[has_parent] no _parent field configured");
         }
 
-        Filter parentFilter;
+        Filter parentFilter = null;
         if (parentTypes.size() == 1) {
             DocumentMapper documentMapper = parseContext.mapperService().documentMapper(parentTypes.iterator().next());
-            parentFilter = parseContext.cacheFilter(documentMapper.typeFilter(), null);
+            if (documentMapper != null) {
+                parentFilter = parseContext.cacheFilter(documentMapper.typeFilter(), null);
+            }
         } else {
             XBooleanFilter parentsFilter = new XBooleanFilter();
             for (String parentTypeStr : parentTypes) {
                 DocumentMapper documentMapper = parseContext.mapperService().documentMapper(parentTypeStr);
-                Filter filter = parseContext.cacheFilter(documentMapper.typeFilter(), null);
-                parentsFilter.add(filter, BooleanClause.Occur.SHOULD);
+                if (documentMapper != null) {
+                    Filter filter = parseContext.cacheFilter(documentMapper.typeFilter(), null);
+                    parentsFilter.add(filter, BooleanClause.Occur.SHOULD);
+                }
             }
             parentFilter = parentsFilter;
         }
-        Filter childrenFilter = parseContext.cacheFilter(new NotFilter(parentFilter), null);
 
-        Query query;
+        if (parentFilter == null) {
+            return null;
+        }
+
+        Filter childrenFilter = parseContext.cacheFilter(new NotFilter(parentFilter), null);
         if (score) {
-            query = new ParentQuery(parentChildIndexFieldData, innerQuery, parentType, childrenFilter);
+            return new ParentQuery(parentChildIndexFieldData, innerQuery, parentType, childrenFilter);
         } else {
-            query = new ParentConstantScoreQuery(parentChildIndexFieldData, innerQuery, parentType, childrenFilter);
+            return new ParentConstantScoreQuery(parentChildIndexFieldData, innerQuery, parentType, childrenFilter);
         }
-        query.setBoost(boost);
-        if (queryName != null) {
-            parseContext.addNamedFilter(queryName, new CustomQueryWrappingFilter(query));
-        }
-        return query;
     }
 
 }

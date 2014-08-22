@@ -395,7 +395,7 @@ public abstract class QueryBuilders {
      * @param queryBuilder  The query to apply the filter to
      * @param filterBuilder The filter to apply on the query
      */
-    public static FilteredQueryBuilder filteredQuery(QueryBuilder queryBuilder, @Nullable FilterBuilder filterBuilder) {
+    public static FilteredQueryBuilder filteredQuery(@Nullable QueryBuilder queryBuilder, @Nullable FilterBuilder filterBuilder) {
         return new FilteredQueryBuilder(queryBuilder, filterBuilder);
     }
 

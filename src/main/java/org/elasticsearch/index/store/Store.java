@@ -83,7 +83,6 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
 
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
     private final AtomicInteger refCount = new AtomicInteger(1);
-    private final IndexStore indexStore;
     private final CodecService codecService;
     private final DirectoryService directoryService;
     private final StoreDirectory directory;
@@ -91,9 +90,8 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
     private final DistributorDirectory distributorDirectory;
 
     @Inject
-    public Store(ShardId shardId, @IndexSettings Settings indexSettings, IndexStore indexStore, CodecService codecService, DirectoryService directoryService, Distributor distributor) throws IOException {
+    public Store(ShardId shardId, @IndexSettings Settings indexSettings, CodecService codecService, DirectoryService directoryService, Distributor distributor) throws IOException {
         super(shardId, indexSettings);
-        this.indexStore = indexStore;
         this.codecService = codecService;
         this.directoryService = directoryService;
         this.sync = componentSettings.getAsBoolean("sync", true);
@@ -101,10 +99,6 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
         this.directory = new StoreDirectory(distributorDirectory);
     }
 
-    public IndexStore indexStore() {
-        ensureOpen();
-        return this.indexStore;
-    }
 
     public Directory directory() {
         ensureOpen();
@@ -132,7 +126,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
         }
     }
 
-    private final void ensureOpen() {
+    final void ensureOpen() { // for testing
         if (this.refCount.get() <= 0) {
             throw new AlreadyClosedException("Store is already closed");
         }

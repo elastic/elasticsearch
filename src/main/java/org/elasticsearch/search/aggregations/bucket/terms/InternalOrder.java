@@ -152,7 +152,7 @@ class InternalOrder extends Terms.Order {
             // attached to the order will still be used in the reduce phase of the Aggregation.
 
             OrderPath path = path();
-            final Aggregator aggregator = path.resolveAggregator(termsAggregator, false);
+            final Aggregator aggregator = path.resolveAggregator(termsAggregator);
             final String key = path.tokens[path.tokens.length - 1].key;
 
             if (aggregator instanceof SingleBucketAggregator) {

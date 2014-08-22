@@ -2093,6 +2093,15 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         assertFirstHit(searchResponse, hasId("5"));
         assertSearchHits(searchResponse, "5", "6");
         assertThat(searchResponse.getHits().getAt(0).getMatchedQueries()[0], equalTo("myquery"));
+
+        searchResponse = client().prepareSearch().setQuery(simpleQueryString("spaghetti").field("*body")).get();
+        assertHitCount(searchResponse, 2l);
+        assertSearchHits(searchResponse, "5", "6");
+
+        // Have to bypass the builder here because the builder always uses "fields" instead of "field"
+        searchResponse = client().prepareSearch().setQuery("{\"simple_query_string\": {\"query\": \"spaghetti\", \"field\": \"_all\"}}").get();
+        assertHitCount(searchResponse, 2l);
+        assertSearchHits(searchResponse, "5", "6");
     }
 
     @Test
@@ -2193,6 +2202,11 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
 
         SearchResponse searchResponse = client().prepareSearch().setQuery(
                 simpleQueryString("foo bar").flags(SimpleQueryStringFlag.ALL)).get();
+        assertHitCount(searchResponse, 3l);
+        assertSearchHits(searchResponse, "1", "2", "3");
+
+        // Sending a negative 'flags' value is the same as SimpleQueryStringFlag.ALL
+        searchResponse = client().prepareSearch().setQuery("{\"simple_query_string\": {\"query\": \"foo bar\", \"flags\": -1}}").get();
         assertHitCount(searchResponse, 3l);
         assertSearchHits(searchResponse, "1", "2", "3");
 

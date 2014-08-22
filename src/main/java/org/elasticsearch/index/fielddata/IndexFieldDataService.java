@@ -53,6 +53,11 @@ import java.util.concurrent.ConcurrentMap;
  */
 public class IndexFieldDataService extends AbstractIndexComponent {
 
+    public static final String FIELDDATA_CACHE_KEY = "index.fielddata.cache";
+    public static final String FIELDDATA_CACHE_VALUE_SOFT = "soft";
+    public static final String FIELDDATA_CACHE_VALUE_NODE = "node";
+    public static final String FIELDDATA_CACHE_VALUE_RESIDENT = "resident";
+
     private static final String DISABLED_FORMAT = "disabled";
     private static final String DOC_VALUES_FORMAT = "doc_values";
     private static final String ARRAY_FORMAT = "array";
@@ -273,12 +278,12 @@ public class IndexFieldDataService extends AbstractIndexComponent {
                     if (cache == null) {
                         //  we default to node level cache, which in turn defaults to be unbounded
                         // this means changing the node level settings is simple, just set the bounds there
-                        String cacheType = type.getSettings().get("cache", indexSettings.get("index.fielddata.cache", "node"));
-                        if ("resident".equals(cacheType)) {
+                        String cacheType = type.getSettings().get("cache", indexSettings.get(FIELDDATA_CACHE_KEY, FIELDDATA_CACHE_VALUE_NODE));
+                        if (FIELDDATA_CACHE_VALUE_RESIDENT.equals(cacheType)) {
                             cache = new IndexFieldDataCache.Resident(logger, indexService, fieldNames, type, indicesFieldDataCacheListener);
-                        } else if ("soft".equals(cacheType)) {
+                        } else if (FIELDDATA_CACHE_VALUE_SOFT.equals(cacheType)) {
                             cache = new IndexFieldDataCache.Soft(logger, indexService, fieldNames, type, indicesFieldDataCacheListener);
-                        } else if ("node".equals(cacheType)) {
+                        } else if (FIELDDATA_CACHE_VALUE_NODE.equals(cacheType)) {
                             cache = indicesFieldDataCache.buildIndexFieldDataCache(indexService, index, fieldNames, type);
                         } else if ("none".equals(cacheType)){
                             cache = new IndexFieldDataCache.None();

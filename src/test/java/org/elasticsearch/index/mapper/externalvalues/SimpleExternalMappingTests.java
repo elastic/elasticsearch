@@ -36,11 +36,15 @@ public class SimpleExternalMappingTests extends ElasticsearchSingleNodeLuceneTes
     @Test
     public void testExternalValues() throws Exception {
         MapperService mapperService = createIndex("test").mapperService();
+        mapperService.documentMapperParser().putRootTypeParser(ExternalRootMapper.CONTENT_TYPE,
+                new ExternalRootMapper.TypeParser());
         mapperService.documentMapperParser().putTypeParser(RegisterExternalTypes.EXTERNAL,
                 new ExternalMapper.TypeParser(RegisterExternalTypes.EXTERNAL, "foo"));
 
         DocumentMapper documentMapper = mapperService.documentMapperParser().parse(
                 XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject(ExternalRootMapper.CONTENT_TYPE)
+                .endObject()
                 .startObject("properties")
                     .startObject("field").field("type", "external").endObject()
                 .endObject()
@@ -64,6 +68,7 @@ public class SimpleExternalMappingTests extends ElasticsearchSingleNodeLuceneTes
         assertThat(doc.rootDoc().getField("field.field"), notNullValue());
         assertThat(doc.rootDoc().getField("field.field").stringValue(), is("foo"));
 
+        assertThat(doc.rootDoc().getField(ExternalRootMapper.FIELD_NAME).stringValue(), is(ExternalRootMapper.FIELD_VALUE));
 
     }
 

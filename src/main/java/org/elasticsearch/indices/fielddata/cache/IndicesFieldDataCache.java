@@ -32,7 +32,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.fielddata.*;
+import org.elasticsearch.index.fielddata.AtomicFieldData;
+import org.elasticsearch.index.fielddata.FieldDataType;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.ShardId;
@@ -110,10 +113,7 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
         IndexFieldCache indexCache = key.indexCache;
         long sizeInBytes = key.sizeInBytes;
         final Accountable value = notification.getValue();
-        assert sizeInBytes >= 0 || value != null : "Expected size [" + sizeInBytes + "] to be positive or value [" + value + "] to be non-null";
-        if (sizeInBytes == -1 && value != null) {
-            sizeInBytes = value.ramBytesUsed();
-        }
+        assert value == null || sizeInBytes > 0 && sizeInBytes == value.ramBytesUsed() : "Expected size [" + sizeInBytes + "] to be positive or value [" + value + "] to be non-null";
         for (IndexFieldDataCache.Listener listener : key.listeners) {
             try {
                 listener.onUnload(indexCache.fieldNames, indexCache.fieldDataType, notification.wasEvicted(), sizeInBytes);
@@ -198,7 +198,6 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
 
         public <FD extends AtomicFieldData, IFD extends IndexFieldData.Global<FD>> IFD load(final IndexReader indexReader, final IFD indexFieldData) throws Exception {
             final Key key = new Key(this, indexReader.getCoreCacheKey());
-
             //noinspection unchecked
             final Accountable accountable = cache.get(key, new Callable<Accountable>() {
                 @Override
@@ -221,6 +220,7 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
                             logger.error("Failed to call listener on global ordinals loading", e);
                         }
                     }
+                    key.sizeInBytes = ifd.ramBytesUsed();
                     return ifd;
                 }
             });

@@ -49,6 +49,8 @@ public class ExternalValuesMapperIntegrationTests extends ElasticsearchIntegrati
     public void testExternalValues() throws Exception {
         prepareCreate("test-idx").addMapping("type",
                 XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject(ExternalRootMapper.CONTENT_TYPE)
+                .endObject()
                 .startObject("properties")
                     .startObject("field").field("type", RegisterExternalTypes.EXTERNAL).endObject()
                 .endObject()

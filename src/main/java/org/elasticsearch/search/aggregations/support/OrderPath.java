@@ -236,13 +236,9 @@ public class OrderPath {
      * Resolves the aggregator pointed by this path using the given root as a point of reference.
      *
      * @param root      The point of reference of this path
-     * @param validate  Indicates whether the path should be validated first over the given root aggregator
      * @return          The aggregator pointed by this path starting from the given aggregator as a point of reference
      */
-    public Aggregator resolveAggregator(Aggregator root, boolean validate) {
-        if (validate) {
-            validate(root);
-        }
+    public Aggregator resolveAggregator(Aggregator root) {
         Aggregator aggregator = root;
         for (int i = 0; i < tokens.length; i++) {
             OrderPath.Token token = tokens[i];
@@ -258,14 +254,9 @@ public class OrderPath {
      * Resolves the topmost aggregator pointed by this path using the given root as a point of reference.
      *
      * @param root      The point of reference of this path
-     * @param validate  Indicates whether the path should be validated first over the given root aggregator
      * @return          The first child aggregator of the root pointed by this path 
      */
-    public Aggregator resolveTopmostAggregator(Aggregator root, boolean validate) {
-        if (validate) {
-            validate(root);
-        }
-        
+    public Aggregator resolveTopmostAggregator(Aggregator root) {
         OrderPath.Token token = tokens[0];
         Aggregator aggregator = root.subAggregator(token.name);
         assert (aggregator instanceof SingleBucketAggregator )

@@ -23,12 +23,18 @@ import org.elasticsearch.test.ElasticsearchTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
+import java.util.Locale;
+
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
+
 public class BooleansTests extends ElasticsearchTestCase {
 
     @Test
     public void testIsBoolean() {
         String[] booleans = new String[]{"true", "false", "on", "off", "yes", "no", "0", "1"};
         String[] notBooleans = new String[]{"11", "00", "sdfsdfsf", "F", "T"};
+        assertThat(Booleans.isBoolean(null, 0, 1), is(false));
 
         for (String b : booleans) {
             String t = "prefix" + b + "suffix";
@@ -39,5 +45,34 @@ public class BooleansTests extends ElasticsearchTestCase {
             String t = "prefix" + nb + "suffix";
             assertThat("recognized [" + nb + "] as boolean", Booleans.isBoolean(t.toCharArray(), "prefix".length(), nb.length()), Matchers.equalTo(false));
         }
+    }
+    @Test
+    public void parseBoolean() {
+        assertThat(Booleans.parseBoolean(randomFrom("true", "on", "yes", "1"), randomBoolean()), is(true));
+        assertThat(Booleans.parseBoolean(randomFrom("false", "off", "no", "0"), randomBoolean()), is(false));
+        assertThat(Booleans.parseBoolean(randomFrom("true", "on", "yes").toUpperCase(Locale.ROOT), randomBoolean()), is(true));
+        assertThat(Booleans.parseBoolean(null, false), is(false));
+        assertThat(Booleans.parseBoolean(null, true), is(true));
+
+        assertThat(Booleans.parseBoolean(randomFrom("true", "on", "yes", "1"), randomFrom(null, Boolean.TRUE, Boolean.FALSE)), is(true));
+        assertThat(Booleans.parseBoolean(randomFrom("false", "off", "no", "0"), randomFrom(null, Boolean.TRUE, Boolean.FALSE)), is(false));
+        assertThat(Booleans.parseBoolean(randomFrom("true", "on", "yes").toUpperCase(Locale.ROOT),randomFrom(null, Boolean.TRUE, Boolean.FALSE)), is(true));
+        assertThat(Booleans.parseBoolean(null, Boolean.FALSE), is(false));
+        assertThat(Booleans.parseBoolean(null, Boolean.TRUE), is(true));
+        assertThat(Booleans.parseBoolean(null, null), nullValue());
+
+        char[] chars = randomFrom("true", "on", "yes", "1").toCharArray();
+        assertThat(Booleans.parseBoolean(chars, 0, chars.length, randomBoolean()), is(true));
+        chars = randomFrom("false", "off", "no", "0").toCharArray();
+        assertThat(Booleans.parseBoolean(chars,0, chars.length, randomBoolean()), is(false));
+        chars = randomFrom("true", "on", "yes").toUpperCase(Locale.ROOT).toCharArray();
+        assertThat(Booleans.parseBoolean(chars,0, chars.length, randomBoolean()), is(true));
+    }
+
+    public void testIsExplict() {
+        assertThat(Booleans.isExplicitFalse(randomFrom("true", "on", "yes", "1", "foo", null)), is(false));
+        assertThat(Booleans.isExplicitFalse(randomFrom("false", "off", "no", "0")), is(true));
+        assertThat(Booleans.isExplicitTrue(randomFrom("true", "on", "yes", "1")), is(true));
+        assertThat(Booleans.isExplicitTrue(randomFrom("false", "off", "no", "0", "foo", null)), is(false));
     }
 }

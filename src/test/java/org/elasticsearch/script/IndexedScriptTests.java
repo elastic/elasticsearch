@@ -22,6 +22,7 @@ package org.elasticsearch.script;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
@@ -40,7 +41,7 @@ public class IndexedScriptTests extends ElasticsearchIntegrationTest {
         List<IndexRequestBuilder> builders = new ArrayList();
         builders.add(client().prepareIndex(ScriptService.SCRIPT_INDEX, "groovy", "script1").setSource("{" +
                 "\"script\":\"2\""+
-        "}"));
+        "}").setTimeout(TimeValue.timeValueSeconds(randomIntBetween(2,10))));
 
         builders.add(client().prepareIndex(ScriptService.SCRIPT_INDEX, "groovy", "script2").setSource("{" +
                 "\"script\":\"factor*2\""+

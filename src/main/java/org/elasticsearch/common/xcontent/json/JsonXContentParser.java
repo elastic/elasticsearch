@@ -22,6 +22,7 @@ package org.elasticsearch.common.xcontent.json;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.AbstractXContentParser;
@@ -86,7 +87,7 @@ public class JsonXContentParser extends AbstractXContentParser {
     }
 
     @Override
-    public BytesRef bytes() throws IOException {
+    public BytesRef utf8Bytes() throws IOException {
         return new BytesRef(CharBuffer.wrap(parser.getTextCharacters(), parser.getTextOffset(), parser.getTextLength()));
     }
 

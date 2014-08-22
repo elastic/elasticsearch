@@ -31,8 +31,8 @@ import org.apache.lucene.search.spans.*;
 import org.apache.lucene.spatial.prefix.IntersectsPrefixTreeFilter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.CharsRefBuilder;
 import org.apache.lucene.util.NumericUtils;
-import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -1641,10 +1641,10 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
     private static String termsToString(Terms terms) throws IOException {
         String strings = "";
         TermsEnum termsEnum = terms.iterator(null);
-        CharsRef spare = new CharsRef();
+        CharsRefBuilder spare = new CharsRefBuilder();
         BytesRef text;
         while((text = termsEnum.next()) != null) {
-            UnicodeUtil.UTF8toUTF16(text, spare);
+            spare.copyUTF8Bytes(text);
             String term = spare.toString();
             strings += term;
         }

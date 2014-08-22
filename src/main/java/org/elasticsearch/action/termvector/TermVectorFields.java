@@ -172,61 +172,15 @@ public final class TermVectorFields extends Fields {
         return new TermVector(termVectors, readOffset);
     }
 
-<<<<<<< HEAD
-            @Override
-            public TermsEnum iterator(TermsEnum reuse) throws IOException {
-                // convert bytes ref for the terms to actual data
-                return new TermsEnum() {
-                    int currentTerm = 0;
-                    int freq = 0;
-                    int docFreq = -1;
-                    long totalTermFrequency = -1;
-                    int[] positions = new int[1];
-                    int[] startOffsets = new int[1];
-                    int[] endOffsets = new int[1];
-                    BytesRefBuilder[] payloads = new BytesRefBuilder[1];
-                    final BytesRefBuilder spare = new BytesRefBuilder();
-
-                    @Override
-                    public BytesRef next() throws IOException {
-                        if (currentTerm++ < numTerms) {
-                            // term string. first the size...
-                            int termVectorSize = perFieldTermVectorInput.readVInt();
-                            spare.grow(termVectorSize);
-                            // ...then the value.
-                            perFieldTermVectorInput.readBytes(spare.bytes(), 0, termVectorSize);
-                            spare.setLength(termVectorSize);
-                            if (hasTermStatistic) {
-                                docFreq = readPotentiallyNegativeVInt(perFieldTermVectorInput);
-                                totalTermFrequency = readPotentiallyNegativeVLong(perFieldTermVectorInput);
-=======
     @Override
     public int size() {
         return fieldMap.size();
     }
->>>>>>> master
 
     private final class TermVector extends Terms {
 
-<<<<<<< HEAD
-                            freq = readPotentiallyNegativeVInt(perFieldTermVectorInput);
-                            // grow the arrays to read the values. this is just
-                            // for performance reasons. Re-use memory instead of
-                            // realloc.
-                            growBuffers();
-                            // finally, read the values into the arrays
-                            // curentPosition etc. so that we can just iterate
-                            // later
-                            writeInfos(perFieldTermVectorInput);
-                            return spare.get();
-
-                        } else {
-                            return null;
-                        }
-=======
         private final BytesStreamInput perFieldTermVectorInput;
         private final long readOffset;
->>>>>>> master
 
         private long numTerms;
         private boolean hasPositions;
@@ -242,26 +196,6 @@ public final class TermVectorFields extends Fields {
             reset();
         }
 
-<<<<<<< HEAD
-                    private void writeInfos(final BytesStreamInput input) throws IOException {
-                        for (int i = 0; i < freq; i++) {
-                            if (hasPositions) {
-                                positions[i] = input.readVInt();
-                            }
-                            if (hasOffsets) {
-                                startOffsets[i] = input.readVInt();
-                                endOffsets[i] = input.readVInt();
-                            }
-                            if (hasPayloads) {
-                                int payloadLength = input.readVInt();
-                                if (payloads[i] == null) {
-                                    payloads[i] = new BytesRefBuilder();
-                                }
-                                payloads[i].grow(payloadLength);
-                                input.readBytes(payloads[i].bytes(), 0, payloadLength);
-                                payloads[i].setLength(payloadLength);
-                            }
-=======
         private void reset() throws IOException {
             this.perFieldTermVectorInput.reset();
             this.perFieldTermVectorInput.skip(readOffset);
@@ -291,8 +225,8 @@ public final class TermVectorFields extends Fields {
                 int[] positions = new int[1];
                 int[] startOffsets = new int[1];
                 int[] endOffsets = new int[1];
-                BytesRef[] payloads = new BytesRef[1];
-                final BytesRef spare = new BytesRef();
+                BytesRefBuilder[] payloads = new BytesRefBuilder[1];
+                final BytesRefBuilder spare = new BytesRefBuilder();
 
                 @Override
                 public BytesRef next() throws IOException {
@@ -301,12 +235,11 @@ public final class TermVectorFields extends Fields {
                         int termVectorSize = perFieldTermVectorInput.readVInt();
                         spare.grow(termVectorSize);
                         // ...then the value.
-                        perFieldTermVectorInput.readBytes(spare.bytes, 0, termVectorSize);
-                        spare.length = termVectorSize;
+                        perFieldTermVectorInput.readBytes(spare.bytes(), 0, termVectorSize);
+                        spare.setLength(termVectorSize);
                         if (hasTermStatistic) {
                             docFreq = readPotentiallyNegativeVInt(perFieldTermVectorInput);
                             totalTermFrequency = readPotentiallyNegativeVLong(perFieldTermVectorInput);
->>>>>>> master
                         }
 
                         freq = readPotentiallyNegativeVInt(perFieldTermVectorInput);
@@ -318,7 +251,7 @@ public final class TermVectorFields extends Fields {
                         // curentPosition etc. so that we can just iterate
                         // later
                         writeInfos(perFieldTermVectorInput);
-                        return spare;
+                        return spare.get();
 
                     } else {
                         return null;
@@ -335,20 +268,13 @@ public final class TermVectorFields extends Fields {
                             endOffsets[i] = input.readVInt();
                         }
                         if (hasPayloads) {
-<<<<<<< HEAD
-                            if (payloads.length < freq) {
-                                payloads = Arrays.copyOf(payloads, ArrayUtil.oversize(freq, RamUsageEstimator.NUM_BYTES_OBJECT_REF));
-=======
                             int payloadLength = input.readVInt();
                             if (payloads[i] == null) {
-                                payloads[i] = new BytesRef(payloadLength);
-                            } else {
-                                payloads[i].grow(payloadLength);
->>>>>>> master
+                                payloads[i] = new BytesRefBuilder();
                             }
-                            input.readBytes(payloads[i].bytes, 0, payloadLength);
-                            payloads[i].length = payloadLength;
-                            payloads[i].offset = 0;
+                            payloads[i].grow(payloadLength);
+                            input.readBytes(payloads[i].bytes(), 0, payloadLength);
+                            payloads[i].setLength(payloadLength);
                         }
                     }
                 }
@@ -361,47 +287,10 @@ public final class TermVectorFields extends Fields {
                         startOffsets = grow(startOffsets, freq);
                         endOffsets = grow(endOffsets, freq);
                     }
-<<<<<<< HEAD
-
-                    @Override
-                    public BytesRef term() throws IOException {
-                        return spare.get();
-                    }
-
-                    @Override
-                    public long ord() throws IOException {
-                        throw new UnsupportedOperationException("ordinals are not supported");
-                    }
-
-                    @Override
-                    public int docFreq() throws IOException {
-                        return docFreq;
-                    }
-
-                    @Override
-                    public long totalTermFreq() throws IOException {
-                        return totalTermFrequency;
-                    }
-
-                    @Override
-                    public DocsEnum docs(Bits liveDocs, DocsEnum reuse, int flags) throws IOException {
-                        return docsAndPositions(liveDocs, reuse instanceof DocsAndPositionsEnum ? (DocsAndPositionsEnum) reuse : null, 0);
-                    }
-
-                    @Override
-                    public DocsAndPositionsEnum docsAndPositions(Bits liveDocs, DocsAndPositionsEnum reuse, int flags) throws IOException {
-                        final TermVectorsDocsAndPosEnum retVal = (reuse instanceof TermVectorsDocsAndPosEnum ? (TermVectorsDocsAndPosEnum) reuse
-                                : new TermVectorsDocsAndPosEnum());
-                        return retVal.reset(hasPositions ? positions : null, hasOffsets ? startOffsets : null, hasOffsets ? endOffsets
-                                : null, hasPayloads ? payloads : null, freq);
-=======
                     if (hasPayloads) {
                         if (payloads.length < freq) {
-                            final BytesRef[] newArray = new BytesRef[ArrayUtil.oversize(freq, RamUsageEstimator.NUM_BYTES_OBJECT_REF)];
-                            System.arraycopy(payloads, 0, newArray, 0, payloads.length);
-                            payloads = newArray;
+                            payloads = Arrays.copyOf(payloads, ArrayUtil.oversize(freq, RamUsageEstimator.NUM_BYTES_OBJECT_REF));
                         }
->>>>>>> master
                     }
                 }
 
@@ -422,7 +311,7 @@ public final class TermVectorFields extends Fields {
 
                 @Override
                 public BytesRef term() throws IOException {
-                    return spare;
+                    return spare.get();
                 }
 
                 @Override

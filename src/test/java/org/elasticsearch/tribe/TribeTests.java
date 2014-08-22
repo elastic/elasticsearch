@@ -62,7 +62,7 @@ public class TribeTests extends ElasticsearchIntegrationTest {
     public static void setupSecondCluster() throws Exception {
         ElasticsearchIntegrationTest.beforeClass();
         // create another cluster
-        cluster2 = new InternalTestCluster(randomLong(), 2, 2, Strings.randomBase64UUID(getRandom()), 0, false);
+        cluster2 = new InternalTestCluster(randomLong(), 2, 2, Strings.randomBase64UUID(getRandom()), 0, false, CHILD_JVM_ID);
         cluster2.beforeTest(getRandom(), 0.1);
         cluster2.ensureAtLeastNumDataNodes(2);
     }

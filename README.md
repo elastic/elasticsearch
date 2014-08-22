@@ -3,30 +3,34 @@ Japanese (kuromoji) Analysis for Elasticsearch
 
 The Japanese (kuromoji) Analysis plugin integrates Lucene kuromoji analysis module into elasticsearch.
 
-In order to install the plugin, simply run: `bin/plugin -install elasticsearch/elasticsearch-analysis-kuromoji/2.1.0`.
+In order to install the plugin, run: 
 
-* For master elasticsearch versions, look at [master branch](https://github.com/elasticsearch/elasticsearch-analysis-kuromoji/tree/master).
-* For 1.4.x elasticsearch versions, look at [es-1.4 branch](https://github.com/elasticsearch/elasticsearch-analysis-kuromoji/tree/es-1.4).
-* For 1.3.x elasticsearch versions, look at [es-1.3 branch](https://github.com/elasticsearch/elasticsearch-analysis-kuromoji/tree/es-1.3).
-* For 1.2.x elasticsearch versions, look at [es-1.2 branch](https://github.com/elasticsearch/elasticsearch-analysis-kuromoji/tree/es-1.2).
-* For 1.1.x elasticsearch versions, look at [es-1.1 branch](https://github.com/elasticsearch/elasticsearch-analysis-kuromoji/tree/es-1.1).
-* For 1.0.x elasticsearch versions, look at [es-1.0 branch](https://github.com/elasticsearch/elasticsearch-analysis-kuromoji/tree/es-1.0).
-* For 0.90.x elasticsearch versions, look at [es-0.90 branch](https://github.com/elasticsearch/elasticsearch-analysis-kuromoji/tree/es-0.90).
+```sh
+bin/plugin -install elasticsearch/elasticsearch-analysis-kuromoji/2.3.0`
+```
 
+You need to install a version matching your Elasticsearch version:
 
-|  Kuromoji Analysis Plugin   |    elasticsearch    | Release date |
-|-----------------------------|---------------------|:------------:|
-| 3.0.0-SNAPSHOT              | master (2.x)        |  XXXX-XX-XX  |
+| elasticsearch |  Kuromoji Analysis Plugin   |   Docs     |  
+|---------------|-----------------------------|------------|
+| master        |  Build from source          | See below  |
+| es-1.x        |  Build from source          | [2.4.0-SNAPSHOT](https://github.com/elasticsearch/elasticsearch-analysis-kuromoji/tree/es-1.x/#version-240-snapshot-for-elasticsearch-1x)  |
+| es-1.3        |  2.3.0                      | [2.3.0](https://github.com/elasticsearch/elasticsearch-analysis-kuromoji/tree/v2.3.0/#japanese-kuromoji-analysis-for-elasticsearch)  |
+| es-1.2        |  2.2.0                      | [2.2.0](https://github.com/elasticsearch/elasticsearch-analysis-kuromoji/tree/v2.2.0/#japanese-kuromoji-analysis-for-elasticsearch)  |
+| es-1.1        |  2.1.0                      | [2.1.0](https://github.com/elasticsearch/elasticsearch-analysis-kuromoji/tree/v2.1.0/#japanese-kuromoji-analysis-for-elasticsearch)  |
+| es-1.0        |  2.0.0                      | [2.0.0](https://github.com/elasticsearch/elasticsearch-analysis-kuromoji/tree/v2.0.0/#japanese-kuromoji-analysis-for-elasticsearch)  |
+| es-0.90       |  1.8.0                      | [1.8.0](https://github.com/elasticsearch/elasticsearch-analysis-kuromoji/tree/v1.8.0/#japanese-kuromoji-analysis-for-elasticsearch)  |
 
-Please read documentation relative to the version you are using:
+To build a `SNAPSHOT` version, you need to build it with Maven:
 
-* [3.0.0-SNAPSHOT](https://github.com/elasticsearch/elasticsearch-analysis-kuromoji/blob/master/README.md)
+```bash
+mvn clean install
+plugin --install analysis-kuromoji \
+       --url file:target/releases/elasticsearch-analysis-kuromoji-X.X.X-SNAPSHOT.zip
+```
 
-
-The plugin includes the `kuromoji` analyzer.
-
-Includes Analyzer, Tokenizer, TokenFilter
-----------------------------------------
+Includes Analyzer, Tokenizer, TokenFilter, CharFilter
+-----------------------------------------------
 
 The plugin includes these analyzer and tokenizer, tokenfilter.
 

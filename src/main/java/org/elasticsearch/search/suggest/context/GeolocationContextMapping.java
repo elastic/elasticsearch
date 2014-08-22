@@ -224,6 +224,7 @@ public class GeolocationContextMapping extends ContextMapping {
                 ArrayList<String> result = Lists.newArrayList();
                 while (token != Token.END_ARRAY) {
                     result.add(GeoUtils.parseGeoPoint(parser).geohash());
+                    token = parser.nextToken(); //infinite loop without this line
                 }
                 return result;
             }

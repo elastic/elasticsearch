@@ -6,7 +6,7 @@ The Japanese (kuromoji) Analysis plugin integrates Lucene kuromoji analysis modu
 In order to install the plugin, run: 
 
 ```sh
-bin/plugin -install elasticsearch/elasticsearch-analysis-kuromoji/2.3.0`
+bin/plugin -install elasticsearch/elasticsearch-analysis-kuromoji/2.3.0
 ```
 
 You need to install a version matching your Elasticsearch version:

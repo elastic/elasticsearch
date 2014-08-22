@@ -73,8 +73,6 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
 
     protected final ESLogger logger = Loggers.getLogger(getClass());
 
-    public static final String CHILD_VM_ID = System.getProperty("junit4.childvm.id", "" + System.currentTimeMillis());
-
     public static final String TESTS_SECURITY_MANAGER = System.getProperty("tests.security.manager");
 
     public static final String JAVA_SECURTY_POLICY = System.getProperty("java.security.policy");

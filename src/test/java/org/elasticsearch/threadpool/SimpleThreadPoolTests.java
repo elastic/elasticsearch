@@ -67,6 +67,7 @@ public class SimpleThreadPoolTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void verifyThreadNames() throws Exception {
+
         ThreadMXBean threadBean = ManagementFactory.getThreadMXBean();
         Set<String> preNodeStartThreadNames = Sets.newHashSet();
         for (long l : threadBean.getAllThreadIds()) {

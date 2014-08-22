@@ -50,7 +50,7 @@
         </repository>
         <repository>
             <id>Lucene Snapshot</id>
-            <url>http://people.apache.org/~rmuir/fake_staging_area/lucene-solr-4.10.0-r1617712/maven/</url>
+            <url>http://people.apache.org/~rjernst/staging_area/lucene-solr-4.10.0-RC0-rev1619858/lucene</url>
         </repository>
     </repositories>
 

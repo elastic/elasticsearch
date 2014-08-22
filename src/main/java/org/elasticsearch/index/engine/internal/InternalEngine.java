@@ -1029,7 +1029,11 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         }
         // wait for the merges outside of the read lock
         if (optimize.waitForMerge()) {
-            currentIndexWriter().waitForMerges();
+            try {
+                currentIndexWriter().waitForMerges();
+            } catch (IOException e) {
+                throw new OptimizeFailedEngineException(shardId, e);
+            }
         }
         if (optimize.flush()) {
             flush(new Flush().force(true).waitIfOngoing(true));

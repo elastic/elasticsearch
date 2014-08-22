@@ -151,9 +151,8 @@ public class LogByteSizeMergePolicyProvider extends AbstractMergePolicyProvider<
             this.provider = provider;
         }
 
-        @Override
         public void close() {
-            super.close();
+            // nocommit: MergePolicy is no longer Closeable...where to move this?
             provider.policies.remove(this);
         }
     }

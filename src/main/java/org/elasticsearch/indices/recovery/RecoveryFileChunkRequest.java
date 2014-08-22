@@ -117,7 +117,7 @@ public final class RecoveryFileChunkRequest extends TransportRequest {  // publi
         out.writeOptionalString(metaData.checksum());
         out.writeBytesReference(content);
         if (out.getVersion().onOrAfter(org.elasticsearch.Version.V_1_3_0)) {
-            out.writeOptionalString(metaData.writtenBy() == null ? null : metaData.writtenBy().name());
+            out.writeOptionalString(metaData.writtenBy() == null ? null : metaData.writtenBy().toString());
         }
     }
 

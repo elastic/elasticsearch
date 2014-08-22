@@ -44,18 +44,20 @@ public class StandardHtmlStripAnalyzer extends StopwordAnalyzerBase {
         super(version, StopAnalyzer.ENGLISH_STOP_WORDS_SET);
     }
 
+    // nocommit: add non Version based ctors?
+
     public StandardHtmlStripAnalyzer(Version version, CharArraySet stopwords) {
         super(version, stopwords);
     }
 
     @Override
     protected TokenStreamComponents createComponents(final String fieldName, final Reader reader) {
-        final StandardTokenizer src = new StandardTokenizer(matchVersion, reader);
+        final StandardTokenizer src = new StandardTokenizer(getVersion(), reader);
         src.setMaxTokenLength(StandardAnalyzer.DEFAULT_MAX_TOKEN_LENGTH);
-        TokenStream tok = new StandardFilter(matchVersion, src);
-        tok = new LowerCaseFilter(matchVersion, tok);
+        TokenStream tok = new StandardFilter(getVersion(), src);
+        tok = new LowerCaseFilter(getVersion(), tok);
         if (!stopwords.isEmpty()) {
-            tok = new StopFilter(matchVersion, tok, stopwords);
+            tok = new StopFilter(getVersion(), tok, stopwords);
         }
         return new TokenStreamComponents(src, tok) {
             @Override

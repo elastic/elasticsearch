@@ -219,11 +219,6 @@ public final class ElasticsearchMergePolicy extends MergePolicy {
     }
 
     @Override
-    public void close() {
-      delegate.close();
-    }
-
-    @Override
     public boolean useCompoundFile(SegmentInfos segments, SegmentCommitInfo newSegment, IndexWriter writer) throws IOException {
       return delegate.useCompoundFile(segments, newSegment, writer);
     }

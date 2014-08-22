@@ -51,7 +51,7 @@ import static org.elasticsearch.common.lucene.search.NoopCollector.NOOP_COLLECTO
  */
 public class Lucene {
 
-    public static final Version VERSION = Version.LUCENE_4_10;
+    public static final Version VERSION = Version.LUCENE_4_10_0;
     public static final Version ANALYZER_VERSION = VERSION;
     public static final Version QUERYPARSER_VERSION = VERSION;
 
@@ -69,28 +69,11 @@ public class Lucene {
         if (version == null) {
             return defaultVersion;
         }
-        switch(version) {
-            case "4.10": return VERSION.LUCENE_4_10;
-            case "4.9":  return VERSION.LUCENE_4_9;
-            case "4.8":  return VERSION.LUCENE_4_8;
-            case "4.7":  return VERSION.LUCENE_4_7;
-            case "4.6":  return VERSION.LUCENE_4_6;
-            case "4.5":  return VERSION.LUCENE_4_5;
-            case "4.4":  return VERSION.LUCENE_4_4;
-            case "4.3":  return VERSION.LUCENE_4_3;
-            case "4.2":  return VERSION.LUCENE_4_2;
-            case "4.1":  return VERSION.LUCENE_4_1;
-            case "4.0":  return VERSION.LUCENE_4_0;
-            case "3.6":  return VERSION.LUCENE_3_6;
-            case "3.5":  return VERSION.LUCENE_3_5;
-            case "3.4":  return VERSION.LUCENE_3_4;
-            case "3.3":  return VERSION.LUCENE_3_3;
-            case "3.2":  return VERSION.LUCENE_3_2;
-            case "3.1":  return VERSION.LUCENE_3_1;
-            case "3.0":  return VERSION.LUCENE_3_0;
-            default:
-                logger.warn("no version match {}, default to {}", version, defaultVersion);
-                return defaultVersion;
+        try {
+            return Version.parse(version);
+        } catch (IllegalArgumentException e) {
+            logger.warn("no version match {}, default to {}", version, defaultVersion, e);
+            return defaultVersion;
         }
     }
 
@@ -564,10 +547,7 @@ public class Lucene {
                 try {
                     return Version.parseLeniently(toParse);
                 } catch (IllegalArgumentException e) {
-                    final String parsedMatchVersion = toParse
-                            .toUpperCase(Locale.ROOT)
-                            .replaceFirst("^(\\d+)\\.(\\d+)(.(\\d+))+$", "LUCENE_$1_$2");
-                    return Version.valueOf(parsedMatchVersion);
+                    // pass to default
                 }
             }
             return defaultValue;

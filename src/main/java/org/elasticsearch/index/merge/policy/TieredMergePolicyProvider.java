@@ -199,9 +199,8 @@ public class TieredMergePolicyProvider extends AbstractMergePolicyProvider<Tiere
             this.provider = provider;
         }
 
-        @Override
         public void close() {
-            super.close();
+            // nocommit: MergePolicy is no longer Closeable...where to move this?
             provider.policies.remove(this);
         }
     }

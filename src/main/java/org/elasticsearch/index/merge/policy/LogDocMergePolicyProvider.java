@@ -135,9 +135,8 @@ public class LogDocMergePolicyProvider extends AbstractMergePolicyProvider<LogDo
             this.provider = provider;
         }
 
-        @Override
         public void close() {
-            super.close();
+            // nocommit: MergePolicy is no longer Closeable...where to move this?
             provider.policies.remove(this);
         }
     }

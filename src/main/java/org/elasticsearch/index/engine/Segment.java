@@ -23,6 +23,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.ByteSizeValue;
 
 import java.io.IOException;
@@ -36,7 +37,7 @@ public class Segment implements Streamable {
     public long sizeInBytes = -1;
     public int docCount = -1;
     public int delDocCount = -1;
-    public String version = null;
+    public org.apache.lucene.util.Version version = null;
     public Boolean compound = null;
     public String mergeId;
     public long memoryInBytes;
@@ -81,7 +82,7 @@ public class Segment implements Streamable {
         return this.sizeInBytes;
     }
 
-    public String getVersion() {
+    public org.apache.lucene.util.Version getVersion() {
         return version;
     }
 
@@ -138,7 +139,8 @@ public class Segment implements Streamable {
         docCount = in.readInt();
         delDocCount = in.readInt();
         sizeInBytes = in.readLong();
-        version = in.readOptionalString();
+        // nocommit: why is this an optional string? should not have ES specific parse functions?
+        version = Lucene.parseVersionLenient(in.readOptionalString(), null);
         compound = in.readOptionalBoolean();
         mergeId = in.readOptionalString();
         memoryInBytes = in.readLong();
@@ -152,7 +154,7 @@ public class Segment implements Streamable {
         out.writeInt(docCount);
         out.writeInt(delDocCount);
         out.writeLong(sizeInBytes);
-        out.writeOptionalString(version);
+        out.writeOptionalString(version.toString());
         out.writeOptionalBoolean(compound);
         out.writeOptionalString(mergeId);
         out.writeLong(memoryInBytes);

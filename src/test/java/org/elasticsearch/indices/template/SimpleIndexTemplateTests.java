@@ -344,6 +344,9 @@ public class SimpleIndexTemplateTests extends ElasticsearchIntegrationTest {
                         .filter(FilterBuilders.termsFilter("_type",  "typeX", "typeY", "typeZ").execution("bool").cache(true)))
                 .get();
 
+        assertAcked(prepareCreate("test_index").addMapping("type1").addMapping("type2").addMapping("typeX").addMapping("typeY").addMapping("typeZ"));
+        ensureGreen();
+
         client().prepareIndex("test_index", "type1", "1").setSource("field", "A value").get();
         client().prepareIndex("test_index", "type2", "2").setSource("field", "B value").get();
         client().prepareIndex("test_index", "typeX", "3").setSource("field", "C value").get();
@@ -398,7 +401,7 @@ public class SimpleIndexTemplateTests extends ElasticsearchIntegrationTest {
                         "}").get();
 
 
-        createIndex("test_index");
+        assertAcked(prepareCreate("test_index").addMapping("type1").addMapping("type2"));
         ensureGreen();
 
         GetAliasesResponse getAliasesResponse = client().admin().indices().prepareGetAliases().setIndices("test_index").get();
@@ -434,7 +437,7 @@ public class SimpleIndexTemplateTests extends ElasticsearchIntegrationTest {
                         "        \"alias3\" : { \"routing\" : \"1\" }" +
                         "    }\n").get();
 
-        createIndex("test_index");
+        assertAcked(prepareCreate("test_index").addMapping("type1").addMapping("type2"));
         ensureGreen();
 
         GetAliasesResponse getAliasesResponse = client().admin().indices().prepareGetAliases().setIndices("test_index").get();

@@ -51,6 +51,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
+import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMapper.Loading;
@@ -867,7 +868,11 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                         try {
                             final long start = System.nanoTime();
                             IndexFieldData ifd = indexFieldDataService.getForField(fieldMapper);
-                            ((IndexFieldData.WithOrdinals) ifd).loadGlobal(context.indexReader());
+                            if (ifd instanceof ParentChildIndexFieldData) {
+                                ((ParentChildIndexFieldData) ifd).getGlobalParentChild(null, context.indexReader());
+                            } else {
+                                ((IndexFieldData.WithOrdinals) ifd).loadGlobal(context.indexReader());
+                            }
                             if (indexShard.warmerService().logger().isTraceEnabled()) {
                                 indexShard.warmerService().logger().trace("warmed global ordinals for [{}], took [{}]", fieldMapper.names().name(), TimeValue.timeValueNanos(System.nanoTime() - start));
                             }

@@ -30,6 +30,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -72,10 +73,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStreamReader;
 import java.io.UnsupportedEncodingException;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
@@ -98,11 +96,12 @@ public class MetaDataCreateIndexService extends AbstractComponent {
     private final Version version;
     private final String riverIndexName;
     private final AliasValidator aliasValidator;
+    private final IndexTemplateFilter indexTemplateFilter;
 
     @Inject
     public MetaDataCreateIndexService(Settings settings, Environment environment, ThreadPool threadPool, ClusterService clusterService, IndicesService indicesService,
                                       AllocationService allocationService, MetaDataService metaDataService, Version version, @RiverIndexName String riverIndexName,
-                                      AliasValidator aliasValidator) {
+                                      AliasValidator aliasValidator, Set<IndexTemplateFilter> indexTemplateFilters) {
         super(settings);
         this.environment = environment;
         this.threadPool = threadPool;
@@ -113,18 +112,10 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         this.version = version;
         this.riverIndexName = riverIndexName;
         this.aliasValidator = aliasValidator;
+        this.indexTemplateFilter = indexTemplateFilters.isEmpty() ? null : new IndexTemplateFilter.Compound(indexTemplateFilters);
     }
 
-    public void createIndex(final CreateIndexClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
-        ImmutableSettings.Builder updatedSettingsBuilder = ImmutableSettings.settingsBuilder();
-        for (Map.Entry<String, String> entry : request.settings().getAsMap().entrySet()) {
-            if (!entry.getKey().startsWith("index.")) {
-                updatedSettingsBuilder.put("index." + entry.getKey(), entry.getValue());
-            } else {
-                updatedSettingsBuilder.put(entry.getKey(), entry.getValue());
-            }
-        }
-        request.settings(updatedSettingsBuilder.build());
+    public void createIndex(final String cause, final CreateIndexRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
 
         // we lock here, and not within the cluster service callback since we don't want to
         // block the whole cluster state handling
@@ -132,7 +123,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
         // quick check to see if we can acquire a lock, otherwise spawn to a thread pool
         if (mdLock.tryAcquire()) {
-            createIndex(request, listener, mdLock);
+            createIndex(cause, request, listener, mdLock);
             return;
         }
 
@@ -150,7 +141,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     return;
                 }
 
-                createIndex(request, listener, mdLock);
+                createIndex(cause, request, listener, mdLock);
             }
         });
     }
@@ -191,8 +182,24 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         }
     }
 
-    private void createIndex(final CreateIndexClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener, final Semaphore mdLock) {
-        clusterService.submitStateUpdateTask("create-index [" + request.index() + "], cause [" + request.cause() + "]", Priority.URGENT, new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(request, listener) {
+    private void createIndex(final String cause, final CreateIndexRequest request, final ActionListener<ClusterStateUpdateResponse> listener, final Semaphore mdLock) {
+
+        final CreateIndexClusterStateUpdateRequest updateRequest = new CreateIndexClusterStateUpdateRequest(cause, request.index())
+                .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
+                .settings(request.settings()).mappings(request.mappings())
+                .aliases(request.aliases()).customs(request.customs());
+
+        ImmutableSettings.Builder updatedSettingsBuilder = ImmutableSettings.settingsBuilder();
+        for (Map.Entry<String, String> entry : updateRequest.settings().getAsMap().entrySet()) {
+            if (!entry.getKey().startsWith("index.")) {
+                updatedSettingsBuilder.put("index." + entry.getKey(), entry.getValue());
+            } else {
+                updatedSettingsBuilder.put(entry.getKey(), entry.getValue());
+            }
+        }
+        updateRequest.settings(updatedSettingsBuilder.build());
+
+        clusterService.submitStateUpdateTask("create-index [" + updateRequest.index() + "], cause [" + cause + "]", Priority.URGENT, new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(updateRequest, listener) {
 
             @Override
             protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
@@ -222,15 +229,24 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                 boolean indexCreated = false;
                 String failureReason = null;
                 try {
-                    validate(request, currentState);
+                    validate(updateRequest, currentState);
 
-                    for (Alias alias : request.aliases()) {
-                        aliasValidator.validateAlias(alias, request.index(), currentState.metaData());
+                    for (Alias alias : updateRequest.aliases()) {
+                        aliasValidator.validateAlias(alias, updateRequest.index(), currentState.metaData());
                     }
 
                     // we only find a template when its an API call (a new index)
                     // find templates, highest order are better matching
-                    List<IndexTemplateMetaData> templates = findTemplates(request, currentState);
+                    List<IndexTemplateMetaData> templates = findTemplates(updateRequest, currentState);
+                    if (indexTemplateFilter != null) {
+                        List<IndexTemplateMetaData> filteredTemplates = Lists.newArrayList();
+                        for (IndexTemplateMetaData template : templates) {
+                            if (indexTemplateFilter.apply(request, template)) {
+                                filteredTemplates.add(template);
+                            }
+                        }
+                        templates = filteredTemplates;
+                    }
 
                     Map<String, Custom> customs = Maps.newHashMap();
 
@@ -239,11 +255,11 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
                     Map<String, AliasMetaData> templatesAliases = Maps.newHashMap();
 
-                    for (Map.Entry<String, String> entry : request.mappings().entrySet()) {
+                    for (Map.Entry<String, String> entry : updateRequest.mappings().entrySet()) {
                         mappings.put(entry.getKey(), parseMapping(entry.getValue()));
                     }
 
-                    for (Map.Entry<String, Custom> entry : request.customs().entrySet()) {
+                    for (Map.Entry<String, Custom> entry : updateRequest.customs().entrySet()) {
                         customs.put(entry.getKey(), entry.getValue());
                     }
 
@@ -273,7 +289,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                             AliasMetaData aliasMetaData = cursor.value;
                             //if an alias with same name came with the create index request itself,
                             // ignore this one taken from the index template
-                            if (request.aliases().contains(new Alias(aliasMetaData.alias()))) {
+                            if (updateRequest.aliases().contains(new Alias(aliasMetaData.alias()))) {
                                 continue;
                             }
                             //if an alias with same name was already processed, ignore this one
@@ -283,11 +299,11 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
                             //Allow templatesAliases to be templated by replacing a token with the name of the index that we are applying it to
                             if (aliasMetaData.alias().contains("{index}")) {
-                                String templatedAlias = aliasMetaData.alias().replace("{index}", request.index());
+                                String templatedAlias = aliasMetaData.alias().replace("{index}", updateRequest.index());
                                 aliasMetaData = AliasMetaData.newAliasMetaData(aliasMetaData, templatedAlias);
                             }
 
-                            aliasValidator.validateAliasMetaData(aliasMetaData, request.index(), currentState.metaData());
+                            aliasValidator.validateAliasMetaData(aliasMetaData, updateRequest.index(), currentState.metaData());
                             templatesAliases.put(aliasMetaData.alias(), aliasMetaData);
                         }
                     }
@@ -296,7 +312,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     File mappingsDir = new File(environment.configFile(), "mappings");
                     if (mappingsDir.exists() && mappingsDir.isDirectory()) {
                         // first index level
-                        File indexMappingsDir = new File(mappingsDir, request.index());
+                        File indexMappingsDir = new File(mappingsDir, updateRequest.index());
                         if (indexMappingsDir.exists() && indexMappingsDir.isDirectory()) {
                             addMappings(mappings, indexMappingsDir);
                         }
@@ -314,17 +330,17 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                         indexSettingsBuilder.put(templates.get(i).settings());
                     }
                     // now, put the request settings, so they override templates
-                    indexSettingsBuilder.put(request.settings());
+                    indexSettingsBuilder.put(updateRequest.settings());
 
                     if (indexSettingsBuilder.get(SETTING_NUMBER_OF_SHARDS) == null) {
-                        if (request.index().equals(riverIndexName)) {
+                        if (updateRequest.index().equals(riverIndexName)) {
                             indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, settings.getAsInt(SETTING_NUMBER_OF_SHARDS, 1));
                         } else {
                             indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, settings.getAsInt(SETTING_NUMBER_OF_SHARDS, 5));
                         }
                     }
                     if (indexSettingsBuilder.get(SETTING_NUMBER_OF_REPLICAS) == null) {
-                        if (request.index().equals(riverIndexName)) {
+                        if (updateRequest.index().equals(riverIndexName)) {
                             indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, 1));
                         } else {
                             indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, 1));
@@ -352,10 +368,10 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     // Set up everything, now locally create the index to see that things are ok, and apply
 
                     // create the index here (on the master) to validate it can be created, as well as adding the mapping
-                    indicesService.createIndex(request.index(), actualIndexSettings, clusterService.localNode().id());
+                    indicesService.createIndex(updateRequest.index(), actualIndexSettings, clusterService.localNode().id());
                     indexCreated = true;
                     // now add the mappings
-                    IndexService indexService = indicesService.indexServiceSafe(request.index());
+                    IndexService indexService = indicesService.indexServiceSafe(updateRequest.index());
                     MapperService mapperService = indexService.mapperService();
                     // first, add the default mapping
                     if (mappings.containsKey(MapperService.DEFAULT_MAPPING)) {
@@ -380,7 +396,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     }
 
                     IndexQueryParserService indexQueryParserService = indexService.queryParserService();
-                    for (Alias alias : request.aliases()) {
+                    for (Alias alias : updateRequest.aliases()) {
                         if (Strings.hasLength(alias.filter())) {
                             aliasValidator.validateAliasFilter(alias.name(), alias.filter(), indexQueryParserService);
                         }
@@ -398,7 +414,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                         mappingsMetaData.put(mapper.type(), mappingMd);
                     }
 
-                    final IndexMetaData.Builder indexMetaDataBuilder = IndexMetaData.builder(request.index()).settings(actualIndexSettings);
+                    final IndexMetaData.Builder indexMetaDataBuilder = IndexMetaData.builder(updateRequest.index()).settings(actualIndexSettings);
                     for (MappingMetaData mappingMd : mappingsMetaData.values()) {
                         indexMetaDataBuilder.putMapping(mappingMd);
                     }
@@ -406,7 +422,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     for (AliasMetaData aliasMetaData : templatesAliases.values()) {
                         indexMetaDataBuilder.putAlias(aliasMetaData);
                     }
-                    for (Alias alias : request.aliases()) {
+                    for (Alias alias : updateRequest.aliases()) {
                         AliasMetaData aliasMetaData = AliasMetaData.builder(alias.name()).filter(alias.filter())
                                 .indexRouting(alias.indexRouting()).searchRouting(alias.searchRouting()).build();
                         indexMetaDataBuilder.putAlias(aliasMetaData);
@@ -416,7 +432,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                         indexMetaDataBuilder.putCustom(customEntry.getKey(), customEntry.getValue());
                     }
 
-                    indexMetaDataBuilder.state(request.state());
+                    indexMetaDataBuilder.state(updateRequest.state());
 
                     final IndexMetaData indexMetaData;
                     try {
@@ -430,23 +446,23 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                             .put(indexMetaData, false)
                             .build();
 
-                    logger.info("[{}] creating index, cause [{}], shards [{}]/[{}], mappings {}", request.index(), request.cause(), indexMetaData.numberOfShards(), indexMetaData.numberOfReplicas(), mappings.keySet());
+                    logger.info("[{}] creating index, cause [{}], shards [{}]/[{}], mappings {}", updateRequest.index(), cause, indexMetaData.numberOfShards(), indexMetaData.numberOfReplicas(), mappings.keySet());
 
                     ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
-                    if (!request.blocks().isEmpty()) {
-                        for (ClusterBlock block : request.blocks()) {
-                            blocks.addIndexBlock(request.index(), block);
+                    if (!updateRequest.blocks().isEmpty()) {
+                        for (ClusterBlock block : updateRequest.blocks()) {
+                            blocks.addIndexBlock(updateRequest.index(), block);
                         }
                     }
-                    if (request.state() == State.CLOSE) {
-                        blocks.addIndexBlock(request.index(), MetaDataIndexStateService.INDEX_CLOSED_BLOCK);
+                    if (updateRequest.state() == State.CLOSE) {
+                        blocks.addIndexBlock(updateRequest.index(), MetaDataIndexStateService.INDEX_CLOSED_BLOCK);
                     }
 
                     ClusterState updatedState = ClusterState.builder(currentState).blocks(blocks).metaData(newMetaData).build();
 
-                    if (request.state() == State.OPEN) {
+                    if (updateRequest.state() == State.OPEN) {
                         RoutingTable.Builder routingTableBuilder = RoutingTable.builder(updatedState.routingTable())
-                                .addAsNew(updatedState.metaData().index(request.index()));
+                                .addAsNew(updatedState.metaData().index(updateRequest.index()));
                         RoutingAllocation.Result routingResult = allocationService.reroute(ClusterState.builder(updatedState).routingTable(routingTableBuilder).build());
                         updatedState = ClusterState.builder(updatedState).routingResult(routingResult).build();
                     }
@@ -454,7 +470,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                 } finally {
                     if (indexCreated) {
                         // Index was already partially created - need to clean up
-                        indicesService.removeIndex(request.index(), failureReason != null ? failureReason : "failed to create index");
+                        indicesService.removeIndex(updateRequest.index(), failureReason != null ? failureReason : "failed to create index");
                     }
                 }
             }
@@ -530,4 +546,5 @@ public class MetaDataCreateIndexService extends AbstractComponent {
     private void validate(CreateIndexClusterStateUpdateRequest request, ClusterState state) throws ElasticsearchException {
         validateIndexName(request.index(), state);
     }
+
 }

@@ -54,7 +54,7 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
     private final Set<ClusterBlock> blocks = Sets.newHashSet();
 
 
-    CreateIndexClusterStateUpdateRequest(String cause, String index) {
+    public CreateIndexClusterStateUpdateRequest(String cause, String index) {
         this.cause = cause;
         this.index = index;
     }

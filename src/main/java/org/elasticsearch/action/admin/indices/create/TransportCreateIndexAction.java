@@ -77,12 +77,7 @@ public class TransportCreateIndexAction extends TransportMasterNodeOperationActi
             cause = "api";
         }
 
-        CreateIndexClusterStateUpdateRequest updateRequest = new CreateIndexClusterStateUpdateRequest(cause, request.index())
-                .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
-                .settings(request.settings()).mappings(request.mappings())
-                .aliases(request.aliases()).customs(request.customs());
-
-        createIndexService.createIndex(updateRequest, new ActionListener<ClusterStateUpdateResponse>() {
+        createIndexService.createIndex(cause, request, new ActionListener<ClusterStateUpdateResponse>() {
 
             @Override
             public void onResponse(ClusterStateUpdateResponse response) {

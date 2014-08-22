@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.SearchHit;
@@ -152,6 +153,7 @@ public class ChildrenTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    @LuceneTestCase.AwaitsFix(bugUrl = "Order is incorrect, c is sometimes before a...")
     public void testParentWithMultipleBuckets() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("test")
                 .setQuery(matchQuery("randomized", false))

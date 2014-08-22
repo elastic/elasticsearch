@@ -46,7 +46,6 @@ If only one document is specified, the query behaves the same as the
 }
 --------------------------------------------------
 
-
 `more_like_this` can be shortened to `mlt`.
 
 Under the hood, `more_like_this` simply creates multiple `should` clauses in a `bool` query of
@@ -61,10 +60,13 @@ such as `min_word_length`, `max_word_length` or `stop_words`, to control what
 terms should be considered as interesting. In order to give more weight to
 more interesting terms, each boolean clause associated with a term could be
 boosted by the term tf-idf score times some boosting factor `boost_terms`.
-
 When a search for multiple `docs` is issued, More Like This generates a
 `more_like_this` query per document field in `fields`. These `fields` are
 specified as a top level parameter or within each `doc`.
+
+IMPORTANT: The fields must be indexed and of type `string`. Additionally, when
+using `ids` or `docs`, the fields must be either `stored`, store `term_vector`
+or `_source` must be enabled.
 
 The `more_like_this` top level parameters include:
 

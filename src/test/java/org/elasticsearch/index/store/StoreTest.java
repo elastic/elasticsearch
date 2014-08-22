@@ -40,11 +40,64 @@ import java.io.IOException;
 import java.nio.file.NoSuchFileException;
 import java.util.*;
 
+import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomInt;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomIntBetween;
 import static org.hamcrest.Matchers.*;
 
 public class StoreTest extends ElasticsearchLuceneTestCase {
+
+    @Test
+    public void testRefCount() throws IOException {
+        final ShardId shardId = new ShardId(new Index("index"), 1);
+        DirectoryService directoryService = new LuceneManagedDirectoryService(random());
+        Store store = new Store(shardId, ImmutableSettings.EMPTY, null, directoryService, randomDistributor(directoryService));
+        int incs = randomIntBetween(1, 100);
+        for (int i = 0; i < incs; i++) {
+            if (randomBoolean()) {
+                store.incRef();
+            } else {
+                assertTrue(store.tryIncRef());
+            }
+            store.ensureOpen();
+        }
+
+        for (int i = 0; i < incs; i++) {
+            store.decRef();
+            store.ensureOpen();
+        }
+
+        store.incRef();
+        store.close();
+        for (int i = 0; i < incs; i++) {
+            if (randomBoolean()) {
+                store.incRef();
+            } else {
+                assertTrue(store.tryIncRef());
+            }
+            store.ensureOpen();
+        }
+
+        for (int i = 0; i < incs; i++) {
+            store.decRef();
+            store.ensureOpen();
+        }
+
+        store.decRef();
+        assertFalse(store.tryIncRef());
+        try {
+            store.incRef();
+            fail(" expected exception");
+        } catch (AlreadyClosedException ex) {
+
+        }
+        try {
+            store.ensureOpen();
+            fail(" expected exception");
+        } catch (AlreadyClosedException ex) {
+
+        }
+    }
 
     @Test
     public void testVerifyingIndexOutput() throws IOException {
@@ -106,7 +159,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
     public void testWriteLegacyChecksums() throws IOException {
         final ShardId shardId = new ShardId(new Index("index"), 1);
         DirectoryService directoryService = new LuceneManagedDirectoryService(random());
-        Store store = new Store(shardId, ImmutableSettings.EMPTY, null, null, directoryService, randomDistributor(directoryService));
+        Store store = new Store(shardId, ImmutableSettings.EMPTY, null, directoryService, randomDistributor(directoryService));
         // set default codec - all segments need checksums
         IndexWriter writer = new IndexWriter(store.directory(), newIndexWriterConfig(random(), TEST_VERSION_CURRENT, new MockAnalyzer(random())).setCodec(actualDefaultCodec()));
         int docs = 1 + random().nextInt(100);
@@ -169,7 +222,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
     public void testNewChecksums() throws IOException {
         final ShardId shardId = new ShardId(new Index("index"), 1);
         DirectoryService directoryService = new LuceneManagedDirectoryService(random());
-        Store store = new Store(shardId, ImmutableSettings.EMPTY, null, null, directoryService, randomDistributor(directoryService));
+        Store store = new Store(shardId, ImmutableSettings.EMPTY, null, directoryService, randomDistributor(directoryService));
         // set default codec - all segments need checksums
         IndexWriter writer = new IndexWriter(store.directory(), newIndexWriterConfig(random(), TEST_VERSION_CURRENT, new MockAnalyzer(random())).setCodec(actualDefaultCodec()));
         int docs = 1 + random().nextInt(100);
@@ -224,7 +277,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
     public void testMixedChecksums() throws IOException {
         final ShardId shardId = new ShardId(new Index("index"), 1);
         DirectoryService directoryService = new LuceneManagedDirectoryService(random());
-        Store store = new Store(shardId, ImmutableSettings.EMPTY, null, null, directoryService, randomDistributor(directoryService));
+        Store store = new Store(shardId, ImmutableSettings.EMPTY, null, directoryService, randomDistributor(directoryService));
         // this time random codec....
         IndexWriter writer = new IndexWriter(store.directory(), newIndexWriterConfig(random(), TEST_VERSION_CURRENT, new MockAnalyzer(random())).setCodec(actualDefaultCodec()));
         int docs = 1 + random().nextInt(100);
@@ -310,7 +363,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
     public void testRenameFile() throws IOException {
         final ShardId shardId = new ShardId(new Index("index"), 1);
         DirectoryService directoryService = new LuceneManagedDirectoryService(random(), false);
-        Store store = new Store(shardId, ImmutableSettings.EMPTY, null, null, directoryService, randomDistributor(directoryService));
+        Store store = new Store(shardId, ImmutableSettings.EMPTY,  null, directoryService, randomDistributor(directoryService));
         {
             IndexOutput output = store.directory().createOutput("foo.bar", IOContext.DEFAULT);
             int iters = scaledRandomIntBetween(10, 100);
@@ -528,7 +581,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
             iwc.setMaxThreadStates(1);
             final ShardId shardId = new ShardId(new Index("index"), 1);
             DirectoryService directoryService = new LuceneManagedDirectoryService(random);
-            Store store = new Store(shardId, ImmutableSettings.EMPTY, null, null, directoryService, randomDistributor(random, directoryService));
+            Store store = new Store(shardId, ImmutableSettings.EMPTY, null, directoryService, randomDistributor(random, directoryService));
             IndexWriter writer = new IndexWriter(store.directory(), iwc);
             final boolean lotsOfSegments = rarely(random);
             for (Document d : docs) {
@@ -558,7 +611,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
             iwc.setMaxThreadStates(1);
             final ShardId shardId = new ShardId(new Index("index"), 1);
             DirectoryService directoryService = new LuceneManagedDirectoryService(random);
-            store = new Store(shardId, ImmutableSettings.EMPTY, null, null, directoryService, randomDistributor(random, directoryService));
+            store = new Store(shardId, ImmutableSettings.EMPTY, null, directoryService, randomDistributor(random, directoryService));
             IndexWriter writer = new IndexWriter(store.directory(), iwc);
             final boolean lotsOfSegments = rarely(random);
             for (Document d : docs) {

@@ -23,7 +23,6 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Multimap;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -77,7 +76,7 @@ public abstract class InternalTerms extends InternalAggregation implements Terms
 
         abstract Bucket newBucket(long docCount, InternalAggregations aggs, long docCountError);
 
-        public Bucket reduce(List<? extends Bucket> buckets, BigArrays bigArrays) {
+        public Bucket reduce(List<? extends Bucket> buckets, ReduceContext context) {
             long docCount = 0;
             long docCountError = 0;
             List<InternalAggregations> aggregationsList = new ArrayList<>(buckets.size());
@@ -92,7 +91,7 @@ public abstract class InternalTerms extends InternalAggregation implements Terms
                 }
                 aggregationsList.add(bucket.aggregations);
             }
-            InternalAggregations aggs = InternalAggregations.reduce(aggregationsList, bigArrays);
+            InternalAggregations aggs = InternalAggregations.reduce(aggregationsList, context);
             return newBucket(docCount, aggs, docCountError);
         }
     }
@@ -120,9 +119,9 @@ public abstract class InternalTerms extends InternalAggregation implements Terms
     }
 
     @Override
-    public Collection<Terms.Bucket> getBuckets() {
+    public List<Terms.Bucket> getBuckets() {
         Object o = buckets;
-        return (Collection<Terms.Bucket>) o;
+        return (List<Terms.Bucket>) o;
     }
 
     @Override
@@ -174,7 +173,7 @@ public abstract class InternalTerms extends InternalAggregation implements Terms
         BucketPriorityQueue ordered = new BucketPriorityQueue(size, order.comparator(null));
         for (Collection<Bucket> l : buckets.asMap().values()) {
             List<Bucket> sameTermBuckets = (List<Bucket>) l; // cast is ok according to javadocs
-            final Bucket b = sameTermBuckets.get(0).reduce(sameTermBuckets, reduceContext.bigArrays());
+            final Bucket b = sameTermBuckets.get(0).reduce(sameTermBuckets, reduceContext);
             if (b.docCountError != -1) {
                 if (sumDocCountError == -1) {
                     b.docCountError = -1;

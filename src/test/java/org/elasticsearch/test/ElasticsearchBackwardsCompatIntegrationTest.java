@@ -31,7 +31,7 @@ import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.zen.ZenDiscoveryModule;
 import org.elasticsearch.transport.TransportModule;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.netty.NettyTransportModule;
+import org.elasticsearch.transport.netty.NettyTransport;
 import org.junit.Before;
 import org.junit.Ignore;
 
@@ -138,7 +138,7 @@ public abstract class ElasticsearchBackwardsCompatIntegrationTest extends Elasti
 
     protected Settings nodeSettings(int nodeOrdinal) {
         return ImmutableSettings.builder()
-                .put(TransportModule.TRANSPORT_TYPE_KEY, NettyTransportModule.class) // run same transport  / disco as external
+                .put(TransportModule.TRANSPORT_TYPE_KEY, NettyTransport.class) // run same transport  / disco as external
                 .put(DiscoveryModule.DISCOVERY_TYPE_KEY, ZenDiscoveryModule.class)
                 .put("node.mode", "network") // we need network mode for this
                 .put("gateway.type", "local") // we require local gateway to mimic upgrades of nodes

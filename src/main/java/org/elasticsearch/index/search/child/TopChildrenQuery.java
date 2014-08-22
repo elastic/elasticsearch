@@ -28,11 +28,8 @@ import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.ToStringUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
-import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.search.EmptyScorer;
-import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.index.fielddata.IndexParentChildFieldData;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
@@ -63,7 +60,6 @@ public class TopChildrenQuery extends Query {
     private static final ParentDocComparator PARENT_DOC_COMP = new ParentDocComparator();
 
     private final IndexParentChildFieldData parentChildIndexFieldData;
-    private final CacheRecycler cacheRecycler;
     private final String parentType;
     private final String childType;
     private final ScoreType scoreType;
@@ -77,7 +73,7 @@ public class TopChildrenQuery extends Query {
     private IndexReader rewriteIndexReader;
 
     // Note, the query is expected to already be filtered to only child type docs
-    public TopChildrenQuery(IndexParentChildFieldData parentChildIndexFieldData, Query childQuery, String childType, String parentType, ScoreType scoreType, int factor, int incrementalFactor, CacheRecycler cacheRecycler, Filter nonNestedDocsFilter) {
+    public TopChildrenQuery(IndexParentChildFieldData parentChildIndexFieldData, Query childQuery, String childType, String parentType, ScoreType scoreType, int factor, int incrementalFactor, Filter nonNestedDocsFilter) {
         this.parentChildIndexFieldData = parentChildIndexFieldData;
         this.originalChildQuery = childQuery;
         this.childType = childType;
@@ -85,7 +81,6 @@ public class TopChildrenQuery extends Query {
         this.scoreType = scoreType;
         this.factor = factor;
         this.incrementalFactor = incrementalFactor;
-        this.cacheRecycler = cacheRecycler;
         this.nonNestedDocsFilter = nonNestedDocsFilter;
     }
 
@@ -123,7 +118,7 @@ public class TopChildrenQuery extends Query {
 
     @Override
     public Weight createWeight(IndexSearcher searcher) throws IOException {
-        Recycler.V<ObjectObjectOpenHashMap<Object, ParentDoc[]>> parentDocs = cacheRecycler.hashMap(-1);
+        ObjectObjectOpenHashMap<Object, ParentDoc[]> parentDocs = new ObjectObjectOpenHashMap<>();
         SearchContext searchContext = SearchContext.current();
 
         int parentHitsResolved;
@@ -144,7 +139,7 @@ public class TopChildrenQuery extends Query {
         IndexSearcher indexSearcher = new IndexSearcher(searcher.getIndexReader());
         indexSearcher.setSimilarity(searcher.getSimilarity());
         while (true) {
-            parentDocs.v().clear();
+            parentDocs.clear();
             TopDocs topChildDocs = indexSearcher.search(childQuery, numChildDocs);
             try {
                 parentHitsResolved = resolveParentDocuments(topChildDocs, searchContext, parentDocs);
@@ -172,9 +167,9 @@ public class TopChildrenQuery extends Query {
         return parentWeight;
     }
 
-    int resolveParentDocuments(TopDocs topDocs, SearchContext context, Recycler.V<ObjectObjectOpenHashMap<Object, ParentDoc[]>> parentDocs) throws Exception {
+    int resolveParentDocuments(TopDocs topDocs, SearchContext context, ObjectObjectOpenHashMap<Object, ParentDoc[]> parentDocs) throws Exception {
         int parentHitsResolved = 0;
-        Recycler.V<ObjectObjectOpenHashMap<Object, Recycler.V<IntObjectOpenHashMap<ParentDoc>>>> parentDocsPerReader = cacheRecycler.hashMap(context.searcher().getIndexReader().leaves().size());
+        ObjectObjectOpenHashMap<Object, IntObjectOpenHashMap<ParentDoc>> parentDocsPerReader = new ObjectObjectOpenHashMap<>(context.searcher().getIndexReader().leaves().size());
         child_hits: for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
             int readerIndex = ReaderUtil.subIndex(scoreDoc.doc, context.searcher().getIndexReader().leaves());
             AtomicReaderContext subContext = context.searcher().getIndexReader().leaves().get(readerIndex);
@@ -210,12 +205,12 @@ public class TopChildrenQuery extends Query {
                 }
                 if (parentDocId != DocsEnum.NO_MORE_DOCS) {
                     // we found a match, add it and break
-                    Recycler.V<IntObjectOpenHashMap<ParentDoc>> readerParentDocs = parentDocsPerReader.v().get(indexReader.getCoreCacheKey());
+                    IntObjectOpenHashMap<ParentDoc> readerParentDocs = parentDocsPerReader.get(indexReader.getCoreCacheKey());
                     if (readerParentDocs == null) {
-                        readerParentDocs = cacheRecycler.intObjectMap(indexReader.maxDoc());
-                        parentDocsPerReader.v().put(indexReader.getCoreCacheKey(), readerParentDocs);
+                        readerParentDocs = new IntObjectOpenHashMap<>(indexReader.maxDoc());
+                        parentDocsPerReader.put(indexReader.getCoreCacheKey(), readerParentDocs);
                     }
-                    ParentDoc parentDoc = readerParentDocs.v().get(parentDocId);
+                    ParentDoc parentDoc = readerParentDocs.get(parentDocId);
                     if (parentDoc == null) {
                         parentHitsResolved++; // we have a hit on a parent
                         parentDoc = new ParentDoc();
@@ -223,7 +218,7 @@ public class TopChildrenQuery extends Query {
                         parentDoc.count = 1;
                         parentDoc.maxScore = scoreDoc.score;
                         parentDoc.sumScores = scoreDoc.score;
-                        readerParentDocs.v().put(parentDocId, parentDoc);
+                        readerParentDocs.put(parentDocId, parentDoc);
                     } else {
                         parentDoc.count++;
                         parentDoc.sumScores += scoreDoc.score;
@@ -235,19 +230,17 @@ public class TopChildrenQuery extends Query {
                 }
             }
         }
-        boolean[] states = parentDocsPerReader.v().allocated;
-        Object[] keys = parentDocsPerReader.v().keys;
-        Object[] values = parentDocsPerReader.v().values;
+        boolean[] states = parentDocsPerReader.allocated;
+        Object[] keys = parentDocsPerReader.keys;
+        Object[] values = parentDocsPerReader.values;
         for (int i = 0; i < states.length; i++) {
             if (states[i]) {
-                Recycler.V<IntObjectOpenHashMap<ParentDoc>> value = (Recycler.V<IntObjectOpenHashMap<ParentDoc>>) values[i];
-                ParentDoc[] _parentDocs = value.v().values().toArray(ParentDoc.class);
+                IntObjectOpenHashMap<ParentDoc> value = (IntObjectOpenHashMap<ParentDoc>) values[i];
+                ParentDoc[] _parentDocs = value.values().toArray(ParentDoc.class);
                 Arrays.sort(_parentDocs, PARENT_DOC_COMP);
-                parentDocs.v().put(keys[i], _parentDocs);
-                Releasables.close(value);
+                parentDocs.put(keys[i], _parentDocs);
             }
         }
-        Releasables.close(parentDocsPerReader);
         return parentHitsResolved;
     }
 
@@ -295,9 +288,9 @@ public class TopChildrenQuery extends Query {
     private class ParentWeight extends Weight implements Releasable {
 
         private final Weight queryWeight;
-        private final Recycler.V<ObjectObjectOpenHashMap<Object, ParentDoc[]>> parentDocs;
+        private final ObjectObjectOpenHashMap<Object, ParentDoc[]> parentDocs;
 
-        public ParentWeight(Weight queryWeight, Recycler.V<ObjectObjectOpenHashMap<Object, ParentDoc[]>> parentDocs) throws IOException {
+        public ParentWeight(Weight queryWeight, ObjectObjectOpenHashMap<Object, ParentDoc[]> parentDocs) throws IOException {
             this.queryWeight = queryWeight;
             this.parentDocs = parentDocs;
         }
@@ -320,12 +313,11 @@ public class TopChildrenQuery extends Query {
 
         @Override
         public void close() throws ElasticsearchException {
-            Releasables.close(parentDocs);
         }
 
         @Override
         public Scorer scorer(AtomicReaderContext context, Bits acceptDocs) throws IOException {
-            ParentDoc[] readerParentDocs = parentDocs.v().get(context.reader().getCoreCacheKey());
+            ParentDoc[] readerParentDocs = parentDocs.get(context.reader().getCoreCacheKey());
             if (readerParentDocs != null) {
                 if (scoreType == ScoreType.MAX) {
                     return new ParentScorer(this, readerParentDocs) {

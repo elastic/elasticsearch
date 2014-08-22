@@ -120,7 +120,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         // if we don't have a master, we don't have metadata, that's fine, let it find a master using create index API
         if (autoCreateIndex.shouldAutoCreate(request.index(), clusterService.state())) {
             request.beforeLocalFork(); // we fork on another thread...
-            createIndexAction.execute(new CreateIndexRequest(request.index()).cause("auto(update api)").masterNodeTimeout(request.timeout()), new ActionListener<CreateIndexResponse>() {
+            createIndexAction.execute(new CreateIndexRequest(request).index(request.index()).cause("auto(update api)").masterNodeTimeout(request.timeout()), new ActionListener<CreateIndexResponse>() {
                 @Override
                 public void onResponse(CreateIndexResponse result) {
                     innerExecute(request, listener);
@@ -273,7 +273,10 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 listener.onResponse(update);
                 IndexService indexServiceOrNull = indicesService.indexService(request.concreteIndex());
                 if (indexServiceOrNull !=  null) {
-                    indexService.shard(request.request().shardId()).indexingService().noopUpdate(request.request().type());
+                    IndexShard shard = indexService.shard(request.request().shardId());
+                    if (shard != null) {
+                        shard.indexingService().noopUpdate(request.request().type());
+                    }
                 }
                 break;
             default:

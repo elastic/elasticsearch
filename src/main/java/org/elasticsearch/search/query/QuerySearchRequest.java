@@ -19,7 +19,10 @@
 
 package org.elasticsearch.search.query;
 
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.dfs.AggregatedDfs;
@@ -32,11 +35,13 @@ import static org.elasticsearch.search.dfs.AggregatedDfs.readAggregatedDfs;
 /**
  *
  */
-public class QuerySearchRequest extends TransportRequest {
+public class QuerySearchRequest extends TransportRequest implements IndicesRequest {
 
     private long id;
 
     private AggregatedDfs dfs;
+
+    private OriginalIndices originalIndices;
 
     public QuerySearchRequest() {
     }
@@ -45,6 +50,7 @@ public class QuerySearchRequest extends TransportRequest {
         super(request);
         this.id = id;
         this.dfs = dfs;
+        this.originalIndices = new OriginalIndices(request);
     }
 
     public long id() {
@@ -56,10 +62,21 @@ public class QuerySearchRequest extends TransportRequest {
     }
 
     @Override
+    public String[] indices() {
+        return originalIndices.indices();
+    }
+
+    @Override
+    public IndicesOptions indicesOptions() {
+        return originalIndices.indicesOptions();
+    }
+
+    @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         id = in.readLong();
         dfs = readAggregatedDfs(in);
+        originalIndices = OriginalIndices.readOriginalIndices(in);
     }
 
     @Override
@@ -67,5 +84,6 @@ public class QuerySearchRequest extends TransportRequest {
         super.writeTo(out);
         out.writeLong(id);
         dfs.writeTo(out);
+        OriginalIndices.writeOriginalIndices(originalIndices, out);
     }
 }

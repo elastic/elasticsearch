@@ -31,7 +31,6 @@ import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.percolator.PercolatorService;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.facet.InternalFacets;
 import org.elasticsearch.search.highlight.HighlightField;
 
 import java.io.IOException;
@@ -47,16 +46,14 @@ public class PercolateResponse extends BroadcastOperationResponse implements Ite
     private long tookInMillis;
     private Match[] matches;
     private long count;
-    private InternalFacets facets;
     private InternalAggregations aggregations;
 
     public PercolateResponse(int totalShards, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures,
-                             Match[] matches, long count, long tookInMillis, InternalFacets facets, InternalAggregations aggregations) {
+                             Match[] matches, long count, long tookInMillis, InternalAggregations aggregations) {
         super(totalShards, successfulShards, failedShards, shardFailures);
         this.tookInMillis = tookInMillis;
         this.matches = matches;
         this.count = count;
-        this.facets = facets;
         this.aggregations = aggregations;
     }
 
@@ -99,13 +96,6 @@ public class PercolateResponse extends BroadcastOperationResponse implements Ite
      */
     public long getCount() {
         return count;
-    }
-
-    /**
-     * @return Any facet that has been executed on the query metadata. This can return <code>null</code>.
-     */
-    public InternalFacets getFacets() {
-        return facets;
     }
 
     /**
@@ -163,10 +153,6 @@ public class PercolateResponse extends BroadcastOperationResponse implements Ite
             }
             builder.endArray();
         }
-        if (facets != null) {
-            facets.toXContent(builder, params);
-        }
-
         if (aggregations != null) {
             aggregations.toXContent(builder, params);
         }
@@ -186,7 +172,6 @@ public class PercolateResponse extends BroadcastOperationResponse implements Ite
                 matches[i].readFrom(in);
             }
         }
-        facets = InternalFacets.readOptionalFacets(in);
         aggregations = InternalAggregations.readOptionalAggregations(in);
     }
 
@@ -203,7 +188,6 @@ public class PercolateResponse extends BroadcastOperationResponse implements Ite
                 match.writeTo(out);
             }
         }
-        out.writeOptionalStreamable(facets);
         out.writeOptionalStreamable(aggregations);
     }
 

@@ -151,6 +151,14 @@ public abstract class ShapeBuilder implements ToXContent {
     }
 
     /**
+     * Create a new GeometryCollection
+     * @return a new {@link GeometryCollectionBuilder}
+     */
+    public static GeometryCollectionBuilder newGeometryCollection() {
+        return new GeometryCollectionBuilder();
+    }
+
+    /**
      * create a new Circle
      * @return a new {@link CircleBuilder}
      */
@@ -498,6 +506,7 @@ public abstract class ShapeBuilder implements ToXContent {
 
     public static final String FIELD_TYPE = "type";
     public static final String FIELD_COORDINATES = "coordinates";
+    public static final String FIELD_GEOMETRIES = "geometries";
 
     protected static final boolean debugEnabled() {
         return LOGGER.isDebugEnabled() || DEBUG;
@@ -513,6 +522,7 @@ public abstract class ShapeBuilder implements ToXContent {
         MULTILINESTRING("multilinestring"),
         POLYGON("polygon"),
         MULTIPOLYGON("multipolygon"),
+        GEOMETRYCOLLECTION("geometrycollection"),
         ENVELOPE("envelope"),
         CIRCLE("circle");
 
@@ -542,6 +552,7 @@ public abstract class ShapeBuilder implements ToXContent {
             GeoShapeType shapeType = null;
             Distance radius = null;
             CoordinateNode node = null;
+            GeometryCollectionBuilder geometryCollections = null;
 
             XContentParser.Token token;
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -554,6 +565,9 @@ public abstract class ShapeBuilder implements ToXContent {
                     } else if (FIELD_COORDINATES.equals(fieldName)) {
                         parser.nextToken();
                         node = parseCoordinates(parser);
+                    } else if (FIELD_GEOMETRIES.equals(fieldName)) {
+                        parser.nextToken();
+                        geometryCollections = parseGeometries(parser);
                     } else if (CircleBuilder.FIELD_RADIUS.equals(fieldName)) {
                         parser.nextToken();
                         radius = Distance.parseDistance(parser.text());
@@ -566,8 +580,10 @@ public abstract class ShapeBuilder implements ToXContent {
 
             if (shapeType == null) {
                 throw new ElasticsearchParseException("Shape type not included");
-            } else if (node == null) {
+            } else if (node == null && GeoShapeType.GEOMETRYCOLLECTION != shapeType) {
                 throw new ElasticsearchParseException("Coordinates not included");
+            } else if (geometryCollections == null && GeoShapeType.GEOMETRYCOLLECTION == shapeType) {
+                throw new ElasticsearchParseException("geometries not included");
             } else if (radius != null && GeoShapeType.CIRCLE != shapeType) {
                 throw new ElasticsearchParseException("Field [" + CircleBuilder.FIELD_RADIUS + "] is supported for [" + CircleBuilder.TYPE
                         + "] only");
@@ -582,6 +598,7 @@ public abstract class ShapeBuilder implements ToXContent {
                 case MULTIPOLYGON: return parseMultiPolygon(node);
                 case CIRCLE: return parseCircle(node, radius);
                 case ENVELOPE: return parseEnvelope(node);
+                case GEOMETRYCOLLECTION: return geometryCollections;
                 default:
                     throw new ElasticsearchParseException("Shape type [" + shapeType + "] not included");
             }
@@ -638,6 +655,29 @@ public abstract class ShapeBuilder implements ToXContent {
                 polygons.polygon(parsePolygon(node));
             }
             return polygons;
+        }
+        
+        /**
+         * Parse the geometries array of a GeometryCollection
+         *
+         * @param parser Parser that will be read from
+         * @return Geometry[] geometries of the GeometryCollection
+         * @throws IOException Thrown if an error occurs while reading from the XContentParser
+         */
+        protected static GeometryCollectionBuilder parseGeometries(XContentParser parser) throws IOException {
+            if (parser.currentToken() != XContentParser.Token.START_ARRAY) {
+                throw new ElasticsearchParseException("Geometries must be an array of geojson objects");
+            }
+        
+            XContentParser.Token token = parser.nextToken();
+            GeometryCollectionBuilder geometryCollection = newGeometryCollection();
+            while (token != XContentParser.Token.END_ARRAY) {
+                ShapeBuilder shapeBuilder = GeoShapeType.parse(parser);
+                geometryCollection.shape(shapeBuilder);
+                token = parser.nextToken();
+            }
+        
+            return geometryCollection;
         }
     }
 }

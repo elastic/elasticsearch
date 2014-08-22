@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query.plugin;
 
-import org.elasticsearch.cache.recycler.CacheRecyclerModule;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Injector;
@@ -75,7 +74,6 @@ public class IndexQueryParserPluginTests extends ElasticsearchTestCase {
         Index index = new Index("test");
         Injector injector = new ModulesBuilder().add(
                 new SettingsModule(settings),
-                new CacheRecyclerModule(settings),
                 new ThreadPoolModule(settings),
                 new IndicesQueriesModule(),
                 new ScriptModule(settings),

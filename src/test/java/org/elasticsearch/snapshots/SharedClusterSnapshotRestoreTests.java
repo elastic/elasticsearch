@@ -33,6 +33,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.*;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.count.CountResponse;
@@ -52,8 +53,11 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.io.File;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
 
+import static com.google.common.collect.Lists.newArrayList;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
@@ -86,6 +90,20 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         assertThat(client.prepareCount("test-idx-2").get().getCount(), equalTo(100L));
         assertThat(client.prepareCount("test-idx-3").get().getCount(), equalTo(100L));
 
+        ListenableActionFuture<FlushResponse> flushResponseFuture = null;
+        if (randomBoolean()) {
+            ArrayList<String> indicesToFlush = newArrayList();
+            for (int i = 1; i < 4; i++) {
+                if (randomBoolean()) {
+                    indicesToFlush.add("test-idx-" + i);
+                }
+            }
+            if (!indicesToFlush.isEmpty()) {
+                String[] indices = indicesToFlush.toArray(new String[indicesToFlush.size()]);
+                logger.info("--> starting asynchronous flush for indices {}", Arrays.toString(indices));
+                flushResponseFuture = client.admin().indices().prepareFlush(indices).execute();
+            }
+        }
         logger.info("--> snapshot");
         CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(true).setIndices("test-idx-*", "-test-idx-3").get();
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
@@ -131,6 +149,11 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         ClusterState clusterState = client.admin().cluster().prepareState().get().getState();
         assertThat(clusterState.getMetaData().hasIndex("test-idx-1"), equalTo(true));
         assertThat(clusterState.getMetaData().hasIndex("test-idx-2"), equalTo(false));
+
+        if (flushResponseFuture != null) {
+            // Finish flush
+            flushResponseFuture.actionGet();
+        }
     }
 
     @Test

@@ -26,7 +26,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportShardSingleOperationAction;
-import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -63,8 +62,6 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
 
     private final ScriptService scriptService;
 
-    private final CacheRecycler cacheRecycler;
-
     private final PageCacheRecycler pageCacheRecycler;
 
     private final BigArrays bigArrays;
@@ -72,12 +69,11 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
     @Inject
     public TransportExplainAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                   TransportService transportService, IndicesService indicesService,
-                                  ScriptService scriptService, CacheRecycler cacheRecycler,
-                                  PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, ActionFilters actionFilters) {
+                                  ScriptService scriptService, PageCacheRecycler pageCacheRecycler,
+                                  BigArrays bigArrays, ActionFilters actionFilters) {
         super(settings, ExplainAction.NAME, threadPool, clusterService, transportService, actionFilters);
         this.indicesService = indicesService;
         this.scriptService = scriptService;
-        this.cacheRecycler = cacheRecycler;
         this.pageCacheRecycler = pageCacheRecycler;
         this.bigArrays = bigArrays;
     }
@@ -108,7 +104,7 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
 
     @Override
     protected ExplainResponse shardOperation(ExplainRequest request, ShardId shardId) throws ElasticsearchException {
-        IndexService indexService = indicesService.indexService(shardId.getIndex());
+        IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.shardSafe(shardId.id());
         Term uidTerm = new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(request.type(), request.id()));
         Engine.GetResult result = indexShard.get(new Engine.Get(false, uidTerm));
@@ -118,11 +114,11 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
 
         SearchContext context = new DefaultSearchContext(
                 0,
-                new ShardSearchRequest().types(new String[]{request.type()})
+                new ShardSearchRequest(request).types(new String[]{request.type()})
                         .filteringAliases(request.filteringAlias())
                         .nowInMillis(request.nowInMillis),
                 null, result.searcher(), indexService, indexShard,
-                scriptService, cacheRecycler, pageCacheRecycler,
+                scriptService, pageCacheRecycler,
                 bigArrays
         );
         SearchContext.setCurrent(context);

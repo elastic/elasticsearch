@@ -117,9 +117,9 @@ public final class PhraseSuggestParser implements SuggestContextParser {
                             fieldName = parser.currentName();
                         } else if (token.isValue()) {
                             if ("pre_tag".equals(fieldName) || "preTag".equals(fieldName)) {
-                                suggestion.setPreTag(parser.bytes());
+                                suggestion.setPreTag(parser.utf8Bytes());
                             } else if ("post_tag".equals(fieldName) || "postTag".equals(fieldName)) {
-                                suggestion.setPostTag(parser.bytes());
+                                suggestion.setPostTag(parser.utf8Bytes());
                             } else {
                                 throw new ElasticsearchIllegalArgumentException(
                                     "suggester[phrase][highlight] doesn't support field [" + fieldName + "]");

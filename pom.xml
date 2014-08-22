@@ -76,7 +76,7 @@
         <dependency>
             <groupId>org.apache.httpcomponents</groupId>
             <artifactId>httpclient</artifactId>
-            <version>4.3.1</version>
+            <version>4.3.5</version>
             <scope>test</scope>
         </dependency>
 
@@ -229,7 +229,7 @@
         <dependency>
             <groupId>com.fasterxml.jackson.dataformat</groupId>
             <artifactId>jackson-dataformat-smile</artifactId>
-            <version>2.4.1</version>
+            <version>2.4.1.1</version>
             <scope>compile</scope>
         </dependency>
 
@@ -250,7 +250,7 @@
         <dependency>
             <groupId>io.netty</groupId>
             <artifactId>netty</artifactId>
-            <version>3.9.1.Final</version>
+            <version>3.9.3.Final</version>
             <scope>compile</scope>
         </dependency>
 
@@ -479,6 +479,7 @@
                                 <param>-XX:MaxPermSize=128m</param>
                                 <param>-XX:MaxDirectMemorySize=512m</param>
                                 <param>-Des.logger.prefix=</param>
+                                <param>-XX:+HeapDumpOnOutOfMemoryError</param>
                             </jvmArgs>
                             <shuffleOnSlave>${tests.shuffle}</shuffleOnSlave>
                             <sysouts>${tests.verbose}</sysouts>
@@ -1154,7 +1155,7 @@
             <plugin>
                 <groupId>de.thetaphi</groupId>
                 <artifactId>forbiddenapis</artifactId>
-                <version>1.5.1</version>
+                <version>1.6.1</version>
 
                 <executions>
                     <execution>

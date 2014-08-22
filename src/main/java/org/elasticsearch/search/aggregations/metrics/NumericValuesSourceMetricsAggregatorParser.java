@@ -54,7 +54,6 @@ public abstract class NumericValuesSourceMetricsAggregatorParser<S extends Inter
     public AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
 
         ValuesSourceParser<ValuesSource.Numeric> vsParser = ValuesSourceParser.numeric(aggregationName, aggType, context)
-                .requiresSortedValues(requiresSortedValues())
                 .build();
 
         XContentParser.Token token;

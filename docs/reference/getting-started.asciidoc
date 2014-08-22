@@ -170,7 +170,7 @@ Now that we have our node (and cluster) up and running, the next step is to unde
 * Check your cluster, node, and index health, status, and statistics
 * Administer your cluster, node, and index data and metadata
 * Perform CRUD (Create, Read, Update, and Delete) and search operations against your indexes
-* Execute advanced search operations such as paging, sorting, filtering, scripting, faceting, aggregations, and many others
+* Execute advanced search operations such as paging, sorting, filtering, scripting, aggregations, and many others
 
 === Cluster Health
 
@@ -459,7 +459,7 @@ curl -XPOST 'localhost:9200/customer/external/1/_update?pretty' -d '
 
 In the above example, `ctx._source` refers to the current source document that is about to be updated.
 
-Note that as if this writing, updates can only be performed on a single document at a time. In the future, Elasticsearch will provide the ability to update multiple documents given a query condition (like an `SQL UPDATE-WHERE` statement).
+Note that as of this writing, updates can only be performed on a single document at a time. In the future, Elasticsearch will provide the ability to update multiple documents given a query condition (like an `SQL UPDATE-WHERE` statement).
 
 === Deleting Documents
 

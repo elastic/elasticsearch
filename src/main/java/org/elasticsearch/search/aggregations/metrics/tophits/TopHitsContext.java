@@ -25,7 +25,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.analysis.AnalysisService;
@@ -45,7 +44,6 @@ import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.dfs.DfsSearchResult;
-import org.elasticsearch.search.facet.SearchContextFacets;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsContext;
 import org.elasticsearch.search.fetch.partial.PartialFieldsContext;
@@ -194,16 +192,6 @@ public class TopHitsContext extends SearchContext {
         throw new UnsupportedOperationException("Not supported");
     }
 
-    @Override
-    public SearchContextFacets facets() {
-        return context.facets();
-    }
-
-    @Override
-    public SearchContext facets(SearchContextFacets facets) {
-        throw new UnsupportedOperationException("Not supported");
-    }
-
     public SearchContextHighlight highlight() {
         return highlight;
     }
@@ -325,11 +313,6 @@ public class TopHitsContext extends SearchContext {
     @Override
     public ScriptService scriptService() {
         return context.scriptService();
-    }
-
-    @Override
-    public CacheRecycler cacheRecycler() {
-        return context.cacheRecycler();
     }
 
     @Override

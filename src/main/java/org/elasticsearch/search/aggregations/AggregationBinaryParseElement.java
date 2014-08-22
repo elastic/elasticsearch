@@ -35,8 +35,8 @@ public class AggregationBinaryParseElement extends AggregationParseElement {
 
     @Override
     public void parse(XContentParser parser, SearchContext context) throws Exception {
-        byte[] facetSource = parser.binaryValue();
-        try (XContentParser aSourceParser = XContentFactory.xContent(facetSource).createParser(facetSource)) {
+        byte[] aggSource = parser.binaryValue();
+        try (XContentParser aSourceParser = XContentFactory.xContent(aggSource).createParser(aggSource)) {
             aSourceParser.nextToken(); // move past the first START_OBJECT
             super.parse(aSourceParser, context);
         }

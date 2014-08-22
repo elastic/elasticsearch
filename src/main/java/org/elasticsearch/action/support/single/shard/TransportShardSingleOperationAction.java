@@ -23,8 +23,10 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.ClusterService;
@@ -67,8 +69,19 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
         this.transportShardAction = actionName + "[s]";
         this.executor = executor();
 
-        transportService.registerHandler(actionName, new TransportHandler());
+        if (!isSubAction()) {
+            transportService.registerHandler(actionName, new TransportHandler());
+        }
         transportService.registerHandler(transportShardAction, new ShardTransportHandler());
+    }
+
+    /**
+     * Tells whether the action is a main one or a subaction. Used to decide whether we need to register
+     * the main transport handler. In fact if the action is a subaction, its execute method
+     * will be called locally to its parent action.
+     */
+    protected boolean isSubAction() {
+        return false;
     }
 
     @Override
@@ -287,7 +300,7 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
         }
     }
 
-    class ShardSingleOperationRequest extends TransportRequest {
+    class ShardSingleOperationRequest extends TransportRequest implements IndicesRequest {
 
         private Request request;
 
@@ -296,7 +309,7 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
         ShardSingleOperationRequest() {
         }
 
-        public ShardSingleOperationRequest(Request request, ShardId shardId) {
+        ShardSingleOperationRequest(Request request, ShardId shardId) {
             super(request);
             this.request = request;
             this.shardId = shardId;
@@ -308,6 +321,16 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
 
         public ShardId shardId() {
             return shardId;
+        }
+
+        @Override
+        public String[] indices() {
+            return request.indices();
+        }
+
+        @Override
+        public IndicesOptions indicesOptions() {
+            return request.indicesOptions();
         }
 
         @Override
@@ -326,7 +349,7 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getVersion().onOrBefore(Version.V_1_4_0)) {
+            if (out.getVersion().before(Version.V_1_4_0)) {
                 //older nodes expect the concrete index as part of the request
                 request.index(shardId.getIndex());
             }

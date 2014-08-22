@@ -45,6 +45,7 @@ import org.junit.Test;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.client.Requests.indexRequest;
 import static org.elasticsearch.client.Requests.searchRequest;
@@ -101,14 +102,14 @@ public class DecayFunctionScoreTests extends ElasticsearchIntegrationTest {
 
         ActionFuture<SearchResponse> response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
-                        searchSource().explain(false).query(constantScoreQuery(termQuery("test", "value")))));
+                        searchSource().query(constantScoreQuery(termQuery("test", "value")))));
         SearchResponse sr = response.actionGet();
         SearchHits sh = sr.getHits();
         assertThat(sh.getTotalHits(), equalTo((long) (numDummyDocs + 2)));
 
         response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
-                        searchSource().explain(true).query(
+                        searchSource().query(
                                 functionScoreQuery(constantScoreQuery(termQuery("test", "value")), gaussDecayFunction("loc", lonlat, "1000km")))));
         sr = response.actionGet();
         sh = sr.getHits();
@@ -120,14 +121,14 @@ public class DecayFunctionScoreTests extends ElasticsearchIntegrationTest {
 
         response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
-                        searchSource().explain(false).query(constantScoreQuery(termQuery("test", "value")))));
+                        searchSource().query(constantScoreQuery(termQuery("test", "value")))));
         sr = response.actionGet();
         sh = sr.getHits();
         assertThat(sh.getTotalHits(), equalTo((long) (numDummyDocs + 2)));
 
         response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
-                        searchSource().explain(true).query(
+                        searchSource().query(
                                 functionScoreQuery(constantScoreQuery(termQuery("test", "value")), linearDecayFunction("loc", lonlat, "1000km")))));
         sr = response.actionGet();
         sh = sr.getHits();
@@ -139,14 +140,14 @@ public class DecayFunctionScoreTests extends ElasticsearchIntegrationTest {
 
         response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
-                        searchSource().explain(false).query(constantScoreQuery(termQuery("test", "value")))));
+                        searchSource().query(constantScoreQuery(termQuery("test", "value")))));
         sr = response.actionGet();
         sh = sr.getHits();
         assertThat(sh.getTotalHits(), equalTo((long) (numDummyDocs + 2)));
 
         response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
-                        searchSource().explain(true).query(
+                        searchSource().query(
                                 functionScoreQuery(constantScoreQuery(termQuery("test", "value")), exponentialDecayFunction("loc", lonlat, "1000km")))));
         sr = response.actionGet();
         sh = sr.getHits();
@@ -185,7 +186,6 @@ public class DecayFunctionScoreTests extends ElasticsearchIntegrationTest {
         ActionFuture<SearchResponse> response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
                         searchSource()
-                                .explain(true)
                                 .size(numDummyDocs + 2)
                                 .query(functionScoreQuery(termQuery("test", "value"), gaussDecayFunction("num", 1.0, 5.0).setOffset(1.0))
                                         .boostMode(CombineFunction.REPLACE.getName()))));
@@ -204,7 +204,6 @@ public class DecayFunctionScoreTests extends ElasticsearchIntegrationTest {
         response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
                         searchSource()
-                                .explain(true)
                                 .size(numDummyDocs + 2)
                                 .query(functionScoreQuery(termQuery("test", "value"),
                                         exponentialDecayFunction("num", 1.0, 5.0).setOffset(1.0)).boostMode(
@@ -222,7 +221,6 @@ public class DecayFunctionScoreTests extends ElasticsearchIntegrationTest {
         response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
                         searchSource()
-                                .explain(true)
                                 .size(numDummyDocs + 2)
                                 .query(functionScoreQuery(termQuery("test", "value"), linearDecayFunction("num", 1.0, 20.0).setOffset(1.0))
                                         .boostMode(CombineFunction.REPLACE.getName()))));
@@ -266,7 +264,7 @@ public class DecayFunctionScoreTests extends ElasticsearchIntegrationTest {
 
         ActionFuture<SearchResponse> response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
-                        searchSource().explain(true).query(
+                        searchSource().query(
                                 functionScoreQuery(termQuery("test", "value"), gaussDecayFunction("loc", lonlat, "1000km")).boostMode(
                                         CombineFunction.MULT.getName()))));
         SearchResponse sr = response.actionGet();
@@ -278,7 +276,7 @@ public class DecayFunctionScoreTests extends ElasticsearchIntegrationTest {
         // Test Exp
         response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
-                        searchSource().explain(true).query(
+                        searchSource().query(
                                 functionScoreQuery(termQuery("test", "value"), gaussDecayFunction("loc", lonlat, "1000km")).boostMode(
                                         CombineFunction.REPLACE.getName()))));
         sr = response.actionGet();
@@ -308,7 +306,7 @@ public class DecayFunctionScoreTests extends ElasticsearchIntegrationTest {
         GeoPoint point = new GeoPoint(20, 11);
         ActionFuture<SearchResponse> response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
-                        searchSource().explain(true).query(
+                        searchSource().query(
                                 functionScoreQuery(termQuery("test", "value"), gaussDecayFunction("loc", point, "1000km")).boostMode(
                                         CombineFunction.MULT.getName()))));
         SearchResponse sr = response.actionGet();
@@ -320,7 +318,7 @@ public class DecayFunctionScoreTests extends ElasticsearchIntegrationTest {
 
         response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
-                        searchSource().explain(true).query(
+                        searchSource().query(
                                 functionScoreQuery(termQuery("test", "value"), gaussDecayFunction("loc", coords, "1000km")).boostMode(
                                         CombineFunction.MULT.getName()))));
         sr = response.actionGet();
@@ -346,7 +344,7 @@ public class DecayFunctionScoreTests extends ElasticsearchIntegrationTest {
 
         ActionFuture<SearchResponse> response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
-                        searchSource().explain(true).query(
+                        searchSource().query(
                                 functionScoreQuery(termQuery("test", "value"), gaussDecayFunction("num", 0.0, 1.0).setDecay(0.5)).boost(
                                         2.0f).boostMode(CombineFunction.MULT))));
         SearchResponse sr = response.actionGet();
@@ -354,11 +352,10 @@ public class DecayFunctionScoreTests extends ElasticsearchIntegrationTest {
         assertThat(sh.getTotalHits(), equalTo((long) (1)));
         assertThat(sh.getAt(0).getId(), equalTo("1"));
         assertThat((double) sh.getAt(0).score(), closeTo(0.30685282, 1.e-5));
-        logger.info("--> Hit[0] {} Explanation:\n {}", sr.getHits().getAt(0).id(), sr.getHits().getAt(0).explanation());
 
         response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
-                        searchSource().explain(true).query(
+                        searchSource().query(
                                 functionScoreQuery(termQuery("test", "value"), gaussDecayFunction("num", 0.0, 1.0).setDecay(0.5)).boost(
                                         2.0f).boostMode(CombineFunction.REPLACE))));
         sr = response.actionGet();
@@ -366,11 +363,10 @@ public class DecayFunctionScoreTests extends ElasticsearchIntegrationTest {
         assertThat(sh.getTotalHits(), equalTo((long) (1)));
         assertThat(sh.getAt(0).getId(), equalTo("1"));
         assertThat((double) sh.getAt(0).score(), closeTo(1.0, 1.e-5));
-        logger.info("--> Hit[0] {} Explanation:\n {}", sr.getHits().getAt(0).id(), sr.getHits().getAt(0).explanation());
 
         response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
-                        searchSource().explain(true).query(
+                        searchSource().query(
                                 functionScoreQuery(termQuery("test", "value"), gaussDecayFunction("num", 0.0, 1.0).setDecay(0.5)).boost(
                                         2.0f).boostMode(CombineFunction.SUM))));
         sr = response.actionGet();
@@ -382,7 +378,7 @@ public class DecayFunctionScoreTests extends ElasticsearchIntegrationTest {
 
         response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
-                        searchSource().explain(true).query(
+                        searchSource().query(
                                 functionScoreQuery(termQuery("test", "value"), gaussDecayFunction("num", 0.0, 1.0).setDecay(0.5)).boost(
                                         2.0f).boostMode(CombineFunction.AVG))));
         sr = response.actionGet();
@@ -390,11 +386,10 @@ public class DecayFunctionScoreTests extends ElasticsearchIntegrationTest {
         assertThat(sh.getTotalHits(), equalTo((long) (1)));
         assertThat(sh.getAt(0).getId(), equalTo("1"));
         assertThat((double) sh.getAt(0).score(), closeTo((0.30685282 + 0.5), 1.e-5));
-        logger.info("--> Hit[0] {} Explanation:\n {}", sr.getHits().getAt(0).id(), sr.getHits().getAt(0).explanation());
 
         response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
-                        searchSource().explain(true).query(
+                        searchSource().query(
                                 functionScoreQuery(termQuery("test", "value"), gaussDecayFunction("num", 0.0, 1.0).setDecay(0.5)).boost(
                                         2.0f).boostMode(CombineFunction.MIN))));
         sr = response.actionGet();
@@ -402,11 +397,10 @@ public class DecayFunctionScoreTests extends ElasticsearchIntegrationTest {
         assertThat(sh.getTotalHits(), equalTo((long) (1)));
         assertThat(sh.getAt(0).getId(), equalTo("1"));
         assertThat((double) sh.getAt(0).score(), closeTo(2.0 * (0.30685282), 1.e-5));
-        logger.info("--> Hit[0] {} Explanation:\n {}", sr.getHits().getAt(0).id(), sr.getHits().getAt(0).explanation());
 
         response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
-                        searchSource().explain(true).query(
+                        searchSource().query(
                                 functionScoreQuery(termQuery("test", "value"), gaussDecayFunction("num", 0.0, 1.0).setDecay(0.5)).boost(
                                         2.0f).boostMode(CombineFunction.MAX))));
         sr = response.actionGet();
@@ -414,7 +408,6 @@ public class DecayFunctionScoreTests extends ElasticsearchIntegrationTest {
         assertThat(sh.getTotalHits(), equalTo((long) (1)));
         assertThat(sh.getAt(0).getId(), equalTo("1"));
         assertThat((double) sh.getAt(0).score(), closeTo(1.0, 1.e-5));
-        logger.info("--> Hit[0] {} Explanation:\n {}", sr.getHits().getAt(0).id(), sr.getHits().getAt(0).explanation());
 
     }
 
@@ -435,7 +428,7 @@ public class DecayFunctionScoreTests extends ElasticsearchIntegrationTest {
 
         ActionFuture<SearchResponse> response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
-                        searchSource().explain(true).query(
+                        searchSource().query(
                                 functionScoreQuery(termQuery("test", "value"), gaussDecayFunction("num1", "2013-05-28", "-1d")))));
 
         SearchResponse sr = response.actionGet();
@@ -460,7 +453,7 @@ public class DecayFunctionScoreTests extends ElasticsearchIntegrationTest {
 
         SearchResponse sr = client().search(
                 searchRequest().source(
-                        searchSource().explain(true).query(
+                        searchSource().query(
                                 functionScoreQuery(termQuery("test", "value"), gaussDecayFunction("num1", "now", "2d"))))).get();
 
         assertNoFailures(sr);
@@ -468,7 +461,7 @@ public class DecayFunctionScoreTests extends ElasticsearchIntegrationTest {
         
         sr = client().search(
                 searchRequest().source(
-                        searchSource().explain(true).query(
+                        searchSource().query(
                                 functionScoreQuery(termQuery("test", "value"), gaussDecayFunction("num1", "now-1d", "2d"))))).get();
 
         assertNoFailures(sr);
@@ -512,7 +505,7 @@ public class DecayFunctionScoreTests extends ElasticsearchIntegrationTest {
 
         ActionFuture<SearchResponse> response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
-                        searchSource().explain(true).query(
+                        searchSource().query(
                                 functionScoreQuery(constantScoreQuery(termQuery("test", "value"))).add(linearDecayFunction("num1", "2013-05-28", "+3d"))
                                         .add(linearDecayFunction("num2", "0.0", "1")).scoreMode("multiply"))));
 
@@ -560,7 +553,7 @@ public class DecayFunctionScoreTests extends ElasticsearchIntegrationTest {
 
         ActionFuture<SearchResponse> response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
-                        searchSource().explain(false).query(
+                        searchSource().query(
                                 functionScoreQuery(QueryBuilders.matchAllQuery()).add(linearDecayFunction("num1", "1000w"))
                                         .add(gaussDecayFunction("num1", "1d")).add(exponentialDecayFunction("num1", "1000w"))
                                         .scoreMode("multiply"))));
@@ -649,7 +642,6 @@ public class DecayFunctionScoreTests extends ElasticsearchIntegrationTest {
         ActionFuture<SearchResponse> response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
                         searchSource()
-                                .explain(true)
                                 .size(numDocs)
                                 .query(functionScoreQuery(termQuery("test", "value")).add(new MatchAllFilterBuilder(),
                                         linearDecayFunction("type1.geo", lonlat, "1000km")).scoreMode("multiply"))));
@@ -671,7 +663,7 @@ public class DecayFunctionScoreTests extends ElasticsearchIntegrationTest {
         // so, we indexed a string field, but now we try to score a num field
         ActionFuture<SearchResponse> response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
-                        searchSource().explain(true).query(
+                        searchSource().query(
                                 functionScoreQuery(termQuery("test", "value")).add(new MatchAllFilterBuilder(),
                                         linearDecayFunction("num", 1.0, 0.5)).scoreMode("multiply"))));
         response.actionGet();
@@ -691,7 +683,7 @@ public class DecayFunctionScoreTests extends ElasticsearchIntegrationTest {
         // so, we indexed a string field, but now we try to score a num field
         ActionFuture<SearchResponse> response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
-                        searchSource().explain(true).query(
+                        searchSource().query(
                                 functionScoreQuery().add(new MatchAllFilterBuilder(), linearDecayFunction("num", 1, 0.5)).scoreMode(
                                         "multiply"))));
         response.actionGet();
@@ -937,5 +929,34 @@ public class DecayFunctionScoreTests extends ElasticsearchIntegrationTest {
         } catch (ElasticsearchIllegalArgumentException failure) {
             assertTrue(failure.getMessage().contains("function must not be null"));
         }
+    }
+
+    @Test
+    public void testExplainString() throws IOException, ExecutionException, InterruptedException {
+        assertAcked(prepareCreate("test").addMapping(
+                "type1",
+                jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("test").field("type", "string")
+                        .endObject().startObject("num").field("type", "double").endObject().endObject().endObject().endObject()));
+        ensureYellow();
+
+
+        client().prepareIndex().setType("type1").setId("1").setIndex("test")
+                .setSource(jsonBuilder().startObject().field("test", "value").array("num", 0.5, 0.7).endObject()).get();
+
+        refresh();
+
+        SearchResponse response = client().search(
+                searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
+                        searchSource().explain(true)
+                                .query(functionScoreQuery(termQuery("test", "value"))
+                                        .add(gaussDecayFunction("num", 1.0, 5.0).setOffset(1.0))
+                                        .add(linearDecayFunction("num", 1.0, 5.0).setOffset(1.0))
+                                        .add(exponentialDecayFunction("num", 1.0, 5.0).setOffset(1.0))
+                                        .boostMode(CombineFunction.REPLACE.getName())))).get();
+        String explanation = response.getHits().getAt(0).getExplanation().toString();
+        assertThat(explanation, containsString(" 1.0 = -exp(-0.5*pow(MIN[Math.max(Math.abs(0.5(=doc value) - 1.0(=origin))) - 1.0(=offset), 0), Math.max(Math.abs(0.7(=doc value) - 1.0(=origin))) - 1.0(=offset), 0)],2.0)/18.033688011112044)"));
+        assertThat(explanation, containsString("1.0 = max(0.0, ((10.0 - MIN[Math.max(Math.abs(0.5(=doc value) - 1.0(=origin))) - 1.0(=offset), 0), Math.max(Math.abs(0.7(=doc value) - 1.0(=origin))) - 1.0(=offset), 0)])/10.0)"));
+        assertThat(explanation, containsString("1.0 = exp(- MIN[Math.max(Math.abs(0.5(=doc value) - 1.0(=origin))) - 1.0(=offset), 0), Math.max(Math.abs(0.7(=doc value) - 1.0(=origin))) - 1.0(=offset), 0)] * 0.13862943611198905)"));
+
     }
 }

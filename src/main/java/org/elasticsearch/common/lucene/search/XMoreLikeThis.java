@@ -614,6 +614,49 @@ public final class XMoreLikeThis {
     }
 
     /**
+     * Return a query that will return docs like the passed Terms.
+     *
+     * @return a query that will return docs like the passed Terms.
+     */
+    public Query like(Terms... likeTerms) throws IOException {
+        Map<String, Int> termFreqMap = new HashMap<>();
+        for (Terms vector : likeTerms) {
+            addTermFrequencies(termFreqMap, vector);
+        }
+        return createQuery(createQueue(termFreqMap));
+    }
+
+    /**
+     * Return a query that will return docs like the passed Fields.
+     *
+     * @return a query that will return docs like the passed Fields.
+     */
+    public Query like(Fields... likeFields) throws IOException {
+        // get all field names
+        Set<String> fieldNames = new HashSet<>();
+        for (Fields fields : likeFields) {
+            for (String fieldName : fields) {
+                fieldNames.add(fieldName);
+            }
+        }
+        // to create one query per field name only
+        BooleanQuery bq = new BooleanQuery();
+        for (String fieldName : fieldNames) {
+            Map<String, Int> termFreqMap = new HashMap<>();
+            this.setFieldNames(new String[]{fieldName});
+            for (Fields fields : likeFields) {
+                Terms vector = fields.terms(fieldName);
+                if (vector != null) {
+                    addTermFrequencies(termFreqMap, vector);
+                }
+            }
+            Query query = createQuery(createQueue(termFreqMap));
+            bq.add(query, BooleanClause.Occur.SHOULD);
+        }
+        return bq;
+    }
+
+    /**
      * Create the More like query from a PriorityQueue
      */
     private Query createQuery(PriorityQueue<ScoreTerm> q) {
@@ -768,7 +811,9 @@ public final class XMoreLikeThis {
             if (isNoiseWord(term)) {
                 continue;
             }
-            final int freq = (int) termsEnum.totalTermFreq();
+
+            DocsEnum docs = termsEnum.docs(null, null);
+            final int freq = docs.freq();
 
             // increment frequency
             Int cnt = termFreqMap.get(term);

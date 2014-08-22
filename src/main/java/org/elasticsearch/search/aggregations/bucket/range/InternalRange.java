@@ -24,7 +24,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.Aggregations;
@@ -109,14 +108,14 @@ public class InternalRange<B extends InternalRange.Bucket> extends InternalAggre
             return FACTORY;
         }
 
-        Bucket reduce(List<Bucket> ranges, BigArrays bigArrays) {
+        Bucket reduce(List<Bucket> ranges, ReduceContext context) {
             long docCount = 0;
             List<InternalAggregations> aggregationsList = Lists.newArrayListWithCapacity(ranges.size());
             for (Bucket range : ranges) {
                 docCount += range.docCount;
                 aggregationsList.add(range.aggregations);
             }
-            final InternalAggregations aggs = InternalAggregations.reduce(aggregationsList, bigArrays);
+            final InternalAggregations aggs = InternalAggregations.reduce(aggregationsList, context);
             return getFactory().createBucket(key, from, to, docCount, aggs, formatter);
         }
 
@@ -227,7 +226,7 @@ public class InternalRange<B extends InternalRange.Bucket> extends InternalAggre
 
         final List<B> ranges = new ArrayList<>();
         for (int i = 0; i < this.ranges.size(); ++i) {
-            ranges.add((B) rangeList[i].get(0).reduce(rangeList[i], reduceContext.bigArrays()));
+            ranges.add((B) rangeList[i].get(0).reduce(rangeList[i], reduceContext));
         }
         return getFactory().create(name, ranges, formatter, keyed);
     }

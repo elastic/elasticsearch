@@ -30,7 +30,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilderException;
-import org.elasticsearch.search.facet.FacetBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -53,7 +52,6 @@ public class PercolateSourceBuilder implements ToXContent {
     private List<SortBuilder> sorts;
     private Boolean trackScores;
     private HighlightBuilder highlightBuilder;
-    private List<FacetBuilder> facets;
     private List<AggregationBuilder> aggregations;
 
     public DocBuilder percolateDocument() {
@@ -149,17 +147,6 @@ public class PercolateSourceBuilder implements ToXContent {
     }
 
     /**
-     * Add a facet definition.
-     */
-    public PercolateSourceBuilder addFacet(FacetBuilder facetBuilder) {
-        if (facets == null) {
-            facets = Lists.newArrayList();
-        }
-        facets.add(facetBuilder);
-        return this;
-    }
-
-    /**
      * Add an aggregationB definition.
      */
     public PercolateSourceBuilder addAggregation(AggregationBuilder aggregationBuilder) {
@@ -211,14 +198,6 @@ public class PercolateSourceBuilder implements ToXContent {
         }
         if (highlightBuilder != null) {
             highlightBuilder.toXContent(builder, params);
-        }
-        if (facets != null) {
-            builder.field("facets");
-            builder.startObject();
-            for (FacetBuilder facet : facets) {
-                facet.toXContent(builder, params);
-            }
-            builder.endObject();
         }
         if (aggregations != null) {
             builder.field("aggregations");

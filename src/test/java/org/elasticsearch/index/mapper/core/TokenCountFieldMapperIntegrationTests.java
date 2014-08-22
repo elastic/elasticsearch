@@ -30,8 +30,8 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.facet.terms.TermsFacet;
-import org.elasticsearch.search.facet.terms.TermsFacetBuilder;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
@@ -102,11 +102,11 @@ public class TokenCountFieldMapperIntegrationTests extends ElasticsearchIntegrat
         String facetField = randomFrom(ImmutableList.of(
                 "foo.token_count", "foo.token_count_unstored", "foo.token_count_with_doc_values"));
         SearchResponse result = searchByNumericRange(1, 10)
-                .addFacet(new TermsFacetBuilder("facet").field(facetField)).get();
+                .addAggregation(AggregationBuilders.terms("facet").field(facetField)).get();
         assertSearchReturns(result, "single", "bulk1", "bulk2", "multi", "multibulk1", "multibulk2");
-        assertThat(result.getFacets().facets().size(), equalTo(1));
-        TermsFacet facet = (TermsFacet) result.getFacets().facets().get(0);
-        assertThat(facet.getEntries().size(), equalTo(9));
+        assertThat(result.getAggregations().asList().size(), equalTo(1));
+        Terms terms = (Terms) result.getAggregations().asList().get(0);
+        assertThat(terms.getBuckets().size(), equalTo(9));
     }
 
     private void init() throws ElasticsearchException, IOException {

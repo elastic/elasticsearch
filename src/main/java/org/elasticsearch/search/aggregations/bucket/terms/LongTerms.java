@@ -95,7 +95,7 @@ public class LongTerms extends InternalTerms {
         }
     }
 
-    private @Nullable ValueFormatter formatter;
+    @Nullable ValueFormatter formatter;
 
     LongTerms() {} // for serialization
 

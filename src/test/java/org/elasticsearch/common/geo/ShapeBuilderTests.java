@@ -19,9 +19,11 @@
 
 package org.elasticsearch.common.geo;
 
+import com.spatial4j.core.shape.Circle;
 import com.spatial4j.core.shape.Point;
 import com.spatial4j.core.shape.Rectangle;
 import com.spatial4j.core.shape.Shape;
+import com.spatial4j.core.shape.impl.PointImpl;
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.LineString;
 import com.vividsolutions.jts.geom.Polygon;
@@ -161,11 +163,28 @@ public class ShapeBuilderTests extends ElasticsearchTestCase {
 
     @Test
     public void testGeoCircle() {
-        ShapeBuilder.newCircleBuilder().center(0, 0).radius("100m").build();
-        ShapeBuilder.newCircleBuilder().center(+180, 0).radius("100m").build();
-        ShapeBuilder.newCircleBuilder().center(-180, 0).radius("100m").build();
-        ShapeBuilder.newCircleBuilder().center(0, 90).radius("100m").build();
-        ShapeBuilder.newCircleBuilder().center(0, -90).radius("100m").build();
+        double earthCircumference = 40075016.69;
+        Circle circle = ShapeBuilder.newCircleBuilder().center(0, 0).radius("100m").build();
+        assertEquals((360 * 100) / earthCircumference, circle.getRadius(), 0.00000001);
+        assertEquals((Point) new PointImpl(0, 0, ShapeBuilder.SPATIAL_CONTEXT), circle.getCenter());
+        circle = ShapeBuilder.newCircleBuilder().center(+180, 0).radius("100m").build();
+        assertEquals((360 * 100) / earthCircumference, circle.getRadius(), 0.00000001);
+        assertEquals((Point) new PointImpl(180, 0, ShapeBuilder.SPATIAL_CONTEXT), circle.getCenter());
+        circle = ShapeBuilder.newCircleBuilder().center(-180, 0).radius("100m").build();
+        assertEquals((360 * 100) / earthCircumference, circle.getRadius(), 0.00000001);
+        assertEquals((Point) new PointImpl(-180, 0, ShapeBuilder.SPATIAL_CONTEXT), circle.getCenter());
+        circle = ShapeBuilder.newCircleBuilder().center(0, 90).radius("100m").build();
+        assertEquals((360 * 100) / earthCircumference, circle.getRadius(), 0.00000001);
+        assertEquals((Point) new PointImpl(0, 90, ShapeBuilder.SPATIAL_CONTEXT), circle.getCenter());
+        circle = ShapeBuilder.newCircleBuilder().center(0, -90).radius("100m").build();
+        assertEquals((360 * 100) / earthCircumference, circle.getRadius(), 0.00000001);
+        assertEquals((Point) new PointImpl(0, -90, ShapeBuilder.SPATIAL_CONTEXT), circle.getCenter());
+        double randomLat = (randomDouble() * 180) - 90;
+        double randomLon = (randomDouble() * 360) - 180;
+        double randomRadius = randomIntBetween(1, (int) earthCircumference / 4);
+        circle = ShapeBuilder.newCircleBuilder().center(randomLon, randomLat).radius(randomRadius + "m").build();
+        assertEquals((360 * randomRadius) / earthCircumference, circle.getRadius(), 0.00000001);
+        assertEquals((Point) new PointImpl(randomLon, randomLat, ShapeBuilder.SPATIAL_CONTEXT), circle.getCenter());
     }
     
     @Test

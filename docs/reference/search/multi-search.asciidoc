@@ -19,7 +19,7 @@ body\n
 The header part includes which index / indices to search on, optional
 (mapping) types to search on, the `search_type`, `preference`, and
 `routing`. The body includes the typical search body request (including
-the `query`, `facets`, `from`, `size`, and so on). Here is an example:
+the `query`, `aggregations`, `from`, `size`, and so on). Here is an example:
 
 [source,js]
 --------------------------------------------------

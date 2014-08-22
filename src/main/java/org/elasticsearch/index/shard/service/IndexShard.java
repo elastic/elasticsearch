@@ -82,6 +82,11 @@ public interface IndexShard extends IndexShardComponent {
 
     ShardFieldData fieldData();
 
+    /**
+     * Returns the latest cluster routing entry received with this shard. Might be null if the
+     * shard was just created.
+     */
+    @Nullable
     ShardRouting routingEntry();
 
     DocsStats docStats();

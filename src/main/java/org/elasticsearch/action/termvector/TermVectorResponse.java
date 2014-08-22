@@ -169,7 +169,6 @@ public class TermVectorResponse extends ActionResponse implements ToXContent {
         builder.field(FieldStrings._VERSION, docVersion);
         builder.field(FieldStrings.FOUND, isExists());
         if (!isExists()) {
-            builder.endObject();
             return builder;
         }
         builder.startObject(FieldStrings.TERM_VECTORS);

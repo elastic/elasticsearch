@@ -24,7 +24,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.Aggregations;
@@ -85,7 +84,7 @@ public class InternalFilters extends InternalAggregation implements Filters {
             return aggregations;
         }
 
-        Bucket reduce(List<Bucket> buckets, BigArrays bigArrays) {
+        Bucket reduce(List<Bucket> buckets, ReduceContext context) {
             Bucket reduced = null;
             List<InternalAggregations> aggregationsList = Lists.newArrayListWithCapacity(buckets.size());
             for (Bucket bucket : buckets) {
@@ -96,7 +95,7 @@ public class InternalFilters extends InternalAggregation implements Filters {
                 }
                 aggregationsList.add(bucket.aggregations);
             }
-            reduced.aggregations = InternalAggregations.reduce(aggregationsList, bigArrays);
+            reduced.aggregations = InternalAggregations.reduce(aggregationsList, context);
             return reduced;
         }
 
@@ -168,7 +167,7 @@ public class InternalFilters extends InternalAggregation implements Filters {
 
         InternalFilters reduced = new InternalFilters(name, new ArrayList<Bucket>(bucketsList.size()), keyed);
         for (List<Bucket> sameRangeList : bucketsList) {
-            reduced.buckets.add((sameRangeList.get(0)).reduce(sameRangeList, reduceContext.bigArrays()));
+            reduced.buckets.add((sameRangeList.get(0)).reduce(sameRangeList, reduceContext));
         }
         return reduced;
     }

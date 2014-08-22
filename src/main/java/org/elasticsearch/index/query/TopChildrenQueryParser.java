@@ -86,8 +86,6 @@ public class TopChildrenQueryParser implements QueryParser {
             } else if (token.isValue()) {
                 if ("type".equals(currentFieldName)) {
                     childType = parser.text();
-                } else if ("_scope".equals(currentFieldName)) {
-                    throw new QueryParsingException(parseContext.index(), "the [_scope] support in [top_children] query has been removed, use a filter as a facet_filter in the relevant global facet");
                 } else if ("score".equals(currentFieldName)) {
                     scoreType = ScoreType.fromString(parser.text());
                 } else if ("score_mode".equals(currentFieldName) || "scoreMode".equals(currentFieldName)) {
@@ -137,7 +135,7 @@ public class TopChildrenQueryParser implements QueryParser {
         // wrap the query with type query
         innerQuery = new XFilteredQuery(innerQuery, parseContext.cacheFilter(childDocMapper.typeFilter(), null));
         ParentChildIndexFieldData parentChildIndexFieldData = parseContext.getForField(parentFieldMapper);
-        TopChildrenQuery query = new TopChildrenQuery(parentChildIndexFieldData, innerQuery, childType, parentType, scoreType, factor, incrementalFactor, parseContext.cacheRecycler(), nonNestedDocsFilter);
+        TopChildrenQuery query = new TopChildrenQuery(parentChildIndexFieldData, innerQuery, childType, parentType, scoreType, factor, incrementalFactor, nonNestedDocsFilter);
         if (queryName != null) {
             parseContext.addNamedFilter(queryName, new CustomQueryWrappingFilter(query));
         }

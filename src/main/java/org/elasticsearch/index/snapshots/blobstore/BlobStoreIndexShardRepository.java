@@ -20,12 +20,10 @@
 package org.elasticsearch.index.snapshots.blobstore;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import org.apache.lucene.index.CorruptIndexException;
-import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.store.RateLimiter;
+import org.apache.lucene.store.*;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.metadata.SnapshotId;
@@ -35,11 +33,11 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
-import org.elasticsearch.common.lucene.store.ThreadSafeInputStreamIndexInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
+import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.*;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
@@ -52,14 +50,10 @@ import org.elasticsearch.repositories.RepositoryName;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 
 import static com.google.common.collect.Lists.newArrayList;
 
@@ -396,8 +390,10 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
          */
         public SnapshotContext(SnapshotId snapshotId, ShardId shardId, IndexShardSnapshotStatus snapshotStatus) {
             super(snapshotId, shardId);
-            store = indicesService.indexServiceSafe(shardId.getIndex()).shardInjectorSafe(shardId.id()).getInstance(Store.class);
+            IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
+            store = indexService.shardInjectorSafe(shardId.id()).getInstance(Store.class);
             this.snapshotStatus = snapshotStatus;
+
         }
 
         /**
@@ -427,7 +423,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                 ArrayList<FileInfo> filesToSnapshot = newArrayList();
                 final Store.MetadataSnapshot metadata;
                 try {
-                    metadata = store.getMetadata();
+                    metadata = store.getMetadata(snapshotIndexCommit);
                 } catch (IOException e) {
                     throw new IndexShardSnapshotFailedException(shardId, "Failed to get store file metadata", e);
                 }
@@ -439,11 +435,6 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                     logger.trace("[{}] [{}] Processing [{}]", shardId, snapshotId, fileName);
                     final StoreFileMetaData md = metadata.get(fileName);
                     boolean snapshotRequired = false;
-                    // TODO: For now segment files are copied on each commit because segment files don't have checksum
-    //            if (snapshot.indexChanged() && fileName.equals(snapshotIndexCommit.getSegmentsFileName())) {
-    //                snapshotRequired = true; // we want to always snapshot the segment file if the index changed
-    //            }
-
                     BlobStoreIndexShardSnapshot.FileInfo fileInfo = snapshots.findPhysicalIndexFile(fileName);
 
                     if (fileInfo == null || !fileInfo.isSame(md) || !snapshotFileExistsInBlobs(fileInfo, blobs)) {
@@ -532,48 +523,99 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
          * @throws IOException
          */
         private void snapshotFile(final BlobStoreIndexShardSnapshot.FileInfo fileInfo, final CountDownLatch latch, final List<Throwable> failures) throws IOException {
-            final AtomicLong counter = new AtomicLong(fileInfo.numberOfParts());
-            for (long i = 0; i < fileInfo.numberOfParts(); i++) {
-                IndexInput indexInput = null;
-                try {
-                    final String file = fileInfo.physicalName();
-                    indexInput = store.directory().openInput(file, IOContext.READONCE);
-                    indexInput.seek(i * fileInfo.partBytes());
-                    InputStreamIndexInput inputStreamIndexInput = new ThreadSafeInputStreamIndexInput(indexInput, fileInfo.partBytes());
+            final String file = fileInfo.physicalName();
+            IndexInput indexInput = store.openVerifyingInput(file, IOContext.READONCE, fileInfo.metadata());
+            writeBlob(indexInput, fileInfo, 0, latch, failures);
+        }
 
-                    final IndexInput fIndexInput = indexInput;
-                    long size = inputStreamIndexInput.actualSizeToRead();
-                    InputStream inputStream;
-                    if (snapshotRateLimiter != null) {
-                        inputStream = new RateLimitingInputStream(inputStreamIndexInput, snapshotRateLimiter, snapshotThrottleListener);
-                    } else {
-                        inputStream = inputStreamIndexInput;
+        private class BlobPartWriter implements ImmutableBlobContainer.WriterListener {
+
+            private final int part;
+
+            private final FileInfo fileInfo;
+
+            private final List<Throwable> failures;
+
+            private final CountDownLatch latch;
+
+            private final IndexInput indexInput;
+
+            private final InputStream inputStream;
+
+            private final InputStreamIndexInput inputStreamIndexInput;
+
+            private BlobPartWriter(IndexInput indexInput, FileInfo fileInfo, int part, CountDownLatch latch, List<Throwable> failures) throws IOException {
+                this.indexInput = indexInput;
+                this.part = part;
+                this.fileInfo = fileInfo;
+                this.failures = failures;
+                this.latch = latch;
+                inputStreamIndexInput = new InputStreamIndexInput(indexInput, fileInfo.partBytes());
+                InputStream inputStream = inputStreamIndexInput;
+                if (snapshotRateLimiter != null) {
+                    inputStream = new RateLimitingInputStream(inputStream, snapshotRateLimiter, snapshotThrottleListener);
+                }
+                inputStream = new AbortableInputStream(inputStream, fileInfo.physicalName());
+                this.inputStream = inputStream;
+            }
+
+            @Override
+            public void onCompleted() {
+                int nextPart = part + 1;
+                if (nextPart < fileInfo.numberOfParts()) {
+                    try {
+                        // We have more parts to go
+                        writeBlob(indexInput, fileInfo, nextPart, latch, failures);
+                    } catch (Throwable t) {
+                        onFailure(t);
                     }
-                    inputStream = new AbortableInputStream(inputStream, file);
-                    blobContainer.writeBlob(fileInfo.partName(i), inputStream, size, new ImmutableBlobContainer.WriterListener() {
-                        @Override
-                        public void onCompleted() {
-                            IOUtils.closeWhileHandlingException(fIndexInput);
-                            snapshotStatus.addProcessedFile(fileInfo.length());
-                            if (counter.decrementAndGet() == 0) {
-                                latch.countDown();
-                            }
-                        }
-
-                        @Override
-                        public void onFailure(Throwable t) {
-                            IOUtils.closeWhileHandlingException(fIndexInput);
-                            snapshotStatus.addProcessedFile(0);
-                            failures.add(t);
-                            if (counter.decrementAndGet() == 0) {
-                                latch.countDown();
-                            }
-                        }
-                    });
-                } catch (Throwable e) {
-                    IOUtils.closeWhileHandlingException(indexInput);
-                    failures.add(e);
+                } else {
+                    // Last part - verify checksum
+                    try {
+                        Store.verify(indexInput);
+                        indexInput.close();
+                        snapshotStatus.addProcessedFile(fileInfo.length());
+                    } catch (Throwable t) {
+                        onFailure(t);
+                        return;
+                    }
                     latch.countDown();
+                }
+            }
+
+            @Override
+            public void onFailure(Throwable t) {
+                cleanupFailedSnapshot(t, indexInput, latch, failures);
+            }
+
+            public void writeBlobPart() throws IOException {
+                blobContainer.writeBlob(fileInfo.partName(part), inputStream, inputStreamIndexInput.actualSizeToRead(), this);
+            }
+
+        }
+
+        private void writeBlob(IndexInput indexInput, FileInfo fileInfo, int part, CountDownLatch latch, List<Throwable> failures) {
+            try {
+                new BlobPartWriter(indexInput, fileInfo, part, latch, failures).writeBlobPart();
+            } catch (Throwable t) {
+                cleanupFailedSnapshot(t, indexInput, latch, failures);
+            }
+        }
+
+        private void cleanupFailedSnapshot(Throwable t, IndexInput indexInput, CountDownLatch latch, List<Throwable> failures) {
+            IOUtils.closeWhileHandlingException(indexInput);
+            failStoreIfCorrupted(t);
+            snapshotStatus.addProcessedFile(0);
+            failures.add(t);
+            latch.countDown();
+        }
+
+        private void failStoreIfCorrupted(Throwable t) {
+            if (t instanceof CorruptIndexException) {
+                try {
+                    store.markStoreCorrupted((CorruptIndexException) t);
+                } catch (IOException e) {
+                    logger.warn("store cannot be marked as corrupted", e);
                 }
             }
         }
@@ -672,9 +714,9 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                 long totalSize = 0;
                 int numberOfReusedFiles = 0;
                 long reusedTotalSize = 0;
-                Map<String, StoreFileMetaData> metadata = Collections.emptyMap();
+                Store.MetadataSnapshot recoveryTargetMetadata = Store.MetadataSnapshot.EMPTY;
                 try {
-                    metadata = store.getMetadata().asMap();
+                    recoveryTargetMetadata = store.getMetadata();
                 } catch (CorruptIndexException e) {
                     logger.warn("{} Can't read metadata from store", e, shardId);
                     throw new IndexShardRestoreFailedException(shardId, "Can't restore corrupted shard", e);
@@ -683,33 +725,42 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                     logger.warn("{} Can't read metadata from store", e, shardId);
                 }
 
-                List<FileInfo> filesToRecover = Lists.newArrayList();
-                for (FileInfo fileInfo : snapshot.indexFiles()) {
-                    String fileName = fileInfo.physicalName();
-                    final StoreFileMetaData md = metadata.get(fileName);
+                final List<FileInfo> filesToRecover = Lists.newArrayList();
+                final Map<String, StoreFileMetaData> snapshotMetaData = new HashMap<>();
+                final Map<String, FileInfo> fileInfos = new HashMap<>();
+
+                for (final FileInfo fileInfo : snapshot.indexFiles()) {
+                    snapshotMetaData.put(fileInfo.metadata().name(), fileInfo.metadata());
+                    fileInfos.put(fileInfo.metadata().name(), fileInfo);
+                }
+                final Store.MetadataSnapshot sourceMetaData = new Store.MetadataSnapshot(snapshotMetaData);
+                final Store.RecoveryDiff diff = sourceMetaData.recoveryDiff(recoveryTargetMetadata);
+                for (StoreFileMetaData md : diff.identical) {
+                    FileInfo fileInfo = fileInfos.get(md.name());
                     numberOfFiles++;
-                    if (md != null && fileInfo.isSame(md)) {
-                        totalSize += md.length();
-                        numberOfReusedFiles++;
-                        reusedTotalSize += md.length();
-                        recoveryState.getIndex().addReusedFileDetail(fileInfo.name(), fileInfo.length());
-                        if (logger.isTraceEnabled()) {
-                            logger.trace("not_recovering [{}], exists in local store and is same", fileInfo.physicalName());
-                        }
-                    } else {
-                        totalSize += fileInfo.length();
-                        filesToRecover.add(fileInfo);
-                        recoveryState.getIndex().addFileDetail(fileInfo.name(), fileInfo.length());
-                        if (logger.isTraceEnabled()) {
-                            if (md == null) {
-                                logger.trace("recovering [{}], does not exists in local store", fileInfo.physicalName());
-                            } else {
-                                logger.trace("recovering [{}], exists in local store but is different", fileInfo.physicalName());
-                            }
-                        }
+                    totalSize += md.length();
+                    numberOfReusedFiles++;
+                    reusedTotalSize += md.length();
+                    recoveryState.getIndex().addReusedFileDetail(fileInfo.name(), fileInfo.length());
+                    if (logger.isTraceEnabled()) {
+                        logger.trace("[{}] [{}] not_recovering [{}] from [{}], exists in local store and is same", shardId, snapshotId, fileInfo.physicalName(), fileInfo.name());
                     }
                 }
 
+                for (StoreFileMetaData md : Iterables.concat(diff.different, diff.missing)) {
+                    FileInfo fileInfo = fileInfos.get(md.name());
+                    numberOfFiles++;
+                    totalSize += fileInfo.length();
+                    filesToRecover.add(fileInfo);
+                    recoveryState.getIndex().addFileDetail(fileInfo.name(), fileInfo.length());
+                    if (logger.isTraceEnabled()) {
+                        if (md == null) {
+                            logger.trace("[{}] [{}] recovering [{}] from [{}], does not exists in local store", shardId, snapshotId, fileInfo.physicalName(), fileInfo.name());
+                        } else {
+                            logger.trace("[{}] [{}] recovering [{}] from [{}], exists in local store but is different", shardId, snapshotId, fileInfo.physicalName(), fileInfo.name());
+                        }
+                    }
+                }
                 final RecoveryState.Index index = recoveryState.getIndex();
                 index.totalFileCount(numberOfFiles);
                 index.totalByteCount(totalSize);
@@ -850,9 +901,9 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                             IOUtils.closeWhileHandlingException(indexOutput);
                             if (t instanceof CorruptIndexException) {
                                 try {
-                                    store.markStoreCorrupted((CorruptIndexException)t);
+                                    store.markStoreCorrupted((CorruptIndexException) t);
                                 } catch (IOException e) {
-                                    //
+                                    logger.warn("store cannot be marked as corrupted", e);
                                 }
                             }
                             store.deleteQuiet(fileInfo.physicalName());

@@ -99,7 +99,6 @@ public class IndicesQueryCache extends AbstractComponent implements RemovalListe
     //TODO make these changes configurable on the cluster level
     private volatile String size;
     private volatile TimeValue expire;
-    //TODO expose this in our stats APIs
     private volatile Cache<Key, BytesReference> cache;
 
     @Inject
@@ -180,7 +179,7 @@ public class IndicesQueryCache extends AbstractComponent implements RemovalListe
             return false;
         }
         // for now, only enable it for search type count
-        if (request.searchType() != SearchType.COUNT) {
+        if (context.searchType() != SearchType.COUNT) {
             return false;
         }
         IndexMetaData index = clusterService.state().getMetaData().index(request.index());
@@ -218,6 +217,7 @@ public class IndicesQueryCache extends AbstractComponent implements RemovalListe
         Loader loader = new Loader(queryPhase, context, key);
         BytesReference value = cache.get(key, loader);
         if (loader.isLoaded()) {
+            key.shard.queryCache().onMiss();
             // see if its the first time we see this reader, and make sure to register a cleanup key
             CleanupKey cleanupKey = new CleanupKey(context.indexShard(), ((DirectoryReader) context.searcher().getIndexReader()).getVersion());
             if (!registeredClosedListeners.containsKey(cleanupKey)) {
@@ -226,6 +226,8 @@ public class IndicesQueryCache extends AbstractComponent implements RemovalListe
                     context.searcher().getIndexReader().addReaderClosedListener(cleanupKey);
                 }
             }
+        } else {
+            key.shard.queryCache().onHit();
         }
 
         // try and be smart, and reuse an already loaded and constructed QueryResult of in VM execution

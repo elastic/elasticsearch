@@ -50,6 +50,11 @@ public class TransportSingleShardMultiTermsVectorAction extends TransportShardSi
     }
 
     @Override
+    protected boolean isSubAction() {
+        return true;
+    }
+
+    @Override
     protected String executor() {
         return ThreadPool.Names.GET;
     }

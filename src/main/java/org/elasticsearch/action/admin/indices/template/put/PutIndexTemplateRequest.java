@@ -23,7 +23,9 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -50,7 +52,7 @@ import static org.elasticsearch.common.settings.ImmutableSettings.writeSettingsT
 /**
  * A request to create an index template.
  */
-public class PutIndexTemplateRequest extends MasterNodeOperationRequest<PutIndexTemplateRequest> {
+public class PutIndexTemplateRequest extends MasterNodeOperationRequest<PutIndexTemplateRequest> implements IndicesRequest {
 
     private String name;
 
@@ -402,6 +404,16 @@ public class PutIndexTemplateRequest extends MasterNodeOperationRequest<PutIndex
     public PutIndexTemplateRequest alias(Alias alias) {
         aliases.add(alias);
         return this;
+    }
+
+    @Override
+    public String[] indices() {
+        return new String[]{template};
+    }
+
+    @Override
+    public IndicesOptions indicesOptions() {
+        return IndicesOptions.strictExpand();
     }
 
     @Override

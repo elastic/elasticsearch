@@ -37,6 +37,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexShardMissingException;
 import org.elasticsearch.index.service.InternalIndexService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
@@ -133,8 +134,12 @@ public class TransportIndicesStatsAction extends TransportBroadcastOperationActi
 
     @Override
     protected ShardStats shardOperation(IndexShardStatsRequest request) throws ElasticsearchException {
-        InternalIndexService indexService = (InternalIndexService) indicesService.indexServiceSafe(request.index());
-        InternalIndexShard indexShard = (InternalIndexShard) indexService.shardSafe(request.shardId());
+        InternalIndexService indexService = (InternalIndexService) indicesService.indexServiceSafe(request.shardId().getIndex());
+        InternalIndexShard indexShard = (InternalIndexShard) indexService.shardSafe(request.shardId().id());
+        // if we don't have the routing entry yet, we need it stats wise, we treat it as if the shard is not ready yet
+        if (indexShard.routingEntry() == null) {
+            throw new IndexShardMissingException(indexShard.shardId());
+        }
 
         CommonStatsFlags flags = new CommonStatsFlags().clear();
 
@@ -197,10 +202,10 @@ public class TransportIndicesStatsAction extends TransportBroadcastOperationActi
             flags.set(CommonStatsFlags.Flag.QueryCache);
         }
 
-        return new ShardStats(indexShard, flags);
+        return new ShardStats(indexShard, indexShard.routingEntry(), flags);
     }
 
-    public static class IndexShardStatsRequest extends BroadcastShardOperationRequest {
+    static class IndexShardStatsRequest extends BroadcastShardOperationRequest {
 
         // TODO if there are many indices, the request might hold a large indices array..., we don't really need to serialize it
         IndicesStatsRequest request;

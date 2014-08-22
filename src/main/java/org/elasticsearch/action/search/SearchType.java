@@ -56,7 +56,7 @@ public enum SearchType {
      */
     SCAN((byte) 4),
     /**
-     * Only counts the results, will still execute facets and the like.
+     * Only counts the results, will still execute aggregations and the like.
      */
     COUNT((byte) 5);
 

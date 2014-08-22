@@ -100,7 +100,7 @@ public class AggregationPhase implements SearchPhase {
         }
 
         if (context.queryResult().aggregations() != null) {
-            // no need to compute the facets twice, they should be computed on a per context basis
+            // no need to compute the aggs twice, they should be computed on a per context basis
             return;
         }
 

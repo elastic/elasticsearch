@@ -103,6 +103,15 @@ public class Lucene {
         return sis;
     }
 
+    /**
+     * Reads the segments infos from the given commit, failing if it fails to load
+     */
+    public static SegmentInfos readSegmentInfos(IndexCommit commit, Directory directory) throws IOException {
+        final SegmentInfos sis = new SegmentInfos();
+        sis.read(directory, commit.getSegmentsFileName());
+        return sis;
+    }
+
     public static void checkSegmentInfoIntegrity(final Directory directory) throws IOException {
         new SegmentInfos.FindSegmentsFile(directory) {
 

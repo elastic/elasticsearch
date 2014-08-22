@@ -24,8 +24,8 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.search.facet.Facets;
-import org.elasticsearch.search.facet.terms.TermsFacet;
+import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.Matchers;
 import org.junit.Test;
@@ -33,7 +33,7 @@ import org.junit.Test;
 import java.io.IOException;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.search.facet.FacetBuilders.termsFacet;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 public class FieldDataFilterIntegrationTests extends ElasticsearchIntegrationTest {
@@ -73,17 +73,17 @@ public class FieldDataFilterIntegrationTests extends ElasticsearchIntegrationTes
         SearchResponse searchResponse = client().prepareSearch()
                 .setSearchType(SearchType.COUNT)
                 .setQuery(matchAllQuery())
-                .addFacet(termsFacet("name").field("name"))
-                .addFacet(termsFacet("not_filtered").field("not_filtered")).get();
-        Facets facets = searchResponse.getFacets();
-        TermsFacet nameFacet = facets.facet("name");
-        assertThat(nameFacet.getEntries().size(), Matchers.equalTo(1));
-        assertThat(nameFacet.getEntries().get(0).getTerm().string(), Matchers.equalTo("bacon"));
+                .addAggregation(terms("name").field("name"))
+                .addAggregation(terms("not_filtered").field("not_filtered")).get();
+        Aggregations aggs = searchResponse.getAggregations();
+        Terms nameAgg = aggs.get("name");
+        assertThat(nameAgg.getBuckets().size(), Matchers.equalTo(1));
+        assertThat(nameAgg.getBuckets().iterator().next().getKey(), Matchers.equalTo("bacon"));
         
-        TermsFacet notFilteredFacet = facets.facet("not_filtered");
-        assertThat(notFilteredFacet.getEntries().size(), Matchers.equalTo(2));
-        assertThat(notFilteredFacet.getEntries().get(0).getTerm().string(), Matchers.isOneOf("bacon", "bastards"));
-        assertThat(notFilteredFacet.getEntries().get(1).getTerm().string(), Matchers.isOneOf("bacon", "bastards"));
+        Terms notFilteredAgg = aggs.get("not_filtered");
+        assertThat(notFilteredAgg.getBuckets().size(), Matchers.equalTo(2));
+        assertThat(notFilteredAgg.getBuckets().get(0).getKey(), Matchers.isOneOf("bacon", "bastards"));
+        assertThat(notFilteredAgg.getBuckets().get(1).getKey(), Matchers.isOneOf("bacon", "bastards"));
     }
 
 }

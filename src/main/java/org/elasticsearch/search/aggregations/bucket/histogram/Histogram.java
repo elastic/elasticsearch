@@ -21,8 +21,8 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 
-import java.util.Collection;
 import java.util.Comparator;
+import java.util.List;
 
 /**
  * A {@code histogram} aggregation. Defines multiple buckets, each representing an interval in a histogram.
@@ -44,7 +44,7 @@ public interface Histogram extends MultiBucketsAggregation {
     /**
      * @return  The buckets of this histogram (each bucket representing an interval in the histogram)
      */
-    Collection<? extends Bucket> getBuckets();
+    List<? extends Bucket> getBuckets();
 
     /**
      * Returns a bucket by the key associated with it.

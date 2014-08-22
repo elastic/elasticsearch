@@ -47,7 +47,6 @@ public class IpRangeParser implements Aggregator.Parser {
 
         ValuesSourceParser<ValuesSource.Numeric> vsParser = ValuesSourceParser.numeric(aggregationName, InternalIPv4Range.TYPE, context)
                 .targetValueType(ValueType.IP)
-                .requiresSortedValues(true)
                 .formattable(false)
                 .build();
 

@@ -233,6 +233,9 @@ that can be used for configuring this sandbox:
     Flag to disable the sandbox (defaults to `true` meaning the sandbox is
     enabled).
 
+When specifying whitelist or blacklist settings for the groovy sandbox, all
+options replace the current whitelist, they are not additive.
+    
 [float]
 === Automatic Script Reloading
 
@@ -301,7 +304,7 @@ There are a few limitations relative to other script languages:
 [float]
 === Score
 
-In all scripts that can be used in facets, the current
+In all scripts that can be used in aggregations, the current
 document's score is accessible in `doc.score`.  When using a `script_score`,
 the current score is available in `_score`.
 

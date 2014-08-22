@@ -19,10 +19,7 @@
 
 package org.elasticsearch.action.support.replication;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.WriteConsistencyLevel;
+import org.elasticsearch.action.*;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -41,12 +38,16 @@ public abstract class IndexReplicationOperationRequest<T extends IndexReplicatio
     private final String index;
     private final ReplicationType replicationType;
     private final WriteConsistencyLevel consistencyLevel;
+    private final OriginalIndices originalIndices;
 
-    protected IndexReplicationOperationRequest(String index, TimeValue timeout, ReplicationType replicationType, WriteConsistencyLevel consistencyLevel) {
+    protected IndexReplicationOperationRequest(String index, TimeValue timeout, ReplicationType replicationType, WriteConsistencyLevel consistencyLevel,
+                                               String[] originalIndices, IndicesOptions originalIndicesOptions, ActionRequest request) {
+        super(request);
         this.index = index;
         this.timeout = timeout;
         this.replicationType = replicationType;
         this.consistencyLevel = consistencyLevel;
+        this.originalIndices = new OriginalIndices(originalIndices, originalIndicesOptions);
     }
 
     @Override
@@ -64,12 +65,12 @@ public abstract class IndexReplicationOperationRequest<T extends IndexReplicatio
 
     @Override
     public String[] indices() {
-        return new String[]{index};
+        return originalIndices.indices();
     }
 
     @Override
     public IndicesOptions indicesOptions() {
-        return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
+        return originalIndices.indicesOptions();
     }
 
     public ReplicationType replicationType() {

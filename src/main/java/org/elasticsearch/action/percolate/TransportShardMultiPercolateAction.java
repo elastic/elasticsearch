@@ -23,6 +23,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.single.shard.SingleShardOperationRequest;
@@ -43,6 +44,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -57,6 +59,11 @@ public class TransportShardMultiPercolateAction extends TransportShardSingleOper
     public TransportShardMultiPercolateAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, PercolatorService percolatorService, ActionFilters actionFilters) {
         super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters);
         this.percolatorService = percolatorService;
+    }
+
+    @Override
+    protected boolean isSubAction() {
+        return true;
     }
 
     @Override
@@ -116,11 +123,11 @@ public class TransportShardMultiPercolateAction extends TransportShardSingleOper
         private String preference;
         private List<Item> items;
 
-        public Request() {
+        Request() {
         }
 
-        public Request(String concreteIndex, int shardId, String preference) {
-            this.index = concreteIndex;
+        Request(MultiPercolateRequest multiPercolateRequest, String concreteIndex, int shardId, String preference) {
+            super(multiPercolateRequest, concreteIndex);
             this.shardId = shardId;
             this.preference = preference;
             this.items = new ArrayList<>();
@@ -128,7 +135,11 @@ public class TransportShardMultiPercolateAction extends TransportShardSingleOper
 
         @Override
         public String[] indices() {
-            return new String[]{index};
+            List<String> indices = new ArrayList<>();
+            for (Item item : items) {
+                Collections.addAll(indices, item.request.indices());
+            }
+            return indices.toArray(new String[indices.size()]);
         }
 
         public int shardId() {
@@ -152,7 +163,8 @@ public class TransportShardMultiPercolateAction extends TransportShardSingleOper
             items = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
                 int slot = in.readVInt();
-                PercolateShardRequest shardRequest = new PercolateShardRequest(new ShardId(index, shardId));
+                OriginalIndices originalIndices = OriginalIndices.readOriginalIndices(in);
+                PercolateShardRequest shardRequest = new PercolateShardRequest(new ShardId(index, shardId), originalIndices);
                 shardRequest.documentType(in.readString());
                 shardRequest.source(in.readBytesReference());
                 shardRequest.docSource(in.readBytesReference());
@@ -170,6 +182,7 @@ public class TransportShardMultiPercolateAction extends TransportShardSingleOper
             out.writeVInt(items.size());
             for (Item item : items) {
                 out.writeVInt(item.slot);
+                OriginalIndices.writeOriginalIndices(item.request.originalIndices(), out);
                 out.writeString(item.request.documentType());
                 out.writeBytesReference(item.request.source());
                 out.writeBytesReference(item.request.docSource());
@@ -177,7 +190,7 @@ public class TransportShardMultiPercolateAction extends TransportShardSingleOper
             }
         }
 
-        public static class Item {
+        static class Item {
 
             private final int slot;
             private final PercolateShardRequest request;

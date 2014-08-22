@@ -284,7 +284,7 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
                         payload = payloadBuilder.bytes().toBytesRef();
                         payloadBuilder.close();
                     } else if (token.isValue()) {
-                        payload = parser.bytesOrNull();
+                        payload = parser.utf8BytesOrNull();
                     } else {
                         throw new MapperException("payload doesn't support type " + token);
                     }

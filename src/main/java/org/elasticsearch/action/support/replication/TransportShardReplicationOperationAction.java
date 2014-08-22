@@ -23,11 +23,9 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.UnavailableShardsException;
-import org.elasticsearch.action.WriteConsistencyLevel;
+import org.elasticsearch.action.*;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.ClusterService;
@@ -86,7 +84,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         this.indicesService = indicesService;
         this.shardStateAction = shardStateAction;
 
-        this.transportReplicaAction = transportReplicaAction();
+        this.transportReplicaAction = actionName + "[r]";
         this.executor = executor();
         this.checkWriteConsistency = checkWriteConsistency();
 
@@ -155,10 +153,6 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
      */
     protected boolean ignoreReplicas() {
         return false;
-    }
-
-    private String transportReplicaAction() {
-        return actionName + "[r]";
     }
 
     protected boolean retryPrimaryException(Throwable e) {
@@ -261,18 +255,28 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         }
     }
 
-    protected class ReplicaOperationRequest extends TransportRequest {
+    protected class ReplicaOperationRequest extends TransportRequest implements IndicesRequest {
 
         public ShardId shardId;
         public ReplicaRequest request;
 
-        public ReplicaOperationRequest() {
+        ReplicaOperationRequest() {
         }
 
-        public ReplicaOperationRequest(ShardId shardId, ReplicaRequest request) {
+        ReplicaOperationRequest(ShardId shardId, ReplicaRequest request) {
             super(request);
             this.shardId = shardId;
             this.request = request;
+        }
+
+        @Override
+        public String[] indices() {
+            return request.indices();
+        }
+
+        @Override
+        public IndicesOptions indicesOptions() {
+            return request.indicesOptions();
         }
 
         @Override

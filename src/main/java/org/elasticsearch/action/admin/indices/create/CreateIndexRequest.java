@@ -25,9 +25,12 @@ import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -58,7 +61,7 @@ import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_
  * @see org.elasticsearch.client.Requests#createIndexRequest(String)
  * @see CreateIndexResponse
  */
-public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> {
+public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> implements IndicesRequest {
 
     private String cause = "";
 
@@ -73,6 +76,14 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     private final Map<String, IndexMetaData.Custom> customs = newHashMap();
 
     CreateIndexRequest() {
+    }
+
+    /**
+     * Constructs a new request to create an index that was triggered by a different request,
+     * provided as an argument so that its headers and context can be copied to the new request.
+     */
+    public CreateIndexRequest(ActionRequest request) {
+        super(request);
     }
 
     /**
@@ -97,6 +108,16 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             validationException = addValidationError("index is missing", validationException);
         }
         return validationException;
+    }
+
+    @Override
+    public String[] indices() {
+        return new String[]{index};
+    }
+
+    @Override
+    public IndicesOptions indicesOptions() {
+        return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
     }
 
     /**

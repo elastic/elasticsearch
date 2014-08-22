@@ -30,13 +30,11 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lease.Releasables;
@@ -71,11 +69,8 @@ import org.elasticsearch.search.dfs.CachedDfSource;
 import org.elasticsearch.search.dfs.DfsPhase;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.*;
-import org.elasticsearch.search.internal.DefaultSearchContext;
-import org.elasticsearch.search.internal.InternalScrollSearchRequest;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.*;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
-import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.*;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -116,8 +111,6 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
     private final ScriptService scriptService;
 
-    private final CacheRecycler cacheRecycler;
-
     private final PageCacheRecycler pageCacheRecycler;
 
     private final BigArrays bigArrays;
@@ -142,7 +135,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
     @Inject
     public SearchService(Settings settings, ClusterService clusterService, IndicesService indicesService, IndicesLifecycle indicesLifecycle, IndicesWarmer indicesWarmer, ThreadPool threadPool,
-                         ScriptService scriptService, CacheRecycler cacheRecycler, PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, DfsPhase dfsPhase, QueryPhase queryPhase, FetchPhase fetchPhase,
+                         ScriptService scriptService, PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, DfsPhase dfsPhase, QueryPhase queryPhase, FetchPhase fetchPhase,
                          IndicesQueryCache indicesQueryCache) {
         super(settings);
         this.threadPool = threadPool;
@@ -150,7 +143,6 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         this.indicesService = indicesService;
         this.indicesWarmer = indicesWarmer;
         this.scriptService = scriptService;
-        this.cacheRecycler = cacheRecycler;
         this.pageCacheRecycler = pageCacheRecycler;
         this.bigArrays = bigArrays;
         this.dfsPhase = dfsPhase;
@@ -526,7 +518,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         SearchShardTarget shardTarget = new SearchShardTarget(clusterService.localNode().id(), request.index(), request.shardId());
 
         Engine.Searcher engineSearcher = searcher == null ? indexShard.acquireSearcher("search") : searcher;
-        SearchContext context = new DefaultSearchContext(idGenerator.incrementAndGet(), request, shardTarget, engineSearcher, indexService, indexShard, scriptService, cacheRecycler, pageCacheRecycler, bigArrays);
+        SearchContext context = new DefaultSearchContext(idGenerator.incrementAndGet(), request, shardTarget, engineSearcher, indexService, indexShard, scriptService, pageCacheRecycler, bigArrays);
         SearchContext.setCurrent(context);
         try {
             context.scroll(request.scroll());
@@ -753,7 +745,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
     static class NormsWarmer extends IndicesWarmer.Listener {
 
         @Override
-        public TerminationHandle warm(final IndexShard indexShard, IndexMetaData indexMetaData, final WarmerContext context, ThreadPool threadPool) {
+        public TerminationHandle warmNewReaders(final IndexShard indexShard, IndexMetaData indexMetaData, final WarmerContext context, ThreadPool threadPool) {
             final Loading defaultLoading = Loading.parse(indexMetaData.settings().get(NORMS_LOADING_KEY), Loading.LAZY);
             final MapperService mapperService = indexShard.mapperService();
             final ObjectSet<String> warmUp = new ObjectOpenHashSet<>();
@@ -775,7 +767,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                         for (Iterator<ObjectCursor<String>> it = warmUp.iterator(); it.hasNext(); ) {
                             final String indexName = it.next().value;
                             final long start = System.nanoTime();
-                            for (final AtomicReaderContext ctx : context.newSearcher().reader().leaves()) {
+                            for (final AtomicReaderContext ctx : context.searcher().reader().leaves()) {
                                 final NumericDocValues values = ctx.reader().getNormValues(indexName);
                                 if (values != null) {
                                     values.get(0);
@@ -800,12 +792,17 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                 }
             };
         }
+
+        @Override
+        public TerminationHandle warmTopReader(IndexShard indexShard, IndexMetaData indexMetaData, WarmerContext context, ThreadPool threadPool) {
+            return TerminationHandle.NO_WAIT;
+        }
     }
 
     static class FieldDataWarmer extends IndicesWarmer.Listener {
 
         @Override
-        public TerminationHandle warm(final IndexShard indexShard, IndexMetaData indexMetaData, final WarmerContext context, ThreadPool threadPool) {
+        public TerminationHandle warmNewReaders(final IndexShard indexShard, IndexMetaData indexMetaData, final WarmerContext context, ThreadPool threadPool) {
             final MapperService mapperService = indexShard.mapperService();
             final Map<String, FieldMapper<?>> warmUp = new HashMap<>();
             for (DocumentMapper docMapper : mapperService.docMappers(false)) {
@@ -827,8 +824,8 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             }
             final IndexFieldDataService indexFieldDataService = indexShard.indexFieldDataService();
             final Executor executor = threadPool.executor(executor());
-            final CountDownLatch latch = new CountDownLatch(context.newSearcher().reader().leaves().size() * warmUp.size());
-            for (final AtomicReaderContext ctx : context.newSearcher().reader().leaves()) {
+            final CountDownLatch latch = new CountDownLatch(context.searcher().reader().leaves().size() * warmUp.size());
+            for (final AtomicReaderContext ctx : context.searcher().reader().leaves()) {
                 for (final FieldMapper<?> fieldMapper : warmUp.values()) {
                     executor.execute(new Runnable() {
 
@@ -859,7 +856,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         }
 
         @Override
-        public TerminationHandle warmTop(final IndexShard indexShard, IndexMetaData indexMetaData, final WarmerContext context, ThreadPool threadPool) {
+        public TerminationHandle warmTopReader(final IndexShard indexShard, IndexMetaData indexMetaData, final WarmerContext context, ThreadPool threadPool) {
             final MapperService mapperService = indexShard.mapperService();
             final Map<String, FieldMapper<?>> warmUpGlobalOrdinals = new HashMap<>();
             for (DocumentMapper docMapper : mapperService.docMappers(false)) {
@@ -888,7 +885,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                         try {
                             final long start = System.nanoTime();
                             IndexOrdinalsFieldData ifd = indexFieldDataService.getForField(fieldMapper);
-                            ifd.loadGlobal(context.indexReader());
+                            ifd.loadGlobal(context.reader());
                             if (indexShard.warmerService().logger().isTraceEnabled()) {
                                 indexShard.warmerService().logger().trace("warmed global ordinals for [{}], took [{}]", fieldMapper.names().name(), TimeValue.timeValueNanos(System.nanoTime() - start));
                             }
@@ -912,7 +909,16 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
     class SearchWarmer extends IndicesWarmer.Listener {
 
         @Override
-        public TerminationHandle warm(final IndexShard indexShard, final IndexMetaData indexMetaData, final IndicesWarmer.WarmerContext warmerContext, ThreadPool threadPool) {
+        public TerminationHandle warmNewReaders(IndexShard indexShard, IndexMetaData indexMetaData, WarmerContext context, ThreadPool threadPool) {
+            return internalWarm(indexShard, indexMetaData, context, threadPool, false);
+        }
+
+        @Override
+        public TerminationHandle warmTopReader(IndexShard indexShard, IndexMetaData indexMetaData, WarmerContext context, ThreadPool threadPool) {
+            return internalWarm(indexShard, indexMetaData, context, threadPool, true);
+        }
+
+        public TerminationHandle internalWarm(final IndexShard indexShard, final IndexMetaData indexMetaData, final IndicesWarmer.WarmerContext warmerContext, ThreadPool threadPool, final boolean top) {
             IndexWarmersMetaData custom = indexMetaData.custom(IndexWarmersMetaData.TYPE);
             if (custom == null) {
                 return TerminationHandle.NO_WAIT;
@@ -928,11 +934,27 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                         try {
                             long now = System.nanoTime();
                             ShardSearchRequest request = new ShardSearchRequest(indexShard.shardId().index().name(), indexShard.shardId().id(), indexMetaData.numberOfShards(),
-                                    SearchType.QUERY_THEN_FETCH /* we don't use COUNT so sorting will also kick in whatever warming logic*/)
+                                    SearchType.QUERY_THEN_FETCH)
                                     .source(entry.source())
-                                    .types(entry.types());
-                            context = createContext(request, warmerContext.newSearcher());
-                            queryPhase.execute(context);
+                                    .types(entry.types())
+                                    .queryCache(entry.queryCache());
+                            context = createContext(request, warmerContext.searcher());
+                            // if we use sort, we need to do query to sort on it and load relevant field data
+                            // if not, we might as well use COUNT (and cache if needed)
+                            if (context.sort() == null) {
+                                context.searchType(SearchType.COUNT);
+                            }
+                            boolean canCache = indicesQueryCache.canCache(request, context);
+                            // early terminate when we can cache, since we can only do proper caching on top level searcher
+                            // also, if we can't cache, and its top, we don't need to execute it, since we already did when its not top
+                            if (canCache != top) {
+                                return;
+                            }
+                            if (canCache) {
+                                indicesQueryCache.load(request, context, queryPhase);
+                            } else {
+                                queryPhase.execute(context);
+                            }
                             long took = System.nanoTime() - now;
                             if (indexShard.warmerService().logger().isTraceEnabled()) {
                                 indexShard.warmerService().logger().trace("warmed [{}], took [{}]", entry.name(), TimeValue.timeValueNanos(took));

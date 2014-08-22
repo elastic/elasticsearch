@@ -23,9 +23,9 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.percolator.PercolateContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.facet.InternalFacets;
 import org.elasticsearch.search.highlight.HighlightField;
 import org.elasticsearch.search.query.QuerySearchResult;
 
@@ -50,15 +50,14 @@ public class PercolateShardResponse extends BroadcastShardOperationResponse {
     private byte percolatorTypeId;
     private int requestedSize;
 
-    private InternalFacets facets;
     private InternalAggregations aggregations;
 
     PercolateShardResponse() {
         hls = new ArrayList<>();
     }
 
-    public PercolateShardResponse(BytesRef[] matches, List<Map<String, HighlightField>> hls, long count, float[] scores, PercolateContext context, String index, int shardId) {
-        super(index, shardId);
+    public PercolateShardResponse(BytesRef[] matches, List<Map<String, HighlightField>> hls, long count, float[] scores, PercolateContext context, ShardId shardId) {
+        super(shardId);
         this.matches = matches;
         this.hls = hls;
         this.count = count;
@@ -67,29 +66,26 @@ public class PercolateShardResponse extends BroadcastShardOperationResponse {
         this.requestedSize = context.size();
         QuerySearchResult result = context.queryResult();
         if (result != null) {
-            if (result.facets() != null) {
-                this.facets = new InternalFacets(result.facets().facets());
-            }
             if (result.aggregations() != null) {
                 this.aggregations = (InternalAggregations) result.aggregations();
             }
         }
     }
 
-    public PercolateShardResponse(BytesRef[] matches, long count, float[] scores, PercolateContext context, String index, int shardId) {
-        this(matches, EMPTY_HL, count, scores, context, index, shardId);
+    public PercolateShardResponse(BytesRef[] matches, long count, float[] scores, PercolateContext context, ShardId shardId) {
+        this(matches, EMPTY_HL, count, scores, context, shardId);
     }
 
-    public PercolateShardResponse(BytesRef[] matches, List<Map<String, HighlightField>> hls, long count, PercolateContext context, String index, int shardId) {
-        this(matches, hls, count, EMPTY_SCORES, context, index, shardId);
+    public PercolateShardResponse(BytesRef[] matches, List<Map<String, HighlightField>> hls, long count, PercolateContext context, ShardId shardId) {
+        this(matches, hls, count, EMPTY_SCORES, context, shardId);
     }
 
-    public PercolateShardResponse(long count, PercolateContext context, String index, int shardId) {
-        this(EMPTY_MATCHES, EMPTY_HL, count, EMPTY_SCORES, context, index, shardId);
+    public PercolateShardResponse(long count, PercolateContext context, ShardId shardId) {
+        this(EMPTY_MATCHES, EMPTY_HL, count, EMPTY_SCORES, context, shardId);
     }
 
-    public PercolateShardResponse(PercolateContext context, String index, int shardId) {
-        this(EMPTY_MATCHES, EMPTY_HL, 0, EMPTY_SCORES, context, index, shardId);
+    public PercolateShardResponse(PercolateContext context, ShardId shardId) {
+        this(EMPTY_MATCHES, EMPTY_HL, 0, EMPTY_SCORES, context, shardId);
     }
 
     public BytesRef[] matches() {
@@ -110,10 +106,6 @@ public class PercolateShardResponse extends BroadcastShardOperationResponse {
 
     public List<Map<String, HighlightField>> hls() {
         return hls;
-    }
-
-    public InternalFacets facets() {
-        return facets;
     }
 
     public InternalAggregations aggregations() {
@@ -151,7 +143,6 @@ public class PercolateShardResponse extends BroadcastShardOperationResponse {
             }
             hls.add(fields);
         }
-        facets = InternalFacets.readOptionalFacets(in);
         aggregations = InternalAggregations.readOptionalAggregations(in);
     }
 
@@ -177,7 +168,6 @@ public class PercolateShardResponse extends BroadcastShardOperationResponse {
                 entry.getValue().writeTo(out);
             }
         }
-        out.writeOptionalStreamable(facets);
         out.writeOptionalStreamable(aggregations);
     }
 }

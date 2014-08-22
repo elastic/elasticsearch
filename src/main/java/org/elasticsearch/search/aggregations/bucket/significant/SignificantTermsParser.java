@@ -56,8 +56,6 @@ public class SignificantTermsParser implements Aggregator.Parser {
         ValuesSourceParser vsParser = ValuesSourceParser.any(aggregationName, SignificantStringTerms.TYPE, context)
                 .scriptable(false)
                 .formattable(true)
-                .requiresSortedValues(true)
-                .requiresUniqueValues(true)
                 .build();
         IncludeExclude.Parser incExcParser = new IncludeExclude.Parser(aggregationName, SignificantStringTerms.TYPE, context);
         aggParser.parse(aggregationName, parser, context, vsParser, incExcParser);

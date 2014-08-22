@@ -72,7 +72,7 @@ public class InternalTransportClientTests extends ElasticsearchTestCase {
             };
             transportService = new TransportService(ImmutableSettings.EMPTY, transport, threadPool);
             transportService.start();
-            transportClientNodesService = new TransportClientNodesService(ImmutableSettings.EMPTY, ClusterName.DEFAULT, transportService, threadPool, Version.CURRENT);
+            transportClientNodesService = new TransportClientNodesService(ImmutableSettings.EMPTY, ClusterName.DEFAULT, transportService, threadPool, Headers.EMPTY, Version.CURRENT);
             Map<String, GenericAction> actions = new HashMap<>();
             actions.put(NodesInfoAction.NAME, NodesInfoAction.INSTANCE);
             actions.put(TestAction.NAME, TestAction.INSTANCE);

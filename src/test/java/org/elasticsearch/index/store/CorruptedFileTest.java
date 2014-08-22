@@ -422,28 +422,17 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
                         .put("chunk_size", randomIntBetween(100, 1000))));
         logger.info("--> snapshot");
         CreateSnapshotResponse createSnapshotResponse = client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(true).setIndices("test").get();
-        if (createSnapshotResponse.getSnapshotInfo().state() == SnapshotState.PARTIAL) {
-            logger.info("failed during snapshot -- maybe SI file got corrupted");
-            final List<File> files = listShardFiles(shardRouting);
-            File corruptedFile = null;
-            for (File file : files) {
-                if (file.getName().startsWith("corrupted_")) {
-                    corruptedFile = file;
-                    break;
-                }
+        assertThat(createSnapshotResponse.getSnapshotInfo().state(), equalTo(SnapshotState.PARTIAL));
+        logger.info("failed during snapshot -- maybe SI file got corrupted");
+        final List<File> files = listShardFiles(shardRouting);
+        File corruptedFile = null;
+        for (File file : files) {
+            if (file.getName().startsWith("corrupted_")) {
+                corruptedFile = file;
+                break;
             }
-            assertThat(corruptedFile, notNullValue());
-        } else {
-            assertThat(""+createSnapshotResponse.getSnapshotInfo().state(), createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
-            assertThat(""+createSnapshotResponse.getSnapshotInfo().state(), createSnapshotResponse.getSnapshotInfo().successfulShards(), equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
-
-            assertThat(client().admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap").get().getSnapshots().get(0).state(), equalTo(SnapshotState.SUCCESS));
-
-            cluster().wipeIndices("test");
-            RestoreSnapshotResponse restoreSnapshotResponse = client().admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setWaitForCompletion(true).execute().actionGet();
-            assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
-            assertThat(restoreSnapshotResponse.getRestoreInfo().successfulShards(), equalTo(restoreSnapshotResponse.getRestoreInfo().totalShards()-1));
         }
+        assertThat(corruptedFile, notNullValue());
     }
 
     private int numShards(String... index) {

@@ -40,8 +40,8 @@ public class MultiTermVectorsShardRequest extends SingleShardOperationRequest<Mu
 
     }
 
-    MultiTermVectorsShardRequest(String index, int shardId) {
-        super(index);
+    MultiTermVectorsShardRequest(MultiTermVectorsRequest request, String index, int shardId) {
+        super(request, index);
         this.shardId = shardId;
         locations = new IntArrayList();
         requests = new ArrayList<>();
@@ -69,6 +69,15 @@ public class MultiTermVectorsShardRequest extends SingleShardOperationRequest<Mu
     public void add(int location, TermVectorRequest request) {
         this.locations.add(location);
         this.requests.add(request);
+    }
+
+    @Override
+    public String[] indices() {
+        String[] indices = new String[requests.size()];
+        for (int i = 0; i < indices.length; i++) {
+            indices[i] = requests.get(i).index();
+        }
+        return indices;
     }
 
     @Override

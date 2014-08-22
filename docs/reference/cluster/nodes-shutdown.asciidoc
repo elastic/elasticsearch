@@ -55,3 +55,37 @@ $ curl -XPOST 'http://localhost:9200/_cluster/nodes/_local/_shutdown?delay=10s'
 
 The shutdown API can be disabled by setting `action.disable_shutdown` in
 the node configuration.
+
+[float]
+=== Rolling Restart of Nodes (Full Cluster Restart)
+
+A rolling restart allows the ES cluster to be restarted one node at a time, 
+with no observable downtime for end users.  To perform a rolling restart:
+
+* Disable shard allocation (so that Elasticsearch will not attempt to reallocate shards 
+and waste I/O when each node is stopped and started).
+
+[source,js]
+--------------------------------------------------
+curl -XPUT localhost:9200/_cluster/settings -d '{
+                "transient" : {
+                    "cluster.routing.allocation.enable" : "none"
+                }
+        }'
+--------------------------------------------------
+
+* Shut down a single node within the cluster (if you have dedicated master nodes, start with these before the data nodes). 
+* Start the node back up and confirm that it has rejoined the cluster (using Marvel, cat nodes api, etc..)
+* Repeat the above 2 steps for the remaining nodes, i.e. stop and start each node and confirm that it can rejoin the cluster.
+* When this is done on all nodes, enable shard allocation.
+
+[source,js]
+--------------------------------------------------
+   curl -XPUT localhost:9200/_cluster/settings -d '{
+                "transient" : {
+                    "cluster.routing.allocation.enable" : "all"
+                }
+        }'
+--------------------------------------------------
+
+* Confirm that the shards are properly allocated on all nodes.

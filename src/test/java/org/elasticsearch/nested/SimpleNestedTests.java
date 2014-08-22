@@ -53,21 +53,7 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void simpleNested() throws Exception {
-        XContentBuilder builder = jsonBuilder().
-                startObject().
-                field("type1").
-                startObject().
-                field("properties").
-                startObject().
-                field("nested1").
-                startObject().
-                field("type").
-                value("nested").
-                endObject().
-                endObject().
-                endObject().
-                endObject();
-        assertAcked(prepareCreate("test").addMapping("type1", builder));
+        assertAcked(prepareCreate("test").addMapping("type1", "nested1", "type=nested").addMapping("type2", "nested1", "type=nested"));
         ensureGreen();
 
         // check on no data, see it works
@@ -167,6 +153,10 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
         assertDocumentCount("test", 3);
 
         searchResponse = client().prepareSearch("test").setQuery(nestedQuery("nested1", termQuery("nested1.n_field1", "n_value1_1"))).execute().actionGet();
+        assertNoFailures(searchResponse);
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+
+        searchResponse = client().prepareSearch("test").setTypes("type1", "type2").setQuery(nestedQuery("nested1", termQuery("nested1.n_field1", "n_value1_1"))).execute().actionGet();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
     }

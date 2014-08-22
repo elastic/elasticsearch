@@ -27,9 +27,8 @@ import org.elasticsearch.action.suggest.SuggestResponse;
 import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
@@ -926,6 +925,7 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
         XContentBuilder mapping = jsonBuilder();
         mapping.startObject();
         mapping.startObject(type);
+        mapping.startObject("_type").field("index", "not_analyzed").endObject(); // Forcefully configure the _type field, since it can be randomized and if used as context it needs to be enabled
         mapping.startObject("properties");
         mapping.startObject(FIELD);
         mapping.field("type", "completion");

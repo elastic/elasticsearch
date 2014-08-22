@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -492,6 +493,7 @@ public class ScriptedMetricTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    @LuceneTestCase.AwaitsFix(bugUrl = "failed to execute fetch, node not connected")
     public void testInitMapCombineReduce_withParams_Indexed() {
         Map<String, Object> varsMap = new HashMap<>();
         varsMap.put("multiplier", 1);

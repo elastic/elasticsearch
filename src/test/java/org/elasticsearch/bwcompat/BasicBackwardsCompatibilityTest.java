@@ -22,6 +22,7 @@ import com.carrotsearch.randomizedtesting.LifecycleScope;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.util.English;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
@@ -559,6 +560,8 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
     }
 
     @Test
+    @LuceneTestCase.AwaitsFix(bugUrl = "working on this")
+    //made this tests a usual integration test to see if it fails in non bw comp mode
     public void testDeleteByQuery() throws ExecutionException, InterruptedException {
         createIndex("test");
         ensureYellow("test");
@@ -585,12 +588,11 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
         refresh();
         searchResponse = client().prepareSearch("test").get();
         assertNoFailures(searchResponse);
-        for (SearchHit searchHit : searchResponse.getHits()) {
-            logger.debug("searchHit {}/{}/{}", searchHit.getIndex(), searchHit.getType(), searchHit.getId());
-        }
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
     }
 
+    @LuceneTestCase.AwaitsFix(bugUrl = "working on this")
+    //made this tests a usual integration test to see if it fails in non bw comp mode
     @Test
     public void testDeleteRoutingRequired() throws ExecutionException, InterruptedException, IOException {
         assertAcked(prepareCreate("test").addMapping("test",
@@ -636,9 +638,6 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
         refresh();
         searchResponse = client().prepareSearch("test").setSize(numDocs).get();
         assertNoFailures(searchResponse);
-        for (SearchHit searchHit : searchResponse.getHits()) {
-            logger.debug("searchHit {}/{}/{}", searchHit.getIndex(), searchHit.getType(), searchHit.getId());
-        }
         assertThat(searchResponse.getHits().totalHits(), equalTo((long) numDocs - 2));
     }
 

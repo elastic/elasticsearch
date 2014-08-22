@@ -146,7 +146,8 @@ public class MembershipAction extends AbstractComponent {
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            clusterState = ClusterState.Builder.readFrom(in, nodesProvider.nodes().localNode());
+            // we don't care about cluster name. This cluster state is never used.
+            clusterState = ClusterState.Builder.readFrom(in, nodesProvider.nodes().localNode(), null);
         }
 
         @Override
@@ -212,7 +213,8 @@ public class MembershipAction extends AbstractComponent {
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            clusterState = ClusterState.Builder.readFrom(in, nodesProvider.nodes().localNode());
+            // cluster name doesn't matter...
+            clusterState = ClusterState.Builder.readFrom(in, nodesProvider.nodes().localNode(), null);
         }
 
         @Override

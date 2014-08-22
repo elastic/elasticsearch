@@ -152,7 +152,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         this.nodesFD = new NodesFaultDetection(settings, threadPool, transportService);
         this.nodesFD.addListener(new NodeFailureListener());
 
-        this.publishClusterState = new PublishClusterStateAction(settings, transportService, this, new NewClusterStateListener(), discoverySettings);
+        this.publishClusterState = new PublishClusterStateAction(settings, transportService, this, new NewClusterStateListener(), discoverySettings, clusterName);
         this.pingService.setNodesProvider(this);
         this.membership = new MembershipAction(settings, transportService, this, new MembershipListener());
 

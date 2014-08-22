@@ -44,8 +44,8 @@
 #RESTART_ON_UPGRADE=true
 
 # Shutdown delay in seconds, the process is tried to be killed with TERM
-#ES_STOP_TIMEOUT=3
+#ES_STOP_TIMEOUT=20
 
 # Shutdown delay in seconds, until the process is tried to be killed with KILL signal, after trying TERM
 # Disabled by default, so you have to kill -9 manually
-#ES_KILL_TIMEOUT=5
+#ES_KILL_TIMEOUT=40

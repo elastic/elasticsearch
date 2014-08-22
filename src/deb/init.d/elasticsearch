@@ -97,7 +97,7 @@ MAX_MAP_COUNT=262144
 #ES_KILL_TIMEOUT=
 
 # Timeout in seconds to wait after sending TERM signal
-ES_STOP_TIMEOUT=3
+ES_STOP_TIMEOUT=20
 
 # End of variables that can be overwritten in $DEFAULT
 

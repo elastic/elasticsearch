@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.transport.TransportMessage;
 
 import java.util.Map;
 import java.util.Set;
@@ -38,8 +39,9 @@ import static com.google.common.collect.Maps.newHashMap;
  */
 public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequest<CreateIndexClusterStateUpdateRequest> {
 
-    final String cause;
-    final String index;
+    private final TransportMessage originalMessage;
+    private final String cause;
+    private final String index;
 
     private IndexMetaData.State state = IndexMetaData.State.OPEN;
 
@@ -54,7 +56,8 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
     private final Set<ClusterBlock> blocks = Sets.newHashSet();
 
 
-    CreateIndexClusterStateUpdateRequest(String cause, String index) {
+    CreateIndexClusterStateUpdateRequest(TransportMessage originalMessage, String cause, String index) {
+        this.originalMessage = originalMessage;
         this.cause = cause;
         this.index = index;
     }
@@ -87,6 +90,10 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
     public CreateIndexClusterStateUpdateRequest state(IndexMetaData.State state) {
         this.state = state;
         return this;
+    }
+
+    public TransportMessage originalMessage() {
+        return originalMessage;
     }
 
     public String cause() {

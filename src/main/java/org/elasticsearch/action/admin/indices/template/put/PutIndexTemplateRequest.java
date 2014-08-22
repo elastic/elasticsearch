@@ -25,6 +25,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -238,6 +239,15 @@ public class PutIndexTemplateRequest extends MasterNodeOperationRequest<PutIndex
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
+    }
+
+    /**
+     * A specialized simplified mapping source method, takes the form of simple properties definition:
+     * ("field1", "type=string,store=true").
+     */
+    public PutIndexTemplateRequest mapping(String type, Object... source) {
+        mapping(type, PutMappingRequest.buildFromSimplifiedDef(type, source));
+        return this;
     }
 
     Map<String, String> mappings() {

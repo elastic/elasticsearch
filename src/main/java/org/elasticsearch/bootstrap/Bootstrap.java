@@ -239,10 +239,8 @@ public class Bootstrap {
             if (foreground) {
                 System.err.println(errorMessage);
                 System.err.flush();
-            } else {
-                logger.error(errorMessage);
+                Loggers.disableConsoleLogging();
             }
-            Loggers.disableConsoleLogging();
             logger.error("Exception", e);
             
             System.exit(3);

@@ -568,8 +568,14 @@ public class ClusterState implements ToXContent {
             return os.bytes().toBytes();
         }
 
-        public static ClusterState fromBytes(byte[] data, DiscoveryNode localNode) throws IOException {
-            return readFrom(new BytesStreamInput(data, false), localNode);
+        /**
+         * @param data               input bytes
+         * @param localNode          used to set the local node in the cluster state.
+         * @param defaultClusterName this cluster name will be used of if the deserialized cluster state does not have a name set
+         *                           (which is only introduced in version 1.1.1)
+         */
+        public static ClusterState fromBytes(byte[] data, DiscoveryNode localNode, ClusterName defaultClusterName) throws IOException {
+            return readFrom(new BytesStreamInput(data, false), localNode, defaultClusterName);
         }
 
         public static void writeTo(ClusterState state, StreamOutput out) throws IOException {
@@ -595,8 +601,14 @@ public class ClusterState implements ToXContent {
             }
         }
 
-        public static ClusterState readFrom(StreamInput in, @Nullable DiscoveryNode localNode) throws IOException {
-            ClusterName clusterName = null;
+        /**
+         * @param in                 input stream
+         * @param localNode          used to set the local node in the cluster state. can be null.
+         * @param defaultClusterName this cluster name will be used of receiving a cluster state from a node on version older than 1.1.1
+         *                           or if the sending node did not set a cluster name
+         */
+        public static ClusterState readFrom(StreamInput in, @Nullable DiscoveryNode localNode, @Nullable ClusterName defaultClusterName) throws IOException {
+            ClusterName clusterName = defaultClusterName;
             if (in.getVersion().onOrAfter(Version.V_1_1_1)) {
                 // it might be null even if it comes from a >= 1.1.1 node since it's origin might be an older node
                 if (in.readBoolean()) {

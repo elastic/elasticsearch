@@ -21,6 +21,7 @@ package org.elasticsearch.discovery.zen.publish;
 
 import com.google.common.collect.Maps;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -63,14 +64,16 @@ public class PublishClusterStateAction extends AbstractComponent {
     private final DiscoveryNodesProvider nodesProvider;
     private final NewClusterStateListener listener;
     private final DiscoverySettings discoverySettings;
+    private final ClusterName clusterName;
 
     public PublishClusterStateAction(Settings settings, TransportService transportService, DiscoveryNodesProvider nodesProvider,
-                                     NewClusterStateListener listener, DiscoverySettings discoverySettings) {
+                                     NewClusterStateListener listener, DiscoverySettings discoverySettings, ClusterName clusterName) {
         super(settings);
         this.transportService = transportService;
         this.nodesProvider = nodesProvider;
         this.listener = listener;
         this.discoverySettings = discoverySettings;
+        this.clusterName = clusterName;
         transportService.registerHandler(ACTION_NAME, new PublishClusterStateRequestHandler());
     }
 
@@ -169,7 +172,7 @@ public class PublishClusterStateAction extends AbstractComponent {
                 in = CachedStreamInput.cachedHandles(request.bytes().streamInput());
             }
             in.setVersion(request.version());
-            ClusterState clusterState = ClusterState.Builder.readFrom(in, nodesProvider.nodes().localNode());
+            ClusterState clusterState = ClusterState.Builder.readFrom(in, nodesProvider.nodes().localNode(), clusterName);
             clusterState.status(ClusterState.ClusterStateStatus.RECEIVED);
             logger.debug("received cluster state version {}", clusterState.version());
             listener.onNewClusterState(clusterState, new NewClusterStateListener.NewStateProcessed() {

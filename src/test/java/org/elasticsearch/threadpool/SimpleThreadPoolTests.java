@@ -36,6 +36,7 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.hamcrest.RegexMatcher;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.junit.Test;
 
@@ -46,6 +47,7 @@ import java.lang.management.ThreadMXBean;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.*;
+import java.util.regex.Pattern;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -113,7 +115,8 @@ public class SimpleThreadPoolTests extends ElasticsearchIntegrationTest {
                     || threadName.contains("Keep-Alive-Timer")) {
                 continue;
             }
-            assertThat(threadName, anyOf(containsString("[" + node + "]"), containsString("[" + InternalTestCluster.TRANSPORT_CLIENT_PREFIX + node + "]")));
+            String nodePrefix = "(" + Pattern.quote(InternalTestCluster.TRANSPORT_CLIENT_PREFIX) + ")?" + Pattern.quote(InternalTestCluster.NODE_PREFIX);
+            assertThat(threadName, RegexMatcher.matches("\\[" + nodePrefix + "\\d+\\]"));
         }
     }
 

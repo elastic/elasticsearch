@@ -198,12 +198,12 @@ public class NoMasterNodeTests extends ElasticsearchIntegrationTest {
             bulkRequestBuilder.setTimeout(timeout);
             bulkRequestBuilder.get();
             fail("Expected ClusterBlockException");
-        } catch (ClusterBlockException | MasterNotDiscoveredException e) {
+        } catch (ClusterBlockException e) {
             // today, we clear the metadata on when there is no master, so it will go through the auto create logic and
             // add it... (if set to true), if we didn't remove the metedata when there is no master, then, the non
             // retry in bulk should be taken into account
             if (!autoCreateIndex) {
-                assertThat(System.currentTimeMillis() - now, lessThan(50l));
+                assertThat(System.currentTimeMillis() - now, lessThan(timeout.millis() / 2));
             } else {
                 assertThat(System.currentTimeMillis() - now, greaterThan(timeout.millis() - 50));
                 assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
@@ -218,12 +218,12 @@ public class NoMasterNodeTests extends ElasticsearchIntegrationTest {
             bulkRequestBuilder.setTimeout(timeout);
             bulkRequestBuilder.get();
             fail("Expected ClusterBlockException");
-        } catch (ClusterBlockException | MasterNotDiscoveredException e) {
+        } catch (ClusterBlockException e) {
             // today, we clear the metadata on when there is no master, so it will go through the auto create logic and
             // add it... (if set to true), if we didn't remove the metedata when there is no master, then, the non
             // retry in bulk should be taken into account
             if (!autoCreateIndex) {
-                assertThat(System.currentTimeMillis() - now, lessThan(50l));
+                assertThat(System.currentTimeMillis() - now, lessThan(timeout.millis() / 2));
             } else {
                 assertThat(System.currentTimeMillis() - now, greaterThan(timeout.millis() - 50));
                 assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));

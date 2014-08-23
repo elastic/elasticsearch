@@ -394,7 +394,7 @@ public final class InternalTestCluster extends TestCluster {
 
     public static String clusterName(String prefix, String childVMId, long clusterSeed) {
         StringBuilder builder = new StringBuilder(prefix);
-        builder.append('-').append(NetworkUtils.getLocalAddress().getHostName());
+        builder.append('-').append(NetworkUtils.getLocalHostName("__default_host__"));
         builder.append("-CHILD_VM=[").append(childVMId).append(']');
         builder.append("-CLUSTER_SEED=[").append(clusterSeed).append(']');
         // if multiple maven task run on a single host we better have an identifier that doesn't rely on input params

@@ -157,4 +157,21 @@ public class Segment implements Streamable {
         out.writeOptionalString(mergeId);
         out.writeLong(memoryInBytes);
     }
+
+    @Override
+    public String toString() {
+        return "Segment{" +
+                "name='" + name + '\'' +
+                ", generation=" + generation +
+                ", committed=" + committed +
+                ", search=" + search +
+                ", sizeInBytes=" + sizeInBytes +
+                ", docCount=" + docCount +
+                ", delDocCount=" + delDocCount +
+                ", version='" + version + '\'' +
+                ", compound=" + compound +
+                ", mergeId='" + mergeId + '\'' +
+                ", memoryInBytes=" + memoryInBytes +
+                '}';
+    }
 }

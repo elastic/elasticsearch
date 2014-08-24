@@ -874,7 +874,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
     private static void assertAllRequestsHaveBeenConsumed() {
         Iterable<TransportService> transportServices = internalCluster().getInstances(TransportService.class);
         for (TransportService transportService : transportServices) {
-            assertThat(((InterceptingTransportService)transportService).requests.isEmpty(), equalTo(true));
+            assertThat(((InterceptingTransportService)transportService).requests.entrySet(), emptyIterable());
         }
     }
 

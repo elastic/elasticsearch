@@ -43,7 +43,7 @@ public class ChildrenBuilder extends AggregationBuilder<ChildrenBuilder> {
     protected XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         if (childType == null) {
-            throw new SearchSourceBuilderException("child_type must be set on children aggregation [" + name + "]");
+            throw new SearchSourceBuilderException("child_type must be set on children aggregation [" + getName() + "]");
         }
         builder.field("type", childType);
         return builder.endObject();

@@ -35,7 +35,7 @@ public abstract class MetricsAggregationBuilder<B extends MetricsAggregationBuil
 
     @Override
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(name).startObject(type);
+        builder.startObject(getName()).startObject(type);
         internalXContent(builder, params);
         return builder.endObject().endObject();
     }

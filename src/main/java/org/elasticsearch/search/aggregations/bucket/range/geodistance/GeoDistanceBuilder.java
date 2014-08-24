@@ -156,10 +156,10 @@ public class GeoDistanceBuilder extends AggregationBuilder<GeoDistanceBuilder> {
     protected XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         if (ranges.isEmpty()) {
-            throw new SearchSourceBuilderException("at least one range must be defined for geo_distance aggregation [" + name + "]");
+            throw new SearchSourceBuilderException("at least one range must be defined for geo_distance aggregation [" + getName() + "]");
         }
         if (point == null) {
-            throw new SearchSourceBuilderException("center point must be defined for geo_distance aggregation [" + name + "]");
+            throw new SearchSourceBuilderException("center point must be defined for geo_distance aggregation [" + getName() + "]");
         }
 
         if (field != null) {

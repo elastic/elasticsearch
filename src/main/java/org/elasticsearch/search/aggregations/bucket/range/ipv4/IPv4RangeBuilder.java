@@ -47,7 +47,7 @@ public class IPv4RangeBuilder extends AbstractRangeBuilder<IPv4RangeBuilder> {
     public IPv4RangeBuilder addMaskRange(String key, String mask) {
         long[] fromTo = cidrMaskToMinMax(mask);
         if (fromTo == null) {
-            throw new SearchSourceBuilderException("invalid CIDR mask [" + mask + "] in ip_range aggregation [" + name + "]");
+            throw new SearchSourceBuilderException("invalid CIDR mask [" + mask + "] in ip_range aggregation [" + getName() + "]");
         }
         ranges.add(new Range(key, fromTo[0] < 0 ? null : fromTo[0], fromTo[1] < 0 ? null : fromTo[1]));
         return this;

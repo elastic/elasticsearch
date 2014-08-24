@@ -45,7 +45,7 @@ public class FilterAggregationBuilder extends AggregationBuilder<FilterAggregati
     @Override
     protected XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
         if (filter == null) {
-            throw new SearchSourceBuilderException("filter must be set on filter aggregation [" + name + "]");
+            throw new SearchSourceBuilderException("filter must be set on filter aggregation [" + getName() + "]");
         }
         filter.toXContent(builder, params);
         return builder;

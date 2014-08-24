@@ -99,7 +99,7 @@ public class HistogramBuilder extends ValuesSourceAggregationBuilder<HistogramBu
     @Override
     protected XContentBuilder doInternalXContent(XContentBuilder builder, Params params) throws IOException {
         if (interval == null) {
-            throw new SearchSourceBuilderException("[interval] must be defined for histogram aggregation [" + name + "]");
+            throw new SearchSourceBuilderException("[interval] must be defined for histogram aggregation [" + getName() + "]");
         }
         builder.field("interval", interval);
 

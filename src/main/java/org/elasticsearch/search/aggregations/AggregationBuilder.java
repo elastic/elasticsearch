@@ -100,7 +100,7 @@ public abstract class AggregationBuilder<B extends AggregationBuilder<B>> extend
 
     @Override
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(name);
+        builder.startObject(getName());
 
         builder.field(type);
         internalXContent(builder, params);

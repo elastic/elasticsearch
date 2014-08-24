@@ -63,7 +63,7 @@ public class FiltersAggregationBuilder extends AggregationBuilder<FiltersAggrega
     protected XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         if (keyedFilters == null && nonKeyedFilters == null) {
-            throw new SearchSourceBuilderException("At least one filter must be set on filter aggregation [" + name + "]");
+            throw new SearchSourceBuilderException("At least one filter must be set on filter aggregation [" + getName() + "]");
         }
         if (keyedFilters != null && nonKeyedFilters != null) {
             throw new SearchSourceBuilderException("Cannot add both keyed and non-keyed filters to filters aggregation");

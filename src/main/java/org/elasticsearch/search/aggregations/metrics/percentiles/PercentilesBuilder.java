@@ -39,7 +39,7 @@ public class PercentilesBuilder extends ValuesSourceMetricsAggregationBuilder<Pe
         for (int i = 0; i < percentiles.length; i++) {
             if (percentiles[i] < 0 || percentiles[i] > 100) {
                 throw new IllegalArgumentException("the percents in the percentiles aggregation [" +
-                        name + "] must be in the [0, 100] range");
+                        getName() + "] must be in the [0, 100] range");
             }
         }
         this.percentiles = percentiles;

@@ -45,7 +45,7 @@ public class NestedBuilder extends AggregationBuilder<NestedBuilder> {
     protected XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         if (path == null) {
-            throw new SearchSourceBuilderException("nested path must be set on nested aggregation [" + name + "]");
+            throw new SearchSourceBuilderException("nested path must be set on nested aggregation [" + getName() + "]");
         }
         builder.field("path", path);
         return builder.endObject();

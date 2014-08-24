@@ -182,7 +182,7 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
                 .addAggregation(new AbstractAggregationBuilder("histo", "date_histogram") {
                     @Override
                     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                        return builder.startObject(name)
+                        return builder.startObject(getName())
                                 .startObject(type)
                                     .field("field", "date")
                                     .field("interval", "1d")

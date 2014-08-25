@@ -22,7 +22,6 @@ package org.elasticsearch.index.mapper.internal;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
-import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
@@ -32,7 +31,6 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.codec.docvaluesformat.DefaultDocValuesFormatProvider;
 import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
 import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatService;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
@@ -106,8 +104,7 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
     }
 
     protected UidFieldMapper(String name) {
-        //this(name, name, null, null, null, null, ImmutableSettings.EMPTY);
-        this(name, name, true, null, null, null, ImmutableSettings.EMPTY);
+        this(name, name, null, null, null, null, ImmutableSettings.EMPTY);
     }
 
     protected UidFieldMapper(String name, String indexName, Boolean docValues, PostingsFormatProvider postingsFormat, DocValuesFormatProvider docValuesFormat, @Nullable Settings fieldDataSettings, Settings indexSettings) {
@@ -126,12 +123,7 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
     }
 
     @Override
-     protected String defaultPostingFormat() {
-        return "default";
-    }
-
-    @Override
-    protected String defaultDocValuesFormat() {
+    protected String defaultPostingFormat() {
         return "default";
     }
 
@@ -183,8 +175,7 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
         context.uid(uid);
         fields.add(uid);
         if (hasDocValues()) {
-            fields.add(new SortedDocValuesField(NAME, new BytesRef(uid.stringValue())));
-            //fields.add(new BinaryDocValuesField(NAME, new BytesRef(uid.stringValue())));
+            fields.add(new BinaryDocValuesField(NAME, new BytesRef(uid.stringValue())));
         }
     }
 

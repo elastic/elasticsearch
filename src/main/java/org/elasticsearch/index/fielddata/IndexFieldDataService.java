@@ -23,10 +23,10 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
@@ -41,7 +41,6 @@ import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCacheListener;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -145,18 +144,6 @@ public class IndexFieldDataService extends AbstractIndexComponent {
     private final Map<String, IndexFieldDataCache> fieldDataCaches = Maps.newHashMap(); // no need for concurrency support, always used under lock
 
     IndexService indexService;
-
-    // public for testing
-    public IndexFieldDataService(Index index, CircuitBreakerService circuitBreakerService) {
-        this(index, ImmutableSettings.Builder.EMPTY_SETTINGS,
-                new IndicesFieldDataCache(ImmutableSettings.Builder.EMPTY_SETTINGS, new IndicesFieldDataCacheListener(circuitBreakerService), new ThreadPool("testing-only")),
-                circuitBreakerService, new IndicesFieldDataCacheListener(circuitBreakerService));
-    }
-
-    // public for testing
-    public IndexFieldDataService(Index index, CircuitBreakerService circuitBreakerService, IndicesFieldDataCache indicesFieldDataCache) {
-        this(index, ImmutableSettings.Builder.EMPTY_SETTINGS, indicesFieldDataCache, circuitBreakerService, new IndicesFieldDataCacheListener(circuitBreakerService));
-    }
 
     @Inject
     public IndexFieldDataService(Index index, @IndexSettings Settings indexSettings, IndicesFieldDataCache indicesFieldDataCache,
@@ -276,13 +263,17 @@ public class IndexFieldDataService extends AbstractIndexComponent {
 
                     IndexFieldDataCache cache = fieldDataCaches.get(fieldNames.indexName());
                     if (cache == null) {
+                        // soft and resident caches are deprecated as of 1.4.0
+                        final boolean pre14 = Version.indexCreated(indexSettings).before(Version.V_1_4_0);
                         //  we default to node level cache, which in turn defaults to be unbounded
                         // this means changing the node level settings is simple, just set the bounds there
                         String cacheType = type.getSettings().get("cache", indexSettings.get(FIELDDATA_CACHE_KEY, FIELDDATA_CACHE_VALUE_NODE));
-                        if (FIELDDATA_CACHE_VALUE_RESIDENT.equals(cacheType)) {
+                        if (pre14 && FIELDDATA_CACHE_VALUE_RESIDENT.equals(cacheType)) {
                             cache = new IndexFieldDataCache.Resident(logger, indexService, fieldNames, type, indicesFieldDataCacheListener);
-                        } else if (FIELDDATA_CACHE_VALUE_SOFT.equals(cacheType)) {
+                            logger.warn(FIELDDATA_CACHE_KEY + "=" + FIELDDATA_CACHE_VALUE_RESIDENT + " is deprecated and will not be usable for indices created on or after elasticsearch 1.4.0");
+                        } else if (pre14 && FIELDDATA_CACHE_VALUE_SOFT.equals(cacheType)) {
                             cache = new IndexFieldDataCache.Soft(logger, indexService, fieldNames, type, indicesFieldDataCacheListener);
+                            logger.warn(FIELDDATA_CACHE_KEY + "=" + FIELDDATA_CACHE_VALUE_SOFT + " is deprecated and will not be usable for indices created on or after elasticsearch 1.4.0");
                         } else if (FIELDDATA_CACHE_VALUE_NODE.equals(cacheType)) {
                             cache = indicesFieldDataCache.buildIndexFieldDataCache(indexService, index, fieldNames, type);
                         } else if ("none".equals(cacheType)){

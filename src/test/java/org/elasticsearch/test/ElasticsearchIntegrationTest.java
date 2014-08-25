@@ -476,15 +476,6 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         if (random.nextBoolean()) {
             builder.put(IndicesQueryCache.INDEX_CACHE_QUERY_ENABLED, random.nextBoolean());
         }
-
-        // Disabled for now as it seems to make tests unstable
-        // TODO: figure out what is wrong with the soft and/or resident caches?
-        /*if (random.nextBoolean()) {
-            builder.put(IndexFieldDataService.FIELDDATA_CACHE_KEY, randomFrom(
-                    IndexFieldDataService.FIELDDATA_CACHE_VALUE_NODE,
-                    IndexFieldDataService.FIELDDATA_CACHE_VALUE_RESIDENT,
-                    IndexFieldDataService.FIELDDATA_CACHE_VALUE_SOFT));
-        }*/
         
         return builder;
     }

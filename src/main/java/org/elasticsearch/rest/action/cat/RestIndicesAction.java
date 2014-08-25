@@ -255,6 +255,9 @@ public class RestIndicesAction extends AbstractCatAction {
         table.addCell("segments.index_writer_memory", "sibling:pri;alias:siwm,segmentsIndexWriterMemory;default:false;text-align:right;desc:memory used by index writer");
         table.addCell("pri.segments.index_writer_memory", "default:false;text-align:right;desc:memory used by index writer");
 
+        table.addCell("segments.index_writer_max_memory", "sibling:pri;alias:siwmx,segmentsIndexWriterMaxMemory;default:false;text-align:right;desc:maximum memory index writer may use before it must write buffered documents to a new segment");
+        table.addCell("pri.segments.index_writer_max_memory", "default:false;text-align:right;desc:maximum memory index writer may use before it must write buffered documents to a new segment");
+
         table.addCell("segments.version_map_memory", "sibling:pri;alias:svmm,segmentsVersionMapMemory;default:false;text-align:right;desc:memory used by version map");
         table.addCell("pri.segments.version_map_memory", "default:false;text-align:right;desc:memory used by version map");
 
@@ -445,6 +448,9 @@ public class RestIndicesAction extends AbstractCatAction {
 
             table.addCell(indexStats == null ? null : indexStats.getTotal().getSegments().getIndexWriterMemory());
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getSegments().getIndexWriterMemory());
+
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getSegments().getIndexWriterMaxMemory());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getSegments().getIndexWriterMaxMemory());
 
             table.addCell(indexStats == null ? null : indexStats.getTotal().getSegments().getVersionMapMemory());
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getSegments().getVersionMapMemory());

@@ -1149,6 +1149,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                 }
                 stats.addVersionMapMemoryInBytes(versionMap.ramBytesUsed());
                 stats.addIndexWriterMemoryInBytes(indexWriter.ramBytesUsed());
+                stats.addIndexWriterMaxMemoryInBytes((long) (indexWriter.getConfig().getRAMBufferSizeMB()*1024*1024));
                 return stats;
             } finally {
                 searcher.close();

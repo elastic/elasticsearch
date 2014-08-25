@@ -24,6 +24,7 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.store.*;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.metadata.SnapshotId;
@@ -422,6 +423,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                 long indexTotalFilesSize = 0;
                 ArrayList<FileInfo> filesToSnapshot = newArrayList();
                 final Store.MetadataSnapshot metadata;
+                // TODO apparently we don't use the MetadataSnapshot#.recoveryDiff(...) here but we should
                 try {
                     metadata = store.getMetadata(snapshotIndexCommit);
                 } catch (IOException e) {
@@ -436,7 +438,15 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                     final StoreFileMetaData md = metadata.get(fileName);
                     boolean snapshotRequired = false;
                     BlobStoreIndexShardSnapshot.FileInfo fileInfo = snapshots.findPhysicalIndexFile(fileName);
-
+                    try {
+                        // in 1.4.0 we added additional hashes for .si / segments_N files
+                        // to ensure we don't double the space in the repo since old snapshots
+                        // don't have this hash we try to read that hash from the blob store
+                        // in a bwc compatible way.
+                        maybeRecalculateMetadataHash(blobContainer, fileInfo, metadata);
+                    }  catch (Throwable e) {
+                        logger.warn("{} Can't calculate hash from blob for file [{}] [{}]", e, shardId, fileInfo.physicalName(), fileInfo.metadata());
+                    }
                     if (fileInfo == null || !fileInfo.isSame(md) || !snapshotFileExistsInBlobs(fileInfo, blobs)) {
                         // commit point file does not exists in any commit point, or has different length, or does not fully exists in the listed blobs
                         snapshotRequired = true;
@@ -678,6 +688,25 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
     }
 
     /**
+     * This is a BWC layer to ensure we update the snapshots metdata with the corresponding hashes before we compare them.
+     * The new logic for StoreFileMetaData reads the entire <tt>.si</tt> and <tt>segments.n</tt> files to strengthen the
+     * comparison of the files on a per-segment / per-commit level.
+     */
+    private static final void maybeRecalculateMetadataHash(ImmutableBlobContainer blobContainer, FileInfo fileInfo, Store.MetadataSnapshot snapshot) throws IOException {
+        final StoreFileMetaData metadata;
+        if (fileInfo != null && (metadata = snapshot.get(fileInfo.name())) != null) {
+            if (metadata.hash().length > 0 && fileInfo.metadata().hash().length == 0) {
+                // we have a hash - check if our repo has a hash too otherwise we have
+                // to calculate it.
+                byte[] bytes = blobContainer.readBlobFully(fileInfo.physicalName());
+                final BytesRef spare = new BytesRef(bytes);
+                Store.MetadataSnapshot.hashFile(fileInfo.metadata().hash(), spare);
+            }
+        }
+
+    }
+
+    /**
      * Context for restore operations
      */
     private class RestoreContext extends Context {
@@ -728,8 +757,17 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                 final List<FileInfo> filesToRecover = Lists.newArrayList();
                 final Map<String, StoreFileMetaData> snapshotMetaData = new HashMap<>();
                 final Map<String, FileInfo> fileInfos = new HashMap<>();
-
                 for (final FileInfo fileInfo : snapshot.indexFiles()) {
+                    try {
+                        // in 1.4.0 we added additional hashes for .si / segments_N files
+                        // to ensure we don't double the space in the repo since old snapshots
+                        // don't have this hash we try to read that hash from the blob store
+                        // in a bwc compatible way.
+                        maybeRecalculateMetadataHash(blobContainer, fileInfo, recoveryTargetMetadata);
+                    }  catch (Throwable e) {
+                        // if the index is broken we might not be able to read it
+                        logger.warn("{} Can't calculate hash from blog for file [{}] [{}]", e, shardId, fileInfo.physicalName(), fileInfo.metadata());
+                    }
                     snapshotMetaData.put(fileInfo.metadata().name(), fileInfo.metadata());
                     fileInfos.put(fileInfo.metadata().name(), fileInfo);
                 }

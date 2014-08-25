@@ -20,57 +20,52 @@ package org.elasticsearch.common.lucene.search.function;
 
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Explanation;
+import org.apache.lucene.util.StringHelper;
+import org.elasticsearch.index.fielddata.*;
 
 /**
  * Pseudo randomly generate a score for each {@link #score}.
  */
 public class RandomScoreFunction extends ScoreFunction {
 
-    private final PRNG prng;
+    private int originalSeed;
+    private int saltedSeed;
+    private final IndexFieldData<?> uidFieldData;
+    private SortedBinaryDocValues uidByteData;
 
-    public RandomScoreFunction(long seed) {
+    /**
+     * Creates a RandomScoreFunction.
+     *
+     * @param seed A seed for randomness
+     * @param salt A value to salt the seed with, ideally unique to the running node/index
+     * @param uidFieldData The field data for _uid to use for generating consistent random values for the same id
+     */
+    public RandomScoreFunction(int seed, int salt, IndexFieldData<?> uidFieldData) {
         super(CombineFunction.MULT);
-        this.prng = new PRNG(seed);
+        this.originalSeed = seed;
+        this.saltedSeed = seed ^ salt;
+        this.uidFieldData = uidFieldData;
+        if (uidFieldData == null) throw new NullPointerException("uid missing");
     }
 
     @Override
     public void setNextReader(AtomicReaderContext context) {
-        // intentionally does nothing
+        AtomicFieldData leafData = uidFieldData.load(context);
+        uidByteData = leafData.getBytesValues();
+        if (uidByteData == null) throw new NullPointerException("failed to get uid byte data");
     }
 
     @Override
     public double score(int docId, float subQueryScore) {
-        return prng.nextFloat();
+        uidByteData.setDocument(docId);
+        int hash = StringHelper.murmurhash3_x86_32(uidByteData.valueAt(0), saltedSeed);
+        return (hash & 0x00FFFFFF) / (float)(1 << 24); // only use the lower 24 bits to construct a float from 0.0-1.0
     }
 
     @Override
     public Explanation explainScore(int docId, float subQueryScore) {
         Explanation exp = new Explanation();
-        exp.setDescription("random score function (seed: " + prng.originalSeed + ")");
+        exp.setDescription("random score function (seed: " + originalSeed + ")");
         return exp;
-    }
-
-    /**
-     * A non thread-safe PRNG
-     */
-    static class PRNG {
-
-        private static final long multiplier = 0x5DEECE66DL;
-        private static final long addend = 0xBL;
-        private static final long mask = (1L << 48) - 1;
-
-        final long originalSeed;
-        long seed;
-
-        PRNG(long seed) {
-            this.originalSeed = seed;
-            this.seed = (seed ^ multiplier) & mask;
-        }
-
-        public float nextFloat() {
-            seed = (seed * multiplier + addend) & mask;
-            return seed / (float)(1 << 24);
-        }
-
     }
 }

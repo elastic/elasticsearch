@@ -65,11 +65,13 @@ public class RiverClusterService extends AbstractLifecycleComponent<RiverCluster
 
     @Override
     protected void doStop() throws ElasticsearchException {
-        updateTasksExecutor.shutdown();
-        try {
-            updateTasksExecutor.awaitTermination(10, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            // ignore
+        if (updateTasksExecutor != null) {
+            updateTasksExecutor.shutdown();
+            try {
+                updateTasksExecutor.awaitTermination(10, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                // ignore
+            }
         }
     }
 
@@ -93,13 +95,13 @@ public class RiverClusterService extends AbstractLifecycleComponent<RiverCluster
     }
 
     public void submitStateUpdateTask(final String source, final RiverClusterStateUpdateTask updateTask) {
-        if (!lifecycle.started()) {
+        if (!lifecycle.started() && !lifecycle.disabled()) {
             return;
         }
         updateTasksExecutor.execute(new Runnable() {
             @Override
             public void run() {
-                if (!lifecycle.started()) {
+                if (!lifecycle.started() && !lifecycle.disabled()) {
                     logger.debug("processing [{}]: ignoring, cluster_service not started", source);
                     return;
                 }

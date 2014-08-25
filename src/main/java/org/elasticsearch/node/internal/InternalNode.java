@@ -35,6 +35,8 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.deallocator.DeallocatorModule;
+import org.elasticsearch.cluster.service.GracefulStop;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.Lifecycle;
@@ -98,6 +100,8 @@ import org.elasticsearch.tribe.TribeModule;
 import org.elasticsearch.tribe.TribeService;
 import org.elasticsearch.watcher.ResourceWatcherModule;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import sun.misc.Signal;
+import sun.misc.SignalHandler;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -120,6 +124,7 @@ public final class InternalNode implements Node {
     private final Environment environment;
     private final PluginsService pluginsService;
     private final Client client;
+
 
     public InternalNode() throws ElasticsearchException {
         this(ImmutableSettings.Builder.EMPTY_SETTINGS, true);
@@ -195,6 +200,7 @@ public final class InternalNode implements Node {
             modules.add(new RepositoriesModule());
             modules.add(new TribeModule());
             modules.add(new BenchmarkModule(settings));
+            modules.add(new DeallocatorModule());
 
             injector = modules.createInjector();
 
@@ -261,6 +267,9 @@ public final class InternalNode implements Node {
 
         logger.info("started");
 
+        GracefulStop gracefulStop = injector.getInstance(GracefulStop.class);
+        gracefulStop.cancelDeAllocationIfRunning();
+
         return this;
     }
 
@@ -269,6 +278,7 @@ public final class InternalNode implements Node {
         if (!lifecycle.moveToStopped()) {
             return this;
         }
+
         ESLogger logger = Loggers.getLogger(Node.class, settings.get("name"));
         logger.info("stopping ...");
 
@@ -312,11 +322,57 @@ public final class InternalNode implements Node {
         return this;
     }
 
+
+    public boolean disable() {
+        if (!lifecycle.moveToDisabled()) {
+            return false;
+        }
+
+        ESLogger logger = Loggers.getLogger(Node.class, settings.get("name"));
+        logger.info("disabling...");
+
+        injector.getInstance(TribeService.class).disable();
+        injector.getInstance(ResourceWatcherService.class).disable();
+        if (settings.getAsBoolean("http.enabled", true)) {
+            injector.getInstance(HttpServer.class).disable();
+        }
+        injector.getInstance(RiversManager.class).disable();
+
+        injector.getInstance(SnapshotsService.class).disable();
+        // stop any changes happening as a result of cluster state changes
+        injector.getInstance(IndicesClusterStateService.class).disable();
+        // we close indices first, so operations won't be allowed on it
+        injector.getInstance(IndexingMemoryController.class).disable();
+        injector.getInstance(IndicesTTLService.class).disable();
+
+        injector.getInstance(MappingUpdatedAction.class).disable();
+        injector.getInstance(IndicesService.class).disable();
+
+        injector.getInstance(RoutingService.class).disable();
+        injector.getInstance(ClusterService.class).disable();
+        injector.getInstance(DiscoveryService.class).disable();
+        injector.getInstance(MonitorService.class).disable();
+        injector.getInstance(GatewayService.class).disable();
+        injector.getInstance(SearchService.class).disable();
+        injector.getInstance(RestController.class).disable();
+        injector.getInstance(TransportService.class).disable();
+
+        for (Class<? extends LifecycleComponent> plugin : pluginsService.services()) {
+            injector.getInstance(plugin).disable();
+        }
+
+        GracefulStop gracefulStop = injector.getInstance(GracefulStop.class);
+        boolean deallocated = gracefulStop.deallocate();
+        logger.info("disabled");
+
+        return deallocated || gracefulStop.forceStop();
+    }
+
     // During concurrent close() calls we want to make sure that all of them return after the node has completed it's shutdown cycle.
     // If not, the hook that is added in Bootstrap#setup() will be useless: close() might not be executed, in case another (for example api) call
     // to close() has already set some lifecycles to stopped. In this case the process will be terminated even if the first call to close() has not finished yet.
     public synchronized void close() {
-        if (lifecycle.started()) {
+        if (lifecycle.started() || lifecycle.disabled()) {
             stop();
         }
         if (!lifecycle.moveToClosed()) {
@@ -384,6 +440,11 @@ public final class InternalNode implements Node {
         } catch (InterruptedException e) {
             // ignore
         }
+        try {
+            injector.getInstance(GracefulStop.class).close();
+        } catch (IOException e) {
+            // ignore
+        }
         stopWatch.stop().start("thread_pool_force_shutdown");
         try {
             injector.getInstance(ThreadPool.class).shutdownNow();
@@ -410,11 +471,17 @@ public final class InternalNode implements Node {
         return lifecycle.closed();
     }
 
+    @Override
+    public boolean isDisabled() {
+        return lifecycle.disabled();
+    }
+
     public Injector injector() {
         return this.injector;
     }
 
     public static void main(String[] args) throws Exception {
+        ESLogger logger = Loggers.getLogger(InternalNode.class);
         final InternalNode node = new InternalNode();
         node.start();
         Runtime.getRuntime().addShutdownHook(new Thread() {
@@ -423,5 +490,20 @@ public final class InternalNode implements Node {
                 node.close();
             }
         });
+        try {
+            Signal signal = new Signal("USR2");
+            Signal.handle(signal, new SignalHandler() {
+                @Override
+                public void handle(Signal sig) {
+                    if (node.disable()) {
+                        System.exit(0); // this will run the shutdown hook and call node.close()
+                    } else {
+                        node.start();
+                    }
+                }
+            });
+        } catch (IllegalArgumentException e) {
+            logger.info("SIGUSR2 signal not supported on {}.", System.getProperty("os.name"));
+        }
     }
 }

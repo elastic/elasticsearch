@@ -248,7 +248,7 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
      */
     public boolean changesAllowed() {
         // we check on stop here since we defined stop when we delete the indices
-        return lifecycle.started();
+        return lifecycle.started() || lifecycle.disabled();
     }
 
     @Override
@@ -278,7 +278,7 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
     }
 
     public synchronized IndexService createIndex(String sIndexName, Settings settings, String localNodeId) throws ElasticsearchException {
-        if (!lifecycle.started()) {
+        if (!lifecycle.started() && !lifecycle.disabled()) {
             throw new ElasticsearchIllegalStateException("Can't create an index [" + sIndexName + "], node is closed");
         }
         Index index = new Index(sIndexName);

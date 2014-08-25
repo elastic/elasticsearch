@@ -597,7 +597,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     }
 
     void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e) throws Exception {
-        if (!lifecycle.started()) {
+        if (!lifecycle.started() && !lifecycle.disabled()) {
             // ignore
             return;
         }
@@ -715,7 +715,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     }
 
     public void connectToNode(DiscoveryNode node, boolean light) {
-        if (!lifecycle.started()) {
+        if (!lifecycle.started() && !lifecycle.disabled()) {
             throw new ElasticsearchIllegalStateException("can't add nodes to a stopped transport");
         }
         if (node == null) {
@@ -723,12 +723,19 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         }
         globalLock.readLock().lock();
         try {
+            if (!lifecycle.started() && !lifecycle.disabled()) {
+                throw new ElasticsearchIllegalStateException("can't add nodes to a stopped transport");
+            }
+            NodeChannels nodeChannels = connectedNodes.get(node);
+            if (nodeChannels != null) {
+                return;
+            }
             connectionLock.acquire(node.id());
             try {
-                if (!lifecycle.started()) {
+                if (!lifecycle.started() && !lifecycle.disabled()) {
                     throw new ElasticsearchIllegalStateException("can't add nodes to a stopped transport");
                 }
-                NodeChannels nodeChannels = connectedNodes.get(node);
+                nodeChannels = connectedNodes.get(node);
                 if (nodeChannels != null) {
                     return;
                 }

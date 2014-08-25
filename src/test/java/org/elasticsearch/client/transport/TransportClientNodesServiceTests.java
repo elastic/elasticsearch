@@ -19,6 +19,7 @@
 
 package org.elasticsearch.client.transport;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.support.Headers;
@@ -56,6 +57,12 @@ public class TransportClientNodesServiceTests extends ElasticsearchTestCase {
                 @Override
                 protected TestResponse newResponse() {
                     return  new TestResponse();
+                }
+
+                @Override
+                public Transport disable() throws ElasticsearchException {
+                    transport.disable();
+                    return this;
                 }
             };
             transportService = new TransportService(ImmutableSettings.EMPTY, transport, threadPool);

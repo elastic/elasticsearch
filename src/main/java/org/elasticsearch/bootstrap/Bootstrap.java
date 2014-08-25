@@ -37,6 +37,8 @@ import org.elasticsearch.monitor.process.JmxProcessProbe;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
+import sun.misc.Signal;
+import sun.misc.SignalHandler;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -59,6 +61,9 @@ public class Bootstrap {
 
     private static Bootstrap bootstrap;
 
+    private final ESLogger logger = Loggers.getLogger(getClass());
+
+
     private void setup(boolean addShutdownHook, Tuple<Settings, Environment> tuple) throws Exception {
 //        Loggers.getLogger(Bootstrap.class, tuple.v1().get("name")).info("heap_size {}/{}", JvmStats.jvmStats().mem().heapCommitted(), JvmInfo.jvmInfo().mem().heapMax());
         if (tuple.v1().getAsBoolean("bootstrap.mlockall", false)) {
@@ -68,6 +73,23 @@ public class Bootstrap {
 
         NodeBuilder nodeBuilder = NodeBuilder.nodeBuilder().settings(tuple.v1()).loadConfigSettings(false);
         node = nodeBuilder.build();
+
+        try {
+            Signal signal = new Signal("USR2");
+            Signal.handle(signal, new SignalHandler() {
+                @Override
+                public void handle(Signal sig) {
+                    if (node.disable()) {
+                        System.exit(0); // this calls the shutdown hook and does node.close()
+                    } else {
+                        node.start();
+                    }
+                }
+            });
+        } catch (IllegalArgumentException e) {
+            logger.warn("SIGUSR2 signal not supported on {}.", System.getProperty("os.name"));
+        }
+
         if (addShutdownHook) {
             Runtime.getRuntime().addShutdownHook(new Thread() {
                 @Override

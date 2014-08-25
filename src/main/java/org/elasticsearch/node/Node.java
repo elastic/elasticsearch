@@ -55,6 +55,11 @@ public interface Node extends Releasable{
     Node stop();
 
     /**
+     * disables the node,
+     */
+    boolean disable();
+
+    /**
      * Closes the node (and {@link #stop}s if its running).
      */
     void close();
@@ -63,4 +68,9 @@ public interface Node extends Releasable{
      * Returns <tt>true</tt> if the node is closed.
      */
     boolean isClosed();
+
+    /**
+     * Returns <tt>true</tt> if the node is disabled.
+     */
+    boolean isDisabled();
 }

@@ -89,7 +89,7 @@ public class ZenPingService extends AbstractLifecycleComponent<ZenPing> implemen
 
     @Override
     public void setPingContextProvider(PingContextProvider contextProvider) {
-        if (lifecycle.started()) {
+        if (lifecycle.started() || lifecycle.disabled()) {
             throw new ElasticsearchIllegalStateException("Can't set nodes provider when started");
         }
         for (ZenPing zenPing : zenPings) {

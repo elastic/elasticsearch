@@ -847,7 +847,6 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                     if (fieldDataType.getLoading() == Loading.LAZY) {
                         continue;
                     }
-
                     final String indexName = fieldMapper.names().indexName();
                     if (warmUp.containsKey(indexName)) {
                         continue;

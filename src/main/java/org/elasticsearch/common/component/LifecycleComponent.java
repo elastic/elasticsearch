@@ -32,6 +32,19 @@ public interface LifecycleComponent<T> extends CloseableComponent {
 
     void removeLifecycleListener(LifecycleListener listener);
 
+    /**
+     * Disable a component. <br />
+     * This can be called before {@link #stop()} to put a component into the disabled state.
+     *
+     * In the disabled state a component will reject new operations and wait for all pending operations to complete.
+     */
+    T disable() throws ElasticsearchException;
+
+    /**
+     * Starts a component. <br />
+     * If the component was just disabled it will re-enable the component again but not invoke a full start
+     * so handlers like {@link org.elasticsearch.common.component.LifecycleListener#beforeStart()} aren't called.
+     */
     T start() throws ElasticsearchException;
 
     T stop() throws ElasticsearchException;

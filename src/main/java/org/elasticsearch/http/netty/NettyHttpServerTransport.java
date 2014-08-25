@@ -293,6 +293,20 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
     }
 
     @Override
+    protected void doDisable() throws ElasticsearchException {
+        if (serverOpenChannels != null) {
+            serverOpenChannels.disable();
+        }
+    }
+
+    @Override
+    protected void doEnable() throws ElasticsearchException {
+        if (serverOpenChannels != null) {
+            serverOpenChannels.enable();
+        }
+    }
+
+    @Override
     protected void doClose() throws ElasticsearchException {
     }
 
@@ -326,7 +340,7 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
             }
             ctx.getChannel().close();
         } else {
-            if (!lifecycle.started()) {
+            if (!(lifecycle.started() || lifecycle.disabled())) {
                 // ignore
                 return;
             }

@@ -17,30 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.node.internal;
 
-import org.elasticsearch.cluster.service.GracefulStop;
+package org.elasticsearch.cluster.routing.allocation.deallocator;
+
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.node.Node;
-import org.elasticsearch.node.service.NodeService;
-import org.elasticsearch.node.settings.NodeSettingsService;
 
-/**
- *
- */
-public class NodeModule extends AbstractModule {
-
-    private final Node node;
-
-    public NodeModule(Node node) {
-        this.node = node;
-    }
-
+public class DeallocatorModule extends AbstractModule {
     @Override
     protected void configure() {
-        bind(Node.class).toInstance(node);
-        bind(NodeSettingsService.class).asEagerSingleton();
-        bind(NodeService.class).asEagerSingleton();
-        bind(GracefulStop.class).asEagerSingleton();
+        bind(AllShardsDeallocator.class).asEagerSingleton();
+        bind(PrimariesDeallocator.class).asEagerSingleton();
+        bind(Deallocators.class).asEagerSingleton();
     }
 }

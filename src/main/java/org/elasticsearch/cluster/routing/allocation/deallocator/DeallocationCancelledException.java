@@ -17,30 +17,20 @@
  * under the License.
  */
 
-package org.elasticsearch.node.internal;
 
-import org.elasticsearch.cluster.service.GracefulStop;
-import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.node.Node;
-import org.elasticsearch.node.service.NodeService;
-import org.elasticsearch.node.settings.NodeSettingsService;
+package org.elasticsearch.cluster.routing.allocation.deallocator;
 
-/**
- *
- */
-public class NodeModule extends AbstractModule {
+import java.util.Locale;
 
-    private final Node node;
+public class DeallocationCancelledException extends Exception {
 
-    public NodeModule(Node node) {
-        this.node = node;
+    private static final String MESSAGE_TMPL = "Deallocation cancelled for node '%s'";
+
+    public DeallocationCancelledException(String nodeId) {
+        super(String.format(Locale.ENGLISH, MESSAGE_TMPL, nodeId));
     }
 
-    @Override
-    protected void configure() {
-        bind(Node.class).toInstance(node);
-        bind(NodeSettingsService.class).asEagerSingleton();
-        bind(NodeService.class).asEagerSingleton();
-        bind(GracefulStop.class).asEagerSingleton();
+    public DeallocationCancelledException(String nodeId, Throwable cause) {
+        super(String.format(Locale.ENGLISH, MESSAGE_TMPL, nodeId), cause);
     }
 }

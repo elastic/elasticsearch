@@ -18,9 +18,6 @@
  */
 
 package org.elasticsearch.common.util.concurrent;
-
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
-
 import java.util.concurrent.Future;
 
 /**

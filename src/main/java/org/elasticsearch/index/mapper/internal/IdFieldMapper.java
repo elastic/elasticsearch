@@ -297,7 +297,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
+    protected ValueAndBoost parseCreateField(ParseContext context, List<Field> fields) throws IOException {
         XContentParser parser = context.parser();
         if (parser.currentName() != null && parser.currentName().equals(Defaults.NAME) && parser.currentToken().isValue()) {
             // we are in the parse Phase
@@ -314,6 +314,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
         if (hasDocValues()) {
             fields.add(new BinaryDocValuesField(names.indexName(), new BytesRef(context.id())));
         }
+        return null;
     }
 
     @Override

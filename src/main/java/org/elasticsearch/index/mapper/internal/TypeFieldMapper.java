@@ -173,14 +173,15 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements Inte
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
+    protected ValueAndBoost parseCreateField(ParseContext context, List<Field> fields) throws IOException {
         if (!fieldType.indexed() && !fieldType.stored()) {
-            return;
+            return null;
         }
         fields.add(new Field(names.indexName(), context.type(), fieldType));
         if (hasDocValues()) {
             fields.add(new SortedSetDocValuesField(names.indexName(), new BytesRef(context.type())));
         }
+        return null;
     }
 
     @Override

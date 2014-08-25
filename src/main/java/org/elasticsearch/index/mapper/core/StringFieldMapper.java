@@ -27,6 +27,7 @@ import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -270,28 +271,35 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
-        ValueAndBoost valueAndBoost = parseCreateFieldForString(context, nullValue, boost);
-        if (valueAndBoost.value() == null) {
+    protected ValueAndBoost parseCreateField(ParseContext context, List<Field> fields) throws IOException {
+        ValueAndBoost valueAndBoost = parseValueAndBoost(context, nullValue, boost);
+        createField(context, fields, valueAndBoost);
+        return valueAndBoost;
+    }
+
+    @Override
+    protected void createField(ParseContext context, List<Field> fields, ValueAndBoost valueAndBoost) {
+        if (valueAndBoost.value == null) {
             return;
         }
-        if (ignoreAbove > 0 && valueAndBoost.value().length() > ignoreAbove) {
+        String stringValue = valueAndBoost.value.toString();
+        if (ignoreAbove > 0 && stringValue.length() > ignoreAbove) {
             return;
         }
         if (context.includeInAll(includeInAll, this)) {
-            context.allEntries().addText(names.fullName(), valueAndBoost.value(), valueAndBoost.boost());
+            context.allEntries().addText(names.fullName(), stringValue, valueAndBoost.boost);
         }
 
         if (fieldType.indexed() || fieldType.stored()) {
-            Field field = new Field(names.indexName(), valueAndBoost.value(), fieldType);
-            field.setBoost(valueAndBoost.boost());
+            Field field = new Field(names.indexName(), stringValue, fieldType);
+            field.setBoost(valueAndBoost.boost);
             fields.add(field);
         }
         if (hasDocValues()) {
-            fields.add(new SortedSetDocValuesField(names.indexName(), new BytesRef(valueAndBoost.value())));
+            fields.add(new SortedSetDocValuesField(names.indexName(), new BytesRef(stringValue)));
         }
         if (fields.isEmpty()) {
-            context.ignoredValue(names.indexName(), valueAndBoost.value());
+            context.ignoredValue(names.indexName(), stringValue);
         }
     }
 
@@ -303,10 +311,8 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
      * @return the parsed field and the boost either parsed or defaulted
      * @throws IOException if thrown while parsing
      */
-    public static ValueAndBoost parseCreateFieldForString(ParseContext context, String nullValue, float defaultBoost) throws IOException {
-        if (context.externalValueSet()) {
-            return new ValueAndBoost((String) context.externalValue(), defaultBoost);
-        }
+    public static ValueAndBoost parseValueAndBoost(ParseContext context, String nullValue, float defaultBoost) throws IOException {
+
         XContentParser parser = context.parser();
         if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
             return new ValueAndBoost(nullValue, defaultBoost);
@@ -317,6 +323,9 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
             String value = nullValue;
             float boost = defaultBoost;
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.START_ARRAY) {
+                    throw new ElasticsearchParseException("Boost for field in array must be given like this: {field_name: [{\"value\": value}, \"boost\": boost},{...},...]}");
+                }
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else {
@@ -382,32 +391,4 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
         }
     }
 
-    /**
-     * Parsed value and boost to be returned from {@link #parseCreateFieldForString}.
-     */
-    public static class ValueAndBoost {
-        private final String value;
-        private final float boost;
-
-        public ValueAndBoost(String value, float boost) {
-            this.value = value;
-            this.boost = boost;
-        }
-
-        /**
-         * Value of string field.
-         * @return value of string field
-         */
-        public String value() {
-            return value;
-        }
-
-        /**
-         * Boost either parsed from the document or defaulted.
-         * @return boost either parsed from the document or defaulted
-         */
-        public float boost() {
-            return boost;
-        }
-    }
 }

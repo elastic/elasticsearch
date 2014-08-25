@@ -36,6 +36,8 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
@@ -44,6 +46,7 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
@@ -62,6 +65,8 @@ import java.util.List;
  *
  */
 public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldMapper<T> implements AllFieldMapper.IncludeInAll {
+
+    protected Object nullValue;
 
     public static class Defaults extends AbstractFieldMapper.Defaults {
         
@@ -229,10 +234,11 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
+    protected ValueAndBoost parseCreateField(ParseContext context, List<Field> fields) throws IOException {
         RuntimeException e = null;
+        ValueAndBoost valueAndBoost = null;
         try {
-            innerParseCreateField(context, fields);
+            valueAndBoost = innerParseCreateField(context, fields);
         } catch (IllegalArgumentException e1) {
             e = e1;
         } catch (MapperParsingException e2) {
@@ -242,19 +248,20 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
         if (e != null && !ignoreMalformed.value()) {
             throw e;
         }
+        return  valueAndBoost;
     }
 
-    protected abstract void innerParseCreateField(ParseContext context, List<Field> fields) throws IOException;
 
-    protected final void addDocValue(ParseContext context, List<Field> fields, long value) {
+    protected void addDocValue(ParseContext context, List<Field> fields, Number value) {
+        long longValue = value.longValue();
         if (useSortedNumericDocValues) {
-            fields.add(new SortedNumericDocValuesField(names().indexName(), value));
+            fields.add(new SortedNumericDocValuesField(names().indexName(), convertToSortableNumber(longValue)));
         } else {
             CustomLongNumericDocValuesField field = (CustomLongNumericDocValuesField) context.doc().getByKey(names().indexName());
             if (field != null) {
-                field.add(value);
+                field.add(longValue);
             } else {
-                field = new CustomLongNumericDocValuesField(names().indexName(), value);
+                field = new CustomLongNumericDocValuesField(names().indexName(), longValue);
                 context.doc().addWithKey(names().indexName(), field);
             }
         }
@@ -535,4 +542,91 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
     public boolean isNumeric() {
         return true;
     }
+
+    protected ValueAndBoost innerParseCreateField(ParseContext context, List<Field> fields) throws IOException {
+        XContentParser parser = context.parser();
+        ValueAndBoost valueAndBoost = parseValueAndBoost(parser);
+        if (valueAndBoost.value == null) {
+            return null;
+        }
+        createField(context, fields, valueAndBoost);
+        return valueAndBoost;
+    }
+
+    private ValueAndBoost parseValueAndBoost(XContentParser parser) throws IOException {
+        float boost = this.boost;
+        Object value = nullValue;
+        if (parser.currentToken() == XContentParser.Token.VALUE_NULL ||
+                (parser.currentToken() == XContentParser.Token.VALUE_STRING && parser.textLength() == 0)) {
+            if (nullValue == null) {
+                return null;
+            }
+            value = nullValue;
+
+        } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
+            XContentParser.Token token;
+            String currentFieldName = null;
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.START_ARRAY) {
+                    throw new ElasticsearchParseException("Boost for field in array must be given like this: {field_name: [{\"value\": value}, \"boost\": boost},{...},...]}");
+                }
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    currentFieldName = parser.currentName();
+                } else {
+                    if ("value".equals(currentFieldName) || "_value".equals(currentFieldName)) {
+                        if (parser.currentToken() != XContentParser.Token.VALUE_NULL) {
+                            value = readValueFromParser(parser);
+                        }
+                    } else if ("boost".equals(currentFieldName) || "_boost".equals(currentFieldName)) {
+                        boost = parser.floatValue();
+                    } else {
+                        throw new ElasticsearchIllegalArgumentException("unknown property [" + currentFieldName + "]");
+                    }
+                }
+            }
+        } else {
+            value = readValueFromParser(parser);
+        }
+        return new ValueAndBoost(value, boost);
+    }
+
+    @Override
+    protected void createField(ParseContext context, List<Field> fields, ValueAndBoost valueAndBoost) throws IOException {
+        Object value = valueAndBoost.value;
+        if (value == null) {
+            if (nullValue == null) {
+                return;
+            }
+            value = nullValue;
+        } else if (value instanceof String) {
+            String sValue = (String) value;
+            if (sValue.length() == 0) {
+                if (nullValue == null) {
+                    return;
+                }
+                value = nullValue;
+            } else {
+                value = parseNumber(sValue);
+            }
+        }
+        if (context.includeInAll(includeInAll, this)) {
+            context.allEntries().addText(names.fullName(), value.toString(), valueAndBoost.boost);
+        }
+        if (fieldType.indexed() || fieldType.stored()) {
+            CustomNumericField field = createCustomNumericField(new ValueAndBoost(value, valueAndBoost.boost));
+            field.setBoost(valueAndBoost.boost);
+            fields.add(field);
+        }
+        if (hasDocValues()) {
+            addDocValue(context, fields, (Number)value);
+        }
+    }
+
+    protected abstract CustomNumericField createCustomNumericField(ValueAndBoost valueAndBoost);
+
+    protected abstract Number parseNumber(String sValue);
+
+    protected abstract long convertToSortableNumber(Number value);
+
+    protected abstract Object readValueFromParser(XContentParser parser) throws IOException;
 }

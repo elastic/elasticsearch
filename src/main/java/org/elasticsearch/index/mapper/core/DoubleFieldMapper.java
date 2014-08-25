@@ -24,6 +24,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.NumericRangeFilter;
@@ -31,7 +32,6 @@ import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
@@ -117,11 +117,6 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
         }
     }
 
-
-    private Double nullValue;
-
-    private String nullValueAsString;
-
     protected DoubleFieldMapper(Names names, int precisionStep, float boost, FieldType fieldType, Boolean docValues,
                                 Double nullValue, Explicit<Boolean> ignoreMalformed,  Explicit<Boolean> coerce,
                                 PostingsFormatProvider postingsProvider, DocValuesFormatProvider docValuesProvider,
@@ -132,7 +127,6 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
                 NumericDoubleAnalyzer.buildNamedAnalyzer(precisionStep), NumericDoubleAnalyzer.buildNamedAnalyzer(Integer.MAX_VALUE),
                 postingsProvider, docValuesProvider, similarity, normsLoading, fieldDataSettings, indexSettings, multiFields, copyTo);
         this.nullValue = nullValue;
-        this.nullValueAsString = nullValue == null ? null : nullValue.toString();
     }
 
     @Override
@@ -230,104 +224,14 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
             return null;
         }
         return NumericRangeFilter.newDoubleRange(names.indexName(), precisionStep,
-                nullValue,
-                nullValue,
+                (Double)nullValue,
+                (Double)nullValue,
                 true, true);
     }
 
     @Override
     protected boolean customBoost() {
         return true;
-    }
-
-    @Override
-    protected void innerParseCreateField(ParseContext context, List<Field> fields) throws IOException {
-        double value;
-        float boost = this.boost;
-        if (context.externalValueSet()) {
-            Object externalValue = context.externalValue();
-            if (externalValue == null) {
-                if (nullValue == null) {
-                    return;
-                }
-                value = nullValue;
-            } else if (externalValue instanceof String) {
-                String sExternalValue = (String) externalValue;
-                if (sExternalValue.length() == 0) {
-                    if (nullValue == null) {
-                        return;
-                    }
-                    value = nullValue;
-                } else {
-                    value = Double.parseDouble(sExternalValue);
-                }
-            } else {
-                value = ((Number) externalValue).doubleValue();
-            }
-            if (context.includeInAll(includeInAll, this)) {
-                context.allEntries().addText(names.fullName(), Double.toString(value), boost);
-            }
-        } else {
-            XContentParser parser = context.parser();
-            if (parser.currentToken() == XContentParser.Token.VALUE_NULL ||
-                    (parser.currentToken() == XContentParser.Token.VALUE_STRING && parser.textLength() == 0)) {
-                if (nullValue == null) {
-                    return;
-                }
-                value = nullValue;
-                if (nullValueAsString != null && (context.includeInAll(includeInAll, this))) {
-                    context.allEntries().addText(names.fullName(), nullValueAsString, boost);
-                }
-            } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
-                XContentParser.Token token;
-                String currentFieldName = null;
-                Double objValue = nullValue;
-                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    if (token == XContentParser.Token.FIELD_NAME) {
-                        currentFieldName = parser.currentName();
-                    } else {
-                        if ("value".equals(currentFieldName) || "_value".equals(currentFieldName)) {
-                            if (parser.currentToken() != XContentParser.Token.VALUE_NULL) {
-                                objValue = parser.doubleValue(coerce.value());
-                            }
-                        } else if ("boost".equals(currentFieldName) || "_boost".equals(currentFieldName)) {
-                            boost = parser.floatValue();
-                        } else {
-                            throw new ElasticsearchIllegalArgumentException("unknown property [" + currentFieldName + "]");
-                        }
-                    }
-                }
-                if (objValue == null) {
-                    // no value
-                    return;
-                }
-                value = objValue;
-            } else {
-                value = parser.doubleValue(coerce.value());
-                if (context.includeInAll(includeInAll, this)) {
-                    context.allEntries().addText(names.fullName(), parser.text(), boost);
-                }
-            }
-        }
-
-        if (fieldType.indexed() || fieldType.stored()) {
-            CustomDoubleNumericField field = new CustomDoubleNumericField(this, value, fieldType);
-            field.setBoost(boost);
-            fields.add(field);
-        }
-        if (hasDocValues()) {
-            if (useSortedNumericDocValues) {
-                addDocValue(context, fields, NumericUtils.doubleToSortableLong(value));
-            } else {
-                CustomDoubleNumericDocValuesField field = (CustomDoubleNumericDocValuesField) context.doc().getByKey(names().indexName());
-                if (field != null) {
-                    field.add(value);
-                } else {
-                    field = new CustomDoubleNumericDocValuesField(names().indexName(), value);
-                    context.doc().addWithKey(names().indexName(), field);
-                }
-            }
-        }
     }
 
     @Override
@@ -343,7 +247,6 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
         }
         if (!mergeContext.mergeFlags().simulate()) {
             this.nullValue = ((DoubleFieldMapper) mergeWith).nullValue;
-            this.nullValueAsString = ((DoubleFieldMapper) mergeWith).nullValueAsString;
         }
     }
 
@@ -421,6 +324,38 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
             }
             return new BytesRef(bytes);
         }
+    }
 
+    @Override
+    protected void addDocValue(ParseContext context, List<Field> fields, Number value) {
+        double doubleValue = (Double)value;
+        if (useSortedNumericDocValues) {
+            fields.add(new SortedNumericDocValuesField(names().indexName(), convertToSortableNumber(doubleValue)));
+        } else {
+            CustomDoubleNumericDocValuesField field = (CustomDoubleNumericDocValuesField) context.doc().getByKey(names().indexName());
+            if (field != null) {
+                field.add(doubleValue);
+            } else {
+                field = new CustomDoubleNumericDocValuesField(names().indexName(), doubleValue);
+                context.doc().addWithKey(names().indexName(), field);
+            }
+        }
+    }
+
+
+    protected CustomNumericField createCustomNumericField(ValueAndBoost valueAndBoost) {
+        return new CustomDoubleNumericField(this, ((Double)valueAndBoost.value), fieldType);
+    }
+
+    protected Number parseNumber(String sValue) {
+        return Double.parseDouble(sValue);
+    }
+
+    protected long convertToSortableNumber(Number value) {
+        return NumericUtils.doubleToSortableLong(value.doubleValue());
+    }
+
+    protected Object readValueFromParser(XContentParser parser) throws IOException {
+        return parser.doubleValue(coerce.value());
     }
 }

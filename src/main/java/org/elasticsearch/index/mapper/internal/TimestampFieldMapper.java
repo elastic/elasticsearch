@@ -214,7 +214,7 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
     }
 
     @Override
-    protected void innerParseCreateField(ParseContext context, List<Field> fields) throws IOException {
+    protected ValueAndBoost innerParseCreateField(ParseContext context, List<Field> fields) throws IOException {
         if (enabledState.enabled) {
             long timestamp = context.sourceToParse().timestamp();
             if (!fieldType.indexed() && !fieldType.stored() && !hasDocValues()) {
@@ -227,6 +227,7 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
                 fields.add(new NumericDocValuesField(names.indexName(), timestamp));
             }
         }
+        return null;
     }
 
     @Override

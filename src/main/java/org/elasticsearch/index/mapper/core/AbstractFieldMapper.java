@@ -67,6 +67,16 @@ import java.util.*;
  */
 public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
 
+    public static class ValueAndBoost {
+        public final Object value;
+        public final float boost;
+
+        public ValueAndBoost(Object value, float boost) {
+            this.value = value;
+            this.boost = boost;
+        }
+    }
+
     public static class Defaults {
         public static final FieldType FIELD_TYPE = new FieldType();
         public static final boolean DOC_VALUES = false;
@@ -401,31 +411,69 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
     public void parse(ParseContext context) throws IOException {
         final List<Field> fields = FIELD_LIST.get();
         assert fields.isEmpty();
+        ValueAndBoost valueAndBoost = null;
         try {
-            parseCreateField(context, fields);
-            for (Field field : fields) {
-                if (!customBoost()) {
-                    field.setBoost(boost);
-                }
-                if (context.listener().beforeFieldAdded(this, field, context)) {
-                    context.doc().add(field);
-                }
-            }
+            valueAndBoost = parseCreateField(context, fields);
+            addFields(context, fields);
         } catch (Exception e) {
             throw new MapperParsingException("failed to parse [" + names.fullName() + "]", e);
         } finally {
             fields.clear();
         }
-        multiFields.parse(this, context);
+        handleMultiFields(context, valueAndBoost);
+    }
+
+    protected void handleMultiFields(ParseContext context, ValueAndBoost valueAndBoost) throws IOException {
+        multiFields.addValue(this, context, valueAndBoost);
         if (copyTo != null) {
             copyTo.parse(context);
+        }
+    }
+
+    @Override
+    public void addValue(ParseContext context, ValueAndBoost valueAndBoost) throws IOException {
+        final List<Field> fields = FIELD_LIST.get();
+        assert fields.isEmpty();
+        try {
+            createField(context, fields, valueAndBoost);
+            addFields(context, fields);
+        } catch (Exception e) {
+            throw new MapperParsingException("failed to parse [" + names.fullName() + "]", e);
+        } finally {
+            fields.clear();
+        }
+        handleMultiFields(context, valueAndBoost);
+    }
+
+    /**
+     * This method creates a field for a value and adds it to @fields.
+     * It is used when values are set externally for example by token_count or geo_point but
+     * also when setting multi_field values.
+     *
+     * @param context the current parse context that holds the Document
+     * @param fields new fields are added to this list
+     * @param valueAndBoost holds value and the associated boost for the field
+     *
+     * */
+    protected void createField(ParseContext context, List<Field> fields, ValueAndBoost valueAndBoost) throws IOException {
+        throw new UnsupportedOperationException(this.getClass().getName() + " cannot be set externally.");
+    }
+
+    private void addFields(ParseContext context, List<Field> fields) throws IOException {
+        for (Field field : fields) {
+            if (!customBoost()) {
+                field.setBoost(boost);
+            }
+            if (context.listener().beforeFieldAdded(this, field, context)) {
+                context.doc().add(field);
+            }
         }
     }
 
     /**
      * Parse the field value and populate <code>fields</code>.
      */
-    protected abstract void parseCreateField(ParseContext context, List<Field> fields) throws IOException;
+    protected abstract ValueAndBoost parseCreateField(ParseContext context, List<Field> fields) throws IOException;
 
     /**
      * Derived classes can override it to specify that boost value is set by derived classes.
@@ -856,12 +904,12 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
     public static class MultiFields {
 
         public static MultiFields empty() {
-            return new MultiFields(Defaults.PATH_TYPE, ImmutableOpenMap.<String, Mapper>of());
+            return new MultiFields(Defaults.PATH_TYPE, ImmutableOpenMap.<String, FieldMapper>of());
         }
 
         public static class Builder {
 
-            private final ImmutableOpenMap.Builder<String, Mapper.Builder> mapperBuilders = ImmutableOpenMap.builder();
+            private final ImmutableOpenMap.Builder<String, FieldMapper.Builder> mapperBuilders = ImmutableOpenMap.builder();
             private ContentPath.Type pathType = Defaults.PATH_TYPE;
 
             public Builder pathType(ContentPath.Type pathType) {
@@ -879,20 +927,20 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
                 if (pathType == Defaults.PATH_TYPE && mapperBuilders.isEmpty()) {
                     return empty();
                 } else if (mapperBuilders.isEmpty()) {
-                    return new MultiFields(pathType, ImmutableOpenMap.<String, Mapper>of());
+                    return new MultiFields(pathType, ImmutableOpenMap.<String, FieldMapper>of());
                 } else {
                     ContentPath.Type origPathType = context.path().pathType();
                     context.path().pathType(pathType);
                     context.path().add(mainFieldBuilder.name());
                     ImmutableOpenMap.Builder mapperBuilders = this.mapperBuilders;
-                    for (ObjectObjectCursor<String, Mapper.Builder> cursor : this.mapperBuilders) {
+                    for (ObjectObjectCursor<String, FieldMapper.Builder> cursor : this.mapperBuilders) {
                         String key = cursor.key;
                         Mapper.Builder value = cursor.value;
                         mapperBuilders.put(key, value.build(context));
                     }
                     context.path().remove();
                     context.path().pathType(origPathType);
-                    ImmutableOpenMap.Builder<String, Mapper> mappers = mapperBuilders.cast();
+                    ImmutableOpenMap.Builder<String, FieldMapper> mappers = mapperBuilders.cast();
                     return new MultiFields(pathType, mappers.build());
                 }
             }
@@ -900,13 +948,13 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         }
 
         private final ContentPath.Type pathType;
-        private volatile ImmutableOpenMap<String, Mapper> mappers;
+        private volatile ImmutableOpenMap<String, FieldMapper> mappers;
 
-        public MultiFields(ContentPath.Type pathType, ImmutableOpenMap<String, Mapper> mappers) {
+        public MultiFields(ContentPath.Type pathType, ImmutableOpenMap<String, FieldMapper> mappers) {
             this.pathType = pathType;
             this.mappers = mappers;
             // we disable the all in multi-field mappers
-            for (ObjectCursor<Mapper> cursor : mappers.values()) {
+            for (ObjectCursor<FieldMapper> cursor : mappers.values()) {
                 Mapper mapper = cursor.value;
                 if (mapper instanceof AllFieldMapper.IncludeInAll) {
                     ((AllFieldMapper.IncludeInAll) mapper).unsetIncludeInAll();
@@ -914,7 +962,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
             }
         }
 
-        public void parse(AbstractFieldMapper mainField, ParseContext context) throws IOException {
+        public void addValue(AbstractFieldMapper mainField, ParseContext context, ValueAndBoost valueAndBoost) throws IOException {
             if (mappers.isEmpty()) {
                 return;
             }
@@ -925,8 +973,8 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
             context.path().pathType(pathType);
 
             context.path().add(mainField.name());
-            for (ObjectCursor<Mapper> cursor : mappers.values()) {
-                cursor.value.parse(context);
+            for (ObjectCursor<FieldMapper> cursor : mappers.values()) {
+                cursor.value.addValue(context, valueAndBoost);
             }
             context.path().remove();
             context.path().pathType(origPathType);
@@ -937,11 +985,11 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
             AbstractFieldMapper mergeWithMultiField = (AbstractFieldMapper) mergeWith;
 
             List<FieldMapper> newFieldMappers = null;
-            ImmutableOpenMap.Builder<String, Mapper> newMappersBuilder = null;
+            ImmutableOpenMap.Builder<String, FieldMapper> newMappersBuilder = null;
 
-            for (ObjectCursor<Mapper> cursor : mergeWithMultiField.multiFields.mappers.values()) {
-                Mapper mergeWithMapper = cursor.value;
-                Mapper mergeIntoMapper = mappers.get(mergeWithMapper.name());
+            for (ObjectCursor<FieldMapper> cursor : mergeWithMultiField.multiFields.mappers.values()) {
+                FieldMapper mergeWithMapper = cursor.value;
+                FieldMapper mergeIntoMapper = mappers.get(mergeWithMapper.name());
                 if (mergeIntoMapper == null) {
                     // no mapping, simply add it if not simulating
                     if (!mergeContext.mergeFlags().simulate()) {
@@ -976,13 +1024,13 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         }
 
         public void traverse(FieldMapperListener fieldMapperListener) {
-            for (ObjectCursor<Mapper> cursor : mappers.values()) {
+            for (ObjectCursor<FieldMapper> cursor : mappers.values()) {
                 cursor.value.traverse(fieldMapperListener);
             }
         }
 
         public void close() {
-            for (ObjectCursor<Mapper> cursor : mappers.values()) {
+            for (ObjectCursor<FieldMapper> cursor : mappers.values()) {
                 cursor.value.close();
             }
         }

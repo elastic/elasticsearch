@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper.ip;
 
 import com.google.common.net.InetAddresses;
 import org.apache.lucene.analysis.NumericTokenStream;
-import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.NumericRangeFilter;
@@ -54,7 +53,6 @@ import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.io.IOException;
 import java.io.Reader;
-import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
 
@@ -148,8 +146,6 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
             return builder;
         }
     }
-
-    private String nullValue;
 
     protected IpFieldMapper(Names names, int precisionStep, float boost, FieldType fieldType, Boolean docValues,
                             String nullValue, Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
@@ -265,45 +261,11 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
         if (nullValue == null) {
             return null;
         }
-        final long value = ipToLong(nullValue);
+        final long value = ipToLong((String)nullValue);
         return NumericRangeFilter.newLongRange(names.indexName(), precisionStep,
                 value,
                 value,
                 true, true);
-    }
-
-    @Override
-    protected void innerParseCreateField(ParseContext context, List<Field> fields) throws IOException {
-        String ipAsString;
-        if (context.externalValueSet()) {
-            ipAsString = (String) context.externalValue();
-            if (ipAsString == null) {
-                ipAsString = nullValue;
-            }
-        } else {
-            if (context.parser().currentToken() == XContentParser.Token.VALUE_NULL) {
-                ipAsString = nullValue;
-            } else {
-                ipAsString = context.parser().text();
-            }
-        }
-
-        if (ipAsString == null) {
-            return;
-        }
-        if (context.includeInAll(includeInAll, this)) {
-            context.allEntries().addText(names.fullName(), ipAsString, boost);
-        }
-
-        final long value = ipToLong(ipAsString);
-        if (fieldType.indexed() || fieldType.stored()) {
-            CustomLongNumericField field = new CustomLongNumericField(this, value, fieldType);
-            field.setBoost(boost);
-            fields.add(field);
-        }
-        if (hasDocValues()) {
-            addDocValue(context, fields, value);
-        }
     }
 
     @Override
@@ -363,6 +325,26 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
         @Override
         protected void setValue(NumericTokenStream tokenStream, String value) {
             tokenStream.setLongValue(ipToLong(value));
+        }
+    }
+
+    protected CustomNumericField createCustomNumericField(ValueAndBoost valueAndBoost) {
+        return new CustomLongNumericField(this, (Long)valueAndBoost.value, fieldType);
+    }
+
+    protected Number parseNumber(String sValue) {
+        return ipToLong(sValue);
+    }
+
+    protected long convertToSortableNumber(Number value) {
+        return (Long) value;
+    }
+
+    protected Object readValueFromParser(XContentParser parser) throws IOException {
+        if (parser.currentToken() == XContentParser.Token.VALUE_NUMBER) {
+            return parser.longValue(coerce.value());
+        } else {
+            return parser.text();
         }
     }
 }

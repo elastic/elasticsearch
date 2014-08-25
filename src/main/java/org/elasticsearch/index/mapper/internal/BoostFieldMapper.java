@@ -111,8 +111,6 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
         }
     }
 
-    private final Float nullValue;
-
     public BoostFieldMapper() {
         this(Defaults.NAME, Defaults.NAME);
     }
@@ -222,8 +220,8 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
             return null;
         }
         return NumericRangeFilter.newFloatRange(names.indexName(), precisionStep,
-                nullValue,
-                nullValue,
+                (Float)nullValue,
+                (Float)nullValue,
                 true, true);
     }
 
@@ -251,13 +249,14 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
     }
 
     @Override
-    protected void innerParseCreateField(ParseContext context, List<Field> fields) throws IOException {
+    protected ValueAndBoost innerParseCreateField(ParseContext context, List<Field> fields) throws IOException {
         final float value = parseFloatValue(context);
         if (Float.isNaN(value)) {
-            return;
+            return null;
         }
         context.docBoost(value);
         fields.add(new FloatFieldMapper.CustomFloatNumericField(this, value, fieldType));
+        return null;
     }
 
     private float parseFloatValue(ParseContext context) throws IOException {
@@ -266,7 +265,7 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
             if (nullValue == null) {
                 return Float.NaN;
             }
-            value = nullValue;
+            value = (Float)nullValue;
         } else {
             value = context.parser().floatValue(coerce.value());
         }
@@ -315,5 +314,21 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
     @Override
     public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
         // do nothing here, no merging, but also no exception
+    }
+
+    protected CustomNumericField createCustomNumericField(ValueAndBoost valueAndBoost) {
+        throw new UnsupportedOperationException("BoostFieldMapper does not support createCustomNumericField(..)");
+    }
+
+    protected Number parseNumber(String sValue) {
+        throw new UnsupportedOperationException("BoostFieldMapper does not support parseNumber(..)");
+    }
+
+    protected long convertToSortableNumber(Number value) {
+        throw new UnsupportedOperationException("BoostFieldMapper does not support convertToSortableNumber(..)");
+    }
+
+    protected Object readValueFromParser(XContentParser parser) throws IOException {
+        throw new UnsupportedOperationException("BoostFieldMapper does not support readValueFromParser(..)");
     }
 }

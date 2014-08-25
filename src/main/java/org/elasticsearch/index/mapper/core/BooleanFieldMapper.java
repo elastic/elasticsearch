@@ -201,30 +201,34 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
+    protected ValueAndBoost parseCreateField(ParseContext context, List<Field> fields) throws IOException {
         if (!fieldType().indexed() && !fieldType().stored()) {
-            return;
+            return null;
         }
 
-        Boolean value = context.parseExternalValue(Boolean.class);
-        if (value == null) {
-            XContentParser.Token token = context.parser().currentToken();
-            if (token == XContentParser.Token.VALUE_NULL) {
-                if (nullValue != null) {
-                    value = nullValue;
-                }
-            } else {
-                value = context.parser().booleanValue();
+        Boolean value = null;
+        XContentParser.Token token = context.parser().currentToken();
+        if (token == XContentParser.Token.VALUE_NULL) {
+            if (nullValue != null) {
+                value = nullValue;
             }
+        } else {
+            value = context.parser().booleanValue();
         }
 
         if (value == null) {
-            return;
+            return null;
         }
-        fields.add(new Field(names.indexName(), value ? "T" : "F", fieldType));
+        ValueAndBoost valueAndBoost = new ValueAndBoost(value, 1.0f);
+        createField(context, fields, valueAndBoost);
+        return valueAndBoost;
     }
 
     @Override
+    protected void createField(ParseContext context, List<Field> fields, ValueAndBoost valueAndBoost) throws IOException {
+        fields.add(new Field(names.indexName(), (Boolean)valueAndBoost.value ? "T" : "F", fieldType));
+    }
+        @Override
     public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
         super.merge(mergeWith, mergeContext);
         if (!this.getClass().equals(mergeWith.getClass())) {

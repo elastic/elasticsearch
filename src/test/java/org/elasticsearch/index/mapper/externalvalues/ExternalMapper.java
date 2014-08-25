@@ -29,9 +29,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.*;
-import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
-import org.elasticsearch.index.mapper.core.BinaryFieldMapper;
-import org.elasticsearch.index.mapper.core.BooleanFieldMapper;
+import org.elasticsearch.index.mapper.core.*;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.geo.GeoShapeFieldMapper;
 
@@ -52,6 +50,8 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.parseMultiField;
  * .shape GeoShape type
  */
 public class ExternalMapper extends AbstractFieldMapper<Object> {
+
+
     /**
      * Returns the actual value of the field.
      *
@@ -67,6 +67,7 @@ public class ExternalMapper extends AbstractFieldMapper<Object> {
         public static final String FIELD_BOOL = "bool";
         public static final String FIELD_POINT = "point";
         public static final String FIELD_SHAPE = "shape";
+        public static final String FIELD_FLOAT = "float";
     }
 
     public static class Builder extends AbstractFieldMapper.Builder<Builder, ExternalMapper> {
@@ -75,7 +76,8 @@ public class ExternalMapper extends AbstractFieldMapper<Object> {
         private BooleanFieldMapper.Builder boolBuilder = new BooleanFieldMapper.Builder(Names.FIELD_BOOL);
         private GeoPointFieldMapper.Builder pointBuilder = new GeoPointFieldMapper.Builder(Names.FIELD_POINT);
         private GeoShapeFieldMapper.Builder shapeBuilder = new GeoShapeFieldMapper.Builder(Names.FIELD_SHAPE);
-        private Mapper.Builder stringBuilder;
+        private FloatFieldMapper.Builder floatBuilder = new FloatFieldMapper.Builder(Names.FIELD_FLOAT);
+        private StringFieldMapper.Builder stringBuilder;
         private String generatedValue;
         private String mapperName;
 
@@ -87,7 +89,7 @@ public class ExternalMapper extends AbstractFieldMapper<Object> {
             this.mapperName = mapperName;
         }
 
-        public Builder string(Mapper.Builder content) {
+        public Builder string(StringFieldMapper.Builder content) {
             this.stringBuilder = content;
             return this;
         }
@@ -102,12 +104,13 @@ public class ExternalMapper extends AbstractFieldMapper<Object> {
             BooleanFieldMapper boolMapper = boolBuilder.build(context);
             GeoPointFieldMapper pointMapper = pointBuilder.build(context);
             GeoShapeFieldMapper shapeMapper = shapeBuilder.build(context);
-            Mapper stringMapper = stringBuilder.build(context);
+            FloatFieldMapper floatMapper = floatBuilder.build(context);
+            StringFieldMapper stringMapper = stringBuilder.build(context);
             context.path().remove();
 
             context.path().pathType(origPathType);
 
-            return new ExternalMapper(buildNames(context), generatedValue, mapperName, binMapper, boolMapper, pointMapper, shapeMapper, stringMapper,
+            return new ExternalMapper(buildNames(context), generatedValue, mapperName, binMapper, boolMapper, pointMapper, shapeMapper, floatMapper, stringMapper,
                     multiFieldsBuilder.build(this, context), copyTo);
         }
     }
@@ -145,12 +148,13 @@ public class ExternalMapper extends AbstractFieldMapper<Object> {
     private final BooleanFieldMapper boolMapper;
     private final GeoPointFieldMapper pointMapper;
     private final GeoShapeFieldMapper shapeMapper;
-    private final Mapper stringMapper;
+    private final FloatFieldMapper floatMapper;
+    private final StringFieldMapper stringMapper;
 
     public ExternalMapper(FieldMapper.Names names,
                           String generatedValue, String mapperName,
                           BinaryFieldMapper binMapper, BooleanFieldMapper boolMapper, GeoPointFieldMapper pointMapper,
-                          GeoShapeFieldMapper shapeMapper, Mapper stringMapper, MultiFields multiFields, CopyTo copyTo) {
+                          GeoShapeFieldMapper shapeMapper, FloatFieldMapper floatMapper, StringFieldMapper stringMapper, MultiFields multiFields, CopyTo copyTo) {
         super(names, 1.0f, Defaults.FIELD_TYPE, false, null, null, null, null, null, null, null, ImmutableSettings.EMPTY,
                 multiFields, copyTo);
         this.generatedValue = generatedValue;
@@ -159,7 +163,9 @@ public class ExternalMapper extends AbstractFieldMapper<Object> {
         this.boolMapper = boolMapper;
         this.pointMapper = pointMapper;
         this.shapeMapper = shapeMapper;
+        this.floatMapper = floatMapper;
         this.stringMapper = stringMapper;
+
     }
 
     @Override
@@ -174,34 +180,36 @@ public class ExternalMapper extends AbstractFieldMapper<Object> {
 
     @Override
     public void parse(ParseContext context) throws IOException {
-        byte[] bytes = "Hello world".getBytes(Charset.defaultCharset());
-        binMapper.parse(context.createExternalValueContext(bytes));
+        createField(context, null, new ValueAndBoost(null, 1.0f));
+        handleMultiFields(context, new ValueAndBoost(generatedValue, 1.0f));
+    }
 
-        boolMapper.parse(context.createExternalValueContext(true));
+    @Override
+    protected void createField(ParseContext context, List<Field> fields, ValueAndBoost valueAndBoost) throws IOException {
+        byte[] bytes = "Hello world".getBytes(Charset.defaultCharset());
+        binMapper.addValue(context, new ValueAndBoost(bytes, 1.0f));
+
+        boolMapper.addValue(context, new ValueAndBoost(true, 1.0f));
 
         // Let's add a Dummy Point
         Double lat = 42.0;
         Double lng = 51.0;
         GeoPoint point = new GeoPoint(lat, lng);
-        pointMapper.parse(context.createExternalValueContext(point));
+        pointMapper.addValue(context, new ValueAndBoost(point, 1.0f));
 
         // Let's add a Dummy Shape
         Point shape = ShapeBuilder.newPoint(-100, 45).build();
-        shapeMapper.parse(context.createExternalValueContext(shape));
+        shapeMapper.addValue(context, new ValueAndBoost(shape, 1.0f));
 
-        context = context.createExternalValueContext(generatedValue);
+        // add a dummy float value
+        floatMapper.addValue(context, new ValueAndBoost(1.234f, 1.0f));
 
         // Let's add a Original String
-        stringMapper.parse(context);
-
-        multiFields.parse(this, context);
-        if (copyTo != null) {
-            copyTo.parse(context);
-        }
+        stringMapper.addValue(context, new ValueAndBoost(generatedValue, 1.0f));
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
+    protected ValueAndBoost parseCreateField(ParseContext context, List<Field> fields) throws IOException {
         throw new UnsupportedOperationException();
     }
 
@@ -216,7 +224,9 @@ public class ExternalMapper extends AbstractFieldMapper<Object> {
         boolMapper.traverse(fieldMapperListener);
         pointMapper.traverse(fieldMapperListener);
         shapeMapper.traverse(fieldMapperListener);
+        floatMapper.traverse(fieldMapperListener);
         stringMapper.traverse(fieldMapperListener);
+
     }
 
     @Override
@@ -229,6 +239,7 @@ public class ExternalMapper extends AbstractFieldMapper<Object> {
         boolMapper.close();
         pointMapper.close();
         shapeMapper.close();
+        floatMapper.close();
         stringMapper.close();
     }
 

@@ -36,6 +36,7 @@ import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
+import java.io.IOException;
 import java.util.List;
 
 /**
@@ -225,6 +226,17 @@ public interface FieldMapper<T> extends Mapper {
      * Returns the actual value of the field.
      */
     T value(Object value);
+
+    /**
+     * This method adds a field to the document but without going through the parsing process.
+     * It is used by methods that add additional values that are not parsed, for example GeoPointFieldMapper or TokenCountFieldMapper.
+     * It is also used when setting the value for multi fields.
+     *
+     * @param context the current parse context that holds the Document
+     * @param valueAndBoost holds value and the associated boost for the field
+     *
+     */
+    void addValue(ParseContext context, AbstractFieldMapper.ValueAndBoost valueAndBoost) throws IOException;
 
     /**
      * Returns the value that will be used as a result for search. Can be only of specific types... .

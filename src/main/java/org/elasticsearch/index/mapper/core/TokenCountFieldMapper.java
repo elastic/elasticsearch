@@ -31,7 +31,6 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.mapper.*;
-import org.elasticsearch.index.mapper.core.StringFieldMapper.ValueAndBoost;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.io.IOException;
@@ -125,23 +124,28 @@ public class TokenCountFieldMapper extends IntegerFieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
-        ValueAndBoost valueAndBoost = StringFieldMapper.parseCreateFieldForString(context, null /* Out null value is an int so we convert*/, boost);
-        if (valueAndBoost.value() == null && nullValue() == null) {
+    protected ValueAndBoost parseCreateField(ParseContext context, List<Field> fields) throws IOException {
+        StringFieldMapper.ValueAndBoost valueAndBoost = StringFieldMapper.parseValueAndBoost(context, null /* Out null value is an int so we convert*/, boost);
+        createField(context, fields, new ValueAndBoost(valueAndBoost.value, valueAndBoost.boost));
+        return valueAndBoost;
+    }
+
+    @Override
+    protected void createField(ParseContext context, List<Field> fields, NumberFieldMapper.ValueAndBoost valueAndBoost) throws IOException {
+        if (valueAndBoost.value == null && nullValue() == null) {
             return;
         }
-
         if (fieldType.indexed() || fieldType.stored() || hasDocValues()) {
             int count;
-            if (valueAndBoost.value() == null) {
+            if (valueAndBoost.value == null) {
                 count = nullValue();
             } else {
-                count = countPositions(analyzer.analyzer().tokenStream(name(), valueAndBoost.value()));
+                count = countPositions(analyzer.analyzer().tokenStream(name(), (String)valueAndBoost.value));
             }
-            addIntegerFields(context, fields, count, valueAndBoost.boost());
+            super.createField(context, fields, new ValueAndBoost(count, 1.0f));
         }
         if (fields.isEmpty()) {
-            context.ignoredValue(names.indexName(), valueAndBoost.value());
+            context.ignoredValue(names.indexName(), (String)valueAndBoost.value);
         }
     }
 

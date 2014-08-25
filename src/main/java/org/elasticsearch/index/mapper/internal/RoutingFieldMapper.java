@@ -192,17 +192,18 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements I
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
+    protected ValueAndBoost parseCreateField(ParseContext context, List<Field> fields) throws IOException {
         if (context.sourceToParse().routing() != null) {
             String routing = context.sourceToParse().routing();
             if (routing != null) {
                 if (!fieldType.indexed() && !fieldType.stored()) {
                     context.ignoredValue(names.indexName(), routing);
-                    return;
+                    return null;
                 }
                 fields.add(new Field(names.indexName(), routing, fieldType));
             }
         }
+        return null;
     }
 
     @Override

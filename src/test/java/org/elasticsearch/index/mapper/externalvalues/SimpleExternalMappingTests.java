@@ -65,6 +65,9 @@ public class SimpleExternalMappingTests extends ElasticsearchSingleNodeLuceneTes
 
         assertThat(doc.rootDoc().getField("field.shape"), notNullValue());
 
+        assertThat(doc.rootDoc().getField("field.float"), notNullValue());
+        assertThat(doc.rootDoc().getField("field.float").numericValue().floatValue(), is(1.234f));
+
         assertThat(doc.rootDoc().getField("field.field"), notNullValue());
         assertThat(doc.rootDoc().getField("field.field").stringValue(), is("foo"));
 

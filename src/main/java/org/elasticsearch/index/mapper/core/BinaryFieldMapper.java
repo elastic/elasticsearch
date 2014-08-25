@@ -177,23 +177,30 @@ public class BinaryFieldMapper extends AbstractFieldMapper<BytesReference> {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
+    protected ValueAndBoost parseCreateField(ParseContext context, List<Field> fields) throws IOException {
         if (!fieldType().stored() && !hasDocValues()) {
+            return null;
+        }
+        byte[] value;
+        if (context.parser().currentToken() == XContentParser.Token.VALUE_NULL) {
+            return null;
+        } else {
+            value = context.parser().binaryValue();
+        }
+        ValueAndBoost valueAndBoost = new ValueAndBoost(value, 1.0f);
+        createField(context, fields, valueAndBoost);
+        return valueAndBoost;
+
+    }
+
+    @Override
+    protected void createField(ParseContext context, List<Field> fields, ValueAndBoost valueAndBoost) throws IOException {
+        if (valueAndBoost.value == null) {
             return;
         }
-        byte[] value = context.parseExternalValue(byte[].class);
-        if (value == null) {
-            if (context.parser().currentToken() == XContentParser.Token.VALUE_NULL) {
-                return;
-            } else {
-                value = context.parser().binaryValue();
-            }
-        }
-        if (value == null) {
-            return;
-        }
+        byte[] value = (byte[])valueAndBoost.value;
         if (compress != null && compress && !CompressorFactory.isCompressed(value, 0, value.length)) {
-            if (compressThreshold == -1 || value.length > compressThreshold) {
+            if (compressThreshold == -1 || (value.length > compressThreshold)) {
                 BytesStreamOutput bStream = new BytesStreamOutput();
                 StreamOutput stream = CompressorFactory.defaultCompressor().streamOutput(bStream);
                 stream.writeBytes(value, 0, value.length);
@@ -214,7 +221,6 @@ public class BinaryFieldMapper extends AbstractFieldMapper<BytesReference> {
                 field.add(value);
             }
         }
-
     }
 
     @Override

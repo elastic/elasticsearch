@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper.core;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.NumericRangeFilter;
@@ -29,7 +28,6 @@ import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
@@ -50,7 +48,6 @@ import org.elasticsearch.index.search.NumericRangeFieldDataFilter;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeShortValue;
@@ -116,10 +113,6 @@ public class ShortFieldMapper extends NumberFieldMapper<Short> {
         }
     }
 
-    private Short nullValue;
-
-    private String nullValueAsString;
-
     protected ShortFieldMapper(Names names, int precisionStep, float boost, FieldType fieldType, Boolean docValues,
                                Short nullValue, Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
                                PostingsFormatProvider postingsProvider, DocValuesFormatProvider docValuesProvider,
@@ -129,7 +122,6 @@ public class ShortFieldMapper extends NumberFieldMapper<Short> {
                 new NumericIntegerAnalyzer(precisionStep)), new NamedAnalyzer("_short/max", new NumericIntegerAnalyzer(Integer.MAX_VALUE)),
                 postingsProvider, docValuesProvider, similarity, normsLoading, fieldDataSettings, indexSettings, multiFields, copyTo);
         this.nullValue = nullValue;
-        this.nullValueAsString = nullValue == null ? null : nullValue.toString();
     }
 
     @Override
@@ -236,93 +228,14 @@ public class ShortFieldMapper extends NumberFieldMapper<Short> {
             return null;
         }
         return NumericRangeFilter.newIntRange(names.indexName(), precisionStep,
-                nullValue.intValue(),
-                nullValue.intValue(),
+                ((Short)nullValue).intValue(),
+                ((Short)nullValue).intValue(),
                 true, true);
     }
 
     @Override
     protected boolean customBoost() {
         return true;
-    }
-
-    @Override
-    protected void innerParseCreateField(ParseContext context, List<Field> fields) throws IOException {
-        short value;
-        float boost = this.boost;
-        if (context.externalValueSet()) {
-            Object externalValue = context.externalValue();
-            if (externalValue == null) {
-                if (nullValue == null) {
-                    return;
-                }
-                value = nullValue;
-            } else if (externalValue instanceof String) {
-                String sExternalValue = (String) externalValue;
-                if (sExternalValue.length() == 0) {
-                    if (nullValue == null) {
-                        return;
-                    }
-                    value = nullValue;
-                } else {
-                    value = Short.parseShort(sExternalValue);
-                }
-            } else {
-                value = ((Number) externalValue).shortValue();
-            }
-            if (context.includeInAll(includeInAll, this)) {
-                context.allEntries().addText(names.fullName(), Short.toString(value), boost);
-            }
-        } else {
-            XContentParser parser = context.parser();
-            if (parser.currentToken() == XContentParser.Token.VALUE_NULL ||
-                    (parser.currentToken() == XContentParser.Token.VALUE_STRING && parser.textLength() == 0)) {
-                if (nullValue == null) {
-                    return;
-                }
-                value = nullValue;
-                if (nullValueAsString != null && (context.includeInAll(includeInAll, this))) {
-                    context.allEntries().addText(names.fullName(), nullValueAsString, boost);
-                }
-            } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
-                XContentParser.Token token;
-                String currentFieldName = null;
-                Short objValue = nullValue;
-                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    if (token == XContentParser.Token.FIELD_NAME) {
-                        currentFieldName = parser.currentName();
-                    } else {
-                        if ("value".equals(currentFieldName) || "_value".equals(currentFieldName)) {
-                            if (parser.currentToken() != XContentParser.Token.VALUE_NULL) {
-                                objValue = parser.shortValue(coerce.value());
-                            }
-                        } else if ("boost".equals(currentFieldName) || "_boost".equals(currentFieldName)) {
-                            boost = parser.floatValue();
-                        } else {
-                            throw new ElasticsearchIllegalArgumentException("unknown property [" + currentFieldName + "]");
-                        }
-                    }
-                }
-                if (objValue == null) {
-                    // no value
-                    return;
-                }
-                value = objValue;
-            } else {
-                value = parser.shortValue(coerce.value());
-                if (context.includeInAll(includeInAll, this)) {
-                    context.allEntries().addText(names.fullName(), parser.text(), boost);
-                }
-            }
-        }
-        if (fieldType.indexed() || fieldType.stored()) {
-            CustomShortNumericField field = new CustomShortNumericField(this, value, fieldType);
-            field.setBoost(boost);
-            fields.add(field);
-        }
-        if (hasDocValues()) {
-            addDocValue(context, fields, value);
-        }
     }
 
     @Override
@@ -338,7 +251,6 @@ public class ShortFieldMapper extends NumberFieldMapper<Short> {
         }
         if (!mergeContext.mergeFlags().simulate()) {
             this.nullValue = ((ShortFieldMapper) mergeWith).nullValue;
-            this.nullValueAsString = ((ShortFieldMapper) mergeWith).nullValueAsString;
         }
     }
 
@@ -384,5 +296,21 @@ public class ShortFieldMapper extends NumberFieldMapper<Short> {
         public String numericAsString() {
             return Short.toString(number);
         }
+    }
+
+    protected CustomNumericField createCustomNumericField(ValueAndBoost valueAndBoost) {
+        return new CustomShortNumericField(this, ((Short)valueAndBoost.value), fieldType);
+    }
+
+    protected Number parseNumber(String sValue) {
+        return Short.parseShort(sValue);
+    }
+
+    protected long convertToSortableNumber(Number value) {
+        return value.shortValue();
+    }
+
+    protected Object readValueFromParser(XContentParser parser) throws IOException {
+        return parser.shortValue(coerce.value());
     }
 }

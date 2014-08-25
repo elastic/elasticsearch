@@ -196,7 +196,7 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
     }
 
     @Override
-    protected void innerParseCreateField(ParseContext context, List<Field> fields) throws IOException, AlreadyExpiredException {
+    protected ValueAndBoost innerParseCreateField(ParseContext context, List<Field> fields) throws IOException, AlreadyExpiredException {
         if (enabledState.enabled && !context.sourceToParse().flyweight()) {
             long ttl = context.sourceToParse().ttl();
             if (ttl <= 0 && defaultTTL > 0) { // no ttl provided so we use the default value
@@ -215,6 +215,7 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
                 fields.add(new CustomLongNumericField(this, expire, fieldType));
             }
         }
+        return null;
     }
 
     @Override

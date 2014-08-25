@@ -20,7 +20,6 @@ package org.elasticsearch.index.mapper.core;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.NumericRangeFilter;
@@ -28,7 +27,6 @@ import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -48,7 +46,6 @@ import org.elasticsearch.index.search.NumericRangeFieldDataFilter;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeByteValue;
@@ -114,10 +111,6 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
         }
     }
 
-    private Byte nullValue;
-
-    private String nullValueAsString;
-
     protected ByteFieldMapper(Names names, int precisionStep, float boost, FieldType fieldType, Boolean docValues,
                               Byte nullValue, Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce, 
                               PostingsFormatProvider postingsProvider,
@@ -128,7 +121,6 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
                 new NamedAnalyzer("_byte/max", new NumericIntegerAnalyzer(Integer.MAX_VALUE)), postingsProvider,
                 docValuesProvider, similarity, normsLoading, fieldDataSettings, indexSettings, multiFields, copyTo);
         this.nullValue = nullValue;
-        this.nullValueAsString = nullValue == null ? null : nullValue.toString();
     }
 
     @Override
@@ -235,93 +227,14 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
             return null;
         }
         return NumericRangeFilter.newIntRange(names.indexName(), precisionStep,
-                nullValue.intValue(),
-                nullValue.intValue(),
+                ((Byte)nullValue).intValue(),
+                ((Byte)nullValue).intValue(),
                 true, true);
     }
 
     @Override
     protected boolean customBoost() {
         return true;
-    }
-
-    @Override
-    protected void innerParseCreateField(ParseContext context, List<Field> fields) throws IOException {
-        byte value;
-        float boost = this.boost;
-        if (context.externalValueSet()) {
-            Object externalValue = context.externalValue();
-            if (externalValue == null) {
-                if (nullValue == null) {
-                    return;
-                }
-                value = nullValue;
-            } else if (externalValue instanceof String) {
-                String sExternalValue = (String) externalValue;
-                if (sExternalValue.length() == 0) {
-                    if (nullValue == null) {
-                        return;
-                    }
-                    value = nullValue;
-                } else {
-                    value = Byte.parseByte(sExternalValue);
-                }
-            } else {
-                value = ((Number) externalValue).byteValue();
-            }
-            if (context.includeInAll(includeInAll, this)) {
-                context.allEntries().addText(names.fullName(), Byte.toString(value), boost);
-            }
-        } else {
-            XContentParser parser = context.parser();
-            if (parser.currentToken() == XContentParser.Token.VALUE_NULL ||
-                    (parser.currentToken() == XContentParser.Token.VALUE_STRING && parser.textLength() == 0)) {
-                if (nullValue == null) {
-                    return;
-                }
-                value = nullValue;
-                if (nullValueAsString != null && (context.includeInAll(includeInAll, this))) {
-                    context.allEntries().addText(names.fullName(), nullValueAsString, boost);
-                }
-            } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
-                XContentParser.Token token;
-                String currentFieldName = null;
-                Byte objValue = nullValue;
-                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    if (token == XContentParser.Token.FIELD_NAME) {
-                        currentFieldName = parser.currentName();
-                    } else {
-                        if ("value".equals(currentFieldName) || "_value".equals(currentFieldName)) {
-                            if (parser.currentToken() != XContentParser.Token.VALUE_NULL) {
-                                objValue = (byte) parser.shortValue(coerce.value());
-                            }
-                        } else if ("boost".equals(currentFieldName) || "_boost".equals(currentFieldName)) {
-                            boost = parser.floatValue();
-                        } else {
-                            throw new ElasticsearchIllegalArgumentException("unknown property [" + currentFieldName + "]");
-                        }
-                    }
-                }
-                if (objValue == null) {
-                    // no value
-                    return;
-                }
-                value = objValue;
-            } else {
-                value = (byte) parser.shortValue(coerce.value());
-                if (context.includeInAll(includeInAll, this)) {
-                    context.allEntries().addText(names.fullName(), parser.text(), boost);
-                }
-            }
-        }
-        if (fieldType.indexed() || fieldType.stored()) {
-            CustomByteNumericField field = new CustomByteNumericField(this, value, fieldType);
-            field.setBoost(boost);
-            fields.add(field);
-        }
-        if (hasDocValues()) {
-            addDocValue(context, fields, value);
-        }
     }
 
     @Override
@@ -337,7 +250,6 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
         }
         if (!mergeContext.mergeFlags().simulate()) {
             this.nullValue = ((ByteFieldMapper) mergeWith).nullValue;
-            this.nullValueAsString = ((ByteFieldMapper) mergeWith).nullValueAsString;
         }
     }
 
@@ -382,5 +294,21 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
         public String numericAsString() {
             return Byte.toString(number);
         }
+    }
+
+    protected CustomNumericField createCustomNumericField(ValueAndBoost valueAndBoost) {
+        return new CustomByteNumericField(this, ((Byte)valueAndBoost.value), fieldType);
+    }
+
+    protected Number parseNumber(String sValue) {
+        return Byte.parseByte(sValue);
+    }
+
+    protected long convertToSortableNumber(Number value) {
+        return value.byteValue();
+    }
+
+    protected Object readValueFromParser(XContentParser parser) throws IOException {
+        return (byte) parser.shortValue(coerce.value());
     }
 }

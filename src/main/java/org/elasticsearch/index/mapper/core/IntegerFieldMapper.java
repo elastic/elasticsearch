@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper.core;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.NumericRangeFilter;
@@ -29,7 +28,6 @@ import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
@@ -43,13 +41,15 @@ import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MergeContext;
+import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.search.NumericRangeFieldDataFilter;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeIntegerValue;
@@ -114,10 +114,6 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
         }
     }
 
-    private Integer nullValue;
-
-    private String nullValueAsString;
-
     protected IntegerFieldMapper(Names names, int precisionStep, float boost, FieldType fieldType, Boolean docValues,
                                  Integer nullValue, Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
                                  PostingsFormatProvider postingsProvider, DocValuesFormatProvider docValuesProvider,
@@ -127,7 +123,6 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
                 NumericIntegerAnalyzer.buildNamedAnalyzer(precisionStep), NumericIntegerAnalyzer.buildNamedAnalyzer(Integer.MAX_VALUE),
                 postingsProvider, docValuesProvider, similarity, normsLoading, fieldDataSettings, indexSettings, multiFields, copyTo);
         this.nullValue = nullValue;
-        this.nullValueAsString = nullValue == null ? null : nullValue.toString();
     }
 
     @Override
@@ -230,8 +225,8 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
             return null;
         }
         return NumericRangeFilter.newIntRange(names.indexName(), precisionStep,
-                nullValue,
-                nullValue,
+                (Integer)nullValue,
+                (Integer)nullValue,
                 true, true);
     }
 
@@ -240,91 +235,8 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
         return true;
     }
 
-    @Override
-    protected void innerParseCreateField(ParseContext context, List<Field> fields) throws IOException {
-        int value;
-        float boost = this.boost;
-        if (context.externalValueSet()) {
-            Object externalValue = context.externalValue();
-            if (externalValue == null) {
-                if (nullValue == null) {
-                    return;
-                }
-                value = nullValue;
-            } else if (externalValue instanceof String) {
-                String sExternalValue = (String) externalValue;
-                if (sExternalValue.length() == 0) {
-                    if (nullValue == null) {
-                        return;
-                    }
-                    value = nullValue;
-                } else {
-                    value = Integer.parseInt(sExternalValue);
-                }
-            } else {
-                value = ((Number) externalValue).intValue();
-            }
-            if (context.includeInAll(includeInAll, this)) {
-                context.allEntries().addText(names.fullName(), Integer.toString(value), boost);
-            }
-        } else {
-            XContentParser parser = context.parser();
-            if (parser.currentToken() == XContentParser.Token.VALUE_NULL ||
-                    (parser.currentToken() == XContentParser.Token.VALUE_STRING && parser.textLength() == 0)) {
-                if (nullValue == null) {
-                    return;
-                }
-                value = nullValue;
-                if (nullValueAsString != null && (context.includeInAll(includeInAll, this))) {
-                    context.allEntries().addText(names.fullName(), nullValueAsString, boost);
-                }
-            } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
-                XContentParser.Token token;
-                String currentFieldName = null;
-                Integer objValue = nullValue;
-                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    if (token == XContentParser.Token.FIELD_NAME) {
-                        currentFieldName = parser.currentName();
-                    } else {
-                        if ("value".equals(currentFieldName) || "_value".equals(currentFieldName)) {
-                            if (parser.currentToken() != XContentParser.Token.VALUE_NULL) {
-                                objValue = parser.intValue(coerce.value());
-                            }
-                        } else if ("boost".equals(currentFieldName) || "_boost".equals(currentFieldName)) {
-                            boost = parser.floatValue();
-                        } else {
-                            throw new ElasticsearchIllegalArgumentException("unknown property [" + currentFieldName + "]");
-                        }
-                    }
-                }
-                if (objValue == null) {
-                    // no value
-                    return;
-                }
-                value = objValue;
-            } else {
-                value = parser.intValue(coerce.value());
-                if (context.includeInAll(includeInAll, this)) {
-                    context.allEntries().addText(names.fullName(), parser.text(), boost);
-                }
-            }
-        }
-        addIntegerFields(context, fields, value, boost);
-    }
-
-    protected void addIntegerFields(ParseContext context, List<Field> fields, int value, float boost) {
-        if (fieldType.indexed() || fieldType.stored()) {
-            CustomIntegerNumericField field = new CustomIntegerNumericField(this, value, fieldType);
-            field.setBoost(boost);
-            fields.add(field);
-        }
-        if (hasDocValues()) {
-            addDocValue(context, fields, value);
-        }
-    }
-
     protected Integer nullValue() {
-        return nullValue;
+        return (Integer)nullValue;
     }
 
     @Override
@@ -340,7 +252,6 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
         }
         if (!mergeContext.mergeFlags().simulate()) {
             this.nullValue = ((IntegerFieldMapper) mergeWith).nullValue;
-            this.nullValueAsString = ((IntegerFieldMapper) mergeWith).nullValueAsString;
         }
     }
 
@@ -386,5 +297,21 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
         public String numericAsString() {
             return Integer.toString(number);
         }
+    }
+
+    protected CustomNumericField createCustomNumericField(ValueAndBoost valueAndBoost) {
+        return new CustomIntegerNumericField(this, ((Integer)valueAndBoost.value), fieldType);
+    }
+
+    protected Number parseNumber(String sValue) {
+        return Integer.parseInt(sValue);
+    }
+
+    protected long convertToSortableNumber(Number value) {
+        return value.intValue();
+    }
+
+    protected Object readValueFromParser(XContentParser parser) throws IOException {
+        return parser.intValue(coerce.value());
     }
 }

@@ -189,9 +189,9 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
+    protected ValueAndBoost parseCreateField(ParseContext context, List<Field> fields) throws IOException {
         if (!active()) {
-            return;
+            return null;
         }
 
         if (context.parser().currentName() != null && context.parser().currentName().equals(Defaults.NAME)) {
@@ -216,6 +216,7 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
             }
         }
         // we have parent mapping, yet no value was set, ignore it...
+        return null;
     }
 
     @Override

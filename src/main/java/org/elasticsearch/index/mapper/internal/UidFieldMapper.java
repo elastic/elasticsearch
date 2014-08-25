@@ -170,13 +170,14 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
+    protected ValueAndBoost parseCreateField(ParseContext context, List<Field> fields) throws IOException {
         Field uid = new Field(NAME, Uid.createUid(context.stringBuilder(), context.type(), context.id()), Defaults.FIELD_TYPE);
         context.uid(uid);
         fields.add(uid);
         if (hasDocValues()) {
             fields.add(new BinaryDocValuesField(NAME, new BytesRef(uid.stringValue())));
         }
+        return null;
     }
 
     @Override

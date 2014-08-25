@@ -24,6 +24,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.NumericRangeFilter;
@@ -31,7 +32,6 @@ import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
@@ -118,10 +118,6 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
         }
     }
 
-    private Float nullValue;
-
-    private String nullValueAsString;
-
     protected FloatFieldMapper(Names names, int precisionStep, float boost, FieldType fieldType, Boolean docValues,
                                Float nullValue, Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
                                PostingsFormatProvider postingsProvider, DocValuesFormatProvider docValuesProvider,
@@ -131,7 +127,6 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
                 NumericFloatAnalyzer.buildNamedAnalyzer(precisionStep), NumericFloatAnalyzer.buildNamedAnalyzer(Integer.MAX_VALUE),
                 postingsProvider, docValuesProvider, similarity, normsLoading, fieldDataSettings, indexSettings, multiFields, copyTo);
         this.nullValue = nullValue;
-        this.nullValueAsString = nullValue == null ? null : nullValue.toString();
     }
 
     @Override
@@ -235,8 +230,8 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
             return null;
         }
         return NumericRangeFilter.newFloatRange(names.indexName(), precisionStep,
-                nullValue,
-                nullValue,
+                (Float)nullValue,
+                (Float)nullValue,
                 true, true);
     }
 
@@ -245,95 +240,6 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
         return true;
     }
 
-    @Override
-    protected void innerParseCreateField(ParseContext context, List<Field> fields) throws IOException {
-        float value;
-        float boost = this.boost;
-        if (context.externalValueSet()) {
-            Object externalValue = context.externalValue();
-            if (externalValue == null) {
-                if (nullValue == null) {
-                    return;
-                }
-                value = nullValue;
-            } else if (externalValue instanceof String) {
-                String sExternalValue = (String) externalValue;
-                if (sExternalValue.length() == 0) {
-                    if (nullValue == null) {
-                        return;
-                    }
-                    value = nullValue;
-                } else {
-                    value = Float.parseFloat(sExternalValue);
-                }
-            } else {
-                value = ((Number) externalValue).floatValue();
-            }
-            if (context.includeInAll(includeInAll, this)) {
-                context.allEntries().addText(names.fullName(), Float.toString(value), boost);
-            }
-        } else {
-            XContentParser parser = context.parser();
-            if (parser.currentToken() == XContentParser.Token.VALUE_NULL ||
-                    (parser.currentToken() == XContentParser.Token.VALUE_STRING && parser.textLength() == 0)) {
-                if (nullValue == null) {
-                    return;
-                }
-                value = nullValue;
-                if (nullValueAsString != null && (context.includeInAll(includeInAll, this))) {
-                    context.allEntries().addText(names.fullName(), nullValueAsString, boost);
-                }
-            } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
-                XContentParser.Token token;
-                String currentFieldName = null;
-                Float objValue = nullValue;
-                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    if (token == XContentParser.Token.FIELD_NAME) {
-                        currentFieldName = parser.currentName();
-                    } else {
-                        if ("value".equals(currentFieldName) || "_value".equals(currentFieldName)) {
-                            if (parser.currentToken() != XContentParser.Token.VALUE_NULL) {
-                                objValue = parser.floatValue(coerce.value());
-                            }
-                        } else if ("boost".equals(currentFieldName) || "_boost".equals(currentFieldName)) {
-                            boost = parser.floatValue();
-                        } else {
-                            throw new ElasticsearchIllegalArgumentException("unknown property [" + currentFieldName + "]");
-                        }
-                    }
-                }
-                if (objValue == null) {
-                    // no value
-                    return;
-                }
-                value = objValue;
-            } else {
-                value = parser.floatValue(coerce.value());
-                if (context.includeInAll(includeInAll, this)) {
-                    context.allEntries().addText(names.fullName(), parser.text(), boost);
-                }
-            }
-        }
-
-        if (fieldType.indexed() || fieldType.stored()) {
-            CustomFloatNumericField field = new CustomFloatNumericField(this, value, fieldType);
-            field.setBoost(boost);
-            fields.add(field);
-        }
-        if (hasDocValues()) {
-            if (useSortedNumericDocValues) {
-                addDocValue(context, fields, NumericUtils.floatToSortableInt(value));
-            } else {
-                CustomFloatNumericDocValuesField field = (CustomFloatNumericDocValuesField) context.doc().getByKey(names().indexName());
-                if (field != null) {
-                    field.add(value);
-                } else {
-                    field = new CustomFloatNumericDocValuesField(names().indexName(), value);
-                    context.doc().addWithKey(names().indexName(), field);
-                }
-            }
-        }
-    }
 
     @Override
     protected String contentType() {
@@ -348,7 +254,6 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
         }
         if (!mergeContext.mergeFlags().simulate()) {
             this.nullValue = ((FloatFieldMapper) mergeWith).nullValue;
-            this.nullValueAsString = ((FloatFieldMapper) mergeWith).nullValueAsString;
         }
     }
 
@@ -428,5 +333,37 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
             return new BytesRef(bytes);
         }
 
+    }
+
+    @Override
+    protected void addDocValue(ParseContext context, List<Field> fields, Number value) {
+        float floatValue = (Float)value;
+        if (useSortedNumericDocValues) {
+            fields.add(new SortedNumericDocValuesField(names().indexName(), convertToSortableNumber(floatValue)));
+        } else {
+            CustomFloatNumericDocValuesField field = (CustomFloatNumericDocValuesField) context.doc().getByKey(names().indexName());
+            if (field != null) {
+                field.add(floatValue);
+            } else {
+                field = new CustomFloatNumericDocValuesField(names().indexName(), floatValue);
+                context.doc().addWithKey(names().indexName(), field);
+            }
+        }
+    }
+
+    protected CustomNumericField createCustomNumericField(ValueAndBoost valueAndBoost) {
+        return new CustomFloatNumericField(this, ((Float)valueAndBoost.value), fieldType);
+    }
+
+    protected Number parseNumber(String sValue) {
+        return Float.parseFloat(sValue);
+    }
+
+    protected long convertToSortableNumber(Number value) {
+        return NumericUtils.floatToSortableInt(value.floatValue());
+    }
+
+    protected Object readValueFromParser(XContentParser parser) throws IOException {
+        return parser.floatValue(coerce.value());
     }
 }

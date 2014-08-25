@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper.core;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.NumericRangeFilter;
@@ -29,7 +28,6 @@ import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
@@ -43,13 +41,15 @@ import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MergeContext;
+import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.search.NumericRangeFieldDataFilter;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeLongValue;
@@ -62,6 +62,7 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.parseNumberField;
 public class LongFieldMapper extends NumberFieldMapper<Long> {
 
     public static final String CONTENT_TYPE = "long";
+
 
     public static class Defaults extends NumberFieldMapper.Defaults {
         public static final FieldType FIELD_TYPE = new FieldType(NumberFieldMapper.Defaults.FIELD_TYPE);
@@ -114,9 +115,8 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
         }
     }
 
-    private Long nullValue;
 
-    private String nullValueAsString;
+
 
     protected LongFieldMapper(Names names, int precisionStep, float boost, FieldType fieldType, Boolean docValues,
                               Long nullValue, Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
@@ -127,7 +127,6 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
                 NumericLongAnalyzer.buildNamedAnalyzer(precisionStep), NumericLongAnalyzer.buildNamedAnalyzer(Integer.MAX_VALUE),
                 postingsProvider, docValuesProvider, similarity, normsLoading, fieldDataSettings, indexSettings, multiFields, copyTo);
         this.nullValue = nullValue;
-        this.nullValueAsString = nullValue == null ? null : nullValue.toString();
     }
 
     @Override
@@ -220,8 +219,8 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
             return null;
         }
         return NumericRangeFilter.newLongRange(names.indexName(), precisionStep,
-                nullValue,
-                nullValue,
+                (Long)nullValue,
+                (Long)nullValue,
                 true, true);
     }
 
@@ -230,85 +229,23 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
         return true;
     }
 
-    @Override
-    protected void innerParseCreateField(ParseContext context, List<Field> fields) throws IOException {
-        long value;
-        float boost = this.boost;
-        if (context.externalValueSet()) {
-            Object externalValue = context.externalValue();
-            if (externalValue == null) {
-                if (nullValue == null) {
-                    return;
-                }
-                value = nullValue;
-            } else if (externalValue instanceof String) {
-                String sExternalValue = (String) externalValue;
-                if (sExternalValue.length() == 0) {
-                    if (nullValue == null) {
-                        return;
-                    }
-                    value = nullValue;
-                } else {
-                    value = Long.parseLong(sExternalValue);
-                }
-            } else {
-                value = ((Number) externalValue).longValue();
-            }
-            if (context.includeInAll(includeInAll, this)) {
-                context.allEntries().addText(names.fullName(), Long.toString(value), boost);
-            }
-        } else {
-            XContentParser parser = context.parser();
-            if (parser.currentToken() == XContentParser.Token.VALUE_NULL ||
-                    (parser.currentToken() == XContentParser.Token.VALUE_STRING && parser.textLength() == 0)) {
-                if (nullValue == null) {
-                    return;
-                }
-                value = nullValue;
-                if (nullValueAsString != null && (context.includeInAll(includeInAll, this))) {
-                    context.allEntries().addText(names.fullName(), nullValueAsString, boost);
-                }
-            } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
-                XContentParser.Token token;
-                String currentFieldName = null;
-                Long objValue = nullValue;
-                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    if (token == XContentParser.Token.FIELD_NAME) {
-                        currentFieldName = parser.currentName();
-                    } else {
-                        if ("value".equals(currentFieldName) || "_value".equals(currentFieldName)) {
-                            if (parser.currentToken() != XContentParser.Token.VALUE_NULL) {
-                                objValue = parser.longValue(coerce.value());
-                            }
-                        } else if ("boost".equals(currentFieldName) || "_boost".equals(currentFieldName)) {
-                            boost = parser.floatValue();
-                        } else {
-                            throw new ElasticsearchIllegalArgumentException("unknown property [" + currentFieldName + "]");
-                        }
-                    }
-                }
-                if (objValue == null) {
-                    // no value
-                    return;
-                }
-                value = objValue;
-            } else {
-                value = parser.longValue(coerce.value());
-                if (context.includeInAll(includeInAll, this)) {
-                    context.allEntries().addText(names.fullName(), parser.text(), boost);
-                }
-            }
-        }
-        if (fieldType.indexed() || fieldType.stored()) {
-            CustomLongNumericField field = new CustomLongNumericField(this, value, fieldType);
-            field.setBoost(boost);
-            fields.add(field);
-        }
-        if (hasDocValues()) {
-            addDocValue(context, fields, value);
-        }
+
+
+    protected CustomLongNumericField createCustomNumericField(ValueAndBoost valueAndBoost) {
+        return new CustomLongNumericField(this, ((Long)valueAndBoost.value), fieldType);
     }
 
+    protected Number parseNumber(String sValue) {
+        return Long.parseLong(sValue);
+    }
+
+    protected long convertToSortableNumber(Number value) {
+        return value.longValue();
+    }
+
+    protected Object readValueFromParser(XContentParser parser) throws IOException {
+        return parser.longValue(coerce.value());
+    }
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
@@ -322,7 +259,6 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
         }
         if (!mergeContext.mergeFlags().simulate()) {
             this.nullValue = ((LongFieldMapper) mergeWith).nullValue;
-            this.nullValueAsString = ((LongFieldMapper) mergeWith).nullValueAsString;
         }
     }
 

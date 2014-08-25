@@ -30,6 +30,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -120,6 +121,7 @@ public class ExternalValuesMapperIntegrationTests extends ElasticsearchIntegrati
                 .setQuery(QueryBuilders.termQuery("f.f.raw", "FOO BAR"))
                 .execute().actionGet();
 
+        assertSearchResponse(response);
         assertThat(response.getHits().totalHits(), equalTo((long) 1));
     }
 }

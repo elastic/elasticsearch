@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.index.mapper.geo;
 
+import com.google.common.collect.Lists;
 import com.spatial4j.core.shape.Shape;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
@@ -45,6 +46,8 @@ import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -223,35 +226,23 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
     }
 
     @Override
-    public void parse(ParseContext context) throws IOException {
-        try {
-            Shape shape = context.parseExternalValue(Shape.class);
-            if (shape == null) {
-                ShapeBuilder shapeBuilder = ShapeBuilder.parse(context.parser());
-                if (shapeBuilder == null) {
-                    return;
-                }
-                shape = shapeBuilder.build();
-            }
-            Field[] fields = defaultStrategy.createIndexableFields(shape);
-            if (fields == null || fields.length == 0) {
-                return;
-            }
-            for (Field field : fields) {
-                if (!customBoost()) {
-                    field.setBoost(boost);
-                }
-                if (context.listener().beforeFieldAdded(this, field, context)) {
-                    context.doc().add(field);
-                }
-            }
-        } catch (Exception e) {
-            throw new MapperParsingException("failed to parse [" + names.fullName() + "]", e);
+    protected ValueAndBoost parseCreateField(ParseContext context, List<Field> fields) throws IOException {
+        ShapeBuilder shapeBuilder = ShapeBuilder.parse(context.parser());
+        if (shapeBuilder == null) {
+            return null;
         }
+        Shape shape = shapeBuilder.build();
+        ValueAndBoost valueAndBoost = new ValueAndBoost(shape, 1.0f);
+        createField(context, fields, valueAndBoost);
+        return valueAndBoost;
     }
 
-    @Override
-    protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
+    protected void createField(ParseContext context, List<Field> fields, ValueAndBoost valueAndBoost) throws IOException {
+        Field[] fieldsL = defaultStrategy.createIndexableFields((Shape)valueAndBoost.value);
+        if (fields == null || fieldsL.length == 0) {
+            return;
+        }
+        fields.addAll(Arrays.asList(fieldsL));
     }
 
     @Override

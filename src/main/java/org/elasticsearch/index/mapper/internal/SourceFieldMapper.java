@@ -254,15 +254,15 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
+    protected ValueAndBoost parseCreateField(ParseContext context, List<Field> fields) throws IOException {
         if (!enabled) {
-            return;
+            return null;
         }
         if (!fieldType.stored()) {
-            return;
+            return null;
         }
         if (context.flyweight()) {
-            return;
+            return null;
         }
         BytesReference source = context.source();
 
@@ -341,6 +341,7 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
             source = source.toBytesArray();
         }
         fields.add(new StoredField(names().indexName(), source.array(), source.arrayOffset(), source.length()));
+        return null;
     }
 
     @Override

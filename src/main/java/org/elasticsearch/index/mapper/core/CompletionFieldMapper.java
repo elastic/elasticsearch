@@ -244,7 +244,7 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
 
         if (token == XContentParser.Token.VALUE_STRING) {
             inputs.add(parser.text());
-            multiFields.parse(this, context);
+            multiFields.addValue(this, context, new ValueAndBoost(parser.text(), 1.0f));
         } else {
             String currentFieldName = null;
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -316,6 +316,10 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
             }
         }
 
+        createCompletionField(context, surfaceForm, payload, weight, inputs, contextConfig);
+    }
+
+    protected void createCompletionField(ParseContext context, String surfaceForm, BytesRef payload, long weight, List<String> inputs, SortedMap<String, ContextConfig> contextConfig) throws IOException {
         if(contextConfig == null) {
             contextConfig = Maps.newTreeMap();
             for (ContextMapping mapping : contextMapping.values()) {
@@ -341,6 +345,14 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
         }
     }
 
+    protected void createField(ParseContext context, List<Field> fields, ValueAndBoost valueAndBoost) throws IOException {
+        List<String> inputs = Lists.newArrayListWithExpectedSize(4);
+        if (valueAndBoost.value instanceof String) {
+            inputs.add((String)valueAndBoost.value);
+            multiFields.addValue(this, context, valueAndBoost);
+        }
+        createCompletionField(context, null, null, 1, inputs, null);
+    }
     /**
      * Get the context mapping associated with this completion field.
      */
@@ -433,7 +445,8 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
+    protected ValueAndBoost parseCreateField(ParseContext context, List<Field> fields) throws IOException {
+        return null;
     }
 
     @Override

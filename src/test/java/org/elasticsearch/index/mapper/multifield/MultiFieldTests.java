@@ -278,7 +278,7 @@ public class MultiFieldTests extends ElasticsearchSingleNodeTest {
         f = doc.getField("a.b");
         assertThat(f, notNullValue());
         assertThat(f.name(), equalTo("a.b"));
-        assertThat(f.stringValue(), equalTo("-1.0,-1.0"));
+        assertThat(f.stringValue(), equalTo("-1,-1"));
         assertThat(f.fieldType().stored(), equalTo(false));
         assertThat(f.fieldType().indexed(), equalTo(true));
 
@@ -296,34 +296,34 @@ public class MultiFieldTests extends ElasticsearchSingleNodeTest {
 
         json = jsonBuilder().startObject()
                 .field("_id", "1")
-                .field("b", "-1,-1")
+                .field("b", "-1,1")
                 .endObject().bytes();
         doc = docMapper.parse(json).rootDoc();
 
         f = doc.getField("b");
         assertThat(f, notNullValue());
         assertThat(f.name(), equalTo("b"));
-        assertThat(f.stringValue(), equalTo("-1.0,-1.0"));
+        assertThat(f.stringValue(), equalTo("-1,1"));
         assertThat(f.fieldType().stored(), equalTo(false));
         assertThat(f.fieldType().indexed(), equalTo(true));
 
         f = doc.getField("b.a");
         assertThat(f, notNullValue());
         assertThat(f.name(), equalTo("b.a"));
-        assertThat(f.stringValue(), equalTo("-1,-1"));
+        assertThat(f.stringValue(), equalTo("-1,1"));
         assertThat(f.fieldType().stored(), equalTo(false));
         assertThat(f.fieldType().indexed(), equalTo(true));
 
         json = jsonBuilder().startObject()
                 .field("_id", "1")
-                .startArray("b").startArray().value(-1).value(-1).endArray().startArray().value(-2).value(-2).endArray().endArray()
+                .startArray("b").startArray().value(-1).value(1).endArray().startArray().value(-2).value(-2).endArray().endArray()
                 .endObject().bytes();
         doc = docMapper.parse(json).rootDoc();
 
         f = doc.getFields("b")[0];
         assertThat(f, notNullValue());
         assertThat(f.name(), equalTo("b"));
-        assertThat(f.stringValue(), equalTo("-1.0,-1.0"));
+        assertThat(f.stringValue(), equalTo("1.0,-1.0"));
         assertThat(f.fieldType().stored(), equalTo(false));
         assertThat(f.fieldType().indexed(), equalTo(true));
 
@@ -337,10 +337,7 @@ public class MultiFieldTests extends ElasticsearchSingleNodeTest {
         f = doc.getField("b.a");
         assertThat(f, notNullValue());
         assertThat(f.name(), equalTo("b.a"));
-        // NOTE: "]" B/c the lat,long aren't specified as a string, we miss the actual values when parsing the multi
-        // fields. We already skipped over the coordinates values and can't get to the coordinates.
-        // This happens if coordinates are specified as array and object.
-        assertThat(f.stringValue(), equalTo("]"));
+        assertThat(f.stringValue(), equalTo("1.0,-1.0"));
         assertThat(f.fieldType().stored(), equalTo(false));
         assertThat(f.fieldType().indexed(), equalTo(true));
     }

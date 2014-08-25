@@ -213,9 +213,9 @@ public class FieldNamesFieldMapper extends AbstractFieldMapper<String> implement
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
+    protected ValueAndBoost parseCreateField(ParseContext context, List<Field> fields) throws IOException {
         if (!fieldType.indexed() && !fieldType.stored() && !hasDocValues()) {
-            return;
+            return null;
         }
         for (ParseContext.Document document : context.docs()) {
             final List<String> paths = new ArrayList<>();
@@ -233,6 +233,7 @@ public class FieldNamesFieldMapper extends AbstractFieldMapper<String> implement
                 }
             }
         }
+        return null;
     }
 
     @Override

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper.core;
 
-import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.NumericRangeFilter;
@@ -27,7 +26,6 @@ import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
@@ -54,7 +52,6 @@ import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -176,8 +173,6 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
     private final boolean roundCeil;
 
     private final DateMathParser dateMathParser;
-
-    private String nullValue;
 
     protected final TimeUnit timeUnit;
 
@@ -440,7 +435,7 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
         if (nullValue == null) {
             return null;
         }
-        long value = parseStringValue(nullValue);
+        long value = parseStringValue((String)nullValue);
         return NumericRangeFilter.newLongRange(names.indexName(), precisionStep,
                 value,
                 value,
@@ -451,74 +446,6 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
     @Override
     protected boolean customBoost() {
         return true;
-    }
-
-    @Override
-    protected void innerParseCreateField(ParseContext context, List<Field> fields) throws IOException {
-        String dateAsString = null;
-        Long value = null;
-        float boost = this.boost;
-        if (context.externalValueSet()) {
-            Object externalValue = context.externalValue();
-            if (externalValue instanceof Number) {
-                value = ((Number) externalValue).longValue();
-            } else {
-                dateAsString = (String) externalValue;
-                if (dateAsString == null) {
-                    dateAsString = nullValue;
-                }
-            }
-        } else {
-            XContentParser parser = context.parser();
-            XContentParser.Token token = parser.currentToken();
-            if (token == XContentParser.Token.VALUE_NULL) {
-                dateAsString = nullValue;
-            } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                value = parser.longValue(coerce.value());
-            } else if (token == XContentParser.Token.START_OBJECT) {
-                String currentFieldName = null;
-                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    if (token == XContentParser.Token.FIELD_NAME) {
-                        currentFieldName = parser.currentName();
-                    } else {
-                        if ("value".equals(currentFieldName) || "_value".equals(currentFieldName)) {
-                            if (token == XContentParser.Token.VALUE_NULL) {
-                                dateAsString = nullValue;
-                            } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                                value = parser.longValue(coerce.value());
-                            } else {
-                                dateAsString = parser.text();
-                            }
-                        } else if ("boost".equals(currentFieldName) || "_boost".equals(currentFieldName)) {
-                            boost = parser.floatValue();
-                        } else {
-                            throw new ElasticsearchIllegalArgumentException("unknown property [" + currentFieldName + "]");
-                        }
-                    }
-                }
-            } else {
-                dateAsString = parser.text();
-            }
-        }
-
-        if (dateAsString != null) {
-            assert value == null;
-            if (context.includeInAll(includeInAll, this)) {
-                context.allEntries().addText(names.fullName(), dateAsString, boost);
-            }
-            value = parseStringValue(dateAsString);
-        }
-
-        if (value != null) {
-            if (fieldType.indexed() || fieldType.stored()) {
-                CustomLongNumericField field = new CustomLongNumericField(this, value, fieldType);
-                field.setBoost(boost);
-                fields.add(field);
-            }
-            if (hasDocValues()) {
-                addDocValue(context, fields, value);
-            }
-        }
     }
 
     @Override
@@ -580,6 +507,26 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
             } catch (NumberFormatException e1) {
                 throw new MapperParsingException("failed to parse date field [" + value + "], tried both date format [" + dateTimeFormatter.format() + "], and timestamp number with locale [" + dateTimeFormatter.locale() + "]", e);
             }
+        }
+    }
+
+    protected CustomLongNumericField createCustomNumericField(ValueAndBoost valueAndBoost) {
+        return new CustomLongNumericField(this, ((Long)valueAndBoost.value), fieldType);
+    }
+
+    protected Number parseNumber(String sValue) {
+        return parseStringValue(sValue);
+    }
+
+    protected long convertToSortableNumber(Number value) {
+        return value.longValue();
+    }
+
+    protected Object readValueFromParser(XContentParser parser) throws IOException {
+        if (parser.currentToken() == XContentParser.Token.VALUE_NUMBER) {
+            return parser.longValue(coerce.value());
+        } else {
+            return parser.text();
         }
     }
 }

@@ -69,7 +69,7 @@ public class LogDocMergePolicyProvider extends AbstractMergePolicyProvider<LogDo
     }
 
     @Override
-    public LogDocMergePolicy newMergePolicy() {
+    public LogDocMergePolicy getMergePolicy() {
         final CustomLogDocMergePolicy mergePolicy = new CustomLogDocMergePolicy(this);
         mergePolicy.setMinMergeDocs(minMergeDocs);
         mergePolicy.setMaxMergeDocs(maxMergeDocs);

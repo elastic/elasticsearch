@@ -575,7 +575,7 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
         }
 
         @Override
-        public MergePolicy newMergePolicy() {
+        public MergePolicy getMergePolicy() {
             return NoMergePolicy.INSTANCE;
         }
 

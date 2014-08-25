@@ -68,7 +68,7 @@ public class LogByteSizeMergePolicyProvider extends AbstractMergePolicyProvider<
     }
 
     @Override
-    public LogByteSizeMergePolicy newMergePolicy() {
+    public LogByteSizeMergePolicy getMergePolicy() {
         final CustomLogByteSizeMergePolicy  mergePolicy = new CustomLogByteSizeMergePolicy(this);
         mergePolicy.setMinMergeMB(minMergeSize.mbFrac());
         mergePolicy.setMaxMergeMB(maxMergeSize.mbFrac());

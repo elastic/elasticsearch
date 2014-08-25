@@ -529,7 +529,7 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
         }
 
         @Override
-        public MergePolicy newMergePolicy() {
+        public MergePolicy getMergePolicy() {
             return NoMergePolicy.INSTANCE;
         }
 

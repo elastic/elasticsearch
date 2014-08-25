@@ -58,7 +58,6 @@ public class VersionTests extends ElasticsearchTestCase {
     @Test
     public void testVersionConstantPresent() {
         assertThat(Version.CURRENT, sameInstance(Version.fromId(Version.CURRENT.id)));
-        // nocommit: not sure what this assert was really doing? checking the same thing a test in lucene already checks (last version is equal to LATEST?)
         assertThat(Version.CURRENT.luceneVersion, equalTo(org.apache.lucene.util.Version.LATEST));
         final int iters = scaledRandomIntBetween(20, 100);
         for (int i = 0; i < iters; i++) {
@@ -121,7 +120,6 @@ public class VersionTests extends ElasticsearchTestCase {
 
     @Test
     public void parseLenient() {
-        // nocommit: rework this test or remove
         int numIters = randomIntBetween(10, 100);
         for (int i = 0; i < numIters; i++) {
             Version version = randomVersion(getRandom());

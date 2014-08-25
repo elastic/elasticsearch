@@ -55,6 +55,7 @@ import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -79,7 +80,6 @@ import static com.google.common.base.Predicates.isNull;
 import static org.elasticsearch.test.ElasticsearchTestCase.*;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
-import static org.junit.Assert.*;
 
 /**
  *
@@ -443,18 +443,35 @@ public class ElasticsearchAssertions {
         assertThrows(builder.execute(), exceptionClass);
     }
 
+    public static <E extends Throwable> void assertThrows(ActionRequestBuilder<?, ?, ?, ?> builder, Class<E> exceptionClass, RestStatus status) {
+        assertThrows(builder.execute(), exceptionClass, status);
+    }
+
     public static <E extends Throwable> void assertThrows(ActionRequestBuilder<?, ?, ?, ?> builder, Class<E> exceptionClass, String extraInfo) {
         assertThrows(builder.execute(), exceptionClass, extraInfo);
     }
 
     public static <E extends Throwable> void assertThrows(ActionFuture future, Class<E> exceptionClass) {
-        assertThrows(future, exceptionClass, null);
+        assertThrows(future, exceptionClass, null, null);
+    }
+
+    public static <E extends Throwable> void assertThrows(ActionFuture future, Class<E> exceptionClass, RestStatus status) {
+        assertThrows(future, exceptionClass, status, null);
     }
 
     public static <E extends Throwable> void assertThrows(ActionFuture future, Class<E> exceptionClass, String extraInfo) {
+        assertThrows(future, exceptionClass, null, extraInfo);
+    }
+
+    public static <E extends Throwable> void assertThrows(ActionFuture future, Class<E> exceptionClass, @Nullable RestStatus status, @Nullable String extraInfo) {
         boolean fail = false;
         extraInfo = extraInfo == null || extraInfo.isEmpty() ? "" : extraInfo + ": ";
         extraInfo += "expected a " + exceptionClass + " exception to be thrown";
+
+        if (status != null) {
+            extraInfo += " with status [" + status + "]";
+        }
+
 
         try {
             future.actionGet();
@@ -462,8 +479,14 @@ public class ElasticsearchAssertions {
 
         } catch (ElasticsearchException esException) {
             assertThat(extraInfo, esException.unwrapCause(), instanceOf(exceptionClass));
+            if (status != null) {
+                assertThat(extraInfo, ExceptionsHelper.status(esException), equalTo(status));
+            }
         } catch (Throwable e) {
             assertThat(extraInfo, e, instanceOf(exceptionClass));
+            if (status != null) {
+                assertThat(extraInfo, ExceptionsHelper.status(e), equalTo(status));
+            }
         }
         // has to be outside catch clause to get a proper message
         if (fail) {

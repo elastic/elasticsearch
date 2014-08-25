@@ -161,7 +161,6 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
     @After
     public void cleanUp() {
         assertAllRequestsHaveBeenConsumed();
-        clearInterceptedActions();
         indices.clear();
     }
 
@@ -174,6 +173,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         getFieldMappingsRequest.indices(randomIndicesOrAliases());
         nodeClient.admin().indices().getFieldMappings(getFieldMappingsRequest).actionGet();
 
+        clearInterceptedActions();
         assertSameIndices(getFieldMappingsRequest, getFieldMappingsShardAction);
     }
 
@@ -185,6 +185,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         AnalyzeRequest analyzeRequest = new AnalyzeRequest(randomIndexOrAlias(), "text");
         nodeClient.admin().indices().analyze(analyzeRequest).actionGet();
 
+        clearInterceptedActions();
         assertSameIndices(analyzeRequest, analyzeShardAction);
     }
 
@@ -196,6 +197,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         IndexRequest indexRequest = new IndexRequest(randomIndexOrAlias(), "type", "id").source("field", "value");
         nodeClient.index(indexRequest).actionGet();
 
+        clearInterceptedActions();
         assertSameIndices(indexRequest, indexShardActions);
     }
 
@@ -207,6 +209,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         DeleteRequest deleteRequest = new DeleteRequest(randomIndexOrAlias(), "type", "id");
         nodeClient.delete(deleteRequest).actionGet();
 
+        clearInterceptedActions();
         assertSameIndices(deleteRequest, deleteShardActions);
     }
 
@@ -222,6 +225,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         UpdateResponse updateResponse = nodeClient.update(updateRequest).actionGet();
         assertThat(updateResponse.isCreated(), equalTo(false));
 
+        clearInterceptedActions();
         assertSameIndices(updateRequest, updateShardActions);
     }
 
@@ -236,6 +240,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         UpdateResponse updateResponse = nodeClient.update(updateRequest).actionGet();
         assertThat(updateResponse.isCreated(), equalTo(true));
 
+        clearInterceptedActions();
         assertSameIndices(updateRequest, updateShardActions);
     }
 
@@ -251,6 +256,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         UpdateResponse updateResponse = nodeClient.update(updateRequest).actionGet();
         assertThat(updateResponse.isCreated(), equalTo(false));
 
+        clearInterceptedActions();
         assertSameIndices(updateRequest, updateShardActions);
     }
 
@@ -262,6 +268,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(randomIndicesOrAliases()).source(new QuerySourceBuilder().setQuery(QueryBuilders.matchAllQuery()));
         nodeClient.deleteByQuery(deleteByQueryRequest).actionGet();
 
+        clearInterceptedActions();
         assertSameIndices(deleteByQueryRequest, deleteByQueryShardActions);
     }
 
@@ -293,6 +300,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
 
         nodeClient.bulk(bulkRequest).actionGet();
 
+        clearInterceptedActions();
         assertIndicesSubset(indices, bulkShardActions);
     }
 
@@ -304,6 +312,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         GetRequest getRequest = new GetRequest(randomIndexOrAlias(), "type", "id");
         nodeClient.get(getRequest).actionGet();
 
+        clearInterceptedActions();
         assertSameIndices(getRequest, getShardAction);
     }
 
@@ -315,6 +324,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         ExplainRequest explainRequest = new ExplainRequest(randomIndexOrAlias(), "type", "id").source(new QuerySourceBuilder().setQuery(QueryBuilders.matchAllQuery()));
         nodeClient.explain(explainRequest).actionGet();
 
+        clearInterceptedActions();
         assertSameIndices(explainRequest, explainShardAction);
     }
 
@@ -326,6 +336,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         TermVectorRequest termVectorRequest = new TermVectorRequest(randomIndexOrAlias(), "type", "id");
         nodeClient.termVector(termVectorRequest).actionGet();
 
+        clearInterceptedActions();
         assertSameIndices(termVectorRequest, termVectorShardAction);
     }
 
@@ -344,6 +355,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         }
         nodeClient.multiTermVectors(multiTermVectorsRequest).actionGet();
 
+        clearInterceptedActions();
         assertIndicesSubset(indices, multiTermVectorsShardAction);
     }
 
@@ -362,6 +374,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         }
         nodeClient.multiGet(multiGetRequest).actionGet();
 
+        clearInterceptedActions();
         assertIndicesSubset(indices, multiGetShardAction);
     }
 
@@ -373,6 +386,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         CountRequest countRequest = new CountRequest(randomIndicesOrAliases());
         nodeClient.count(countRequest).actionGet();
 
+        clearInterceptedActions();
         assertSameIndices(countRequest, countShardAction);
     }
 
@@ -384,6 +398,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         ExistsRequest existsRequest = new ExistsRequest(randomIndicesOrAliases());
         nodeClient.exists(existsRequest).actionGet();
 
+        clearInterceptedActions();
         assertSameIndices(existsRequest, existsShardAction);
     }
 
@@ -395,6 +410,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         FlushRequest flushRequest = new FlushRequest(randomIndicesOrAliases());
         nodeClient.admin().indices().flush(flushRequest).actionGet();
 
+        clearInterceptedActions();
         assertSameIndices(flushRequest, flushShardAction);
     }
 
@@ -406,6 +422,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         OptimizeRequest optimizeRequest = new OptimizeRequest(randomIndicesOrAliases());
         nodeClient.admin().indices().optimize(optimizeRequest).actionGet();
 
+        clearInterceptedActions();
         assertSameIndices(optimizeRequest, optimizeShardAction);
     }
 
@@ -417,6 +434,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         RefreshRequest refreshRequest = new RefreshRequest(randomIndicesOrAliases());
         nodeClient.admin().indices().refresh(refreshRequest).actionGet();
 
+        clearInterceptedActions();
         assertSameIndices(refreshRequest, refreshShardAction);
     }
 
@@ -428,6 +446,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         ClearIndicesCacheRequest clearIndicesCacheRequest = new ClearIndicesCacheRequest(randomIndicesOrAliases());
         nodeClient.admin().indices().clearCache(clearIndicesCacheRequest).actionGet();
 
+        clearInterceptedActions();
         assertSameIndices(clearIndicesCacheRequest, clearCacheAction);
     }
 
@@ -439,6 +458,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         RecoveryRequest recoveryRequest = new RecoveryRequest(randomIndicesOrAliases());
         nodeClient.admin().indices().recoveries(recoveryRequest).actionGet();
 
+        clearInterceptedActions();
         assertSameIndices(recoveryRequest, recoveryAction);
     }
 
@@ -450,6 +470,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         IndicesSegmentsRequest segmentsRequest = new IndicesSegmentsRequest(randomIndicesOrAliases());
         nodeClient.admin().indices().segments(segmentsRequest).actionGet();
 
+        clearInterceptedActions();
         assertSameIndices(segmentsRequest, segmentsAction);
     }
 
@@ -461,6 +482,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest().indices(randomIndicesOrAliases());
         nodeClient.admin().indices().stats(indicesStatsRequest).actionGet();
 
+        clearInterceptedActions();
         assertSameIndices(indicesStatsRequest, indicesStats);
     }
 
@@ -472,6 +494,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         SuggestRequest suggestRequest = new SuggestRequest(randomIndicesOrAliases());
         nodeClient.suggest(suggestRequest).actionGet();
 
+        clearInterceptedActions();
         assertSameIndices(suggestRequest, suggestAction);
     }
 
@@ -483,6 +506,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         ValidateQueryRequest validateQueryRequest = new ValidateQueryRequest(randomIndicesOrAliases());
         nodeClient.admin().indices().validateQuery(validateQueryRequest).actionGet();
 
+        clearInterceptedActions();
         assertSameIndices(validateQueryRequest, validateQueryShardAction);
     }
 
@@ -501,6 +525,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         }
         nodeClient.percolate(percolateRequest).actionGet();
 
+        clearInterceptedActions();
         assertSameIndices(percolateRequest, percolateShardAction);
     }
 
@@ -528,6 +553,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
 
         nodeClient.multiPercolate(multiPercolateRequest).actionGet();
 
+        clearInterceptedActions();
         assertIndicesSubset(indices, multiPercolateShardAction);
     }
 
@@ -538,6 +564,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         OpenIndexRequest openIndexRequest = new OpenIndexRequest(randomUniqueIndicesOrAliases());
         nodeClient.admin().indices().open(openIndexRequest).actionGet();
 
+        clearInterceptedActions();
         assertSameIndices(openIndexRequest, OpenIndexAction.NAME);
     }
 
@@ -548,6 +575,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         CloseIndexRequest closeIndexRequest = new CloseIndexRequest(randomUniqueIndicesOrAliases());
         nodeClient.admin().indices().close(closeIndexRequest).actionGet();
 
+        clearInterceptedActions();
         assertSameIndices(closeIndexRequest, CloseIndexAction.NAME);
     }
 
@@ -559,10 +587,8 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(randomIndicesOrAliases);
         assertAcked(nodeClient.admin().indices().delete(deleteIndexRequest).actionGet());
 
-        assertSameIndices(deleteIndexRequest, DeleteIndexAction.NAME);
-
-        //explicitly cleanup otherwise the delete index after test gets intercepted too and assertAllRequestsHaveBeenConsumed fails
         clearInterceptedActions();
+        assertSameIndices(deleteIndexRequest, DeleteIndexAction.NAME);
     }
 
     @Test
@@ -572,6 +598,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         GetMappingsRequest getMappingsRequest = new GetMappingsRequest().indices(randomIndicesOrAliases());
         nodeClient.admin().indices().getMappings(getMappingsRequest).actionGet();
 
+        clearInterceptedActions();
         assertSameIndices(getMappingsRequest, GetMappingsAction.NAME);
     }
 
@@ -582,6 +609,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         PutMappingRequest putMappingRequest = new PutMappingRequest(randomUniqueIndicesOrAliases()).type("type").source("field", "type=string");
         nodeClient.admin().indices().putMapping(putMappingRequest).actionGet();
 
+        clearInterceptedActions();
         assertSameIndices(putMappingRequest, PutMappingAction.NAME);
     }
 
@@ -594,6 +622,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         DeleteMappingRequest deleteMappingRequest = new DeleteMappingRequest(indices).types("type");
         nodeClient.admin().indices().deleteMapping(deleteMappingRequest).actionGet();
 
+        clearInterceptedActions();
         assertSameIndices(deleteMappingRequest, DeleteMappingAction.NAME);
     }
 
@@ -604,6 +633,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         GetSettingsRequest getSettingsRequest = new GetSettingsRequest().indices(randomIndicesOrAliases());
         nodeClient.admin().indices().getSettings(getSettingsRequest).actionGet();
 
+        clearInterceptedActions();
         assertSameIndices(getSettingsRequest, GetSettingsAction.NAME);
     }
 
@@ -614,6 +644,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(randomIndicesOrAliases()).settings(ImmutableSettings.builder().put("refresh_interval", -1));
         nodeClient.admin().indices().updateSettings(updateSettingsRequest).actionGet();
 
+        clearInterceptedActions();
         assertSameIndices(updateSettingsRequest, UpdateSettingsAction.NAME);
     }
 
@@ -633,10 +664,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), greaterThan(0l));
 
-        //explicitly stop intercepting requests since free context is async hence it might keep coming
-        //after the checks and make assertAllRequestsHaveBeenConsumed fail
         clearInterceptedActions();
-
         assertSameIndices(searchRequest, SearchServiceTransportAction.QUERY_ACTION_NAME, SearchServiceTransportAction.FETCH_ID_ACTION_NAME);
         //free context messages are not necessarily sent, but if they are, check their indices
         assertSameIndicesOptionalRequests(searchRequest, SearchServiceTransportAction.FREE_CONTEXT_ACTION_NAME);
@@ -658,10 +686,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), greaterThan(0l));
 
-        //explicitly stop intercepting requests since free context is async hence it might keep coming
-        //after the checks and make assertAllRequestsHaveBeenConsumed fail
         clearInterceptedActions();
-
         assertSameIndices(searchRequest, SearchServiceTransportAction.DFS_ACTION_NAME, SearchServiceTransportAction.QUERY_ID_ACTION_NAME,
                 SearchServiceTransportAction.FETCH_ID_ACTION_NAME);
         //free context messages are not necessarily sent, but if they are, check their indices
@@ -684,10 +709,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), greaterThan(0l));
 
-        //explicitly stop intercepting requests since free context is async hence it might keep coming
-        //after the checks and make assertAllRequestsHaveBeenConsumed fail
         clearInterceptedActions();
-
         assertSameIndices(searchRequest, SearchServiceTransportAction.QUERY_FETCH_ACTION_NAME);
         //free context messages are not necessarily sent, but if they are, check their indices
         assertSameIndicesOptionalRequests(searchRequest, SearchServiceTransportAction.FREE_CONTEXT_ACTION_NAME);
@@ -709,10 +731,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), greaterThan(0l));
 
-        //explicitly stop intercepting requests since free context is async hence it might keep coming
-        //after the checks and make assertAllRequestsHaveBeenConsumed fail
         clearInterceptedActions();
-
         assertSameIndices(searchRequest, SearchServiceTransportAction.QUERY_QUERY_FETCH_ACTION_NAME);
         //free context messages are not necessarily sent, but if they are, check their indices
         assertSameIndicesOptionalRequests(searchRequest, SearchServiceTransportAction.FREE_CONTEXT_ACTION_NAME);
@@ -735,10 +754,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
 
         client().prepareClearScroll().addScrollId(searchResponse.getScrollId()).get();
 
-        //explicitly stop intercepting requests since free context is async hence it might keep coming
-        //after the checks and make assertAllRequestsHaveBeenConsumed fail
         clearInterceptedActions();
-
         assertSameIndices(searchRequest, SearchServiceTransportAction.SCAN_ACTION_NAME);
     }
 
@@ -761,10 +777,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
                 .searchIndices(randomIndicesOrAliases());
         nodeClient.moreLikeThis(moreLikeThisRequest).actionGet();
 
-        //explicitly stop intercepting requests since free context is async hence it might keep coming
-        //after the checks and make assertAllRequestsHaveBeenConsumed fail
         clearInterceptedActions();
-
         //get might end up being executed locally, only optionally over the transport
         assertSameIndicesOptionalRequests(new String[]{indexGet}, GetAction.NAME + "[s]");
         //query might end up being executed locally as well, only optionally over the transport
@@ -857,7 +870,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         }
         return indices;
     }
-    
+
     private static void assertAllRequestsHaveBeenConsumed() {
         Iterable<TransportService> transportServices = internalCluster().getInstances(TransportService.class);
         for (TransportService transportService : transportServices) {

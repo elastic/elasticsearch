@@ -113,7 +113,10 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
         IndexFieldCache indexCache = key.indexCache;
         long sizeInBytes = key.sizeInBytes;
         final Accountable value = notification.getValue();
-        assert value == null || sizeInBytes > 0 && sizeInBytes == value.ramBytesUsed() : "Expected size [" + sizeInBytes + "] to be positive or value [" + value + "] to be non-null";
+        assert sizeInBytes >= 0 || value != null : "Expected size [" + sizeInBytes + "] to be positive or value [" + value + "] to be non-null";
+        if (sizeInBytes == -1 && value != null) {
+            sizeInBytes = value.ramBytesUsed();
+        }
         for (IndexFieldDataCache.Listener listener : key.listeners) {
             try {
                 listener.onUnload(indexCache.fieldNames, indexCache.fieldDataType, notification.wasEvicted(), sizeInBytes);
@@ -220,7 +223,6 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
                             logger.error("Failed to call listener on global ordinals loading", e);
                         }
                     }
-                    key.sizeInBytes = ifd.ramBytesUsed();
                     return ifd;
                 }
             });

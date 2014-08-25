@@ -160,7 +160,7 @@
 
 # Path to log files:
 #
-path.logs: logs
+#path.logs: /path/to/logs
 
 # Path to where plugins are installed:
 #

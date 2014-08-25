@@ -23,4 +23,13 @@
 
   - match:
       $body: |
-               /^(green \s+ index1 \s+ 1 \s+ 0 \s+ 0 \s+ 0 \s+ (\d+|\d+[.]\d+)(kb|b) \s+ (\d+|\d+[.]\d+)(kb|b))$/
+               /^(green  \s+
+                  index1 \s+
+                  1      \s+
+                  0      \s+
+                  0      \s+
+                  0      \s+
+                  (\d+|\d+[.]\d+)(kb|b) \s+
+                  (\d+|\d+[.]\d+)(kb|b) \s*
+                )
+                $/

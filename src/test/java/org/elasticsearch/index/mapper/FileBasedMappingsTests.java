@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 import com.google.common.io.Files;
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetaData;
 import org.elasticsearch.cluster.ClusterName;
@@ -40,6 +41,7 @@ import java.util.Arrays;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
+@AwaitsFix(bugUrl = "")
 public class FileBasedMappingsTests extends ElasticsearchTestCase {
 
     private static final String NAME = FileBasedMappingsTests.class.getSimpleName();

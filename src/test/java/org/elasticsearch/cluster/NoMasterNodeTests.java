@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.percolate.PercolateSourceBuilder;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -38,6 +39,7 @@ import java.util.HashMap;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -76,161 +78,121 @@ public class NoMasterNodeTests extends ElasticsearchIntegrationTest {
             }
         });
 
-        try {
-            client().prepareGet("test", "type1", "1").execute().actionGet();
-            fail("Expected ClusterBlockException");
-        } catch (ClusterBlockException | MasterNotDiscoveredException e) {
-            assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
-        }
+        assertThrows(client().prepareGet("test", "type1", "1"),
+                ClusterBlockException.class, RestStatus.SERVICE_UNAVAILABLE
+        );
 
-        try {
-            client().prepareGet("no_index", "type1", "1").execute().actionGet();
-            fail("Expected ClusterBlockException");
-        } catch (ClusterBlockException | MasterNotDiscoveredException e) {
-            assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
-        }
+        assertThrows(client().prepareGet("no_index", "type1", "1"),
+                ClusterBlockException.class, RestStatus.SERVICE_UNAVAILABLE
+        );
 
-        try {
-            client().prepareMultiGet().add("test", "type1", "1").execute().actionGet();
-            fail("Expected ClusterBlockException");
-        } catch (ClusterBlockException | MasterNotDiscoveredException e) {
-            assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
-        }
+        assertThrows(client().prepareMultiGet().add("test", "type1", "1"),
+                ClusterBlockException.class, RestStatus.SERVICE_UNAVAILABLE
+        );
 
-        try {
-            client().prepareMultiGet().add("no_index", "type1", "1").execute().actionGet();
-            fail("Expected ClusterBlockException");
-        } catch (ClusterBlockException | MasterNotDiscoveredException e) {
-            assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
-        }
+        assertThrows(client().prepareMultiGet().add("no_index", "type1", "1"),
+                ClusterBlockException.class, RestStatus.SERVICE_UNAVAILABLE
+        );
 
-        try {
-            PercolateSourceBuilder percolateSource = new PercolateSourceBuilder();
-            percolateSource.percolateDocument().setDoc(new HashMap());
-            client().preparePercolate()
-                    .setIndices("test").setDocumentType("type1")
-                    .setSource(percolateSource).execute().actionGet();
-            fail("Expected ClusterBlockException");
-        } catch (ClusterBlockException | MasterNotDiscoveredException e) {
-            assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
-        }
+        PercolateSourceBuilder percolateSource = new PercolateSourceBuilder();
+        percolateSource.percolateDocument().setDoc(new HashMap());
+        assertThrows(client().preparePercolate()
+                        .setIndices("test").setDocumentType("type1")
+                        .setSource(percolateSource),
+                ClusterBlockException.class, RestStatus.SERVICE_UNAVAILABLE
+        );
 
-        try {
-            PercolateSourceBuilder percolateSource = new PercolateSourceBuilder();
-            percolateSource.percolateDocument().setDoc(new HashMap());
-            client().preparePercolate()
-                    .setIndices("no_index").setDocumentType("type1")
-                    .setSource(percolateSource).execute().actionGet();
-            fail("Expected ClusterBlockException");
-        } catch (ClusterBlockException | MasterNotDiscoveredException e) {
-            assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
-        }
+        percolateSource = new PercolateSourceBuilder();
+        percolateSource.percolateDocument().setDoc(new HashMap());
+        assertThrows(client().preparePercolate()
+                        .setIndices("no_index").setDocumentType("type1")
+                        .setSource(percolateSource),
+                ClusterBlockException.class, RestStatus.SERVICE_UNAVAILABLE
+        );
 
-        long now = System.currentTimeMillis();
-        try {
-            client().prepareUpdate("test", "type1", "1").setScript("test script", ScriptService.ScriptType.INLINE).setTimeout(timeout).execute().actionGet();
-            fail("Expected ClusterBlockException");
-        } catch (ClusterBlockException | MasterNotDiscoveredException e) {
-            assertThat(System.currentTimeMillis() - now, greaterThan(timeout.millis() - 50));
-            assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
-        }
 
-        now = System.currentTimeMillis();
-        try {
-            client().prepareUpdate("no_index", "type1", "1").setScript("test script", ScriptService.ScriptType.INLINE).setTimeout(timeout).execute().actionGet();
-            fail("Expected ClusterBlockException");
-        } catch (ClusterBlockException | MasterNotDiscoveredException e) {
-            assertThat(System.currentTimeMillis() - now, greaterThan(timeout.millis() - 50));
-            assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
-        }
+        assertThrows(client().admin().indices().prepareAnalyze("test", "this is a test"),
+                ClusterBlockException.class, RestStatus.SERVICE_UNAVAILABLE
+        );
 
-        try {
-            client().admin().indices().prepareAnalyze("test", "this is a test").execute().actionGet();
-            fail("Expected ClusterBlockException");
-        } catch (ClusterBlockException | MasterNotDiscoveredException e) {
-            assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
-        }
+        assertThrows(client().admin().indices().prepareAnalyze("no_index", "this is a test"),
+                ClusterBlockException.class, RestStatus.SERVICE_UNAVAILABLE
+        );
 
-        try {
-            client().admin().indices().prepareAnalyze("no_index", "this is a test").execute().actionGet();
-            fail("Expected ClusterBlockException");
-        } catch (ClusterBlockException | MasterNotDiscoveredException e) {
-            assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
-        }
+        assertThrows(client().prepareCount("test"),
+                ClusterBlockException.class, RestStatus.SERVICE_UNAVAILABLE
+        );
 
-        try {
-            client().prepareCount("test").execute().actionGet();
-            fail("Expected ClusterBlockException");
-        } catch (ClusterBlockException | MasterNotDiscoveredException e) {
-            assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
-        }
+        assertThrows(client().prepareCount("no_index"),
+                ClusterBlockException.class, RestStatus.SERVICE_UNAVAILABLE
+        );
 
-        try {
-            client().prepareCount("no_index").execute().actionGet();
-            fail("Expected ClusterBlockException");
-        } catch (ClusterBlockException | MasterNotDiscoveredException e) {
-            assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
-        }
+        checkWriteAction(autoCreateIndex, timeout,
+                client().prepareUpdate("test", "type1", "1").setScript("test script", ScriptService.ScriptType.INLINE).setTimeout(timeout));
 
-        now = System.currentTimeMillis();
-        try {
-            client().prepareIndex("test", "type1", "1").setSource(XContentFactory.jsonBuilder().startObject().endObject()).setTimeout(timeout).execute().actionGet();
-            fail("Expected ClusterBlockException");
-        } catch (ClusterBlockException | MasterNotDiscoveredException e) {
-            assertThat(System.currentTimeMillis() - now, greaterThan(timeout.millis() - 50));
-            assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
-        }
 
-        now = System.currentTimeMillis();
-        try {
-            client().prepareIndex("no_index", "type1", "1").setSource(XContentFactory.jsonBuilder().startObject().endObject()).setTimeout(timeout).execute().actionGet();
-            fail("Expected ClusterBlockException");
-        } catch (ClusterBlockException | MasterNotDiscoveredException e) {
-            assertThat(System.currentTimeMillis() - now, greaterThan(timeout.millis() - 50));
-            assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
-        }
+        checkWriteAction(autoCreateIndex, timeout,
+                client().prepareUpdate("no_index", "type1", "1").setScript("test script", ScriptService.ScriptType.INLINE).setTimeout(timeout));
 
-        now = System.currentTimeMillis();
-        try {
-            BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
-            bulkRequestBuilder.add(client().prepareIndex("test", "type1", "1").setSource(XContentFactory.jsonBuilder().startObject().endObject()));
-            bulkRequestBuilder.add(client().prepareIndex("test", "type1", "2").setSource(XContentFactory.jsonBuilder().startObject().endObject()));
-            bulkRequestBuilder.setTimeout(timeout);
-            bulkRequestBuilder.get();
-            fail("Expected ClusterBlockException");
-        } catch (ClusterBlockException e) {
-            // today, we clear the metadata on when there is no master, so it will go through the auto create logic and
-            // add it... (if set to true), if we didn't remove the metedata when there is no master, then, the non
-            // retry in bulk should be taken into account
-            if (!autoCreateIndex) {
-                assertThat(System.currentTimeMillis() - now, lessThan(timeout.millis() / 2));
-            } else {
-                assertThat(System.currentTimeMillis() - now, greaterThan(timeout.millis() - 50));
-                assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
-            }
-        }
 
-        now = System.currentTimeMillis();
-        try {
-            BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
-            bulkRequestBuilder.add(client().prepareIndex("no_index", "type1", "1").setSource(XContentFactory.jsonBuilder().startObject().endObject()));
-            bulkRequestBuilder.add(client().prepareIndex("no_index", "type1", "2").setSource(XContentFactory.jsonBuilder().startObject().endObject()));
-            bulkRequestBuilder.setTimeout(timeout);
-            bulkRequestBuilder.get();
-            fail("Expected ClusterBlockException");
-        } catch (ClusterBlockException e) {
-            // today, we clear the metadata on when there is no master, so it will go through the auto create logic and
-            // add it... (if set to true), if we didn't remove the metedata when there is no master, then, the non
-            // retry in bulk should be taken into account
-            if (!autoCreateIndex) {
-                assertThat(System.currentTimeMillis() - now, lessThan(timeout.millis() / 2));
-            } else {
-                assertThat(System.currentTimeMillis() - now, greaterThan(timeout.millis() - 50));
-                assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
-            }
-        }
+        checkWriteAction(autoCreateIndex, timeout,
+                client().prepareIndex("test", "type1", "1").setSource(XContentFactory.jsonBuilder().startObject().endObject()).setTimeout(timeout));
+
+        checkWriteAction(autoCreateIndex, timeout,
+                client().prepareIndex("no_index", "type1", "1").setSource(XContentFactory.jsonBuilder().startObject().endObject()).setTimeout(timeout));
+
+        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
+        bulkRequestBuilder.add(client().prepareIndex("test", "type1", "1").setSource(XContentFactory.jsonBuilder().startObject().endObject()));
+        bulkRequestBuilder.add(client().prepareIndex("test", "type1", "2").setSource(XContentFactory.jsonBuilder().startObject().endObject()));
+        bulkRequestBuilder.setTimeout(timeout);
+        checkBulkAction(autoCreateIndex, timeout, bulkRequestBuilder);
+
+        bulkRequestBuilder = client().prepareBulk();
+        bulkRequestBuilder.add(client().prepareIndex("no_index", "type1", "1").setSource(XContentFactory.jsonBuilder().startObject().endObject()));
+        bulkRequestBuilder.add(client().prepareIndex("no_index", "type1", "2").setSource(XContentFactory.jsonBuilder().startObject().endObject()));
+        bulkRequestBuilder.setTimeout(timeout);
+        checkBulkAction(autoCreateIndex, timeout, bulkRequestBuilder);
 
         internalCluster().startNode(settings);
         client().admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
+    }
+
+    void checkWriteAction(boolean autoCreateIndex, TimeValue timeout, ActionRequestBuilder<?, ?, ?, ?> builder) {
+        // we clean the metadata when loosing a master, therefore all operations on indices will auto create it, if allowed
+        long now = System.currentTimeMillis();
+        try {
+            builder.get();
+            fail("expected ClusterBlockException or MasterNotDiscoveredException");
+        } catch (ClusterBlockException | MasterNotDiscoveredException e) {
+            if (e instanceof MasterNotDiscoveredException) {
+                assertTrue(autoCreateIndex);
+            } else {
+                assertFalse(autoCreateIndex);
+            }
+            // verify we waited before giving up...
+            assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+            assertThat(System.currentTimeMillis() - now, greaterThan(timeout.millis() - 50));
+        }
+    }
+
+    void checkBulkAction(boolean autoCreateIndex, TimeValue timeout, BulkRequestBuilder builder) {
+        // bulk operation do not throw MasterNotDiscoveredException exceptions. The only test that auto create kicked in and failed is
+        // via the timeout, as they do not wait on block :(
+
+        long now = System.currentTimeMillis();
+        try {
+            builder.get();
+            fail("Expected ClusterBlockException");
+        } catch (ClusterBlockException e) {
+            // today, we clear the metadata on when there is no master, so it will go through the auto create logic and
+            // add it... (if set to true), if we didn't remove the metedata when there is no master, then, the non
+            // retry in bulk should be taken into account
+            if (!autoCreateIndex) {
+                assertThat(System.currentTimeMillis() - now, lessThan(timeout.millis() / 2));
+            } else {
+                assertThat(System.currentTimeMillis() - now, greaterThan(timeout.millis() - 50));
+                assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+            }
+        }
     }
 }

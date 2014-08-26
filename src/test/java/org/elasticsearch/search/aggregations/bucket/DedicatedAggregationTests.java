@@ -35,8 +35,9 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class DedicatedAggregationTests extends ElasticsearchIntegrationTest {
 
+    // https://github.com/elasticsearch/elasticsearch/issues/7240
     @Test
-    public void issue7240EmptyBoolShouldReturnMatchAll() throws IOException {
+    public void testEmptyBoolIsMatchAll() throws IOException {
         String query = copyToStringFromClasspath("/org/elasticsearch/search/aggregations/bucket/agg-filter-with-empty-bool.json");
         createIndex("testidx");
         index("testidx", "apache", "1", "field", "text");

@@ -2318,7 +2318,8 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         assertThat(filter.getTerm().toString(), equalTo("text:apache"));
     }
 
-    public void test6722Parser() throws ElasticsearchException, IOException {
+    // https://github.com/elasticsearch/elasticsearch/issues/6722
+    public void testEmptyBoolSubClausesIsMatchAll() throws ElasticsearchException, IOException {
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/bool-query-with-empty-clauses-for-parsing.json");
         IndexService indexService = createIndex("testidx", client().admin().indices().prepareCreate("testidx")
                 .addMapping("foo")

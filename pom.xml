@@ -476,6 +476,7 @@
                                 <param>-XX:MaxDirectMemorySize=512m</param>
                                 <param>-Des.logger.prefix=</param>
                                 <param>-XX:+HeapDumpOnOutOfMemoryError</param>
+                                <param>-XX:HeapDumpPath=${basedir}/logs/</param>
                             </jvmArgs>
                             <shuffleOnSlave>${tests.shuffle}</shuffleOnSlave>
                             <sysouts>${tests.verbose}</sysouts>

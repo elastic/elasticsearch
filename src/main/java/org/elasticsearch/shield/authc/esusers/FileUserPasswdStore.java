@@ -100,7 +100,9 @@ public class FileUserPasswdStore extends AbstractComponent implements UserPasswd
             lineNr++;
             int i = line.indexOf(":");
             if (i <= 0 || i == line.length() - 1) {
-                logger.error("Invalid entry in users file [" + path.toAbsolutePath() + "], line [" + lineNr + "]. Skipping...");
+                if (logger != null) {
+                    logger.error("Invalid entry in users file [" + path.toAbsolutePath() + "], line [" + lineNr + "]. Skipping...");
+                }
                 continue;
             }
             String username = line.substring(0, i).trim();

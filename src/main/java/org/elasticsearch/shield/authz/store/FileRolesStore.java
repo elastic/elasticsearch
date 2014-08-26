@@ -11,6 +11,8 @@ import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.jackson.dataformat.yaml.snakeyaml.error.YAMLException;
+import org.elasticsearch.common.jackson.dataformat.yaml.snakeyaml.scanner.ScannerException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -86,7 +88,7 @@ public class FileRolesStore extends AbstractComponent implements RolesStore {
             XContentParser parser = YamlXContent.yamlXContent.createParser(input);
             XContentParser.Token token;
             String currentFieldName = null;
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT && token != null) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (token == XContentParser.Token.START_OBJECT && currentFieldName != null) {
@@ -160,7 +162,7 @@ public class FileRolesStore extends AbstractComponent implements RolesStore {
 
             return roles.build();
 
-        } catch (IOException ioe) {
+        } catch (YAMLException|IOException ioe) {
             throw new ElasticsearchException("Failed to read roles file [" + path.toAbsolutePath() + "]", ioe);
         }
     }

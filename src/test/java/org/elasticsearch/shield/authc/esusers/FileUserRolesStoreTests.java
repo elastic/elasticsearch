@@ -9,16 +9,22 @@ import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.base.Cha
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.shield.authz.Permission;
+import org.elasticsearch.shield.authz.store.FileRolesStore;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 import java.io.BufferedWriter;
+import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -29,6 +35,9 @@ import static org.hamcrest.Matchers.*;
  *
  */
 public class FileUserRolesStoreTests extends ElasticsearchTestCase {
+
+    @Rule
+    public TemporaryFolder tempFolder = new TemporaryFolder();
 
     @Test
     public void testParseFile() throws Exception {
@@ -102,6 +111,31 @@ public class FileUserRolesStoreTests extends ElasticsearchTestCase {
                 threadPool.shutdownNow();
             }
         }
+    }
 
+    @Test
+    public void testThatEmptyFileIsParsed() throws Exception {
+        assertInvalidInputIsSilentlyIngored("");
+        assertInvalidInputIsSilentlyIngored("#");
+    }
+
+    @Test
+    public void testThatEmptyUserNameDoesNotThrowException() throws Exception {
+        assertInvalidInputIsSilentlyIngored(":role1,role2");
+        assertInvalidInputIsSilentlyIngored(" :role1,role2");
+    }
+
+    @Test
+    public void testThatEmptyRoleDoesNotThrowException() throws Exception {
+        assertInvalidInputIsSilentlyIngored("user:");
+        assertInvalidInputIsSilentlyIngored("user: ");
+        assertInvalidInputIsSilentlyIngored("user: , ");
+    }
+
+    private void assertInvalidInputIsSilentlyIngored(String input) throws Exception {
+        File file = tempFolder.newFile();
+        com.google.common.io.Files.write(input.getBytes(Charsets.UTF_8), file);
+        Map<String, String[]> usersRoles = FileUserRolesStore.parseFile(file.toPath(), null);
+        assertThat(String.format(Locale.ROOT, "Expected userRoles to be empty, but was %s", usersRoles.keySet()), usersRoles.keySet(), hasSize(0));
     }
 }

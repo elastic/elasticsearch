@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.shield.authz.store;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.base.Charsets;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -19,6 +20,7 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 import java.io.BufferedWriter;
+import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -147,6 +149,20 @@ public class FileRolesStoreTests extends ElasticsearchTestCase {
                 threadPool.shutdownNow();
             }
         }
+    }
 
+    @Test
+    public void testThatEmptyFileDoesNotResultInLoop() throws Exception {
+        File file = tempFolder.newFile();
+        com.google.common.io.Files.write("#".getBytes(Charsets.UTF_8), file);
+        Map<String, Permission.Global> roles = FileRolesStore.parseFile(file.toPath());
+        assertThat(roles.keySet(), is(empty()));
+    }
+
+    @Test(expected = ElasticsearchException.class)
+    public void testThatInvalidYAMLThrowsElasticsearchException() throws Exception {
+        File file = tempFolder.newFile();
+        com.google.common.io.Files.write("user: cluster: ALL indices: '.*': ALL".getBytes(Charsets.UTF_8), file);
+        FileRolesStore.parseFile(file.toPath());
     }
 }

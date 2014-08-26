@@ -93,12 +93,32 @@ public class FileUserRolesStore extends AbstractComponent implements UserRolesSt
             lineNr++;
             int i = line.indexOf(":");
             if (i <= 0 || i == line.length() - 1) {
-                logger.error("Invalid entry in users file [" + path.toAbsolutePath() + "], line [" + lineNr + "]. Skipping...");
+                if (logger != null) {
+                    logger.error("Invalid entry in users file [" + path.toAbsolutePath() + "], line [" + lineNr + "]. Skipping...");
+                }
                 continue;
             }
             String username = line.substring(0, i).trim();
+            if (Strings.isEmpty(username)) {
+                if (logger != null) {
+                    logger.error("Invalid username entry in users file [" + path.toAbsolutePath() + "], line [" + lineNr + "]. Skipping...");
+                }
+                continue;
+            }
             String rolesStr = line.substring(i + 1).trim();
+            if (Strings.isEmpty(rolesStr)) {
+                if (logger != null) {
+                    logger.error("Invalid roles entry in users file [" + path.toAbsolutePath() + "], line [" + lineNr + "]. Skipping...");
+                }
+                continue;
+            }
             String[] roles = ROLES_DELIM.split(rolesStr);
+            if (roles.length == 0) {
+                if (logger != null) {
+                    logger.error("Invalid roles entry in users file [" + path.toAbsolutePath() + "], line [" + lineNr + "]. Skipping...");
+                }
+                continue;
+            }
             usersRoles.put(username, roles);
         }
 

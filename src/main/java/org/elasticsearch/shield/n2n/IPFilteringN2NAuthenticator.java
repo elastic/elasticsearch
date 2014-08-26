@@ -11,6 +11,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.jackson.dataformat.yaml.snakeyaml.error.YAMLException;
 import org.elasticsearch.common.net.InetAddresses;
 import org.elasticsearch.common.netty.handler.ipfilter.IpFilterRule;
 import org.elasticsearch.common.netty.handler.ipfilter.IpSubnetFilterRule;
@@ -103,8 +104,8 @@ public class IPFilteringN2NAuthenticator extends AbstractComponent implements N2
                 }
             }
 
-        } catch (IOException ioe) {
-            throw new ElasticsearchException("Failed to read & parse host access file [" + path.toAbsolutePath() + "]", ioe);
+        } catch (YAMLException|IOException ioe) {
+            throw new ElasticsearchParseException("Failed to read & parse host access file [" + path.toAbsolutePath() + "]", ioe);
         }
 
         if (rules.size() == 0) {

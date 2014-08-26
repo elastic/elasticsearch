@@ -10,12 +10,17 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.authc.support.Hasher;
+import org.elasticsearch.shield.authz.Permission;
+import org.elasticsearch.shield.authz.store.FileRolesStore;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 import java.io.BufferedWriter;
+import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -30,6 +35,9 @@ import static org.hamcrest.Matchers.*;
  *
  */
 public class FileUserPasswdStoreTests extends ElasticsearchTestCase {
+
+    @Rule
+    public TemporaryFolder tempFolder = new TemporaryFolder();
 
     @Test
     public void testParseFile() throws Exception {
@@ -99,6 +107,14 @@ public class FileUserPasswdStoreTests extends ElasticsearchTestCase {
                 threadPool.shutdownNow();
             }
         }
+    }
 
+    @Test
+    public void testThatInvalidLineDoesNotResultInLoggerNPE() throws Exception {
+        File file = tempFolder.newFile();
+        com.google.common.io.Files.write("NotValidUsername=Password\nuser:pass".getBytes(org.elasticsearch.common.base.Charsets.UTF_8), file);
+        Map<String, char[]> users = FileUserPasswdStore.parseFile(file.toPath(), null);
+        assertThat(users, notNullValue());
+        assertThat(users.keySet(), hasSize(1));
     }
 }

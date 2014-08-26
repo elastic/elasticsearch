@@ -38,6 +38,7 @@
         <tests.client.ratio></tests.client.ratio>
         <es.logger.level>INFO</es.logger.level>
         <tests.heap.size>512m</tests.heap.size>
+        <tests.heapdump.path>${basedir}/logs</tests.heapdump.path>
         <tests.topn>5</tests.topn>
         <execution.hint.file>.local-${project.version}-execution-hints.log</execution.hint.file>
     </properties>
@@ -457,6 +458,7 @@
                                 <param>-XX:MaxDirectMemorySize=512m</param>
                                 <param>-Des.logger.prefix=</param>
                                 <param>-XX:+HeapDumpOnOutOfMemoryError</param>
+                                <param>-XX:HeapDumpPath=${tests.heapdump.path}</param>
                             </jvmArgs>
                             <shuffleOnSlave>${tests.shuffle}</shuffleOnSlave>
                             <sysouts>${tests.verbose}</sysouts>

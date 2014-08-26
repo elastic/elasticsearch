@@ -63,4 +63,99 @@ public class SimpleObjectMappingTests extends ElasticsearchSingleNodeTest {
                 .endObject().endObject().string();
         createIndex("test").mapperService().documentMapperParser().parse(mapping);
     }
+
+    @Test
+    public void emptyFieldsArrayMultiFieldsTest() throws Exception {
+        String mapping = XContentFactory.jsonBuilder()
+                                        .startObject()
+                                            .startObject("tweet")
+                                                .startObject("properties")
+                                                    .startObject("name")
+                                                        .field("type", "string")
+                                                        .field("index", "analyzed")
+                                                        .startArray("fields")
+                                                        .endArray()
+                                                    .endObject()
+                                                .endObject()
+                                            .endObject()
+                                        .endObject()
+                                        .string();
+        createIndex("test").mapperService().documentMapperParser().parse(mapping);
+    }
+
+    @Test(expected = MapperParsingException.class)
+    public void fieldsArrayMultiFieldsShouldThrowExceptionTest() throws Exception {
+        String mapping = XContentFactory.jsonBuilder()
+                .startObject()
+                    .startObject("tweet")
+                        .startObject("properties")
+                            .startObject("name")
+                                .field("type", "string")
+                                .field("index", "analyzed")
+                                .startArray("fields")
+                                    .field("test", "string")
+                                    .field("test2", "string")
+                                .endArray()
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject()
+                .string();
+        createIndex("test").mapperService().documentMapperParser().parse(mapping);
+    }
+
+    @Test
+    public void emptyFieldsArrayTest() throws Exception {
+        String mapping = XContentFactory.jsonBuilder()
+                                        .startObject()
+                                            .startObject("tweet")
+                                                .startObject("properties")
+                                                    .startArray("fields")
+                                                    .endArray()
+                                                .endObject()
+                                            .endObject()
+                                        .endObject()
+                                        .string();
+        createIndex("test").mapperService().documentMapperParser().parse(mapping);
+    }
+
+    @Test(expected = MapperParsingException.class)
+    public void fieldsWithFilledArrayShouldThrowExceptionTest() throws Exception {
+        String mapping = XContentFactory.jsonBuilder()
+                .startObject()
+                    .startObject("tweet")
+                        .startObject("properties")
+                            .startArray("fields")
+                                .field("test", "string")
+                                .field("test2", "string")
+                            .endArray()
+                        .endObject()
+                    .endObject()
+                .endObject()
+                .string();
+        createIndex("test").mapperService().documentMapperParser().parse(mapping);
+    }
+
+    @Test
+    public void fieldPropertiesArrayTest() throws Exception {
+        String mapping = XContentFactory.jsonBuilder()
+                                        .startObject()
+                                            .startObject("tweet")
+                                                .startObject("properties")
+                                                    .startObject("name")
+                                                        .field("type", "string")
+                                                        .field("index", "analyzed")
+                                                        .startObject("fields")
+                                                            .startObject("raw")
+                                                                .field("type", "string")
+                                                                .field("index","not_analyzed")
+                                                            .endObject()
+                                                        .endObject()
+                                                    .endObject()
+                                                .endObject()
+                                            .endObject()
+                                        .endObject()
+                                        .string();
+        createIndex("test").mapperService().documentMapperParser().parse(mapping);
+    }
 }

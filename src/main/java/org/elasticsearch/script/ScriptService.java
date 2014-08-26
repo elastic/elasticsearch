@@ -23,6 +23,8 @@ import com.google.common.base.Charsets;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.collect.ImmutableMap;
+import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.search.Scorer;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.ActionListener;
@@ -48,6 +50,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ActivityTimeMonitor;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -455,11 +458,100 @@ public class ScriptService extends AbstractComponent {
     }
 
     public ExecutableScript executable(CompiledScript compiledScript, Map vars) {
-        return scriptEngines.get(compiledScript.lang()).executable(compiledScript.compiled(), vars);
+        ActivityTimeMonitor atm = ActivityTimeMonitor.getCurrentThreadMonitor();
+        ExecutableScript result = scriptEngines.get(compiledScript.lang()).executable(compiledScript.compiled(), vars);
+        if (atm != null) {
+            // Add a wrapper that checks for timeout
+            result = new TimeRestrictedExecutableScript(result, atm);
+        }
+        return result;
     }
 
     public SearchScript search(CompiledScript compiledScript, SearchLookup lookup, @Nullable Map<String, Object> vars) {
-        return scriptEngines.get(compiledScript.lang()).search(compiledScript.compiled(), lookup, vars);
+        ActivityTimeMonitor atm = ActivityTimeMonitor.getCurrentThreadMonitor();
+        SearchScript result = scriptEngines.get(compiledScript.lang()).search(compiledScript.compiled(), lookup, vars);
+        if (atm != null) {
+            // Add a wrapper that checks for timeout
+            result = new TimeRestrictedSearchScript(result, atm);
+        }
+        return result;
+    }
+    private static class TimeRestrictedExecutableScript implements ExecutableScript{
+
+        private final ExecutableScript script;
+        ActivityTimeMonitor atm;
+
+        public TimeRestrictedExecutableScript(ExecutableScript script, ActivityTimeMonitor atm) {
+            this.script = script;
+            this.atm = atm;
+        }
+
+        public void setNextVar(String name, Object value) {
+            script.setNextVar(name, value);
+        }
+
+        public Object run() {
+            if (atm != null) {
+                atm.checkForTimeout();
+            }
+            return script.run();
+        }
+
+        public Object unwrap(Object value) {
+            return script.unwrap(value);
+        }        
+    }
+    
+    private static final class TimeRestrictedSearchScript extends TimeRestrictedExecutableScript implements SearchScript{
+
+        private final SearchScript script;
+
+        public TimeRestrictedSearchScript(SearchScript script, ActivityTimeMonitor atm) {
+            super(script, atm);
+            this.script = script;
+        }
+
+        public void setScorer(Scorer scorer) {
+            script.setScorer(scorer);
+        }
+
+        public void setNextReader(AtomicReaderContext reader) {
+            script.setNextReader(reader);
+            // The test framework revealed that it is possible for SearchScript objects
+            // to be created in one thread but used by another so we need to reset the
+            // ActivityTimeMonitor instance to the correct one associated with this thread
+            atm = ActivityTimeMonitor.getCurrentThreadMonitor();
+        }
+
+
+        public void setNextDocId(int doc) {
+            script.setNextDocId(doc);
+        }
+
+        public void setNextSource(Map<String, Object> source) {
+            script.setNextSource(source);
+        }
+
+        public float runAsFloat() {
+            if (atm != null) {
+                atm.checkForTimeout();
+            }
+            return script.runAsFloat();
+        }
+
+        public long runAsLong() {
+            if (atm != null) {
+                atm.checkForTimeout();
+            }
+            return script.runAsLong();
+        }
+
+        public double runAsDouble() {
+            if (atm != null) {
+                atm.checkForTimeout();
+            }
+            return script.runAsDouble();
+        }
     }
 
     public SearchScript search(SearchLookup lookup, String lang, String script, ScriptType scriptType, @Nullable Map<String, Object> vars) {

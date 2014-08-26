@@ -20,9 +20,11 @@
 package org.elasticsearch.common.compress.lzf;
 
 import com.ning.compress.lzf.ChunkDecoder;
+import com.ning.compress.lzf.ChunkEncoder;
 import com.ning.compress.lzf.LZFChunk;
 import com.ning.compress.lzf.LZFEncoder;
 import com.ning.compress.lzf.util.ChunkDecoderFactory;
+import com.ning.compress.lzf.util.ChunkEncoderFactory;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -46,11 +48,16 @@ public class LZFCompressor implements Compressor {
 
     public static final String TYPE = "lzf";
 
+    private ChunkEncoder encoder;
+
     private ChunkDecoder decoder;
 
     public LZFCompressor() {
+        this.encoder = ChunkEncoderFactory.safeInstance();
         this.decoder = ChunkDecoderFactory.safeInstance();
-        Loggers.getLogger(LZFCompressor.class).debug("using [{}] decoder", this.decoder.getClass().getSimpleName());
+        Loggers.getLogger(LZFCompressor.class).debug("using encoder [{}] and decoder[{}] ",
+                this.encoder.getClass().getSimpleName(),
+                this.decoder.getClass().getSimpleName());
     }
 
     @Override
@@ -110,7 +117,7 @@ public class LZFCompressor implements Compressor {
 
     @Override
     public byte[] compress(byte[] data, int offset, int length) throws IOException {
-        return LZFEncoder.encode(data, offset, length);
+        return LZFEncoder.encode(encoder, data, offset, length);
     }
 
     @Override
@@ -120,7 +127,7 @@ public class LZFCompressor implements Compressor {
 
     @Override
     public CompressedStreamOutput streamOutput(StreamOutput out) throws IOException {
-        return new LZFCompressedStreamOutput(out);
+        return new LZFCompressedStreamOutput(out, encoder);
     }
 
     @Override

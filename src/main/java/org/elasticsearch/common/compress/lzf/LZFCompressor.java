@@ -127,7 +127,7 @@ public class LZFCompressor implements Compressor {
 
     @Override
     public CompressedStreamOutput streamOutput(StreamOutput out) throws IOException {
-        return new LZFCompressedStreamOutput(out, encoder);
+        return new LZFCompressedStreamOutput(out);
     }
 
     @Override

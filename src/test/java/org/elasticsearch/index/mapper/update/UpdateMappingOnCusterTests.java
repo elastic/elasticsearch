@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper.update;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -77,7 +76,6 @@ public class UpdateMappingOnCusterTests extends ElasticsearchIntegrationTest {
         }
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "")
     @Test
     public void test_doc_valuesInvalidMappingOnUpdate() throws Exception {
         String mapping = jsonBuilder().startObject().startObject(TYPE).startObject("properties").startObject("text").field("type", "string").endObject().endObject().endObject().string();
@@ -92,6 +90,17 @@ public class UpdateMappingOnCusterTests extends ElasticsearchIntegrationTest {
         }
         // make sure all nodes have same cluster state
         compareMappingOnNodes(mappingsBeforeUpdateResponse);
+    }
+
+    // checks if the setting for timestamp and size are kept even if disabled
+    @Test
+    public void testDisabledSizeTimestampIndexDoNotLooseMappings() throws Exception {
+        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/update/default_mapping_with_disabled_root_types.json");
+        prepareCreate(INDEX).addMapping(TYPE, mapping).get();
+        GetMappingsResponse mappingsBeforeGreen = client().admin().indices().prepareGetMappings(INDEX).addTypes(TYPE).get();
+        ensureGreen(INDEX);
+        // make sure all nodes have same cluster state
+        compareMappingOnNodes(mappingsBeforeGreen);
     }
 
     protected void testConflict(String mapping, String mappingUpdate, String... errorMessages) throws InterruptedException {
@@ -110,11 +119,11 @@ public class UpdateMappingOnCusterTests extends ElasticsearchIntegrationTest {
 
     }
 
-    private void compareMappingOnNodes(GetMappingsResponse mappingsBeforeUpdateResponse) {
+    private void compareMappingOnNodes(GetMappingsResponse previousMapping) {
         // make sure all nodes have same cluster state
         for (Client client : cluster()) {
-            GetMappingsResponse mappingsAfterUpdateResponse = client.admin().indices().prepareGetMappings(INDEX).addTypes(TYPE).setLocal(true).get();
-            assertThat(mappingsBeforeUpdateResponse.getMappings().get(INDEX).get(TYPE).source(), equalTo(mappingsAfterUpdateResponse.getMappings().get(INDEX).get(TYPE).source()));
+            GetMappingsResponse currentMapping = client.admin().indices().prepareGetMappings(INDEX).addTypes(TYPE).setLocal(true).get();
+            assertThat(previousMapping.getMappings().get(INDEX).get(TYPE).source(), equalTo(currentMapping.getMappings().get(INDEX).get(TYPE).source()));
         }
     }
 }

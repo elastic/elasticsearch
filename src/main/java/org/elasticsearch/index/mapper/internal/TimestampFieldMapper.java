@@ -246,32 +246,30 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
             return builder;
         }
         builder.startObject(CONTENT_TYPE);
-        if (includeDefaults || enabledState.enabled != Defaults.ENABLED.enabled) {
+        if (includeDefaults || enabledState != Defaults.ENABLED) {
             builder.field("enabled", enabledState.enabled);
         }
-        if (enabledState.enabled) {
-            if (includeDefaults || fieldType.indexed() != Defaults.FIELD_TYPE.indexed()) {
-                builder.field("index", indexTokenizeOptionToString(fieldType.indexed(), fieldType.tokenized()));
-            }
-            if (includeDefaults || fieldType.stored() != Defaults.FIELD_TYPE.stored()) {
-                builder.field("store", fieldType.stored());
-            }
-            if (includeDefaults || path != Defaults.PATH) {
-                builder.field("path", path);
-            }
-            if (includeDefaults || !dateTimeFormatter.format().equals(Defaults.DATE_TIME_FORMATTER.format())) {
-                builder.field("format", dateTimeFormatter.format());
-            }
-            if (includeDefaults || !Defaults.DEFAULT_TIMESTAMP.equals(defaultTimestamp)) {
-                builder.field("default", defaultTimestamp);
-            }
-            if (customFieldDataSettings != null) {
-                builder.field("fielddata", (Map) customFieldDataSettings.getAsMap());
-            } else if (includeDefaults) {
-                builder.field("fielddata", (Map) fieldDataType.getSettings().getAsMap());
-            }
-
+        if (includeDefaults || fieldType.indexed() != Defaults.FIELD_TYPE.indexed()) {
+            builder.field("index", indexTokenizeOptionToString(fieldType.indexed(), fieldType.tokenized()));
         }
+        if (includeDefaults || fieldType.stored() != Defaults.FIELD_TYPE.stored()) {
+            builder.field("store", fieldType.stored());
+        }
+        if (includeDefaults || path != Defaults.PATH) {
+            builder.field("path", path);
+        }
+        if (includeDefaults || !dateTimeFormatter.format().equals(Defaults.DATE_TIME_FORMATTER.format())) {
+            builder.field("format", dateTimeFormatter.format());
+        }
+        if (includeDefaults || !Defaults.DEFAULT_TIMESTAMP.equals(defaultTimestamp)) {
+            builder.field("default", defaultTimestamp);
+        }
+        if (customFieldDataSettings != null) {
+            builder.field("fielddata", (Map) customFieldDataSettings.getAsMap());
+        } else if (includeDefaults) {
+            builder.field("fielddata", (Map) fieldDataType.getSettings().getAsMap());
+        }
+
         builder.endObject();
         return builder;
     }

@@ -19,6 +19,13 @@
 
 package org.elasticsearch.index.mapper.core;
 
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.*;
+import static org.elasticsearch.index.mapper.FieldMapper.DOC_VALUES_FORMAT;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
@@ -33,14 +40,6 @@ import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldMapper.Loading;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.*;
-import static org.elasticsearch.index.mapper.FieldMapper.DOC_VALUES_FORMAT;
 
 /**
  *
@@ -248,7 +247,7 @@ public class TypeParsers {
     public static void parseMultiField(AbstractFieldMapper.Builder builder, String name, Map<String, Object> node, Mapper.TypeParser.ParserContext parserContext, String propName, Object propNode) {
         if (propName.equals("path")) {
             builder.multiFieldPathType(parsePathType(name, propNode.toString()));
-        } else if (propName.equals("fields")) {
+        } else if (propName.equals("fields") && propNode instanceof Map) {
             @SuppressWarnings("unchecked")
             Map<String, Object> multiFieldsPropNodes = (Map<String, Object>) propNode;
             for (Map.Entry<String, Object> multiFieldEntry : multiFieldsPropNodes.entrySet()) {

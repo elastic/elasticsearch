@@ -19,7 +19,22 @@
 
 package org.elasticsearch.index.mapper.object;
 
-import com.google.common.collect.Iterables;
+import static com.google.common.collect.Lists.newArrayList;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
+import static org.elasticsearch.index.mapper.MapperBuilders.*;
+import static org.elasticsearch.index.mapper.core.TypeParsers.parsePathType;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.TreeMap;
+
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
@@ -36,20 +51,26 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.FieldMapperListener;
+import org.elasticsearch.index.mapper.InternalMapper;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperBuilders;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MergeContext;
+import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.index.mapper.ObjectMapperListener;
+import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParseContext.Document;
+import org.elasticsearch.index.mapper.StrictDynamicMappingException;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.settings.IndexSettings;
 
-import java.io.IOException;
-import java.util.*;
-
-import static com.google.common.collect.Lists.newArrayList;
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
-import static org.elasticsearch.index.mapper.MapperBuilders.*;
-import static org.elasticsearch.index.mapper.core.TypeParsers.parsePathType;
+import com.google.common.collect.Iterables;
 
 /**
  *
@@ -258,32 +279,35 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
 
         protected static void parseProperties(ObjectMapper.Builder objBuilder, Map<String, Object> propsNode, ParserContext parserContext) {
             for (Map.Entry<String, Object> entry : propsNode.entrySet()) {
-                String propName = entry.getKey();
-                Map<String, Object> propNode = (Map<String, Object>) entry.getValue();
+	            String propName = entry.getKey();
 
-                String type;
-                Object typeNode = propNode.get("type");
-                if (typeNode != null) {
-                    type = typeNode.toString();
-                } else {
-                    // lets see if we can derive this...
-                    if (propNode.get("properties") != null) {
-                        type = ObjectMapper.CONTENT_TYPE;
-                    } else if (propNode.size() == 1 && propNode.get("enabled") != null) {
-                        // if there is a single property with the enabled flag on it, make it an object
-                        // (usually, setting enabled to false to not index any type, including core values, which
-                        // non enabled object type supports).
-                        type = ObjectMapper.CONTENT_TYPE;
-                    } else {
-                        throw new MapperParsingException("No type specified for property [" + propName + "]");
-                    }
-                }
+	            if(entry.getValue() instanceof  Map) {
+		            Map<String, Object> propNode = (Map<String, Object>) entry.getValue();
 
-                Mapper.TypeParser typeParser = parserContext.typeParser(type);
-                if (typeParser == null) {
-                    throw new MapperParsingException("No handler for type [" + type + "] declared on field [" + propName + "]");
-                }
-                objBuilder.add(typeParser.parse(propName, propNode, parserContext));
+		            String type;
+		            Object typeNode = propNode.get("type");
+		            if (typeNode != null) {
+			            type = typeNode.toString();
+		            } else {
+			            // lets see if we can derive this...
+			            if (propNode.get("properties") != null) {
+				            type = ObjectMapper.CONTENT_TYPE;
+			            } else if (propNode.size() == 1 && propNode.get("enabled") != null) {
+				            // if there is a single property with the enabled flag on it, make it an object
+				            // (usually, setting enabled to false to not index any type, including core values, which
+				            // non enabled object type supports).
+				            type = ObjectMapper.CONTENT_TYPE;
+			            } else {
+				            throw new MapperParsingException("No type specified for property [" + propName + "]");
+			            }
+		            }
+
+		            Mapper.TypeParser typeParser = parserContext.typeParser(type);
+		            if (typeParser == null) {
+			            throw new MapperParsingException("No handler for type [" + type + "] declared on field [" + propName + "]");
+		            }
+		            objBuilder.add(typeParser.parse(propName, propNode, parserContext));
+	            }
             }
         }
 

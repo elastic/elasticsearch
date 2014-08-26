@@ -43,7 +43,7 @@ used with multiple fields or multi-value fields.
 
 Instead, the <<query-dsl-function-score-query>> can be used to achieve
 the desired functionality by boosting each document by the value in
-any field the document:
+any field of the document:
 
 [source,js]
 --------------------------------------------------

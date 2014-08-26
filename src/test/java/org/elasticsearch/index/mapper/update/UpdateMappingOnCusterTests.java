@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper.update;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -76,6 +77,7 @@ public class UpdateMappingOnCusterTests extends ElasticsearchIntegrationTest {
         }
     }
 
+    @LuceneTestCase.AwaitsFix(bugUrl = "")
     @Test
     public void test_doc_valuesInvalidMappingOnUpdate() throws Exception {
         String mapping = jsonBuilder().startObject().startObject(TYPE).startObject("properties").startObject("text").field("type", "string").endObject().endObject().endObject().string();

@@ -19,6 +19,14 @@ that accept a filter.
 }
 --------------------------------------------------
 
+[WARNING]
+======
+Keep in mind that once you wrap a query as a filter, it loses query features like 
+highlighting and scoring because these are not features supported by filters.
+======
+
+
+
 [float]
 ==== Caching
 

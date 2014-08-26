@@ -48,15 +48,11 @@ public class LZFCompressor implements Compressor {
 
     public static final String TYPE = "lzf";
 
-    private ChunkEncoder encoder;
-
     private ChunkDecoder decoder;
 
     public LZFCompressor() {
-        this.encoder = ChunkEncoderFactory.safeInstance();
         this.decoder = ChunkDecoderFactory.safeInstance();
         Loggers.getLogger(LZFCompressor.class).debug("using encoder [{}] and decoder[{}] ",
-                this.encoder.getClass().getSimpleName(),
                 this.decoder.getClass().getSimpleName());
     }
 
@@ -117,7 +113,7 @@ public class LZFCompressor implements Compressor {
 
     @Override
     public byte[] compress(byte[] data, int offset, int length) throws IOException {
-        return LZFEncoder.encode(encoder, data, offset, length);
+        return LZFEncoder.safeEncode(data, offset, length);
     }
 
     @Override

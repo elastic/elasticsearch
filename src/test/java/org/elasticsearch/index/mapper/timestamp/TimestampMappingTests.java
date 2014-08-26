@@ -128,22 +128,6 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
         assertThat(enabledMapper.timestampFieldMapper().enabled(), is(false));
     }
 
-    @Test
-    public void testThatDisablingFieldMapperDoesNotReturnAnyUselessInfo() throws Exception {
-        boolean inversedStoreSetting = !TimestampFieldMapper.Defaults.FIELD_TYPE.stored();
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("_timestamp").field("enabled", false).field("store", inversedStoreSetting).endObject()
-                .endObject().endObject().string();
-
-        DocumentMapper mapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
-
-        XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
-        mapper.timestampFieldMapper().toXContent(builder, ToXContent.EMPTY_PARAMS);
-        builder.endObject();
-
-        assertThat(builder.string(), is(String.format(Locale.ROOT, "{\"%s\":{}}", TimestampFieldMapper.NAME)));
-    }
-
     @Test // issue 3174
     public void testThatSerializationWorksCorrectlyForIndexField() throws Exception {
         String enabledMapping = XContentFactory.jsonBuilder().startObject().startObject("type")

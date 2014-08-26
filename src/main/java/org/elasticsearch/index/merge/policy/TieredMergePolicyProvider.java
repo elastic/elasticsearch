@@ -28,46 +28,35 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.store.Store;
 
-import java.util.Set;
-import java.util.concurrent.CopyOnWriteArraySet;
-
 public class TieredMergePolicyProvider extends AbstractMergePolicyProvider<TieredMergePolicy> {
 
     private final IndexSettingsService indexSettingsService;
-
-    private volatile double forceMergeDeletesPctAllowed;
-    private volatile ByteSizeValue floorSegment;
-    private volatile int maxMergeAtOnce;
-    private volatile int maxMergeAtOnceExplicit;
-    private volatile ByteSizeValue maxMergedSegment;
-    private volatile double segmentsPerTier;
-    private volatile double reclaimDeletesWeight;
-
     private final ApplySettings applySettings = new ApplySettings();
+    private TieredMergePolicy mergePolicy = new TieredMergePolicy();
 
-    private TieredMergePolicy mergePolicy;
-    
+    public static final double          DEFAULT_EXPUNGE_DELETES_ALLOWED     = 10d;
+    public static final ByteSizeValue   DEFAULT_FLOOR_SEGMENT               = new ByteSizeValue(2, ByteSizeUnit.MB);
+    public static final int             DEFAULT_MAX_MERGE_AT_ONCE           = 10;
+    public static final int             DEFAULT_MAX_MERGE_AT_ONCE_EXPLICIT  = 30;
+    public static final ByteSizeValue   DEFAULT_MAX_MERGED_SEGMENT          = new ByteSizeValue(5, ByteSizeUnit.GB);
+    public static final double          DEFAULT_SEGMENTS_PER_TIER           = 10.0d;
+    public static final double          DEFAULT_RECLAIM_DELETES_WEIGHT      = 2.0d;
 
     @Inject
     public TieredMergePolicyProvider(Store store, IndexSettingsService indexSettingsService) {
         super(store);
         this.indexSettingsService = indexSettingsService;
-        this.mergePolicy = new TieredMergePolicy();
-        applySettings.onRefreshSettings(componentSettings);
 
-        double forceMergeDeletesPctAllowed = componentSettings.getAsDouble("expunge_deletes_allowed", 10d);
-        this.mergePolicy.setForceMergeDeletesPctAllowed(); // percentage
-        this.mergePolicy.setFloorSegmentMB(componentSettings.getAsBytesSize("floor_segment", new ByteSizeValue(2, ByteSizeUnit.MB)).mbFrac());
-        this.maxMergeAtOnce = componentSettings.getAsInt("max_merge_at_once", 10);
-        this.maxMergeAtOnceExplicit = componentSettings.getAsInt("max_merge_at_once_explicit", 30);
+        double forceMergeDeletesPctAllowed = componentSettings.getAsDouble("expunge_deletes_allowed", DEFAULT_EXPUNGE_DELETES_ALLOWED); // percentage
+        ByteSizeValue floorSegment = componentSettings.getAsBytesSize("floor_segment", DEFAULT_FLOOR_SEGMENT);
+        int maxMergeAtOnce = componentSettings.getAsInt("max_merge_at_once", DEFAULT_MAX_MERGE_AT_ONCE);
+        int maxMergeAtOnceExplicit = componentSettings.getAsInt("max_merge_at_once_explicit", DEFAULT_MAX_MERGE_AT_ONCE_EXPLICIT);
         // TODO is this really a good default number for max_merge_segment, what happens for large indices, won't they end up with many segments?
-        this.maxMergedSegment = componentSettings.getAsBytesSize("max_merged_segment", componentSettings.getAsBytesSize("max_merge_segment", new ByteSizeValue(5, ByteSizeUnit.GB)));
-        this.segmentsPerTier = componentSettings.getAsDouble("segments_per_tier", 10.0d);
-        this.reclaimDeletesWeight = componentSettings.getAsDouble("reclaim_deletes_weight", 2.0d);
+        ByteSizeValue maxMergedSegment = componentSettings.getAsBytesSize("max_merged_segment", DEFAULT_MAX_MERGED_SEGMENT);
+        double segmentsPerTier = componentSettings.getAsDouble("segments_per_tier", DEFAULT_SEGMENTS_PER_TIER);
+        double reclaimDeletesWeight = componentSettings.getAsDouble("reclaim_deletes_weight", DEFAULT_RECLAIM_DELETES_WEIGHT);
 
-        fixSettingsIfNeeded();
-
-
+        maxMergeAtOnce = adjustMaxMergeAtOnceIfNeeded(maxMergeAtOnce, segmentsPerTier);
         mergePolicy.setNoCFSRatio(noCFSRatio);
         mergePolicy.setForceMergeDeletesPctAllowed(forceMergeDeletesPctAllowed);
         mergePolicy.setFloorSegmentMB(floorSegment.mbFrac());
@@ -76,17 +65,13 @@ public class TieredMergePolicyProvider extends AbstractMergePolicyProvider<Tiere
         mergePolicy.setMaxMergedSegmentMB(maxMergedSegment.mbFrac());
         mergePolicy.setSegmentsPerTier(segmentsPerTier);
         mergePolicy.setReclaimDeletesWeight(reclaimDeletesWeight);
-
         logger.debug("using [tiered] merge mergePolicy with expunge_deletes_allowed[{}], floor_segment[{}], max_merge_at_once[{}], max_merge_at_once_explicit[{}], max_merged_segment[{}], segments_per_tier[{}], reclaim_deletes_weight[{}]",
                 forceMergeDeletesPctAllowed, floorSegment, maxMergeAtOnce, maxMergeAtOnceExplicit, maxMergedSegment, segmentsPerTier, reclaimDeletesWeight);
 
         indexSettingsService.addListener(applySettings);
-
-
     }
 
-    // nocommit: change this to wrapper for setting maxMergeAtOnce...takes segmentsPerTier?
-    private void fixSettingsIfNeeded() {
+    private int adjustMaxMergeAtOnceIfNeeded(int maxMergeAtOnce, double segmentsPerTier) {
         // fixing maxMergeAtOnce, see TieredMergePolicy#setMaxMergeAtOnce
         if (!(segmentsPerTier >= maxMergeAtOnce)) {
             int newMaxMergeAtOnce = (int) segmentsPerTier;
@@ -95,10 +80,10 @@ public class TieredMergePolicyProvider extends AbstractMergePolicyProvider<Tiere
                 newMaxMergeAtOnce = 2;
             }
             logger.debug("[tiered] merge mergePolicy changing max_merge_at_once from [{}] to [{}] because segments_per_tier [{}] has to be higher or equal to it", maxMergeAtOnce, newMaxMergeAtOnce, segmentsPerTier);
-            this.maxMergeAtOnce = newMaxMergeAtOnce;
+            maxMergeAtOnce = newMaxMergeAtOnce;
         }
+        return maxMergeAtOnce;
     }
-
 
     @Override
     public TieredMergePolicy getMergePolicy() {
@@ -121,69 +106,62 @@ public class TieredMergePolicyProvider extends AbstractMergePolicyProvider<Tiere
     class ApplySettings implements IndexSettingsService.Listener {
         @Override
         public void onRefreshSettings(Settings settings) {
-            double expungeDeletesPctAllowed = settings.getAsDouble(INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED, TieredMergePolicyProvider.this.forceMergeDeletesPctAllowed);
-            if (expungeDeletesPctAllowed != TieredMergePolicyProvider.this.forceMergeDeletesPctAllowed) {
-                logger.info("updating [expunge_deletes_allowed] from [{}] to [{}]", TieredMergePolicyProvider.this.forceMergeDeletesPctAllowed, expungeDeletesPctAllowed);
+            double oldExpungeDeletesPctAllowed = mergePolicy.getForceMergeDeletesPctAllowed();
+            double expungeDeletesPctAllowed = settings.getAsDouble(INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED, DEFAULT_EXPUNGE_DELETES_ALLOWED);
+            if (expungeDeletesPctAllowed != oldExpungeDeletesPctAllowed) {
+                logger.info("updating [expunge_deletes_allowed] from [{}] to [{}]", oldExpungeDeletesPctAllowed, expungeDeletesPctAllowed);
                 mergePolicy.setForceMergeDeletesPctAllowed(expungeDeletesPctAllowed);
             }
 
-            ByteSizeValue floorSegment = settings.getAsBytesSize(INDEX_MERGE_POLICY_FLOOR_SEGMENT, TieredMergePolicyProvider.this.floorSegment);
-            if (!floorSegment.equals(TieredMergePolicyProvider.this.floorSegment)) {
-                logger.info("updating [floor_segment] from [{}] to [{}]", TieredMergePolicyProvider.this.floorSegment, floorSegment);
+            double oldFloorSegmentMB = mergePolicy.getFloorSegmentMB();
+            ByteSizeValue floorSegment = settings.getAsBytesSize(INDEX_MERGE_POLICY_FLOOR_SEGMENT, DEFAULT_FLOOR_SEGMENT);
+            if (floorSegment.mbFrac() != oldFloorSegmentMB) {
+                logger.info("updating [floor_segment] from [{}mb] to [{}]", oldFloorSegmentMB, floorSegment);
                 mergePolicy.setFloorSegmentMB(floorSegment.mbFrac());
             }
 
-            int maxMergeAtOnce = settings.getAsInt(INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE, TieredMergePolicyProvider.this.maxMergeAtOnce);
-            if (maxMergeAtOnce != TieredMergePolicyProvider.this.maxMergeAtOnce) {
-                logger.info("updating [max_merge_at_once] from [{}] to [{}]", TieredMergePolicyProvider.this.maxMergeAtOnce, maxMergeAtOnce);
+            double oldSegmentsPerTier = mergePolicy.getSegmentsPerTier();
+            double segmentsPerTier = settings.getAsDouble(INDEX_MERGE_POLICY_SEGMENTS_PER_TIER, DEFAULT_SEGMENTS_PER_TIER);
+            if (segmentsPerTier != oldSegmentsPerTier) {
+                logger.info("updating [segments_per_tier] from [{}] to [{}]", oldSegmentsPerTier, segmentsPerTier);
+                mergePolicy.setSegmentsPerTier(segmentsPerTier);
+            }
+
+            int oldMaxMergeAtOnce = mergePolicy.getMaxMergeAtOnce();
+            int maxMergeAtOnce = settings.getAsInt(INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE, DEFAULT_MAX_MERGE_AT_ONCE);
+            if (maxMergeAtOnce != oldMaxMergeAtOnce) {
+                logger.info("updating [max_merge_at_once] from [{}] to [{}]", oldMaxMergeAtOnce, maxMergeAtOnce);
+                maxMergeAtOnce = adjustMaxMergeAtOnceIfNeeded(maxMergeAtOnce, segmentsPerTier);
                 mergePolicy.setMaxMergeAtOnce(maxMergeAtOnce);
             }
 
-            // nocommit: do others like this, but what about logger?
-            int currentMaxMergeAtOnceExplicit = mergePolicy.getMaxMergeAtOnceExplicit();
-            int newMaxMergeAtOnceExplicit = settings.getAsInt(INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_EXPLICIT, currentMaxMergeAtOnceExplicit);
-            if (newMaxMergeAtOnceExplicit != currentMaxMergeAtOnceExplicit) {
-                logger.info("updating [max_merge_at_once_explicit] from [{}] to [{}]", currentMaxMergeAtOnceExplicit, newMaxMergeAtOnceExplicit);
-                mergePolicy.setMaxMergeAtOnceExplicit(newMaxMergeAtOnceExplicit);
+            int oldMaxMergeAtOnceExplicit = mergePolicy.getMaxMergeAtOnceExplicit();
+            int maxMergeAtOnceExplicit = settings.getAsInt(INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_EXPLICIT, DEFAULT_MAX_MERGE_AT_ONCE_EXPLICIT);
+            if (maxMergeAtOnceExplicit != oldMaxMergeAtOnceExplicit) {
+                logger.info("updating [max_merge_at_once_explicit] from [{}] to [{}]", oldMaxMergeAtOnceExplicit, maxMergeAtOnceExplicit);
+                mergePolicy.setMaxMergeAtOnceExplicit(maxMergeAtOnceExplicit);
             }
 
-            ByteSizeValue maxMergedSegment = settings.getAsBytesSize(INDEX_MERGE_POLICY_MAX_MERGED_SEGMENT, TieredMergePolicyProvider.this.maxMergedSegment);
-            if (!maxMergedSegment.equals(TieredMergePolicyProvider.this.maxMergedSegment)) {
-                logger.info("updating [max_merged_segment] from [{}] to [{}]", TieredMergePolicyProvider.this.maxMergedSegment, maxMergedSegment);
-                TieredMergePolicyProvider.this.maxMergedSegment = maxMergedSegment;
-                for (CustomTieredMergePolicyProvider policy : policies) {
-                    policy.setFloorSegmentMB(maxMergedSegment.mbFrac());
-                }
+            double oldMaxMergedSegmentMB = mergePolicy.getMaxMergedSegmentMB();
+            ByteSizeValue maxMergedSegment = settings.getAsBytesSize(INDEX_MERGE_POLICY_MAX_MERGED_SEGMENT, DEFAULT_MAX_MERGED_SEGMENT);
+            if (maxMergedSegment.mbFrac() != oldMaxMergedSegmentMB) {
+                logger.info("updating [max_merged_segment] from [{}mb] to [{}]", oldMaxMergedSegmentMB, maxMergedSegment);
+                mergePolicy.setMaxMergedSegmentMB(maxMergedSegment.mbFrac());
             }
 
-            double segmentsPerTier = settings.getAsDouble(INDEX_MERGE_POLICY_SEGMENTS_PER_TIER, TieredMergePolicyProvider.this.segmentsPerTier);
-            if (segmentsPerTier != TieredMergePolicyProvider.this.segmentsPerTier) {
-                logger.info("updating [segments_per_tier] from [{}] to [{}]", TieredMergePolicyProvider.this.segmentsPerTier, segmentsPerTier);
-                TieredMergePolicyProvider.this.segmentsPerTier = segmentsPerTier;
-                for (CustomTieredMergePolicyProvider policy : policies) {
-                    policy.setSegmentsPerTier(segmentsPerTier);
-                }
+            double oldReclaimDeletesWeight = mergePolicy.getReclaimDeletesWeight();
+            double reclaimDeletesWeight = settings.getAsDouble(INDEX_MERGE_POLICY_RECLAIM_DELETES_WEIGHT, DEFAULT_RECLAIM_DELETES_WEIGHT);
+            if (reclaimDeletesWeight != oldReclaimDeletesWeight) {
+                logger.info("updating [reclaim_deletes_weight] from [{}] to [{}]", oldReclaimDeletesWeight, reclaimDeletesWeight);
+                mergePolicy.setReclaimDeletesWeight(reclaimDeletesWeight);
             }
 
-            double reclaimDeletesWeight = settings.getAsDouble(INDEX_MERGE_POLICY_RECLAIM_DELETES_WEIGHT, TieredMergePolicyProvider.this.reclaimDeletesWeight);
-            if (reclaimDeletesWeight != TieredMergePolicyProvider.this.reclaimDeletesWeight) {
-                logger.info("updating [reclaim_deletes_weight] from [{}] to [{}]", TieredMergePolicyProvider.this.reclaimDeletesWeight, reclaimDeletesWeight);
-                TieredMergePolicyProvider.this.reclaimDeletesWeight = reclaimDeletesWeight;
-                for (CustomTieredMergePolicyProvider policy : policies) {
-                    policy.setReclaimDeletesWeight(reclaimDeletesWeight);
-                }
-            }
-
-            final double noCFSRatio = parseNoCFSRatio(settings.get(INDEX_COMPOUND_FORMAT, Double.toString(TieredMergePolicyProvider.this.noCFSRatio)));
+            double noCFSRatio = parseNoCFSRatio(settings.get(INDEX_COMPOUND_FORMAT, Double.toString(TieredMergePolicyProvider.this.noCFSRatio)));
             if (noCFSRatio != TieredMergePolicyProvider.this.noCFSRatio) {
                 logger.info("updating index.compound_format from [{}] to [{}]", formatNoCFSRatio(TieredMergePolicyProvider.this.noCFSRatio), formatNoCFSRatio(noCFSRatio));
+                mergePolicy.setNoCFSRatio(noCFSRatio);
                 TieredMergePolicyProvider.this.noCFSRatio = noCFSRatio;
-                for (CustomTieredMergePolicyProvider policy : policies) {
-                    policy.setNoCFSRatio(noCFSRatio);
-                }
             }
-
-            fixSettingsIfNeeded();
         }
     }
 }

@@ -139,7 +139,6 @@ public class Segment implements Streamable {
         docCount = in.readInt();
         delDocCount = in.readInt();
         sizeInBytes = in.readLong();
-        // nocommit: why is this optional? should not have ES specific parse functions?
         version = Lucene.parseVersionLenient(in.readOptionalString(), null);
         compound = in.readOptionalBoolean();
         mergeId = in.readOptionalString();

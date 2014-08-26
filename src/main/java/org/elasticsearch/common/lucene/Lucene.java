@@ -51,16 +51,13 @@ import static org.elasticsearch.common.lucene.search.NoopCollector.NOOP_COLLECTO
  */
 public class Lucene {
 
-    // nocommit remove this and test in LuceneTest.java
-    public static final Version VERSION = Version.LUCENE_4_10_0;
+    // TODO: remove VERSION, and have users use Version.LATEST.
+    public static final Version VERSION = Version.LATEST;
     public static final Version ANALYZER_VERSION = VERSION;
     public static final Version QUERYPARSER_VERSION = VERSION;
 
     public static final NamedAnalyzer STANDARD_ANALYZER = new NamedAnalyzer("_standard", AnalyzerScope.GLOBAL, new StandardAnalyzer(ANALYZER_VERSION));
     public static final NamedAnalyzer KEYWORD_ANALYZER = new NamedAnalyzer("_keyword", AnalyzerScope.GLOBAL, new KeywordAnalyzer());
-
-    // nocommit: remove this
-    public static final int NO_DOC = -1;
 
     public static final ScoreDoc[] EMPTY_SCORE_DOCS = new ScoreDoc[0];
 

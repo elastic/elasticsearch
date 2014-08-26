@@ -36,27 +36,30 @@ import java.util.concurrent.CopyOnWriteArraySet;
 public class LogDocMergePolicyProvider extends AbstractMergePolicyProvider<LogDocMergePolicy> {
 
     private final IndexSettingsService indexSettingsService;
+    private final ApplySettings applySettings = new ApplySettings();
+    private LogDocMergePolicy mergePolicy = new LogDocMergePolicy();
+
+
     public static final String MAX_MERGE_DOCS_KEY = "index.merge.policy.max_merge_docs";
     public static final String MIN_MERGE_DOCS_KEY = "index.merge.policy.min_merge_docs";
     public static final String MERGE_FACTORY_KEY = "index.merge.policy.merge_factor";
-    private volatile int minMergeDocs;
-    private volatile int maxMergeDocs;
-    private volatile int mergeFactor;
-    private final boolean calibrateSizeByDeletes;
-
-    private final Set<CustomLogDocMergePolicy> policies = new CopyOnWriteArraySet<>();
-
-    private final ApplySettings applySettings = new ApplySettings();
 
     @Inject
     public LogDocMergePolicyProvider(Store store, IndexSettingsService indexSettingsService) {
         super(store);
         Preconditions.checkNotNull(store, "Store must be provided to merge policy");
         this.indexSettingsService = indexSettingsService;
-        this.minMergeDocs = componentSettings.getAsInt("min_merge_docs", LogDocMergePolicy.DEFAULT_MIN_MERGE_DOCS);
-        this.maxMergeDocs = componentSettings.getAsInt("max_merge_docs", LogDocMergePolicy.DEFAULT_MAX_MERGE_DOCS);
-        this.mergeFactor = componentSettings.getAsInt("merge_factor", LogDocMergePolicy.DEFAULT_MERGE_FACTOR);
-        this.calibrateSizeByDeletes = componentSettings.getAsBoolean("calibrate_size_by_deletes", true);
+
+        int minMergeDocs = componentSettings.getAsInt("min_merge_docs", LogDocMergePolicy.DEFAULT_MIN_MERGE_DOCS);
+        int maxMergeDocs = componentSettings.getAsInt("max_merge_docs", LogDocMergePolicy.DEFAULT_MAX_MERGE_DOCS);
+        int mergeFactor = componentSettings.getAsInt("merge_factor", LogDocMergePolicy.DEFAULT_MERGE_FACTOR);
+        boolean calibrateSizeByDeletes = componentSettings.getAsBoolean("calibrate_size_by_deletes", true);
+
+        mergePolicy.setMinMergeDocs(minMergeDocs);
+        mergePolicy.setMaxMergeDocs(maxMergeDocs);
+        mergePolicy.setMergeFactor(mergeFactor);
+        mergePolicy.setCalibrateSizeByDeletes(calibrateSizeByDeletes);
+        mergePolicy.setNoCFSRatio(noCFSRatio);
         logger.debug("using [log_doc] merge policy with merge_factor[{}], min_merge_docs[{}], max_merge_docs[{}], calibrate_size_by_deletes[{}]",
                 mergeFactor, minMergeDocs, maxMergeDocs, calibrateSizeByDeletes);
 
@@ -70,74 +73,51 @@ public class LogDocMergePolicyProvider extends AbstractMergePolicyProvider<LogDo
 
     @Override
     public LogDocMergePolicy getMergePolicy() {
-        final CustomLogDocMergePolicy mergePolicy = new CustomLogDocMergePolicy(this);
-        mergePolicy.setMinMergeDocs(minMergeDocs);
-        mergePolicy.setMaxMergeDocs(maxMergeDocs);
-        mergePolicy.setMergeFactor(mergeFactor);
-        mergePolicy.setCalibrateSizeByDeletes(calibrateSizeByDeletes);
-        mergePolicy.setNoCFSRatio(noCFSRatio);
-        policies.add(mergePolicy);
         return mergePolicy;
     }
 
     public static final String INDEX_MERGE_POLICY_MIN_MERGE_DOCS = "index.merge.policy.min_merge_docs";
     public static final String INDEX_MERGE_POLICY_MAX_MERGE_DOCS = "index.merge.policy.max_merge_docs";
     public static final String INDEX_MERGE_POLICY_MERGE_FACTOR = "index.merge.policy.merge_factor";
+    public static final String INDEX_MERGE_POLICY_CALIBRATE_SIZE_BY_DELETES = "index.merge.policy.calibrate_size_by_deletes";
 
     class ApplySettings implements IndexSettingsService.Listener {
         @Override
         public void onRefreshSettings(Settings settings) {
-            int minMergeDocs = settings.getAsInt(INDEX_MERGE_POLICY_MIN_MERGE_DOCS, LogDocMergePolicyProvider.this.minMergeDocs);
-            if (minMergeDocs != LogDocMergePolicyProvider.this.minMergeDocs) {
-                logger.info("updating min_merge_docs from [{}] to [{}]", LogDocMergePolicyProvider.this.minMergeDocs, minMergeDocs);
-                LogDocMergePolicyProvider.this.minMergeDocs = minMergeDocs;
-                for (CustomLogDocMergePolicy policy : policies) {
-                    policy.setMinMergeDocs(minMergeDocs);
-                }
+            int oldMinMergeDocs = mergePolicy.getMinMergeDocs();
+            int minMergeDocs = settings.getAsInt(INDEX_MERGE_POLICY_MIN_MERGE_DOCS, LogDocMergePolicy.DEFAULT_MIN_MERGE_DOCS);
+            if (minMergeDocs != oldMinMergeDocs) {
+                logger.info("updating min_merge_docs from [{}] to [{}]", oldMinMergeDocs, minMergeDocs);
+                mergePolicy.setMinMergeDocs(minMergeDocs);
             }
 
-            int maxMergeDocs = settings.getAsInt(INDEX_MERGE_POLICY_MAX_MERGE_DOCS, LogDocMergePolicyProvider.this.maxMergeDocs);
-            if (maxMergeDocs != LogDocMergePolicyProvider.this.maxMergeDocs) {
-                logger.info("updating max_merge_docs from [{}] to [{}]", LogDocMergePolicyProvider.this.maxMergeDocs, maxMergeDocs);
-                LogDocMergePolicyProvider.this.maxMergeDocs = maxMergeDocs;
-                for (CustomLogDocMergePolicy policy : policies) {
-                    policy.setMaxMergeDocs(maxMergeDocs);
-                }
+            int oldMaxMergeDocs = mergePolicy.getMaxMergeDocs();
+            int maxMergeDocs = settings.getAsInt(INDEX_MERGE_POLICY_MAX_MERGE_DOCS, LogDocMergePolicy.DEFAULT_MAX_MERGE_DOCS);
+            if (maxMergeDocs != oldMaxMergeDocs) {
+                logger.info("updating max_merge_docs from [{}] to [{}]", oldMaxMergeDocs, maxMergeDocs);
+                mergePolicy.setMaxMergeDocs(maxMergeDocs);
             }
 
-            int mergeFactor = settings.getAsInt(INDEX_MERGE_POLICY_MERGE_FACTOR, LogDocMergePolicyProvider.this.mergeFactor);
-            if (mergeFactor != LogDocMergePolicyProvider.this.mergeFactor) {
-                logger.info("updating merge_factor from [{}] to [{}]", LogDocMergePolicyProvider.this.mergeFactor, mergeFactor);
-                LogDocMergePolicyProvider.this.mergeFactor = mergeFactor;
-                for (CustomLogDocMergePolicy policy : policies) {
-                    policy.setMergeFactor(mergeFactor);
-                }
+            int oldMergeFactor = mergePolicy.getMergeFactor();
+            int mergeFactor = settings.getAsInt(INDEX_MERGE_POLICY_MERGE_FACTOR, LogDocMergePolicy.DEFAULT_MERGE_FACTOR);
+            if (mergeFactor != oldMergeFactor) {
+                logger.info("updating merge_factor from [{}] to [{}]", oldMergeFactor, mergeFactor);
+                mergePolicy.setMergeFactor(mergeFactor);
             }
 
-            final double noCFSRatio = parseNoCFSRatio(settings.get(INDEX_COMPOUND_FORMAT, Double.toString(LogDocMergePolicyProvider.this.noCFSRatio)));
-            final boolean compoundFormat = noCFSRatio != 0.0;
+            boolean oldCalibrateSizeByDeletes = mergePolicy.getCalibrateSizeByDeletes();
+            boolean calibrateSizeByDeletes = settings.getAsBoolean(INDEX_MERGE_POLICY_CALIBRATE_SIZE_BY_DELETES, true);
+            if (calibrateSizeByDeletes != oldCalibrateSizeByDeletes) {
+                logger.info("updating calibrate_size_by_deletes from [{}] to [{}]", oldCalibrateSizeByDeletes, calibrateSizeByDeletes);
+                mergePolicy.setCalibrateSizeByDeletes(calibrateSizeByDeletes);
+            }
+
+            double noCFSRatio = parseNoCFSRatio(settings.get(INDEX_COMPOUND_FORMAT, Double.toString(LogDocMergePolicyProvider.this.noCFSRatio)));
             if (noCFSRatio != LogDocMergePolicyProvider.this.noCFSRatio) {
                 logger.info("updating index.compound_format from [{}] to [{}]", formatNoCFSRatio(LogDocMergePolicyProvider.this.noCFSRatio), formatNoCFSRatio(noCFSRatio));
                 LogDocMergePolicyProvider.this.noCFSRatio = noCFSRatio;
-                for (CustomLogDocMergePolicy policy : policies) {
-                    policy.setNoCFSRatio(noCFSRatio);
-                }
+                mergePolicy.setNoCFSRatio(noCFSRatio);
             }
-        }
-    }
-
-    public static class CustomLogDocMergePolicy extends LogDocMergePolicy {
-
-        private final LogDocMergePolicyProvider provider;
-
-        public CustomLogDocMergePolicy(LogDocMergePolicyProvider provider) {
-            super();
-            this.provider = provider;
-        }
-
-        public void close() {
-            // nocommit: MergePolicy is no longer Closeable...where to move this?
-            provider.policies.remove(this);
         }
     }
 }

@@ -31,6 +31,7 @@ import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexDeletionPolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -81,6 +82,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
@@ -320,6 +322,33 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         assertThat(segments.get(2).getNumDocs(), equalTo(1));
         assertThat(segments.get(2).getDeletedDocs(), equalTo(0));
         assertThat(segments.get(2).isCompound(), equalTo(true));
+    }
+
+    public void testStartAndAcquireConcurrently() {
+        ConcurrentMergeSchedulerProvider mergeSchedulerProvider = new ConcurrentMergeSchedulerProvider(shardId, EMPTY_SETTINGS, threadPool, new IndexSettingsService(shardId.index(), EMPTY_SETTINGS));
+        final Engine engine = createEngine(engineSettingsService, store, createTranslog(), mergeSchedulerProvider);
+        final AtomicBoolean startPending = new AtomicBoolean(true);
+        Thread thread = new Thread() {
+            public void run() {
+                try {
+                    Thread.yield();
+                    engine.start();
+                } finally {
+                    startPending.set(false);
+                }
+
+            }
+        };
+        thread.start();
+        while(startPending.get()) {
+            try {
+                engine.acquireSearcher("foobar").close();
+                break;
+            } catch (EngineClosedException ex) {
+                // all good
+            }
+        }
+        engine.close();
     }
 
 

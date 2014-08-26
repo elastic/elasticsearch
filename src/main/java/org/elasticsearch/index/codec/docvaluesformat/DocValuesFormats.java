@@ -38,10 +38,10 @@ public class DocValuesFormats {
             builtInDocValuesFormatsX.put(name, new PreBuiltDocValuesFormatProvider.Factory(DocValuesFormat.forName(name)));
         }
         // LUCENE UPGRADE: update those DVF if necessary
-        builtInDocValuesFormatsX.put(DocValuesFormatService.DEFAULT_FORMAT, new PreBuiltDocValuesFormatProvider.Factory(DocValuesFormatService.DEFAULT_FORMAT, DocValuesFormat.forName("Lucene49")));
+        builtInDocValuesFormatsX.put(DocValuesFormatService.DEFAULT_FORMAT, new PreBuiltDocValuesFormatProvider.Factory(DocValuesFormatService.DEFAULT_FORMAT, DocValuesFormat.forName("Lucene410")));
         builtInDocValuesFormatsX.put("memory", new PreBuiltDocValuesFormatProvider.Factory("memory", DocValuesFormat.forName("Memory")));
-        builtInDocValuesFormatsX.put("disk", new PreBuiltDocValuesFormatProvider.Factory("disk", DocValuesFormat.forName("Lucene49")));
-        builtInDocValuesFormatsX.put("Disk", new PreBuiltDocValuesFormatProvider.Factory("Disk", DocValuesFormat.forName("Lucene49")));
+        builtInDocValuesFormatsX.put("disk", new PreBuiltDocValuesFormatProvider.Factory("disk", DocValuesFormat.forName("Lucene410")));
+        builtInDocValuesFormatsX.put("Disk", new PreBuiltDocValuesFormatProvider.Factory("Disk", DocValuesFormat.forName("Lucene410")));
         builtInDocValuesFormats = builtInDocValuesFormatsX.immutableMap();
     }
 

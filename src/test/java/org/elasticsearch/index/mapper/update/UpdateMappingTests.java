@@ -30,6 +30,7 @@ import org.junit.Test;
 
 import java.io.IOException;
 
+import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 
@@ -105,5 +106,16 @@ public class UpdateMappingTests extends ElasticsearchSingleNodeTest {
         // make sure simulate flag actually worked - no mappings applied
         CompressedString mappingAfterUpdate = indexService.mapperService().documentMapper("type").mappingSource();
         assertThat(mappingAfterUpdate, equalTo(mappingBeforeUpdate));
+    }
+
+    @Test
+    public void testSizeTimestampParsing() throws IOException {
+        IndexService indexService = createIndex("test", ImmutableSettings.settingsBuilder().build());
+        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/update/default_mapping_with_disabled_size_timestamp.json");
+        DocumentMapper documentMapper = indexService.mapperService().parse("type", new CompressedString(mapping));
+        assertThat(documentMapper.mappingSource().string(), equalTo(mapping));
+        documentMapper.refreshSource(); //should be called anyway somewhere but just to be sure
+        documentMapper = indexService.mapperService().parse("type", new CompressedString(documentMapper.mappingSource().string()));
+        assertThat(documentMapper.mappingSource().string(), equalTo(mapping));
     }
 }

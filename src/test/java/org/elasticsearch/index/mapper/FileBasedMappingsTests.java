@@ -19,14 +19,12 @@
 
 package org.elasticsearch.index.mapper;
 
+import com.google.common.collect.ImmutableSet;
 import com.google.common.io.Files;
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
-import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
-import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetaData;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -37,16 +35,13 @@ import org.elasticsearch.test.ElasticsearchTestCase;
 
 import java.io.File;
 import java.io.FileOutputStream;
-import java.util.Arrays;
+import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
-@AwaitsFix(bugUrl = "")
 public class FileBasedMappingsTests extends ElasticsearchTestCase {
 
     private static final String NAME = FileBasedMappingsTests.class.getSimpleName();
-
-    private final ESLogger logger = Loggers.getLogger(FileBasedMappingsTests.class);
 
     public void testFileBasedMappings() throws Exception {
         File configDir = Files.createTempDir();
@@ -94,14 +89,13 @@ public class FileBasedMappingsTests extends ElasticsearchTestCase {
                 node.start();
 
                 assertAcked(node.client().admin().indices().prepareCreate("index").addMapping("type", "h", "type=string").get());
-                final GetFieldMappingsResponse response = node.client().admin().indices().prepareGetFieldMappings("index").setTypes("type").setFields("f", "g", "h").get();
-                System.out.println(response.mappings());
-                for (String field : Arrays.asList("f", "g", "h")) {
-                    logger.info("Checking field " + field);
-                    FieldMappingMetaData fMappings = response.fieldMappings("index", "type", field);
-                    assertNotNull(fMappings);
-                    assertEquals(field, fMappings.fullName());
-                }
+                final GetMappingsResponse response = node.client().admin().indices().prepareGetMappings("index").get();
+                assertTrue(response.mappings().toString(), response.mappings().containsKey("index"));
+                MappingMetaData mappings = response.mappings().get("index").get("type");
+                assertNotNull(mappings);
+                Map<?, ?> properties = (Map<?, ?>) (mappings.getSourceAsMap().get("properties"));
+                assertNotNull(properties);
+                assertEquals(ImmutableSet.of("f", "g", "h"), properties.keySet());
             }
         } finally {
             FileSystemUtils.deleteRecursively(configDir);

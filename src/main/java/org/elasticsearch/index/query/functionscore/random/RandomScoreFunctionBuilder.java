@@ -28,7 +28,7 @@ import java.io.IOException;
  */
 public class RandomScoreFunctionBuilder implements ScoreFunctionBuilder {
 
-    private Long seed = null;
+    private Integer seed = null;
 
     public RandomScoreFunctionBuilder() {
     }
@@ -44,7 +44,7 @@ public class RandomScoreFunctionBuilder implements ScoreFunctionBuilder {
      *
      * @param seed The seed.
      */
-    public RandomScoreFunctionBuilder seed(long seed) {
+    public RandomScoreFunctionBuilder seed(int seed) {
         this.seed = seed;
         return this;
     }
@@ -53,7 +53,7 @@ public class RandomScoreFunctionBuilder implements ScoreFunctionBuilder {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(getName());
         if (seed != null) {
-            builder.field("seed", seed.longValue());
+            builder.field("seed", seed.intValue());
         }
         return builder.endObject();
     }

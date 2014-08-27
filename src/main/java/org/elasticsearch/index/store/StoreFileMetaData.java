@@ -49,14 +49,6 @@ public final class StoreFileMetaData implements Streamable {
     private StoreFileMetaData() {
     }
 
-    public StoreFileMetaData(String name, long length) {
-        this(name, length, null);
-    }
-
-    public StoreFileMetaData(String name, long length, String checksum) {
-        this(name, length, checksum, null, null);
-    }
-
     public StoreFileMetaData(String name, long length, String checksum, Version writtenBy) {
         this(name, length, checksum, writtenBy, null);
     }
@@ -164,6 +156,7 @@ public final class StoreFileMetaData implements Streamable {
     public int hashCode() {
         int result = name.hashCode();
         result = 31 * result + (int) (length ^ (length >>> 32));
+        result = 31 * result + (hash.length ^ (hash.length >>> 32));
         result = 31 * result + (checksum != null ? checksum.hashCode() : 0);
         result = 31 * result + (writtenBy != null ? writtenBy.hashCode() : 0);
         return result;
@@ -176,7 +169,11 @@ public final class StoreFileMetaData implements Streamable {
             if (checksum == null || other.checksum == null) {
                 return false;
             }
-            return name.equals(other.name()) && length == other.length && checksum.equals(other.checksum) && hash.equals(other.hash);
+            return name.equals(other.name())
+                    && (writtenBy == null ? other.writtenBy == null : writtenBy.equals(other.writtenBy))
+                    && length == other.length
+                    && checksum.equals(other.checksum)
+                    && hash.equals(other.hash);
         }
         return false;
     }

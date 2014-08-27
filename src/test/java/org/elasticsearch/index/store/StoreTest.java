@@ -559,7 +559,6 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         return random.nextBoolean() ? new LeastUsedDistributor(service) : new RandomWeightedDistributor(service);
     }
 
-
     @Test
     public void testRecoveryDiff() throws IOException, InterruptedException {
         int numDocs = 2 + random().nextInt(100);

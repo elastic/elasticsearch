@@ -43,7 +43,8 @@ public class FileInfoTest extends ElasticsearchTestCase {
             for (int i = 0; i < hash.length; i++) {
                 hash.bytes[i] = randomByte();
             }
-            StoreFileMetaData meta = new StoreFileMetaData("foobar", randomInt(), randomAsciiOfLengthBetween(1, 10), TEST_VERSION_CURRENT, hash);
+            final long len = Math.max(0, Math.abs(randomLong()));
+            StoreFileMetaData meta = new StoreFileMetaData("foobar", len, randomAsciiOfLengthBetween(1, 10), TEST_VERSION_CURRENT, hash);
             ByteSizeValue size = new ByteSizeValue(Math.max(0,Math.abs(randomLong())));
             BlobStoreIndexShardSnapshot.FileInfo info = new BlobStoreIndexShardSnapshot.FileInfo("_foobar", meta, size);
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON).prettyPrint();

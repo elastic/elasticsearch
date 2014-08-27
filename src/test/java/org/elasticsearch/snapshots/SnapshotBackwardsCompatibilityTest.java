@@ -212,7 +212,7 @@ public class SnapshotBackwardsCompatibilityTest extends ElasticsearchBackwardsCo
             } while (upgraded);
             client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder().put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE, "all")).get();
         }
-        if (randomBoolean()) {
+        if (cluster().numDataNodes() > 1 && randomBoolean()) { // only bump the replicas if we have enough nodes
             client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(1,2))).get();
         }
         logger.debug("---> repo exists: " + new File(tempDir, "indices/test/0").exists() + " files: " + Arrays.toString(new File(tempDir, "indices/test/0").list())); // it's only one shard!

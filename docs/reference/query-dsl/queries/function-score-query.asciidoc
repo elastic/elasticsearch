@@ -140,8 +140,12 @@ not.
 
 ===== Random
 
-The `random_score` generates scores via a pseudo random number algorithm
-that is initialized with a `seed`.
+The `random_score` generates scores using a hash of the `_uid` field,
+with a `seed` for variation. If `seed` is not specified, the current
+time is used.
+
+NOTE: Using this feature will load field data for `_uid`, which can
+be a memory intensive operation since the values are unique.
 
 [source,js]
 --------------------------------------------------

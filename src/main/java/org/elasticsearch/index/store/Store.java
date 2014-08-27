@@ -520,8 +520,52 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
             public IndexInput slice(String sliceDescription, long offset, long length) throws IOException {
                 return new TimeLimitedIndexInput(sliceDescription, in.slice(sliceDescription, offset, length), this.activityState);
             }
+            
+            @Override
+            public RandomAccessInput randomAccessSlice(long offset, long length) throws IOException {
+                // We may be being called by a thread subject to a timeout-constraint.
+                // Unlike other disk accesses where the "root" IndexInput is cloned before use
+                // (where we create the activityState instance in clones) the randomAccessSlice calls
+                // are made to the root IndexInput instance which has null for an activityState so we
+                // need an extra call here to establish if the calling thread is timed or not.
+                ActivityTimeMonitor threadActivityState = ActivityTimeMonitor.getCurrentThreadMonitor();
+                RandomAccessInput result = in.randomAccessSlice(offset, length);
+                if (threadActivityState != null) {
+                    result = new TimeLimitedRandomAccessInput(result, threadActivityState);
+                }
+                return result;
+            }
         }
         
+        class TimeLimitedRandomAccessInput implements RandomAccessInput {
+            private RandomAccessInput slice;
+            private ActivityTimeMonitor activityState;
+
+            public TimeLimitedRandomAccessInput(RandomAccessInput slice, ActivityTimeMonitor activityState) {
+                this.slice = slice;
+                this.activityState = activityState;
+            }
+
+            public byte readByte(long pos) throws IOException {
+                activityState.checkForTimeout();
+                return slice.readByte(pos);
+            }
+
+            public short readShort(long pos) throws IOException {
+                activityState.checkForTimeout();
+                return slice.readShort(pos);
+            }
+
+            public int readInt(long pos) throws IOException {
+                activityState.checkForTimeout();
+                return slice.readInt(pos);
+            }
+
+            public long readLong(long pos) throws IOException {
+                activityState.checkForTimeout();
+                return slice.readLong(pos);
+            }
+        }
         
 
         @Override

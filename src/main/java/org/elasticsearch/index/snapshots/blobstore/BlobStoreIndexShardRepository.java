@@ -652,7 +652,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
      */
     private static final void maybeRecalculateMetadataHash(final ImmutableBlobContainer blobContainer, final FileInfo fileInfo, Store.MetadataSnapshot snapshot) throws Throwable {
         final StoreFileMetaData metadata;
-        if (fileInfo != null && (metadata = snapshot.get(fileInfo.name())) != null) {
+        if (fileInfo != null && (metadata = snapshot.get(fileInfo.physicalName())) != null) {
             if (metadata.hash().length > 0 && fileInfo.metadata().hash().length == 0) {
                 // we have a hash - check if our repo has a hash too otherwise we have
                 // to calculate it.

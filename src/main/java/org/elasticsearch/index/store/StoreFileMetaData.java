@@ -156,6 +156,7 @@ public final class StoreFileMetaData implements Streamable {
     public int hashCode() {
         int result = name.hashCode();
         result = 31 * result + (int) (length ^ (length >>> 32));
+        // we only use hash.length here since the actual hash might be expensive
         result = 31 * result + (hash.length ^ (hash.length >>> 32));
         result = 31 * result + (checksum != null ? checksum.hashCode() : 0);
         result = 31 * result + (writtenBy != null ? writtenBy.hashCode() : 0);

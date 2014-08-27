@@ -50,19 +50,19 @@ public class StoreFileMetaDataTest extends ElasticsearchTestCase {
             final Version version = RandomPicks.randomFrom(getRandom(), Version.values());
             StoreFileMetaData meta = new StoreFileMetaData(name, len, checksum, version, BytesRef.deepCopyOf(hash));
             assertEquals(maybeSerialize(meta), new StoreFileMetaData(name, len, checksum, version, BytesRef.deepCopyOf(hash)));
-            assertEquals(maybeSerialize(meta).hashCode(), new StoreFileMetaData(name, len, checksum, version,  BytesRef.deepCopyOf(hash)).hashCode());
-            assertThat(maybeSerialize(meta), not(equalTo(new StoreFileMetaData(name+"foobar", len, checksum, version,  BytesRef.deepCopyOf(hash)))));
-            assertThat(maybeSerialize(meta), not(equalTo(new StoreFileMetaData(name, len+1, checksum, version,  BytesRef.deepCopyOf(hash)))));
-            assertThat(maybeSerialize(meta), not(equalTo(new StoreFileMetaData(name, len, checksum+"foo", version,  BytesRef.deepCopyOf(hash)))));
+            assertEquals(maybeSerialize(meta).hashCode(), new StoreFileMetaData(name, len, checksum, version, BytesRef.deepCopyOf(hash)).hashCode());
+            assertThat(maybeSerialize(meta), not(equalTo(new StoreFileMetaData(name + "foobar", len, checksum, version, BytesRef.deepCopyOf(hash)))));
+            assertThat(maybeSerialize(meta), not(equalTo(new StoreFileMetaData(name, len + 1, checksum, version, BytesRef.deepCopyOf(hash)))));
+            assertThat(maybeSerialize(meta), not(equalTo(new StoreFileMetaData(name, len, checksum + "foo", version, BytesRef.deepCopyOf(hash)))));
             Version otherVersion = version;
-            while(otherVersion == version) {
+            while (otherVersion == version) {
                 otherVersion = RandomPicks.randomFrom(getRandom(), Version.values());
             }
-            assertThat(maybeSerialize(meta), not(equalTo(new StoreFileMetaData(name, len, checksum, otherVersion,  BytesRef.deepCopyOf(hash)))));
+            assertThat(maybeSerialize(meta), not(equalTo(new StoreFileMetaData(name, len, checksum, otherVersion, BytesRef.deepCopyOf(hash)))));
             assertThat(maybeSerialize(meta), not(equalTo(new StoreFileMetaData(name, len, checksum, version, null))));
             BytesRef otherHash = BytesRef.deepCopyOf(hash);
             while (otherHash.equals(hash)) {
-                otherHash.copyChars(randomAsciiOfLengthBetween(1,10));
+                otherHash.copyChars(randomAsciiOfLengthBetween(1, 10));
             }
             assertThat(maybeSerialize(meta), not(equalTo(new StoreFileMetaData(name, len, checksum, version, otherHash))));
         }
@@ -80,9 +80,9 @@ public class StoreFileMetaDataTest extends ElasticsearchTestCase {
 
     public StoreFileMetaData maybeSerialize(StoreFileMetaData meta) throws IOException {
         if (randomBoolean()) {
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        meta.writeTo(new OutputStreamStreamOutput(outputStream));
-        return StoreFileMetaData.readStoreFileMetaData(new InputStreamStreamInput(new ByteArrayInputStream(outputStream.toByteArray())));
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            meta.writeTo(new OutputStreamStreamOutput(outputStream));
+            return StoreFileMetaData.readStoreFileMetaData(new InputStreamStreamInput(new ByteArrayInputStream(outputStream.toByteArray())));
         }
         return meta;
     }

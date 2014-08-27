@@ -35,7 +35,9 @@ import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
 import org.junit.Ignore;
 import org.junit.Test;
 
+import java.io.File;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
@@ -157,11 +159,11 @@ public class SnapshotBackwardsCompatibilityTest extends ElasticsearchBackwardsCo
 
     public void testSnapshotMoreThanOnce() throws ExecutionException, InterruptedException, IOException {
         Client client = client();
-
+        final File tempDir = newTempDir(LifecycleScope.SUITE).getAbsoluteFile();
         logger.info("-->  creating repository");
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
                 .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
-                        .put("location", newTempDir(LifecycleScope.SUITE).getAbsoluteFile())
+                        .put("location", tempDir)
                         .put("compress", randomBoolean())
                         .put("chunk_size", randomIntBetween(100, 1000))));
 
@@ -213,7 +215,7 @@ public class SnapshotBackwardsCompatibilityTest extends ElasticsearchBackwardsCo
         if (cluster().numDataNodes() > 1 && randomBoolean()) { // only bump the replicas if we have enough nodes
             client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(1,2))).get();
         }
-
+        logger.debug("---> repo exists: " + new File(tempDir, "indices/test/0").exists() + " files: " + Arrays.toString(new File(tempDir, "indices/test/0").list())); // it's only one shard!
         CreateSnapshotResponse createSnapshotResponseSecond = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-1").setWaitForCompletion(true).setIndices("test").get();
         assertThat(createSnapshotResponseSecond.getSnapshotInfo().successfulShards(), greaterThan(0));
         assertThat(createSnapshotResponseSecond.getSnapshotInfo().successfulShards(), equalTo(createSnapshotResponseSecond.getSnapshotInfo().totalShards()));
@@ -222,6 +224,7 @@ public class SnapshotBackwardsCompatibilityTest extends ElasticsearchBackwardsCo
             SnapshotStatus snapshotStatus = client.admin().cluster().prepareSnapshotStatus("test-repo").setSnapshots("test-1").get().getSnapshots().get(0);
             List<SnapshotIndexShardStatus> shards = snapshotStatus.getShards();
             for (SnapshotIndexShardStatus status : shards) {
+
                 assertThat(status.getStats().getProcessedFiles(), equalTo(1)); // we flush before the snapshot such that we have to process the segments_N files
             }
         }

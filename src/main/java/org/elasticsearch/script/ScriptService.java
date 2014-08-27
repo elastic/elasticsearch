@@ -26,8 +26,10 @@ import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
+import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
@@ -376,11 +378,13 @@ public class ScriptService extends AbstractComponent {
     }
 
     public GetResponse queryScriptIndex(Client client, String scriptLang, String id,
-                                        long version, VersionType versionType){
+                                        long version, VersionType versionType) {
         scriptLang = validateScriptLanguage(scriptLang);
         return client.prepareGet(SCRIPT_INDEX, scriptLang, id)
                 .setVersion(version)
                 .setVersionType(versionType)
+                .setPreference("_local") //Set preference for no forking
+                .setOperationThreaded(false)
                 .get();
     }
 

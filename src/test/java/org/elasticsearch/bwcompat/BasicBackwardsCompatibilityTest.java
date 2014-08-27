@@ -18,15 +18,12 @@
  */
 package org.elasticsearch.bwcompat;
 
-import com.carrotsearch.randomizedtesting.LifecycleScope;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.util.English;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
@@ -37,7 +34,6 @@ import org.elasticsearch.action.deletebyquery.DeleteByQueryResponse;
 import org.elasticsearch.action.deletebyquery.IndexDeleteByQueryResponse;
 import org.elasticsearch.action.explain.ExplainResponse;
 import org.elasticsearch.action.get.*;
-import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
@@ -63,9 +59,7 @@ import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -482,7 +476,8 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
 
     @Test
     public void testDeleteRoutingRequired() throws ExecutionException, InterruptedException, IOException {
-        assertAcked(prepareCreate("test").addMapping("test",
+        createIndexWithAlias();
+        assertAcked(client().admin().indices().preparePutMapping("test").setType("test").setSource(
                 XContentFactory.jsonBuilder().startObject().startObject("test").startObject("_routing").field("required", true).endObject().endObject().endObject()));
         ensureYellow("test");
 
@@ -530,7 +525,7 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
 
     @Test
     public void testIndexGetAndDelete() throws ExecutionException, InterruptedException {
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
+        createIndexWithAlias();
         ensureYellow("test");
 
         int numDocs = iterations(10, 50);
@@ -567,7 +562,7 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
 
     @Test
     public void testUpdate() {
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
+        createIndexWithAlias();
         ensureYellow("test");
 
         UpdateRequestBuilder updateRequestBuilder = client().prepareUpdate(indexOrAlias(), "type1", "1")
@@ -598,8 +593,8 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
 
     @Test
     public void testAnalyze() {
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
-                .addMapping("test", "field", "type=string,analyzer=keyword"));
+        createIndexWithAlias();
+        assertAcked(client().admin().indices().preparePutMapping("test").setType("test").setSource("field", "type=string,analyzer=keyword"));
         ensureYellow("test");
         AnalyzeResponse analyzeResponse = client().admin().indices().prepareAnalyze("this is a test").setIndex(indexOrAlias()).setField("field").get();
         assertThat(analyzeResponse.getTokens().size(), equalTo(1));
@@ -608,7 +603,7 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
 
     @Test
     public void testExplain() {
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
+        createIndexWithAlias();
         ensureYellow("test");
 
         client().prepareIndex(indexOrAlias(), "test", "1").setSource("field", "value1").get();
@@ -625,8 +620,8 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
 
     @Test
     public void testGetTermVector() throws IOException {
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
-                .addMapping("type1", "field", "type=string,term_vector=with_positions_offsets_payloads"));
+        createIndexWithAlias();
+        assertAcked(client().admin().indices().preparePutMapping("test").setType("type1").setSource("field", "type=string,term_vector=with_positions_offsets_payloads").get());
         ensureYellow("test");
 
         client().prepareIndex(indexOrAlias(), "type1", "1")
@@ -653,7 +648,7 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
 
     @Test
     public void testMultiGet() throws ExecutionException, InterruptedException {
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
+        createIndexWithAlias();
         ensureYellow("test");
 
         int numDocs = iterations(10, 50);
@@ -686,5 +681,14 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
 
     private static String indexOrAlias() {
         return randomBoolean() ? "test" : "alias";
+    }
+
+    private void createIndexWithAlias() {
+        if (compatibilityVersion().onOrAfter(Version.V_1_1_0)) {
+            assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
+        } else {
+            assertAcked(prepareCreate("test"));
+            assertAcked(client().admin().indices().prepareAliases().addAlias("test", "alias"));
+        }
     }
 }

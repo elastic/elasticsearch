@@ -123,6 +123,8 @@ public final class InternalTestCluster extends TestCluster {
 
     private final ESLogger logger = Loggers.getLogger(getClass());
 
+    static SettingsSource DEFAULT_SETTINGS_SOURCE = SettingsSource.EMPTY;
+
     /**
      * A boolean value to enable or disable mock modules. This is useful to test the
      * system without asserting modules that to make sure they don't hide any bugs in
@@ -185,12 +187,8 @@ public final class InternalTestCluster extends TestCluster {
 
     private final boolean hasFilterCache;
 
-    public InternalTestCluster(long clusterSeed, String clusterName) {
-        this(clusterSeed, DEFAULT_MIN_NUM_DATA_NODES, DEFAULT_MAX_NUM_DATA_NODES, clusterName, SettingsSource.EMPTY, DEFAULT_NUM_CLIENT_NODES, DEFAULT_ENABLE_RANDOM_BENCH_NODES);
-    }
-
     public InternalTestCluster(long clusterSeed, int minNumDataNodes, int maxNumDataNodes, String clusterName, int numClientNodes, boolean enableRandomBenchNodes) {
-        this(clusterSeed, minNumDataNodes, maxNumDataNodes, clusterName, SettingsSource.EMPTY, numClientNodes, enableRandomBenchNodes);
+        this(clusterSeed, minNumDataNodes, maxNumDataNodes, clusterName, DEFAULT_SETTINGS_SOURCE, numClientNodes, enableRandomBenchNodes);
     }
 
     public InternalTestCluster(long clusterSeed, int minNumDataNodes, int maxNumDataNodes, String clusterName, SettingsSource settingsSource, int numClientNodes, boolean enableRandomBenchNodes) {

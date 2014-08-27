@@ -65,7 +65,7 @@ public class SimpleObjectMappingTests extends ElasticsearchSingleNodeTest {
     }
 
     @Test
-    public void testEmptyFieldsArrayMultiFields() throws Exception {
+    public void emptyFieldsArrayMultiFieldsTest() throws Exception {
         String mapping = XContentFactory.jsonBuilder()
                                         .startObject()
                                             .startObject("tweet")
@@ -83,8 +83,29 @@ public class SimpleObjectMappingTests extends ElasticsearchSingleNodeTest {
         createIndex("test").mapperService().documentMapperParser().parse(mapping);
     }
 
+    @Test(expected = MapperParsingException.class)
+    public void fieldsArrayMultiFieldsShouldThrowExceptionTest() throws Exception {
+        String mapping = XContentFactory.jsonBuilder()
+                .startObject()
+                    .startObject("tweet")
+                        .startObject("properties")
+                            .startObject("name")
+                                .field("type", "string")
+                                .field("index", "analyzed")
+                                .startArray("fields")
+                                    .field("test", "string")
+                                    .field("test2", "string")
+                                .endArray()
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject()
+                .string();
+        createIndex("test").mapperService().documentMapperParser().parse(mapping);
+    }
+
     @Test
-    public void testEmptyFieldsArray() throws Exception {
+    public void emptyFieldsArrayTest() throws Exception {
         String mapping = XContentFactory.jsonBuilder()
                                         .startObject()
                                             .startObject("tweet")
@@ -98,8 +119,25 @@ public class SimpleObjectMappingTests extends ElasticsearchSingleNodeTest {
         createIndex("test").mapperService().documentMapperParser().parse(mapping);
     }
 
+    @Test(expected = MapperParsingException.class)
+    public void fieldsWithFilledArrayShouldThrowExceptionTest() throws Exception {
+        String mapping = XContentFactory.jsonBuilder()
+                .startObject()
+                    .startObject("tweet")
+                        .startObject("properties")
+                            .startArray("fields")
+                                .field("test", "string")
+                                .field("test2", "string")
+                            .endArray()
+                        .endObject()
+                    .endObject()
+                .endObject()
+                .string();
+        createIndex("test").mapperService().documentMapperParser().parse(mapping);
+    }
+
     @Test
-    public void testFieldPropertiesArray() throws Exception {
+    public void fieldPropertiesArrayTest() throws Exception {
         String mapping = XContentFactory.jsonBuilder()
                                         .startObject()
                                             .startObject("tweet")

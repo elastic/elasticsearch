@@ -23,6 +23,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
@@ -39,6 +40,7 @@ import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
+import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCacheListener;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -51,7 +53,9 @@ import java.util.concurrent.ConcurrentMap;
 public class IndexFieldDataService extends AbstractIndexComponent {
 
     public static final String FIELDDATA_CACHE_KEY = "index.fielddata.cache";
+    public static final String FIELDDATA_CACHE_VALUE_SOFT = "soft";
     public static final String FIELDDATA_CACHE_VALUE_NODE = "node";
+    public static final String FIELDDATA_CACHE_VALUE_RESIDENT = "resident";
 
     private static final String DISABLED_FORMAT = "disabled";
     private static final String DOC_VALUES_FORMAT = "doc_values";
@@ -64,6 +68,7 @@ public class IndexFieldDataService extends AbstractIndexComponent {
     private final static ImmutableMap<String, IndexFieldData.Builder> docValuesBuildersByType;
     private final static ImmutableMap<Tuple<String, String>, IndexFieldData.Builder> buildersByTypeAndFormat;
     private final CircuitBreakerService circuitBreakerService;
+    private final IndicesFieldDataCacheListener indicesFieldDataCacheListener;
 
     static {
         buildersByType = MapBuilder.<String, IndexFieldData.Builder>newMapBuilder()
@@ -142,10 +147,11 @@ public class IndexFieldDataService extends AbstractIndexComponent {
 
     @Inject
     public IndexFieldDataService(Index index, @IndexSettings Settings indexSettings, IndicesFieldDataCache indicesFieldDataCache,
-                                 CircuitBreakerService circuitBreakerService) {
+                                 CircuitBreakerService circuitBreakerService, IndicesFieldDataCacheListener indicesFieldDataCacheListener) {
         super(index, indexSettings);
         this.indicesFieldDataCache = indicesFieldDataCache;
         this.circuitBreakerService = circuitBreakerService;
+        this.indicesFieldDataCacheListener = indicesFieldDataCacheListener;
     }
 
     // we need to "inject" the index service to not create cyclic dep
@@ -257,12 +263,20 @@ public class IndexFieldDataService extends AbstractIndexComponent {
 
                     IndexFieldDataCache cache = fieldDataCaches.get(fieldNames.indexName());
                     if (cache == null) {
+                        // soft and resident caches are deprecated as of 1.4.0
+                        final boolean pre14 = Version.indexCreated(indexSettings).before(Version.V_1_4_0);
                         //  we default to node level cache, which in turn defaults to be unbounded
                         // this means changing the node level settings is simple, just set the bounds there
                         String cacheType = type.getSettings().get("cache", indexSettings.get(FIELDDATA_CACHE_KEY, FIELDDATA_CACHE_VALUE_NODE));
-                        if (FIELDDATA_CACHE_VALUE_NODE.equals(cacheType)) {
+                        if (pre14 && FIELDDATA_CACHE_VALUE_RESIDENT.equals(cacheType)) {
+                            cache = new IndexFieldDataCache.Resident(logger, indexService, fieldNames, type, indicesFieldDataCacheListener);
+                            logger.warn(FIELDDATA_CACHE_KEY + "=" + FIELDDATA_CACHE_VALUE_RESIDENT + " is deprecated and will not be usable for indices created on or after elasticsearch 1.4.0");
+                        } else if (pre14 && FIELDDATA_CACHE_VALUE_SOFT.equals(cacheType)) {
+                            cache = new IndexFieldDataCache.Soft(logger, indexService, fieldNames, type, indicesFieldDataCacheListener);
+                            logger.warn(FIELDDATA_CACHE_KEY + "=" + FIELDDATA_CACHE_VALUE_SOFT + " is deprecated and will not be usable for indices created on or after elasticsearch 1.4.0");
+                        } else if (FIELDDATA_CACHE_VALUE_NODE.equals(cacheType)) {
                             cache = indicesFieldDataCache.buildIndexFieldDataCache(indexService, index, fieldNames, type);
-                        } else if ("none".equals(cacheType)) {
+                        } else if ("none".equals(cacheType)){
                             cache = new IndexFieldDataCache.None();
                         } else {
                             throw new ElasticsearchIllegalArgumentException("cache type not supported [" + cacheType + "] for field [" + fieldNames.fullName() + "]");

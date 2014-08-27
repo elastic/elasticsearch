@@ -77,6 +77,8 @@ public class ScriptService extends AbstractComponent {
 
     public static final String DEFAULT_SCRIPTING_LANGUAGE_SETTING = "script.default_lang";
     public static final String DISABLE_DYNAMIC_SCRIPTING_SETTING = "script.disable_dynamic";
+    public static final String SCRIPT_INDEX_OPERATION_TIMEOUT_SETTING = "script.index.timeout";
+    public static final String SCRIPT_INDEX_OPERATION_DEFAULT_TIMEOUT = "5s";
     public static final String SCRIPT_CACHE_SIZE_SETTING = "script.cache.max_size";
     public static final String SCRIPT_CACHE_EXPIRE_SETTING = "script.cache.expire";
     public static final String DISABLE_DYNAMIC_SCRIPTING_DEFAULT = "sandbox";
@@ -94,6 +96,7 @@ public class ScriptService extends AbstractComponent {
     private final File scriptsDirectory;
 
     private final DynamicScriptDisabling dynamicScriptingDisabled;
+    private final TimeValue scriptIndexOperationTimeout;
 
     private Client client = null;
 
@@ -226,6 +229,11 @@ public class ScriptService extends AbstractComponent {
 
         this.defaultLang = settings.get(DEFAULT_SCRIPTING_LANGUAGE_SETTING, "groovy");
         this.dynamicScriptingDisabled = DynamicScriptDisabling.parse(settings.get(DISABLE_DYNAMIC_SCRIPTING_SETTING, DISABLE_DYNAMIC_SCRIPTING_DEFAULT));
+
+        this.scriptIndexOperationTimeout= TimeValue.parseTimeValue(
+                settings.get(SCRIPT_INDEX_OPERATION_TIMEOUT_SETTING, SCRIPT_INDEX_OPERATION_DEFAULT_TIMEOUT),
+                new TimeValue(5000, TimeUnit.MILLISECONDS)
+        );
 
         CacheBuilder cacheBuilder = CacheBuilder.newBuilder();
         if (cacheMaxSize >= 0) {
@@ -385,7 +393,7 @@ public class ScriptService extends AbstractComponent {
                 .setVersionType(versionType)
                 .setPreference("_local") //Set preference for no forking
                 .setOperationThreaded(false)
-                .get();
+                .execute().actionGet(scriptIndexOperationTimeout);
     }
 
     private String validateScriptLanguage(String scriptLang) {

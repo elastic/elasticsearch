@@ -2,7 +2,7 @@
   "filtered": {
     "filter": {
       "has_parent": {
-        "type": "test",
+        "type": "foo",
         "query": {
           "bool": {
             "must": [],

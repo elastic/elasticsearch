@@ -153,7 +153,7 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
                 if (propName.equals("null_value")) {
                     builder.nullValue(propNode.toString());
                 } else if (propName.equals("format")) {
-                    builder.dateTimeFormatter(parseDateTimeFormatter(propName, propNode));
+                    builder.dateTimeFormatter(parseDateTimeFormatter(propNode));
                 } else if (propName.equals("numeric_resolution")) {
                     builder.timeUnit(TimeUnit.valueOf(propNode.toString().toUpperCase(Locale.ROOT)));
                 } else if (propName.equals("locale")) {

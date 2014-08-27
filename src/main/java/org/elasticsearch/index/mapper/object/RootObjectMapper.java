@@ -146,12 +146,12 @@ public class RootObjectMapper extends ObjectMapper {
                 List<FormatDateTimeFormatter> dateTimeFormatters = newArrayList();
                 if (fieldNode instanceof List) {
                     for (Object node1 : (List) fieldNode) {
-                        dateTimeFormatters.add(parseDateTimeFormatter(fieldName, node1));
+                        dateTimeFormatters.add(parseDateTimeFormatter(node1));
                     }
                 } else if ("none".equals(fieldNode.toString())) {
                     dateTimeFormatters = null;
                 } else {
-                    dateTimeFormatters.add(parseDateTimeFormatter(fieldName, fieldNode));
+                    dateTimeFormatters.add(parseDateTimeFormatter(fieldNode));
                 }
                 if (dateTimeFormatters == null) {
                     ((Builder) builder).noDynamicDateTimeFormatter();

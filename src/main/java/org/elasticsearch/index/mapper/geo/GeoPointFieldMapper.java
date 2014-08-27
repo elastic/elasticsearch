@@ -245,7 +245,7 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
                 } else if (fieldName.equals("normalize_lon")) {
                     builder.normalizeLon = XContentMapValues.nodeBooleanValue(fieldNode);
                 } else {
-                    parseMultiField(builder, name, node, parserContext, fieldName, fieldNode);
+                    parseMultiField(builder, name, parserContext, fieldName, fieldNode);
                 }
             }
             return builder;

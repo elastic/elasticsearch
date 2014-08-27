@@ -75,6 +75,13 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
     private static final float DEFAULT_INDEX_BALANCE_FACTOR = 0.5f;
     private static final float DEFAULT_SHARD_BALANCE_FACTOR = 0.45f;
     private static final float DEFAULT_PRIMARY_BALANCE_FACTOR = 0.05f;
+    /**
+     * Default weight for the shard size balance factor.  Set to 0 because:
+     * <ul>
+     *  <li>Calculating it has non-trivial cpu cost</li>
+     *  <li>It is new so we're not sure what a good default is</li>
+     * </ul>
+     */
     public static final float DEFAULT_SHARD_SIZE_BALANCE_FACTOR = 0f;
 
     class ApplySettings implements NodeSettingsService.Listener {
@@ -175,7 +182,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
      * <li><code>index balance</code> - balance property over shards per index</li>
      * <li><code>shard balance</code> - balance property over shards per cluster</li>
      * <li><code>primary balance</code> - balance property over primaries per cluster</li>
-     * <li><code>size balance</code> - balance property over shard size</li>
+     * <li><code>shard size balance</code> - balance property over shard size</li>
      * </ul>
      * <p>
      * Each of these properties are expressed as factor such that the properties factor defines the relative importance of the property for the
@@ -194,7 +201,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
      * <code>weight<sub>primary</sub>(node, index) = primaryBalance * (node.numPrimaries() - avgPrimariesPerNode)</code>
      * </li>
      * <li>
-     * <code>weight<sub>shard size</sub>(node, index) = shardBalance * (node.shardsOfThisSize() - avgShardsOfThisSize)</code>
+     * <code>weight<sub>shard size</sub>(node, index) = shardSizeBalance * (node.shardsOfThisSize() - avgShardsOfThisSize)</code>
      * </li>
      * </ul>
      * <code>weight(node, index) = weight<sub>index</sub>(node, index) + weight<sub>node</sub>(node, index) + weight<sub>primary</sub>(node, index)</code>
@@ -361,7 +368,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                 return 0;
             }
 
-            Set<String> shardsSet = new HashSet<String>();
+            Set<String> shardsSet = new HashSet<>();
             shardsSet.addAll(shards);
             for (Map.Entry<String, ModelIndex> currentIndex: weighingNode.indices.entrySet()) {
                 for (MutableShardRouting shard: currentIndex.getValue().getAllShards()) {

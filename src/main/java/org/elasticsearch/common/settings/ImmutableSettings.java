@@ -31,8 +31,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.joda.FormatDateTimeFormatter;
-import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.property.PropertyPlaceholder;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.settings.loader.SettingsLoaderFactory;
@@ -55,9 +53,8 @@ import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
  * An immutable implementation of {@link Settings}.
  */
 public class ImmutableSettings implements Settings {
-    public static final Settings EMPTY = new Builder().build();
 
-    public static final FormatDateTimeFormatter DATE_FORMAT = Joda.forPattern("dateOptionalTime", Locale.ROOT);
+    public static final Settings EMPTY = new Builder().build();
 
     private ImmutableMap<String, String> settings;
     private final ImmutableMap<String, String> forcedUnderscoreSettings;

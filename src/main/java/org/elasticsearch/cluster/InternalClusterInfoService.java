@@ -362,8 +362,6 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
                 logger.trace("Finished ClusterInfoUpdateJob");
             }
         }
-
-
     }
 
     /**
@@ -379,9 +377,8 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
         Map<String, Long> newShardSizes = new HashMap<>();
         ShardsBucketedBySize.Builder newShardsBucketedBySize = ShardsBucketedBySize.builder(smallShardLimit.bytes());
         for (ShardStats s : indicesStatsResponse.getShards()) {
-            // Default to the configured "default" size if there is
-            // one that isn't expired and is larger then the actual
-            // size.
+            // Default to the configured "minimum" size if there is
+            // one and it is larger then the actual size.
             long size = minimumShardSizeFromMetaData(s.getIndex());
             if (size < s.getStats().getStore().sizeInBytes()) {
                 size = s.getStats().getStore().sizeInBytes();
@@ -411,11 +408,14 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
     }
 
     /**
-     * Load the shard size from its metadata if it has any configured.
+     * Load the "minimum" shard size from its metadata if it has any configured.
      * @param index index name
-     * @return -1 if there isn't any shard size in the metadata.  0 or more if there was a size in the metadata.
+     * @return shards size in bytes as read from the metadata or -1 if nothing in the metdata.
      */
     private long minimumShardSizeFromMetaData(String index) {
+        if (metaData == null) {
+            return -1;
+        }
         IndexMetaData meta = metaData.index(index);
         if (meta == null) {
             return -1;
@@ -424,6 +424,7 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
         if (minimumSize == null) {
             return -1;
         }
+        logger.trace("shard: {} minimum size: {}", index, minimumSize);
         return minimumSize.bytes();
     }
 

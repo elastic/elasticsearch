@@ -19,8 +19,8 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -79,16 +79,20 @@ public class ScriptedMetricTests extends ElasticsearchIntegrationTest {
                     jsonBuilder().startObject().field("value", i * 2).endObject()));
         }
 
-        client().preparePutIndexedScript("groovy", "initScript_indexed", "{\"script\":\"vars.multiplier = 3\"}").get();
-        client().preparePutIndexedScript("groovy", "mapScript_indexed", "{\"script\":\"_agg.add(vars.multiplier)\"}").get();
-        client().preparePutIndexedScript("groovy", "combineScript_indexed",
+        PutIndexedScriptResponse indexScriptResponse = client().preparePutIndexedScript("groovy", "initScript_indexed", "{\"script\":\"vars.multiplier = 3\"}").get();
+        assertThat(indexScriptResponse.isCreated(), equalTo(true));
+        indexScriptResponse = client().preparePutIndexedScript("groovy", "mapScript_indexed", "{\"script\":\"_agg.add(vars.multiplier)\"}").get();
+        assertThat(indexScriptResponse.isCreated(), equalTo(true));
+        indexScriptResponse = client().preparePutIndexedScript("groovy", "combineScript_indexed",
                 "{\"script\":\"newaggregation = []; sum = 0;for (a in _agg) { sum += a}; newaggregation.add(sum); return newaggregation\"}")
                 .get();
-        client().preparePutIndexedScript(
+        assertThat(indexScriptResponse.isCreated(), equalTo(true));
+        indexScriptResponse = client().preparePutIndexedScript(
                 "groovy",
                 "reduceScript_indexed",
                 "{\"script\":\"newaggregation = []; sum = 0;for (agg in _aggs) { for (a in agg) { sum += a} }; newaggregation.add(sum); return newaggregation\"}")
                 .get();
+        assertThat(indexScriptResponse.isCreated(), equalTo(true));
         
         indexRandom(true, builders);
         ensureSearchable();
@@ -493,7 +497,6 @@ public class ScriptedMetricTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @LuceneTestCase.AwaitsFix(bugUrl = "failed to execute fetch, node not connected")
     public void testInitMapCombineReduce_withParams_Indexed() {
         Map<String, Object> varsMap = new HashMap<>();
         varsMap.put("multiplier", 1);

@@ -77,12 +77,11 @@ public class ShardTermVectorsService extends AbstractIndexShardComponent {
     }
 
     public TermVectorsResponse getTermVectors(TermVectorsRequest request, String concreteIndex) {
-        final Engine.Searcher searcher = indexShard.acquireSearcher("term_vector");
-        IndexReader topLevelReader = searcher.reader();
         final TermVectorsResponse termVectorsResponse = new TermVectorsResponse(concreteIndex, request.type(), request.id());
-
         final Term uidTerm = new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(request.type(), request.id()));
-        Engine.GetResult get = indexShard.get(new Engine.Get(request.realtime(), uidTerm));
+
+        Engine.GetResult get = indexShard.get(new Engine.Get(request.realtime(), uidTerm).version(request.version()).versionType(request.versionType()));
+
         boolean docFromTranslog = get.source() != null;
         AggregatedDfs dfs = null;
 
@@ -97,8 +96,9 @@ public class ShardTermVectorsService extends AbstractIndexShardComponent {
             handleFieldWildcards(request);
         }
 
+        final Engine.Searcher searcher = indexShard.acquireSearcher("term_vector");
         try {
-            Fields topLevelFields = MultiFields.getFields(topLevelReader);
+            Fields topLevelFields = MultiFields.getFields(get.searcher() != null ? get.searcher().reader() : searcher.reader());
             Versions.DocIdAndVersion docIdAndVersion = get.docIdAndVersion();
             /* from an artificial document */
             if (request.doc() != null) {

@@ -147,8 +147,4 @@ public class PrivilegeTests extends ElasticsearchTestCase {
         }
     }
 
-    @Test @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch-shield/issues/22")
-    public void testIndexTemplateApiIsNotPartOfClusterPrivileg() throws Exception {
-        assertThat(Privilege.Cluster.ALL.predicate().apply("indices:admin/template/get"), is(false));
-    }
 }

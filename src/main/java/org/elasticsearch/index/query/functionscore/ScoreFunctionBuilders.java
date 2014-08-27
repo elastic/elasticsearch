@@ -75,7 +75,7 @@ public class ScoreFunctionBuilders {
         return (new FactorBuilder()).boostFactor(boost);
     }
 
-    public static RandomScoreFunctionBuilder randomFunction(long seed) {
+    public static RandomScoreFunctionBuilder randomFunction(int seed) {
         return (new RandomScoreFunctionBuilder()).seed(seed);
     }
 

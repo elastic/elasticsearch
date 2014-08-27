@@ -27,7 +27,12 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.index.VersionType;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestToXContentListener;
 
 import java.util.HashSet;
@@ -84,6 +89,8 @@ public class RestTermVectorsAction extends BaseRestHandler {
         termVectorsRequest.payloads(request.paramAsBoolean("payloads", termVectorsRequest.payloads()));
         termVectorsRequest.routing(request.param("routing"));
         termVectorsRequest.realtime(request.paramAsBoolean("realtime", null));
+        termVectorsRequest.version(RestActions.parseVersion(request, termVectorsRequest.version()));
+        termVectorsRequest.versionType(VersionType.fromString(request.param("version_type"), termVectorsRequest.versionType()));
         termVectorsRequest.parent(request.param("parent"));
         termVectorsRequest.preference(request.param("preference"));
         termVectorsRequest.termStatistics(request.paramAsBoolean("termStatistics", termVectorsRequest.termStatistics()));

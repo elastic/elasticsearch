@@ -669,15 +669,10 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
     public void testDuelWithAndWithoutTermVectors() throws ElasticsearchException, IOException, ExecutionException, InterruptedException {
         // setup indices
         String[] indexNames = new String[] {"with_tv", "without_tv"};
-        ImmutableSettings.Builder settings = settingsBuilder()
-                .put(indexSettings())
-                .put("index.analysis.analyzer", "standard");
         assertAcked(prepareCreate(indexNames[0])
-                .setSettings(settings)
-                .addMapping("type1", "field1", "type=string,term_vector=with_positions_offsets"));
+                .addMapping("type1", "field1", "type=string,term_vector=with_positions_offsets,analyzer=keyword"));
         assertAcked(prepareCreate(indexNames[1])
-                .setSettings(settings)
-                .addMapping("type1", "field1", "type=string,term_vector=no"));
+                .addMapping("type1", "field1", "type=string,term_vector=no,analyzer=keyword"));
         ensureGreen();
 
         // index documents with and without term vectors
@@ -691,29 +686,28 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
                 "Transforming a data stream (such as when using a scrambler in telecommunications)."};
 
         List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
-        for (int i = 0; i < content.length; i++) {
-            for (String indexName : indexNames) {
+        for (String indexName : indexNames) {
+            for (int id = 0; id < content.length; id++) {
                 indexBuilders.add(client().prepareIndex()
                         .setIndex(indexName)
                         .setType("type1")
-                        .setId(String.valueOf(i))
-                        .setSource("field1", content[i]));
+                        .setId(String.valueOf(id))
+                        .setSource("field1", content[id]));
             }
         }
         indexRandom(true, indexBuilders);
 
         // request tvs and compare from each index
-        for (int i = 0; i < content.length; i++) {
+        for (int id = 0; id < content.length; id++) {
             Fields[] fields = new Fields[2];
-            int idx = 0;
-            for (String indexName : indexNames) {
-                TermVectorsResponse resp = client().prepareTermVectors(indexName, "type1", String.valueOf(i))
+            for (int j = 0; j < indexNames.length; j++) {
+                TermVectorsResponse resp = client().prepareTermVector(indexNames[j], "type1", String.valueOf(id))
                         .setOffsets(true)
                         .setPositions(true)
                         .setSelectedFields("field1")
                         .get();
-                assertThat("doc with index: test_with_tv, type1 and id: " + i, resp.isExists(), equalTo(true));
-                fields[idx++] = resp.getFields();
+                assertThat("doc with index: " + indexNames[j] + ", type1 and id: " + id, resp.isExists(), equalTo(true));
+                fields[j] = resp.getFields();
             }
             compareTermVectors("field1", fields[0], fields[1]);
         }

@@ -415,10 +415,6 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
         return this.fullPath;
     }
 
-    public BytesRef nestedTypePathAsBytes() {
-        return nestedTypePathAsBytes;
-    }
-
     public String nestedTypePathAsString() {
         return nestedTypePathAsString;
     }
@@ -791,21 +787,6 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                             }
                         }
                     }
-                    // DON'T do automatic ip detection logic, since it messes up with docs that have hosts and ips
-                    // check if its an ip
-//                if (!resolved && text.indexOf('.') != -1) {
-//                    try {
-//                        IpFieldMapper.ipToLong(text);
-//                        XContentMapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "ip");
-//                        if (builder == null) {
-//                            builder = ipField(currentFieldName);
-//                        }
-//                        mapper = builder.build(builderContext);
-//                        resolved = true;
-//                    } catch (Exception e) {
-//                        // failure to parse, not ip...
-//                    }
-//                }
                     if (!resolved) {
                         Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "string");
                         if (builder == null) {

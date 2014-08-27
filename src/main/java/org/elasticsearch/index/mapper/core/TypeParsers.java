@@ -154,7 +154,7 @@ public class TypeParsers {
             } else if (propName.equals("similarity")) {
                 builder.similarity(parserContext.similarityLookupService().similarity(propNode.toString()));
             } else {
-                parseMultiField(builder, name, numberNode, parserContext, propName, propNode);
+                parseMultiField(builder, name, parserContext, propName, propNode);
             }
         }
     }
@@ -245,7 +245,7 @@ public class TypeParsers {
         }
     }
 
-    public static void parseMultiField(AbstractFieldMapper.Builder builder, String name, Map<String, Object> node, Mapper.TypeParser.ParserContext parserContext, String propName, Object propNode) {
+    public static void parseMultiField(AbstractFieldMapper.Builder builder, String name, Mapper.TypeParser.ParserContext parserContext, String propName, Object propNode) {
         if (propName.equals("path")) {
             builder.multiFieldPathType(parsePathType(name, propNode.toString()));
         } else if (propName.equals("fields")) {
@@ -291,7 +291,7 @@ public class TypeParsers {
         }
     }
 
-    public static FormatDateTimeFormatter parseDateTimeFormatter(String fieldName, Object node) {
+    public static FormatDateTimeFormatter parseDateTimeFormatter(Object node) {
         return Joda.forPattern(node.toString());
     }
 
@@ -332,16 +332,6 @@ public class TypeParsers {
             builder.tokenized(true);
         } else {
             throw new MapperParsingException("Wrong value for index [" + index + "] for field [" + fieldName + "]");
-        }
-    }
-
-    public static boolean parseDocValues(String docValues) {
-        if ("no".equals(docValues)) {
-            return false;
-        } else if ("yes".equals(docValues)) {
-            return true;
-        } else {
-            return nodeBooleanValue(docValues);
         }
     }
 

@@ -178,7 +178,7 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
                 } else if (propName.equals("ignore_above")) {
                     builder.ignoreAbove(XContentMapValues.nodeIntegerValue(propNode, -1));
                 } else {
-                    parseMultiField(builder, name, node, parserContext, propName, propNode);
+                    parseMultiField(builder, name, parserContext, propName, propNode);
                 }
             }
             return builder;

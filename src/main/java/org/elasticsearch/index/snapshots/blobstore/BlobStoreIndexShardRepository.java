@@ -48,6 +48,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.RepositoryName;
 
+import java.io.ByteArrayOutputStream;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -692,20 +693,70 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
      * The new logic for StoreFileMetaData reads the entire <tt>.si</tt> and <tt>segments.n</tt> files to strengthen the
      * comparison of the files on a per-segment / per-commit level.
      */
-    private static final void maybeRecalculateMetadataHash(ImmutableBlobContainer blobContainer, FileInfo fileInfo, Store.MetadataSnapshot snapshot) throws IOException {
+    private static final void maybeRecalculateMetadataHash(final ImmutableBlobContainer blobContainer, final FileInfo fileInfo, Store.MetadataSnapshot snapshot) throws Throwable {
         final StoreFileMetaData metadata;
         if (fileInfo != null && (metadata = snapshot.get(fileInfo.physicalName())) != null) {
             if (metadata.hash().length > 0 && fileInfo.metadata().hash().length == 0) {
                 // we have a hash - check if our repo has a hash too otherwise we have
                 // to calculate it.
-                final byte[] bytes = blobContainer.readBlobFully(fileInfo.name());
+                final ByteArrayOutputStream out = new ByteArrayOutputStream();
+                final CountDownLatch latch = new CountDownLatch(1);
+                final CopyOnWriteArrayList<Throwable> failures = new CopyOnWriteArrayList<>();
+                // we might have multiple parts even though the file is small... make sure we read all of it.
+                // TODO this API should really support a stream!
+                blobContainer.readBlob(fileInfo.partName(0), new BlobContainer.ReadBlobListener() {
+                    final AtomicInteger partIndex = new AtomicInteger();
+                    @Override
+                    public synchronized void onPartial(byte[] data, int offset, int size) throws IOException {
+                        out.write(data, offset, size);
+                    }
+
+                    @Override
+                    public synchronized void onCompleted() {
+                        boolean countDown = true;
+                        try {
+                            final int part = partIndex.incrementAndGet();
+                            if (part < fileInfo.numberOfParts()) {
+                                final String partName = fileInfo.partName(part);
+                                // continue with the new part
+                                blobContainer.readBlob(partName, this);
+                                countDown = false;
+                                return;
+                            }
+                        } finally {
+                            if (countDown) {
+                                latch.countDown();
+                            }
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Throwable t) {
+                        try {
+                            failures.add(t);
+                        } finally {
+                            latch.countDown();
+                        }
+                    }
+                });
+
+                try {
+                    latch.await();
+                } catch (InterruptedException e) {
+                    Thread.interrupted();
+                }
+
+                if (!failures.isEmpty()) {
+                    ExceptionsHelper.rethrowAndSuppress(failures);
+                }
+
+                final byte[] bytes = out.toByteArray();
                 assert bytes != null;
                 assert bytes.length == fileInfo.length() : bytes.length + " != " + fileInfo.length();
                 final BytesRef spare = new BytesRef(bytes);
                 Store.MetadataSnapshot.hashFile(fileInfo.metadata().hash(), spare);
             }
         }
-
     }
 
     /**

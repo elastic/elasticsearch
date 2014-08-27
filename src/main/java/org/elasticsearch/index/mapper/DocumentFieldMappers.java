@@ -121,7 +121,7 @@ public final class DocumentFieldMappers extends ForwardingList<FieldMapper<?>> {
      * per {@link FieldMapper} with a custom default analyzer for no explicit field analyzer.
      */
     public Analyzer indexAnalyzer(Analyzer defaultAnalyzer) {
-        return indexAnalyzer.setDefaultAnalyzer(defaultAnalyzer);
+        return indexAnalyzer.copyWithDefaultAnalyzer(defaultAnalyzer);
     }
 
     /**

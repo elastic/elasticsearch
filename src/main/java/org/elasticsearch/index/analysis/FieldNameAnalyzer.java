@@ -78,9 +78,9 @@ public final class FieldNameAnalyzer extends SimpleAnalyzerWrapper {
     }
 
     /**
-     * Return a new instance that has a different default analyzer.
+     * Return a new instance that has the same per-field analyzers but a different default analyzer.
      */
-    public FieldNameAnalyzer setDefaultAnalyzer(Analyzer defaultAnalyzer) {
+    public FieldNameAnalyzer copyWithDefaultAnalyzer(Analyzer defaultAnalyzer) {
         return new FieldNameAnalyzer(analyzers, defaultAnalyzer);
     }
 

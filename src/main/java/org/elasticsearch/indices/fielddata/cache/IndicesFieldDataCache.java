@@ -111,15 +111,10 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
         Key key = notification.getKey();
         assert key != null && key.listeners != null;
         IndexFieldCache indexCache = key.indexCache;
-        long sizeInBytes = key.sizeInBytes;
         final Accountable value = notification.getValue();
-        assert sizeInBytes >= 0 || value != null : "Expected size [" + sizeInBytes + "] to be positive or value [" + value + "] to be non-null";
-        if (sizeInBytes == -1 && value != null) {
-            sizeInBytes = value.ramBytesUsed();
-        }
         for (IndexFieldDataCache.Listener listener : key.listeners) {
             try {
-                listener.onUnload(indexCache.fieldNames, indexCache.fieldDataType, notification.wasEvicted(), sizeInBytes);
+                listener.onUnload(indexCache.fieldNames, indexCache.fieldDataType, notification.wasEvicted(), value.ramBytesUsed());
             } catch (Throwable e) {
                 // load anyway since listeners should not throw exceptions
                 logger.error("Failed to call listener on field data cache unloading", e);
@@ -192,7 +187,6 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
                             logger.error("Failed to call listener on atomic field data loading", e);
                         }
                     }
-                    key.sizeInBytes = fieldData.ramBytesUsed();
                     return fieldData;
                 }
             });
@@ -283,7 +277,6 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
         public final Object readerKey;
 
         public final List<IndexFieldDataCache.Listener> listeners = new ArrayList<>();
-        long sizeInBytes = -1; // optional size in bytes (we keep it here in case the values are soft references)
 
 
         Key(IndexFieldCache indexCache, Object readerKey) {

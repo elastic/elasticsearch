@@ -36,6 +36,7 @@ public class FieldDataBackwardCompatibilityTests extends ElasticsearchBackwardsC
             assertAcked(prepareCreate(index)
                 .setSettings(IndexFieldDataService.FIELDDATA_CACHE_KEY, cache)
                 .get());
+            ensureYellow(index);
             indexRandom(true, client().prepareIndex(index, "type").setSource("f", "g"));
             String message = null;
             try {

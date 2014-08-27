@@ -130,7 +130,7 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
                 } else if (fieldName.equals("path")) {
                     builder.path(fieldNode.toString());
                 } else if (fieldName.equals("format")) {
-                    builder.dateTimeFormatter(parseDateTimeFormatter(builder.name(), fieldNode.toString()));
+                    builder.dateTimeFormatter(parseDateTimeFormatter(fieldNode.toString()));
                 } else if (fieldName.equals("default")) {
                     builder.defaultTimestamp(fieldNode == null ? null : fieldNode.toString());
                 }

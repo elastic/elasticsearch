@@ -674,7 +674,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
                     if (storeFileMetaData == null) {
                         consistent = false;
                         missing.add(meta);
-                    } else if (storeFileMetaData.isSame(meta) == false) {
+                    } else if (storeFileMetaData.equals(meta) == false) {
                         consistent = false;
                         different.add(meta);
                     } else {

@@ -211,7 +211,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         assertThat(legacyMeta.size(), equalTo(stringStoreFileMetaDataMap.size()));
         for (StoreFileMetaData meta : legacyMeta.values()) {
             assertTrue(stringStoreFileMetaDataMap.containsKey(meta.name()));
-            assertTrue(stringStoreFileMetaDataMap.get(meta.name()).isSame(meta));
+            assertTrue(stringStoreFileMetaDataMap.get(meta.name()).equals(meta));
         }
         assertDeleteContent(store, directoryService);
         IOUtils.close(store);
@@ -630,7 +630,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         for (StoreFileMetaData md : first) {
             assertThat(second.get(md.name()), notNullValue());
             // si files are different - containing timestamps etc
-            assertThat(second.get(md.name()).isSame(md), equalTo(md.name().endsWith(".si") == false));
+            assertThat(second.get(md.name()).equals(md), equalTo(md.name().endsWith(".si") == false));
         }
         assertThat(diff.different.size(), equalTo(first.size()-1));
         assertThat(diff.identical.size(), equalTo(1)); // commit point is identical

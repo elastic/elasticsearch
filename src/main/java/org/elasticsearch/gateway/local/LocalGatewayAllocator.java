@@ -323,7 +323,7 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
                                 long sizeMatched = 0;
 
                                 for (StoreFileMetaData storeFileMetaData : storeFilesMetaData) {
-                                    if (primaryNodeStore.fileExists(storeFileMetaData.name()) && primaryNodeStore.file(storeFileMetaData.name()).isSame(storeFileMetaData)) {
+                                    if (primaryNodeStore.fileExists(storeFileMetaData.name()) && primaryNodeStore.file(storeFileMetaData.name()).equals(storeFileMetaData)) {
                                         sizeMatched += storeFileMetaData.length();
                                     }
                                 }

@@ -187,7 +187,7 @@ public class BlobStoreIndexShardSnapshot {
          * @return true if file in a store this this file have the same checksum and length
          */
         public boolean isSame(StoreFileMetaData md) {
-            return metadata.isSame(md);
+            return metadata.equals(md);
         }
 
         static final class Fields {

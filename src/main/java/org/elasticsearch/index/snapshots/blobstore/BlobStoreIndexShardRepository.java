@@ -768,7 +768,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                         maybeRecalculateMetadataHash(blobContainer, fileInfo, recoveryTargetMetadata);
                     }  catch (Throwable e) {
                         // if the index is broken we might not be able to read it
-                        logger.warn("{} Can't calculate hash from blog for file [{}] [{}]", e, shardId, fileInfo.physicalName(), fileInfo.metadata());
+                        logger.warn("{} Can't calculate hash from blog for file [{}] [{}]", e, shardId, fileInfo.name(), fileInfo.metadata());
                     }
                     snapshotMetaData.put(fileInfo.metadata().name(), fileInfo.metadata());
                     fileInfos.put(fileInfo.metadata().name(), fileInfo);

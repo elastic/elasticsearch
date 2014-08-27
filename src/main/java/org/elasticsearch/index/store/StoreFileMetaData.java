@@ -22,6 +22,7 @@ package org.elasticsearch.index.store;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -32,7 +33,7 @@ import java.io.IOException;
 /**
  *
  */
-public class StoreFileMetaData implements Streamable {
+public final class StoreFileMetaData implements Streamable {
 
     private String name;
 
@@ -61,6 +62,8 @@ public class StoreFileMetaData implements Streamable {
     }
 
     public StoreFileMetaData(String name, long length, String checksum, Version writtenBy, BytesRef hash) {
+        Preconditions.checkArgument(name != null, "name must not be null");
+        Preconditions.checkArgument(length >= 0, "length must be positive");
         this.name = name;
         this.length = length;
         this.checksum = checksum;
@@ -92,16 +95,6 @@ public class StoreFileMetaData implements Streamable {
     @Nullable
     public String checksum() {
         return this.checksum;
-    }
-
-    /**
-     * Returns <code>true</code> iff the length and the checksums are the same. otherwise <code>false</code>
-     */
-    public boolean isSame(StoreFileMetaData other) {
-        if (checksum == null || other.checksum == null) {
-            return false;
-        }
-        return length == other.length && checksum.equals(other.checksum) && hash.equals(other.hash);
     }
 
     public static StoreFileMetaData readStoreFileMetaData(StreamInput in) throws IOException {
@@ -166,4 +159,26 @@ public class StoreFileMetaData implements Streamable {
     public BytesRef hash() {
         return hash;
     }
+
+    @Override
+    public int hashCode() {
+        int result = name.hashCode();
+        result = 31 * result + (int) (length ^ (length >>> 32));
+        result = 31 * result + (checksum != null ? checksum.hashCode() : 0);
+        result = 31 * result + (writtenBy != null ? writtenBy.hashCode() : 0);
+        return result;
+    }
+
+    @Override
+    public boolean equals(Object object) {
+        if (object instanceof StoreFileMetaData) {
+            final StoreFileMetaData other = (StoreFileMetaData) object;
+            if (checksum == null || other.checksum == null) {
+                return false;
+            }
+            return name.equals(other.name()) && length == other.length && checksum.equals(other.checksum) && hash.equals(other.hash);
+        }
+        return false;
+    }
+
 }

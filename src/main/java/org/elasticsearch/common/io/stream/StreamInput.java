@@ -256,14 +256,6 @@ public abstract class StreamInput extends InputStream {
 
     private final CharsRefBuilder spare = new CharsRefBuilder();
 
-    // nocommit add CharsRefBuilder.append
-    private static void append(CharsRefBuilder builder, char c) {
-        final int newLength = builder.length() + 1;
-        builder.grow(newLength);
-        builder.setCharAt(builder.length(), c);
-        builder.setLength(newLength);
-    }
-
     public String readString() throws IOException {
         final int charCount = readVInt();
         spare.clear();
@@ -280,14 +272,14 @@ public abstract class StreamInput extends InputStream {
                 case 5:
                 case 6:
                 case 7:
-                    append(spare, (char) c);
+                    spare.append((char) c);
                     break;
                 case 12:
                 case 13:
-                    append(spare, (char) ((c & 0x1F) << 6 | readByte() & 0x3F));
+                    spare.append((char) ((c & 0x1F) << 6 | readByte() & 0x3F));
                     break;
                 case 14:
-                    append(spare, (char) ((c & 0x0F) << 12 | (readByte() & 0x3F) << 6 | (readByte() & 0x3F) << 0));
+                    spare.append((char) ((c & 0x0F) << 12 | (readByte() & 0x3F) << 6 | (readByte() & 0x3F) << 0));
                     break;
             }
         }

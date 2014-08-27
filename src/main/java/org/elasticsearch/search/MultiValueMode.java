@@ -440,7 +440,7 @@ public enum MultiValueMode {
      */
     public NumericDocValues select(final SortedNumericDocValues values, final long missingValue, final FixedBitSet rootDocs, final FixedBitSet innerDocs, int maxDoc) {
         if (rootDocs == null || innerDocs == null) {
-            return select(FieldData.emptySortedNumeric(maxDoc), missingValue);
+            return select(DocValues.emptySortedNumeric(maxDoc), missingValue);
         }
         return new NumericDocValues() {
 

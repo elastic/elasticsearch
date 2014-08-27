@@ -23,6 +23,7 @@ import org.apache.lucene.index.*;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 
 import java.util.ArrayList;
@@ -39,14 +40,6 @@ public enum FieldData {
      */
     public static SortedBinaryDocValues emptySortedBinary(int maxDoc) {
         return singleton(DocValues.emptyBinary(), new Bits.MatchNoBits(maxDoc));
-    }
-
-    /**
-     * Return a {@link SortedNumericDocValues} that doesn't contain any value.
-     */
-    public static SortedNumericDocValues emptySortedNumeric(int maxDoc) {
-        // nocommit: DocValues.emptySortedNumeric
-        return DocValues.singleton(DocValues.emptyNumeric(), new Bits.MatchNoBits(maxDoc));
     }
 
     /**

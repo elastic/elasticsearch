@@ -39,8 +39,13 @@ public class FsBufferedTranslogTests extends AbstractSimpleTranslogTests {
                         .put("index.translog.fs.type", FsTranslogFile.Type.BUFFERED.name())
                         .put("index.translog.fs.buffer_size", 10 + randomInt(128 * 1024))
                         .build(),
-                new File("data/fs-buf-translog")
+                new File(translogFileDirectory())
         );
+    }
+
+    @Override
+    protected String translogFileDirectory() {
+        return "data/fs-buf-translog";
     }
 
     @AfterClass

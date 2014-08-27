@@ -22,7 +22,6 @@ package org.elasticsearch.index.store.fs;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.service.IndexService;
@@ -56,30 +55,6 @@ public abstract class FsIndexStore extends AbstractIndexStore {
     @Override
     public boolean persistent() {
         return true;
-    }
-
-    @Override
-    public ByteSizeValue backingStoreTotalSpace() {
-        if (locations == null) {
-            return new ByteSizeValue(0);
-        }
-        long totalSpace = 0;
-        for (File location : locations) {
-            totalSpace += location.getTotalSpace();
-        }
-        return new ByteSizeValue(totalSpace);
-    }
-
-    @Override
-    public ByteSizeValue backingStoreFreeSpace() {
-        if (locations == null) {
-            return new ByteSizeValue(0);
-        }
-        long usableSpace = 0;
-        for (File location : locations) {
-            usableSpace += location.getUsableSpace();
-        }
-        return new ByteSizeValue(usableSpace);
     }
 
     @Override

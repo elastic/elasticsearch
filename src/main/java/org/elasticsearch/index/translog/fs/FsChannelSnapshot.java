@@ -22,11 +22,12 @@ package org.elasticsearch.index.translog.fs;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
-import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStreams;
+import org.elasticsearch.index.translog.Translog;
 
 import java.io.EOFException;
 import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -48,7 +49,7 @@ public class FsChannelSnapshot implements Translog.Snapshot {
 
     private Translog.Operation lastOperationRead = null;
 
-    private int position = 0;
+    private long position = 0;
 
     private ByteBuffer cacheBuffer;
 
@@ -92,10 +93,10 @@ public class FsChannelSnapshot implements Translog.Snapshot {
     }
 
     @Override
-    public boolean hasNext() {
+    public Translog.Operation next() {
         try {
             if (position >= length) {
-                return false;
+                return null;
             }
             if (cacheBuffer == null) {
                 cacheBuffer = ByteBuffer.allocate(1024);
@@ -103,7 +104,8 @@ public class FsChannelSnapshot implements Translog.Snapshot {
             cacheBuffer.limit(4);
             int bytesRead = Channels.readFromFileChannel(channel, position, cacheBuffer);
             if (bytesRead < 0) {
-                // the snapshot is acquired under a write lock. we should never read beyond the EOF
+                // the snapshot is acquired under a write lock. we should never
+                // read beyond the EOF, must be an abrupt EOF
                 throw new EOFException("read past EOF. pos [" + position + "] length: [" + cacheBuffer.limit() + "] end: [" + channel.size() + "]");
             }
             assert bytesRead == 4;
@@ -111,7 +113,8 @@ public class FsChannelSnapshot implements Translog.Snapshot {
             int opSize = cacheBuffer.getInt();
             position += 4;
             if ((position + opSize) > length) {
-                // the snapshot is acquired under a write lock. we should never read beyond the EOF
+                // the snapshot is acquired under a write lock. we should never
+                // read beyond the EOF, must be an abrupt EOF
                 position -= 4;
                 throw new EOFException("opSize of [" + opSize + "] pointed beyond EOF. position [" + position + "] length [" + length + "]");
             }
@@ -122,25 +125,21 @@ public class FsChannelSnapshot implements Translog.Snapshot {
             cacheBuffer.limit(opSize);
             bytesRead = Channels.readFromFileChannel(channel, position, cacheBuffer);
             if (bytesRead < 0) {
+                // the snapshot is acquired under a write lock. we should never
+                // read beyond the EOF, must be an abrupt EOF
                 throw new EOFException("tried to read past EOF. opSize [" + opSize + "] position [" + position + "] length [" + length + "]");
             }
             cacheBuffer.flip();
             position += opSize;
-            lastOperationRead = TranslogStreams.readTranslogOperation(new BytesStreamInput(cacheBuffer.array(), 0, opSize, true));
-            return true;
-        } catch (Exception e) {
-            return false;
+            return TranslogStreams.readTranslogOperation(new BytesStreamInput(cacheBuffer.array(), 0, opSize, true));
+        } catch (IOException e) {
+            throw new ElasticsearchException("unexpected exception reading from translog snapshot of " + this.raf.file(), e);
         }
     }
 
     @Override
-    public Translog.Operation next() {
-        return this.lastOperationRead;
-    }
-
-    @Override
-    public void seekForward(long length) {
-        this.position += length;
+    public void seekTo(long position) {
+        this.position = position;
     }
 
     @Override

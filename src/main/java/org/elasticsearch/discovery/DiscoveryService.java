@@ -132,7 +132,7 @@ public class DiscoveryService extends AbstractLifecycleComponent<DiscoveryServic
     public static String generateNodeId(Settings settings) {
         String seed = settings.get("discovery.id.seed");
         if (seed != null) {
-            Strings.randomBase64UUID(new Random(Long.parseLong(seed)));
+            return Strings.randomBase64UUID(new Random(Long.parseLong(seed)));
         }
         return Strings.randomBase64UUID();
     }

@@ -20,6 +20,7 @@ package org.elasticsearch.search.child;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
@@ -59,6 +60,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static com.google.common.collect.Maps.newHashMap;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
 import static org.elasticsearch.common.settings.ImmutableSettings.builder;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -138,12 +140,13 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
 
         // index simple data
         client().prepareIndex("test", "foo", "1").setSource("foo", 1).get();
-        client().prepareIndex("test", "test").setSource("foo", 1).setParent("1").get();
+        client().prepareIndex("test", "test", "2").setSource("foo", 1).setParent("1").get();
         refresh();
-
-        SearchResponse searchResponse = client().prepareSearch("test").setSource("{\"query\":{\"filtered\":{\"filter\":{\"has_parent\":{\"type\":\"test\",\"query\":{\"bool\":{\"must\":[],\"must_not\":[],\"should\":[]}}},\"query\":[]}}}}").get();
+        String query = copyToStringFromClasspath("/org/elasticsearch/search/child/bool-query-with-empty-clauses.json");
+        SearchResponse searchResponse = client().prepareSearch("test").setSource(query).get();
         assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("2"));
     }
 
     @Test
@@ -343,6 +346,63 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
                 .prepareStats("test").setFieldData(true).get();
         assertThat(indicesStatsResponse.getTotal().getIdCache().getMemorySizeInBytes(), equalTo(0l));
         assertThat(indicesStatsResponse.getTotal().getFieldData().getMemorySizeInBytes(), equalTo(0l));
+    }
+
+    @Test
+    public void testCheckFixedBitSetCache() throws Exception {
+        boolean loadFixedBitSetLazily = randomBoolean();
+        ImmutableSettings.Builder settingsBuilder = ImmutableSettings.builder().put(indexSettings())
+                .put("index.refresh_interval", -1);
+        if (loadFixedBitSetLazily) {
+            settingsBuilder.put("index.load_fixed_bitset_filters_eagerly", false);
+        }
+        // enforce lazy loading to make sure that p/c stats are not counted as part of field data
+        assertAcked(prepareCreate("test")
+                .setSettings(settingsBuilder)
+                .addMapping("parent")
+        );
+
+        client().prepareIndex("test", "parent", "p0").setSource("p_field", "p_value0").get();
+        client().prepareIndex("test", "parent", "p1").setSource("p_field", "p_value1").get();
+        refresh();
+        ensureSearchable("test");
+
+        // No _parent field yet, there shouldn't be anything in the parent id cache
+        ClusterStatsResponse clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();
+        assertThat(clusterStatsResponse.getIndicesStats().getSegments().getFixedBitSetMemoryInBytes(), equalTo(0l));
+
+        // Now add mapping + children
+        assertAcked(
+                client().admin().indices().preparePutMapping("test").setType("child").setSource("_parent", "type=parent")
+        );
+
+        // index simple data
+        client().prepareIndex("test", "child", "c1").setSource("c_field", "red").setParent("p1").get();
+        client().prepareIndex("test", "child", "c2").setSource("c_field", "yellow").setParent("p1").get();
+        client().prepareIndex("test", "parent", "p2").setSource("p_field", "p_value2").get();
+        client().prepareIndex("test", "child", "c3").setSource("c_field", "blue").setParent("p2").get();
+        client().prepareIndex("test", "child", "c4").setSource("c_field", "red").setParent("p2").get();
+        refresh();
+        ensureSearchable("test");
+
+        if (loadFixedBitSetLazily) {
+            clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();
+            assertThat(clusterStatsResponse.getIndicesStats().getSegments().getFixedBitSetMemoryInBytes(), equalTo(0l));
+
+            // only when querying with has_child the fixed bitsets are loaded
+            SearchResponse searchResponse = client().prepareSearch("test")
+                    // Use setShortCircuitCutoff(0), otherwise the parent filter isn't used.
+                    .setQuery(hasChildQuery("child", termQuery("c_field", "blue")).setShortCircuitCutoff(0))
+                    .get();
+            assertNoFailures(searchResponse);
+            assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+        }
+        clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();
+        assertThat(clusterStatsResponse.getIndicesStats().getSegments().getFixedBitSetMemoryInBytes(), greaterThan(0l));
+
+        assertAcked(client().admin().indices().prepareDelete("test"));
+        clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();
+        assertThat(clusterStatsResponse.getIndicesStats().getSegments().getFixedBitSetMemoryInBytes(), equalTo(0l));
     }
 
     @Test
@@ -717,7 +777,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", "child", "1").setParent("1").setSource("c_field", 1).get();
         client().admin().indices().prepareFlush("test").get();
 
-        client().prepareIndex("test", "type1", "1").setSource("p_field", "p_value1").get();
+        client().prepareIndex("test", "type1", "1").setSource("p_field", 1).get();
         client().admin().indices().prepareFlush("test").get();
 
         SearchResponse searchResponse = client().prepareSearch("test")
@@ -1521,7 +1581,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
                     .endObject().endObject()).get();
             fail();
         } catch (MergeMappingException e) {
-            assertThat(e.getMessage(), equalTo("Merge failed with failures {[The _parent field can't be added or updated]}"));
+            assertThat(e.getMessage(), equalTo("Merge failed with failures {[The _parent field's type option can't be changed]}"));
         }
     }
 
@@ -2499,6 +2559,39 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
 
     }
 
+    @Test
+    public void testParentFieldToNonExistingType() {
+        assertAcked(prepareCreate("test").addMapping("parent").addMapping("child", "_parent", "type=parent2"));
+        client().prepareIndex("test", "parent", "1").setSource("{}").get();
+        client().prepareIndex("test", "child", "1").setParent("1").setSource("{}").get();
+        refresh();
+
+        try {
+            client().prepareSearch("test")
+                    .setQuery(QueryBuilders.hasChildQuery("child", matchAllQuery()))
+                    .get();
+            fail();
+        } catch (SearchPhaseExecutionException e) {
+        }
+
+        SearchResponse response = client().prepareSearch("test")
+                .setQuery(QueryBuilders.hasParentQuery("parent", matchAllQuery()))
+                .get();
+        assertHitCount(response, 0);
+
+        try {
+            client().prepareSearch("test")
+                    .setQuery(QueryBuilders.constantScoreQuery(FilterBuilders.hasChildFilter("child", matchAllQuery())))
+                    .get();
+            fail();
+        } catch (SearchPhaseExecutionException e) {
+        }
+
+        response = client().prepareSearch("test")
+                .setQuery(QueryBuilders.constantScoreQuery(FilterBuilders.hasParentFilter("parent", matchAllQuery())))
+                .get();
+        assertHitCount(response, 0);
+    }
 
     private static HasChildFilterBuilder hasChildFilter(String type, QueryBuilder queryBuilder) {
         HasChildFilterBuilder hasChildFilterBuilder = FilterBuilders.hasChildFilter(type, queryBuilder);

@@ -31,6 +31,7 @@ import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexDeletionPolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -80,6 +81,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
@@ -170,12 +172,12 @@ public class InternalEngineTests extends ElasticsearchTestCase {
 
     protected Store createStore() throws IOException {
         DirectoryService directoryService = new RamDirectoryService(shardId, EMPTY_SETTINGS);
-        return new Store(shardId, EMPTY_SETTINGS, null, null, directoryService, new LeastUsedDistributor(directoryService));
+        return new Store(shardId, EMPTY_SETTINGS, null, directoryService, new LeastUsedDistributor(directoryService));
     }
 
     protected Store createStoreReplica() throws IOException {
         DirectoryService directoryService = new RamDirectoryService(shardId, EMPTY_SETTINGS);
-        return new Store(shardId, EMPTY_SETTINGS, null, null, directoryService, new LeastUsedDistributor(directoryService));
+        return new Store(shardId, EMPTY_SETTINGS, null, directoryService, new LeastUsedDistributor(directoryService));
     }
 
     protected Translog createTranslog() {
@@ -319,6 +321,33 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         assertThat(segments.get(2).getNumDocs(), equalTo(1));
         assertThat(segments.get(2).getDeletedDocs(), equalTo(0));
         assertThat(segments.get(2).isCompound(), equalTo(true));
+    }
+
+    public void testStartAndAcquireConcurrently() {
+        ConcurrentMergeSchedulerProvider mergeSchedulerProvider = new ConcurrentMergeSchedulerProvider(shardId, EMPTY_SETTINGS, threadPool, new IndexSettingsService(shardId.index(), EMPTY_SETTINGS));
+        final Engine engine = createEngine(engineSettingsService, store, createTranslog(), mergeSchedulerProvider);
+        final AtomicBoolean startPending = new AtomicBoolean(true);
+        Thread thread = new Thread() {
+            public void run() {
+                try {
+                    Thread.yield();
+                    engine.start();
+                } finally {
+                    startPending.set(false);
+                }
+
+            }
+        };
+        thread.start();
+        while(startPending.get()) {
+            try {
+                engine.acquireSearcher("foobar").close();
+                break;
+            } catch (EngineClosedException ex) {
+                // all good
+            }
+        }
+        engine.close();
     }
 
 
@@ -717,10 +746,10 @@ public class InternalEngineTests extends ElasticsearchTestCase {
 
             @Override
             public void phase2(Translog.Snapshot snapshot) throws EngineException {
-                assertThat(snapshot.hasNext(), equalTo(true));
                 Translog.Create create = (Translog.Create) snapshot.next();
+                assertThat("translog snapshot should not read null", create != null, equalTo(true));
                 assertThat(create.source().toBytesArray(), equalTo(B_2));
-                assertThat(snapshot.hasNext(), equalTo(false));
+                assertThat(snapshot.next(), equalTo(null));
             }
 
             @Override
@@ -748,9 +777,9 @@ public class InternalEngineTests extends ElasticsearchTestCase {
 
             @Override
             public void phase2(Translog.Snapshot snapshot) throws EngineException {
-                assertThat(snapshot.hasNext(), equalTo(true));
                 Translog.Create create = (Translog.Create) snapshot.next();
-                assertThat(snapshot.hasNext(), equalTo(false));
+                assertThat(create != null, equalTo(true));
+                assertThat(snapshot.next(), equalTo(null));
                 assertThat(create.source().toBytesArray(), equalTo(B_2));
 
                 // add for phase3
@@ -760,9 +789,9 @@ public class InternalEngineTests extends ElasticsearchTestCase {
 
             @Override
             public void phase3(Translog.Snapshot snapshot) throws EngineException {
-                assertThat(snapshot.hasNext(), equalTo(true));
                 Translog.Create create = (Translog.Create) snapshot.next();
-                assertThat(snapshot.hasNext(), equalTo(false));
+                assertThat(create != null, equalTo(true));
+                assertThat(snapshot.next(), equalTo(null));
                 assertThat(create.source().toBytesArray(), equalTo(B_3));
             }
         });

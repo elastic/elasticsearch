@@ -36,6 +36,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 
@@ -137,7 +138,7 @@ final class ExternalNode implements Closeable {
                 }
                 return false;
             }
-        });
+        }, 30, TimeUnit.SECONDS);
     }
 
     static NodeInfo nodeInfo(final Client client, final String nodeName) {

@@ -97,9 +97,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static com.carrotsearch.randomizedtesting.RandomizedTest.frequently;
-import static com.carrotsearch.randomizedtesting.RandomizedTest.isNightly;
-import static com.carrotsearch.randomizedtesting.RandomizedTest.systemPropertyAsBoolean;
+import static com.carrotsearch.randomizedtesting.RandomizedTest.*;
 import static junit.framework.Assert.fail;
 import static org.apache.lucene.util.LuceneTestCase.rarely;
 import static org.apache.lucene.util.LuceneTestCase.usually;
@@ -125,6 +123,8 @@ public final class InternalTestCluster extends TestCluster {
 
     private final ESLogger logger = Loggers.getLogger(getClass());
 
+    static SettingsSource DEFAULT_SETTINGS_SOURCE = SettingsSource.EMPTY;
+
     /**
      * A boolean value to enable or disable mock modules. This is useful to test the
      * system without asserting modules that to make sure they don't hide any bugs in
@@ -139,7 +139,10 @@ public final class InternalTestCluster extends TestCluster {
      */
     public static final String SETTING_CLUSTER_NODE_SEED = "test.cluster.node.seed";
 
-    private static final String NODE_PREFIX = "node_";
+    /**
+     * All nodes started by the cluster will have their name set to NODE_PREFIX followed by a positive number
+     */
+    public static final String NODE_PREFIX = "node_";
 
     private static final boolean ENABLE_MOCK_MODULES = systemPropertyAsBoolean(TESTS_ENABLE_MOCK_MODULES, true);
 
@@ -184,12 +187,8 @@ public final class InternalTestCluster extends TestCluster {
 
     private final boolean hasFilterCache;
 
-    public InternalTestCluster(long clusterSeed, String clusterName) {
-        this(clusterSeed, DEFAULT_MIN_NUM_DATA_NODES, DEFAULT_MAX_NUM_DATA_NODES, clusterName, SettingsSource.EMPTY, DEFAULT_NUM_CLIENT_NODES, DEFAULT_ENABLE_RANDOM_BENCH_NODES);
-    }
-
     public InternalTestCluster(long clusterSeed, int minNumDataNodes, int maxNumDataNodes, String clusterName, int numClientNodes, boolean enableRandomBenchNodes) {
-        this(clusterSeed, minNumDataNodes, maxNumDataNodes, clusterName, SettingsSource.EMPTY, numClientNodes, enableRandomBenchNodes);
+        this(clusterSeed, minNumDataNodes, maxNumDataNodes, clusterName, DEFAULT_SETTINGS_SOURCE, numClientNodes, enableRandomBenchNodes);
     }
 
     public InternalTestCluster(long clusterSeed, int minNumDataNodes, int maxNumDataNodes, String clusterName, SettingsSource settingsSource, int numClientNodes, boolean enableRandomBenchNodes) {
@@ -393,7 +392,7 @@ public final class InternalTestCluster extends TestCluster {
 
     public static String clusterName(String prefix, String childVMId, long clusterSeed) {
         StringBuilder builder = new StringBuilder(prefix);
-        builder.append('-').append(NetworkUtils.getLocalAddress().getHostName());
+        builder.append('-').append(NetworkUtils.getLocalHostName("__default_host__"));
         builder.append("-CHILD_VM=[").append(childVMId).append(']');
         builder.append("-CLUSTER_SEED=[").append(clusterSeed).append(']');
         // if multiple maven task run on a single host we better have an identifier that doesn't rely on input params
@@ -1543,6 +1542,7 @@ public final class InternalTestCluster extends TestCluster {
                 NodeStats stats = nodeService.stats(CommonStatsFlags.ALL, false, false, false, false, false, false, false, false, false);
                 assertThat("Fielddata size must be 0 on node: " + stats.getNode(), stats.getIndices().getFieldData().getMemorySizeInBytes(), equalTo(0l));
                 assertThat("Filter cache size must be 0 on node: " + stats.getNode(), stats.getIndices().getFilterCache().getMemorySizeInBytes(), equalTo(0l));
+                assertThat("FixedBitSet cache size must be 0 on node: " + stats.getNode(), stats.getIndices().getSegments().getFixedBitSetMemoryInBytes(), equalTo(0l));
             }
         }
     }

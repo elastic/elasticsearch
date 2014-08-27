@@ -18,16 +18,12 @@
  */
 package org.elasticsearch.bwcompat;
 
-import com.carrotsearch.randomizedtesting.LifecycleScope;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.util.English;
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
@@ -38,7 +34,6 @@ import org.elasticsearch.action.deletebyquery.DeleteByQueryResponse;
 import org.elasticsearch.action.deletebyquery.IndexDeleteByQueryResponse;
 import org.elasticsearch.action.explain.ExplainResponse;
 import org.elasticsearch.action.get.*;
-import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
@@ -64,9 +59,7 @@ import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -452,116 +445,6 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
     }
 
     @Test
-    @TestLogging("index.snapshots:TRACE,index.shard.service:TRACE")
-    public void testSnapshotAndRestore() throws ExecutionException, InterruptedException, IOException {
-        logger.info("-->  creating repository");
-        assertAcked(client().admin().cluster().preparePutRepository("test-repo")
-                .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
-                        .put("location", newTempDir(LifecycleScope.SUITE).getAbsolutePath())
-                        .put("compress", randomBoolean())
-                        .put("chunk_size", randomIntBetween(100, 1000))));
-        String[] indicesBefore = new String[randomIntBetween(2,5)];
-        String[] indicesAfter = new String[randomIntBetween(2,5)];
-        for (int i = 0; i < indicesBefore.length; i++) {
-            indicesBefore[i] = "index_before_" + i;
-            createIndex(indicesBefore[i]);
-        }
-        for (int i = 0; i < indicesAfter.length; i++) {
-            indicesAfter[i] = "index_after_" + i;
-            createIndex(indicesAfter[i]);
-        }
-        String[] indices = new String[indicesBefore.length + indicesAfter.length];
-        System.arraycopy(indicesBefore, 0, indices, 0, indicesBefore.length);
-        System.arraycopy(indicesAfter, 0, indices, indicesBefore.length, indicesAfter.length);
-        ensureYellow();
-        logger.info("--> indexing some data");
-        IndexRequestBuilder[] buildersBefore = new IndexRequestBuilder[randomIntBetween(10, 200)];
-        for (int i = 0; i < buildersBefore.length; i++) {
-            buildersBefore[i] = client().prepareIndex(RandomPicks.randomFrom(getRandom(), indicesBefore), "foo", Integer.toString(i)).setSource("{ \"foo\" : \"bar\" } ");
-        }
-        IndexRequestBuilder[] buildersAfter = new IndexRequestBuilder[randomIntBetween(10, 200)];
-        for (int i = 0; i < buildersAfter.length; i++) {
-            buildersAfter[i] = client().prepareIndex(RandomPicks.randomFrom(getRandom(), indicesBefore), "bar", Integer.toString(i)).setSource("{ \"foo\" : \"bar\" } ");
-        }
-        indexRandom(true, buildersBefore);
-        indexRandom(true, buildersAfter);
-        assertThat(client().prepareCount(indices).get().getCount(), equalTo((long) (buildersBefore.length + buildersAfter.length)));
-        long[] counts = new long[indices.length];
-        for (int i = 0; i < indices.length; i++) {
-            counts[i] = client().prepareCount(indices[i]).get().getCount();
-        }
-
-        logger.info("--> snapshot subset of indices before upgrage");
-        CreateSnapshotResponse createSnapshotResponse = client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-1").setWaitForCompletion(true).setIndices("index_before_*").get();
-        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
-        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
-
-        assertThat(client().admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap-1").get().getSnapshots().get(0).state(), equalTo(SnapshotState.SUCCESS));
-
-        logger.info("--> delete some data from indices that were already snapshotted");
-        int howMany = randomIntBetween(1, buildersBefore.length);
-        
-        for (int i = 0; i < howMany; i++) {
-            IndexRequestBuilder indexRequestBuilder = RandomPicks.randomFrom(getRandom(), buildersBefore);
-            IndexRequest request = indexRequestBuilder.request();
-            client().prepareDelete(request.index(), request.type(), request.id()).get();
-        }
-        refresh();
-        final long numDocs = client().prepareCount(indices).get().getCount();
-        assertThat(client().prepareCount(indices).get().getCount(), lessThan((long) (buildersBefore.length + buildersAfter.length)));
-
-
-        client().admin().indices().prepareUpdateSettings(indices).setSettings(ImmutableSettings.builder().put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE, "none")).get();
-        backwardsCluster().allowOnAllNodes(indices);
-        logClusterState();
-        boolean upgraded;
-        do {
-            logClusterState();
-            CountResponse countResponse = client().prepareCount().get();
-            assertHitCount(countResponse, numDocs);
-            upgraded = backwardsCluster().upgradeOneNode();
-            ensureYellow();
-            countResponse = client().prepareCount().get();
-            assertHitCount(countResponse, numDocs);
-        } while (upgraded);
-        client().admin().indices().prepareUpdateSettings(indices).setSettings(ImmutableSettings.builder().put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE, "all")).get();
-
-        logger.info("--> close indices");
-
-        client().admin().indices().prepareClose("index_before_*").get();
-
-        logger.info("--> restore all indices from the snapshot");
-        RestoreSnapshotResponse restoreSnapshotResponse = client().admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap-1").setWaitForCompletion(true).execute().actionGet();
-        assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
-
-        ensureYellow();
-        assertThat(client().prepareCount(indices).get().getCount(), equalTo((long) (buildersBefore.length + buildersAfter.length)));
-        for (int i = 0; i < indices.length; i++) {
-            assertThat(counts[i], equalTo(client().prepareCount(indices[i]).get().getCount()));
-        }
-
-        logger.info("--> snapshot subset of indices after upgrade");
-        createSnapshotResponse = client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-2").setWaitForCompletion(true).setIndices("index_*").get();
-        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
-        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
-
-        // Test restore after index deletion
-        logger.info("--> delete indices");
-        String index = RandomPicks.randomFrom(getRandom(), indices);
-        cluster().wipeIndices(index);
-        logger.info("--> restore one index after deletion");
-        restoreSnapshotResponse = client().admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap-2").setWaitForCompletion(true).setIndices(index).execute().actionGet();
-        assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
-        ensureYellow();
-        assertThat(client().prepareCount(indices).get().getCount(), equalTo((long) (buildersBefore.length + buildersAfter.length)));
-        for (int i = 0; i < indices.length; i++) {
-            assertThat(counts[i], equalTo(client().prepareCount(indices[i]).get().getCount()));
-        }
-    }
-
-    @Test
-    @LuceneTestCase.AwaitsFix(bugUrl = "working on this")
-    //made this tests a usual integration test to see if it fails in non bw comp mode
     public void testDeleteByQuery() throws ExecutionException, InterruptedException {
         createIndex("test");
         ensureYellow("test");
@@ -591,11 +474,10 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "working on this")
-    //made this tests a usual integration test to see if it fails in non bw comp mode
     @Test
     public void testDeleteRoutingRequired() throws ExecutionException, InterruptedException, IOException {
-        assertAcked(prepareCreate("test").addMapping("test",
+        createIndexWithAlias();
+        assertAcked(client().admin().indices().preparePutMapping("test").setType("test").setSource(
                 XContentFactory.jsonBuilder().startObject().startObject("test").startObject("_routing").field("required", true).endObject().endObject().endObject()));
         ensureYellow("test");
 
@@ -643,7 +525,7 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
 
     @Test
     public void testIndexGetAndDelete() throws ExecutionException, InterruptedException {
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
+        createIndexWithAlias();
         ensureYellow("test");
 
         int numDocs = iterations(10, 50);
@@ -680,7 +562,7 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
 
     @Test
     public void testUpdate() {
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
+        createIndexWithAlias();
         ensureYellow("test");
 
         UpdateRequestBuilder updateRequestBuilder = client().prepareUpdate(indexOrAlias(), "type1", "1")
@@ -711,8 +593,8 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
 
     @Test
     public void testAnalyze() {
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
-                .addMapping("test", "field", "type=string,analyzer=keyword"));
+        createIndexWithAlias();
+        assertAcked(client().admin().indices().preparePutMapping("test").setType("test").setSource("field", "type=string,analyzer=keyword"));
         ensureYellow("test");
         AnalyzeResponse analyzeResponse = client().admin().indices().prepareAnalyze("this is a test").setIndex(indexOrAlias()).setField("field").get();
         assertThat(analyzeResponse.getTokens().size(), equalTo(1));
@@ -721,7 +603,7 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
 
     @Test
     public void testExplain() {
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
+        createIndexWithAlias();
         ensureYellow("test");
 
         client().prepareIndex(indexOrAlias(), "test", "1").setSource("field", "value1").get();
@@ -738,8 +620,8 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
 
     @Test
     public void testGetTermVector() throws IOException {
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
-                .addMapping("type1", "field", "type=string,term_vector=with_positions_offsets_payloads"));
+        createIndexWithAlias();
+        assertAcked(client().admin().indices().preparePutMapping("test").setType("type1").setSource("field", "type=string,term_vector=with_positions_offsets_payloads").get());
         ensureYellow("test");
 
         client().prepareIndex(indexOrAlias(), "type1", "1")
@@ -766,7 +648,7 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
 
     @Test
     public void testMultiGet() throws ExecutionException, InterruptedException {
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
+        createIndexWithAlias();
         ensureYellow("test");
 
         int numDocs = iterations(10, 50);
@@ -799,5 +681,14 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
 
     private static String indexOrAlias() {
         return randomBoolean() ? "test" : "alias";
+    }
+
+    private void createIndexWithAlias() {
+        if (compatibilityVersion().onOrAfter(Version.V_1_1_0)) {
+            assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
+        } else {
+            assertAcked(prepareCreate("test"));
+            assertAcked(client().admin().indices().prepareAliases().addAlias("test", "alias"));
+        }
     }
 }

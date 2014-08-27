@@ -18,7 +18,9 @@
  */
 package org.elasticsearch.search.functionscore;
 
+import org.apache.lucene.search.Explanation;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.index.query.functionscore.random.RandomScoreFunctionBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -34,14 +36,13 @@ import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.arrayContaining;
 
 public class RandomScoreFunctionTests extends ElasticsearchIntegrationTest {
 
     @Test
-    public void consistentHitsWithSameSeed() throws Exception {
+    public void testConsistentHitsWithSameSeed() throws Exception {
         createIndex("test");
         ensureGreen(); // make sure we are done otherwise preference could change?
         int docCount = randomIntBetween(100, 200);
@@ -52,7 +53,7 @@ public class RandomScoreFunctionTests extends ElasticsearchIntegrationTest {
         refresh();
         int outerIters = scaledRandomIntBetween(10, 20);
         for (int o = 0; o < outerIters; o++) {
-            final long seed = randomLong();
+            final int seed = randomInt();
             String preference = randomRealisticUnicodeOfLengthBetween(1, 10); // at least one char!!
             // randomPreference should not start with '_' (reserved for known preference types (e.g. _shards, _primary)
             while (preference.startsWith("_")) {
@@ -73,10 +74,20 @@ public class RandomScoreFunctionTests extends ElasticsearchIntegrationTest {
                 } else {
                     assertThat(hits.getHits().length, equalTo(searchResponse.getHits().getHits().length));
                     for (int j = 0; j < hitCount; j++) {
-                        assertThat(searchResponse.getHits().getAt(j).score(), equalTo(hits.getAt(j).score()));
                         assertThat(searchResponse.getHits().getAt(j).id(), equalTo(hits.getAt(j).id()));
+                        assertThat(searchResponse.getHits().getAt(j).score(), equalTo(hits.getAt(j).score()));
                     }
                 }
+
+                // randomly change some docs to get them in different segments
+                int numDocsToChange = randomIntBetween(20, 50);
+                while (numDocsToChange > 0) {
+                    int doc = randomInt(docCount);
+                    index("test", "type", "" + doc, jsonBuilder().startObject().endObject());
+                    --numDocsToChange;
+                }
+                flush();
+                refresh();
             }
         }
     }
@@ -149,8 +160,55 @@ public class RandomScoreFunctionTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    public void testSeedReportedInExplain() throws Exception {
+        createIndex("test");
+        ensureGreen();
+        index("test", "type", "1", jsonBuilder().startObject().endObject());
+        flush();
+        refresh();
+
+        int seed = 12345678;
+
+        SearchResponse resp = client().prepareSearch("test")
+            .setQuery(functionScoreQuery(matchAllQuery(), randomFunction(seed)))
+            .setExplain(true)
+            .get();
+        assertNoFailures(resp);
+        assertEquals(1, resp.getHits().totalHits());
+        SearchHit firstHit = resp.getHits().getAt(0);
+        assertThat(firstHit.explanation().toString(), containsString("" + seed));
+    }
+
+    @Test
+    public void testScoreRange() throws Exception {
+        // all random scores should be in range [0.0, 1.0]
+        createIndex("test");
+        ensureGreen();
+        int docCount = randomIntBetween(100, 200);
+        for (int i = 0; i < docCount; i++) {
+            String id = randomRealisticUnicodeOfCodepointLengthBetween(1, 50);
+            index("test", "type", id, jsonBuilder().startObject().endObject());
+        }
+        flush();
+        refresh();
+        int iters = scaledRandomIntBetween(10, 20);
+        for (int i = 0; i < iters; ++i) {
+            int seed = randomInt();
+            SearchResponse searchResponse = client().prepareSearch()
+                .setQuery(functionScoreQuery(matchAllQuery(), randomFunction(seed)))
+                .setSize(docCount)
+                .execute().actionGet();
+
+            assertNoFailures(searchResponse);
+            for (SearchHit hit : searchResponse.getHits().getHits()) {
+                assertThat(hit.score(), allOf(greaterThanOrEqualTo(0.0f), lessThanOrEqualTo(1.0f)));
+            }
+        }
+    }
+
+    @Test
     @Ignore
-    public void distribution() throws Exception {
+    public void checkDistribution() throws Exception {
         int count = 10000;
 
         assertAcked(prepareCreate("test"));
@@ -168,7 +226,7 @@ public class RandomScoreFunctionTests extends ElasticsearchIntegrationTest {
         for (int i = 0; i < count; i++) {
 
             SearchResponse searchResponse = client().prepareSearch()
-                    .setQuery(functionScoreQuery(matchAllQuery(), randomFunction(System.nanoTime())))
+                    .setQuery(functionScoreQuery(matchAllQuery(), new RandomScoreFunctionBuilder()))
                     .execute().actionGet();
 
             matrix[Integer.valueOf(searchResponse.getHits().getAt(0).id())]++;

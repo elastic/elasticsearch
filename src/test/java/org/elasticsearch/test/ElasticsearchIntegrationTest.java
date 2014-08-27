@@ -76,10 +76,9 @@ import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.FieldMapper.Loading;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
-import org.elasticsearch.index.mapper.internal.IdFieldMapper;
+import org.elasticsearch.index.mapper.FieldMapper.Loading;
+import org.elasticsearch.index.mapper.internal.*;
 import org.elasticsearch.index.merge.policy.*;
 import org.elasticsearch.index.merge.scheduler.ConcurrentMergeSchedulerProvider;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerModule;
@@ -94,6 +93,7 @@ import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.client.RandomizingClient;
 import org.hamcrest.Matchers;
@@ -338,6 +338,34 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                             .field("index", randomFrom("not_analyzed", "no"))
                             .endObject();
                 }
+                if (randomBoolean()) {
+                    mappings.startObject(TypeFieldMapper.NAME)
+                            .field("index", randomFrom("no", "not_analyzed"))
+                            .endObject();
+                }
+                if (randomBoolean()) {
+                    mappings.startObject(TimestampFieldMapper.NAME)
+                            .field("enabled", randomBoolean())
+                            .startObject("fielddata")
+                            .field(FieldDataType.FORMAT_KEY, randomFrom("array", "doc_values"))
+                            .endObject()
+                            .endObject();
+                }
+                if (randomBoolean()) {
+                    mappings.startObject(SizeFieldMapper.NAME)
+                            .field("enabled", randomBoolean())
+                            .endObject();
+                }
+                if (randomBoolean()) {
+                    mappings.startObject(AllFieldMapper.NAME)
+                            .field("auto_boost", true)
+                            .endObject();
+                }
+                if (randomBoolean()) {
+                    mappings.startObject(SourceFieldMapper.NAME)
+                            .field("compress", randomBoolean())
+                            .endObject();
+                }
                 if (compatibilityVersion().onOrAfter(Version.V_1_3_0)) {
                     mappings.startObject(FieldNamesFieldMapper.NAME)
                             .startObject("fielddata")
@@ -414,6 +442,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         setRandomMerge(random, builder);
         setRandomTranslogSettings(random, builder);
         setRandomNormsLoading(random, builder);
+        setRandomScriptingSettings(random, builder);
         if (random.nextBoolean()) {
             if (random.nextInt(10) == 0) { // do something crazy slow here
                 builder.put(IndicesStore.INDICES_STORE_THROTTLE_MAX_BYTES_PER_SEC, new ByteSizeValue(RandomInts.randomIntBetween(random, 1, 10), ByteSizeUnit.MB));
@@ -446,7 +475,17 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         if (random.nextBoolean()) {
             builder.put(IndicesQueryCache.INDEX_CACHE_QUERY_ENABLED, random.nextBoolean());
         }
+        
+        return builder;
+    }
 
+    private static ImmutableSettings.Builder setRandomScriptingSettings(Random random, ImmutableSettings.Builder builder) {
+        if (random.nextBoolean()) {
+            builder.put(ScriptService.SCRIPT_CACHE_SIZE_SETTING, RandomInts.randomIntBetween(random, -100, 2000));
+        }
+        if (random.nextBoolean()) {
+            builder.put(ScriptService.SCRIPT_CACHE_EXPIRE_SETTING, TimeValue.timeValueMillis(RandomInts.randomIntBetween(random, 750, 10000000)));
+        }
         return builder;
     }
 

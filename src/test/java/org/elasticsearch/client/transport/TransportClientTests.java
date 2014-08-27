@@ -32,9 +32,7 @@ import org.elasticsearch.transport.TransportService;
 import org.junit.Test;
 
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.startsWith;
+import static org.hamcrest.Matchers.*;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, transportClientRatio = 1.0)
 public class TransportClientTests extends ElasticsearchIntegrationTest {
@@ -54,6 +52,7 @@ public class TransportClientTests extends ElasticsearchIntegrationTest {
         TransportClientNodesService nodeService = client.nodeService();
         Node node = NodeBuilder.nodeBuilder().data(false).settings(ImmutableSettings.builder()
                 .put(internalCluster().getDefaultSettings())
+                .put("node.name", "testNodeVersionIsUpdated")
                 .put("http.enabled", false)
                 .put("index.store.type", "ram")
                 .put("config.ignore_system_properties", true) // make sure we get what we set :)
@@ -78,7 +77,7 @@ public class TransportClientTests extends ElasticsearchIntegrationTest {
                 assertThat(discoveryNode.getVersion(), equalTo(Version.CURRENT.minimumCompatibilityVersion()));
             }
         } finally {
-            node.stop();
+            node.close();
         }
     }
 }

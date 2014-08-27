@@ -25,6 +25,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Filter;
 import org.elasticsearch.common.lucene.ReaderContextAware;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
+import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilter;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
@@ -41,7 +42,7 @@ import java.io.IOException;
  */
 public class ReverseNestedAggregator extends SingleBucketAggregator implements ReaderContextAware {
 
-    private final Filter parentFilter;
+    private final FixedBitSetFilter parentFilter;
     private DocIdSetIterator parentDocs;
 
     // TODO: Add LongIntPagedHashMap?
@@ -56,7 +57,7 @@ public class ReverseNestedAggregator extends SingleBucketAggregator implements R
             throw new SearchParseException(context.searchContext(), "Reverse nested aggregation [" + name + "] can only be used inside a [nested] aggregation");
         }
         if (nestedPath == null) {
-            parentFilter = SearchContext.current().filterCache().cache(NonNestedDocsFilter.INSTANCE);
+            parentFilter = SearchContext.current().fixedBitSetFilterCache().getFixedBitSetFilter(NonNestedDocsFilter.INSTANCE);
         } else {
             MapperService.SmartNameObjectMapper mapper = SearchContext.current().smartNameObjectMapper(nestedPath);
             if (mapper == null) {
@@ -69,7 +70,7 @@ public class ReverseNestedAggregator extends SingleBucketAggregator implements R
             if (!objectMapper.nested().isNested()) {
                 throw new AggregationExecutionException("[reverse_nested] nested path [" + nestedPath + "] is not nested");
             }
-            parentFilter = SearchContext.current().filterCache().cache(objectMapper.nestedTypeFilter());
+            parentFilter = SearchContext.current().fixedBitSetFilterCache().getFixedBitSetFilter(objectMapper.nestedTypeFilter());
         }
         bucketOrdToLastCollectedParentDoc = new LongIntOpenHashMap(32);
         aggregationContext.ensureScoreDocsInOrder();

@@ -249,8 +249,18 @@ public class TypeParsers {
         if (propName.equals("path")) {
             builder.multiFieldPathType(parsePathType(name, propNode.toString()));
         } else if (propName.equals("fields")) {
-            @SuppressWarnings("unchecked")
-            Map<String, Object> multiFieldsPropNodes = (Map<String, Object>) propNode;
+
+            final Map<String, Object> multiFieldsPropNodes;
+
+            if (propNode instanceof List && ((List<?>) propNode).isEmpty()) {
+                multiFieldsPropNodes = Collections.emptyMap();
+            } else if (propNode instanceof Map) {
+                multiFieldsPropNodes = (Map<String, Object>) propNode;
+            } else {
+                throw new MapperParsingException("Expected map for property [fields] on field [" + propNode + "] or " +
+                        "[" + propName + "] but got a " + propNode.getClass());
+            }
+
             for (Map.Entry<String, Object> multiFieldEntry : multiFieldsPropNodes.entrySet()) {
                 String multiFieldName = multiFieldEntry.getKey();
                 if (!(multiFieldEntry.getValue() instanceof Map)) {

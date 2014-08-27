@@ -83,7 +83,6 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
 
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
     private final AtomicInteger refCount = new AtomicInteger(1);
-    private final IndexStore indexStore;
     private final CodecService codecService;
     private final DirectoryService directoryService;
     private final StoreDirectory directory;
@@ -91,9 +90,8 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
     private final DistributorDirectory distributorDirectory;
 
     @Inject
-    public Store(ShardId shardId, @IndexSettings Settings indexSettings, IndexStore indexStore, CodecService codecService, DirectoryService directoryService, Distributor distributor) throws IOException {
+    public Store(ShardId shardId, @IndexSettings Settings indexSettings, CodecService codecService, DirectoryService directoryService, Distributor distributor) throws IOException {
         super(shardId, indexSettings);
-        this.indexStore = indexStore;
         this.codecService = codecService;
         this.directoryService = directoryService;
         this.sync = componentSettings.getAsBoolean("sync", true);
@@ -101,10 +99,6 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
         this.directory = new StoreDirectory(distributorDirectory);
     }
 
-    public IndexStore indexStore() {
-        ensureOpen();
-        return this.indexStore;
-    }
 
     public Directory directory() {
         ensureOpen();
@@ -132,7 +126,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
         }
     }
 
-    private final void ensureOpen() {
+    final void ensureOpen() { // for testing
         if (this.refCount.get() <= 0) {
             throw new AlreadyClosedException("Store is already closed");
         }
@@ -556,7 +550,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
 
         private static void checksumFromLuceneFile(Directory directory, String file, ImmutableMap.Builder<String, StoreFileMetaData> builder,  ESLogger logger, Version version, boolean readFileAsHash) throws IOException {
             final String checksum;
-            BytesRef fileHash = new BytesRef();
+            final BytesRef fileHash = new BytesRef();
             try (IndexInput in = directory.openInput(file, IOContext.READONCE)) {
                 try {
                     if (in.length() < CodecUtil.footerLength()) {
@@ -564,10 +558,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
                         throw new CorruptIndexException("Can't retrieve checksum from file: " + file + " file length must be >= " + CodecUtil.footerLength() + " but was: " + in.length());
                     }
                     if (readFileAsHash) {
-                        final int len = (int)Math.min(1024 * 1024, in.length()); // for safety we limit this to 1MB
-                        fileHash.bytes = new byte[len];
-                        in.readBytes(fileHash.bytes, 0, len);
-                        fileHash.length = len;
+                       hashFile(fileHash, in);
                     }
                     checksum = digestToString(CodecUtil.retrieveChecksum(in));
 
@@ -579,6 +570,27 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
             }
         }
 
+        /**
+         * Computes a strong hash value for small files. Note that this method should only be used for files < 1MB
+         */
+        public static void hashFile(BytesRef fileHash, IndexInput in) throws IOException {
+            final int len = (int)Math.min(1024 * 1024, in.length()); // for safety we limit this to 1MB
+            fileHash.offset = 0;
+            fileHash.grow(len);
+            fileHash.length = len;
+            in.readBytes(fileHash.bytes, 0, len);
+        }
+
+        /**
+         * Computes a strong hash value for small files. Note that this method should only be used for files < 1MB
+         */
+        public static void hashFile(BytesRef fileHash, BytesRef source) throws IOException {
+            final int len = Math.min(1024 * 1024, source.length); // for safety we limit this to 1MB
+            fileHash.offset = 0;
+            fileHash.grow(len);
+            fileHash.length = len;
+            System.arraycopy(source.bytes, source.offset, fileHash.bytes, 0, len);
+        }
 
         @Override
         public Iterator<StoreFileMetaData> iterator() {

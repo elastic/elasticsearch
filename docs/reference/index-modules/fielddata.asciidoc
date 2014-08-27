@@ -138,7 +138,7 @@ field data format.
 `doc_values`::
     Computes and stores field data data-structures on disk at indexing time.
     Lowers memory usage but only works on non-analyzed strings (`index`: `no` or
-    `not_analyzed`) and doesn't support filtering.
+    `not_analyzed`) and doesn't support <<field-data-filtering,filtering>>.
 
 [float]
 ==== Numeric field data types
@@ -148,7 +148,7 @@ field data format.
 
 `doc_values`::
     Computes and stores field data data-structures on disk at indexing time.
-    Doesn't support filtering.
+    Doesn't support <<field-data-filtering,filtering>>.
 
 [float]
 ==== Geo point field data types

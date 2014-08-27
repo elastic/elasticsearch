@@ -20,11 +20,12 @@
 package org.elasticsearch.indices.recovery;
 
 import com.google.common.collect.Lists;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStreams;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
@@ -68,7 +69,12 @@ class RecoveryTranslogOperationsRequest extends TransportRequest {
         int size = in.readVInt();
         operations = Lists.newArrayListWithExpectedSize(size);
         for (int i = 0; i < size; i++) {
-            operations.add(TranslogStreams.readTranslogOperation(in));
+            if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
+                operations.add(TranslogStreams.V1.read(in));
+            } else {
+                operations.add(TranslogStreams.V0.read(in));
+            }
+
         }
     }
 
@@ -79,7 +85,11 @@ class RecoveryTranslogOperationsRequest extends TransportRequest {
         shardId.writeTo(out);
         out.writeVInt(operations.size());
         for (Translog.Operation operation : operations) {
-            TranslogStreams.writeTranslogOperation(out, operation);
+            if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
+                TranslogStreams.V1.write(out, operation);
+            } else {
+                TranslogStreams.V0.write(out, operation);
+            }
         }
     }
 }

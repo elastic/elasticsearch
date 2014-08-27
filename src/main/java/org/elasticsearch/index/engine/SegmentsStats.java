@@ -38,7 +38,9 @@ public class SegmentsStats implements Streamable, ToXContent {
     private long count;
     private long memoryInBytes;
     private long indexWriterMemoryInBytes;
+    private long indexWriterMaxMemoryInBytes;
     private long versionMapMemoryInBytes;
+    private long fixedBitSetMemoryInBytes;
 
     public SegmentsStats() {
 
@@ -53,8 +55,16 @@ public class SegmentsStats implements Streamable, ToXContent {
         this.indexWriterMemoryInBytes += indexWriterMemoryInBytes;
     }
 
+    public void addIndexWriterMaxMemoryInBytes(long indexWriterMaxMemoryInBytes) {
+        this.indexWriterMaxMemoryInBytes += indexWriterMaxMemoryInBytes;
+    }
+
     public void addVersionMapMemoryInBytes(long versionMapMemoryInBytes) {
         this.versionMapMemoryInBytes += versionMapMemoryInBytes;
+    }
+
+    public void addFixedBitSetMemoryInBytes(long fixedBitSetMemoryInBytes) {
+        this.fixedBitSetMemoryInBytes += fixedBitSetMemoryInBytes;
     }
 
     public void add(SegmentsStats mergeStats) {
@@ -63,7 +73,9 @@ public class SegmentsStats implements Streamable, ToXContent {
         }
         add(mergeStats.count, mergeStats.memoryInBytes);
         addIndexWriterMemoryInBytes(mergeStats.indexWriterMemoryInBytes);
+        addIndexWriterMaxMemoryInBytes(mergeStats.indexWriterMaxMemoryInBytes);
         addVersionMapMemoryInBytes(mergeStats.versionMapMemoryInBytes);
+        addFixedBitSetMemoryInBytes(mergeStats.fixedBitSetMemoryInBytes);
     }
 
     /**
@@ -96,6 +108,17 @@ public class SegmentsStats implements Streamable, ToXContent {
     }
 
     /**
+     * Maximum memory index writer may use before it must write buffered documents to a new segment.
+     */
+    public long getIndexWriterMaxMemoryInBytes() {
+        return this.indexWriterMaxMemoryInBytes;
+    }
+
+    public ByteSizeValue getIndexWriterMaxMemory() {
+        return new ByteSizeValue(indexWriterMaxMemoryInBytes);
+    }
+
+    /**
      * Estimation of the memory usage by version map
      */
     public long getVersionMapMemoryInBytes() {
@@ -104,6 +127,17 @@ public class SegmentsStats implements Streamable, ToXContent {
 
     public ByteSizeValue getVersionMapMemory() {
         return new ByteSizeValue(versionMapMemoryInBytes);
+    }
+
+    /**
+     * Estimation of how much the cached fixed bit sets are taking. (which nested and p/c rely on)
+     */
+    public long getFixedBitSetMemoryInBytes() {
+        return fixedBitSetMemoryInBytes;
+    }
+
+    public ByteSizeValue getFixedBitSetMemory() {
+        return new ByteSizeValue(fixedBitSetMemoryInBytes);
     }
 
     public static SegmentsStats readSegmentsStats(StreamInput in) throws IOException {
@@ -118,7 +152,9 @@ public class SegmentsStats implements Streamable, ToXContent {
         builder.field(Fields.COUNT, count);
         builder.byteSizeField(Fields.MEMORY_IN_BYTES, Fields.MEMORY, memoryInBytes);
         builder.byteSizeField(Fields.INDEX_WRITER_MEMORY_IN_BYTES, Fields.INDEX_WRITER_MEMORY, indexWriterMemoryInBytes);
+        builder.byteSizeField(Fields.INDEX_WRITER_MAX_MEMORY_IN_BYTES, Fields.INDEX_WRITER_MAX_MEMORY, indexWriterMaxMemoryInBytes);
         builder.byteSizeField(Fields.VERSION_MAP_MEMORY_IN_BYTES, Fields.VERSION_MAP_MEMORY, versionMapMemoryInBytes);
+        builder.byteSizeField(Fields.FIXED_BIT_SET_MEMORY_IN_BYTES, Fields.FIXED_BIT_SET, fixedBitSetMemoryInBytes);
         builder.endObject();
         return builder;
     }
@@ -130,8 +166,12 @@ public class SegmentsStats implements Streamable, ToXContent {
         static final XContentBuilderString MEMORY_IN_BYTES = new XContentBuilderString("memory_in_bytes");
         static final XContentBuilderString INDEX_WRITER_MEMORY = new XContentBuilderString("index_writer_memory");
         static final XContentBuilderString INDEX_WRITER_MEMORY_IN_BYTES = new XContentBuilderString("index_writer_memory_in_bytes");
+        static final XContentBuilderString INDEX_WRITER_MAX_MEMORY = new XContentBuilderString("index_writer_max_memory");
+        static final XContentBuilderString INDEX_WRITER_MAX_MEMORY_IN_BYTES = new XContentBuilderString("index_writer_max_memory_in_bytes");
         static final XContentBuilderString VERSION_MAP_MEMORY = new XContentBuilderString("version_map_memory");
         static final XContentBuilderString VERSION_MAP_MEMORY_IN_BYTES = new XContentBuilderString("version_map_memory_in_bytes");
+        static final XContentBuilderString FIXED_BIT_SET = new XContentBuilderString("fixed_bit_set");
+        static final XContentBuilderString FIXED_BIT_SET_MEMORY_IN_BYTES = new XContentBuilderString("fixed_bit_set_memory_in_bytes");
     }
 
     @Override
@@ -142,6 +182,12 @@ public class SegmentsStats implements Streamable, ToXContent {
             indexWriterMemoryInBytes = in.readLong();
             versionMapMemoryInBytes = in.readLong();
         }
+        if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
+            indexWriterMaxMemoryInBytes = in.readLong();
+        }
+        if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
+            fixedBitSetMemoryInBytes = in.readLong();
+        }
     }
 
     @Override
@@ -151,6 +197,12 @@ public class SegmentsStats implements Streamable, ToXContent {
         if (out.getVersion().onOrAfter(Version.V_1_3_0)) {
             out.writeLong(indexWriterMemoryInBytes);
             out.writeLong(versionMapMemoryInBytes);
+        }
+        if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
+            out.writeLong(indexWriterMaxMemoryInBytes);
+        }
+        if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
+            out.writeLong(fixedBitSetMemoryInBytes);
         }
     }
 }

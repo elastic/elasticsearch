@@ -34,10 +34,7 @@ import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.index.translog.TranslogException;
-import org.elasticsearch.index.translog.TranslogStats;
-import org.elasticsearch.index.translog.TranslogStreams;
+import org.elasticsearch.index.translog.*;
 
 import java.io.File;
 import java.io.IOException;
@@ -315,20 +312,33 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
         }
     }
 
+    /**
+     * Returns the translog that should be read for the specified location. If
+     * the transient or current translog does not match, returns null
+     */
+    private FsTranslogFile translogForLocation(Location location) {
+        if (trans != null && trans.id() == location.translogId) {
+            return this.trans;
+        }
+        if (current.id() == location.translogId) {
+            return this.current;
+        }
+        return null;
+    }
+
+    /**
+     * Private read method that reads from either the transient translog (if
+     * applicable), or the current translog. Acquires the read lock
+     * before reading.
+     * @return byte array of read data
+     */
     public byte[] read(Location location) {
         rwl.readLock().lock();
         try {
-            FsTranslogFile trans = this.trans;
-            if (trans != null && trans.id() == location.translogId) {
+            FsTranslogFile trans = translogForLocation(location);
+            if (trans != null) {
                 try {
                     return trans.read(location);
-                } catch (Exception e) {
-                    // ignore
-                }
-            }
-            if (current.id() == location.translogId) {
-                try {
-                    return current.read(location);
                 } catch (Exception e) {
                     // ignore
                 }
@@ -337,6 +347,21 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
         } finally {
             rwl.readLock().unlock();
         }
+    }
+
+    /**
+     * Read the Source object from the given location, returns null if the
+     * source could not be read.
+     */
+    @Override
+    public Source readSource(Location location) throws IOException {
+        byte[] data = this.read(location);
+        if (data == null) {
+            return null;
+        }
+        // Return the source using the current version of the stream based on
+        // which translog is being read
+        return this.translogForLocation(location).getStream().readSource(data);
     }
 
     @Override
@@ -401,7 +426,7 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
     public Snapshot snapshot(Snapshot snapshot) {
         FsChannelSnapshot snap = snapshot();
         if (snap.translogId() == snapshot.translogId()) {
-            snap.seekForward(snapshot.position());
+            snap.seekTo(snapshot.position());
         }
         return snap;
     }

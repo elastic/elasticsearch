@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-@ClusterScope(scope = Scope.SUITE, numDataNodes = 2, transportClientRatio = 0.0)
+@ClusterScope(scope = Scope.SUITE, numDataNodes = 2)
 public class PluggableTransportModuleTests extends ElasticsearchIntegrationTest {
 
     public static final AtomicInteger SENT_REQUEST_COUNTER = new AtomicInteger(0);
@@ -52,20 +52,24 @@ public class PluggableTransportModuleTests extends ElasticsearchIntegrationTest 
                 .build();
     }
 
+    @Override
+    protected Settings transportClientSettings() {
+        return settingsBuilder()
+                .put("plugin.types", CountingSentRequestsPlugin.class.getName())
+                .put(super.transportClientSettings())
+                .build();
+    }
+
     @Test
     public void testThatPluginFunctionalityIsLoadedWithoutConfiguration() throws Exception {
         for (Transport transport : internalCluster().getInstances(Transport.class)) {
             assertThat(transport, instanceOf(CountingAssertingLocalTransport.class));
         }
 
-        // the cluster node communication on start up is sufficient to increase the counter
-        // no need to do anything specific
-        int count = SENT_REQUEST_COUNTER.get();
-        assertThat("Expected send request counter to be greather than zero", count, is(greaterThan(0)));
-
-        // sending a new request via client node will increase the sent requests
+        int countBeforeRequest = SENT_REQUEST_COUNTER.get();
         internalCluster().clientNodeClient().admin().cluster().prepareHealth().get();
-        assertThat("Expected send request counter to be greather than zero", SENT_REQUEST_COUNTER.get(), is(greaterThan(count)));
+        int countAfterRequest = SENT_REQUEST_COUNTER.get();
+        assertThat("Expected send request counter to be greather than zero", countAfterRequest, is(greaterThan(countBeforeRequest)));
     }
 
     public static class CountingSentRequestsPlugin extends AbstractPlugin {

@@ -23,7 +23,6 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.bucket.children.Children;
-import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.tophits.TopHits;
 import org.elasticsearch.search.sort.SortOrder;
@@ -126,7 +125,7 @@ public class ChildrenTests extends ElasticsearchIntegrationTest {
                 ).get();
         assertSearchResponse(searchResponse);
 
-        StringTerms categoryTerms = searchResponse.getAggregations().get("category");
+        Terms categoryTerms = searchResponse.getAggregations().get("category");
         assertThat(categoryTerms.getBuckets().size(), equalTo(categoryToControl.size()));
         for (Map.Entry<String, Control> entry1 : categoryToControl.entrySet()) {
             Terms.Bucket categoryBucket = categoryTerms.getBucketByKey(entry1.getKey());
@@ -137,7 +136,7 @@ public class ChildrenTests extends ElasticsearchIntegrationTest {
             assertThat(childrenBucket.getName(), equalTo("to_comment"));
             assertThat(childrenBucket.getDocCount(), equalTo((long) entry1.getValue().commentIds.size()));
 
-            StringTerms commentersTerms = childrenBucket.getAggregations().get("commenters");
+            Terms commentersTerms = childrenBucket.getAggregations().get("commenters");
             assertThat(commentersTerms.getBuckets().size(), equalTo(entry1.getValue().commenterToCommentId.size()));
             for (Map.Entry<String, Set<String>> entry2 : entry1.getValue().commenterToCommentId.entrySet()) {
                 Terms.Bucket commentBucket = commentersTerms.getBucketByKey(entry2.getKey());
@@ -164,7 +163,7 @@ public class ChildrenTests extends ElasticsearchIntegrationTest {
                 ).get();
         assertSearchResponse(searchResponse);
 
-        StringTerms categoryTerms = searchResponse.getAggregations().get("category");
+        Terms categoryTerms = searchResponse.getAggregations().get("category");
         assertThat(categoryTerms.getBuckets().size(), equalTo(3));
 
         Terms.Bucket categoryBucket = categoryTerms.getBucketByKey("a");

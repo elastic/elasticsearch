@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common.geo;
 
+import com.spatial4j.core.shape.Circle;
+import com.spatial4j.core.shape.Rectangle;
 import com.spatial4j.core.shape.Shape;
 import com.spatial4j.core.shape.ShapeCollection;
 import com.spatial4j.core.shape.jts.JtsGeometry;
@@ -101,6 +103,30 @@ public class GeoJSONShapeParserTests extends ElasticsearchTestCase {
                 }),
         });
         assertGeometryEquals(jtsGeom(expected), multilinesGeoJson);
+    }
+
+    @Test
+    public void testParse_circle() throws IOException {
+        String multilinesGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "circle")
+                .startArray("coordinates").value(100.0).value(0.0).endArray()
+                .field("radius", "100m")
+                .endObject().string();
+
+        Circle expected = SPATIAL_CONTEXT.makeCircle(100.0, 0.0, 360 * 100 / GeoUtils.EARTH_EQUATOR);
+        assertGeometryEquals(expected, multilinesGeoJson);
+    }
+
+    @Test
+    public void testParse_envelope() throws IOException {
+        String multilinesGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "envelope")
+                .startArray("coordinates")
+                .startArray().value(-50).value(30).endArray()
+                .startArray().value(50).value(-30).endArray()
+                .endArray()
+                .endObject().string();
+
+        Rectangle expected = SPATIAL_CONTEXT.makeRectangle(-50, 50, -30, 30);
+        assertGeometryEquals(expected, multilinesGeoJson);
     }
 
     @Test

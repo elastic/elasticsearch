@@ -19,8 +19,13 @@
 
 package org.elasticsearch.explain;
 
+import org.apache.lucene.search.ComplexExplanation;
+import org.apache.lucene.search.Explanation;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.explain.ExplainResponse;
+import org.elasticsearch.common.io.stream.InputStreamStreamInput;
+import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -30,6 +35,8 @@ import org.joda.time.DateTimeZone;
 import org.joda.time.format.ISODateTimeFormat;
 import org.junit.Test;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -256,8 +263,43 @@ public class ExplainActionTests extends ElasticsearchIntegrationTest {
         assertThat(explainResponse.isExists(), equalTo(true));
         assertThat(explainResponse.isMatch(), equalTo(true));
     }
-    
+
     private static String indexOrAlias() {
         return randomBoolean() ? "test" : "alias";
+    }
+
+
+    @Test
+    public void streamExplainTest() throws Exception {
+
+        Explanation exp = new Explanation((float) 2.0, "some explanation");
+
+        // write
+        ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
+        OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
+        Lucene.writeExplanation(out, exp);
+
+        // read
+        ByteArrayInputStream esInBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
+        InputStreamStreamInput esBuffer = new InputStreamStreamInput(esInBuffer);
+
+        Explanation result = Lucene.readExplanation(esBuffer);
+        assertThat(exp.toString(),equalTo(result.toString()));
+
+        exp = new ComplexExplanation(true, 2.0f, "some explanation");
+        exp.addDetail(new Explanation(2.0f,"another explanation"));
+
+        // write complex
+        outBuffer = new ByteArrayOutputStream();
+        out = new OutputStreamStreamOutput(outBuffer);
+        Lucene.writeExplanation(out, exp);
+
+        // read complex
+        esInBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
+        esBuffer = new InputStreamStreamInput(esInBuffer);
+
+        result = Lucene.readExplanation(esBuffer);
+        assertThat(exp.toString(),equalTo(result.toString()));
+
     }
 }

@@ -66,6 +66,7 @@ import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.river.RiverIndexName;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.File;
@@ -328,19 +329,28 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     }
                     // now, put the request settings, so they override templates
                     indexSettingsBuilder.put(request.settings());
-
-                    if (indexSettingsBuilder.get(SETTING_NUMBER_OF_SHARDS) == null) {
-                        if (request.index().equals(riverIndexName)) {
-                            indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, settings.getAsInt(SETTING_NUMBER_OF_SHARDS, 1));
-                        } else {
-                            indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, settings.getAsInt(SETTING_NUMBER_OF_SHARDS, 5));
+                    if (request.index().equals(ScriptService.SCRIPT_INDEX)) {
+                        indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, settings.getAsInt(SETTING_NUMBER_OF_SHARDS, 1));
+                    } else {
+                        if (indexSettingsBuilder.get(SETTING_NUMBER_OF_SHARDS) == null) {
+                            if (request.index().equals(riverIndexName)) {
+                                indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, settings.getAsInt(SETTING_NUMBER_OF_SHARDS, 1));
+                            } else {
+                                indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, settings.getAsInt(SETTING_NUMBER_OF_SHARDS, 5));
+                            }
                         }
                     }
-                    if (indexSettingsBuilder.get(SETTING_NUMBER_OF_REPLICAS) == null) {
-                        if (request.index().equals(riverIndexName)) {
-                            indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, 1));
-                        } else {
-                            indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, 1));
+                    if (request.index().equals(ScriptService.SCRIPT_INDEX)) {
+                        indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, 0));
+                        indexSettingsBuilder.put(SETTING_AUTO_EXPAND_REPLICAS, "1-all");
+                    }
+                    else {
+                        if (indexSettingsBuilder.get(SETTING_NUMBER_OF_REPLICAS) == null) {
+                            if (request.index().equals(riverIndexName)) {
+                                indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, 1));
+                            } else {
+                                indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, 1));
+                            }
                         }
                     }
 

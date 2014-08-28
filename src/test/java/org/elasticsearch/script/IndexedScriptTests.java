@@ -21,7 +21,11 @@
 package org.elasticsearch.script;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.indexedscripts.get.GetIndexedScriptRequest;
+import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptRequest;
+import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.SearchHit;
@@ -32,8 +36,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertExists;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class IndexedScriptTests extends ElasticsearchIntegrationTest {
 
@@ -67,5 +73,33 @@ public class IndexedScriptTests extends ElasticsearchIntegrationTest {
         SearchHit sh = searchResponse.getHits().getAt(0);
         assertThat((Integer)sh.field("test1").getValue(), equalTo(2));
         assertThat((Integer)sh.field("test2").getValue(), equalTo(6));
+    }
+
+    @Test
+    public void testThatShortTimeoutFails() throws ExecutionException, InterruptedException {
+        PutIndexedScriptRequest putIndexedScriptRequest = new PutIndexedScriptRequest();
+        putIndexedScriptRequest.id("foobar");
+        putIndexedScriptRequest.scriptLang("groovy");
+        putIndexedScriptRequest.source("{" +
+                "\"script\":\"factor*2\"" +
+                "}");
+        PutIndexedScriptResponse putIndexedScriptResponse = client().putIndexedScript(putIndexedScriptRequest).actionGet();
+        assertTrue(putIndexedScriptResponse.isCreated());
+
+        GetIndexedScriptRequest getIndexedScriptRequest = new GetIndexedScriptRequest();
+        getIndexedScriptRequest.id("foobar");
+        getIndexedScriptRequest.scriptLang("groovy");
+
+        TimeValue timeout = new TimeValue(10);
+        getIndexedScriptRequest.timeout(timeout);
+        long start = System.currentTimeMillis();
+        try {
+            client().getIndexedScript(getIndexedScriptRequest).actionGet();
+        } catch (ElasticsearchTimeoutException timeoutException) {
+            return; //This is ok
+        }
+        long durationInMs = System.currentTimeMillis() - start;
+        assertThat(durationInMs, lessThanOrEqualTo(timeout.getMillis()+1000) ); //Give a second leeway perhaps this is too much ?
+
     }
 }

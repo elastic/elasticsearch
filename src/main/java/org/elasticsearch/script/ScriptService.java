@@ -77,12 +77,15 @@ public class ScriptService extends AbstractComponent {
 
     public static final String DEFAULT_SCRIPTING_LANGUAGE_SETTING = "script.default_lang";
     public static final String DISABLE_DYNAMIC_SCRIPTING_SETTING = "script.disable_dynamic";
-    public static final String SCRIPT_INDEX_OPERATION_TIMEOUT_SETTING = "script.index.timeout";
-    public static final String SCRIPT_INDEX_OPERATION_DEFAULT_TIMEOUT = "5s";
     public static final String SCRIPT_CACHE_SIZE_SETTING = "script.cache.max_size";
     public static final String SCRIPT_CACHE_EXPIRE_SETTING = "script.cache.expire";
     public static final String DISABLE_DYNAMIC_SCRIPTING_DEFAULT = "sandbox";
     public static final String SCRIPT_INDEX = ".scripts";
+
+    public static final String SCRIPT_INDEX_OPERATION_TIMEOUT_SETTING = "script.index.timeout";
+    public static final String SCRIPT_INDEX_OPERATION_DEFAULT_TIMEOUT = "5s";
+    private final TimeValue scriptGetDefaultTimeout;
+
 
     //Make static so that it has visibility in IndexedScript
     //Looked up from settings in ctor
@@ -96,7 +99,6 @@ public class ScriptService extends AbstractComponent {
     private final File scriptsDirectory;
 
     private final DynamicScriptDisabling dynamicScriptingDisabled;
-    private final TimeValue scriptIndexOperationTimeout;
 
     private Client client = null;
 
@@ -230,10 +232,11 @@ public class ScriptService extends AbstractComponent {
         this.defaultLang = settings.get(DEFAULT_SCRIPTING_LANGUAGE_SETTING, "groovy");
         this.dynamicScriptingDisabled = DynamicScriptDisabling.parse(settings.get(DISABLE_DYNAMIC_SCRIPTING_SETTING, DISABLE_DYNAMIC_SCRIPTING_DEFAULT));
 
-        this.scriptIndexOperationTimeout= TimeValue.parseTimeValue(
+        this.scriptGetDefaultTimeout = TimeValue.parseTimeValue(
                 settings.get(SCRIPT_INDEX_OPERATION_TIMEOUT_SETTING, SCRIPT_INDEX_OPERATION_DEFAULT_TIMEOUT),
                 new TimeValue(5000, TimeUnit.MILLISECONDS)
         );
+
 
         CacheBuilder cacheBuilder = CacheBuilder.newBuilder();
         if (cacheMaxSize >= 0) {
@@ -315,7 +318,7 @@ public class ScriptService extends AbstractComponent {
             verifyDynamicScripting(indexedScript.lang); //Since anyone can index a script, disable indexed scripting
                                           // if dynamic scripting is disabled, perhaps its own setting ?
 
-            script = getScriptFromIndex(client, indexedScript.lang, indexedScript.id);
+            script = getScriptFromIndex(client, indexedScript.lang, indexedScript.id, scriptGetDefaultTimeout);
         } else if (scriptType == ScriptType.FILE) {
 
             compiled = staticCache.get(script); //On disk scripts will be loaded into the staticCache by the listener
@@ -381,19 +384,20 @@ public class ScriptService extends AbstractComponent {
         }
     }
 
-    public GetResponse queryScriptIndex(Client client, String scriptLang, String id){
-        return queryScriptIndex(client, scriptLang, id, Versions.MATCH_ANY, VersionType.INTERNAL);
+    public GetResponse queryScriptIndex(Client client, String scriptLang, String id, TimeValue timeout){
+        return queryScriptIndex(client, scriptLang, id, Versions.MATCH_ANY, VersionType.INTERNAL, timeout);
     }
 
     public GetResponse queryScriptIndex(Client client, String scriptLang, String id,
-                                        long version, VersionType versionType) {
+                                        long version, VersionType versionType, TimeValue timeout) {
         scriptLang = validateScriptLanguage(scriptLang);
+        logger.error("Timeout on get operation is [{}]", timeout);
         return client.prepareGet(SCRIPT_INDEX, scriptLang, id)
                 .setVersion(version)
                 .setVersionType(versionType)
                 .setPreference("_local") //Set preference for no forking
                 .setOperationThreaded(false)
-                .execute().actionGet(scriptIndexOperationTimeout);
+                .execute().actionGet(timeout);
     }
 
     private String validateScriptLanguage(String scriptLang) {
@@ -405,8 +409,8 @@ public class ScriptService extends AbstractComponent {
         return scriptLang;
     }
 
-    private String getScriptFromIndex(Client client, String scriptLang, String id) {
-        GetResponse responseFields = queryScriptIndex(client,scriptLang,id);
+    private String getScriptFromIndex(Client client, String scriptLang, String id, TimeValue timeout) {
+        GetResponse responseFields = queryScriptIndex(client, scriptLang, id, timeout);
         if (responseFields.isExists()) {
             return getScriptFromResponse(responseFields);
         }

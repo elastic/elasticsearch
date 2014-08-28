@@ -55,7 +55,7 @@ public class TransportGetIndexedScriptAction extends HandledTransportAction<GetI
     @Override
     public void doExecute(GetIndexedScriptRequest request, ActionListener<GetIndexedScriptResponse> listener){
         try {
-            GetResponse scriptResponse = scriptService.queryScriptIndex(client, request.scriptLang(), request.id(), request.version(), request.versionType());
+            GetResponse scriptResponse = scriptService.queryScriptIndex(client, request.scriptLang(), request.id(), request.version(), request.versionType(), request.timeout());
             listener.onResponse(new GetIndexedScriptResponse(scriptResponse));
         } catch(Throwable e){
             listener.onFailure(e);

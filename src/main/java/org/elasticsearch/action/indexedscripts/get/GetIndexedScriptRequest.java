@@ -26,6 +26,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
@@ -55,6 +56,7 @@ public class GetIndexedScriptRequest extends SingleShardOperationRequest<GetInde
 
     private VersionType versionType = VersionType.INTERNAL;
     private long version = Versions.MATCH_ANY;
+    private TimeValue timeout = new TimeValue(5000);
 
 
 
@@ -106,6 +108,20 @@ public class GetIndexedScriptRequest extends SingleShardOperationRequest<GetInde
     public GetIndexedScriptRequest scriptLang(@Nullable String type) {
         this.scriptLang = type;
         return this;
+    }
+
+    /**
+     * Sets the timeout for the request
+     * @param timeout
+     * @return
+     */
+    public GetIndexedScriptRequest timeout(TimeValue timeout) {
+        this.timeout = timeout;
+        return this;
+    }
+
+    public TimeValue timeout() {
+        return this.timeout;
     }
 
     /**

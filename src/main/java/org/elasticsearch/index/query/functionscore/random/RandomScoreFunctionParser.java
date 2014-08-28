@@ -66,15 +66,18 @@ public class RandomScoreFunctionParser implements ScoreFunctionParser {
             }
         }
 
+        final FieldMapper<?> mapper = SearchContext.current().mapperService().smartNameFieldMapper("_uid");
+        if (mapper == null) {
+            // mapper could be null if we are on a shard with no docs yet, so this won't actually be used
+            return new RandomScoreFunction();
+        }
+
         if (seed == -1) {
             seed = (int)parseContext.nowInMillis();
         }
-
-        ShardId shardId = SearchContext.current().indexShard().shardId();
-        int salt = (shardId.index().name().hashCode() << 10) | shardId.id();
-
-        final FieldMapper<?> mapper = SearchContext.current().mapperService().smartNameFieldMapper("_uid");
-        IndexFieldData<?> uidFieldData = SearchContext.current().fieldData().getForField(mapper);
+        final ShardId shardId = SearchContext.current().indexShard().shardId();
+        final int salt = (shardId.index().name().hashCode() << 10) | shardId.id();
+        final IndexFieldData<?> uidFieldData = SearchContext.current().fieldData().getForField(mapper);
 
         return new RandomScoreFunction(seed, salt, uidFieldData);
     }

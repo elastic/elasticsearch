@@ -48,6 +48,7 @@ public class AckClusterUpdateSettingsTests extends ElasticsearchIntegrationTest 
         //to test that the acknowledgement mechanism is working we better disable the wait for publish
         //otherwise the operation is most likely acknowledged even if it doesn't support ack
         return ImmutableSettings.builder()
+                .put(super.nodeSettings(nodeOrdinal))
                 .put(DiscoverySettings.PUBLISH_TIMEOUT, 0)
                 //make sure that enough concurrent reroutes can happen at the same time
                 //we have a minimum of 2 nodes, and a maximum of 10 shards, thus 5 should be enough

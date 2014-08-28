@@ -420,6 +420,24 @@ public class ESUsersToolTests extends CliToolTestCase {
     }
 
     @Test
+    public void testRoles_Cmd_removingLastRoleRemovesEntryFromRolesFile() throws Exception {
+        File usersFile = writeFile("admin:hash\nuser:hash");
+        File usersRoleFile = writeFile("admin: admin\nuser:user,foo,bar\n");
+        Settings settings = ImmutableSettings.builder()
+                .put("shield.authc.esusers.files.users", usersFile)
+                .put("shield.authc.esusers.files.users_roles", usersRoleFile)
+                .build();
+
+        ESUsersTool.Roles cmd = new ESUsersTool.Roles(new MockTerminal(), "user", Strings.EMPTY_ARRAY, new String[]{"user", "foo", "bar"});
+        CliTool.ExitStatus status = execute(cmd, settings);
+
+        assertThat(status, is(CliTool.ExitStatus.OK));
+
+        List<String> usersRoleFileLines = Files.readLines(usersRoleFile, Charsets.UTF_8);
+        assertThat(usersRoleFileLines, not(hasItem(startsWith("user:"))));
+    }
+
+    @Test
     public void testRoles_Cmd_userNotFound() throws Exception {
         File usersFile = writeFile("admin:hash\nuser:hash");
         File usersRoleFile = writeFile("admin: admin\nuser: user,foo,bar\n");

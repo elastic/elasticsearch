@@ -323,7 +323,11 @@ public class ESUsersTool extends CliTool {
 
             Map<String, String[]> userRolesToWrite = Maps.newHashMapWithExpectedSize(userRoles.size());
             userRolesToWrite.putAll(userRoles);
-            userRolesToWrite.put(username, Sets.newLinkedHashSet(roles).toArray(new String[]{}));
+            if (roles.size() == 0) {
+                userRolesToWrite.remove(username);
+            } else {
+                userRolesToWrite.put(username, Sets.newLinkedHashSet(roles).toArray(new String[]{}));
+            }
             FileUserRolesStore.writeFile(userRolesToWrite, file);
 
             return ExitStatus.OK;

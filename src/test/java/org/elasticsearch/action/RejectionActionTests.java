@@ -46,6 +46,7 @@ public class RejectionActionTests extends ElasticsearchIntegrationTest {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return ImmutableSettings.builder()
+                .put(super.nodeSettings(nodeOrdinal))
                 .put("threadpool.search.size", 1)
                 .put("threadpool.search.queue_size", 1)
                 .put("threadpool.index.size", 1)

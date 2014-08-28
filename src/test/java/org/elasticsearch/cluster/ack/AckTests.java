@@ -63,7 +63,8 @@ public class AckTests extends ElasticsearchIntegrationTest {
     protected Settings nodeSettings(int nodeOrdinal) {
         //to test that the acknowledgement mechanism is working we better disable the wait for publish
         //otherwise the operation is most likely acknowledged even if it doesn't support ack
-        return ImmutableSettings.builder().put(DiscoverySettings.PUBLISH_TIMEOUT, 0).build();
+        return ImmutableSettings.builder().put(super.nodeSettings(nodeOrdinal))
+                .put(DiscoverySettings.PUBLISH_TIMEOUT, 0).build();
     }
 
     @Test

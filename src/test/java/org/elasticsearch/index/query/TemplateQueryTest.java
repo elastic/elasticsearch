@@ -19,9 +19,7 @@
 package org.elasticsearch.index.query;
 
 import com.google.common.collect.Maps;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.indexedscripts.delete.DeleteIndexedScriptResponse;
 import org.elasticsearch.action.indexedscripts.get.GetIndexedScriptResponse;
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptResponse;
@@ -66,7 +64,8 @@ public class TemplateQueryTest extends ElasticsearchIntegrationTest {
 
     @Override
     public Settings nodeSettings(int nodeOrdinal) {
-        return settingsBuilder().put("path.conf", this.getResource("config").getPath()).build();
+        return settingsBuilder().put(super.nodeSettings(nodeOrdinal))
+                .put("path.conf", this.getResource("config").getPath()).build();
     }
 
     @Test

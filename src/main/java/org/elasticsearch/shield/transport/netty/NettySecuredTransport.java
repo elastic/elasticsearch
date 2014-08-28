@@ -64,7 +64,9 @@ public class NettySecuredTransport extends NettyTransport {
         @Override
         public ChannelPipeline getPipeline() throws Exception {
             ChannelPipeline pipeline = super.getPipeline();
-            pipeline.addFirst("ipfilter", shieldUpstreamHandler);
+            if (settings.getAsBoolean("shield.n2n.enabled", true)) {
+                pipeline.addFirst("ipfilter", shieldUpstreamHandler);
+            }
             if (ssl) {
                 SSLEngine serverEngine = sslConfig.createSSLEngine();
                 serverEngine.setUseClientMode(false);

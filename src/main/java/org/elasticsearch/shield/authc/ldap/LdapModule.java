@@ -28,6 +28,7 @@ public class LdapModule extends AbstractShieldModule.Node {
     protected void configureNode() {
         if (enabled) {
             bind(Realm.class).annotatedWith(named(LdapRealm.TYPE)).to(LdapRealm.class).asEagerSingleton();
+            bind(LdapSslSocketFactory.class).asEagerSingleton();
             bind(LdapGroupToRoleMapper.class).asEagerSingleton();
             String mode = settings.getComponentSettings(LdapModule.class).get("mode", "ldap");
             if ("ldap".equals(mode)) {

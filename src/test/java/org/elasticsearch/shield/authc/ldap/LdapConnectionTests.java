@@ -12,6 +12,8 @@ import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Rule;
 import org.junit.Test;
 
+import java.io.File;
+import java.net.URISyntaxException;
 import java.util.List;
 import java.util.Map;
 

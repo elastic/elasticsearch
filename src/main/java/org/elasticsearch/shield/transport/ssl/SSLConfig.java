@@ -29,39 +29,26 @@ public class SSLConfig {
     private String[] ciphers;
 
     public SSLConfig(Settings componentSettings, Settings defaultSettings) {
+        SSLTrustConfig sslTrustConfig = new SSLTrustConfig(componentSettings, defaultSettings);
+
         this.clientAuth = componentSettings.getAsBoolean("require.client.auth", defaultSettings.getAsBoolean("require.client.auth", true));
         String keyStore = componentSettings.get("keystore", defaultSettings.get("keystore", System.getProperty("javax.net.ssl.keyStore")));
         String keyStorePassword = componentSettings.get("keystore_password", defaultSettings.get("keystore_password", System.getProperty("javax.net.ssl.keyStorePassword")));
         String keyStoreAlgorithm = componentSettings.get("keystore_algorithm", defaultSettings.get("keystore_algorithm", System.getProperty("ssl.KeyManagerFactory.algorithm")));
-        String trustStore = componentSettings.get("truststore", defaultSettings.get("truststore", System.getProperty("javax.net.ssl.trustStore")));
-        String trustStorePassword = componentSettings.get("truststore_password", defaultSettings.get("truststore_password", System.getProperty("javax.net.ssl.trustStorePassword")));
-        String trustStoreAlgorithm = componentSettings.get("truststore_algorithm", defaultSettings.get("truststore_algorithm", System.getProperty("ssl.TrustManagerFactory.algorithm")));
         this.ciphers = componentSettings.getAsArray("ciphers", defaultSettings.getAsArray("ciphers", DEFAULT_CIPHERS));
 
         if (keyStore == null) {
             throw new ElasticsearchException("SSL Enabled, but keystore unconfigured");
         }
 
-        if (trustStore == null) {
-            throw new ElasticsearchException("SSL Enabled, but truststore unconfigured");
-        }
-
         if (keyStoreAlgorithm == null) {
             keyStoreAlgorithm = KeyManagerFactory.getDefaultAlgorithm();
         }
 
-        if (trustStoreAlgorithm == null) {
-            trustStoreAlgorithm = TrustManagerFactory.getDefaultAlgorithm();
-        }
-
-        logger.debug("using keyStore[{}], keyAlgorithm[{}], trustStore[{}], trustAlgorithm[{}]", keyStore, keyStoreAlgorithm, trustStore, trustStoreAlgorithm);
+        logger.debug("using keyStore[{}], keyAlgorithm[{}], ", keyStore, keyStoreAlgorithm);
 
         if (!new File(keyStore).exists()) {
             throw new ElasticsearchSSLException("Keystore at path ["+ keyStore +"] does not exist");
-        }
-
-        if (!new File(trustStore).exists()) {
-            throw new ElasticsearchSSLException("Truststore at path ["+ keyStore +"] does not exist");
         }
 
         KeyStore ks = null;
@@ -78,26 +65,11 @@ public class SSLConfig {
             throw new ElasticsearchSSLException("Failed to initialize a KeyManagerFactory", e);
         }
 
-        TrustManager[] trustManagers = null;
-        try (FileInputStream in = new FileInputStream(trustStore)) {
-            // Load TrustStore
-            ks.load(in, trustStorePassword.toCharArray());
-
-            // Initialize a trust manager factory with the trusted store
-            TrustManagerFactory trustFactory = TrustManagerFactory.getInstance(trustStoreAlgorithm);
-            trustFactory.init(ks);
-
-            // Retrieve the trust managers from the factory
-            trustManagers = trustFactory.getTrustManagers();
-        } catch (Exception e) {
-            throw new ElasticsearchException("Failed to initialize a TrustManagerFactory", e);
-        }
-
         // Initialize sslContext
         try {
             String algorithm = componentSettings.get("context_algorithm", defaultSettings.get("shield.ssl.context_algorithm", "TLS"));
             sslContext = SSLContext.getInstance(algorithm);
-            sslContext.init(kmf.getKeyManagers(), trustManagers, null);
+            sslContext.init(kmf.getKeyManagers(), sslTrustConfig.getTrustManagers(), null);
         } catch (Exception e) {
             throw new ElasticsearchSSLException("Failed to initialize the SSLContext", e);
         }

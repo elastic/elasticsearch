@@ -50,12 +50,14 @@ public class ActiveDirectoryConnectionFactory extends AbstractComponent implemen
         int port = componentSettings.getAsInt(AD_PORT, 389);
         String[] ldapUrls = componentSettings.getAsArray(URLS_SETTING,  new String[] { "ldap://" + domainName + ":" + port });
 
-
-        sharedLdapEnv = ImmutableMap.<String, Serializable>builder()
+        ImmutableMap.Builder<String, Serializable> builder = ImmutableMap.<String, Serializable>builder()
                 .put(Context.INITIAL_CONTEXT_FACTORY, "com.sun.jndi.ldap.LdapCtxFactory")
                 .put(Context.PROVIDER_URL, Strings.arrayToCommaDelimitedString(ldapUrls))
-                .put(Context.REFERRAL, "follow")
-                .build();
+                .put(Context.REFERRAL, "follow");
+
+        LdapSslSocketFactory.configureJndiSSL(ldapUrls, builder);
+
+        sharedLdapEnv = builder.build();
     }
 
     /**
@@ -91,7 +93,7 @@ public class ActiveDirectoryConnectionFactory extends AbstractComponent implemen
                 throw new LdapException("Search for user [" + userName + "] by principle name yielded multiple results");
             }
 
-            throw new LdapException("Search for user [" + userName + "] yielded no results");
+            throw new LdapException("Search for user [" + userName + "], search root [" + userSearchDN + "] yielded no results");
 
         } catch (NamingException e) {
             throw new LdapException("Unable to authenticate user [" + userName + "] to active directory domain ["+ domainName +"]", e);

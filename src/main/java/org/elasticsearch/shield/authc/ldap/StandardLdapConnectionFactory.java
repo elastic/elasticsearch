@@ -51,12 +51,15 @@ public class StandardLdapConnectionFactory extends AbstractComponent implements 
         if (ldapUrls == null) {
             throw new ShieldException("Missing required ldap setting [" + URLS_SETTING + "]");
         }
-        sharedLdapEnv = ImmutableMap.<String, Serializable>builder()
+
+        ImmutableMap.Builder<String, Serializable> builder = ImmutableMap.<String, Serializable>builder()
                 .put(Context.INITIAL_CONTEXT_FACTORY, "com.sun.jndi.ldap.LdapCtxFactory")
                 .put(Context.PROVIDER_URL, Strings.arrayToCommaDelimitedString(ldapUrls))
-                .put(Context.REFERRAL, "follow")
-                .build();
+                .put(Context.REFERRAL, "follow");
 
+        LdapSslSocketFactory.configureJndiSSL(ldapUrls, builder);
+
+        sharedLdapEnv = builder.build();
         groupSearchDN = componentSettings.get(GROUP_SEARCH_BASEDN_SETTING);
         findGroupsByAttribute = groupSearchDN == null;
         groupSubTreeSearch = componentSettings.getAsBoolean(GROUP_SEARCH_SUBTREE_SETTING, false);
@@ -85,7 +88,7 @@ public class StandardLdapConnectionFactory extends AbstractComponent implements 
                 return new LdapConnection(ctx, dn, findGroupsByAttribute, groupSubTreeSearch, groupSearchDN);
 
             } catch (NamingException e) {
-                logger.warn("Failed ldap authentication with user template [{}], dn [{}]", template, dn);
+                logger.warn("Failed ldap authentication with user template [{}], dn [{}]", e, template, dn );
             }
         }
 

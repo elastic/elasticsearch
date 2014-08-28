@@ -7,28 +7,22 @@ package org.elasticsearch.shield.authc.ldap;
 
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.SecuredStringTests;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.watcher.ResourceWatcherService;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.*;
 
 public class LdapRealmTest extends LdapTest {
-
-    public static final String AD_IP = "54.213.145.20";
-    public static final String AD_URL = "ldap://" + AD_IP + ":389";
-
     public static final String VALID_USER_TEMPLATE = "cn={0},ou=people,o=sevenSeas";
     public static final String VALID_USERNAME = "Thomas Masterman Hardy";
     public static final String PASSWORD = "pass";
@@ -51,7 +45,7 @@ public class LdapRealmTest extends LdapTest {
         String groupSearchBase = "o=sevenSeas";
         boolean isSubTreeSearch = true;
         String userTemplate = VALID_USER_TEMPLATE;
-        Settings settings = LdapConnectionTests.buildLdapSettings(apacheDsRule.getUrl(), userTemplate, groupSearchBase, isSubTreeSearch);
+        Settings settings = buildLdapSettings(apacheDsRule.getUrl(), userTemplate, groupSearchBase, isSubTreeSearch);
         StandardLdapConnectionFactory ldapFactory = new StandardLdapConnectionFactory(settings);
         LdapRealm ldap = new LdapRealm(buildNonCachingSettings(), ldapFactory, buildGroupAsRoleMapper(), restController);
 
@@ -66,7 +60,7 @@ public class LdapRealmTest extends LdapTest {
         boolean isSubTreeSearch = false;
         String userTemplate = VALID_USER_TEMPLATE;
         StandardLdapConnectionFactory ldapFactory = new StandardLdapConnectionFactory(
-                LdapConnectionTests.buildLdapSettings(apacheDsRule.getUrl(), userTemplate, groupSearchBase, isSubTreeSearch));
+                buildLdapSettings(apacheDsRule.getUrl(), userTemplate, groupSearchBase, isSubTreeSearch));
 
         LdapRealm ldap = new LdapRealm(buildNonCachingSettings(), ldapFactory, buildGroupAsRoleMapper(), restController);
 
@@ -81,7 +75,7 @@ public class LdapRealmTest extends LdapTest {
         boolean isSubTreeSearch = true;
         String userTemplate = VALID_USER_TEMPLATE;
         StandardLdapConnectionFactory ldapFactory = new StandardLdapConnectionFactory(
-                LdapConnectionTests.buildLdapSettings( apacheDsRule.getUrl(), userTemplate, groupSearchBase, isSubTreeSearch) );
+                buildLdapSettings( apacheDsRule.getUrl(), userTemplate, groupSearchBase, isSubTreeSearch) );
 
         ldapFactory = spy(ldapFactory);
         LdapRealm ldap = new LdapRealm( buildCachingSettings(), ldapFactory, buildGroupAsRoleMapper(), restController);
@@ -98,7 +92,7 @@ public class LdapRealmTest extends LdapTest {
         boolean isSubTreeSearch = true;
         String userTemplate = VALID_USER_TEMPLATE;
         StandardLdapConnectionFactory ldapFactory = new StandardLdapConnectionFactory(
-                LdapConnectionTests.buildLdapSettings(apacheDsRule.getUrl(), userTemplate, groupSearchBase, isSubTreeSearch) );
+                buildLdapSettings(apacheDsRule.getUrl(), userTemplate, groupSearchBase, isSubTreeSearch) );
 
         ldapFactory = spy(ldapFactory);
         LdapRealm ldap = new LdapRealm( buildNonCachingSettings(), ldapFactory, buildGroupAsRoleMapper(), restController);
@@ -107,64 +101,5 @@ public class LdapRealmTest extends LdapTest {
 
         //verify two and only two binds -> caching is disabled
         verify(ldapFactory, times(2)).bind(anyString(), any(SecuredString.class));
-    }
-
-    @Ignore
-    @Test
-    public void testAD() {
-        String adDomain = "ad.test.elasticsearch.com";
-        String userSearchBaseDN = "dc=ad,dc=es,dc=com";
-
-        ActiveDirectoryConnectionFactory ldapFactory = new ActiveDirectoryConnectionFactory(
-                ActiveDirectoryFactoryTests.buildAdSettings(AD_URL, adDomain));
-
-        LdapRealm ldap = new LdapRealm( buildNonCachingSettings(), ldapFactory, buildGroupAsRoleMapper(), restController);
-
-        User user = ldap.authenticate( new UsernamePasswordToken("george", SecuredStringTests.build("R))Tr0x")));
-
-        assertThat( user, notNullValue());
-        assertThat( user.roles(), hasItemInArray("upchuckers"));
-    }
-
-    @Ignore
-    @Test
-    public void testAD_defaults() {
-        //only set the adDomain, and see if it infers the rest correctly
-        String adDomain = AD_IP;
-        Settings settings = ImmutableSettings.builder()
-                .put(SETTINGS_PREFIX + ActiveDirectoryConnectionFactory.AD_DOMAIN_NAME_SETTING, adDomain)
-                .build();
-
-        ActiveDirectoryConnectionFactory ldapFactory = new ActiveDirectoryConnectionFactory( settings );
-        LdapRealm ldap = new LdapRealm( buildNonCachingSettings(), ldapFactory, buildGroupAsRoleMapper(), restController);
-        User user = ldap.authenticate( new UsernamePasswordToken("george", SecuredStringTests.build("R))Tr0x")));
-
-        assertThat( user, notNullValue());
-        assertThat( user.roles(), hasItemInArray("upchuckers"));
-    }
-
-
-
-    private Settings buildNonCachingSettings() {
-        return ImmutableSettings.builder()
-                .put("shield.authc.ldap."+LdapRealm.CACHE_TTL, -1)
-                .build();
-    }
-
-    private Settings buildCachingSettings() {
-        return ImmutableSettings.builder()
-                .put("shield.authc.ldap."+LdapRealm.CACHE_TTL, 100000000)
-                .put("shield.authc.ldap." + LdapRealm.CACHE_MAX_USERS, 10)
-                .build();
-    }
-
-    private LdapGroupToRoleMapper buildGroupAsRoleMapper() {
-        Settings settings = ImmutableSettings.builder()
-                .put("shield.authc.ldap." + LdapGroupToRoleMapper.USE_UNMAPPED_GROUPS_AS_ROLES_SETTING, true)
-                .build();
-
-        return new LdapGroupToRoleMapper(settings,
-                new Environment(settings),
-                new ResourceWatcherService(settings, new ThreadPool("test")));
     }
 }

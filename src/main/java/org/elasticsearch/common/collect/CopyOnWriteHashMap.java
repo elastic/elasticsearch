@@ -520,6 +520,17 @@ public final class CopyOnWriteHashMap<K, V> extends AbstractMap<K, V> {
         }
     }
 
+    /**
+     * Same as {@link #copyAndRemove(Object)} but for an arbitrary number of entries.
+     */
+    public CopyOnWriteHashMap<K, V> copyAndRemoveAll(Collection<?> keys) {
+        CopyOnWriteHashMap<K, V> result = this;
+        for (Object key : keys) {
+            result = result.copyAndRemove(key);
+        }
+        return result;
+    }
+
     @Override
     public Set<Map.Entry<K, V>> entrySet() {
         return new AbstractSet<Map.Entry<K, V>>() {

@@ -19,18 +19,20 @@
 
 package org.elasticsearch.index.mapper;
 
-import com.google.common.collect.Lists;
+import com.google.common.collect.ForwardingSet;
 import com.google.common.collect.Sets;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.CopyOnWriteHashMap;
+import org.elasticsearch.common.collect.CopyOnWriteHashSet;
 import org.elasticsearch.common.regex.Regex;
 
-import java.util.*;
+import java.util.Collection;
+import java.util.Set;
 
 /**
  * A class that holds a map of field mappers from name, index name, and full name.
  */
-public class FieldMappersLookup extends AbstractList<FieldMapper<?>> {
+public class FieldMappersLookup extends ForwardingSet<FieldMapper<?>> {
 
     private static CopyOnWriteHashMap<String, FieldMappers> add(CopyOnWriteHashMap<String, FieldMappers> map, String key, FieldMapper<?> mapper) {
         FieldMappers mappers = map.get(key);
@@ -95,15 +97,15 @@ public class FieldMappersLookup extends AbstractList<FieldMapper<?>> {
         }
     }
 
-    private final FieldMapper<?>[] mappers;
+    private final CopyOnWriteHashSet<FieldMapper<?>> mappers;
     private final MappersLookup lookup;
 
     /** Create a new empty instance. */
     public FieldMappersLookup() {
-        this(new FieldMapper[0], new MappersLookup(new CopyOnWriteHashMap<String, FieldMappers>(), new CopyOnWriteHashMap<String, FieldMappers>(), new CopyOnWriteHashMap<String, FieldMappers>()));
+        this(new CopyOnWriteHashSet<FieldMapper<?>>(), new MappersLookup(new CopyOnWriteHashMap<String, FieldMappers>(), new CopyOnWriteHashMap<String, FieldMappers>(), new CopyOnWriteHashMap<String, FieldMappers>()));
     }
 
-    private FieldMappersLookup(FieldMapper<?>[] mappers, MappersLookup lookup) {
+    private FieldMappersLookup(CopyOnWriteHashSet<FieldMapper<?>> mappers, MappersLookup lookup) {
         this.mappers = mappers;
         this.lookup = lookup;
     }
@@ -112,22 +114,16 @@ public class FieldMappersLookup extends AbstractList<FieldMapper<?>> {
      * Return a new instance that contains the union of this instance and the provided mappers.
      */
     public FieldMappersLookup copyAndAddAll(Collection<? extends FieldMapper<?>> newMappers) {
-        FieldMapper<?>[] tempMappers = Arrays.copyOf(mappers, mappers.length + newMappers.size());
-        int i = mappers.length;
-        for (FieldMapper<?> mapper : newMappers) {
-            tempMappers[i++] = mapper;
-        }
-        return new FieldMappersLookup(tempMappers, lookup.addNewMappers(newMappers));
+        return new FieldMappersLookup(mappers.copyAndAddAll(newMappers), lookup.addNewMappers(newMappers));
     }
 
     /**
      * Return a new instance that contains this instance minus the provided mappers.
      */
     public FieldMappersLookup copyAndRemoveAll(Collection<?> mappersToRemove) {
-        List<FieldMapper<?>> tempMappers = Lists.newArrayList(mappers);
-        tempMappers.removeAll(mappersToRemove);
-        if (tempMappers.size() != mappers.length) {
-            return new FieldMappersLookup(tempMappers.toArray(new FieldMapper[tempMappers.size()]), lookup.removeMappers(mappersToRemove));
+        final CopyOnWriteHashSet<FieldMapper<?>> newMappers = mappers.copyAndRemoveAll(mappersToRemove);
+        if (newMappers != mappers) {
+            return new FieldMappersLookup(newMappers, lookup.removeMappers(mappersToRemove));
         } else {
             return this;
         }
@@ -219,12 +215,7 @@ public class FieldMappersLookup extends AbstractList<FieldMapper<?>> {
     }
 
     @Override
-    public FieldMapper<?> get(int index) {
-        return mappers[index];
-    }
-
-    @Override
-    public int size() {
-        return mappers.length;
+    protected Set<FieldMapper<?>> delegate() {
+        return mappers;
     }
 }

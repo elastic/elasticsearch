@@ -19,13 +19,13 @@
 
 package org.elasticsearch.common.collect;
 
-import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.test.ElasticsearchTestCase;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.HashSet;
+import java.util.Set;
 
-public class CopyOnWriteHashMapTests extends ElasticsearchTestCase {
+public class CopyOnWriteHashSetTests extends ElasticsearchTestCase {
 
     private static class O {
 
@@ -58,75 +58,55 @@ public class CopyOnWriteHashMapTests extends ElasticsearchTestCase {
             final int valueBits = randomIntBetween(1, 30);
             final int hashBits = randomInt(valueBits);
 
-            Map<O, Integer> ref = new HashMap<>();
-            CopyOnWriteHashMap<O, Integer> map = new CopyOnWriteHashMap<>();
-            assertEquals(ref, map);
+            Set<O> ref = new HashSet<>();
+            CopyOnWriteHashSet<O> set = new CopyOnWriteHashSet<>();
+            assertEquals(ref, set);
             final int hashBase = randomInt();
             for (int i = 0; i < numOps; ++i) {
                 final int v = randomInt(1 << valueBits);
                 final int h = (v & ((1 << hashBits) - 1)) ^ hashBase;
                 O key = new O(v, h);
 
-                Map<O, Integer> newRef = new HashMap<>(ref);
-                final CopyOnWriteHashMap<O, Integer> newMap;
+                Set<O> newRef = new HashSet<>(ref);
+                final CopyOnWriteHashSet<O> newSet;
 
                 if (randomBoolean()) {
                     // ADD
-                    Integer value = v;
-                    newRef.put(key, value);
-                    newMap = map.copyAndPut(key, value);
+                    newRef.add(key);
+                    newSet = set.copyAndAdd(key);
                 } else {
                     // REMOVE
-                    final Integer removed = newRef.remove(key);
-                    newMap = map.copyAndRemove(key);
-                    if (removed == null) {
-                        assertSame(map, newMap);
+                    final boolean modified = newRef.remove(key);
+                    newSet = set.copyAndRemove(key);
+                    if (!modified) {
+                        assertSame(set, newSet);
                     }
                 }
 
-                assertEquals(ref, map); // make sure that the old copy has not been modified
-                assertEquals(newRef, newMap);
-                assertEquals(newMap, newRef);
-                assertEquals(ref.isEmpty(), map.isEmpty());
-                assertEquals(newRef.isEmpty(), newMap.isEmpty());
+                assertEquals(ref, set); // make sure that the old copy has not been modified
+                assertEquals(newRef, newSet);
+                assertEquals(newSet, newRef);
+                assertEquals(ref.isEmpty(), set.isEmpty());
+                assertEquals(newRef.isEmpty(), newSet.isEmpty());
 
                 ref = newRef;
-                map = newMap;
+                set = newSet;
             }
-            assertEquals(ref, CopyOnWriteHashMap.copyOf(ref));
-            assertEquals(ImmutableMap.of(), CopyOnWriteHashMap.copyOf(ref).copyAndRemoveAll(ref.keySet()));
+            assertEquals(ref, CopyOnWriteHashSet.copyOf(ref));
+            assertEquals(ImmutableSet.of(), CopyOnWriteHashSet.copyOf(ref).copyAndRemoveAll(ref));
         }
-    }
-
-    public void testCollision() {
-        CopyOnWriteHashMap<O, Integer> map = new CopyOnWriteHashMap<>();
-        map = map.copyAndPut(new O(3, 0), 2);
-        assertEquals((Integer) 2, map.get(new O(3, 0)));
-        assertNull(map.get(new O(5, 0)));
-
-        map = map.copyAndPut(new O(5, 0), 5);
-        assertEquals((Integer) 2, map.get(new O(3, 0)));
-        assertEquals((Integer) 5, map.get(new O(5, 0)));
-
-        map = map.copyAndRemove(new O(3, 0));
-        assertNull(map.get(new O(3, 0)));
-        assertEquals((Integer) 5, map.get(new O(5, 0)));
-
-        map = map.copyAndRemove(new O(5, 0));
-        assertNull(map.get(new O(3, 0)));
-        assertNull(map.get(new O(5, 0)));
     }
 
     public void testUnsupportedAPIs() {
         try {
-            new CopyOnWriteHashMap<>().put("a", "b");
+            new CopyOnWriteHashSet<>().add("a");
             fail();
         } catch (UnsupportedOperationException e) {
             // expected
         }
 
         try {
-            new CopyOnWriteHashMap<>().copyAndPut("a", "b").remove("a");
+            new CopyOnWriteHashSet<>().copyAndAdd("a").remove("a");
             fail();
         } catch (UnsupportedOperationException e) {
             // expected

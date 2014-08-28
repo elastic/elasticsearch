@@ -21,20 +21,19 @@ package org.elasticsearch.index.mapper;
 
 import com.google.common.base.Function;
 import com.google.common.collect.Collections2;
-import com.google.common.collect.ForwardingList;
+import com.google.common.collect.ForwardingSet;
 import com.google.common.collect.Maps;
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.index.analysis.FieldNameAnalyzer;
 
 import java.util.Collection;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 /**
  *
  */
-public final class DocumentFieldMappers extends ForwardingList<FieldMapper<?>> {
+public final class DocumentFieldMappers extends ForwardingSet<FieldMapper<?>> {
 
     private final FieldMappersLookup fieldMappers;
 
@@ -137,7 +136,7 @@ public final class DocumentFieldMappers extends ForwardingList<FieldMapper<?>> {
     }
 
     @Override
-    protected List<FieldMapper<?>> delegate() {
+    protected Set<FieldMapper<?>> delegate() {
         return fieldMappers;
     }
 }

@@ -36,6 +36,14 @@ public class RandomScoreFunction extends ScoreFunction {
     private SortedBinaryDocValues uidByteData;
 
     /**
+     * Default constructor. Only useful for constructing as a placeholder, but should not be used for actual scoring.
+     */
+    public RandomScoreFunction() {
+        super(CombineFunction.MULT);
+        uidFieldData = null;
+    }
+
+    /**
      * Creates a RandomScoreFunction.
      *
      * @param seed A seed for randomness

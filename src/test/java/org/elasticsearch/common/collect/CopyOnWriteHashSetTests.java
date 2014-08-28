@@ -20,6 +20,7 @@
 package org.elasticsearch.common.collect;
 
 import com.google.common.collect.ImmutableSet;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.test.ElasticsearchTestCase;
 
 import java.util.HashSet;
@@ -109,6 +110,15 @@ public class CopyOnWriteHashSetTests extends ElasticsearchTestCase {
             new CopyOnWriteHashSet<>().copyAndAdd("a").remove("a");
             fail();
         } catch (UnsupportedOperationException e) {
+            // expected
+        }
+    }
+
+    public void testUnsupportedValues() {
+        try {
+            new CopyOnWriteHashSet<>().copyAndAdd(null);
+            fail();
+        } catch (ElasticsearchIllegalArgumentException e) {
             // expected
         }
     }

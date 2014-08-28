@@ -74,7 +74,7 @@ final class ExternalNode implements Closeable {
 
     synchronized ExternalNode start(Client localNode, Settings defaultSettings, String nodeName, String clusterName, int nodeOrdinal) throws IOException, InterruptedException {
         ExternalNode externalNode = new ExternalNode(path, clusterName, random.nextLong(), settingsSource);
-        Settings settings = ImmutableSettings.builder().put(settingsSource.node(nodeOrdinal)).put(defaultSettings).build();
+        Settings settings = ImmutableSettings.builder().put(defaultSettings).put(settingsSource.node(nodeOrdinal)).build();
         externalNode.startInternal(localNode, settings, nodeName, clusterName);
         return externalNode;
     }

@@ -56,6 +56,7 @@ public class DateHistogramOffsetTests extends ElasticsearchIntegrationTest {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return ImmutableSettings.builder()
+                .put(super.nodeSettings(nodeOrdinal))
                 .put(AssertingLocalTransport.ASSERTING_TRANSPORT_MIN_VERSION_KEY, Version.V_1_4_0).build();
     }
 

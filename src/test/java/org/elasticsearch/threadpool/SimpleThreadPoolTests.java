@@ -62,7 +62,7 @@ public class SimpleThreadPoolTests extends ElasticsearchIntegrationTest {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.settingsBuilder().put("threadpool.search.type", "cached").put(super.nodeSettings(nodeOrdinal)).build();
+        return ImmutableSettings.settingsBuilder().put(super.nodeSettings(nodeOrdinal)).put("threadpool.search.type", "cached").build();
     }
 
     @Test

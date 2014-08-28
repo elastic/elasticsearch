@@ -70,8 +70,8 @@ public class SignificantTermsSignificanceScoreTests extends ElasticsearchIntegra
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return settingsBuilder()
-                .put("plugin.types", CustomSignificanceHeuristicPlugin.class.getName())
                 .put(super.nodeSettings(nodeOrdinal))
+                .put("plugin.types", CustomSignificanceHeuristicPlugin.class.getName())
                 .build();
     }
 

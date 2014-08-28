@@ -28,7 +28,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.network.NetworkService;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.util.BigArrays;
@@ -64,10 +63,9 @@ public class NettyTransportTests extends ElasticsearchIntegrationTest {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        ImmutableSettings.Builder builder = settingsBuilder()
+        return settingsBuilder().put(super.nodeSettings(nodeOrdinal))
                 .put("node.mode", "network")
-                .put(TransportModule.TRANSPORT_TYPE_KEY, ExceptionThrowingNettyTransport.class.getName());
-        return builder.put(super.nodeSettings(nodeOrdinal)).build();
+                .put(TransportModule.TRANSPORT_TYPE_KEY, ExceptionThrowingNettyTransport.class.getName()).build();
     }
 
     @Test

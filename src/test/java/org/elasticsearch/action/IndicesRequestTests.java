@@ -140,8 +140,9 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return ImmutableSettings.settingsBuilder()
+                .put(super.nodeSettings(nodeOrdinal))
                 .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, InterceptingTransportService.class.getName())
-                .put(super.nodeSettings(nodeOrdinal)).build();
+                .build();
     }
 
     @Before

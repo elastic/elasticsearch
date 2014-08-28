@@ -54,10 +54,11 @@ public class ZenUnicastDiscoveryTests extends ElasticsearchIntegrationTest {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         ImmutableSettings.Builder builder = ImmutableSettings.settingsBuilder()
+                .put(super.nodeSettings(nodeOrdinal))
                 .put("discovery.type", "zen")
                 .put("discovery.zen.ping.multicast.enabled", false)
-                .put("http.enabled", false) // just to make test quicker
-                .put(super.nodeSettings(nodeOrdinal));
+                .put("http.enabled", false); // just to make test quicker
+
 
         String[] unicastHosts = new String[currentNumOfUnicastHosts];
         if (internalCluster().getDefaultSettings().get("node.mode").equals("local")) {

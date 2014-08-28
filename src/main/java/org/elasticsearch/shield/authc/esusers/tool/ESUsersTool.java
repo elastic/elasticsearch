@@ -295,7 +295,6 @@ public class ESUsersTool extends CliTool {
                 return new ListUsersAndRoles(terminal, username).execute(settings, env);
             }
 
-
             // check for roles if they match
             String[] allRoles = ObjectArrays.concat(addRoles, removeRoles, String.class);
             for (String role : allRoles) {
@@ -305,15 +304,20 @@ public class ESUsersTool extends CliTool {
                 }
             }
 
-            Path file = FileUserRolesStore.resolveFile(settings, env);
-            Map<String, String[]> userRoles = FileUserRolesStore.parseFile(file, null);
-
-            if (!userRoles.containsKey(username)) {
+            Path path = FileUserPasswdStore.resolveFile(settings, env);
+            Map<String, char[]> usersMap = FileUserPasswdStore.parseFile(path, null);
+            if (!usersMap.containsKey(username)) {
                 terminal.println("User [%s] doesn't exist", username);
                 return ExitStatus.NO_USER;
             }
 
-            List<String> roles = Lists.newArrayList(userRoles.get(username));;
+            Path file = FileUserRolesStore.resolveFile(settings, env);
+            Map<String, String[]> userRoles = FileUserRolesStore.parseFile(file, null);
+
+            List<String> roles = Lists.newArrayList();
+            if (userRoles.get(username) != null) {
+                roles.addAll(Arrays.asList(userRoles.get(username)));
+            }
             roles.addAll(Arrays.asList(addRoles));
             roles.removeAll(Arrays.asList(removeRoles));
 

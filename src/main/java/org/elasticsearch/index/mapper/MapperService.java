@@ -434,13 +434,6 @@ public class MapperService extends AbstractIndexComponent  {
         }
     }
 
-    /**
-     * Just parses and returns the mapper without adding it, while still applying default mapping.
-     */
-    public DocumentMapper parse(String mappingType, CompressedString mappingSource) throws MapperParsingException {
-        return parse(mappingType, mappingSource, true);
-    }
-
     public DocumentMapper parse(String mappingType, CompressedString mappingSource, boolean applyDefault) throws MapperParsingException {
         String defaultMappingSource;
         if (PercolatorService.TYPE_NAME.equals(mappingType)) {

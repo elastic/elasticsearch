@@ -115,10 +115,10 @@ public class UpdateMappingTests extends ElasticsearchSingleNodeTest {
     public void testSizeTimestampParsing() throws IOException {
         IndexService indexService = createIndex("test", ImmutableSettings.settingsBuilder().build());
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/update/default_mapping_with_disabled_size_timestamp.json");
-        DocumentMapper documentMapper = indexService.mapperService().parse("type", new CompressedString(mapping));
+        DocumentMapper documentMapper = indexService.mapperService().parse("type", new CompressedString(mapping), true);
         assertThat(documentMapper.mappingSource().string(), equalTo(mapping));
         documentMapper.refreshSource(); //should be called anyway somewhere but just to be sure
-        documentMapper = indexService.mapperService().parse("type", new CompressedString(documentMapper.mappingSource().string()));
+        documentMapper = indexService.mapperService().parse("type", new CompressedString(documentMapper.mappingSource().string()), true);
         assertThat(documentMapper.mappingSource().string(), equalTo(mapping));
     }
 

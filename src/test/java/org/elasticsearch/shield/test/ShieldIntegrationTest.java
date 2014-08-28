@@ -26,7 +26,6 @@ import org.junit.rules.TemporaryFolder;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -88,8 +87,6 @@ public abstract class ShieldIntegrationTest extends ElasticsearchIntegrationTest
                 .put(TransportModule.TRANSPORT_TYPE_KEY, NettySecuredTransport.class.getName())
                 .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false)
                 .put("node.mode", "network")
-                .put("discovery.zen.ping.multicast.ping.enabled", false)
-                .putArray("discovery.zen.ping.unicast.hosts", getUnicastHostAddress())
                 .put(getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient.jks", "testclient"))
                 .build();
     }
@@ -113,7 +110,7 @@ public abstract class ShieldIntegrationTest extends ElasticsearchIntegrationTest
 
     protected String getClientUsername() {
         return DEFAULT_USER_NAME;
-    };
+    }
 
     protected String getClientPassword() {
         return DEFAULT_PASSWORD;
@@ -152,16 +149,5 @@ public abstract class ShieldIntegrationTest extends ElasticsearchIntegrationTest
             fail("could not create temporary folder");
             return null;
         }
-    }
-
-    protected String copyFile(File folder, String name) {
-        Path file = folder.toPath().resolve(name);
-        try {
-            Files.copy(getClass().getResourceAsStream(name), file);
-        } catch (IOException ioe) {
-            logger.error("could not copy temporary configuration file [" + name + "]", ioe);
-            fail("could not copy temporary configuration file [" + name + "]");
-        }
-        return file.toAbsolutePath().toString();
     }
 }

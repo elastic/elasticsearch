@@ -7,6 +7,7 @@ package org.elasticsearch.shield.authc.support;
 
 import com.google.common.base.Charsets;
 import org.apache.commons.codec.binary.Base64;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.shield.authc.AuthenticationException;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.transport.TransportRequest;
@@ -14,6 +15,8 @@ import org.junit.Test;
 
 import static org.elasticsearch.shield.test.ShieldAssertions.assertContainsWWWAuthenticateHeader;
 import static org.hamcrest.Matchers.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  *
@@ -53,6 +56,21 @@ public class UsernamePasswordTokenTests extends ElasticsearchTestCase {
     }
 
     @Test
+    public void testExtractToken_Invalid() throws Exception {
+        String[] invalidValues = { "Basic", "Basic ", "Basic f" };
+        for (String value : invalidValues) {
+            TransportRequest request = new TransportRequest() {};
+            request.putHeader(UsernamePasswordToken.BASIC_AUTH_HEADER, value);
+            try {
+                UsernamePasswordToken.extractToken(request, null);
+                fail("Expected an authentication exception for invalid basic auth token [" + value + "]");
+            } catch (AuthenticationException ae) {
+                // expected
+            }
+        }
+    }
+
+    @Test
     public void testThatAuthorizationExceptionContainsResponseHeaders() {
         TransportRequest request = new TransportRequest() {};
         String header = "BasicBroken";
@@ -63,5 +81,28 @@ public class UsernamePasswordTokenTests extends ElasticsearchTestCase {
         } catch (AuthenticationException e) {
             assertContainsWWWAuthenticateHeader(e);
         }
+    }
+
+    @Test
+    public void testHasToken() throws Exception {
+        RestRequest request = mock(RestRequest.class);
+        when(request.header(UsernamePasswordToken.BASIC_AUTH_HEADER)).thenReturn("Basic foobar");
+        assertThat(UsernamePasswordToken.hasToken(request), is(true));
+    }
+
+    @Test
+    public void testHasToken_Missing() throws Exception {
+        RestRequest request = mock(RestRequest.class);
+        when(request.header(UsernamePasswordToken.BASIC_AUTH_HEADER)).thenReturn(null);
+        assertThat(UsernamePasswordToken.hasToken(request), is(false));
+    }
+
+    @Test
+    public void testHasToken_WithInvalidToken() throws Exception {
+        RestRequest request = mock(RestRequest.class);
+        when(request.header(UsernamePasswordToken.BASIC_AUTH_HEADER)).thenReturn("invalid");
+        assertThat(UsernamePasswordToken.hasToken(request), is(false));
+        when(request.header(UsernamePasswordToken.BASIC_AUTH_HEADER)).thenReturn("Basic");
+        assertThat(UsernamePasswordToken.hasToken(request), is(false));
     }
 }

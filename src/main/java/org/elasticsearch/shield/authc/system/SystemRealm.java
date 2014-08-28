@@ -6,6 +6,7 @@
 package org.elasticsearch.shield.authc.system;
 
 import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.AuthenticationToken;
 import org.elasticsearch.shield.authc.Realm;
@@ -31,6 +32,11 @@ public class SystemRealm implements Realm<AuthenticationToken> {
     @Override
     public String type() {
         return "system";
+    }
+
+    @Override
+    public boolean hasToken(RestRequest request) {
+        return false; // system calls never come from rest interface
     }
 
     @Override

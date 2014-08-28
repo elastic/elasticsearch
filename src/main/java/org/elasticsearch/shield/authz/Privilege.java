@@ -81,8 +81,8 @@ public abstract class Privilege<P extends Privilege<P>> {
         public static final Index DATA_ACCESS = new Index("data_access","indices:data/.*");
         public static final Index CRUD =        new Index("crud",       "indices:data/write/.*", "indices:data/read/.*");
         public static final Index READ =        new Index("read",       "indices:data/read/.*");
-        public static final Index SEARCH =      new Index("search",       SearchAction.NAME + ".*", GetAction.NAME + ".*");
-        public static final Index GET =         new Index("get",       GetAction.NAME + ".*");
+        public static final Index SEARCH =      new Index("search",     SearchAction.NAME + ".*", GetAction.NAME + ".*");
+        public static final Index GET =         new Index("get",        GetAction.NAME + ".*");
         public static final Index INDEX =       new Index("index",      "indices:data/write/index.*", "indices:data/write/update");
         public static final Index DELETE =      new Index("delete",     "indices:data/write/delete.*");
         public static final Index WRITE =       new Index("write",      "indices:data/write/.*");

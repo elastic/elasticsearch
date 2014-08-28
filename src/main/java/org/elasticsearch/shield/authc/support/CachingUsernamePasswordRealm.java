@@ -10,6 +10,7 @@ import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.AuthenticationException;
 import org.elasticsearch.shield.authc.AuthenticationToken;
@@ -40,6 +41,11 @@ public abstract class CachingUsernamePasswordRealm extends AbstractComponent imp
         } else {
             cache = null;
         }
+    }
+
+    @Override
+    public boolean hasToken(RestRequest request) {
+        return UsernamePasswordToken.hasToken(request);
     }
 
     @Override

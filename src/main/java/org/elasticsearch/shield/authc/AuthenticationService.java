@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.shield.authc;
 
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.transport.TransportMessage;
 
@@ -12,6 +13,12 @@ import org.elasticsearch.transport.TransportMessage;
  * Responsible for authenticating the Users behind requests
  */
 public interface AuthenticationService {
+
+    /**
+     * Inspects the given rest request and verifies it carries an authentication token, if it doesn't
+     * an {@link AuthenticationException} is thrown
+     */
+    void verifyToken(RestRequest request) throws AuthenticationException;
 
     /**
      * Extracts the authenticate token from the given message. If no recognized auth token is associated

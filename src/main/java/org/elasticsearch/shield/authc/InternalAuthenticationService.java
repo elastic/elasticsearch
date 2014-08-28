@@ -9,6 +9,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.audit.AuditTrail;
 import org.elasticsearch.transport.TransportMessage;
@@ -31,6 +32,16 @@ public class InternalAuthenticationService extends AbstractComponent implements 
         super(settings);
         this.realms = realms.realms();
         this.auditTrail = auditTrail;
+    }
+
+    @Override
+    public void verifyToken(RestRequest request) throws AuthenticationException {
+        for (Realm realm : realms) {
+            if (realm.hasToken(request)) {
+                return;
+            }
+        }
+        throw new AuthenticationException("Missing authentication token");
     }
 
     @Override

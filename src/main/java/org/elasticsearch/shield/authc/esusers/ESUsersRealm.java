@@ -10,6 +10,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.name.Named;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.AuthenticationToken;
 import org.elasticsearch.shield.authc.Realm;
@@ -38,6 +39,11 @@ public class ESUsersRealm extends AbstractComponent implements Realm<UsernamePas
     @Override
     public String type() {
         return TYPE;
+    }
+
+    @Override
+    public boolean hasToken(RestRequest request) {
+        return UsernamePasswordToken.hasToken(request);
     }
 
     @Override

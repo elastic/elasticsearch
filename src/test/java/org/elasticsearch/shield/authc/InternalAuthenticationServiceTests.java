@@ -6,13 +6,16 @@
 package org.elasticsearch.shield.authc;
 
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.audit.AuditTrail;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.transport.TransportMessage;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 
 import static org.elasticsearch.shield.test.ShieldAssertions.assertContainsWWWAuthenticateHeader;
 import static org.hamcrest.Matchers.*;
@@ -24,8 +27,12 @@ import static org.mockito.Mockito.*;
  */
 public class InternalAuthenticationServiceTests extends ElasticsearchTestCase {
 
+    @Rule
+    public ExpectedException thrown = ExpectedException.none();
+
     InternalAuthenticationService service;
     TransportMessage message;
+    RestRequest restRequest;
     Realm firstRealm;
     Realm secondRealm;
     AuditTrail auditTrail;
@@ -35,6 +42,7 @@ public class InternalAuthenticationServiceTests extends ElasticsearchTestCase {
     public void init() throws Exception {
         token = mock(AuthenticationToken.class);
         message = new InternalMessage();
+        restRequest = mock(RestRequest.class);
         firstRealm = mock(Realm.class);
         when(firstRealm.type()).thenReturn("first");
         secondRealm = mock(Realm.class);
@@ -151,6 +159,22 @@ public class InternalAuthenticationServiceTests extends ElasticsearchTestCase {
         verifyZeroInteractions(secondRealm);
         assertThat(message.context().get(InternalAuthenticationService.USER_CTX_KEY), notNullValue());
         assertThat(message.context().get(InternalAuthenticationService.USER_CTX_KEY), is((Object) user));
+    }
+
+    @Test
+    public void testVerifyToken_Exists() throws Exception {
+        when(firstRealm.hasToken(restRequest)).thenReturn(false);
+        when(secondRealm.hasToken(restRequest)).thenReturn(true);
+        service.verifyToken(restRequest);
+    }
+
+    @Test
+    public void testVerifyToken_Missing() throws Exception {
+        thrown.expect(AuthenticationException.class);
+        thrown.expectMessage("Missing authentication token");
+        when(firstRealm.hasToken(restRequest)).thenReturn(false);
+        when(secondRealm.hasToken(restRequest)).thenReturn(false);
+        service.verifyToken(restRequest);
     }
 
     private static class InternalMessage extends TransportMessage<InternalMessage> {

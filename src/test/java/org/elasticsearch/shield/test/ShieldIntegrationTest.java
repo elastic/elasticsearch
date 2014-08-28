@@ -41,9 +41,9 @@ import static org.hamcrest.Matchers.is;
 @ClusterScope(scope = Scope.SUITE, numDataNodes = 1, numClientNodes = 0)
 public abstract class ShieldIntegrationTest extends ElasticsearchIntegrationTest {
 
-    private static final String DEFAULT_USER_NAME = "test_user";
-    private static final String DEFAULT_PASSWORD = "changeme";
-    private static final String DEFAULT_ROLE = "user";
+    protected static final String DEFAULT_USER_NAME = "test_user";
+    protected static final String DEFAULT_PASSWORD = "changeme";
+    protected static final String DEFAULT_ROLE = "user";
 
     public static final String CONFIG_IPFILTER_ALLOW_ALL = "allow: all\n";
     public static final String CONFIG_STANDARD_USER = DEFAULT_USER_NAME + ":{plain}" + DEFAULT_PASSWORD + "\n";

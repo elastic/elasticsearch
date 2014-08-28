@@ -36,9 +36,9 @@ indices:admin/optimize
 indices:admin/refresh
 indices:admin/settings/update
 indices:admin/shards/search_shards
-cluster:admin/template/delete
-cluster:admin/template/get
-cluster:admin/template/put
+indices:admin/template/delete
+indices:admin/template/get
+indices:admin/template/put
 indices:admin/types/exists
 indices:admin/validate/query
 indices:admin/warmers/delete

@@ -11,6 +11,7 @@ import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.rest.*;
 import org.elasticsearch.shield.authc.AuthenticationService;
 import org.elasticsearch.shield.authc.AuthenticationToken;
 import org.elasticsearch.shield.authc.system.SystemRealm;
@@ -27,16 +28,37 @@ public class SecurityFilter extends AbstractComponent {
     private final AuthorizationService authzService;
 
     @Inject
-    public SecurityFilter(Settings settings, AuthenticationService authcService, AuthorizationService authzService) {
+    public SecurityFilter(Settings settings, AuthenticationService authcService, AuthorizationService authzService, RestController restController) {
         super(settings);
         this.authcService = authcService;
         this.authzService = authzService;
+        restController.registerFilter(new Rest(this));
     }
 
-    void process(String action, TransportRequest request, AuthenticationToken defaultToken) {
-        AuthenticationToken token = authcService.token(action, request, defaultToken);
+    void process(String action, TransportRequest request) {
+        AuthenticationToken token = authcService.token(action, request, SystemRealm.TOKEN);
         User user = authcService.authenticate(action, request, token);
         authzService.authorize(user, action, request);
+    }
+
+    public static class Rest extends RestFilter {
+
+        private final SecurityFilter filter;
+
+        public Rest(SecurityFilter filter) {
+            this.filter = filter;
+        }
+
+        @Override
+        public int order() {
+            return Integer.MIN_VALUE;
+        }
+
+        @Override
+        public void process(RestRequest request, RestChannel channel, RestFilterChain filterChain) throws Exception {
+            filter.authcService.verifyToken(request);
+            filterChain.continueProcessing(request, channel);
+        }
     }
 
     public static class Transport extends TransportFilter.Base {
@@ -50,7 +72,7 @@ public class SecurityFilter extends AbstractComponent {
 
         @Override
         public void inboundRequest(String action, TransportRequest request) {
-            filter.process(action, request, SystemRealm.TOKEN);
+            filter.process(action, request);
         }
     }
 
@@ -66,7 +88,7 @@ public class SecurityFilter extends AbstractComponent {
         @Override
         public void process(String action, ActionRequest request, ActionListener listener, ActionFilterChain chain) {
             try {
-                filter.process(action, request, null);
+                filter.process(action, request);
             } catch (Throwable t) {
                 listener.onFailure(t);
                 return;

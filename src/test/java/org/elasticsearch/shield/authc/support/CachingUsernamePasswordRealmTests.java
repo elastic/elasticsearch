@@ -6,6 +6,7 @@
 package org.elasticsearch.shield.authc.support;
 
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.shield.User;
 import org.junit.Test;
 
@@ -25,7 +26,12 @@ public class CachingUsernamePasswordRealmTests {
             return new User.Simple(token.principal(), "testRole1", "testRole2");
         }
 
-        @Override public String type() { return "test"; };
+        @Override public String type() { return "test"; }
+
+        @Override
+        public boolean hasToken(RestRequest request) {
+            return true;
+        }
     }
 
 

@@ -30,8 +30,10 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.component.CloseableComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.SegmentReaderUtils;
 import org.elasticsearch.common.lucene.search.NoCacheFilter;
@@ -70,25 +72,29 @@ import java.util.concurrent.Executor;
  * and require that it should always be around should use this cache, otherwise the
  * {@link org.elasticsearch.index.cache.filter.FilterCache} should be used instead.
  */
-public class FixedBitSetFilterCache extends AbstractIndexComponent implements AtomicReader.CoreClosedListener, RemovalListener<Object, Cache<Filter, FixedBitSetFilterCache.Value>> {
+public class FixedBitSetFilterCache extends AbstractIndexComponent implements AtomicReader.CoreClosedListener, RemovalListener<Object, Cache<Filter, FixedBitSetFilterCache.Value>>, CloseableComponent {
 
     public static final String LOAD_RANDOM_ACCESS_FILTERS_EAGERLY = "index.load_fixed_bitset_filters_eagerly";
 
     private final boolean loadRandomAccessFiltersEagerly;
     private final Cache<Object, Cache<Filter, Value>> loadedFilters;
+    private final FixedBitSetFilterWarmer warmer;
 
     private IndexService indexService;
+    private IndicesWarmer indicesWarmer;
 
     @Inject
     public FixedBitSetFilterCache(Index index, @IndexSettings Settings indexSettings) {
         super(index, indexSettings);
         this.loadRandomAccessFiltersEagerly = indexSettings.getAsBoolean(LOAD_RANDOM_ACCESS_FILTERS_EAGERLY, true);
         this.loadedFilters = CacheBuilder.newBuilder().removalListener(this).build();
+        this.warmer = new FixedBitSetFilterWarmer();
     }
 
     @Inject(optional = true)
     public void setIndicesWarmer(IndicesWarmer indicesWarmer) {
-        indicesWarmer.addListener(new FixedBitSetFilterWarmer());
+        this.indicesWarmer = indicesWarmer;
+        indicesWarmer.addListener(warmer);
     }
 
     public FixedBitSetFilter getFixedBitSetFilter(Filter filter) {
@@ -100,6 +106,11 @@ public class FixedBitSetFilterCache extends AbstractIndexComponent implements At
     @Override
     public void onClose(Object ownerCoreCacheKey) {
         loadedFilters.invalidate(ownerCoreCacheKey);
+    }
+
+    public void close() throws ElasticsearchException {
+        indicesWarmer.removeListener(warmer);
+        clear("close");
     }
 
     public void clear(String reason) {

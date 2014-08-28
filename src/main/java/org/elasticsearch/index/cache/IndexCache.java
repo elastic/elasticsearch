@@ -81,7 +81,7 @@ public class IndexCache extends AbstractIndexComponent implements CloseableCompo
         filterCache.close();
         queryParserCache.close();
         docSetCache.clear("close");
-        fixedBitSetFilterCache.clear("close");
+        fixedBitSetFilterCache.close();
         if (clusterService != null) {
             clusterService.remove(this);
         }

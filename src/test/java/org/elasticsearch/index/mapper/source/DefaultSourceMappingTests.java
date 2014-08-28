@@ -36,9 +36,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.isIn;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
@@ -227,9 +225,8 @@ public class DefaultSourceMappingTests extends ElasticsearchSingleNodeTest {
         DocumentMapper mapper = mapperService.documentMapper("my_type");
         assertThat(mapper.type(), equalTo("my_type"));
         assertThat(mapper.sourceMapper().includes().length, equalTo(2));
-        List<String> includes = Arrays.asList(mapper.sourceMapper().includes());
-        assertThat("default_field_path.", isIn(includes));
-        assertThat("custom_field_path.", isIn(includes));
+        assertThat(mapper.sourceMapper().includes(), hasItemInArray("default_field_path."));
+        assertThat(mapper.sourceMapper().includes(), hasItemInArray("custom_field_path."));
 
         mapping = XContentFactory.jsonBuilder().startObject().startObject("my_type")
                 .startObject("properties").startObject("text").field("type", "string").endObject().endObject()
@@ -237,9 +234,8 @@ public class DefaultSourceMappingTests extends ElasticsearchSingleNodeTest {
         mapperService.merge("my_type", new CompressedString(mapping), false);
         mapper = mapperService.documentMapper("my_type");
         assertThat(mapper.type(), equalTo("my_type"));
-        includes = Arrays.asList(mapper.sourceMapper().includes());
-        assertThat("default_field_path.", isIn(includes));
-        assertThat("custom_field_path.", isIn(includes));
+        assertThat(mapper.sourceMapper().includes(), hasItemInArray("default_field_path."));
+        assertThat(mapper.sourceMapper().includes(), hasItemInArray("custom_field_path."));
         assertThat(mapper.sourceMapper().includes().length, equalTo(2));
     }
 

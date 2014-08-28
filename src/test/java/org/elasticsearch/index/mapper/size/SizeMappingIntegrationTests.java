@@ -50,12 +50,12 @@ public class SizeMappingIntegrationTests extends ElasticsearchIntegrationTest {
         PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping(index).setType(type).setSource(updateMappingBuilder).get();
         assertAcked(putMappingResponse);
 
-        // make sure timestamp field is still in mapping
+        // make sure size field is still in mapping
         assertSizeMappingEnabled(index, type, true);
     }
 
     @Test
-    public void testThatTimestampCanBeSwitchedOnAndOff() throws Exception {
+    public void testThatSizeCanBeSwitchedOnAndOff() throws Exception {
         String index = "foo";
         String type = "mytype";
 
@@ -79,8 +79,8 @@ public class SizeMappingIntegrationTests extends ElasticsearchIntegrationTest {
         GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings(index).addTypes(type).get();
         Map<String, Object> mappingSource = getMappingsResponse.getMappings().get(index).get(type).getSourceAsMap();
         assertThat(errMsg, mappingSource, hasKey("_size"));
-        String ttlAsString = mappingSource.get("_size").toString();
-        assertThat(ttlAsString, is(notNullValue()));
-        assertThat(errMsg, ttlAsString, is("{enabled=" + (enabled ? "true" : "false") + "}"));
+        String sizeAsString = mappingSource.get("_size").toString();
+        assertThat(sizeAsString, is(notNullValue()));
+        assertThat(errMsg, sizeAsString, is("{enabled=" + (enabled) + "}"));
     }
 }

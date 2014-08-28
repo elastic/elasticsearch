@@ -47,8 +47,8 @@ public class PreBuiltAnalyzerIntegrationTests extends ElasticsearchIntegrationTe
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return ImmutableSettings.settingsBuilder()
-                .put("plugin.types", DummyAnalysisPlugin.class.getName())
                 .put(super.nodeSettings(nodeOrdinal))
+                .put("plugin.types", DummyAnalysisPlugin.class.getName())
             .build();
     }
 

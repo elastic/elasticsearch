@@ -40,8 +40,8 @@ public class ExternalValuesMapperIntegrationTests extends ElasticsearchIntegrati
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return ImmutableSettings.settingsBuilder()
-                .put("plugin.types", ExternalMapperPlugin.class.getName())
                 .put(super.nodeSettings(nodeOrdinal))
+                .put("plugin.types", ExternalMapperPlugin.class.getName())
                 .build();
     }
 

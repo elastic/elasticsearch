@@ -56,8 +56,8 @@ public class FunctionScorePluginTests extends ElasticsearchIntegrationTest {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return settingsBuilder()
-                .put("plugin.types", CustomDistanceScorePlugin.class.getName())
                 .put(super.nodeSettings(nodeOrdinal))
+                .put("plugin.types", CustomDistanceScorePlugin.class.getName())
                 .build();
     }
 

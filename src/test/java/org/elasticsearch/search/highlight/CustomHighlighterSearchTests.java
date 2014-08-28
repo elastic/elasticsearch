@@ -44,8 +44,8 @@ public class CustomHighlighterSearchTests extends ElasticsearchIntegrationTest {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return settingsBuilder()
-                .put("plugin.types", CustomHighlighterPlugin.class.getName())
                 .put(super.nodeSettings(nodeOrdinal))
+                .put("plugin.types", CustomHighlighterPlugin.class.getName())
                 .build();
     }
 

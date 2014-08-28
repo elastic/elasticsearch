@@ -73,6 +73,9 @@ IMPORTANT: The initial search request and each subsequent scroll request
 returns a new `scroll_id` -- only the most recent `scroll_id` should be
 used.
 
+NOTE: If the request specifies aggregations, only the initial search response
+will contain the aggregations results.
+
 [[scroll-scan]]
 ==== Efficient scrolling with Scroll-Scan
 

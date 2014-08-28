@@ -54,7 +54,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.search.suggest.SuggestBuilder;
+import org.elasticsearch.search.suggest.SuggestBuilders;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
@@ -814,7 +814,7 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
     }
 
     private static SuggestRequestBuilder suggest(String... indices) {
-        return client().prepareSuggest(indices).addSuggestion(SuggestBuilder.termSuggestion("name").field("a"));
+        return client().prepareSuggest(indices).addSuggestion(SuggestBuilders.termSuggestion("name").field("a"));
     }
 
     private static GetAliasesRequestBuilder getAliases(String... indices) {

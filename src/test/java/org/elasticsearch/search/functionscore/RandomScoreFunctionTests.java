@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.functionscore;
 
-import org.apache.lucene.search.Explanation;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.query.functionscore.random.RandomScoreFunctionBuilder;
 import org.elasticsearch.search.SearchHit;
@@ -37,7 +36,7 @@ import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.*;
-import static org.hamcrest.Matchers.arrayContaining;
+
 
 public class RandomScoreFunctionTests extends ElasticsearchIntegrationTest {
 
@@ -177,6 +176,17 @@ public class RandomScoreFunctionTests extends ElasticsearchIntegrationTest {
         assertEquals(1, resp.getHits().totalHits());
         SearchHit firstHit = resp.getHits().getAt(0);
         assertThat(firstHit.explanation().toString(), containsString("" + seed));
+    }
+
+    public void testNoDocs() throws Exception {
+        createIndex("test");
+        ensureGreen();
+
+        SearchResponse resp = client().prepareSearch("test")
+            .setQuery(functionScoreQuery(matchAllQuery(), randomFunction(1234)))
+            .get();
+        assertNoFailures(resp);
+        assertEquals(0, resp.getHits().totalHits());
     }
 
     @Test

@@ -21,6 +21,7 @@ package org.elasticsearch.common.collect;
 
 import com.google.common.collect.Maps;
 import com.google.common.collect.UnmodifiableIterator;
+import org.apache.lucene.util.mutable.MutableValueInt;
 import org.elasticsearch.common.Preconditions;
 
 import java.lang.reflect.Array;
@@ -101,7 +102,7 @@ public final class CopyOnWriteHashMap<K, V> extends AbstractMap<K, V> {
          * node needs to be created since it means that a collision occurred
          * on the 32 bits of the hash.
          */
-        abstract Node<K, V> put(K key, int hash, int hashBits, V value, MutableBoolean newValue);
+        abstract Node<K, V> put(K key, int hash, int hashBits, V value, MutableValueInt newValue);
 
         /**
          * Recursively remove an entry from this node.
@@ -171,7 +172,7 @@ public final class CopyOnWriteHashMap<K, V> extends AbstractMap<K, V> {
         }
 
         @Override
-        Leaf<K, V> put(K key, int hash, int hashBits, V value, MutableBoolean newValue) {
+        Leaf<K, V> put(K key, int hash, int hashBits, V value, MutableValueInt newValue) {
             assert hashBits <= 0 : hashBits;
             final int slot = slot(key);
 
@@ -182,7 +183,7 @@ public final class CopyOnWriteHashMap<K, V> extends AbstractMap<K, V> {
                 // append
                 newLength = keys.length + 1;
                 index = newLength - 1;
-                newValue.value = true;
+                newValue.value = 1;
             } else {
                 // replace
                 newLength = keys.length;
@@ -320,7 +321,7 @@ public final class CopyOnWriteHashMap<K, V> extends AbstractMap<K, V> {
             }
         }
 
-        private InnerNode<K, V> putExisting(K key, int hash, int hashBits, int slot, V value, MutableBoolean newValue) {
+        private InnerNode<K, V> putExisting(K key, int hash, int hashBits, int slot, V value, MutableValueInt newValue) {
             final K[] keys2 = Arrays.copyOf(keys, keys.length);
             final Object[] subNodes2 = Arrays.copyOf(subNodes, subNodes.length);
 
@@ -353,7 +354,7 @@ public final class CopyOnWriteHashMap<K, V> extends AbstractMap<K, V> {
         }
 
         @Override
-        InnerNode<K, V> put(K key, int hash, int hashBits, V value, MutableBoolean newValue) {
+        InnerNode<K, V> put(K key, int hash, int hashBits, V value, MutableValueInt newValue) {
             final int hash6 = hash & HASH_MASK;
             final int slot = slot(hash6);
 
@@ -362,7 +363,7 @@ public final class CopyOnWriteHashMap<K, V> extends AbstractMap<K, V> {
                 hashBits -= HASH_BITS;
                 return putExisting(key, hash, hashBits, slot, value, newValue);
             } else {
-                newValue.value = true;
+                newValue.value = 1;
                 return putNew(key, hash6, slot, value);
             }
         }
@@ -487,9 +488,9 @@ public final class CopyOnWriteHashMap<K, V> extends AbstractMap<K, V> {
         Preconditions.checkArgument(key != null, "null keys are not supported");
         Preconditions.checkArgument(value != null, "null values are not supported");
         final int hash = key.hashCode();
-        final MutableBoolean newValue = new MutableBoolean();
+        final MutableValueInt newValue = new MutableValueInt();
         final InnerNode<K, V> newRoot = root.put(key, hash, TOTAL_HASH_BITS, value, newValue);
-        final int newSize = size + (newValue.value ? 1 : 0);
+        final int newSize = size + newValue.value;
         return new CopyOnWriteHashMap<>(newRoot, newSize);
     }
 
@@ -554,10 +555,6 @@ public final class CopyOnWriteHashMap<K, V> extends AbstractMap<K, V> {
                 return CopyOnWriteHashMap.this.size();
             }
         };
-    }
-
-    private static class MutableBoolean {
-        boolean value;
     }
 
 }

@@ -21,10 +21,7 @@ package org.elasticsearch.action.quality;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Client;
-
-import java.util.Set;
 
 public class PrecisionAtQueryBuilder extends ActionRequestBuilder<PrecisionAtRequest, PrecisionAtResponse, PrecisionAtQueryBuilder, Client> {
     
@@ -36,16 +33,11 @@ public class PrecisionAtQueryBuilder extends ActionRequestBuilder<PrecisionAtReq
     protected void doExecute(ActionListener<PrecisionAtResponse> listener) {
     }
 
-    public PrecisionAtQueryBuilder setSearchRequest(SearchRequest searchRequest) {
-        request.searchRequestBuilder(searchRequest);
+    public PrecisionAtQueryBuilder setTask(PrecisionTask precisionTask) {
+        request.setTask(precisionTask);
         return this;
     }
 
-    public PrecisionAtQueryBuilder addRelevantDocs(Set<String> relevant) {
-        request.relevantDocs(relevant);
-        return this;
-    }
-    
     public PrecisionAtRequest request() {
         return request;
     }

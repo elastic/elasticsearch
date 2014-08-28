@@ -19,69 +19,94 @@
 
 package org.elasticsearch.action.quality;
 
-import com.google.common.base.Objects;
-import com.google.common.base.Objects.ToStringHelper;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.quality.PrecisionAtN.Rating;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
-import java.util.LinkedList;
-import java.util.List;
+import java.util.Map;
 
 public class PrecisionAtRequest extends ActionRequest<PrecisionAtRequest> {
 
-    /** TODO move the following to a metric specific context - need move writing and reading too then. */
-
-    /** IDs of documents considered relevant for this query. */
-    private Collection<String> relevantDocs = new LinkedList<String>();
-    /** QueryBuilder to run against search index and generate hits to compare against relevantDocs. */
-    private SearchRequest searchRequest;
-
+    /** The request data to use for evaluation. */
+    private PrecisionTask task;
+    
     @Override
     public ActionRequestValidationException validate() {
+        // TODO
         return null;
     }
 
-    public void searchRequestBuilder(SearchRequest searchRequest) {
-        this.searchRequest = searchRequest;
+    /** Returns the specification of this qa run including intents to execute, specifications detailing intent translation and metrics
+     * to compute. */
+    public PrecisionTask getTask() {
+        return task;
     }
 
-    public void relevantDocs(Collection<String> relevant) {
-        this.relevantDocs.addAll(relevant);
+    /** Returns the specification of this qa run including intents to execute, specifications detailing intent translation and metrics
+     * to compute. */
+    public void setTask(PrecisionTask task) {
+        this.task = task;
     }
-    
-    public SearchRequest getSearchRequest() {
-        return searchRequest;
-    }
-    
-    public Collection<String> getRelevantDocs() {
-        return relevantDocs;
-    }
-    
+
+
     @SuppressWarnings("unchecked")
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        searchRequest = new SearchRequest();
-        searchRequest.readFrom(in);
-        relevantDocs = (List<String>) in.readGenericValue();
+        Collection<Intent<Rating>> intents = new ArrayList<>();
+        int intentSize = in.readInt();
+        for (int i = 0; i < intentSize; i++) {
+            Intent<Rating> intent = new Intent<Rating>();
+            intent.setIntentId(in.readInt());
+            intent.setIntentParameters((Map<String, String>) in.readGenericValue());
+            intent.setRatedDocuments((Map<String, Rating>) in.readGenericValue());
+            intents.add(intent);
+        }
+        
+        Collection<Specification> specs = new ArrayList<Specification>();
+        int specSize = in.readInt();
+        for (int i = 0; i < specSize; i++) {
+
+            Specification spec = new Specification();
+            spec.setTargetIndex(in.readString());
+            SearchRequest searchRequest = new SearchRequest();
+            searchRequest.readFrom(in);
+            spec.setTemplatedSearchRequest(searchRequest);
+            spec.setFilter(in.readBytesReference());
+            spec.setSpecId(in.readInt());
+            specs.add(spec);
+        }
+        
+        this.task = new PrecisionTask();
+        task.setIntents(intents);
+        task.setSpecifications(specs);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        searchRequest.writeTo(out);
-        out.writeGenericValue(relevantDocs);
-    }
-    
-    @Override
-    public String toString() {
-        ToStringHelper help = Objects.toStringHelper(this).add("Relevant docs", relevantDocs.toString());
-        help.add("SearchRequest", searchRequest);
-        return help.toString();
+        Collection<Intent<Rating>> intents = task.getIntents();
+        Collection<Specification> specs = task.getSpecifications();
+        
+        out.writeInt(intents.size());
+        for (Intent<Rating> intent : intents) {
+            out.writeInt(intent.getIntentId());
+            out.writeGenericValue(intent.getIntentParameters());
+            out.writeGenericValue(intent.getRatedDocuments());
+        }
+        
+        out.writeInt(specs.size());
+        for (Specification spec : specs) {
+            out.writeString(spec.getTargetIndex());
+            spec.getTemplatedSearchRequest().writeTo(out);
+            out.writeBytesReference(spec.getFilter());
+            out.writeInt(spec.getSpecId());
+        }
     }
 }

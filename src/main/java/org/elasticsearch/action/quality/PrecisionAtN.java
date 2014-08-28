@@ -19,20 +19,27 @@
 
 package org.elasticsearch.action.quality;
 
+import com.google.common.base.Predicate;
+import com.google.common.collect.Maps;
+import org.elasticsearch.action.quality.PrecisionAtN.Precision;
+import org.elasticsearch.action.quality.PrecisionAtN.Rating;
 import org.elasticsearch.search.SearchHit;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Map;
+import java.util.Map.Entry;
 
 import javax.naming.directory.SearchResult;
 
 /**
  * Evaluate Precision at N, N being the number of search results to consider for precision calculation.
  * */
-public class PrecisionAtN implements RankedListQualityMetric {
+public class PrecisionAtN implements RankedListQualityMetric<Rating, Precision> {
     
     /** Number of results to check against a given set of relevant results. */
     private final int n;
-    
+     
     /**
      * @param n number of top results to check against a given set of relevant results.
      * */
@@ -45,16 +52,62 @@ public class PrecisionAtN implements RankedListQualityMetric {
      * @param hits hits as returned for some query
      * @return precision at n for above {@link SearchResult} list.
      **/
-    public double evaluate(Collection<String> relevantDocIds, SearchHit[] hits) {
+    public Precision evaluate(Map<String, Rating> ratedDocIds, SearchHit[] hits) {
+        Collection<String> relevantDocIds = Maps.filterEntries(ratedDocIds, new Predicate<Entry<String, Rating>> () {
+            @Override
+            public boolean apply(Entry<String, Rating> input) {
+                return Rating.RELEVANT.equals(input.getValue());
+            }
+        }).keySet();
+        
+        Collection<String> irrelevantDocIds = Maps.filterEntries(ratedDocIds, new Predicate<Entry<String, Rating>> () {
+            @Override
+            public boolean apply(Entry<String, Rating> input) {
+                return Rating.IRRELEVANT.equals(input.getValue());
+            }
+        }).keySet();
+
         int good = 0;
-        for (int i = 0; (i < 5 && i < hits.length); i++) {
-            if (relevantDocIds.contains(hits[i].getId())) {
+        int bad = 0;
+        Collection<String> unknownDocIds = new ArrayList<String>();
+        for (int i = 0; (i < n && i < hits.length); i++) {
+            String id = hits[i].getId();
+            if (relevantDocIds.contains(id)) {
                 good++;
+            } else if (irrelevantDocIds.contains(id)) {
+                bad++;
+            } else {
+                unknownDocIds.add(id);
             }
         }
 
-        if (hits.length < n)
-            return ((double) good) / hits.length;
-        return ((double) good) / n;
+        double precision = (double) good / (good + bad);
+
+        return new Precision(precision, unknownDocIds);
+    }
+
+    /** TODO Document */
+    public enum Rating {
+        RELEVANT, IRRELEVANT;
+    }
+    
+    /** TODO Document */
+    public class Precision {
+        private double precision;
+        
+        private Collection<String> unknownDocs;
+
+        public Precision (double precision, Collection<String> unknownDocs) {
+            this.precision = precision;
+            this.unknownDocs = unknownDocs;
+        }
+        
+        public Collection<String> getUnknownDocs() {
+            return unknownDocs;
+        }
+
+        public double getPrecision() {
+            return precision;
+        }
     }
 }

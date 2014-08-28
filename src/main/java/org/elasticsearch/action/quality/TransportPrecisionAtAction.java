@@ -21,6 +21,9 @@ package org.elasticsearch.action.quality;
 
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.quality.PrecisionAtN.Precision;
+import org.elasticsearch.action.quality.PrecisionAtN.Rating;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilters;
@@ -29,6 +32,10 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.threadpool.ThreadPool;
+
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.Map;
 
 public class TransportPrecisionAtAction extends TransportAction<PrecisionAtRequest, PrecisionAtResponse> {
 
@@ -43,12 +50,29 @@ public class TransportPrecisionAtAction extends TransportAction<PrecisionAtReque
 
     @Override
     protected void doExecute(PrecisionAtRequest request, ActionListener<PrecisionAtResponse> listener) {
-        ActionFuture<SearchResponse> searchResponse = transportSearchAction.execute(request.getSearchRequest());
-        SearchHits hits = searchResponse.actionGet().getHits();
-
         PrecisionAtResponse response = new PrecisionAtResponse();
+        PrecisionTask qualityTask = request.getTask();
         PrecisionAtN pan = new PrecisionAtN(10);
-        response.setPrecisionAt(pan.evaluate(request.getRelevantDocs(), hits.getHits())); 
+
+        for (Specification spec : qualityTask.getSpecifications()) {
+            double precisionAtN = 0;
+            Collection<String> unknownDocs = new HashSet<String>();
+
+            SearchRequest templated = spec.getTemplatedSearchRequest();
+            Collection<Intent<Rating>> intents = qualityTask.getIntents();
+            for (Intent<Rating> intent : intents) {
+                Map<String, String> templateParams = intent.getIntentParameters();
+                templated.templateParams(templateParams);
+                ActionFuture<SearchResponse> searchResponse = transportSearchAction.execute(templated);
+                SearchHits hits = searchResponse.actionGet().getHits();
+
+                Precision precision = pan.evaluate(intent.getRatedDocuments(), hits.getHits());
+                precisionAtN += precision.getPrecision();
+                unknownDocs.addAll(precision.getUnknownDocs());
+            }
+            response.addPrecisionAt(spec.getSpecId(), precisionAtN / intents.size(), unknownDocs);
+        }
+
         listener.onResponse(response);
     }
     

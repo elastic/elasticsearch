@@ -19,7 +19,8 @@
 
 package org.elasticsearch.action.quality;
 
-import com.google.common.collect.Sets;
+import com.google.common.collect.Maps;
+import org.elasticsearch.action.quality.PrecisionAtN.Rating;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.query.MatchQueryBuilder;
@@ -29,7 +30,10 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.Set;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
 @ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE)
@@ -62,10 +66,11 @@ public class PrecisionAtRequestTest extends ElasticsearchIntegrationTest {
         SearchResponse response = client().prepareSearch().setQuery(query)
                 .execute().actionGet();
 
-        Set<String> relevant = Sets.newHashSet("1");
+        Map<String, Rating> relevant = Maps.newHashMap();
+        relevant.put("1", Rating.RELEVANT);
         SearchHit[] hits = response.getHits().getHits();
 
-        assertEquals(1, (new PrecisionAtN(5)).evaluate(relevant, hits), 0.00001);
+        assertEquals(1, (new PrecisionAtN(5)).evaluate(relevant, hits).getPrecision(), 0.00001);
     }
     
     @Test
@@ -75,22 +80,46 @@ public class PrecisionAtRequestTest extends ElasticsearchIntegrationTest {
         SearchResponse response = client().prepareSearch().setQuery(query)
                 .execute().actionGet();
 
-        Set<String> relevant = Sets.newHashSet("2", "3", "4", "5");
+        Map<String, Rating> relevant = Maps.newHashMap();
+        relevant.put("2", Rating.RELEVANT);
+        relevant.put("3", Rating.RELEVANT);
+        relevant.put("4", Rating.RELEVANT);
+        relevant.put("5", Rating.RELEVANT);
+        relevant.put("6",  Rating.IRRELEVANT);
         SearchHit[] hits = response.getHits().getHits();
 
-        assertEquals((double) 4 / 5, (new PrecisionAtN(5)).evaluate(relevant, hits), 0.00001);
+        assertEquals((double) 4 / 5, (new PrecisionAtN(5)).evaluate(relevant, hits).getPrecision(), 0.00001);
     }
 
-
-    /** TODO change PrecisionAt bound classes to support generic qa metrics - hint: Naming etc.*/
     @Test
     public void testPrecisionAction() {
         MatchQueryBuilder query = new MatchQueryBuilder("text", "value2");
         SearchRequest request = client().prepareSearch("test").setQuery(query.buildAsBytes()).request();
+        
+        Map<String, Rating> relevant = Maps.newHashMap();
+        relevant.put("2", Rating.RELEVANT);
+        relevant.put("3", Rating.RELEVANT);
+        relevant.put("4", Rating.RELEVANT);
+        relevant.put("5", Rating.RELEVANT);
 
-        Set<String> relevant = Sets.newHashSet("2", "3", "4", "5");
+        Collection<Intent<Rating>> intents = new ArrayList<Intent<Rating>>();
+        Intent<Rating> intent = new Intent<>();
+        intent.setIntentId(0);
+        intent.setRatedDocuments(relevant);
+        intent.setIntentParameters(new HashMap<String, String>());
 
-        PrecisionAtQueryBuilder builder = (new PrecisionAtQueryBuilder(client()).setSearchRequest(request).addRelevantDocs(relevant));
+        Collection<Specification> specs = new ArrayList<Specification>();
+        Specification spec = new Specification();
+        spec.setSpecId(0);
+        spec.setFilter(null);
+        spec.setTargetIndex("test");
+        spec.setTemplatedSearchRequest(request);
+
+        PrecisionTask task = new PrecisionTask();
+        task.setIntents(intents);
+        task.setSpecifications(specs);
+        
+        PrecisionAtQueryBuilder builder = (new PrecisionAtQueryBuilder(client()).setTask(task));
         client().execute(PrecisionAtAction.INSTANCE, builder.request()).actionGet();
     }
 }

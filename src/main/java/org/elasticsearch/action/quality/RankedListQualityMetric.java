@@ -21,26 +21,25 @@ package org.elasticsearch.action.quality;
 
 import org.elasticsearch.search.SearchHit;
 
-import java.util.Collection;
+import java.util.Map;
 
 /**
- * TODO depending on the exact metric looking at one ranked list alone might not be sufficient think MAP
- *
  * Classes implementing this interface provide a means to compute the quality of a result list
  * returned by some search.
+ * 
+ * RelevancyLevel specifies the type of object determining the relevancy level of some known docid.
+ * Quality specifies the type of quality metric returned.
  * */
-public interface RankedListQualityMetric {
+public interface RankedListQualityMetric<RelevancyLevel, Quality> {
 
     /**
-     * TODO depending on the exact metric a single set of relevant docIds might not be sufficient, think graded relevance.
-     * 
      * Returns a single metric representing the ranking quality of a set of returned documents
-     * wrt. to a set of document Ids labelled as relevant for this search.
+     * wrt. to a set of document Ids labeled as relevant for this search.
      *
      * @param relevantDocIds set of doc Ids considered relevant
      * @param hits the result hits as returned by some search
      * @return some metric representing the quality of the result hit list wrt. to relevant doc ids.
      * */
-    public double evaluate(Collection<String> relevantDocIds, SearchHit[] hits);
+    public Quality evaluate(Map<String, RelevancyLevel> relevantDocIds, SearchHit[] hits);
 
 }

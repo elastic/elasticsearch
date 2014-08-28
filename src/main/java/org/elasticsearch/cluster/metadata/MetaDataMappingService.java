@@ -473,13 +473,9 @@ public class MetaDataMappingService extends AbstractComponent {
                         }
                     }
 
-                    boolean typeIsNew = true;
                     // pre create indices here and add mappings to them so we can merge the mappings here if needed
                     for (String index : request.indices()) {
                         if (indicesService.hasIndex(index)) {
-                            if (indicesService.indexServiceSafe(index).mapperService().hasMapping(request.type())) {
-                                typeIsNew = false;
-                            }
                             continue;
                         }
                         final IndexMetaData indexMetaData = currentState.metaData().index(index);
@@ -492,7 +488,6 @@ public class MetaDataMappingService extends AbstractComponent {
                         // only add the current relevant mapping (if exists)
                         if (indexMetaData.mappings().containsKey(request.type())) {
                             indexService.mapperService().merge(request.type(), indexMetaData.mappings().get(request.type()).source(), false);
-                            typeIsNew = false;
                         }
                     }
 
@@ -507,7 +502,7 @@ public class MetaDataMappingService extends AbstractComponent {
                             // _default_ types do not go through merging, but we do test the new settings. Also don't apply the old default
                             newMapper = indexService.mapperService().parse(request.type(), new CompressedString(request.source()), false);
                         } else {
-                            newMapper = indexService.mapperService().parse(request.type(), new CompressedString(request.source()), typeIsNew);
+                            newMapper = indexService.mapperService().parse(request.type(), new CompressedString(request.source()), existingMapper == null);
                             if (existingMapper != null) {
                                 // first, simulate
                                 DocumentMapper.MergeResult mergeResult = existingMapper.merge(newMapper, mergeFlags().simulate(true));

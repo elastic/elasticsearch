@@ -112,12 +112,87 @@ public class UpdateMappingTests extends ElasticsearchSingleNodeTest {
     }
 
     @Test
-    public void testSizeTimestampParsing() throws IOException {
+    public void testIndexFieldParsing() throws IOException {
         IndexService indexService = createIndex("test", ImmutableSettings.settingsBuilder().build());
-        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/update/default_mapping_with_disabled_size_timestamp.json");
+        XContentBuilder indexMapping = XContentFactory.jsonBuilder();
+        boolean enabled = randomBoolean();
+        indexMapping.startObject()
+                .startObject("type")
+                .startObject("_index")
+                .field("enabled", enabled)
+                .field("store", true)
+                .startObject("fielddata")
+                .field("format", "fst")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject();
+        DocumentMapper documentMapper = indexService.mapperService().parse("type", new CompressedString(indexMapping.string()), true);
+        assertThat(documentMapper.indexMapper().enabled(), equalTo(enabled));
+        assertTrue(documentMapper.indexMapper().fieldType().stored());
+        assertThat(documentMapper.indexMapper().fieldDataType().getFormat(null), equalTo("fst"));
+        documentMapper.refreshSource();
+        documentMapper = indexService.mapperService().parse("type", new CompressedString(documentMapper.mappingSource().string()), true);
+        assertThat(documentMapper.indexMapper().enabled(), equalTo(enabled));
+        assertTrue(documentMapper.indexMapper().fieldType().stored());
+        assertThat(documentMapper.indexMapper().fieldDataType().getFormat(null), equalTo("fst"));
+    }
+
+    @Test
+    public void testTimestampParsing() throws IOException {
+        IndexService indexService = createIndex("test", ImmutableSettings.settingsBuilder().build());
+        XContentBuilder indexMapping = XContentFactory.jsonBuilder();
+        boolean enabled = randomBoolean();
+        indexMapping.startObject()
+                .startObject("type")
+                .startObject("_timestamp")
+                .field("enabled", enabled)
+                .field("store", true)
+                .startObject("fielddata")
+                .field("format", "doc_values")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject();
+        DocumentMapper documentMapper = indexService.mapperService().parse("type", new CompressedString(indexMapping.string()), true);
+        assertThat(documentMapper.timestampFieldMapper().enabled(), equalTo(enabled));
+        assertTrue(documentMapper.timestampFieldMapper().fieldType().stored());
+        assertTrue(documentMapper.timestampFieldMapper().hasDocValues());
+        documentMapper.refreshSource();
+        documentMapper = indexService.mapperService().parse("type", new CompressedString(documentMapper.mappingSource().string()), true);
+        assertThat(documentMapper.timestampFieldMapper().enabled(), equalTo(enabled));
+        assertTrue(documentMapper.timestampFieldMapper().hasDocValues());
+        assertTrue(documentMapper.timestampFieldMapper().fieldType().stored());
+    }
+
+    @Test
+    public void testSizeParsing() throws IOException {
+        IndexService indexService = createIndex("test", ImmutableSettings.settingsBuilder().build());
+        XContentBuilder indexMapping = XContentFactory.jsonBuilder();
+        boolean enabled = randomBoolean();
+        indexMapping.startObject()
+                .startObject("type")
+                .startObject("_size")
+                .field("enabled", enabled)
+                .field("store", true)
+                .endObject()
+                .endObject()
+                .endObject();
+        DocumentMapper documentMapper = indexService.mapperService().parse("type", new CompressedString(indexMapping.string()), true);
+        assertThat(documentMapper.sizeFieldMapper().enabled(), equalTo(enabled));
+        assertTrue(documentMapper.sizeFieldMapper().fieldType().stored());
+        documentMapper.refreshSource();
+        documentMapper = indexService.mapperService().parse("type", new CompressedString(documentMapper.mappingSource().string()), true);
+        assertThat(documentMapper.sizeFieldMapper().enabled(), equalTo(enabled));
+    }
+
+    @Test
+    public void testSizeTimestampIndexParsing() throws IOException {
+        IndexService indexService = createIndex("test", ImmutableSettings.settingsBuilder().build());
+        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/update/default_mapping_with_disabled_root_types.json");
         DocumentMapper documentMapper = indexService.mapperService().parse("type", new CompressedString(mapping), true);
         assertThat(documentMapper.mappingSource().string(), equalTo(mapping));
-        documentMapper.refreshSource(); //should be called anyway somewhere but just to be sure
+        documentMapper.refreshSource();
         documentMapper = indexService.mapperService().parse("type", new CompressedString(documentMapper.mappingSource().string()), true);
         assertThat(documentMapper.mappingSource().string(), equalTo(mapping));
     }

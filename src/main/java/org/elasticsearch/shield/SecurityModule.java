@@ -26,29 +26,35 @@ import org.elasticsearch.shield.transport.netty.NettySecuredTransportModule;
 public class SecurityModule extends AbstractModule implements SpawnModules, PreProcessModule {
 
     private final Settings settings;
+    private final boolean isClient;
+    private final boolean isShieldEnabled;
 
     public SecurityModule(Settings settings) {
         this.settings = settings;
+        this.isClient = settings.getAsBoolean("node.client", false);
+        this.isShieldEnabled = settings.getComponentSettings(SecurityModule.class).getAsBoolean("enabled", true);
     }
 
     @Override
     public void processModule(Module module) {
-        if (module instanceof ActionModule) {
+        if (module instanceof ActionModule && isShieldEnabled && !isClient) {
             ((ActionModule) module).registerFilter(SecurityFilter.Action.class);
         }
     }
 
     @Override
     public Iterable<? extends Module> spawnModules() {
-
-        // don't spawn module in client mode
-        if (settings.getAsBoolean("node.client", false)) {
+        // don't spawn modules if shield is explicitly disabled
+        if (!isShieldEnabled) {
             return ImmutableList.of();
         }
 
-        // don't spawn modules if shield is explicitly disabled
-        if (!settings.getComponentSettings(SecurityModule.class).getAsBoolean("enabled", true)) {
-            return ImmutableList.of();
+        // spawn needed parts in client mode
+        if (isClient) {
+            return ImmutableList.of(
+                    new N2NModule(),
+                    new SecuredTransportModule()
+            );
         }
 
         return ImmutableList.of(
@@ -58,7 +64,7 @@ public class SecurityModule extends AbstractModule implements SpawnModules, PreP
                 new N2NModule(),
                 new NettySecuredHttpServerTransportModule(),
                 new NettySecuredTransportModule(),
-                new SecuredTransportModule(settings));
+                new SecuredTransportModule());
     }
 
     @Override

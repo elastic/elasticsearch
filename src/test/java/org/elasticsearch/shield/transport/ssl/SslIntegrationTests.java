@@ -5,117 +5,76 @@
  */
 package org.elasticsearch.shield.transport.ssl;
 
-import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.base.Charsets;
-import com.google.common.io.Files;
-import com.google.common.net.InetAddresses;
+import com.google.common.base.Charsets;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.os.OsUtils;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.net.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
-import org.elasticsearch.shield.plugin.SecurityPlugin;
+import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.shield.test.ShieldIntegrationTest;
 import org.elasticsearch.shield.transport.netty.NettySecuredTransport;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportModule;
-import org.junit.BeforeClass;
-import org.junit.ClassRule;
 import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
 
 import javax.net.ssl.*;
-import java.io.File;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.Locale;
 
-import static org.apache.lucene.util.LuceneTestCase.AwaitsFix;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.hamcrest.Matchers.*;
 
-@ClusterScope(scope = Scope.SUITE, numDataNodes = 1, transportClientRatio = 0.0, numClientNodes = 0)
-@AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch-shield/issues/36")
-public class SslIntegrationTests extends ElasticsearchIntegrationTest {
-
-    @ClassRule
-    public static TemporaryFolder temporaryFolder = new TemporaryFolder();
-
-    private static File ipFilterFile;
-
-    @BeforeClass
-    public static void writeAllowAllIpFilterFile() throws Exception {
-        ipFilterFile = temporaryFolder.newFile();
-        Files.write("allow: all\n".getBytes(com.google.common.base.Charsets.UTF_8), ipFilterFile);
-    }
-
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        File testnodeStore;
-        try {
-            testnodeStore = new File(getClass().getResource("certs/simple/testnode.jks").toURI());
-            assertThat(testnodeStore.exists(), is(true));
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-
-        ImmutableSettings.Builder builder = ImmutableSettings.settingsBuilder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put("discovery.zen.ping.multicast.ping.enabled", false)
-                //
-                .put("shield.authz.file.roles", "not/existing")
-                // needed to ensure that netty transport is started
-                .put("node.mode", "network")
-                .put("shield.transport.ssl", true)
-                .put("shield.transport.ssl.keystore", testnodeStore.getPath())
-                .put("shield.transport.ssl.keystore_password", "testnode")
-                .put("shield.transport.ssl.truststore", testnodeStore.getPath())
-                .put("shield.transport.ssl.truststore_password", "testnode")
-                .put("shield.http.ssl", true)
-                .put("shield.http.ssl.require.client.auth", false)
-                .put("shield.http.ssl.keystore", testnodeStore.getPath())
-                .put("shield.http.ssl.keystore_password", "testnode")
-                .put("shield.http.ssl.truststore", testnodeStore.getPath())
-                .put("shield.http.ssl.truststore_password", "testnode")
-                // SSL SETUP
-                .put("plugin.types", SecurityPlugin.class.getName())
-                .put("shield.n2n.file", ipFilterFile.getPath());
-
-        if (OsUtils.MAC) {
-            builder.put("network.host", randomBoolean() ? "127.0.0.1" : "::1");
-        }
-        return builder.build();
-    }
+public class SslIntegrationTests extends ShieldIntegrationTest {
 
     @Test
-    @TestLogging("_root:INFO,org.elasticsearch.test:TRACE, org.elasticsearch.client.transport:DEBUG,org.elasticsearch.shield:TRACE")
-    public void testThatTransportClientCanConnectToNodeViaSsl() throws Exception {
-        TransportClient transportClient = new TransportClient(getSettings("transport_client").build(), false);
-        TransportAddress transportAddress = internalCluster().getInstance(Transport.class).boundAddress().boundAddress();
-        transportClient.addTransportAddress(transportAddress);
-
+    public void testThatInternallyCreatedTransportClientCanConnect() throws Exception {
+        Client transportClient = internalCluster().transportClient();
         assertGreenClusterState(transportClient);
     }
 
-    @Test(expected = ElasticsearchSSLException.class)
-    @TestLogging("_root:INFO,org.elasticsearch.client.transport:DEBUG")
-    public void testThatUnconfiguredCipchersAreRejected() {
-        // some randomly taken ciphers from SSLContext.getDefault().getSocketFactory().getSupportedCipherSuites()
-        // could be really randomized
-        Settings customSettings = getSettings("transport_client").put("shield.transport.ssl.ciphers", new String[]{"TLS_ECDH_anon_WITH_RC4_128_SHA", "SSL_RSA_WITH_3DES_EDE_CBC_SHA"}).build();
+    @Test
+    public void testThatProgrammaticallyCreatedTransportClientCanConnect() throws Exception {
+        Settings settings = settingsBuilder()
+                .put(transportClientSettings())
+                .put("name", "programmatic_transport_client_")
+                .put("cluster.name", internalCluster().getClusterName())
+                .build();
 
-        TransportClient transportClient = new TransportClient(customSettings);
+        try (TransportClient transportClient = new TransportClient(settings, false)) {
+            TransportAddress transportAddress = internalCluster().getInstance(Transport.class).boundAddress().boundAddress();
+            transportClient.addTransportAddress(transportAddress);
+            assertGreenClusterState(transportClient);
+        }
+
+        try (TransportClient transportClient = new TransportClient(settings, true)) {
+            TransportAddress transportAddress = internalCluster().getInstance(Transport.class).boundAddress().boundAddress();
+            transportClient.addTransportAddress(transportAddress);
+            assertGreenClusterState(transportClient);
+        }
+    }
+
+    // no SSL exception as this is the exception is returned when connecting
+    @Test(expected = NoNodeAvailableException.class)
+    public void testThatUnconfiguredCipchersAreRejected() {
+        TransportClient transportClient = new TransportClient(settingsBuilder()
+                .put(transportClientSettings())
+                .put("name", "programmatic_transport_client")
+                .put("cluster.name", internalCluster().getClusterName())
+                .putArray("shield.transport.ssl.ciphers", new String[]{"TLS_ECDH_anon_WITH_RC4_128_SHA", "SSL_RSA_WITH_3DES_EDE_CBC_SHA"})
+                .build());
 
         TransportAddress transportAddress = internalCluster().getInstance(Transport.class).boundAddress().boundAddress();
         transportClient.addTransportAddress(transportAddress);
@@ -124,9 +83,19 @@ public class SslIntegrationTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @TestLogging("_root:DEBUG")
     public void testConnectNodeWorks() throws Exception {
-        try (Node node = NodeBuilder.nodeBuilder().settings(getSettings("ssl_node")).node().start()) {
+        Settings settings = settingsBuilder()
+                .put("name", "programmatic_node")
+                .put("cluster.name", internalCluster().getClusterName())
+
+                .put("request.headers.Authorization", basicAuthHeaderValue(getClientUsername(), getClientPassword().toCharArray()))
+                .put(TransportModule.TRANSPORT_TYPE_KEY, NettySecuredTransport.class.getName())
+                .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false)
+
+                .put(getSSLSettingsForStore("certs/simple/testclient.jks", "testclient"))
+                .build();
+
+        try (Node node = NodeBuilder.nodeBuilder().settings(settings).node()) {
             try (Client client = node.client()) {
                 assertGreenClusterState(client);
             }
@@ -135,32 +104,28 @@ public class SslIntegrationTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testConnectNodeClientWorks() throws Exception {
-        // no multicast, good old discovery
-        TransportAddress transportAddress = internalCluster().getInstance(Transport.class).boundAddress().boundAddress();
-        assertThat(transportAddress, is(instanceOf(InetSocketTransportAddress.class)));
-        InetSocketTransportAddress inetSocketTransportAddress = (InetSocketTransportAddress) transportAddress;
-        Settings.Builder settingsBuilder = getSettings("node_client")
-                .put("node.client", true)
-                .put("discovery.zen.ping.multicast.ping.enabled", false)
-                .put("discovery.zen.ping.unicast.hosts", inetSocketTransportAddress.address().getHostString() + ":" + inetSocketTransportAddress.address().getPort());
+        Settings settings = settingsBuilder()
+                .put("name", "programmatic_node_client")
+                .put("cluster.name", internalCluster().getClusterName())
+                .put("node.mode", "network")
 
-        try (Node node = NodeBuilder.nodeBuilder().settings(settingsBuilder).node().start()) {
+                .put("discovery.zen.ping.multicast.enabled", false)
+                .put("discovery.type", "zen")
+                .putArray("discovery.zen.ping.unicast.hosts", getUnicastHostAddress())
+
+                .put("request.headers.Authorization", basicAuthHeaderValue(getClientUsername(), getClientPassword().toCharArray()))
+                .put(TransportModule.TRANSPORT_TYPE_KEY, NettySecuredTransport.class.getName())
+                .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false)
+                .put("shield.n2n.file", writeFile(newFolder(), "ip_filter.yml", ShieldIntegrationTest.CONFIG_IPFILTER_ALLOW_ALL))
+
+                .put(getSSLSettingsForStore("certs/simple/testclient.jks", "testclient"))
+                .build();
+
+        try (Node node = NodeBuilder.nodeBuilder().settings(settings).client(true).node()) {
             try (Client client = node.client()) {
                 assertGreenClusterState(client);
             }
         }
-    }
-
-    @Test(expected = ElasticsearchSSLException.class)
-    public void testConnectNodeFailsWithWrongCipher() throws Exception {
-        Settings customSettings = getSettings("ssl_node").put("shield.transport.ssl.ciphers", new String[]{"TLS_ECDH_anon_WITH_RC4_128_SHA", "SSL_RSA_WITH_3DES_EDE_CBC_SHA"}).build();
-        NodeBuilder.nodeBuilder().settings(customSettings).node().start();
-    }
-
-    @Test(expected = ElasticsearchSSLException.class)
-    public void testConnectNodeClientFailsWithWrongCipher() throws Exception {
-        Settings customSettings = getSettings("ssl_node").put("node.client", true).put("shield.transport.ssl.ciphers", new String[]{"TLS_ECDH_anon_WITH_RC4_128_SHA", "SSL_RSA_WITH_3DES_EDE_CBC_SHA"}).build();
-        NodeBuilder.nodeBuilder().settings(customSettings).node().start();
     }
 
     @Test
@@ -206,36 +171,9 @@ public class SslIntegrationTests extends ElasticsearchIntegrationTest {
         assertThat(data, containsString("You Know, for Search"));
     }
 
-    private ImmutableSettings.Builder getSettings(String name) {
-        File testClientKeyStore;
-        File testClientTrustStore;
-        try {
-            testClientKeyStore = new File(getClass().getResource("certs/simple/testclient.jks").toURI());
-            testClientTrustStore = new File(getClass().getResource("certs/simple/testclient.jks").toURI());
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-        assertThat(testClientKeyStore.exists(), is(true));
-        assertThat(testClientTrustStore.exists(), is(true));
-
-        return ImmutableSettings.settingsBuilder()
-                .put("node.name", name)
-                .put("plugins.load_classpath_plugins", false)
-                .put("shield.transport.ssl", true)
-                .put("shield.transport.ssl.keystore", testClientKeyStore.getPath())
-                .put("shield.transport.ssl.keystore_password", "testclient")
-                .put("shield.transport.ssl.truststore", testClientTrustStore .getPath())
-                .put("shield.transport.ssl.truststore_password", "testclient")
-                .put("discovery.zen.ping.multicast.ping.enabled", false)
-                .put(TransportModule.TRANSPORT_TYPE_KEY, NettySecuredTransport.class.getName())
-                .put("shield.n2n.file", ipFilterFile.getPath())
-                .put("cluster.name", internalCluster().getClusterName());
-    }
-
     private void assertGreenClusterState(Client client) {
         ClusterHealthResponse clusterHealthResponse = client.admin().cluster().prepareHealth().get();
         assertNoTimeout(clusterHealthResponse);
         assertThat(clusterHealthResponse.getStatus(), is(ClusterHealthStatus.GREEN));
     }
-
 }

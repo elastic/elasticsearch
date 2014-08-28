@@ -52,9 +52,6 @@ public class IPFilteringN2NAuthenticatorTests extends ElasticsearchTestCase {
     @Before
     public void init() throws Exception {
         configFile = temporaryFolder.newFile();
-        Settings resourceWatcherServiceSettings = settingsBuilder().put("watcher.interval.medium", TimeValue.timeValueMillis(200)).build();
-        resourceWatcherService = new ResourceWatcherService(resourceWatcherServiceSettings, new ThreadPool("resourceWatcher")).start();
-        settings = settingsBuilder().put("shield.n2n.file", configFile.getPath()).build();
     }
 
     @After
@@ -66,75 +63,75 @@ public class IPFilteringN2NAuthenticatorTests extends ElasticsearchTestCase {
     public void testThatIpV4AddressesCanBeProcessed() throws Exception {
         writeConfigFile("allow: 127.0.0.1\ndeny: 10.0.0.0/8");
 
-        assertAddressIsAllowed(ipFilteringN2NAuthenticator, "127.0.0.1");
-        assertAddressIsDenied(ipFilteringN2NAuthenticator, "10.2.3.4");
+        assertAddressIsAllowed("127.0.0.1");
+        assertAddressIsDenied("10.2.3.4");
     }
 
     @Test
     public void testThatIpV6AddressesCanBeProcessed() throws Exception {
         writeConfigFile("allow: 2001:0db8:1234::/48\ndeny: 1234:0db8:85a3:0000:0000:8a2e:0370:7334");
 
-        assertAddressIsAllowed(ipFilteringN2NAuthenticator, "2001:0db8:1234:0000:0000:8a2e:0370:7334");
-        assertAddressIsDenied(ipFilteringN2NAuthenticator, "1234:0db8:85a3:0000:0000:8a2e:0370:7334");
+        assertAddressIsAllowed("2001:0db8:1234:0000:0000:8a2e:0370:7334");
+        assertAddressIsDenied("1234:0db8:85a3:0000:0000:8a2e:0370:7334");
     }
 
     @Test
     public void testThatHostnamesCanBeProcessed() throws Exception {
         writeConfigFile("allow: localhost\ndeny: '*.google.com'");
 
-        assertAddressIsAllowed(ipFilteringN2NAuthenticator, "127.0.0.1");
-        assertAddressIsDenied(ipFilteringN2NAuthenticator, "173.194.70.100");
+        assertAddressIsAllowed("127.0.0.1");
+        assertAddressIsDenied("173.194.70.100");
     }
 
     @Test
     public void testThatFileDeletionResultsInAllowingAll() throws Exception {
         writeConfigFile("allow: 127.0.0.1");
 
-        assertAddressIsAllowed(ipFilteringN2NAuthenticator, "127.0.0.1");
+        assertAddressIsAllowed("127.0.0.1");
 
         configFile.delete();
         assertThat(configFile.exists(), is(false));
 
         sleep(250);
-        assertAddressIsDenied(ipFilteringN2NAuthenticator, "127.0.0.1");
+        assertAddressIsDenied("127.0.0.1");
     }
 
     @Test
     public void testThatAnAllowAllAuthenticatorWorks() throws Exception {
         writeConfigFile("allow: all");
 
-        assertAddressIsAllowed(ipFilteringN2NAuthenticator, "127.0.0.1");
-        assertAddressIsAllowed(ipFilteringN2NAuthenticator, "173.194.70.100");
+        assertAddressIsAllowed("127.0.0.1");
+        assertAddressIsAllowed("173.194.70.100");
     }
 
     @Test
     public void testThatCommaSeparatedValuesWork() throws Exception {
         writeConfigFile("allow: 192.168.23.0/24, localhost\ndeny: all");
 
-        assertAddressIsAllowed(ipFilteringN2NAuthenticator, "192.168.23.1");
-        assertAddressIsAllowed(ipFilteringN2NAuthenticator, "127.0.0.1");
-        assertAddressIsDenied(ipFilteringN2NAuthenticator, "10.1.2.3");
+        assertAddressIsAllowed("192.168.23.1");
+        assertAddressIsAllowed("127.0.0.1");
+        assertAddressIsDenied("10.1.2.3");
     }
 
     @Test
     public void testThatOrderIsImportant() throws Exception {
         writeConfigFile("deny: localhost\nallow: localhost");
 
-        assertAddressIsDenied(ipFilteringN2NAuthenticator, "127.0.0.1");
+        assertAddressIsDenied("127.0.0.1");
     }
 
     @Test
     public void testThatOrderIsImportantViceVersa() throws Exception {
         writeConfigFile("allow: localhost\ndeny: localhost");
 
-        assertAddressIsAllowed(ipFilteringN2NAuthenticator, "127.0.0.1");
+        assertAddressIsAllowed("127.0.0.1");
     }
 
     @Test
     public void testThatEmptyFileDoesNotLeadIntoLoop() throws Exception {
         writeConfigFile("# \n\n");
 
-        assertAddressIsDenied(ipFilteringN2NAuthenticator, "127.0.0.1");
+        assertAddressIsDenied("127.0.0.1");
     }
 
     @Test(expected = ElasticsearchParseException.class)
@@ -145,17 +142,20 @@ public class IPFilteringN2NAuthenticatorTests extends ElasticsearchTestCase {
 
     private void writeConfigFile(String data) throws IOException {
         Files.write(data.getBytes(Charsets.UTF_8), configFile);
+        Settings resourceWatcherServiceSettings = settingsBuilder().put("watcher.interval.medium", TimeValue.timeValueMillis(200)).build();
+        resourceWatcherService = new ResourceWatcherService(resourceWatcherServiceSettings, new ThreadPool("resourceWatcher")).start();
+        settings = settingsBuilder().put("shield.n2n.file", configFile.getPath()).build();
         ipFilteringN2NAuthenticator = new IPFilteringN2NAuthenticator(settings, new Environment(), resourceWatcherService);
     }
 
-    private void assertAddressIsAllowed(IPFilteringN2NAuthenticator ipFilteringN2NAuthenticator, String ... inetAddresses) {
+    private void assertAddressIsAllowed(String ... inetAddresses) {
         for (String inetAddress : inetAddresses) {
             String message = String.format(Locale.ROOT, "Expected address %s to be allowed", inetAddress);
             assertThat(message, ipFilteringN2NAuthenticator.authenticate(NULL_PRINCIPAL, InetAddresses.forString(inetAddress), 1024), is(true));
         }
     }
 
-    private void assertAddressIsDenied(IPFilteringN2NAuthenticator ipFilteringN2NAuthenticator, String ... inetAddresses) {
+    private void assertAddressIsDenied(String ... inetAddresses) {
         for (String inetAddress : inetAddresses) {
             String message = String.format(Locale.ROOT, "Expected address %s to be denied", inetAddress);
             assertThat(message, ipFilteringN2NAuthenticator.authenticate(NULL_PRINCIPAL, InetAddresses.forString(inetAddress), 1024), is(false));

@@ -53,7 +53,7 @@ We can also add a new field to the document:
 [source,js]
 --------------------------------------------------
 curl -XPOST 'localhost:9200/test/type1/1/_update' -d '{
-    "script" : "ctx._source.text = \"some text\""
+    "script" : "ctx._source.name_of_new_field = \"value_of_new_field\""
 }'
 --------------------------------------------------
 
@@ -62,7 +62,7 @@ We can also remove a field from the document:
 [source,js]
 --------------------------------------------------
 curl -XPOST 'localhost:9200/test/type1/1/_update' -d '{
-    "script" : "ctx._source.remove(\"text\")"
+    "script" : "ctx._source.remove(\"name_of_field\")"
 }'
 --------------------------------------------------
 

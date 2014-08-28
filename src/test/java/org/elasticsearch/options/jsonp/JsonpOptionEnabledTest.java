@@ -42,8 +42,8 @@ public class JsonpOptionEnabledTest extends ElasticsearchIntegrationTest {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return ImmutableSettings.settingsBuilder()
-                .put(RestController.HTTP_JSON_ENABLE, true)
                 .put(super.nodeSettings(nodeOrdinal))
+                .put(RestController.HTTP_JSON_ENABLE, true)
                 .build();
     }
 

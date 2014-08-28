@@ -49,8 +49,8 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
-import static org.elasticsearch.search.suggest.SuggestBuilder.phraseSuggestion;
-import static org.elasticsearch.search.suggest.SuggestBuilder.termSuggestion;
+import static org.elasticsearch.search.suggest.SuggestBuilders.phraseSuggestion;
+import static org.elasticsearch.search.suggest.SuggestBuilders.termSuggestion;
 import static org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder.candidateGenerator;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;

@@ -342,7 +342,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     }
                     if (request.index().equals(ScriptService.SCRIPT_INDEX)) {
                         indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, 0));
-                        indexSettingsBuilder.put(SETTING_AUTO_EXPAND_REPLICAS, "1-all");
+                        indexSettingsBuilder.put(SETTING_AUTO_EXPAND_REPLICAS, "0-all");
                     }
                     else {
                         if (indexSettingsBuilder.get(SETTING_NUMBER_OF_REPLICAS) == null) {

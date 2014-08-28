@@ -18,31 +18,17 @@
  */
 package org.elasticsearch.script;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
-import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
-import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.exists.ExistsRequest;
-import org.elasticsearch.action.indexedscripts.delete.DeleteIndexedScriptAction;
 import org.elasticsearch.action.indexedscripts.get.GetIndexedScriptResponse;
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
-
-import java.util.Map;
-import java.util.Set;
 
 @ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST)
 public class ScriptIndexSettingsTest extends ElasticsearchIntegrationTest{
@@ -78,7 +64,7 @@ public class ScriptIndexSettingsTest extends ElasticsearchIntegrationTest{
         String numberOfReplicas = settingsResponse.getSetting(ScriptService.SCRIPT_INDEX,"index.auto_expand_replicas");
 
         assertEquals("Number of shards should be 1", "1", numberOfShards);
-        assertEquals("Auto expand replicas should be 1-all", "1-all", numberOfReplicas);
+        assertEquals("Auto expand replicas should be 0-all", "0-all", numberOfReplicas);
     }
 
     @Test

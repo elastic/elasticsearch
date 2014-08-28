@@ -38,8 +38,8 @@ public final class FieldNameAnalyzer extends SimpleAnalyzerWrapper {
         this(new CopyOnWriteHashMap<String, Analyzer>(), defaultAnalyzer);
     }
 
-    private FieldNameAnalyzer(CopyOnWriteHashMap<String, Analyzer> analyzers, Analyzer defaultAnalyzer) {
-        this.analyzers = analyzers;
+    public FieldNameAnalyzer(Map<String, Analyzer> analyzers, Analyzer defaultAnalyzer) {
+        this.analyzers = CopyOnWriteHashMap.copyOf(analyzers);
         this.defaultAnalyzer = defaultAnalyzer;
     }
 
@@ -74,13 +74,6 @@ public final class FieldNameAnalyzer extends SimpleAnalyzerWrapper {
                 analyzers = analyzers.copyAndPut(entry.getKey(), entry.getValue());
             }
         }
-        return new FieldNameAnalyzer(analyzers, defaultAnalyzer);
-    }
-
-    /**
-     * Return a new instance that has the same per-field analyzers but a different default analyzer.
-     */
-    public FieldNameAnalyzer copyWithDefaultAnalyzer(Analyzer defaultAnalyzer) {
         return new FieldNameAnalyzer(analyzers, defaultAnalyzer);
     }
 

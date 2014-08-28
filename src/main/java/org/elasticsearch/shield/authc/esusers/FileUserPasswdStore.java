@@ -81,7 +81,11 @@ public class FileUserPasswdStore extends AbstractComponent implements UserPasswd
         return Paths.get(location);
     }
 
-    public static Map<String, char[]> parseFile(Path path, @Nullable ESLogger logger) {
+    /**
+     * parses the esusers file. Should never return {@code null}, if the file doesn't exist an
+     * empty map is returned
+     */
+    public static ImmutableMap<String, char[]> parseFile(Path path, @Nullable ESLogger logger) {
         if (!Files.exists(path)) {
             return ImmutableMap.of();
         }

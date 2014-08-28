@@ -53,4 +53,18 @@ public class AuditTrailModuleTests extends ElasticsearchTestCase {
         assertThat(service.auditTrails[0], instanceOf(LoggingAuditTrail.class));
     }
 
+    @Test
+    public void testUnknownOutput() throws Exception {
+        Settings settings = ImmutableSettings.builder()
+                .put("shield.audit.enabled", true)
+                .put("shield.audit.outputs" , "foo")
+                .build();
+        try {
+            Guice.createInjector(new SettingsModule(settings), new AuditTrailModule(settings));
+            fail("Expect initialization to fail when an unknown audit trail output is configured");
+        } catch (Throwable t) {
+            // expected
+        }
+    }
+
 }

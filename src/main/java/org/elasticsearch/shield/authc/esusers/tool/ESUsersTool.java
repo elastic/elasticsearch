@@ -11,16 +11,14 @@ import org.elasticsearch.common.cli.CliTool;
 import org.elasticsearch.common.cli.CliToolConfig;
 import org.elasticsearch.common.cli.Terminal;
 import org.elasticsearch.common.cli.commons.CommandLine;
-import org.elasticsearch.common.collect.Lists;
-import org.elasticsearch.common.collect.Maps;
-import org.elasticsearch.common.collect.ObjectArrays;
-import org.elasticsearch.common.collect.Sets;
+import org.elasticsearch.common.collect.*;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.authc.esusers.FileUserPasswdStore;
 import org.elasticsearch.shield.authc.esusers.FileUserRolesStore;
 import org.elasticsearch.shield.authc.support.Hasher;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.regex.Pattern;
@@ -117,10 +115,6 @@ public class ESUsersTool extends CliTool {
         public ExitStatus execute(Settings settings, Environment env) throws Exception {
             Path file = FileUserPasswdStore.resolveFile(settings, env);
             Map<String, char[]> users = new HashMap<>(FileUserPasswdStore.parseFile(file, null));
-            if (users == null) {
-                // file doesn't exist so we just create a new file
-                users = new HashMap<>();
-            }
             if (users.containsKey(username)) {
                 terminal.println("User [%s] already exists", username);
                 return ExitStatus.CODE_ERROR;
@@ -132,10 +126,6 @@ public class ESUsersTool extends CliTool {
 
             file = FileUserRolesStore.resolveFile(settings, env);
             Map<String, String[]> userRoles = new HashMap<>(FileUserRolesStore.parseFile(file, null));
-            if (userRoles == null) {
-                // file doesn't exist, so we just create a new file
-                userRoles = new HashMap<>();
-            }
             userRoles.put(username, roles);
             FileUserRolesStore.writeFile(userRoles, file);
             return ExitStatus.OK;
@@ -168,7 +158,7 @@ public class ESUsersTool extends CliTool {
         public ExitStatus execute(Settings settings, Environment env) throws Exception {
             Path file = FileUserPasswdStore.resolveFile(settings, env);
             Map<String, char[]> users = new HashMap<>(FileUserPasswdStore.parseFile(file, null));
-            if (users != null) {
+            if (Files.exists(file)) {
                 char[] passwd = users.remove(username);
                 if (passwd != null) {
                     FileUserPasswdStore.writeFile(users, file);
@@ -179,7 +169,7 @@ public class ESUsersTool extends CliTool {
 
             file = FileUserRolesStore.resolveFile(settings, env);
             Map<String, String[]> userRoles = new HashMap<>(FileUserRolesStore.parseFile(file, null));
-            if (userRoles != null) {
+            if (Files.exists(file)) {
                 String[] roles = userRoles.remove(username);
                 if (roles != null) {
                     FileUserRolesStore.writeFile(userRoles, file);
@@ -234,10 +224,6 @@ public class ESUsersTool extends CliTool {
         public ExitStatus execute(Settings settings, Environment env) throws Exception {
             Path file = FileUserPasswdStore.resolveFile(settings, env);
             Map<String, char[]> users = new HashMap<>(FileUserPasswdStore.parseFile(file, null));
-            if (users == null) {
-                // file doesn't exist so we just create a new file
-                users = new HashMap<>();
-            }
             if (!users.containsKey(username)) {
                 terminal.println("User [%s] doesn't exist", username);
                 return ExitStatus.NO_USER;

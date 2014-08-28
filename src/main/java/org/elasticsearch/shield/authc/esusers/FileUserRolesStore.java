@@ -54,7 +54,7 @@ public class FileUserRolesStore extends AbstractComponent implements UserRolesSt
     FileUserRolesStore(Settings settings, Environment env, ResourceWatcherService watcherService, Listener listener) {
         super(settings);
         file = resolveFile(settings, env);
-        userRoles = ImmutableMap.copyOf(parseFile(file, logger));
+        userRoles = parseFile(file, logger);
         FileWatcher watcher = new FileWatcher(file.getParent().toFile());
         watcher.addListener(new FileListener());
         watcherService.add(watcher);
@@ -74,7 +74,11 @@ public class FileUserRolesStore extends AbstractComponent implements UserRolesSt
         return Paths.get(location);
     }
 
-    public static Map<String, String[]> parseFile(Path path, @Nullable ESLogger logger) {
+    /**
+     * parses the users_roles file. Should never return return {@code null}, if the file doesn't exist
+     * an empty map is returned
+     */
+    public static ImmutableMap<String, String[]> parseFile(Path path, @Nullable ESLogger logger) {
         if (!Files.exists(path)) {
             return ImmutableMap.of();
         }

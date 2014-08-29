@@ -17,30 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.warmer.put;
-
-import org.elasticsearch.action.admin.indices.IndicesAction;
-import org.elasticsearch.client.IndicesAdminClient;
-
 /**
- * Action for the admin/warmers/put API.
+ * Index / Search Warmer Administrative Actions
+ * <p>
+ *     Index warming allows to run registered search requests to warm up the index before it is available for search.
+ *     With the near real time aspect of search, cold data (segments) will be warmed up before they become available for
+ *     search. This includes things such as the filter cache, filesystem cache, and loading field data for fields.
+ * </p>
+ *
+ * @see the reference guide for more detailed information about the Indices / Search Warmer
  */
-public class PutWarmerAction extends IndicesAction<PutWarmerRequest, PutWarmerResponse, PutWarmerRequestBuilder> {
-
-    public static final PutWarmerAction INSTANCE = new PutWarmerAction();
-    public static final String NAME = "indices:admin/warmers/put";
-
-    private PutWarmerAction() {
-        super(NAME);
-    }
-
-    @Override
-    public PutWarmerResponse newResponse() {
-        return new PutWarmerResponse();
-    }
-
-    @Override
-    public PutWarmerRequestBuilder newRequestBuilder(IndicesAdminClient client) {
-        return new PutWarmerRequestBuilder(client);
-    }
-}
+package org.elasticsearch.action.admin.indices.warmer;

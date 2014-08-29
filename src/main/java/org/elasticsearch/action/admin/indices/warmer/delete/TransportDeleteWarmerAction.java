@@ -44,7 +44,9 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * Delete index warmer.
+ * Internal Actions executed on the master deleting the warmer from the cluster state metadata.
+ *
+ * Note: this is an internal API and should not be used / called by any client code.
  */
 public class TransportDeleteWarmerAction extends TransportMasterNodeOperationAction<DeleteWarmerRequest, DeleteWarmerResponse> {
 

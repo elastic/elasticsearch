@@ -691,15 +691,38 @@ public interface IndicesAdminClient extends ElasticsearchClient<IndicesAdminClie
      */
     DeleteWarmerRequestBuilder prepareDeleteWarmer();
 
+    /**
+     * Returns a map of index warmers for the given get request.
+     */
     void getWarmers(GetWarmersRequest request, ActionListener<GetWarmersResponse> listener);
 
+    /**
+     * Returns a map of index warmers for the given get request.
+     */
     ActionFuture<GetWarmersResponse> getWarmers(GetWarmersRequest request);
 
+    /**
+     * Returns a new builder to fetch index warmer metadata for the given indices.
+     */
     GetWarmersRequestBuilder prepareGetWarmers(String... indices);
 
+    /**
+     * Executed a per index settings get request and returns the settings for the indices specified.
+     * Note: this is a per index request and will not include settings that are set on the cluster
+     * level. This request is not exhaustive, it will not return default values for setting.
+     */
     void getSettings(GetSettingsRequest request, ActionListener<GetSettingsResponse> listener);
 
+    /**
+     * Executed a per index settings get request.
+     * @see #getSettings(org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest)
+     */
     ActionFuture<GetSettingsResponse> getSettings(GetSettingsRequest request);
 
+    /**
+     * Returns a builder for a per index settings get request.
+     * @param indices the indices to fetch the setting for.
+     * @see #getSettings(org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest)
+     */
     GetSettingsRequestBuilder prepareGetSettings(String... indices);
 }

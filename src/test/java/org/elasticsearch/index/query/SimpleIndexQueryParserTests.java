@@ -42,6 +42,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.*;
 import org.elasticsearch.common.lucene.search.function.BoostScoreFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
+import org.elasticsearch.common.lucene.search.function.WeightFactorFunction;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.DistanceUnit;
@@ -2329,6 +2330,34 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         } catch (QueryParsingException e) {
             assertThat(e.getDetailedMessage(), containsString("Use functions[{...},...] if you want to define several functions."));
         }
+    }
+
+    @Test
+    public void testWeight1fStillProducesWeighFuction() throws IOException {
+        IndexQueryParserService queryParser = queryParser();
+        String queryString = jsonBuilder().startObject()
+                .startObject("function_score")
+                .startArray("functions")
+                .startObject()
+                .startObject("field_value_factor")
+                .field("field", "popularity")
+                .endObject()
+                .field("weight", 1.0)
+                .endObject()
+                .endArray()
+                .endObject()
+                .endObject().string();
+        IndexService indexService = createIndex("testidx", client().admin().indices().prepareCreate("testidx")
+                .addMapping("doc",jsonBuilder().startObject()
+                        .startObject("properties")
+                        .startObject("popularity").field("type", "float").endObject()
+                        .endObject()
+                        .endObject()));
+        SearchContext.setCurrent(createSearchContext(indexService));
+        Query query = queryParser.parse(queryString).query();
+        assertThat(query, instanceOf(FunctionScoreQuery.class));
+        assertThat(((FunctionScoreQuery) query).getFunction(), instanceOf(WeightFactorFunction.class));
+        SearchContext.removeCurrent();
     }
 
     @Test

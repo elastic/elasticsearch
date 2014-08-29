@@ -157,7 +157,7 @@ public class FunctionScoreTests extends ElasticsearchIntegrationTest {
                 searchRequest().source(
                         searchSource().query(
                                 functionScoreQuery(termFilter(TEXT_FIELD, "value").cache(false))
-                                        .add(gaussDecayFunction(GEO_POINT_FIELD, new GeoPoint(10, 20), "1000km").setWeight(1))
+                                        .add(gaussDecayFunction(GEO_POINT_FIELD, new GeoPoint(10, 20), "1000km"))
                                         .add(fieldValueFactorFunction(FLOAT_FIELD).modifier(FieldValueFactorFunction.Modifier.LN).setWeight(2))
                                         .add(scriptFunction("_index['" + TEXT_FIELD + "']['value'].tf()").setWeight(3))
                         ).explain(true))).actionGet();

@@ -206,13 +206,7 @@ public class FunctionScoreQueryParser implements QueryParser {
                     }
                 }
                 if (functionWeight != null) {
-                    if (scoreFunction == null) {
-                        scoreFunction = new WeightFactorFunction(functionWeight.floatValue());
-                    } else {
-                        if (functionWeight != 1.0) {
-                            scoreFunction = new WeightFactorFunction(functionWeight, scoreFunction);
-                        }
-                    }
+                    scoreFunction = new WeightFactorFunction(functionWeight, scoreFunction);
                 }
             }
             if (filter == null) {

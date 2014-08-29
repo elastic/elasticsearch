@@ -89,12 +89,13 @@ public class DiscoverySettings extends AbstractComponent {
     }
 
     private ClusterBlock parseNoMasterBlock(String value) {
-        if ("all".equals(value)) {
-            return NO_MASTER_BLOCK_ALL;
-        } else if ("write".equals(value)) {
-            return NO_MASTER_BLOCK_WRITES;
-        } else {
-            throw new ElasticsearchIllegalArgumentException("invalid master block [" + value + "]");
+        switch (value) {
+            case "all":
+                return NO_MASTER_BLOCK_ALL;
+            case "write":
+                return NO_MASTER_BLOCK_WRITES;
+            default:
+                throw new ElasticsearchIllegalArgumentException("invalid master block [" + value + "]");
         }
     }
 }

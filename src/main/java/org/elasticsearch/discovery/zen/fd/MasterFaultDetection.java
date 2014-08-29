@@ -396,6 +396,7 @@ public class MasterFaultDetection extends AbstractComponent {
                 throw new NotMasterException();
             }
 
+            // ping from nodes of version < 1.4.0 will have the clustername set to null
             if (request.clusterName != null && !request.clusterName.equals(clusterName)) {
                 logger.trace("master fault detection ping request is targeted for a different [{}] cluster then us [{}]", request.clusterName, clusterName);
                 throw new NotMasterException("master fault detection ping request is targeted for a different [" + request.clusterName + "] cluster then us [" + clusterName + "]");

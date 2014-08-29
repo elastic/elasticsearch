@@ -90,7 +90,6 @@ public class MultiTermVectorsRequest extends ActionRequest<MultiTermVectorsReque
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
                     } else if (token == XContentParser.Token.START_ARRAY) {
-
                         if ("docs".equals(currentFieldName)) {
                             while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                                 if (token != XContentParser.Token.START_OBJECT) {

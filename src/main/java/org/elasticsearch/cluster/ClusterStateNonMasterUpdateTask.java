@@ -23,5 +23,10 @@ package org.elasticsearch.cluster;
  * This is a marker interface to indicate that the task should be executed
  * even if the current node is not a master.
  */
-public interface ClusterStateNonMasterUpdateTask extends ClusterStateUpdateTask {
+public abstract class ClusterStateNonMasterUpdateTask extends ClusterStateUpdateTask {
+
+    @Override
+    public boolean runOnlyOnMaster() {
+        return false;
+    }
 }

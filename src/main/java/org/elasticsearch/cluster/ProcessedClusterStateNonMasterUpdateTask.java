@@ -19,8 +19,13 @@
 package org.elasticsearch.cluster;
 
 /**
- * A combination interface between {@link org.elasticsearch.cluster.ProcessedClusterStateUpdateTask} and
+ * A combination between {@link org.elasticsearch.cluster.ProcessedClusterStateUpdateTask} and
  * {@link org.elasticsearch.cluster.ClusterStateNonMasterUpdateTask} to allow easy creation of anonymous classes
  */
-public interface ProcessedClusterStateNonMasterUpdateTask extends ProcessedClusterStateUpdateTask, ClusterStateNonMasterUpdateTask {
+abstract public class ProcessedClusterStateNonMasterUpdateTask extends ProcessedClusterStateUpdateTask {
+
+    @Override
+    public boolean runOnlyOnMaster() {
+        return false;
+    }
 }

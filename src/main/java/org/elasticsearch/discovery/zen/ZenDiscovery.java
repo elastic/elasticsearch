@@ -22,10 +22,7 @@ package org.elasticsearch.discovery.zen;
 import com.google.common.base.Objects;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
-import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
+import org.elasticsearch.*;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -80,7 +77,15 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
  */
 public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implements Discovery, DiscoveryNodesProvider {
 
-    public final static String REJOIN_ON_MASTER_GONE = "discovery.zen.rejoin_on_master_gone";
+    public final static String SETTING_REJOIN_ON_MASTER_GONE = "discovery.zen.rejoin_on_master_gone";
+    public final static String SETTING_PING_TIMEOUT = "discovery.zen.ping.timeout";
+    public final static String SETTING_JOIN_TIMEOUT = "discovery.zen.join_timeout";
+    public final static String SETTING_JOIN_RETRY_ATTEMPTS = "discovery.zen.join_retry_attempts";
+    public final static String SETTING_JOIN_RETRY_DELAY = "discovery.zen.join_retry_delay";
+    public final static String SETTING_MAX_PINGS_FROM_ANOTHER_MASTER = "discovery.zen.max_pings_from_another_master";
+    public final static String SETTING_SEND_LEAVE_REQUEST = "discovery.zen.send_leave_request";
+    public final static String SETTING_MASTER_ELECTION_FILTER_CLIENT = "discovery.zen.master_election.filter_client";
+    public final static String SETTING_MASTER_ELECTION_FILTER_DATA = "discovery.zen.master_election.filter_data";
 
     public static final String DISCOVERY_REJOIN_ACTION_NAME = "internal:discovery/zen/rejoin";
 
@@ -154,18 +159,28 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         this.version = version;
         this.electMaster = electMasterService;
 
+        // keep using componentSettings for BWC, in case this class gets extended.
+        TimeValue pingTimeout = componentSettings.getAsTime("initial_ping_timeout", timeValueSeconds(3));
+        pingTimeout = componentSettings.getAsTime("ping_timeout", pingTimeout);
+        pingTimeout = settings.getAsTime("discovery.zen.ping_timeout", pingTimeout);
+        this.pingTimeout = settings.getAsTime(SETTING_PING_TIMEOUT, pingTimeout);
 
-        // also support direct discovery.zen settings, for cases when it gets extended
-        this.pingTimeout = settings.getAsTime("discovery.zen.ping.timeout", settings.getAsTime("discovery.zen.ping_timeout", componentSettings.getAsTime("ping_timeout", componentSettings.getAsTime("initial_ping_timeout", timeValueSeconds(3)))));
-        this.joinTimeout = settings.getAsTime("discovery.zen.join_timeout", TimeValue.timeValueMillis(pingTimeout.millis() * 20));
-        this.joinRetryAttempts = settings.getAsInt("discovery.zen.join_retry_attempts", 3);
-        this.joinRetryDelay = settings.getAsTime("discovery.zen.join_retry_delay", TimeValue.timeValueMillis(100));
-        this.maxPingsFromAnotherMaster = settings.getAsInt("discovery.zen.max_pings_from_another_master", 3);
-        this.sendLeaveRequest = componentSettings.getAsBoolean("send_leave_request", true);
+        this.joinTimeout = settings.getAsTime(SETTING_JOIN_TIMEOUT, TimeValue.timeValueMillis(pingTimeout.millis() * 20));
+        this.joinRetryAttempts = settings.getAsInt(SETTING_JOIN_RETRY_ATTEMPTS, 3);
+        this.joinRetryDelay = settings.getAsTime(SETTING_JOIN_RETRY_DELAY, TimeValue.timeValueMillis(100));
+        this.maxPingsFromAnotherMaster = settings.getAsInt(SETTING_MAX_PINGS_FROM_ANOTHER_MASTER, 3);
+        this.sendLeaveRequest = settings.getAsBoolean(SETTING_SEND_LEAVE_REQUEST, true);
 
-        this.masterElectionFilterClientNodes = settings.getAsBoolean("discovery.zen.master_election.filter_client", true);
-        this.masterElectionFilterDataNodes = settings.getAsBoolean("discovery.zen.master_election.filter_data", false);
-        this.rejoinOnMasterGone = settings.getAsBoolean(REJOIN_ON_MASTER_GONE, true);
+        this.masterElectionFilterClientNodes = settings.getAsBoolean(SETTING_MASTER_ELECTION_FILTER_CLIENT, true);
+        this.masterElectionFilterDataNodes = settings.getAsBoolean(SETTING_MASTER_ELECTION_FILTER_DATA, false);
+        this.rejoinOnMasterGone = settings.getAsBoolean(SETTING_REJOIN_ON_MASTER_GONE, true);
+
+        if (this.joinRetryAttempts < 1) {
+            throw new ElasticsearchIllegalArgumentException("'" + SETTING_JOIN_RETRY_ATTEMPTS + "' must be a positive number. got [" + this.SETTING_JOIN_RETRY_ATTEMPTS + "]");
+        }
+        if (this.maxPingsFromAnotherMaster < 1) {
+            throw new ElasticsearchIllegalArgumentException("'" + SETTING_MAX_PINGS_FROM_ANOTHER_MASTER + "' must be a positive number. got [" + this.maxPingsFromAnotherMaster + "]");
+        }
 
         logger.debug("using ping.timeout [{}], join.timeout [{}], master_election.filter_client [{}], master_election.filter_data [{}]", pingTimeout, joinTimeout, masterElectionFilterClientNodes, masterElectionFilterDataNodes);
 
@@ -1164,9 +1179,9 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 handleMinimumMasterNodesChanged(minimumMasterNodes);
             }
 
-            boolean rejoinOnMasterGone = settings.getAsBoolean(REJOIN_ON_MASTER_GONE, ZenDiscovery.this.rejoinOnMasterGone);
+            boolean rejoinOnMasterGone = settings.getAsBoolean(SETTING_REJOIN_ON_MASTER_GONE, ZenDiscovery.this.rejoinOnMasterGone);
             if (rejoinOnMasterGone != ZenDiscovery.this.rejoinOnMasterGone) {
-                logger.info("updating {} from [{}] to [{}]", REJOIN_ON_MASTER_GONE, ZenDiscovery.this.rejoinOnMasterGone, rejoinOnMasterGone);
+                logger.info("updating {} from [{}] to [{}]", SETTING_REJOIN_ON_MASTER_GONE, ZenDiscovery.this.rejoinOnMasterGone, rejoinOnMasterGone);
                 ZenDiscovery.this.rejoinOnMasterGone = rejoinOnMasterGone;
             }
         }

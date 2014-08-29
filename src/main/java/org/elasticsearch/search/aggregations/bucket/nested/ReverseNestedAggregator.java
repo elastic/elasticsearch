@@ -81,7 +81,7 @@ public class ReverseNestedAggregator extends SingleBucketAggregator implements R
         bucketOrdToLastCollectedParentDoc.clear();
         try {
             // In ES if parent is deleted, then also the children are deleted, so the child docs this agg receives
-            // must belong to parent docs that are live. For this reason acceptedDocs can also null here.
+            // must belong to parent docs that is alive. For this reason acceptedDocs can be null here.
             DocIdSet docIdSet = parentFilter.getDocIdSet(reader, null);
             if (DocIdSets.isEmpty(docIdSet)) {
                 parentDocs = null;

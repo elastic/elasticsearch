@@ -46,7 +46,6 @@ final class TermVectorWriter {
     }
 
     void setFields(Fields termVectorsByField, Set<String> selectedFields, EnumSet<Flag> flags, Fields topLevelFields) throws IOException {
-
         int numFieldsWritten = 0;
         TermsEnum iterator = null;
         DocsAndPositionsEnum docsAndPosEnum = null;

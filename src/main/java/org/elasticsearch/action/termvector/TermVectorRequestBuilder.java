@@ -22,6 +22,7 @@ package org.elasticsearch.action.termvector;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
 /**
  */
@@ -33,6 +34,26 @@ public class TermVectorRequestBuilder extends ActionRequestBuilder<TermVectorReq
 
     public TermVectorRequestBuilder(Client client, String index, String type, String id) {
         super(client, new TermVectorRequest(index, type, id));
+    }
+
+    public TermVectorRequestBuilder setIndex(String index) {
+        request.index(index);
+        return this;
+    }
+
+    public TermVectorRequestBuilder setId(String id) {
+        request.id(id);
+        return this;
+    }
+
+    public TermVectorRequestBuilder setType(String type) {
+        request.type(type);
+        return this;
+    }
+
+    public TermVectorRequestBuilder setDoc(XContentBuilder xContent) {
+        request.doc(xContent);
+        return this;
     }
 
     /**

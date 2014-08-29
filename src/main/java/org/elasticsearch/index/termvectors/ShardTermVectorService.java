@@ -28,12 +28,13 @@ import org.elasticsearch.action.termvector.TermVectorResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.get.GetField;
 import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
@@ -44,6 +45,8 @@ import org.elasticsearch.index.shard.service.IndexShard;
 
 import java.io.IOException;
 import java.util.*;
+
+import static org.elasticsearch.index.mapper.SourceToParse.source;
 
 /**
  */
@@ -67,23 +70,35 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
         final Engine.Searcher searcher = indexShard.acquireSearcher("term_vector");
         IndexReader topLevelReader = searcher.reader();
         final TermVectorResponse termVectorResponse = new TermVectorResponse(concreteIndex, request.type(), request.id());
-        final Term uidTerm = new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(request.type(), request.id()));
+
+        // handle potential wildcards in fields
+        if (request.selectedFields() != null) {
+            handleFieldWildcards(request);
+        }
+
         try {
             Fields topLevelFields = MultiFields.getFields(topLevelReader);
-            Versions.DocIdAndVersion docIdAndVersion = Versions.loadDocIdAndVersion(topLevelReader, uidTerm);
-            if (docIdAndVersion != null) {
-                /* handle potential wildcards in fields */
-                if (request.selectedFields() != null) {
-                    handleFieldWildcards(request);
-                }
-                /* generate term vectors if not available */
-                Fields termVectorsByField = docIdAndVersion.context.reader().getTermVectors(docIdAndVersion.docId);
-                if (request.selectedFields() != null) {
-                    termVectorsByField = generateTermVectorsIfNeeded(termVectorsByField, request, uidTerm, false);
-                }
+            // from an artificial document
+            if (request.doc() != null) {
+                Fields termVectorsByField = generateTermVectorsFromDoc(request, topLevelFields);
                 termVectorResponse.setFields(termVectorsByField, request.selectedFields(), request.getFlags(), topLevelFields);
                 termVectorResponse.setExists(true);
+                termVectorResponse.setArtificial(true);
+                return termVectorResponse;
+            }
+            // or from an existing document
+            final Term uidTerm = new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(request.type(), request.id()));
+            Versions.DocIdAndVersion docIdAndVersion = Versions.loadDocIdAndVersion(topLevelReader, uidTerm);
+            if (docIdAndVersion != null) {
+                // fields with stored term vectors
+                Fields termVectorsByField = docIdAndVersion.context.reader().getTermVectors(docIdAndVersion.docId);
+                // fields without term vectors
+                if (request.selectedFields() != null) {
+                    termVectorsByField = addGeneratedTermVectors(termVectorsByField, request, uidTerm, false);
+                }
+                termVectorResponse.setFields(termVectorsByField, request.selectedFields(), request.getFlags(), topLevelFields);
                 termVectorResponse.setDocVersion(docIdAndVersion.version);
+                termVectorResponse.setExists(true);
             } else {
                 termVectorResponse.setExists(false);
             }
@@ -103,39 +118,52 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
         request.selectedFields(fieldNames.toArray(Strings.EMPTY_ARRAY));
     }
 
-    private Fields generateTermVectorsIfNeeded(Fields termVectorsByField, TermVectorRequest request, Term uidTerm, boolean realTime) throws IOException {
-        List<String> validFields = new ArrayList<>();
+    private boolean isValidField(FieldMapper field) {
+        // must be a string
+        if (!(field instanceof StringFieldMapper)) {
+            return false;
+        }
+        // and must be indexed
+        if (!field.fieldType().indexed()) {
+            return false;
+        }
+        return true;
+    }
+
+    private Fields addGeneratedTermVectors(Fields termVectorsByField, TermVectorRequest request, Term uidTerm, boolean realTime) throws IOException {
+        /* only keep valid fields */
+        Set<String> validFields = new HashSet<>();
         for (String field : request.selectedFields()) {
             FieldMapper fieldMapper = indexShard.mapperService().smartNameFieldMapper(field);
-            if (!(fieldMapper instanceof StringFieldMapper)) {
+            if (!isValidField(fieldMapper)) {
                 continue;
             }
+            // already retrieved
             if (fieldMapper.fieldType().storeTermVectors()) {
-                continue;
-            }
-            // only disallow fields which are not indexed
-            if (!fieldMapper.fieldType().indexed()) {
                 continue;
             }
             validFields.add(field);
         }
+
         if (validFields.isEmpty()) {
             return termVectorsByField;
         }
 
+        /* generate term vectors from fetched document fields */
         Engine.GetResult get = indexShard.get(new Engine.Get(realTime, uidTerm));
         Fields generatedTermVectors;
         try {
             if (!get.exists()) {
                 return termVectorsByField;
             }
-            // TODO: support for fetchSourceContext?
             GetResult getResult = indexShard.getService().get(
                     get, request.id(), request.type(), validFields.toArray(Strings.EMPTY_ARRAY), null, false);
             generatedTermVectors = generateTermVectors(getResult.getFields().values(), request.offsets());
         } finally {
             get.release();
         }
+
+        /* merge with existing Fields */
         if (termVectorsByField == null) {
             return generatedTermVectors;
         } else {
@@ -158,6 +186,35 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
         }
         // and read vectors from it
         return MultiFields.getFields(index.createSearcher().getIndexReader());
+    }
+
+    private Fields generateTermVectorsFromDoc(TermVectorRequest request, Fields topLevelFields) throws IOException {
+        DocumentMapper docMapper = indexShard.mapperService().documentMapper(request.type());
+        ParseContext.Document doc = docMapper.parse(source(request.doc()).type(request.type()).id(request.id())).rootDoc();
+
+        Collection<String> seenFields = new HashSet<>();
+        Collection<GetField> getFields = new HashSet<>();
+        for (IndexableField field : doc.getFields()) {
+            FieldMapper fieldMapper = indexShard.mapperService().smartNameFieldMapper(field.name());
+            if (seenFields.contains(field.name())) {
+                continue;
+            }
+            else {
+                seenFields.add(field.name());
+            }
+            if (topLevelFields.terms(field.name()) == null) {
+                continue;
+            }
+            if (!isValidField(fieldMapper)) {
+                continue;
+            }
+            if (request.selectedFields() != null && !request.selectedFields().contains(field.name())) {
+                continue;
+            }
+            String[] values = doc.getValues(field.name());
+            getFields.add(new GetField(field.name(), Arrays.asList((Object[]) values)));
+        }
+        return generateTermVectors(getFields, request.offsets());
     }
 
     private Fields mergeFields(String[] fieldNames, Fields... fieldsObject) throws IOException {

@@ -43,6 +43,7 @@ import org.junit.Test;
 
 import java.util.HashMap;
 
+import static org.elasticsearch.action.percolate.PercolateSourceBuilder.docBuilder;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
@@ -102,7 +103,7 @@ public class NoMasterNodeTests extends ElasticsearchIntegrationTest {
         );
 
         PercolateSourceBuilder percolateSource = new PercolateSourceBuilder();
-        percolateSource.percolateDocument().setDoc(new HashMap());
+        percolateSource.setDoc(docBuilder().setDoc(new HashMap()));
         assertThrows(client().preparePercolate()
                         .setIndices("test").setDocumentType("type1")
                         .setSource(percolateSource),
@@ -110,7 +111,7 @@ public class NoMasterNodeTests extends ElasticsearchIntegrationTest {
         );
 
         percolateSource = new PercolateSourceBuilder();
-        percolateSource.percolateDocument().setDoc(new HashMap());
+        percolateSource.setDoc(docBuilder().setDoc(new HashMap()));
         assertThrows(client().preparePercolate()
                         .setIndices("no_index").setDocumentType("type1")
                         .setSource(percolateSource),

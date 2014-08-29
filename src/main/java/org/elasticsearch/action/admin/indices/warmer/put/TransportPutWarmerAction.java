@@ -46,7 +46,9 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * Put warmer action.
+ * Internal Actions executed on the master associating a warmer with a name in the cluster state metadata.
+ *
+ * Note: this is an internal API and should not be used / called by any client code.
  */
 public class TransportPutWarmerAction extends TransportMasterNodeOperationAction<PutWarmerRequest, PutWarmerResponse> {
 

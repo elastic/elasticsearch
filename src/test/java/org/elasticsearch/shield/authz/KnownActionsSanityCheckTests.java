@@ -7,7 +7,6 @@ package org.elasticsearch.shield.authz;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.reflect.ClassPath;
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.common.io.Streams;
@@ -21,9 +20,7 @@ import java.io.InputStream;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 
-import static org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.is;
 
 /**
  *
@@ -61,13 +58,6 @@ public class KnownActionsSanityCheckTests extends ElasticsearchTestCase {
                 }
             }
         }
-    }
-
-    @Test @AwaitsFix(bugUrl = "waiting for core to change the action names")
-    public void testIndexTemplateActionIsIndicesAction() throws Exception {
-        assertThat(knownActions.contains("indices:admin/template/delete"), is(true));
-        assertThat(knownActions.contains("indices:admin/template/get"), is(true));
-        assertThat(knownActions.contains("indices:admin/template/put"), is(true));
     }
 
     private String extractActionName(Class clazz) throws Exception {

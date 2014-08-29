@@ -22,10 +22,13 @@ package org.elasticsearch.search.aggregations.metrics.max;
 import org.elasticsearch.search.aggregations.metrics.ValuesSourceMetricsAggregationBuilder;
 
 /**
- *
+ * Builder for the {@link Max} aggregation.
  */
 public class MaxBuilder extends ValuesSourceMetricsAggregationBuilder<MaxBuilder> {
 
+    /**
+     * Sole constructor.
+     */
     public MaxBuilder(String name) {
         super(name, InternalMax.TYPE.name());
     }

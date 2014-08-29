@@ -31,17 +31,25 @@ import java.util.List;
 import java.util.Map;
 
 /**
- *
+ * Builder for the {@link Filters} aggregation.
  */
 public class FiltersAggregationBuilder extends AggregationBuilder<FiltersAggregationBuilder> {
     
     private Map<String, FilterBuilder> keyedFilters = null;
     private List<FilterBuilder> nonKeyedFilters = null;
 
+    /**
+     * Sole constructor.
+     */
     public FiltersAggregationBuilder(String name) {
         super(name, InternalFilters.TYPE.name());
     }
 
+    /**
+     * Add a new filter with the given key.
+     * NOTE: if a filter was already defined for this key, then this filter will replace it.
+     * NOTE: the same {@link FiltersBuilder} cannot have both keyed and non-keyed filters
+     */
     public FiltersAggregationBuilder filter(String key, FilterBuilder filter) {
         if (keyedFilters == null) {
             keyedFilters = new LinkedHashMap<>();
@@ -50,6 +58,10 @@ public class FiltersAggregationBuilder extends AggregationBuilder<FiltersAggrega
         return this;
     }
 
+    /**
+     * Add a new filter with no key.
+     * NOTE: the same {@link FiltersBuilder} cannot have both keyed and non-keyed filters.
+     */
     public FiltersAggregationBuilder filter(FilterBuilder filter) {
         if (nonKeyedFilters == null) {
             nonKeyedFilters = new ArrayList<>();

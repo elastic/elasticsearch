@@ -24,43 +24,80 @@ import org.elasticsearch.search.aggregations.bucket.range.AbstractRangeBuilder;
 import java.io.IOException;
 
 /**
- *
+ * Builder for the {@link DateRange} aggregation.
  */
 public class DateRangeBuilder extends AbstractRangeBuilder<DateRangeBuilder> {
 
     private String format;
 
+    /**
+     * Sole constructor.
+     */
     public DateRangeBuilder(String name) {
         super(name, InternalDateRange.TYPE.name());
     }
 
+    /**
+     * Add a new range to this aggregation.
+     *
+     * @param key  the key to use for this range in the response
+     * @param from the lower bound on the distances, inclusive
+     * @parap to   the upper bound on the distances, exclusive
+     */
     public DateRangeBuilder addRange(String key, Object from, Object to) {
         ranges.add(new Range(key, from, to));
         return this;
     }
 
+    /**
+     * Same as {@link #addRange(String, double, double)} but the key will be
+     * automatically generated based on <code>from</code> and <code>to</code>.
+     */
     public DateRangeBuilder addRange(Object from, Object to) {
         return addRange(null, from, to);
     }
 
+    /**
+     * Add a new range with no lower bound.
+     *
+     * @param key the key to use for this range in the response
+     * @param to  the upper bound on the distances, exclusive
+     */
     public DateRangeBuilder addUnboundedTo(String key, Object to) {
         ranges.add(new Range(key, null, to));
         return this;
     }
 
+    /**
+     * Same as {@link #addUnboundedTo(String, double)} but the key will be
+     * computed automatically.
+     */
     public DateRangeBuilder addUnboundedTo(Object to) {
         return addUnboundedTo(null, to);
     }
 
+    /**
+     * Add a new range with no upper bound.
+     *
+     * @param key  the key to use for this range in the response
+     * @param from the lower bound on the distances, inclusive
+     */
     public DateRangeBuilder addUnboundedFrom(String key, Object from) {
         ranges.add(new Range(key, from, null));
         return this;
     }
 
+    /**
+     * Same as {@link #addUnboundedFrom(String, double)} but the key will be
+     * computed automatically.
+     */
     public DateRangeBuilder addUnboundedFrom(Object from) {
         return addUnboundedFrom(null, from);
     }
 
+    /**
+     * Set the format to use to display values.
+     */
     public DateRangeBuilder format(String format) {
         this.format = format;
         return this;

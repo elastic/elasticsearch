@@ -21,9 +21,12 @@ package org.elasticsearch.search.aggregations.metrics.avg;
 import org.elasticsearch.search.aggregations.Aggregation;
 
 /**
- *
+ * An aggregation that computes the average of the values in the current bucket.
  */
 public interface Avg extends Aggregation {
 
+    /**
+     * The average value.
+     */
     double getValue();
 }

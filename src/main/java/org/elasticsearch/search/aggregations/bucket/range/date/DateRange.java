@@ -24,7 +24,7 @@ import org.joda.time.DateTime;
 import java.util.Collection;
 
 /**
- *
+ * A range aggregation on date values.
  */
 public interface DateRange extends Range {
 

@@ -25,15 +25,22 @@ import org.elasticsearch.search.builder.SearchSourceBuilderException;
 import java.io.IOException;
 
 /**
+ * Builder for the {@link Children} aggregation.
  */
 public class ChildrenBuilder extends AggregationBuilder<ChildrenBuilder> {
 
     private String childType;
 
+    /**
+     * Sole constructor.
+     */
     public ChildrenBuilder(String name) {
         super(name, InternalChildren.TYPE.name());
     }
 
+    /**
+     * Set the type of children documents. This parameter is compulsory.
+     */
     public ChildrenBuilder childType(String childType) {
         this.childType = childType;
         return this;

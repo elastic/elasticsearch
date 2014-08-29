@@ -357,13 +357,30 @@ public class FunctionScoreTests extends ElasticsearchIntegrationTest {
 
         index(INDEX, TYPE, "1", SIMPLE_DOC);
         refresh();
-        String query = copyToStringFromClasspath("/org/elasticsearch/search/functionscore/function-score-query-with-weight-only.json");
+        String query =jsonBuilder().startObject()
+                .startObject("query")
+                .startObject("function_score")
+                .startArray("functions")
+                .startObject()
+                .field("weight",2)
+                .endObject()
+                .endArray()
+                .endObject()
+                .endObject()
+                .endObject().string();
         SearchResponse response = client().search(
                 searchRequest().source(query)
         ).actionGet();
         assertSearchResponse(response);
         assertThat(response.getHits().getAt(0).score(), equalTo(2.0f));
-        query = copyToStringFromClasspath("/org/elasticsearch/search/functionscore/function-score-query-with-weight-only-in-body.json");
+
+        query =jsonBuilder().startObject()
+                .startObject("query")
+                .startObject("function_score")
+                .field("weight",2)
+                .endObject()
+                .endObject()
+                .endObject().string();
         response = client().search(
                 searchRequest().source(query)
         ).actionGet();

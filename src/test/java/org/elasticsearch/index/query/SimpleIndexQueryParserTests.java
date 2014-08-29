@@ -2326,7 +2326,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/function-score-query-causing-NPE.json");
         try {
             queryParser.parse(query).query();
-            fail();
+            fail("FunctionScoreQueryParser should throw an exception here because two functions in body are not allowed.");
         } catch (QueryParsingException e) {
             assertThat(e.getDetailedMessage(), containsString("Use functions[{...},...] if you want to define several functions."));
         }
@@ -2363,30 +2363,44 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
     @Test
     public void testProperErrorMessagesForMisplacedWeightsAndFunctions() throws IOException {
         IndexQueryParserService queryParser = queryParser();
-        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/function-score-query-with-weight-for-boost_factor.json");
+        String query = jsonBuilder().startObject().startObject("function_score")
+                .startArray("functions")
+                .startObject().field("weight", 2).field("boost_factor",2).endObject()
+                .endArray()
+                .endObject().endObject().string();
         try {
             queryParser.parse(query).query();
-            fail();
+            fail("Expect exception here because boost_factor must not have a weight");
         } catch (QueryParsingException e) {
             assertThat(e.getDetailedMessage(), containsString(BoostScoreFunction.BOOST_WEIGHT_ERROR_MESSAGE));
         }
         try {
             functionScoreQuery().add(factorFunction(2.0f).setWeight(2.0f));
-            fail();
+            fail("Expect exception here because boost_factor must not have a weight");
         } catch (ElasticsearchIllegalArgumentException e) {
             assertThat(e.getDetailedMessage(), containsString(BoostScoreFunction.BOOST_WEIGHT_ERROR_MESSAGE));
         }
-        query = copyToStringFromClasspath("/org/elasticsearch/index/query/function-score-query-with-functions-and-weight-in-body.json");
+        query = jsonBuilder().startObject().startObject("function_score")
+                .startArray("functions")
+                .startObject().field("boost_factor",2).endObject()
+                .endArray()
+                .field("weight", 2)
+                .endObject().endObject().string();
         try {
             queryParser.parse(query).query();
-            fail();
+            fail("Expect exception here because array of functions and one weight in body is not allowed.");
         } catch (QueryParsingException e) {
             assertThat(e.getDetailedMessage(), containsString("You can either define \"functions\":[...] or a single function, not both. Found \"functions\": [...] already, now encountering \"weight\"."));
         }
-        query = copyToStringFromClasspath("/org/elasticsearch/index/query/function-score-query-with-weight-and-functions-in-body.json");
+        query = jsonBuilder().startObject().startObject("function_score")
+                .field("weight", 2)
+                .startArray("functions")
+                .startObject().field("boost_factor",2).endObject()
+                .endArray()
+                .endObject().endObject().string();
         try {
             queryParser.parse(query).query();
-            fail();
+            fail("Expect exception here because array of functions and one weight in body is not allowed.");
         } catch (QueryParsingException e) {
             assertThat(e.getDetailedMessage(), containsString("You can either define \"functions\":[...] or a single function, not both. Found \"weight\" already, now encountering \"functions\": [...]."));
         }

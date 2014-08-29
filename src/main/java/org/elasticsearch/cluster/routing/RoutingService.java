@@ -150,11 +150,14 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
                 }
 
                 @Override
+                public void onNoLongerMaster(String source) {
+                    // no biggie
+                }
+
+                @Override
                 public void onFailure(String source, Throwable t) {
-                    if (!(t instanceof ClusterService.NoLongerMasterException)) {
                         ClusterState state = clusterService.state();
                         logger.error("unexpected failure during [{}], current state:\n{}", t, source, state.prettyPrint());
-                    }
                 }
             });
             routingTableDirty = false;

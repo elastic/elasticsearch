@@ -43,6 +43,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.discovery.DiscoverySettings;
@@ -477,12 +478,13 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 }
 
                 @Override
+                public void onNoLongerMaster(String source) {
+                    // ignoring (already logged)
+                }
+
+                @Override
                 public void onFailure(String source, Throwable t) {
-                    if (t instanceof ClusterService.NoLongerMasterException) {
-                        logger.debug("not processing {} leave request as we are no longer master", node);
-                    } else {
-                        logger.error("unexpected failure during [{}]", t, source);
-                    }
+                    logger.error("unexpected failure during [{}]", t, source);
                 }
             });
         } else {
@@ -516,12 +518,13 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             }
 
             @Override
+            public void onNoLongerMaster(String source) {
+                // already logged
+            }
+
+            @Override
             public void onFailure(String source, Throwable t) {
-                if (t instanceof ClusterService.NoLongerMasterException) {
-                    logger.debug("not processing [{}] as we are no longer master", source);
-                } else {
-                    logger.error("unexpected failure during [{}]", t, source);
-                }
+                logger.error("unexpected failure during [{}]", t, source);
             }
 
             @Override
@@ -552,13 +555,15 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 return currentState;
             }
 
+
+            @Override
+            public void onNoLongerMaster(String source) {
+                // ignoring (already logged)
+            }
+
             @Override
             public void onFailure(String source, Throwable t) {
-                if (t instanceof ClusterService.NoLongerMasterException) {
-                    logger.debug("not processing [{}] as we are no longer master", source);
-                } else {
-                    logger.error("unexpected failure during [{}]", t, source);
-                }
+                logger.error("unexpected failure during [{}]", t, source);
             }
 
             @Override
@@ -870,15 +875,25 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 }
 
                 @Override
-                public void onFailure(String source, Throwable t) {
-                    if (t instanceof ClusterService.NoLongerMasterException) {
-                        logger.debug("not processing [{}] as we are no longer master", source);
-                    } else {
-                        logger.error("unexpected failure during [{}]", t, source);
-                    }
+                public void onNoLongerMaster(String source) {
+                    Exception e = new EsRejectedExecutionException("no longer master. source: [" + source + "]");
+                    innerOnFailure(e);
+                }
+
+                void innerOnFailure(Throwable t) {
                     for (Tuple<DiscoveryNode, MembershipAction.JoinCallback> drainedTask : drainedTasks) {
-                        drainedTask.v2().onFailure(t);
+                        try {
+                            drainedTask.v2().onFailure(t);
+                        } catch (Exception e) {
+                            logger.error("error during task failure", e);
+                        }
                     }
+                }
+
+                @Override
+                public void onFailure(String source, Throwable t) {
+                    logger.error("unexpected failure during [{}]", t, source);
+                    innerOnFailure(t);
                 }
 
                 @Override
@@ -1158,12 +1173,13 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 }
 
                 @Override
+                public void onNoLongerMaster(String source) {
+                    // already logged
+                }
+
+                @Override
                 public void onFailure(String source, Throwable t) {
-                    if (t instanceof ClusterService.NoLongerMasterException) {
-                        logger.debug("not processing [{}] as we are no longer master", source);
-                    } else {
-                        logger.error("unexpected failure during [{}]", t, source);
-                    }
+                    logger.error("unexpected failure during [{}]", t, source);
                 }
             });
         }

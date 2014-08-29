@@ -2321,7 +2321,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
     }
 
     @Test
-    public void checkProperErrorMessageWhenTwoFunctionsDefinedInQueryBody() throws IOException {
+    public void testProperErrorMessageWhenTwoFunctionsDefinedInQueryBody() throws IOException {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/function-score-query-causing-NPE.json");
         try {
@@ -2361,7 +2361,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
     }
 
     @Test
-    public void checkProperErrorMessagesForMisplacedWeightsAndFunctions() throws IOException {
+    public void testProperErrorMessagesForMisplacedWeightsAndFunctions() throws IOException {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/function-score-query-with-weight-for-boost_factor.json");
         try {

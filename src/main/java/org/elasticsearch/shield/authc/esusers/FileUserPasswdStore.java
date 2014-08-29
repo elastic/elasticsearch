@@ -53,7 +53,7 @@ public class FileUserPasswdStore extends AbstractComponent implements UserPasswd
     FileUserPasswdStore(Settings settings, Environment env, ResourceWatcherService watcherService, Listener listener) {
         super(settings);
         file = resolveFile(settings, env);
-        esUsers = ImmutableMap.copyOf(parseFile(file, logger));
+        esUsers = parseFile(file, logger);
         watcher = new FileWatcher(file.getParent().toFile());
         watcher.addListener(new FileListener());
         watcherService.add(watcher);
@@ -131,7 +131,7 @@ public class FileUserPasswdStore extends AbstractComponent implements UserPasswd
         @Override
         public void onFileCreated(File file) {
             if (file.equals(FileUserPasswdStore.this.file.toFile())) {
-                esUsers = ImmutableMap.copyOf(parseFile(file.toPath(), logger));
+                esUsers = parseFile(file.toPath(), logger);
                 listener.onRefresh();
             }
         }
@@ -147,7 +147,7 @@ public class FileUserPasswdStore extends AbstractComponent implements UserPasswd
         @Override
         public void onFileChanged(File file) {
             if (file.equals(FileUserPasswdStore.this.file.toFile())) {
-                esUsers = ImmutableMap.copyOf(parseFile(file.toPath(), logger));
+                esUsers = parseFile(file.toPath(), logger);
                 listener.onRefresh();
             }
         }

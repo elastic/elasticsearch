@@ -464,10 +464,10 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
             files.addAll(Arrays.asList(file.listFiles(new FileFilter() {
                 @Override
                 public boolean accept(File pathname) {
-                    return pathname.isFile() && !"write.lock".equals(pathname.getName()) &&
-                            (includePerCommitFiles == true // .del and segments_N are per commit files and might change after corruption
-                                    || pathname.getName().startsWith("segments") == false
-                                    || pathname.getName().endsWith(".del") == false);
+                    if (pathname.isFile() && "write.lock".equals(pathname.getName()) == false) {
+                        return (includePerCommitFiles || isPerSegmentFile(pathname.getName()));
+                    }
+                    return false; // no dirs no write.locks
                 }
             })));
         }
@@ -512,6 +512,15 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
         }
         assertThat("no file corrupted", fileToCorrupt, notNullValue());
         return shardRouting;
+    }
+
+    private static final boolean isPerCommitFile(String fileName) {
+        // .del and segments_N are per commit files and might change after corruption
+        return fileName.startsWith("segments") || fileName.endsWith(".del");
+    }
+
+    private static final boolean isPerSegmentFile(String fileName) {
+        return isPerCommitFile(fileName) == false;
     }
 
     /**

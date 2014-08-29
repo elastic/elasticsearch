@@ -31,9 +31,9 @@ public class WeightFactorFunction extends ScoreFunction {
 
     private static final ScoreFunction SCORE_ONE = new ScoreOne(CombineFunction.MULT);
     private final ScoreFunction scoreFunction;
-    private double weight = 1.0;
+    private float weight = 1.0f;
 
-    public WeightFactorFunction(double weight, ScoreFunction scoreFunction) {
+    public WeightFactorFunction(float weight, ScoreFunction scoreFunction) {
         super(CombineFunction.MULT);
         if (scoreFunction instanceof BoostScoreFunction) {
             throw new ElasticsearchIllegalArgumentException(BoostScoreFunction.BOOST_WEIGHT_ERROR_MESSAGE);
@@ -46,7 +46,7 @@ public class WeightFactorFunction extends ScoreFunction {
         this.weight = weight;
     }
 
-    public WeightFactorFunction(double weight) {
+    public WeightFactorFunction(float weight) {
         super(CombineFunction.MULT);
         this.scoreFunction = SCORE_ONE;
         this.weight = weight;
@@ -73,10 +73,10 @@ public class WeightFactorFunction extends ScoreFunction {
     }
 
     public Explanation explainWeight() {
-        return new Explanation((float) getWeight(), "weight");
+        return new Explanation(getWeight(), "weight");
     }
 
-    public double getWeight() {
+    public float getWeight() {
         return weight;
     }
 

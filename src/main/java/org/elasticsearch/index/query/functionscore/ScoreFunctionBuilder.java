@@ -26,12 +26,12 @@ import java.io.IOException;
 
 public abstract class ScoreFunctionBuilder implements ToXContent {
 
-    public ScoreFunctionBuilder setWeight(double weight) {
+    public ScoreFunctionBuilder setWeight(float weight) {
         this.weight = weight;
         return this;
     }
 
-    private Double weight;
+    private Float weight;
 
     public abstract String getName();
 

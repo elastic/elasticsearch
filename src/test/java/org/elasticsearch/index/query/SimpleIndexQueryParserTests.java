@@ -2342,7 +2342,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
             assertThat(e.getDetailedMessage(), containsString(BoostScoreFunction.BOOST_WEIGHT_ERROR_MESSAGE));
         }
         try {
-            functionScoreQuery().add(factorFunction(2.0f).setWeight(2.0));
+            functionScoreQuery().add(factorFunction(2.0f).setWeight(2.0f));
             fail();
         } catch (ElasticsearchIllegalArgumentException e) {
             assertThat(e.getDetailedMessage(), containsString(BoostScoreFunction.BOOST_WEIGHT_ERROR_MESSAGE));

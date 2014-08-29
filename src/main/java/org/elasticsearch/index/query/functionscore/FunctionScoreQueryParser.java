@@ -119,7 +119,7 @@ public class FunctionScoreQueryParser implements QueryParser {
             } else {
                 ScoreFunction scoreFunction;
                 if (currentFieldName.equals("weight")) {
-                    scoreFunction = new WeightFactorFunction(parser.doubleValue());
+                    scoreFunction = new WeightFactorFunction(parser.floatValue());
 
                 } else {
                     // we try to parse a score function. If there is no score
@@ -183,7 +183,7 @@ public class FunctionScoreQueryParser implements QueryParser {
         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
             Filter filter = null;
             ScoreFunction scoreFunction = null;
-            Double functionWeight = null;
+            Float functionWeight = null;
             if (token != XContentParser.Token.START_OBJECT) {
                 throw new QueryParsingException(parseContext.index(), NAME + ": malformed query, expected a "
                         + XContentParser.Token.START_OBJECT + " while parsing functions but got a " + token);
@@ -192,7 +192,7 @@ public class FunctionScoreQueryParser implements QueryParser {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
                     } else if (WEIGHT_FIELD.match(currentFieldName)) {
-                        functionWeight = parser.doubleValue();
+                        functionWeight = parser.floatValue();
                     } else {
                         if ("filter".equals(currentFieldName)) {
                             filter = parseContext.parseInnerFilter();
@@ -207,7 +207,7 @@ public class FunctionScoreQueryParser implements QueryParser {
                 }
                 if (functionWeight != null) {
                     if (scoreFunction == null) {
-                        scoreFunction = new WeightFactorFunction(functionWeight.doubleValue());
+                        scoreFunction = new WeightFactorFunction(functionWeight.floatValue());
                     } else {
                         if (functionWeight != 1.0) {
                             scoreFunction = new WeightFactorFunction(functionWeight, scoreFunction);

@@ -81,7 +81,7 @@ public class ScoreFunctionBuilders {
         return (new RandomScoreFunctionBuilder()).seed(seed);
     }
     
-    public static WeightBuilder weightFactorFunction(double weight) {
+    public static WeightBuilder weightFactorFunction(float weight) {
         return (WeightBuilder)(new WeightBuilder().setWeight(weight));
     }
 

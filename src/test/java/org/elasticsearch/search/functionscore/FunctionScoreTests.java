@@ -169,7 +169,7 @@ public class FunctionScoreTests extends ElasticsearchIntegrationTest {
                 searchRequest().source(
                         searchSource().query(
                                 functionScoreQuery(termFilter(TEXT_FIELD, "value").cache(false))
-                                        .add(weightFactorFunction(4.0))
+                                        .add(weightFactorFunction(4.0f))
                         ).explain(true))).actionGet();
         assertThat(responseWithWeights.getHits().getAt(0).getExplanation().toString(),
                 equalTo("4.0 = (MATCH) function score, product of:\n  1.0 = (MATCH) ConstantScore(text_field:value), product of:\n    1.0 = boost\n    1.0 = queryNorm\n  4.0 = (MATCH) Math.min of\n    4.0 = (MATCH) product of:\n      1.0 = constant score 1.0 - no function provided\n      4.0 = weight\n    3.4028235E38 = maxBoost\n  1.0 = queryBoost\n")
@@ -225,14 +225,14 @@ public class FunctionScoreTests extends ElasticsearchIntegrationTest {
         index(INDEX, TYPE, "1", doc);
         refresh();
         ScoreFunctionBuilder[] scoreFunctionBuilders = getScoreFunctionBuilders();
-        double[] weights = createRandomWeights(scoreFunctionBuilders.length);
-        double[] scores = getScores(scoreFunctionBuilders);
+        float[] weights = createRandomWeights(scoreFunctionBuilders.length);
+        float[] scores = getScores(scoreFunctionBuilders);
 
         String scoreMode = getRandomScoreMode();
         FunctionScoreQueryBuilder withWeights = functionScoreQuery(termFilter(TEXT_FIELD, "value")).scoreMode(scoreMode);
         int weightscounter = 0;
         for (ScoreFunctionBuilder builder : scoreFunctionBuilders) {
-            withWeights.add(builder.setWeight(weights[weightscounter]));
+            withWeights.add(builder.setWeight((float) weights[weightscounter]));
             weightscounter++;
         }
         SearchResponse responseWithWeights = client().search(
@@ -244,20 +244,20 @@ public class FunctionScoreTests extends ElasticsearchIntegrationTest {
 
     }
 
-    protected double computeExpectedScore(double[] weights, double[] scores, String scoreMode) {
-        double expectedScore = 0.0;
+    protected float computeExpectedScore(float[] weights, float[] scores, String scoreMode) {
+        float expectedScore = 0.0f;
         if ("multiply".equals(scoreMode)) {
-            expectedScore = 1.0;
+            expectedScore = 1.0f;
         }
         if ("max".equals(scoreMode)) {
-            expectedScore = Double.MAX_VALUE * -1.0;
+            expectedScore = Float.MAX_VALUE * -1.0f;
         }
         if ("min".equals(scoreMode)) {
-            expectedScore = Double.MAX_VALUE;
+            expectedScore = Float.MAX_VALUE;
         }
 
         for (int i = 0; i < weights.length; i++) {
-            double functionScore = weights[i] * scores[i];
+            float functionScore = weights[i] * scores[i];
 
             if ("avg".equals(scoreMode)) {
                 expectedScore += functionScore;
@@ -297,8 +297,8 @@ public class FunctionScoreTests extends ElasticsearchIntegrationTest {
         refresh();
         ScoreFunctionBuilder[] scoreFunctionBuilders = getScoreFunctionBuilders();
         ScoreFunctionBuilder scoreFunctionBuilder = scoreFunctionBuilders[randomInt(3)];
-        double[] weights = createRandomWeights(1);
-        double[] scores = getScores(scoreFunctionBuilder);
+        float[] weights = createRandomWeights(1);
+        float[] scores = getScores(scoreFunctionBuilder);
         FunctionScoreQueryBuilder withWeights = functionScoreQuery(termFilter(TEXT_FIELD, "value"));
         withWeights.add(scoreFunctionBuilder.setWeight(weights[0]));
 
@@ -306,7 +306,7 @@ public class FunctionScoreTests extends ElasticsearchIntegrationTest {
                 searchRequest().source(searchSource().query(withWeights))
         ).actionGet();
 
-        assertThat(scores[0] * weights[0] / responseWithWeights.getHits().getAt(0).getScore(), closeTo(1.0, 1.e-6));
+        assertThat((double) scores[0] * weights[0] / responseWithWeights.getHits().getAt(0).getScore(), closeTo(1.0, 1.e-6));
 
     }
 
@@ -315,8 +315,8 @@ public class FunctionScoreTests extends ElasticsearchIntegrationTest {
         return scoreModes[randomInt(scoreModes.length - 1)];
     }
 
-    private double[] getScores(ScoreFunctionBuilder... scoreFunctionBuilders) {
-        double[] scores = new double[scoreFunctionBuilders.length];
+    private float[] getScores(ScoreFunctionBuilder... scoreFunctionBuilders) {
+        float[] scores = new float[scoreFunctionBuilders.length];
         int scorecounter = 0;
         for (ScoreFunctionBuilder builder : scoreFunctionBuilders) {
             SearchResponse response = client().search(
@@ -331,10 +331,10 @@ public class FunctionScoreTests extends ElasticsearchIntegrationTest {
         return scores;
     }
 
-    private double[] createRandomWeights(int size) {
-        double[] weights = new double[size];
+    private float[] createRandomWeights(int size) {
+        float[] weights = new float[size];
         for (int i = 0; i < weights.length; i++) {
-            weights[i] = randomFloat() * (randomBoolean() ? 1.0 : -1.0) * (double) randomInt(100) + 1.e-6;
+            weights[i] = randomFloat() * (randomBoolean() ? 1.0f : -1.0f) * (float) randomInt(100) + 1.e-6f;
         }
         return weights;
     }
@@ -370,12 +370,12 @@ public class FunctionScoreTests extends ElasticsearchIntegrationTest {
         assertSearchResponse(response);
         assertThat(response.getHits().getAt(0).score(), equalTo(2.0f));
         response = client().search(
-                searchRequest().source(searchSource().query(functionScoreQuery().add(new WeightBuilder().setWeight(2.0))))
+                searchRequest().source(searchSource().query(functionScoreQuery().add(new WeightBuilder().setWeight(2.0f))))
         ).actionGet();
         assertSearchResponse(response);
         assertThat(response.getHits().getAt(0).score(), equalTo(2.0f));
         response = client().search(
-                searchRequest().source(searchSource().query(functionScoreQuery().add(weightFactorFunction(2.0))))
+                searchRequest().source(searchSource().query(functionScoreQuery().add(weightFactorFunction(2.0f))))
         ).actionGet();
         assertSearchResponse(response);
         assertThat(response.getHits().getAt(0).score(), equalTo(2.0f));

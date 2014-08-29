@@ -35,7 +35,7 @@ import java.util.Collection;
  **/
 public class PrecisionAtResponse extends ActionResponse {
 
-    private Collection<PrecisionResult> precisionResults;
+    private Collection<PrecisionResult> precisionResults = new ArrayList<PrecisionResult>();
     
     public void addPrecisionAt(int specId, double precision, Collection<String> unknownDocs) {
         PrecisionResult result = new PrecisionResult();
@@ -43,6 +43,10 @@ public class PrecisionAtResponse extends ActionResponse {
         result.setPrecision(precision);
         result.setUnknownDocs(unknownDocs);
         this.precisionResults.add(result);
+    }
+    
+    public Collection<PrecisionResult> getPrecision() {
+        return precisionResults;
     }
 
     @Override

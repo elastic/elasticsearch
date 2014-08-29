@@ -21,7 +21,6 @@ package org.elasticsearch.action.quality;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.quality.PrecisionAtN.Rating;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -59,13 +58,13 @@ public class PrecisionAtRequest extends ActionRequest<PrecisionAtRequest> {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        Collection<Intent<Rating>> intents = new ArrayList<>();
+        Collection<Intent<String>> intents = new ArrayList<>();
         int intentSize = in.readInt();
         for (int i = 0; i < intentSize; i++) {
-            Intent<Rating> intent = new Intent<Rating>();
+            Intent<String> intent = new Intent<String>();
             intent.setIntentId(in.readInt());
             intent.setIntentParameters((Map<String, String>) in.readGenericValue());
-            intent.setRatedDocuments((Map<String, Rating>) in.readGenericValue());
+            intent.setRatedDocuments((Map<String, String>) in.readGenericValue());
             intents.add(intent);
         }
         
@@ -91,11 +90,11 @@ public class PrecisionAtRequest extends ActionRequest<PrecisionAtRequest> {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        Collection<Intent<Rating>> intents = task.getIntents();
+        Collection<Intent<String>> intents = task.getIntents();
         Collection<Specification> specs = task.getSpecifications();
         
         out.writeInt(intents.size());
-        for (Intent<Rating> intent : intents) {
+        for (Intent<String> intent : intents) {
             out.writeInt(intent.getIntentId());
             out.writeGenericValue(intent.getIntentParameters());
             out.writeGenericValue(intent.getRatedDocuments());

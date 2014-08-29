@@ -22,7 +22,6 @@ package org.elasticsearch.action.quality;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.quality.PrecisionAtN.Precision;
-import org.elasticsearch.action.quality.PrecisionAtN.Rating;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportSearchAction;
@@ -59,8 +58,8 @@ public class TransportPrecisionAtAction extends TransportAction<PrecisionAtReque
             Collection<String> unknownDocs = new HashSet<String>();
 
             SearchRequest templated = spec.getTemplatedSearchRequest();
-            Collection<Intent<Rating>> intents = qualityTask.getIntents();
-            for (Intent<Rating> intent : intents) {
+            Collection<Intent<String>> intents = qualityTask.getIntents();
+            for (Intent<String> intent : intents) {
                 Map<String, String> templateParams = intent.getIntentParameters();
                 templated.templateParams(templateParams);
                 ActionFuture<SearchResponse> searchResponse = transportSearchAction.execute(templated);

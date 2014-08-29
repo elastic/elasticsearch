@@ -22,7 +22,6 @@ package org.elasticsearch.action.quality;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Maps;
 import org.elasticsearch.action.quality.PrecisionAtN.Precision;
-import org.elasticsearch.action.quality.PrecisionAtN.Rating;
 import org.elasticsearch.search.SearchHit;
 
 import java.util.ArrayList;
@@ -35,7 +34,7 @@ import javax.naming.directory.SearchResult;
 /**
  * Evaluate Precision at N, N being the number of search results to consider for precision calculation.
  * */
-public class PrecisionAtN implements RankedListQualityMetric<Rating, Precision> {
+public class PrecisionAtN implements RankedListQualityMetric<String, Precision> {
     
     /** Number of results to check against a given set of relevant results. */
     private final int n;
@@ -52,18 +51,18 @@ public class PrecisionAtN implements RankedListQualityMetric<Rating, Precision> 
      * @param hits hits as returned for some query
      * @return precision at n for above {@link SearchResult} list.
      **/
-    public Precision evaluate(Map<String, Rating> ratedDocIds, SearchHit[] hits) {
-        Collection<String> relevantDocIds = Maps.filterEntries(ratedDocIds, new Predicate<Entry<String, Rating>> () {
+    public Precision evaluate(Map<String, String> ratedDocIds, SearchHit[] hits) {
+        Collection<String> relevantDocIds = Maps.filterEntries(ratedDocIds, new Predicate<Entry<String, String>> () {
             @Override
-            public boolean apply(Entry<String, Rating> input) {
-                return Rating.RELEVANT.equals(input.getValue());
+            public boolean apply(Entry<String, String> input) {
+                return Rating.RELEVANT.equals(Rating.valueOf(input.getValue()));
             }
         }).keySet();
         
-        Collection<String> irrelevantDocIds = Maps.filterEntries(ratedDocIds, new Predicate<Entry<String, Rating>> () {
+        Collection<String> irrelevantDocIds = Maps.filterEntries(ratedDocIds, new Predicate<Entry<String, String>> () {
             @Override
-            public boolean apply(Entry<String, Rating> input) {
-                return Rating.IRRELEVANT.equals(input.getValue());
+            public boolean apply(Entry<String, String> input) {
+                return Rating.IRRELEVANT.equals(Rating.valueOf(input.getValue()));
             }
         }).keySet();
 

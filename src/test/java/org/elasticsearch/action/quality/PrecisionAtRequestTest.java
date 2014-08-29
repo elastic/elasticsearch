@@ -21,9 +21,11 @@ package org.elasticsearch.action.quality;
 
 import com.google.common.collect.Maps;
 import org.elasticsearch.action.quality.PrecisionAtN.Rating;
+import org.elasticsearch.action.quality.PrecisionAtResponse.PrecisionResult;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.query.MatchQueryBuilder;
+import org.elasticsearch.index.query.TemplateQueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Before;
@@ -45,29 +47,29 @@ public class PrecisionAtRequestTest extends ElasticsearchIntegrationTest {
         ensureGreen();
 
         client().prepareIndex("test", "testtype").setId("1")
-                .setSource("text", "value1").get();
+                .setSource("text", "berlin").get();
         client().prepareIndex("test", "testtype").setId("2")
-                .setSource("text", "value2").get();
+                .setSource("text", "amsterdam").get();
         client().prepareIndex("test", "testtype").setId("3")
-                .setSource("text", "value2").get();
+                .setSource("text", "amsterdam").get();
         client().prepareIndex("test", "testtype").setId("4")
-                .setSource("text", "value2").get();
+                .setSource("text", "amsterdam").get();
         client().prepareIndex("test", "testtype").setId("5")
-                .setSource("text", "value2").get();
+                .setSource("text", "amsterdam").get();
         client().prepareIndex("test", "testtype").setId("6")
-                .setSource("text", "value2").get();
+                .setSource("text", "amsterdam").get();
         refresh();
     }
 
     @Test
     public void testPrecisionAtFiveCalculation() throws IOException, InterruptedException, ExecutionException {
-        MatchQueryBuilder query = new MatchQueryBuilder("text", "value1");
+        MatchQueryBuilder query = new MatchQueryBuilder("text", "berlin");
 
         SearchResponse response = client().prepareSearch().setQuery(query)
                 .execute().actionGet();
 
-        Map<String, Rating> relevant = Maps.newHashMap();
-        relevant.put("1", Rating.RELEVANT);
+        Map<String, String> relevant = Maps.newHashMap();
+        relevant.put("1", Rating.RELEVANT.name());
         SearchHit[] hits = response.getHits().getHits();
 
         assertEquals(1, (new PrecisionAtN(5)).evaluate(relevant, hits).getPrecision(), 0.00001);
@@ -75,17 +77,17 @@ public class PrecisionAtRequestTest extends ElasticsearchIntegrationTest {
     
     @Test
     public void testPrecisionAtFiveIgnoreOneResult() throws IOException, InterruptedException, ExecutionException {
-        MatchQueryBuilder query = new MatchQueryBuilder("text", "value2");
+        MatchQueryBuilder query = new MatchQueryBuilder("text", "amsterdam");
 
         SearchResponse response = client().prepareSearch().setQuery(query)
                 .execute().actionGet();
 
-        Map<String, Rating> relevant = Maps.newHashMap();
-        relevant.put("2", Rating.RELEVANT);
-        relevant.put("3", Rating.RELEVANT);
-        relevant.put("4", Rating.RELEVANT);
-        relevant.put("5", Rating.RELEVANT);
-        relevant.put("6",  Rating.IRRELEVANT);
+        Map<String, String> relevant = Maps.newHashMap();
+        relevant.put("2", Rating.RELEVANT.name());
+        relevant.put("3", Rating.RELEVANT.name());
+        relevant.put("4", Rating.RELEVANT.name());
+        relevant.put("5", Rating.RELEVANT.name());
+        relevant.put("6",  Rating.IRRELEVANT.name());
         SearchHit[] hits = response.getHits().getHits();
 
         assertEquals((double) 4 / 5, (new PrecisionAtN(5)).evaluate(relevant, hits).getPrecision(), 0.00001);
@@ -93,20 +95,22 @@ public class PrecisionAtRequestTest extends ElasticsearchIntegrationTest {
 
     @Test
     public void testPrecisionAction() {
-        MatchQueryBuilder query = new MatchQueryBuilder("text", "value2");
+        TemplateQueryBuilder query = new TemplateQueryBuilder("$template", new HashMap<String, Object>());
         SearchRequest request = client().prepareSearch("test").setQuery(query.buildAsBytes()).request();
         
-        Map<String, Rating> relevant = Maps.newHashMap();
-        relevant.put("2", Rating.RELEVANT);
-        relevant.put("3", Rating.RELEVANT);
-        relevant.put("4", Rating.RELEVANT);
-        relevant.put("5", Rating.RELEVANT);
 
-        Collection<Intent<Rating>> intents = new ArrayList<Intent<Rating>>();
-        Intent<Rating> intent = new Intent<>();
-        intent.setIntentId(0);
-        intent.setRatedDocuments(relevant);
-        intent.setIntentParameters(new HashMap<String, String>());
+        Collection<Intent<String>> intents = new ArrayList<Intent<String>>();
+        Intent<String> intentAmsterdam = new Intent<>();
+        intentAmsterdam.setIntentId(0);
+        intentAmsterdam.setRatedDocuments(createRelevant("2", "3", "4", "5"));
+        intentAmsterdam.setIntentParameters(createParams("$template", "amsterdam"));
+        intents.add(intentAmsterdam);
+
+        Intent<String> intentBerlin = new Intent<>();
+        intentAmsterdam.setIntentId(0);
+        intentAmsterdam.setRatedDocuments(createRelevant("1"));
+        intentAmsterdam.setIntentParameters(createParams("$template", "berlin"));
+        intents.add(intentBerlin);
 
         Collection<Specification> specs = new ArrayList<Specification>();
         Specification spec = new Specification();
@@ -120,6 +124,27 @@ public class PrecisionAtRequestTest extends ElasticsearchIntegrationTest {
         task.setSpecifications(specs);
         
         PrecisionAtQueryBuilder builder = (new PrecisionAtQueryBuilder(client()).setTask(task));
-        client().execute(PrecisionAtAction.INSTANCE, builder.request()).actionGet();
+        PrecisionAtResponse response = client().execute(PrecisionAtAction.INSTANCE, builder.request()).actionGet();
+        System.out.println(response);
+        for (PrecisionResult result : response.getPrecision()) {
+            System.out.println(result.getSpecId());
+            System.out.println(result.getPrecision());
+            System.out.println(result.getUnknownDocs());
+        }
     }
-}
+    
+    private Map<String, String> createRelevant(String... docs) {
+        Map<String, String> relevant = Maps.newHashMap();
+        for (String doc : docs) {
+            relevant.put(doc, Rating.RELEVANT.name());
+        }
+        return relevant;
+    }
+    
+    private Map<String, String> createParams(String key, String value) {
+        Map<String, String> parameters = Maps.newHashMap();
+        parameters.put(key, value);
+        return parameters;
+    }
+
+ }

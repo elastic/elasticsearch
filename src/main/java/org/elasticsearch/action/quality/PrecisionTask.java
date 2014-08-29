@@ -21,7 +21,6 @@ package org.elasticsearch.action.quality;
 
 import com.google.common.base.Objects;
 import com.google.common.base.Objects.ToStringHelper;
-import org.elasticsearch.action.quality.PrecisionAtN.Rating;
 
 import java.util.Collection;
 
@@ -34,17 +33,17 @@ import java.util.Collection;
 public class PrecisionTask {
 
     /** Collection of query intents to check against including expected document ids.*/
-    private Collection<Intent<Rating>> intents;
+    private Collection<Intent<String>> intents;
     /** Collection of query specifications, that is e.g. search request templates to use for query translation. */
     private Collection<Specification> specifications;
     
     /** Returns a list of search intents to evaluate. */
-    public Collection<Intent<Rating>> getIntents() {
+    public Collection<Intent<String>> getIntents() {
         return intents;
     }
 
     /** Set a list of search intents to evaluate. */
-    public void setIntents(Collection<Intent<Rating>> intents) {
+    public void setIntents(Collection<Intent<String>> intents) {
         this.intents = intents;
     }
 

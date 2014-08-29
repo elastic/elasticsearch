@@ -115,6 +115,8 @@ public class ClusterState implements ToXContent {
     }
 
 
+    public static final long UNKNOWN_VERSION = -1;
+
     private final long version;
 
     private final RoutingTable routingTable;

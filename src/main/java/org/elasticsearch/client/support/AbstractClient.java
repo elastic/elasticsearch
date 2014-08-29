@@ -442,6 +442,11 @@ public abstract class AbstractClient implements Client {
     }
 
     @Override
+    public TermVectorRequestBuilder prepareTermVector() {
+        return new TermVectorRequestBuilder(this);
+    }
+
+    @Override
     public TermVectorRequestBuilder prepareTermVector(String index, String type, String id) {
         return new TermVectorRequestBuilder(this, index, type, id);
     }

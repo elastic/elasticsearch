@@ -1,7 +1,7 @@
 [[search-aggregations-metrics-scripted-metric-aggregation]]
 === Scripted Metric Aggregation
 
-added[1.4.0]
+coming[1.4.0]
 
 A metric aggregation that executes using scripts to provide a metric output.
 

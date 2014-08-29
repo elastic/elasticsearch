@@ -23,7 +23,7 @@ curl -XGET 'http://localhost:9200/twitter/tweet/1/_termvector?fields=text,...'
 
 or by adding the requested fields in the request body (see
 example below). Fields can also be specified with wildcards
-in similar way to the <<query-dsl-multi-match-query,multi match query>> added[1.4.0].
+in similar way to the <<query-dsl-multi-match-query,multi match query>> coming[1.4.0].
 
 [float]
 === Return values
@@ -44,7 +44,7 @@ If the requested information wasn't stored in the index, it will be
 computed on the fly if possible. See <<mapping-types,type mapping>>
 for how to configure your index to store term vectors.
 
-added[1.4.0,The ability to computed term vectors on the fly is only available from 1.4.0 onwards (see below)]
+coming[1.4.0,The ability to computed term vectors on the fly is only available from 1.4.0 onwards (see below)]
 
 [WARNING]
 ======
@@ -229,7 +229,7 @@ Response:
 --------------------------------------------------
 
 [float]
-=== Example 2 added[1.4.0]
+=== Example 2 coming[1.4.0]
 
 Additionally, term vectors which are not explicitly stored in the index are automatically
 computed on the fly. The following request returns all information and statistics for the

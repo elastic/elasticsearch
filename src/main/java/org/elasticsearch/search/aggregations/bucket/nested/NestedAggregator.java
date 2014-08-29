@@ -105,10 +105,10 @@ public class NestedAggregator extends SingleBucketAggregator implements ReaderCo
         }
         int prevParentDoc = parentDocs.prevSetBit(parentDoc - 1);
         int numChildren = 0;
-        for (int i = (parentDoc - 1); i > prevParentDoc; i--) {
-            if (childDocs.get(i)) {
+        for (int childDocId = prevParentDoc + 1; childDocId < parentDoc; childDocId++) {
+            if (childDocs.get(childDocId)) {
                 ++numChildren;
-                collectBucketNoCounts(i, bucketOrd);
+                collectBucketNoCounts(childDocId, bucketOrd);
             }
         }
         incrementBucketDocCount(bucketOrd, numChildren);

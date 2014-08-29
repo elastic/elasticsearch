@@ -66,6 +66,7 @@ public class PathTrie<T> {
         private transient T value;
         private boolean isWildcard;
         private final String wildcard;
+        private RestMatchingMode matchingMode; 
 
         private transient String namedWildcard;
 
@@ -73,13 +74,14 @@ public class PathTrie<T> {
 
         private final TrieNode parent;
 
-        public TrieNode(String key, T value, TrieNode parent, String wildcard) {
+        public TrieNode(String key, T value, TrieNode parent, String wildcard, RestMatchingMode matchingMode) {
             this.key = key;
             this.wildcard = wildcard;
             this.isWildcard = (key.equals(wildcard));
             this.parent = parent;
             this.value = value;
             this.children = ImmutableMap.of();
+            this.matchingMode = matchingMode;
             if (isNamedWildcard(key)) {
                 namedWildcard = key.substring(key.indexOf('{') + 1, key.indexOf('}'));
             } else {
@@ -104,7 +106,7 @@ public class PathTrie<T> {
             return children.get(key);
         }
 
-        public synchronized void insert(String[] path, int index, T value) {
+        public synchronized void insert(String[] path, int index, RestMatchingMode matchingMode, T value) {
             if (index >= path.length)
                 return;
 
@@ -116,9 +118,9 @@ public class PathTrie<T> {
             TrieNode<T> node = children.get(key);
             if (node == null) {
                 if (index == (path.length - 1)) {
-                    node = new TrieNode<>(token, value, this, wildcard);
+                    node = new TrieNode<>(token, value, this, wildcard, matchingMode);
                 } else {
-                    node = new TrieNode<>(token, null, this, wildcard);
+                    node = new TrieNode<>(token, null, this, wildcard, RestMatchingMode.EQUALS);
                 }
                 children = newMapBuilder(children).put(key, node).immutableMap();
             } else {
@@ -171,6 +173,11 @@ public class PathTrie<T> {
             put(params, node, token);
 
             if (index == (path.length - 1)) {
+                return node.value;
+            }
+
+            // In the case of starts with matching, return the value
+            if (RestMatchingMode.STARTS_WITH.equals(node.getMatchingMode())) {
                 return node.value;
             }
 

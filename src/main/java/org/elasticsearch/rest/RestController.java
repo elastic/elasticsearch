@@ -96,24 +96,31 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
      * Registers a rest handler to be execute when the provided method and path match the request.
      */
     public void registerHandler(RestRequest.Method method, String path, RestHandler handler) {
+        registerHandler(method, path, RestMatchingMode.EQUALS, handler);
+    }
+
+    /**
+     * Registers a rest handler to be execute when the provided method, path and matching mode match the request.
+     */
+    public void registerHandler(RestRequest.Method method, String path, RestMatchingMode matchingMode, RestHandler handler) {
         switch (method) {
             case GET:
-                getHandlers.insert(path, handler);
+                getHandlers.insert(path, matchingMode, handler);
                 break;
             case DELETE:
-                deleteHandlers.insert(path, handler);
+                deleteHandlers.insert(path, matchingMode, handler);
                 break;
             case POST:
-                postHandlers.insert(path, handler);
+                postHandlers.insert(path, matchingMode, handler);
                 break;
             case PUT:
-                putHandlers.insert(path, handler);
+                putHandlers.insert(path, matchingMode, handler);
                 break;
             case OPTIONS:
-                optionsHandlers.insert(path, handler);
+                optionsHandlers.insert(path, matchingMode, handler);
                 break;
             case HEAD:
-                headHandlers.insert(path, handler);
+                headHandlers.insert(path, matchingMode, handler);
                 break;
             default:
                 throw new ElasticsearchIllegalArgumentException("Can't handle [" + method + "] for path [" + path + "]");

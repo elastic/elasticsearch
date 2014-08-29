@@ -23,10 +23,13 @@ import org.elasticsearch.search.aggregations.bucket.range.Range;
 import java.util.Collection;
 
 /**
- *
+ * An aggregation that computes ranges of geo distances.
  */
 public interface GeoDistance extends Range {
 
+    /**
+     * A range bucket.
+     */
     public static interface Bucket extends Range.Bucket {
     }
 

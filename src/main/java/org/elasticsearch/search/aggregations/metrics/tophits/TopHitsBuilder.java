@@ -31,11 +31,15 @@ import java.io.IOException;
 import java.util.Map;
 
 /**
+ * Builder for the {@link TopHits} aggregation.
  */
 public class TopHitsBuilder extends AbstractAggregationBuilder {
 
     private SearchSourceBuilder sourceBuilder;
 
+    /**
+     * Sole constructor.
+     */
     public TopHitsBuilder(String name) {
         super(name, InternalTopHits.TYPE.name());
     }

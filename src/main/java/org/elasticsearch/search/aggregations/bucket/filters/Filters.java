@@ -35,6 +35,9 @@ public interface Filters extends MultiBucketsAggregation {
     public static interface Bucket extends MultiBucketsAggregation.Bucket {
     }
 
+    /**
+     * The buckets created by this aggregation.
+     */
     Collection<? extends Bucket> getBuckets();
 
     @Override

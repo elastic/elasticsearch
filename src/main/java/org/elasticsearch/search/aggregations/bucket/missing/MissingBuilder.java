@@ -25,16 +25,22 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import java.io.IOException;
 
 /**
- *
+ * Builder for the {@link Missing} aggregation.
  */
 public class MissingBuilder extends AggregationBuilder<MissingBuilder> {
 
     private String field;
 
+    /**
+     * Sole constructor.
+     */
     public MissingBuilder(String name) {
         super(name, InternalMissing.TYPE.name());
     }
 
+    /**
+     * Set the field to count missing values on.
+     */
     public MissingBuilder field(String field) {
         this.field = field;
         return this;

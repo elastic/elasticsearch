@@ -25,7 +25,7 @@ import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import java.io.IOException;
 
 /**
- *
+ * Base builder for metrics aggregations.
  */
 public abstract class MetricsAggregationBuilder<B extends MetricsAggregationBuilder<B>> extends AbstractAggregationBuilder {
 

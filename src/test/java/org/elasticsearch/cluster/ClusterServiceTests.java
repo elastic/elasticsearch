@@ -708,7 +708,7 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
         }
     }
 
-    private static class BlockingTask implements ClusterStateUpdateTask {
+    private static class BlockingTask extends ClusterStateUpdateTask {
         private final CountDownLatch latch = new CountDownLatch(1);
 
         @Override
@@ -727,7 +727,7 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
 
     }
 
-    private static class PrioritiezedTask implements ClusterStateUpdateTask {
+    private static class PrioritiezedTask extends ClusterStateUpdateTask {
 
         private final Priority priority;
         private final CountDownLatch latch;

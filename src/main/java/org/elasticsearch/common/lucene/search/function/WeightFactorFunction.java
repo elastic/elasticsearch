@@ -36,7 +36,7 @@ public class WeightFactorFunction extends ScoreFunction {
     public WeightFactorFunction(double weight, ScoreFunction scoreFunction) {
         super(CombineFunction.MULT);
         if (scoreFunction instanceof BoostScoreFunction) {
-            throw new ElasticsearchIllegalArgumentException(BoostScoreFunction.BOOST_WEIGHT_ERROR_MESSAGE_PARSER);
+            throw new ElasticsearchIllegalArgumentException(BoostScoreFunction.BOOST_WEIGHT_ERROR_MESSAGE);
         }
         if (scoreFunction == null) {
             this.scoreFunction = SCORE_ONE;

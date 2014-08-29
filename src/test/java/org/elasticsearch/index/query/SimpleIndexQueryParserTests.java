@@ -2339,13 +2339,13 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
             queryParser.parse(query).query();
             fail();
         } catch (QueryParsingException e) {
-            assertThat(e.getDetailedMessage(), containsString(BoostScoreFunction.BOOST_WEIGHT_ERROR_MESSAGE_PARSER));
+            assertThat(e.getDetailedMessage(), containsString(BoostScoreFunction.BOOST_WEIGHT_ERROR_MESSAGE));
         }
         try {
             functionScoreQuery().add(factorFunction(2.0f).setWeight(2.0));
             fail();
         } catch (ElasticsearchIllegalArgumentException e) {
-            assertThat(e.getDetailedMessage(), containsString(BoostScoreFunction.BOOST_WEIGHT_ERROR_MESSAGE_JAVA_API));
+            assertThat(e.getDetailedMessage(), containsString(BoostScoreFunction.BOOST_WEIGHT_ERROR_MESSAGE));
         }
         query = copyToStringFromClasspath("/org/elasticsearch/index/query/function-score-query-with-functions-and-weight-in-body.json");
         try {

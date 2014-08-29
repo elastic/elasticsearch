@@ -29,8 +29,7 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 @Deprecated
 public class BoostScoreFunction extends ScoreFunction {
 
-    public static final String BOOST_WEIGHT_ERROR_MESSAGE_PARSER = "boost_factor/weight defined together does not make sense. Use one of them only. weight is preferable because boost_factor is deprecated.";
-    public static final String BOOST_WEIGHT_ERROR_MESSAGE_JAVA_API = "boost_factor/weight defined together does not make sense. Use either FactorBuilder#boostFactor(..) or a WeightFactorBuilder. WeightFactorBuilder is preferable because FactorBuilder is deprecated.";
+    public static final String BOOST_WEIGHT_ERROR_MESSAGE = "'boost_factor' and 'weight' cannot be used together. Use 'weight'.";
 
     private final float boost;
 

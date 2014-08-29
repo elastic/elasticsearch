@@ -139,11 +139,6 @@ public final class InternalTestCluster extends TestCluster {
      */
     public static final String SETTING_CLUSTER_NODE_SEED = "test.cluster.node.seed";
 
-    /**
-     * All nodes started by the cluster will have their name set to NODE_PREFIX followed by a positive number
-     */
-    public static final String NODE_PREFIX = "node_";
-
     private static final boolean ENABLE_MOCK_MODULES = systemPropertyAsBoolean(TESTS_ENABLE_MOCK_MODULES, true);
 
     static final int DEFAULT_MIN_NUM_DATA_NODES = 2;
@@ -187,11 +182,21 @@ public final class InternalTestCluster extends TestCluster {
 
     private final boolean hasFilterCache;
 
-    public InternalTestCluster(long clusterSeed, int minNumDataNodes, int maxNumDataNodes, String clusterName, int numClientNodes, boolean enableRandomBenchNodes, int jvmOrdinal) {
-        this(clusterSeed, minNumDataNodes, maxNumDataNodes, clusterName, DEFAULT_SETTINGS_SOURCE, numClientNodes, enableRandomBenchNodes, jvmOrdinal);
+    /**
+     * All nodes started by the cluster will have their name set to nodePrefix followed by a positive number
+     */
+    private final String nodePrefix;
+
+
+    public InternalTestCluster(long clusterSeed, int minNumDataNodes, int maxNumDataNodes, String clusterName, int numClientNodes, boolean enableRandomBenchNodes,
+                               int jvmOrdinal, String nodePrefix) {
+        this(clusterSeed, minNumDataNodes, maxNumDataNodes, clusterName, DEFAULT_SETTINGS_SOURCE, numClientNodes, enableRandomBenchNodes, jvmOrdinal, nodePrefix);
     }
 
-    public InternalTestCluster(long clusterSeed, int minNumDataNodes, int maxNumDataNodes, String clusterName, SettingsSource settingsSource, int numClientNodes, boolean enableRandomBenchNodes, int jvmOrdinal) {
+    public InternalTestCluster(long clusterSeed,
+                               int minNumDataNodes, int maxNumDataNodes, String clusterName, SettingsSource settingsSource, int numClientNodes,
+                               boolean enableRandomBenchNodes,
+                               int jvmOrdinal, String nodePrefix) {
         this.clusterName = clusterName;
 
         if (minNumDataNodes < 0 || maxNumDataNodes < 0) {
@@ -220,6 +225,10 @@ public final class InternalTestCluster extends TestCluster {
         assert this.numSharedClientNodes >=0;
 
         this.enableRandomBenchNodes = enableRandomBenchNodes;
+
+        this.nodePrefix = nodePrefix;
+
+        assert nodePrefix != null;
 
         /*
          *  TODO
@@ -521,14 +530,14 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     private String buildNodeName(int id) {
-        return NODE_PREFIX + id;
+        return nodePrefix + id;
     }
 
     /**
      * Returns the common node name prefix for this test cluster.
      */
     public String nodePrefix() {
-        return NODE_PREFIX;
+        return nodePrefix;
     }
 
     @Override

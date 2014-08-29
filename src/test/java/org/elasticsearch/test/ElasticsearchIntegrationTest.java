@@ -28,6 +28,7 @@ import com.google.common.collect.Lists;
 import org.apache.lucene.store.StoreRateLimiting;
 import org.apache.lucene.util.AbstractRandomizedTest;
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -172,6 +173,12 @@ import static org.hamcrest.Matchers.*;
 @Ignore
 @AbstractRandomizedTest.Integration
 public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase {
+
+    /** node names of the corresponding clusters will start with these prefixes */
+    public static final String GLOBAL_CLUSTER_NODE_PREFIX = "node_";
+    public static final String SUITE_CLUSTER_NODE_PREFIX = "node_s";
+    public static final String TEST_CLUSTER_NODE_PREFIX = "node_t";
+
     private static TestCluster GLOBAL_CLUSTER;
     /**
      * Key used to set the transport client ratio via the commandline -D{@value #TESTS_CLIENT_RATIO}
@@ -269,7 +276,8 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                     numClientNodes = InternalTestCluster.DEFAULT_NUM_CLIENT_NODES;
                 }
                 GLOBAL_CLUSTER = new InternalTestCluster(masterSeed, InternalTestCluster.DEFAULT_MIN_NUM_DATA_NODES, InternalTestCluster.DEFAULT_MAX_NUM_DATA_NODES,
-                        clusterName("shared", Integer.toString(CHILD_JVM_ID), masterSeed), numClientNodes, InternalTestCluster.DEFAULT_ENABLE_RANDOM_BENCH_NODES, CHILD_JVM_ID);
+                        clusterName("shared", Integer.toString(CHILD_JVM_ID), masterSeed), numClientNodes, InternalTestCluster.DEFAULT_ENABLE_RANDOM_BENCH_NODES,
+                        CHILD_JVM_ID, GLOBAL_CLUSTER_NODE_PREFIX);
             }
         }
     }
@@ -1533,7 +1541,25 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
 
         int numClientNodes = getNumClientNodes();
         boolean enableRandomBenchNodes = enableRandomBenchNodes();
-        return new InternalTestCluster(currentClusterSeed, minNumDataNodes, maxNumDataNodes, clusterName(scope.name(), Integer.toString(CHILD_JVM_ID), currentClusterSeed), settingsSource, numClientNodes, enableRandomBenchNodes, CHILD_JVM_ID);
+
+        String nodePrefix;
+        switch (scope) {
+            case TEST:
+                nodePrefix = TEST_CLUSTER_NODE_PREFIX;
+                break;
+            case SUITE:
+                nodePrefix = SUITE_CLUSTER_NODE_PREFIX;
+                break;
+            case GLOBAL:
+                nodePrefix = GLOBAL_CLUSTER_NODE_PREFIX;
+                break;
+            default:
+                throw new ElasticsearchException("Unknown scope: " + scope);
+        }
+
+        return new InternalTestCluster(currentClusterSeed, minNumDataNodes, maxNumDataNodes,
+                clusterName(scope.name(), Integer.toString(CHILD_JVM_ID), currentClusterSeed), settingsSource, numClientNodes,
+                enableRandomBenchNodes, CHILD_JVM_ID, nodePrefix);
     }
 
     /**

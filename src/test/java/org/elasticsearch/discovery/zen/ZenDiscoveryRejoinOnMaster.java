@@ -45,7 +45,7 @@ public class ZenDiscoveryRejoinOnMaster extends ElasticsearchIntegrationTest {
         assertThat(zenDiscovery.isRejoinOnMasterGone(), is(true));
 
         client().admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(ImmutableSettings.builder().put(ZenDiscovery.REJOIN_ON_MASTER_GONE, false))
+                .setTransientSettings(ImmutableSettings.builder().put(ZenDiscovery.SETTING_REJOIN_ON_MASTER_GONE, false))
                 .get();
 
         assertThat(zenDiscovery.isRejoinOnMasterGone(), is(false));

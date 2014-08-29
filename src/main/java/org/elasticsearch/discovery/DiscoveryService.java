@@ -39,6 +39,8 @@ import java.util.concurrent.TimeUnit;
  */
 public class DiscoveryService extends AbstractLifecycleComponent<DiscoveryService> {
 
+    public static final String SETTING_INITIAL_STATE_TIMEOUT = "discovery.initial_state_timeout";
+
     private static class InitialStateListener implements InitialStateDiscoveryListener {
 
         private final CountDownLatch latch = new CountDownLatch(1);
@@ -68,7 +70,7 @@ public class DiscoveryService extends AbstractLifecycleComponent<DiscoveryServic
         super(settings);
         this.discoverySettings = discoverySettings;
         this.discovery = discovery;
-        this.initialStateTimeout = componentSettings.getAsTime("initial_state_timeout", TimeValue.timeValueSeconds(30));
+        this.initialStateTimeout = settings.getAsTime(SETTING_INITIAL_STATE_TIMEOUT, TimeValue.timeValueSeconds(30));
     }
 
     public ClusterBlock getNoMasterBlock() {

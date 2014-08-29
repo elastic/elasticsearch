@@ -884,7 +884,11 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 @Override
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                     for (Tuple<DiscoveryNode, MembershipAction.JoinCallback> drainedTask : drainedTasks) {
-                        drainedTask.v2().onSuccess();
+                        try {
+                            drainedTask.v2().onSuccess();
+                        } catch (Exception e) {
+                            logger.error("unexpected error during [{}]", e, source);
+                        }
                     }
                 }
             });

@@ -71,7 +71,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
 
     private final int concurrentConnects;
 
-    private final DiscoveryNode[] nodes;
+    private final DiscoveryNode[] configuredTargetNodes;
 
     private volatile DiscoveryNodesProvider nodesProvider;
 
@@ -79,7 +79,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
 
     private final Map<Integer, ConcurrentMap<DiscoveryNode, PingResponse>> receivedResponses = newConcurrentMap();
 
-    // a list of temporal responses a node will return for a request (holds requests from other nodes)
+    // a list of temporal responses a node will return for a request (holds requests from other configuredTargetNodes)
     private final Queue<PingResponse> temporalResponses = ConcurrentCollections.newQueue();
 
     private final CopyOnWriteArrayList<UnicastHostsProvider> hostsProviders = new CopyOnWriteArrayList<>();
@@ -107,20 +107,20 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
         List<String> hosts = Lists.newArrayList(hostArr);
         logger.debug("using initial hosts {}, with concurrent_connects [{}]", hosts, concurrentConnects);
 
-        List<DiscoveryNode> nodes = Lists.newArrayList();
+        List<DiscoveryNode> configuredTargetNodes = Lists.newArrayList();
         int idCounter = 0;
         for (String host : hosts) {
             try {
                 TransportAddress[] addresses = transportService.addressesFromString(host);
                 // we only limit to 1 addresses, makes no sense to ping 100 ports
                 for (int i = 0; (i < addresses.length && i < LIMIT_PORTS_COUNT); i++) {
-                    nodes.add(new DiscoveryNode("#zen_unicast_" + (++idCounter) + "#", addresses[i], version.minimumCompatibilityVersion()));
+                    configuredTargetNodes.add(new DiscoveryNode("#zen_unicast_" + (++idCounter) + "#", addresses[i], version.minimumCompatibilityVersion()));
                 }
             } catch (Exception e) {
                 throw new ElasticsearchIllegalArgumentException("Failed to resolve address for [" + host + "]", e);
             }
         }
-        this.nodes = nodes.toArray(new DiscoveryNode[nodes.size()]);
+        this.configuredTargetNodes = configuredTargetNodes.toArray(new DiscoveryNode[configuredTargetNodes.size()]);
 
         transportService.registerHandler(ACTION_NAME, new UnicastPingRequestHandler());
     }
@@ -273,7 +273,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
         List<DiscoveryNode> sortedNodesToPing = electMasterService.sortByMasterLikelihood(nodesToPingSet);
 
         // new add the the unicast targets first
-        ArrayList<DiscoveryNode> nodesToPing = Lists.newArrayList(nodes);
+        ArrayList<DiscoveryNode> nodesToPing = Lists.newArrayList(configuredTargetNodes);
         nodesToPing.addAll(sortedNodesToPing);
 
         final CountDownLatch latch = new CountDownLatch(nodesToPing.size());

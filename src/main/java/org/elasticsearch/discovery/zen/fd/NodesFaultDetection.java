@@ -321,6 +321,8 @@ public class NodesFaultDetection extends AbstractComponent {
             if (!latestNodes.localNodeId().equals(request.nodeId)) {
                 throw new ElasticsearchIllegalStateException("Got pinged as node [" + request.nodeId + "], but I am node [" + latestNodes.localNodeId() + "]");
             }
+
+            // PingRequest will have clusterName set to null if it came from a node of version <1.4.0
             if (request.clusterName != null && !request.clusterName.equals(clusterName)) {
                 // Don't introduce new exception for bwc reasons
                 throw new ElasticsearchIllegalStateException("Got pinged with cluster name [" + request.clusterName + "], but I'm part of cluster [" + clusterName + "]");

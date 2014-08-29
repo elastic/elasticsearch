@@ -44,6 +44,8 @@ public class IPFilteringN2NAuthenticatorTests extends ElasticsearchTestCase {
     @Rule
     public TemporaryFolder temporaryFolder = new TemporaryFolder();
 
+    private final Settings resourceWatcherServiceSettings = settingsBuilder().put("watcher.interval.medium", TimeValue.timeValueMillis(200)).build();
+
     private ResourceWatcherService resourceWatcherService;
     private File configFile;
     private Settings settings;
@@ -137,12 +139,11 @@ public class IPFilteringN2NAuthenticatorTests extends ElasticsearchTestCase {
     @Test(expected = ElasticsearchParseException.class)
     public void testThatInvalidFileThrowsCorrectException() throws Exception {
         writeConfigFile("deny: all allow: all \n\n");
-        IPFilteringN2NAuthenticator.parseFile(configFile.toPath());
+        IPFilteringN2NAuthenticator.parseFile(configFile.toPath(), logger);
     }
 
     private void writeConfigFile(String data) throws IOException {
         Files.write(data.getBytes(Charsets.UTF_8), configFile);
-        Settings resourceWatcherServiceSettings = settingsBuilder().put("watcher.interval.medium", TimeValue.timeValueMillis(200)).build();
         resourceWatcherService = new ResourceWatcherService(resourceWatcherServiceSettings, new ThreadPool("resourceWatcher")).start();
         settings = settingsBuilder().put("shield.n2n.file", configFile.getPath()).build();
         ipFilteringN2NAuthenticator = new IPFilteringN2NAuthenticator(settings, new Environment(), resourceWatcherService);

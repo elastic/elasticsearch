@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.shield.n2n;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.jackson.dataformat.yaml.snakeyaml.error.YAMLException;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.net.InetAddresses;
 import org.elasticsearch.common.netty.handler.ipfilter.IpFilterRule;
 import org.elasticsearch.common.netty.handler.ipfilter.IpSubnetFilterRule;
@@ -20,6 +20,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.shield.plugin.SecurityPlugin;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -51,7 +52,7 @@ public class IPFilteringN2NAuthenticator extends AbstractComponent implements N2
     public IPFilteringN2NAuthenticator(Settings settings, Environment env, ResourceWatcherService watcherService) {
         super(settings);
         file = resolveFile(componentSettings, env);
-        rules = parseFile(file);
+        rules = parseFile(file, logger);
         watcher = new FileWatcher(file.getParent().toFile());
         watcher.addListener(new FileListener());
         watcherService.add(watcher);
@@ -60,13 +61,15 @@ public class IPFilteringN2NAuthenticator extends AbstractComponent implements N2
     private Path resolveFile(Settings settings, Environment env) {
         String location = settings.get("file");
         if (location == null) {
-            return env.configFile().toPath().resolve(DEFAULT_FILE);
+            File shieldDirectory = new File(env.configFile(), SecurityPlugin.NAME);
+            return shieldDirectory.toPath().resolve(DEFAULT_FILE);
         }
         return Paths.get(location);
     }
 
-    public static IpFilterRule[] parseFile(Path path) {
+    public static IpFilterRule[] parseFile(Path path, ESLogger logger) {
         if (!Files.exists(path)) {
+            logger.info("No IP filtering rules loaded, as file {} does not exist. Rejecting all incoming connections!", path);
             return NO_RULES;
         }
 
@@ -109,8 +112,11 @@ public class IPFilteringN2NAuthenticator extends AbstractComponent implements N2
         }
 
         if (rules.size() == 0) {
+            logger.info("No IP filtering rules loaded. Rejecting all incoming connections!");
             return NO_RULES;
         }
+
+        logger.debug("Loaded {} ip filtering rules", rules.size());
         return rules.toArray(new IpFilterRule[rules.size()]);
     }
 
@@ -130,9 +136,13 @@ public class IPFilteringN2NAuthenticator extends AbstractComponent implements N2
     public boolean authenticate(@Nullable Principal peerPrincipal, InetAddress peerAddress, int peerPort) {
         for (int i = 0; i < rules.length; i++) {
             if (rules[i].contains(peerAddress)) {
-                return rules[i].isAllowRule();
+                boolean isAllowed =  rules[i].isAllowRule();
+                logger.trace("Authentication rule matched for host [{}]: {}", peerAddress, isAllowed);
+                return isAllowed;
             }
         }
+
+        logger.trace("Rejecting host {}", peerAddress);
         return false;
     }
 
@@ -140,7 +150,7 @@ public class IPFilteringN2NAuthenticator extends AbstractComponent implements N2
         @Override
         public void onFileCreated(File file) {
             if (file.equals(IPFilteringN2NAuthenticator.this.file.toFile())) {
-                rules = parseFile(file.toPath());
+                rules = parseFile(file.toPath(), logger);
             }
         }
 
@@ -154,9 +164,7 @@ public class IPFilteringN2NAuthenticator extends AbstractComponent implements N2
         @Override
         public void onFileChanged(File file) {
             if (file.equals(IPFilteringN2NAuthenticator.this.file.toFile())) {
-                if (file.equals(IPFilteringN2NAuthenticator.this.file.toFile())) {
-                    rules = parseFile(file.toPath());
-                }
+                rules = parseFile(file.toPath(), logger);
             }
         }
     }

@@ -6,7 +6,7 @@
 package org.elasticsearch.shield.n2n;
 
 import com.google.common.base.Charsets;
-import com.google.common.net.InetAddresses;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -18,11 +18,9 @@ import org.junit.Test;
 import java.io.File;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.net.HttpURLConnection;
+import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketException;
-import java.net.URL;
-import java.util.Locale;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
@@ -38,12 +36,16 @@ public class IpFilteringIntegrationTests extends ShieldIntegrationTest {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        File folder = newFolder();
+        ImmutableSettings.Builder builder = settingsBuilder().put(super.nodeSettings(nodeOrdinal));
+        // either deny all or do not have a configuration file, as this denies by default
+        if (getRandom().nextBoolean()) {
+            File folder = newFolder();
+            builder.put("shield.n2n.file", writeFile(folder, "ip_filter.yml", CONFIG_IPFILTER_DENY_ALL));
+        } else {
+            builder.remove("shield.n2n.file");
+        }
 
-        return settingsBuilder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put("shield.n2n.file", writeFile(folder, "ip_filter.yml", CONFIG_IPFILTER_DENY_ALL))
-                .build();
+        return builder.build();
     }
 
     @Test(expected = SocketException.class)
@@ -51,21 +53,22 @@ public class IpFilteringIntegrationTests extends ShieldIntegrationTest {
         TransportAddress transportAddress = internalCluster().getDataNodeInstance(HttpServerTransport.class).boundAddress().boundAddress();
         assertThat(transportAddress, is(instanceOf(InetSocketTransportAddress.class)));
         InetSocketTransportAddress inetSocketTransportAddress = (InetSocketTransportAddress) transportAddress;
-        String url = String.format(Locale.ROOT, "http://%s:%s/", InetAddresses.toUriString(inetSocketTransportAddress.address().getAddress()), inetSocketTransportAddress.address().getPort());
 
-        logger.info("Opening connection to {}", url);
-        HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
-        connection.connect();
-        logger.info("HTTP connection response code [{}]", connection.getResponseCode());
+        trySocketConnection(inetSocketTransportAddress.address());
     }
 
     @Test(expected = SocketException.class)
     public void testThatIpFilteringIsIntegratedIntoNettyPipelineViaTransportClient() throws Exception {
-        InetSocketTransportAddress transportAddress = (InetSocketTransportAddress) internalCluster().getDataNodeInstance(Transport.class).boundAddress().boundAddress();
+        TransportAddress transportAddress = (InetSocketTransportAddress) internalCluster().getDataNodeInstance(Transport.class).boundAddress().boundAddress();
+        assertThat(transportAddress, is(instanceOf(InetSocketTransportAddress.class)));
+        InetSocketTransportAddress inetSocketTransportAddress = (InetSocketTransportAddress) transportAddress;
+        trySocketConnection(inetSocketTransportAddress.address());
+    }
 
+    private void trySocketConnection(InetSocketAddress address) throws Exception {
         try (Socket socket = new Socket()) {
-            logger.info("Connecting to {}", transportAddress.address());
-            socket.connect(transportAddress.address(), 500);
+            logger.info("Connecting to {}", address);
+            socket.connect(address, 500);
 
             assertThat(socket.isConnected(), is(true));
             try (OutputStream os = socket.getOutputStream()) {

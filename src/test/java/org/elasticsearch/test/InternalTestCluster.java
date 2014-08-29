@@ -357,7 +357,6 @@ public final class InternalTestCluster extends TestCluster {
                 }
             }
         }
-        builder.put("plugins.isolation", random.nextBoolean());
         if (random.nextInt(10) == 0) {
             builder.put(EsExecutors.PROCESSORS, 1 + random.nextInt(AbstractRandomizedTest.TESTS_PROCESSORS));
         } else {

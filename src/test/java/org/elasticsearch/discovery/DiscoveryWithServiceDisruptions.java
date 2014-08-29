@@ -43,6 +43,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
+import org.elasticsearch.discovery.zen.fd.FaultDetection;
 import org.elasticsearch.discovery.zen.membership.MembershipAction;
 import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.discovery.zen.ping.ZenPingService;
@@ -114,8 +115,8 @@ public class DiscoveryWithServiceDisruptions extends ElasticsearchIntegrationTes
     }
 
     final static Settings DEFAULT_SETTINGS = ImmutableSettings.builder()
-            .put("discovery.zen.fd.ping_timeout", "1s") // for hitting simulated network failures quickly
-            .put("discovery.zen.fd.ping_retries", "1") // for hitting simulated network failures quickly
+            .put(FaultDetection.SETTING_PING_TIMEOUT, "1s") // for hitting simulated network failures quickly
+            .put(FaultDetection.SETTING_PING_RETRIES, "1") // for hitting simulated network failures quickly
             .put("discovery.zen.join_timeout", "10s")  // still long to induce failures but to long so test won't time out
             .put(DiscoverySettings.PUBLISH_TIMEOUT, "1s") // <-- for hitting simulated network failures quickly
             .put("http.enabled", false) // just to make test quicker

@@ -25,6 +25,9 @@ import org.elasticsearch.action.support.master.info.ClusterInfoRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
 
 /**
+ * Builder for {@link GetWarmersRequest}
+ *
+ * @see GetWarmersRequest for details
  */
 public class GetWarmersRequestBuilder extends ClusterInfoRequestBuilder<GetWarmersRequest, GetWarmersResponse, GetWarmersRequestBuilder> {
 

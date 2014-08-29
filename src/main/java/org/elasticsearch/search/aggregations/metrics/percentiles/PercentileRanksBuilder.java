@@ -24,22 +24,31 @@ import org.elasticsearch.search.aggregations.metrics.ValuesSourceMetricsAggregat
 import java.io.IOException;
 
 /**
- *
+ * Builder for the {@link PercentileRanks} aggregation.
  */
 public class PercentileRanksBuilder extends ValuesSourceMetricsAggregationBuilder<PercentileRanksBuilder> {
 
     private double[] values;
     private Double compression;
 
+    /**
+     * Sole constructor.
+     */
     public PercentileRanksBuilder(String name) {
         super(name, InternalPercentileRanks.TYPE.name());
     }
 
+    /**
+     * Set the values to compute percentiles from.
+     */
     public PercentileRanksBuilder percentiles(double... values) {
         this.values = values;
         return this;
     }
 
+    /**
+     * Expert: set the compression. Higher values improve accuracy but also memory usage.
+     */
     public PercentileRanksBuilder compression(double compression) {
         this.compression = compression;
         return this;

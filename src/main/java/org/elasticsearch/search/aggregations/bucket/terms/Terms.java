@@ -75,8 +75,14 @@ public interface Terms extends MultiBucketsAggregation {
      */
     List<Bucket> getBuckets();
 
+    /**
+     * Get the bucket for the given term, or null if there is no such bucket.
+     */
     Bucket getBucketByKey(String term);
     
+    /**
+     * Get an upper bound of the error on document counts in this aggregation.
+     */
     long getDocCountError();
 
     /**

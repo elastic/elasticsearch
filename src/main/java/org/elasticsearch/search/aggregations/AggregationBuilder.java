@@ -39,6 +39,9 @@ public abstract class AggregationBuilder<B extends AggregationBuilder<B>> extend
     private List<AbstractAggregationBuilder> aggregations;
     private BytesReference aggregationsBinary;
 
+    /**
+     * Sole constructor, typically used by sub-classes.
+     */
     protected AggregationBuilder(String name, String type) {
         super(name, type);
     }

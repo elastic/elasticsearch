@@ -23,7 +23,7 @@ import org.elasticsearch.search.aggregations.bucket.range.Range;
 import java.util.Collection;
 
 /**
- *
+ * A range aggregation on ipv4 values.
  */
 public interface IPv4Range extends Range {
 

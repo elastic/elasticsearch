@@ -26,6 +26,9 @@ import org.elasticsearch.search.aggregations.metrics.MetricsAggregationBuilder;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Builder for the {@link ScriptedMetric} aggregation.
+ */
 public class ScriptedMetricBuilder extends MetricsAggregationBuilder {
 
     private Map<String, Object> params = null;
@@ -37,45 +40,73 @@ public class ScriptedMetricBuilder extends MetricsAggregationBuilder {
     private String reduceScript = null;
     private String lang = null;
 
+    /**
+     * Sole constructor.
+     */
     public ScriptedMetricBuilder(String name) {
         super(name, InternalScriptedMetric.TYPE.name());
     }
 
+    /**
+     * Set parameters that will be available in the <tt>init</tt>, <tt>map</tt>
+     * and <tt>combine</tt> phases.
+     */
     public ScriptedMetricBuilder params(Map<String, Object> params) {
         this.params = params;
         return this;
     }
 
+    /**
+     * Set parameters that will be available in the <tt>reduce</tt> phase.
+     */
     public ScriptedMetricBuilder reduceParams(Map<String, Object> reduceParams) {
         this.reduceParams = reduceParams;
         return this;
     }
 
+    /**
+     * Set the <tt>init</tt> script.
+     */
     public ScriptedMetricBuilder initScript(String initScript) {
         this.initScript = initScript;
         return this;
     }
 
+    /**
+     * Set the <tt>map</tt> script.
+     */
     public ScriptedMetricBuilder mapScript(String mapScript) {
         this.mapScript = mapScript;
         return this;
     }
 
+    /**
+     * Set the <tt>combine</tt> script.
+     */
     public ScriptedMetricBuilder combineScript(String combineScript) {
         this.combineScript = combineScript;
         return this;
     }
 
+    /**
+     * Set the <tt>reduce</tt> script.
+     */
     public ScriptedMetricBuilder reduceScript(String reduceScript) {
         this.reduceScript = reduceScript;
         return this;
     }
 
+    /**
+     * Set the script language.
+     */
     public ScriptedMetricBuilder lang(String lang) {
         this.lang = lang;
         return this;
     }
 
+    /**
+     * Set the script type.
+     */
     public ScriptedMetricBuilder scriptType(ScriptType scriptType) {
         this.scriptType = scriptType;
         return this;

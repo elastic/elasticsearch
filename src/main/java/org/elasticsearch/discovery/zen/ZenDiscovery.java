@@ -216,7 +216,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         final String nodeId = DiscoveryService.generateNodeId(settings);
         localNode = new DiscoveryNode(settings.get("name"), nodeId, transportService.boundAddress().publishAddress(), nodeAttributes, version);
         latestDiscoNodes = new DiscoveryNodes.Builder().put(localNode).localNodeId(localNode.id()).build();
-        nodesFD.updateNodes(latestDiscoNodes, -1);
+        nodesFD.updateNodes(latestDiscoNodes, ClusterState.UNKNOWN_VERSION);
         pingService.start();
 
         // do the join on a different thread, the DiscoveryService waits for 30s anyhow till it is discovered

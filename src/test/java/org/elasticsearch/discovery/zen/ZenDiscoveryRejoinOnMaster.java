@@ -25,6 +25,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
+import org.elasticsearch.discovery.zen.fd.FaultDetection;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
@@ -54,8 +55,8 @@ public class ZenDiscoveryRejoinOnMaster extends ElasticsearchIntegrationTest {
     @Test
     public void testNoShardRelocationsOccurWhenElectedMasterNodeFails() throws Exception {
         Settings defaultSettings = ImmutableSettings.builder()
-                .put("discovery.zen.fd.ping_timeout", "1s")
-                .put("discovery.zen.fd.ping_retries", "1")
+                .put(FaultDetection.SETTING_PING_TIMEOUT, "1s")
+                .put(FaultDetection.SETTING_PING_RETRIES, "1")
                 .put("discovery.type", "zen")
                 .build();
 

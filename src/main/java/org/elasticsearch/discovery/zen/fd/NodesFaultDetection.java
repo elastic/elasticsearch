@@ -22,6 +22,7 @@ package org.elasticsearch.discovery.zen.fd;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -82,7 +83,7 @@ public class NodesFaultDetection extends AbstractComponent {
 
     private volatile DiscoveryNodes latestNodes = EMPTY_NODES;
 
-    private volatile long clusterStateVersion = -1;
+    private volatile long clusterStateVersion = ClusterState.UNKNOWN_VERSION;
 
     private volatile boolean running = false;
 
@@ -349,7 +350,7 @@ public class NodesFaultDetection extends AbstractComponent {
 
         private DiscoveryNode masterNode;
 
-        private long clusterStateVersion = -1;
+        private long clusterStateVersion = ClusterState.UNKNOWN_VERSION;
 
         PingRequest() {
         }

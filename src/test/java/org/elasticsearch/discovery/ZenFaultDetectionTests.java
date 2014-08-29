@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
+import org.elasticsearch.discovery.zen.fd.FaultDetection;
 import org.elasticsearch.discovery.zen.fd.MasterFaultDetection;
 import org.elasticsearch.discovery.zen.fd.NodesFaultDetection;
 import org.elasticsearch.node.service.NodeService;
@@ -131,7 +132,8 @@ public class ZenFaultDetectionTests extends ElasticsearchTestCase {
         ImmutableSettings.Builder settings = ImmutableSettings.builder();
         boolean shouldRetry = randomBoolean();
         // make sure we don't ping
-        settings.put("discovery.zen.fd.connect_on_network_disconnect", shouldRetry).put("discovery.zen.fd.ping_interval", "5m");
+        settings.put(FaultDetection.SETTING_CONNECT_ON_NETWORK_DISCONNECT, shouldRetry)
+                .put(FaultDetection.SETTING_PING_INTERVAL, "5m");
         NodesFaultDetection nodesFD = new NodesFaultDetection(settings.build(), threadPool, serviceA, new ClusterName("test"));
         nodesFD.start();
         nodesFD.updateNodes(buildNodesForA(true), -1);
@@ -165,7 +167,8 @@ public class ZenFaultDetectionTests extends ElasticsearchTestCase {
         ImmutableSettings.Builder settings = ImmutableSettings.builder();
         boolean shouldRetry = randomBoolean();
         // make sure we don't ping
-        settings.put("discovery.zen.fd.connect_on_network_disconnect", shouldRetry).put("discovery.zen.fd.ping_interval", "5m");
+        settings.put(FaultDetection.SETTING_CONNECT_ON_NETWORK_DISCONNECT, shouldRetry)
+                .put(FaultDetection.SETTING_PING_INTERVAL, "5m");
         ClusterName clusterName = new ClusterName(randomAsciiOfLengthBetween(3, 20));
         final DiscoveryNodes nodes = buildNodesForA(false);
         MasterFaultDetection masterFD = new MasterFaultDetection(settings.build(), threadPool, serviceA,

@@ -24,7 +24,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -37,13 +36,12 @@ import java.io.IOException;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.elasticsearch.transport.TransportRequestOptions.options;
 
 /**
  * A fault detection that pings the master periodically to see if its alive.
  */
-public class MasterFaultDetection extends AbstractComponent {
+public class MasterFaultDetection extends FaultDetection {
 
     public static final String MASTER_PING_ACTION_NAME = "internal:discovery/zen/fd/master_ping";
 
@@ -54,30 +52,9 @@ public class MasterFaultDetection extends AbstractComponent {
         void onDisconnectedFromMaster();
     }
 
-    private final ThreadPool threadPool;
-
-    private final TransportService transportService;
-
     private final DiscoveryNodesProvider nodesProvider;
 
-    private final ClusterName clusterName;
-
     private final CopyOnWriteArrayList<Listener> listeners = new CopyOnWriteArrayList<>();
-
-
-    private final boolean connectOnNetworkDisconnect;
-
-    private final TimeValue pingInterval;
-
-    private final TimeValue pingRetryTimeout;
-
-    private final int pingRetryCount;
-
-    // used mainly for testing, should always be true
-    private final boolean registerConnectionListener;
-
-
-    private final FDConnectionListener connectionListener;
 
     private volatile MasterPinger masterPinger;
 
@@ -91,24 +68,10 @@ public class MasterFaultDetection extends AbstractComponent {
 
     public MasterFaultDetection(Settings settings, ThreadPool threadPool, TransportService transportService,
                                 DiscoveryNodesProvider nodesProvider, ClusterName clusterName) {
-        super(settings);
-        this.threadPool = threadPool;
-        this.transportService = transportService;
+        super(settings, threadPool, transportService, clusterName);
         this.nodesProvider = nodesProvider;
-        this.clusterName = clusterName;
-
-        this.connectOnNetworkDisconnect = componentSettings.getAsBoolean("connect_on_network_disconnect", false);
-        this.pingInterval = componentSettings.getAsTime("ping_interval", timeValueSeconds(1));
-        this.pingRetryTimeout = componentSettings.getAsTime("ping_timeout", timeValueSeconds(30));
-        this.pingRetryCount = componentSettings.getAsInt("ping_retries", 3);
-        this.registerConnectionListener = componentSettings.getAsBoolean("register_connection_listener", true);
 
         logger.debug("[master] uses ping_interval [{}], ping_timeout [{}], ping_retries [{}]", pingInterval, pingRetryTimeout, pingRetryCount);
-
-        this.connectionListener = new FDConnectionListener();
-        if (registerConnectionListener) {
-            transportService.addConnectionListener(connectionListener);
-        }
 
         transportService.registerHandler(MASTER_PING_ACTION_NAME, new MasterPingRequestHandler());
     }
@@ -188,13 +151,14 @@ public class MasterFaultDetection extends AbstractComponent {
     }
 
     public void close() {
+        super.close();
         stop("closing");
         this.listeners.clear();
-        transportService.removeConnectionListener(connectionListener);
         transportService.removeHandler(MASTER_PING_ACTION_NAME);
     }
 
-    private void handleTransportDisconnect(DiscoveryNode node) {
+    @Override
+    protected void handleTransportDisconnect(DiscoveryNode node) {
         synchronized (masterNodeMutex) {
             if (!node.equals(this.masterNode)) {
                 return;
@@ -242,17 +206,6 @@ public class MasterFaultDetection extends AbstractComponent {
                 }
             });
             stop("master failure, " + reason);
-        }
-    }
-
-    private class FDConnectionListener implements TransportConnectionListener {
-        @Override
-        public void onNodeConnected(DiscoveryNode node) {
-        }
-
-        @Override
-        public void onNodeDisconnected(DiscoveryNode node) {
-            handleTransportDisconnect(node);
         }
     }
 

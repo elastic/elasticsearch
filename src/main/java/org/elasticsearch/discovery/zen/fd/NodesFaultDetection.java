@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -38,14 +37,13 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.elasticsearch.cluster.node.DiscoveryNodes.EMPTY_NODES;
-import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 import static org.elasticsearch.transport.TransportRequestOptions.options;
 
 /**
  * A fault detection of multiple nodes.
  */
-public class NodesFaultDetection extends AbstractComponent {
+public class NodesFaultDetection extends FaultDetection {
 
     public static final String PING_ACTION_NAME = "internal:discovery/zen/fd/ping";
     
@@ -57,29 +55,9 @@ public class NodesFaultDetection extends AbstractComponent {
 
     }
 
-    private final ThreadPool threadPool;
-
-    private final TransportService transportService;
-    private final ClusterName clusterName;
-
-
-    private final boolean connectOnNetworkDisconnect;
-
-    private final TimeValue pingInterval;
-
-    private final TimeValue pingRetryTimeout;
-
-    private final int pingRetryCount;
-
-    // used mainly for testing, should always be true
-    private final boolean registerConnectionListener;
-
-
     private final CopyOnWriteArrayList<Listener> listeners = new CopyOnWriteArrayList<>();
 
     private final ConcurrentMap<DiscoveryNode, NodeFD> nodesFD = newConcurrentMap();
-
-    private final FDConnectionListener connectionListener;
 
     private volatile DiscoveryNodes latestNodes = EMPTY_NODES;
 
@@ -88,25 +66,11 @@ public class NodesFaultDetection extends AbstractComponent {
     private volatile boolean running = false;
 
     public NodesFaultDetection(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterName clusterName) {
-        super(settings);
-        this.threadPool = threadPool;
-        this.transportService = transportService;
-        this.clusterName = clusterName;
-
-        this.connectOnNetworkDisconnect = componentSettings.getAsBoolean("connect_on_network_disconnect", false);
-        this.pingInterval = componentSettings.getAsTime("ping_interval", timeValueSeconds(1));
-        this.pingRetryTimeout = componentSettings.getAsTime("ping_timeout", timeValueSeconds(30));
-        this.pingRetryCount = componentSettings.getAsInt("ping_retries", 3);
-        this.registerConnectionListener = componentSettings.getAsBoolean("register_connection_listener", true);
+        super(settings, threadPool, transportService, clusterName);
 
         logger.debug("[node  ] uses ping_interval [{}], ping_timeout [{}], ping_retries [{}]", pingInterval, pingRetryTimeout, pingRetryCount);
 
         transportService.registerHandler(PING_ACTION_NAME, new PingRequestHandler());
-
-        this.connectionListener = new FDConnectionListener();
-        if (registerConnectionListener) {
-            transportService.addConnectionListener(connectionListener);
-        }
     }
 
     public void addListener(Listener listener) {
@@ -158,12 +122,13 @@ public class NodesFaultDetection extends AbstractComponent {
     }
 
     public void close() {
+        super.close();
         stop();
         transportService.removeHandler(PING_ACTION_NAME);
-        transportService.removeConnectionListener(connectionListener);
     }
 
-    private void handleTransportDisconnect(DiscoveryNode node) {
+    @Override
+    protected void handleTransportDisconnect(DiscoveryNode node) {
         if (!latestNodes.nodeExists(node.id())) {
             return;
         }
@@ -295,18 +260,6 @@ public class NodesFaultDetection extends AbstractComponent {
         volatile int retryCount;
         volatile boolean running = true;
     }
-
-    private class FDConnectionListener implements TransportConnectionListener {
-        @Override
-        public void onNodeConnected(DiscoveryNode node) {
-        }
-
-        @Override
-        public void onNodeDisconnected(DiscoveryNode node) {
-            handleTransportDisconnect(node);
-        }
-    }
-
 
     class PingRequestHandler extends BaseTransportRequestHandler<PingRequest> {
 

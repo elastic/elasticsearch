@@ -965,6 +965,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 return null;
             }
         } else {
+
+            assert !pingMasters.contains(localNode) : "local node should never be elected as master when other nodes indicate an active master";
             // lets tie break between discovered nodes
             return electMaster.electMaster(pingMasters);
         }

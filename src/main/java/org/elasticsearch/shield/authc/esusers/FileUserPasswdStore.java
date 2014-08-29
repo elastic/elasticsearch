@@ -147,17 +147,15 @@ public class FileUserPasswdStore extends AbstractComponent implements UserPasswd
         @Override
         public void onFileChanged(File file) {
             if (file.equals(FileUserPasswdStore.this.file.toFile())) {
-                if (file.equals(FileUserPasswdStore.this.file.toFile())) {
-                    esUsers = ImmutableMap.copyOf(parseFile(file.toPath(), logger));
-                    listener.onRefresh();
-                }
+                esUsers = ImmutableMap.copyOf(parseFile(file.toPath(), logger));
+                listener.onRefresh();
             }
         }
     }
 
     public static interface Listener {
 
-        static final Listener NOOP = new Listener() {
+        final Listener NOOP = new Listener() {
             @Override
             public void onRefresh() {
             }

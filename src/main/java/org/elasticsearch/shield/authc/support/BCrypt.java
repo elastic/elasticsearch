@@ -746,6 +746,6 @@ public class BCrypt {
 	 * @return	true if the passwords match, false otherwise
 	 */
 	public static boolean checkpw(String plaintext, String hashed) {
-		return (hashed.compareTo(hashpw(plaintext, hashed)) == 0);
+		return hashed.compareTo(hashpw(plaintext, hashed)) == 0;
 	}
 }

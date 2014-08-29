@@ -14,7 +14,7 @@ import org.elasticsearch.transport.TransportMessage;
  */
 public interface AuditTrail {
 
-    public static final AuditTrail NOOP = new AuditTrail() {
+    static final AuditTrail NOOP = new AuditTrail() {
 
         static final String NAME = "noop";
 

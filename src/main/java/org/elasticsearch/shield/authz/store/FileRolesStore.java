@@ -12,7 +12,6 @@ import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.jackson.dataformat.yaml.snakeyaml.error.YAMLException;
-import org.elasticsearch.common.jackson.dataformat.yaml.snakeyaml.scanner.ScannerException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -194,9 +193,9 @@ public class FileRolesStore extends AbstractComponent implements RolesStore {
         }
     }
 
-    public static interface Listener {
+    static interface Listener {
 
-        public static final Listener NOOP = new Listener() {
+        static final Listener NOOP = new Listener() {
             @Override
             public void onRefresh() {
             }

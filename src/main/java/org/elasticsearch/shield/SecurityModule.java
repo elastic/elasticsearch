@@ -15,7 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.audit.AuditTrailModule;
 import org.elasticsearch.shield.authc.AuthenticationModule;
 import org.elasticsearch.shield.authz.AuthorizationModule;
-import org.elasticsearch.shield.n2n.N2NModule;
+import org.elasticsearch.shield.n2n.N2NAuthModule;
 import org.elasticsearch.shield.transport.SecuredTransportModule;
 import org.elasticsearch.shield.transport.netty.NettySecuredHttpServerTransportModule;
 import org.elasticsearch.shield.transport.netty.NettySecuredTransportModule;
@@ -52,7 +52,7 @@ public class SecurityModule extends AbstractModule implements SpawnModules, PreP
         // spawn needed parts in client mode
         if (isClient) {
             return ImmutableList.of(
-                    new N2NModule(),
+                    new N2NAuthModule(),
                     new SecuredTransportModule()
             );
         }
@@ -61,7 +61,7 @@ public class SecurityModule extends AbstractModule implements SpawnModules, PreP
                 new AuthenticationModule(settings),
                 new AuthorizationModule(),
                 new AuditTrailModule(settings),
-                new N2NModule(),
+                new N2NAuthModule(),
                 new NettySecuredHttpServerTransportModule(),
                 new NettySecuredTransportModule(),
                 new SecuredTransportModule());

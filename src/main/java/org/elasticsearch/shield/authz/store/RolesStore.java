@@ -15,7 +15,7 @@ public interface RolesStore {
 
     Permission.Global permission(String role);
 
-    public static interface Writable extends RolesStore {
+    static interface Writable extends RolesStore {
 
         void set(String role, Privilege.Index privilege, String... indices);
 

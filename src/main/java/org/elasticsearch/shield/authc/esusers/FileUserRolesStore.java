@@ -159,10 +159,8 @@ public class FileUserRolesStore extends AbstractComponent implements UserRolesSt
         @Override
         public void onFileChanged(File file) {
             if (file.equals(FileUserRolesStore.this.file.toFile())) {
-                if (file.equals(FileUserRolesStore.this.file.toFile())) {
-                    userRoles = ImmutableMap.copyOf(parseFile(file.toPath(), logger));
-                    listener.onRefresh();
-                }
+                userRoles = ImmutableMap.copyOf(parseFile(file.toPath(), logger));
+                listener.onRefresh();
             }
         }
     }

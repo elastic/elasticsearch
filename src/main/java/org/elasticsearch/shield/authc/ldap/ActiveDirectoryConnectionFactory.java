@@ -65,7 +65,7 @@ public class ActiveDirectoryConnectionFactory extends AbstractComponent implemen
     public LdapConnection bind(String userName, char[] password) {
         String userPrincipal = userName + "@" + this.domainName;
 
-        Hashtable<String, java.io.Serializable> ldapEnv = new Hashtable<>(this.sharedLdapEnv);
+        Hashtable<String, Serializable> ldapEnv = new Hashtable<>(this.sharedLdapEnv);
         ldapEnv.put(Context.SECURITY_AUTHENTICATION, "simple");
         ldapEnv.put(Context.SECURITY_PRINCIPAL, userPrincipal);
         ldapEnv.put(Context.SECURITY_CREDENTIALS, password);

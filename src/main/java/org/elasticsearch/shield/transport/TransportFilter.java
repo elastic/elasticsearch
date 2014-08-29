@@ -40,7 +40,7 @@ public interface TransportFilter {
      */
     void inboundResponse(TransportResponse response);
 
-    public static class Base implements TransportFilter {
+    static class Base implements TransportFilter {
 
         @Override
         public void outboundRequest(String action, TransportRequest request) {

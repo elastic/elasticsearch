@@ -18,12 +18,12 @@ package org.elasticsearch.shield.authc.ldap;
  */
 public interface LdapConnectionFactory {
 
-    public static final String URLS_SETTING = "urls"; //comma separated
+    static final String URLS_SETTING = "urls"; //comma separated
 
     /**
      * Password authenticated bind
      * @param user name of the user to authenticate the connection with.
      */
-    public LdapConnection bind(String user, char[] password) ;
+    LdapConnection bind(String user, char[] password) ;
 
 }

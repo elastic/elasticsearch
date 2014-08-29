@@ -111,7 +111,7 @@ public abstract class CachingUserPasswdStore extends AbstractComponent implement
     /**
      * Represents a hash of a password.
      */
-    protected static interface PasswordHash {
+    static interface PasswordHash {
 
         boolean verify(char[] password);
 

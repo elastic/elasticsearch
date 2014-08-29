@@ -69,7 +69,7 @@ public class StandardLdapConnectionFactory extends AbstractComponent implements 
     @Override
     public LdapConnection bind(String username, char[] password) {
         //SASL, MD5, etc. all options here stink, we really need to go over ssl + simple authentication
-        Hashtable<String, java.io.Serializable> ldapEnv = new Hashtable<>(this.sharedLdapEnv);
+        Hashtable<String, Serializable> ldapEnv = new Hashtable<>(this.sharedLdapEnv);
         ldapEnv.put(Context.SECURITY_AUTHENTICATION, "simple");
         ldapEnv.put(Context.SECURITY_CREDENTIALS, password);
 

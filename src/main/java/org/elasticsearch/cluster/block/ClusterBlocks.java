@@ -118,7 +118,7 @@ public class ClusterBlocks {
     }
 
     public boolean hasGlobalBlock(ClusterBlockLevel level) {
-        return !global(level).isEmpty();
+        return global(level).size() > 0;
     }
 
     /**

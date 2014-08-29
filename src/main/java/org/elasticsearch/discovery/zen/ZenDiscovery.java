@@ -939,13 +939,14 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
         if (pingMasters.isEmpty()) {
             // if we don't have enough master nodes, we bail, because there are not enough master to elect from
-            if (!electMaster.hasEnoughMasterNodes(possibleMasterNodes)) {
+            if (electMaster.hasEnoughMasterNodes(possibleMasterNodes)) {
+                return electMaster.electMaster(possibleMasterNodes);
+            } else {
                 logger.trace("not enough master nodes [{}]", possibleMasterNodes);
                 return null;
             }
-            // lets tie break between discovered nodes
-            return electMaster.electMaster(possibleMasterNodes);
         } else {
+            // lets tie break between discovered nodes
             return electMaster.electMaster(pingMasters);
         }
     }

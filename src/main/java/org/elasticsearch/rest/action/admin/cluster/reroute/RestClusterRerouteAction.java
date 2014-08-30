@@ -23,6 +23,8 @@ import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
@@ -32,12 +34,15 @@ import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 
 import java.io.IOException;
+import java.util.EnumSet;
 
 /**
  */
 public class RestClusterRerouteAction extends BaseRestHandler {
 
     private final SettingsFilter settingsFilter;
+
+    private static String DEFAULT_METRICS = Strings.arrayToCommaDelimitedString(EnumSet.complementOf(EnumSet.of(ClusterState.Metric.METADATA)).toArray());
 
     @Inject
     public RestClusterRerouteAction(Settings settings, RestController controller,
@@ -63,9 +68,9 @@ public class RestClusterRerouteAction extends BaseRestHandler {
             @Override
             protected void addCustomFields(XContentBuilder builder, ClusterRerouteResponse response) throws IOException {
                 builder.startObject("state");
-                // by default, filter metadata
-                if (request.param("filter_metadata") == null) {
-                    request.params().put("filter_metadata", "true");
+                // by default, return everything but metadata
+                if (request.param("metric") == null) {
+                    request.params().put("metric", DEFAULT_METRICS);
                 }
                 response.getState().settingsFilter(settingsFilter).toXContent(builder, request);
                 builder.endObject();

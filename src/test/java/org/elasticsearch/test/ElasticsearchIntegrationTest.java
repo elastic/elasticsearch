@@ -334,9 +334,8 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                             .put(SETTING_INDEX_SEED, getRandom().nextLong());
 
             if (randomizeNumberOfShardsAndReplicas()) {
-                randomSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, between(DEFAULT_MIN_NUM_SHARDS, DEFAULT_MAX_NUM_SHARDS))
-                        //use either 0 or 1 replica, yet a higher amount when possible, but only rarely
-                        .put(SETTING_NUMBER_OF_REPLICAS, between(0, getRandom().nextInt(10) > 0 ? 1 : cluster().numDataNodes() - 1));
+                randomSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, numberOfShards())
+                        .put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas());
             }
             XContentBuilder mappings = null;
             if (frequently() && randomDynamicTemplates()) {
@@ -681,7 +680,9 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     }
 
     protected int maximumNumberOfReplicas() {
-        return Math.max(0, cluster().numDataNodes() - 1);
+        //use either 0 or 1 replica, yet a higher amount when possible, but only rarely
+        int maxNumReplicas = Math.max(0, cluster().numDataNodes() - 1);
+        return frequently() ? Math.min(1, maxNumReplicas) : maxNumReplicas;
     }
 
     protected int numberOfReplicas() {

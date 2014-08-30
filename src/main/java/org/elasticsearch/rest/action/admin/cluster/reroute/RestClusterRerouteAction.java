@@ -28,7 +28,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 
 import java.io.IOException;
@@ -63,9 +66,9 @@ public class RestClusterRerouteAction extends BaseRestHandler {
             @Override
             protected void addCustomFields(XContentBuilder builder, ClusterRerouteResponse response) throws IOException {
                 builder.startObject("state");
-                // by default, filter metadata
-                if (request.param("filter_metadata") == null) {
-                    request.params().put("filter_metadata", "true");
+                // by default, return everything but metadata
+                if (request.param("metric") == null) {
+                    request.params().put("metric", "nodes,master_node,routing_table,blocks,indices,customs");
                 }
                 response.getState().settingsFilter(settingsFilter).toXContent(builder, request);
                 builder.endObject();

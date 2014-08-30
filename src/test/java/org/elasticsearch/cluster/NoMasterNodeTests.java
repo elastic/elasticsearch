@@ -145,14 +145,14 @@ public class NoMasterNodeTests extends ElasticsearchIntegrationTest {
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
         bulkRequestBuilder.add(client().prepareIndex("test", "type1", "1").setSource(XContentFactory.jsonBuilder().startObject().endObject()));
         bulkRequestBuilder.add(client().prepareIndex("test", "type1", "2").setSource(XContentFactory.jsonBuilder().startObject().endObject()));
-        bulkRequestBuilder.setTimeout(timeout);
-        checkBulkAction(autoCreateIndex, timeout, bulkRequestBuilder);
+        // today, we clear the metadata on when there is no master, so it will go through the auto create logic and
+        // add it... (if autoCreate is set to true)
+        checkBulkAction(autoCreateIndex, bulkRequestBuilder);
 
         bulkRequestBuilder = client().prepareBulk();
         bulkRequestBuilder.add(client().prepareIndex("no_index", "type1", "1").setSource(XContentFactory.jsonBuilder().startObject().endObject()));
         bulkRequestBuilder.add(client().prepareIndex("no_index", "type1", "2").setSource(XContentFactory.jsonBuilder().startObject().endObject()));
-        bulkRequestBuilder.setTimeout(timeout);
-        checkBulkAction(autoCreateIndex, timeout, bulkRequestBuilder);
+        checkBulkAction(autoCreateIndex, bulkRequestBuilder);
 
         internalCluster().startNode(settings);
         client().admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
@@ -176,23 +176,30 @@ public class NoMasterNodeTests extends ElasticsearchIntegrationTest {
         }
     }
 
-    void checkBulkAction(boolean autoCreateIndex, TimeValue timeout, BulkRequestBuilder builder) {
+    void checkBulkAction(boolean indexShouldBeAutoCreated, BulkRequestBuilder builder) {
         // bulk operation do not throw MasterNotDiscoveredException exceptions. The only test that auto create kicked in and failed is
-        // via the timeout, as they do not wait on block :(
-
+        // via the timeout, as bulk operation do not wait on blocks.
+        TimeValue timeout;
+        if (indexShouldBeAutoCreated) {
+            // we expect the bulk to fail because it will try to go to the master. Use small timeout and detect it has passed
+            timeout = new TimeValue(200);
+        } else {
+            // the request should fail very quickly - use a large timeout and make sure it didn't pass...
+            timeout = new TimeValue(5000);
+        }
+        builder.setTimeout(timeout);
         long now = System.currentTimeMillis();
         try {
             builder.get();
             fail("Expected ClusterBlockException");
         } catch (ClusterBlockException e) {
-            // today, we clear the metadata on when there is no master, so it will go through the auto create logic and
-            // add it... (if set to true), if we didn't remove the metedata when there is no master, then, the non
-            // retry in bulk should be taken into account
-            if (!autoCreateIndex) {
-                assertThat(System.currentTimeMillis() - now, lessThan(timeout.millis() / 2));
-            } else {
+            if (indexShouldBeAutoCreated) {
+                // timeout is 200
                 assertThat(System.currentTimeMillis() - now, greaterThan(timeout.millis() - 50));
                 assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+            } else {
+                // timeout is 5000
+                assertThat(System.currentTimeMillis() - now, lessThan(timeout.millis() - 50));
             }
         }
     }

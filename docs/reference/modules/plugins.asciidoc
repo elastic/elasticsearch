@@ -274,6 +274,7 @@ You can disable that check using `plugins.check_lucene: false`.
 * https://github.com/elasticsearch/elasticsearch-lang-groovy[Groovy lang Plugin]
 * https://github.com/elasticsearch/elasticsearch-lang-javascript[JavaScript language Plugin]
 * https://github.com/elasticsearch/elasticsearch-lang-python[Python language Plugin]
+* https://github.com/NLPchina/elasticsearch-sql/[SQL language Plugin] (by nlpcn)
 
 [float]
 [[site]]

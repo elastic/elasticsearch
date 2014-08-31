@@ -63,17 +63,17 @@ public class MacAddressProvider {
         try {
             address = getMacAddress();
         } catch( SocketException se ) {
-            logger.warn("Unable to get mac address, will use a dummy address",se);
-            address = constructDummyMulticastAddress();
+            logger.warn("Unable to get mac address, will use a dummy address", se);
+            // address will be set below
         }
 
-        if (!isValidAddress(address)){
+        if (!isValidAddress(address)) {
             logger.warn("Unable to get a valid mac address, will use a dummy address");
             address = constructDummyMulticastAddress();
         }
 
         byte[] mungedBytes = new byte[6];
-        RandomBasedUUID.SecureRandomHolder.INSTANCE.nextBytes(mungedBytes);
+        SecureRandomHolder.INSTANCE.nextBytes(mungedBytes);
         for (int i = 0; i < 6; ++i) {
             mungedBytes[i] = (byte) (0xff & (mungedBytes[i] ^ address[i]));
         }
@@ -83,7 +83,7 @@ public class MacAddressProvider {
 
     private static byte[] constructDummyMulticastAddress() {
         byte[] dummy = new byte[6];
-        RandomBasedUUID.SecureRandomHolder.INSTANCE.nextBytes(dummy);
+        SecureRandomHolder.INSTANCE.nextBytes(dummy);
         /*
          * Set the broadcast bit to indicate this is not a _real_ mac address
          */

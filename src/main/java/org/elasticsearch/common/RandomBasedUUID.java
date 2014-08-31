@@ -22,20 +22,15 @@ package org.elasticsearch.common;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 
 import java.io.IOException;
-import java.security.SecureRandom;
 import java.util.Random;
 
-public class RandomBasedUUID implements UUIDGenerator{
-
-    protected static class SecureRandomHolder {
-        // class loading is atomic - this is a lazy & safe singleton
-        protected static final SecureRandom INSTANCE = new SecureRandom();
-    }
+class RandomBasedUUID implements UUIDGenerator {
 
     /**
      * Returns a Base64 encoded version of a Version 4.0 compatible UUID
      * as defined here: http://www.ietf.org/rfc/rfc4122.txt
      */
+    @Override
     public String getBase64UUID() {
         return getBase64UUID(SecureRandomHolder.INSTANCE);
     }
@@ -65,7 +60,6 @@ public class RandomBasedUUID implements UUIDGenerator{
             // we know the bytes are 16, and not a multi of 3, so remove the 2 padding chars that are added
             assert encoded[encoded.length - 1] == '=';
             assert encoded[encoded.length - 2] == '=';
-            // we always have padding of two at the end, encode it differently
             return new String(encoded, 0, encoded.length - 2, Base64.PREFERRED_ENCODING);
         } catch (IOException e) {
             throw new ElasticsearchIllegalStateException("should not be thrown");

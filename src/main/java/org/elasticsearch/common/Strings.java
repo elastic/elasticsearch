@@ -1527,16 +1527,16 @@ public class Strings {
                data.length == 1 && ("_all".equals(data[0]) || "*".equals(data[0]));
     }
 
-    public static String randomBase64UUID(){
-        return RANDOM_UUID_GENERATOR.getBase64UUID(RandomBasedUUID.SecureRandomHolder.INSTANCE);
+    public static String randomBase64UUID() {
+        return RANDOM_UUID_GENERATOR.getBase64UUID();
     }
 
 
-    public static String randomBase64UUID(Random random){
+    public static String randomBase64UUID(Random random) {
         return RANDOM_UUID_GENERATOR.getBase64UUID(random);
     }
 
-    public static String base64UUID(){
+    public static String base64UUID() {
         return TIME_UUID_GENERATOR.getBase64UUID();
     }
 

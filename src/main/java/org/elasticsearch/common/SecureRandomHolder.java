@@ -16,20 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.common;
 
-import java.util.concurrent.atomic.AtomicLong;
+import java.security.SecureRandom;
 
-/**
- *
- */
-public class PaddedAtomicLong extends AtomicLong {
-    /*
-     * See http://mechanical-sympathy.blogspot.nl/2011/08/false-sharing-java-7.html
-     */
-    public volatile long p1, p2, p3, p4, p5, p6 = 7L;
-
-    public long sum(){
-        return p1 + p2 + p3 + p4 + p5 + p6;
-    }
+class SecureRandomHolder {
+    // class loading is atomic - this is a lazy & safe singleton to be used by this package
+    public static final SecureRandom INSTANCE = new SecureRandom();
 }

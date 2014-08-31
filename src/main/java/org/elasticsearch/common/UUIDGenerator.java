@@ -20,7 +20,7 @@
 package org.elasticsearch.common;
 
 /**
- *
+ * Generates opaque unique strings.
  */
 public interface UUIDGenerator {
     public String getBase64UUID();

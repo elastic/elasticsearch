@@ -22,77 +22,80 @@ package org.elasticsearch.common;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
+import java.util.Random;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
-public class TimeBasedUUID implements UUIDGenerator{
+/** These are essentially flake ids (http://boundary.com/blog/2012/01/12/flake-a-decentralized-k-ordered-unique-id-generator-in-erlang) but
+ *  we use 6 (not 8) bytes for timestamp, and use 3 (not 2) bytes for sequence number. */
 
-    private PaddedAtomicLong sequenceNumber = new PaddedAtomicLong();
-    private PaddedAtomicLong lastTimestamp = new PaddedAtomicLong();
+class TimeBasedUUID implements UUIDGenerator {
 
-    byte[] secureMungedAddress = MacAddressProvider.getSecureMungedAddress();
+    // We only use bottom 3 bytes for the sequence number.  Paranoia: init with random int so that if JVM/OS/machine goes down, clock slips
+    // backwards, and JVM comes back up, we are less likely to be on the same sequenceNumber at the same time:
+    private final AtomicInteger sequenceNumber = new AtomicInteger(SecureRandomHolder.INSTANCE.nextInt());
 
-    private static void putLong(byte[] array, long l, int pos, int numberOfLongBytes){
-        for (int i=0; i<numberOfLongBytes; ++i){
+    // Used to ensure clock moves forward:
+    private final AtomicLong lastTimestamp = new AtomicLong();
+
+    private static final byte[] secureMungedAddress = MacAddressProvider.getSecureMungedAddress();
+
+    static {
+        assert secureMungedAddress.length == 6;
+    }
+
+    /** Puts the lower numberOfLongBytes from l into the array, starting index pos. */
+    private static void putLong(byte[] array, long l, int pos, int numberOfLongBytes) {
+        for (int i=0; i<numberOfLongBytes; ++i) {
             array[pos+numberOfLongBytes-i-1] = (byte)( l >> (i*8) & 0xff);
         }
     }
 
-    private static long getLong(byte[] array, int pos, int numberOfLongBytes){
-        byte[] longBytes = new byte[8];
-        for (int i = 0; i < numberOfLongBytes && i < 8; ++i){
-            longBytes[i+(8-numberOfLongBytes)] = array[i+pos];
-        }
-        return ByteBuffer.wrap(longBytes).getLong();
-    }
-
     @Override
     public String getBase64UUID()  {
+        final int sequenceId = sequenceNumber.incrementAndGet() & 0xffffff;
+
+        // Deal with clock moving backwards "on our watch" by recording the last timestamp only if it increased:
         long timestamp;
-        long last;
-        final byte[] uuidBytes = new byte[20];
-        do {
-            last = lastTimestamp.get();
+        while (true) {
+            final long last = lastTimestamp.get();
             timestamp = System.currentTimeMillis();
-            if (last > timestamp){
-                timestamp = last; //If we inc here we risk running away but we
-                                  // have to be sure that we won't use all the sequence number space in a single slip
+            if ((sequenceId & 0xffff) == 0) {
+                // If we have a long time-slip backwards, force the clock to increment whenever lower 4 bytes of sequence number wraps
+                // around to 0.  This is only best-effort (not perfectly thread safe):
+                timestamp++;
             }
-            if (lastTimestamp.compareAndSet(last, timestamp)) { //Still do the set to make sure we haven't recovered
-                                                                //from the slip in a different thread
+            if (timestamp <= last) {
+                // Clock slipped backwards:
+                timestamp = last;
+                break;
+            } else if (lastTimestamp.compareAndSet(last, timestamp)) {
                 break;
             }
-        } while(last < timestamp);
-
-        putLong(uuidBytes,timestamp,0,6); //Only use 6 bytes of the timestamp this will suffice beyond the year 10000
-        System.arraycopy(secureMungedAddress,0,uuidBytes,6,secureMungedAddress.length);
-        putLong(uuidBytes,sequenceNumber.incrementAndGet(),12,8);
-
-        try {
-            byte[] encoded = Base64.encodeBytesToBytes(uuidBytes, 0, uuidBytes.length, Base64.URL_SAFE);
-            // we know the bytes are 20, which will add a padding to 21 so we can remove it
-            assert encoded[encoded.length - 1] == '=';
-            // we always have padding of one at the end, encode it differently
-            return new String(encoded, 0, encoded.length - 1, Base64.PREFERRED_ENCODING);
-        } catch (IOException e) {
-            throw new ElasticsearchIllegalStateException("should not be thrown");
         }
-    }
 
-    public static long getTimestampFromUUID(String uuid) throws IOException {
-        byte[] uuidBytes = Base64.decode(uuid+"=",Base64.URL_SAFE);
-        return getLong(uuidBytes,0,6);
-    }
+        final byte[] uuidBytes = new byte[15];
 
-    public static long getSequenceNumberFromUUID(String uuid) throws IOException {
-        byte[] uuidBytes = Base64.decode(uuid+"=",Base64.URL_SAFE);
-        return getLong(uuidBytes,12,8);
-    }
+        // Only use lower 6 bytes of the timestamp (this will suffice beyond the year 10000):
+        putLong(uuidBytes, timestamp, 0, 6);
 
-    public static byte[] getAddressBytesFromUUID(String uuid) throws IOException {
-        byte[] uuidBytes = Base64.decode(uuid+"=",Base64.URL_SAFE);
-        byte[] mungedAddress = new byte[6];
-        System.arraycopy(uuidBytes,6,mungedAddress,0,6);
-        return mungedAddress;
-    }
+        // MAC address adds 6 bytes:
+        System.arraycopy(secureMungedAddress, 0, uuidBytes, 6, secureMungedAddress.length);
 
+        // Sequence number adds 3 bytes:
+        putLong(uuidBytes, sequenceId, 12, 3);
+
+        assert 9 + secureMungedAddress.length == uuidBytes.length;
+
+        byte[] encoded;
+        try {
+            encoded = Base64.encodeBytesToBytes(uuidBytes, 0, uuidBytes.length, Base64.URL_SAFE);
+        } catch (IOException e) {
+            throw new ElasticsearchIllegalStateException("should not be thrown", e);
+        }
+
+        // We are a multiple of 3 bytes so we should not see any padding:
+        assert encoded[encoded.length - 1] != '=';
+        return new String(encoded, 0, encoded.length, Base64.PREFERRED_ENCODING);
+    }
 }

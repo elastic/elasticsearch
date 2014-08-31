@@ -24,57 +24,44 @@ import org.junit.Test;
 import java.io.IOException;
 import java.util.HashSet;
 
-/**
- *
- */
 public class UUIDTests extends ElasticsearchTestCase {
 
     static UUIDGenerator timeUUIDGen = new TimeBasedUUID();
     static UUIDGenerator randomUUIDGen = new RandomBasedUUID();
 
     @Test
-    public void testRandomUUID(){
-        int iterations = 10000;
-        HashSet<String> uuidSet = generateUUIDSet(iterations, randomUUIDGen);
-        assertEquals(iterations,uuidSet.size());
+    public void testRandomUUID() {
+        verifyUUIDSet(100000, randomUUIDGen);
     }
 
     @Test
-    public void testTimeUUID(){
-        int count = 100000;
-        HashSet uuidSet = generateUUIDSet(count, timeUUIDGen);
-        assertEquals(count,uuidSet.size());
+    public void testTimeUUID() {
+        verifyUUIDSet(100000, timeUUIDGen);
     }
 
-
     @Test
-    public void testThreadedTimeUUID(){
+    public void testThreadedTimeUUID() {
         testUUIDThreaded(timeUUIDGen);
     }
 
     @Test
-    public void testThreadedRandomUUID(){
+    public void testThreadedRandomUUID() {
         testUUIDThreaded(randomUUIDGen);
     }
 
-
-    HashSet generateUUIDSet(int count, UUIDGenerator uuidSource){
+    HashSet verifyUUIDSet(int count, UUIDGenerator uuidSource) {
         HashSet<String> uuidSet = new HashSet<>();
-        for (int i = 0; i < count; ++i){
-            String timeUUID = uuidSource.getBase64UUID();
-            if(uuidSet.contains(timeUUID)){
-                assertFalse(uuidSet.contains(timeUUID));
-            }
-            uuidSet.add(timeUUID);
+        for (int i = 0; i < count; ++i) {
+            uuidSet.add(uuidSource.getBase64UUID());
         }
+        assertEquals(count, uuidSet.size());
         return uuidSet;
     }
 
-    class UUIDGenRunner implements Runnable{
+    class UUIDGenRunner implements Runnable {
         int count;
-        public HashSet uuidSet = null;
+        public HashSet<String> uuidSet = null;
         UUIDGenerator uuidSource;
-
 
         public UUIDGenRunner(int count, UUIDGenerator uuidSource){
             this.count = count;
@@ -83,8 +70,7 @@ public class UUIDTests extends ElasticsearchTestCase {
 
         @Override
         public void run(){
-            uuidSet = generateUUIDSet(count, uuidSource );
-            assertEquals(count,uuidSet.size());
+            uuidSet = verifyUUIDSet(count, uuidSource);
         }
     }
 
@@ -93,13 +79,13 @@ public class UUIDTests extends ElasticsearchTestCase {
         HashSet<Thread> threads = new HashSet<>();
         int count = 100;
         int uuids = 10000;
-        for (int i = 0; i < count; ++i){
+        for (int i = 0; i < count; ++i) {
             UUIDGenRunner runner = new UUIDGenRunner(uuids, uuidSource);
             Thread t = new Thread(runner);
             threads.add(t);
             runners.add(runner);
         }
-        for (Thread t : threads){
+        for (Thread t : threads) {
             t.start();
         }
         boolean retry = false;
@@ -114,37 +100,9 @@ public class UUIDTests extends ElasticsearchTestCase {
         } while (retry);
 
         HashSet<String> globalSet = new HashSet<>();
-        for( UUIDGenRunner runner : runners ){
-            assertEquals(uuids,runner.uuidSet.size());
+        for (UUIDGenRunner runner : runners) {
             globalSet.addAll(runner.uuidSet);
         }
-        assertEquals(count*uuids,globalSet.size());
+        assertEquals(count*uuids, globalSet.size());
     }
-
-    @Test
-    public void testUUIDIntegrity(){
-        long lastSeq = 0;
-        long lastTime = 0;
-        byte[] mungedAddress = null;
-        try {
-            for (int i = 0; i < 10000; ++i) {
-                String uuid = timeUUIDGen.getBase64UUID();
-                long sequence = TimeBasedUUID.getSequenceNumberFromUUID(uuid);
-                long time = TimeBasedUUID.getTimestampFromUUID(uuid);
-                byte[] address = TimeBasedUUID.getAddressBytesFromUUID(uuid);
-                if (mungedAddress != null) {
-                    assertEquals(lastSeq+1,sequence);
-                    assertTrue(time-lastTime<10000);
-                    assertArrayEquals(mungedAddress,address);
-                }
-                lastSeq = sequence;
-                lastTime = time;
-                mungedAddress = address;
-            }
-        } catch (IOException ie){
-            assertFalse(ie!=null);
-        }
-    }
-
-
 }

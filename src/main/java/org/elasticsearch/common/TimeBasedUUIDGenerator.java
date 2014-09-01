@@ -29,7 +29,7 @@ import java.util.concurrent.atomic.AtomicLong;
 /** These are essentially flake ids (http://boundary.com/blog/2012/01/12/flake-a-decentralized-k-ordered-unique-id-generator-in-erlang) but
  *  we use 6 (not 8) bytes for timestamp, and use 3 (not 2) bytes for sequence number. */
 
-class TimeBasedUUID implements UUIDGenerator {
+class TimeBasedUUIDGenerator implements UUIDGenerator {
 
     // We only use bottom 3 bytes for the sequence number.  Paranoia: init with random int so that if JVM/OS/machine goes down, clock slips
     // backwards, and JVM comes back up, we are less likely to be on the same sequenceNumber at the same time:

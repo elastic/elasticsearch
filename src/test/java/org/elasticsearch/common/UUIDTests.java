@@ -26,8 +26,8 @@ import java.util.HashSet;
 
 public class UUIDTests extends ElasticsearchTestCase {
 
-    static UUIDGenerator timeUUIDGen = new TimeBasedUUID();
-    static UUIDGenerator randomUUIDGen = new RandomBasedUUID();
+    static UUIDGenerator timeUUIDGen = new TimeBasedUUIDGenerator();
+    static UUIDGenerator randomUUIDGen = new RandomBasedUUIDGenerator();
 
     @Test
     public void testRandomUUID() {

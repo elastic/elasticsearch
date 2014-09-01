@@ -24,7 +24,7 @@ import org.elasticsearch.ElasticsearchIllegalStateException;
 import java.io.IOException;
 import java.util.Random;
 
-class RandomBasedUUID implements UUIDGenerator {
+class RandomBasedUUIDGenerator implements UUIDGenerator {
 
     /**
      * Returns a Base64 encoded version of a Version 4.0 compatible UUID

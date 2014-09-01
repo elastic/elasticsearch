@@ -21,6 +21,10 @@
             <useTransitiveFiltering>true</useTransitiveFiltering>
             <includes>
                 <include>org.apache.tika:tika-parsers</include>
+                <include>org.apache.poi:poi</include>
+                <include>org.apache.poi:poi-ooxml</include>
+                <include>org.apache.poi:poi-ooxml-schemas</include>
+                <include>org.apache.poi:poi-scratchpad</include>
             </includes>
             <excludes>
                 <exclude>org.slf4j:slf4j-api</exclude>

@@ -122,21 +122,23 @@ public class ESUsersToolTests extends CliToolTestCase {
 
         assertFileExists(userFile);
         List<String> lines = Files.readLines(userFile, Charsets.UTF_8);
-        assertThat(lines.size(), is(2));
-        assertThat(lines.get(0), equalTo("user2:hash2"));
+        assertThat(lines, hasSize(2));
+        assertThat(lines, hasItem("user2:hash2"));
+        assertThat(lines, hasItem(startsWith("user1:")));
+
         // we can't just hash again and compare the lines, as every time we hash a new salt is generated
         // instead we'll just verify the generated hash against the correct password.
-        String line = lines.get(1);
-        assertThat(line, startsWith("user1:"));
-        String hash = line.substring("user1:".length());
-        assertThat(Hasher.HTPASSWD.verify("changeme".toCharArray(), hash.toCharArray()), is(true));
+        for (String line : lines) {
+            if (line.startsWith("user1")) {
+                String hash = line.substring("user1:".length());
+                assertThat(Hasher.HTPASSWD.verify("changeme".toCharArray(), hash.toCharArray()), is(true));
+            }
+        }
 
         assertFileExists(userRolesFile);
         lines = Files.readLines(userRolesFile, Charsets.UTF_8);
-        assertThat(lines.size(), is(2));
-        assertThat(lines.get(0), equalTo("user2:r3,r4"));
-        line = lines.get(1);
-        assertThat(line, equalTo("user1:r1,r2"));
+        assertThat(lines, hasSize(2));
+        assertThat(lines, containsInAnyOrder("user2:r3,r4", "user1:r1,r2"));
     }
 
     @Test

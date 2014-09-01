@@ -27,7 +27,7 @@ public class AuthenticationModule extends AbstractModule implements SpawnModules
 
     @Override
     public Iterable<? extends Module> spawnModules() {
-        ImmutableList.Builder<? extends Module> modules = ImmutableList.builder();
+        ImmutableList.Builder<Module> modules = ImmutableList.builder();
         modules.add(new SystemRealm.Module());
         if (ESUsersModule.enabled(settings)) {
             modules.add(new ESUsersModule());

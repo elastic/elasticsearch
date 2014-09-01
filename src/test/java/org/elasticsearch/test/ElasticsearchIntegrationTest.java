@@ -1569,11 +1569,8 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             case SUITE:
                 nodePrefix = SUITE_CLUSTER_NODE_PREFIX;
                 break;
-            case GLOBAL:
-                nodePrefix = GLOBAL_CLUSTER_NODE_PREFIX;
-                break;
             default:
-                throw new ElasticsearchException("Unknown scope: " + scope);
+                throw new ElasticsearchException("Scope not supported: " + scope);
         }
 
         return new InternalTestCluster(currentClusterSeed, minNumDataNodes, maxNumDataNodes,

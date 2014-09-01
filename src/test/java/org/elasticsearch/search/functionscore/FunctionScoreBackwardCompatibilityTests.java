@@ -93,7 +93,7 @@ public class FunctionScoreBackwardCompatibilityTests extends ElasticsearchBackwa
         do {
             logger.debug("function_score bwc: upgrading {}st node", upgradedNodesCounter++);
             upgraded = backwardsCluster().upgradeOneNode();
-            ensureGreen();
+            ensureYellow();
             logClusterState();
             checkFunctionScoreStillWorks(ids);
         } while (upgraded);

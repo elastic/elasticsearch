@@ -151,7 +151,7 @@ public class NoMasterNodeTests extends ElasticsearchIntegrationTest {
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
         bulkRequestBuilder.add(client().prepareIndex("test", "type1", "1").setSource(XContentFactory.jsonBuilder().startObject().endObject()));
         bulkRequestBuilder.add(client().prepareIndex("test", "type1", "2").setSource(XContentFactory.jsonBuilder().startObject().endObject()));
-        checkBulkAction(autoCreateIndex, bulkRequestBuilder);
+        checkBulkAction(false, bulkRequestBuilder);
 
         bulkRequestBuilder = client().prepareBulk();
         bulkRequestBuilder.add(client().prepareIndex("no_index", "type1", "1").setSource(XContentFactory.jsonBuilder().startObject().endObject()));

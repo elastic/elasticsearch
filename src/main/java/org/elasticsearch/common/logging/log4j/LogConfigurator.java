@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.logging.log4j;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import org.apache.log4j.PropertyConfigurator;
 import org.elasticsearch.ElasticsearchException;
@@ -33,6 +34,7 @@ import java.net.MalformedURLException;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 
@@ -42,6 +44,8 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
  *
  */
 public class LogConfigurator {
+
+    private static final List<String> ALLOWED_SUFFIXES = ImmutableList.of(".yml", ".yaml", ".json", ".properties");
 
     private static boolean loaded;
 
@@ -118,8 +122,14 @@ public class LogConfigurator {
             Files.walkFileTree(env.configFile().toPath(), EnumSet.of(FileVisitOption.FOLLOW_LINKS), Integer.MAX_VALUE, new SimpleFileVisitor<Path>() {
                 @Override
                 public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                    if (file.getFileName().toString().startsWith("logging.")) {
-                        loadConfig(file, settingsBuilder);
+                    String fileName = file.getFileName().toString();
+                    if (fileName.startsWith("logging.")) {
+                        for (String allowedSuffix : ALLOWED_SUFFIXES) {
+                            if (fileName.endsWith(allowedSuffix)) {
+                                loadConfig(file, settingsBuilder);
+                                break;
+                            }
+                        }
                     }
                     return FileVisitResult.CONTINUE;
                 }

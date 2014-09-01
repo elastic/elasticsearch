@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.logging;
 
+import com.google.common.io.Files;
 import org.apache.log4j.Appender;
 import org.apache.log4j.Logger;
 import org.elasticsearch.common.logging.log4j.Log4jESLogger;
@@ -26,12 +27,17 @@ import org.elasticsearch.common.logging.log4j.Log4jESLoggerFactory;
 import org.elasticsearch.common.logging.log4j.LogConfigurator;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ElasticsearchTestCase;
+import org.hamcrest.Matchers;
+import org.junit.Before;
 import org.junit.Test;
 
 import java.io.File;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
@@ -39,9 +45,13 @@ import static org.hamcrest.Matchers.notNullValue;
  */
 public class LoggingConfigurationTests extends ElasticsearchTestCase {
 
+    @Before
+    public void before() throws Exception {
+        LogConfigurator.reset();
+    }
+
     @Test
     public void testMultipleConfigs() throws Exception {
-        LogConfigurator.reset();
         File configDir = resolveConfigDir();
         Settings settings = ImmutableSettings.builder()
                 .put("path.conf", configDir.getAbsolutePath())
@@ -62,6 +72,71 @@ public class LoggingConfigurationTests extends ElasticsearchTestCase {
         logger = ((Log4jESLogger) esLogger).logger();
         appender = logger.getAppender("console3");
         assertThat(appender, notNullValue());
+    }
+
+    @Test
+    public void testResolveJsonLoggingConfig() throws Exception {
+        File tmpDir = newTempDir();
+        File tmpFile = File.createTempFile("logging.", ".json", tmpDir);
+        Files.write("{\"json\": \"foo\"}", tmpFile, StandardCharsets.UTF_8);
+        Environment environment = new Environment(
+                ImmutableSettings.builder().put("path.conf", tmpDir.getAbsolutePath()).build());
+
+        ImmutableSettings.Builder builder = ImmutableSettings.builder();
+        LogConfigurator.resolveConfig(environment, builder);
+
+        Settings logSettings = builder.build();
+        assertThat(logSettings.get("json"), is("foo"));
+    }
+
+    @Test
+    public void testResolvePropertiesLoggingConfig() throws Exception {
+        File tmpDir = newTempDir();
+        File tmpFile = File.createTempFile("logging.", ".properties", tmpDir);
+        Files.write("key: value", tmpFile, StandardCharsets.UTF_8);
+        Environment environment = new Environment(
+                ImmutableSettings.builder().put("path.conf", tmpDir.getAbsolutePath()).build());
+
+        ImmutableSettings.Builder builder = ImmutableSettings.builder();
+        LogConfigurator.resolveConfig(environment, builder);
+
+        Settings logSettings = builder.build();
+        assertThat(logSettings.get("key"), is("value"));
+    }
+
+    @Test
+    public void testResolveConfigValidFilename() throws Exception {
+        File tmpDir = newTempDir();
+        File tempFileYml = File.createTempFile("logging.", ".yml", tmpDir);
+        File tempFileYaml = File.createTempFile("logging.", ".yaml", tmpDir);
+
+        Files.write("yml: bar", tempFileYml, StandardCharsets.UTF_8);
+        Files.write("yaml: bar", tempFileYaml, StandardCharsets.UTF_8);
+        Environment environment = new Environment(
+                ImmutableSettings.builder().put("path.conf", tmpDir.getAbsolutePath()).build());
+
+        ImmutableSettings.Builder builder = ImmutableSettings.builder();
+        LogConfigurator.resolveConfig(environment, builder);
+
+        Settings logSettings = builder.build();
+        assertThat(logSettings.get("yml"), is("bar"));
+        assertThat(logSettings.get("yaml"), is("bar"));
+    }
+
+    @Test
+    public void testResolveConfigInvalidFilename() throws Exception {
+        File tmpDir = newTempDir();
+        File tempFile = File.createTempFile("logging.yml.", ".bak", tmpDir);
+
+        Files.write("yml: bar", tempFile, StandardCharsets.UTF_8);
+        Environment environment = new Environment(
+                ImmutableSettings.builder().put("path.conf", tempFile.getAbsolutePath()).build());
+
+        ImmutableSettings.Builder builder = ImmutableSettings.builder();
+        LogConfigurator.resolveConfig(environment, builder);
+
+        Settings logSettings = builder.build();
+        assertThat(logSettings.get("yml"), Matchers.nullValue());
     }
 
     private static File resolveConfigDir() throws Exception {

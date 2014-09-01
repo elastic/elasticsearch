@@ -217,7 +217,7 @@ public class BackgroundIndexer implements AutoCloseable {
         setBudget(numOfDocs);
     }
 
-    /** Stop all background threads **/
+    /** Stop all background threads * */
     public void stop() throws InterruptedException {
         if (stop.get()) {
             return;

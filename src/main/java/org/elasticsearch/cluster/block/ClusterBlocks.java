@@ -108,6 +108,19 @@ public class ClusterBlocks {
         return global.contains(block);
     }
 
+    public boolean hasGlobalBlock(int blockId) {
+        for (ClusterBlock clusterBlock : global) {
+            if (clusterBlock.id() == blockId) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public boolean hasGlobalBlock(ClusterBlockLevel level) {
+        return global(level).size() > 0;
+    }
+
     /**
      * Is there a global block with the provided status?
      */

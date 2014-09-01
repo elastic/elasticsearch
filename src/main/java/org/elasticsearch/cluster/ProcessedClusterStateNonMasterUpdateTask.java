@@ -16,20 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.common.unit.TimeValue;
-
 /**
- * An extension interface to {@link org.elasticsearch.cluster.ClusterStateUpdateTask} that allows to associate
- * a timeout.
+ * A combination between {@link org.elasticsearch.cluster.ProcessedClusterStateUpdateTask} and
+ * {@link org.elasticsearch.cluster.ClusterStateNonMasterUpdateTask} to allow easy creation of anonymous classes
  */
-abstract public class TimeoutClusterStateUpdateTask extends ProcessedClusterStateUpdateTask {
+abstract public class ProcessedClusterStateNonMasterUpdateTask extends ProcessedClusterStateUpdateTask {
 
-    /**
-     * If the cluster state update task wasn't processed by the provided timeout, call
-     * {@link #onFailure(String, Throwable)}
-     */
-    abstract public TimeValue timeout();
+    @Override
+    public boolean runOnlyOnMaster() {
+        return false;
+    }
 }

@@ -19,17 +19,14 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.common.unit.TimeValue;
-
 /**
- * An extension interface to {@link org.elasticsearch.cluster.ClusterStateUpdateTask} that allows to associate
- * a timeout.
+ * This is a marker interface to indicate that the task should be executed
+ * even if the current node is not a master.
  */
-abstract public class TimeoutClusterStateUpdateTask extends ProcessedClusterStateUpdateTask {
+public abstract class ClusterStateNonMasterUpdateTask extends ClusterStateUpdateTask {
 
-    /**
-     * If the cluster state update task wasn't processed by the provided timeout, call
-     * {@link #onFailure(String, Throwable)}
-     */
-    abstract public TimeValue timeout();
+    @Override
+    public boolean runOnlyOnMaster() {
+        return false;
+    }
 }

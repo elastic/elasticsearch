@@ -22,6 +22,6 @@ public class AuthorizationException extends org.elasticsearch.shield.SecurityExc
 
     @Override
     public RestStatus status() {
-        return RestStatus.UNAUTHORIZED;
+        return RestStatus.FORBIDDEN;
     }
 }

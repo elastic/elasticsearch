@@ -17,19 +17,50 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster;
+package org.elasticsearch.test.disruption;
 
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.test.InternalTestCluster;
 
-/**
- * An extension interface to {@link org.elasticsearch.cluster.ClusterStateUpdateTask} that allows to associate
- * a timeout.
- */
-abstract public class TimeoutClusterStateUpdateTask extends ProcessedClusterStateUpdateTask {
+public class NoOpDisruptionScheme implements ServiceDisruptionScheme {
 
-    /**
-     * If the cluster state update task wasn't processed by the provided timeout, call
-     * {@link #onFailure(String, Throwable)}
-     */
-    abstract public TimeValue timeout();
+    @Override
+    public void applyToCluster(InternalTestCluster cluster) {
+
+    }
+
+    @Override
+    public void removeFromCluster(InternalTestCluster cluster) {
+
+    }
+
+    @Override
+    public void applyToNode(String node, InternalTestCluster cluster) {
+
+    }
+
+    @Override
+    public void removeFromNode(String node, InternalTestCluster cluster) {
+
+    }
+
+    @Override
+    public void startDisrupting() {
+
+    }
+
+    @Override
+    public void stopDisrupting() {
+
+    }
+
+    @Override
+    public void testClusterClosed() {
+
+    }
+
+    @Override
+    public TimeValue expectedTimeToHeal() {
+        return TimeValue.timeValueSeconds(0);
+    }
 }

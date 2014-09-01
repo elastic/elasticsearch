@@ -33,32 +33,27 @@ import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatService;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatService;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
-import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.similarity.SimilarityLookupService;
 import org.elasticsearch.indices.analysis.IndicesAnalysisModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
+import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCacheListener;
+import org.elasticsearch.threadpool.ThreadPool;
 
 public class MapperTestUtils {
-
-    public static DocumentMapperParser newParser() {
-        return new DocumentMapperParser(new Index("test"), ImmutableSettings.Builder.EMPTY_SETTINGS, newAnalysisService(), new PostingsFormatService(new Index("test")),
-                new DocValuesFormatService(new Index("test")), newSimilarityLookupService(), null);
-    }
-
-    public static DocumentMapperParser newParser(Settings indexSettings) {
-        return new DocumentMapperParser(new Index("test"), indexSettings, newAnalysisService(indexSettings), new PostingsFormatService(new Index("test")),
-                new DocValuesFormatService(new Index("test")), newSimilarityLookupService(), null);
-    }
 
     public static MapperService newMapperService() {
         return newMapperService(new Index("test"), ImmutableSettings.Builder.EMPTY_SETTINGS);
     }
 
     public static MapperService newMapperService(Index index, Settings indexSettings) {
-        return new MapperService(index, indexSettings, new Environment(), newAnalysisService(), new IndexFieldDataService(index, new NoneCircuitBreakerService()),
+        NoneCircuitBreakerService circuitBreakerService = new NoneCircuitBreakerService();
+        return new MapperService(index, indexSettings, new Environment(), newAnalysisService(), new IndexFieldDataService(index, ImmutableSettings.Builder.EMPTY_SETTINGS,
+                new IndicesFieldDataCache(ImmutableSettings.Builder.EMPTY_SETTINGS, new IndicesFieldDataCacheListener(circuitBreakerService), new ThreadPool("testing-only")),
+                circuitBreakerService),
                 new PostingsFormatService(index), new DocValuesFormatService(index), newSimilarityLookupService(), null);
     }
 

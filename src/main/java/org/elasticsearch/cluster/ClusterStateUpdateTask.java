@@ -19,19 +19,37 @@
 
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+
 /**
  * A task that can update the cluster state.
  */
-public interface ClusterStateUpdateTask {
+abstract public class ClusterStateUpdateTask {
 
     /**
      * Update the cluster state based on the current state. Return the *same instance* if no state
      * should be changed.
      */
-    ClusterState execute(ClusterState currentState) throws Exception;
+    abstract public ClusterState execute(ClusterState currentState) throws Exception;
 
     /**
      * A callback called when execute fails.
      */
-    void onFailure(String source, Throwable t);
+    abstract public void onFailure(String source, @Nullable Throwable t);
+
+
+    /**
+     * indicates whether this task should only run if current node is master
+     */
+    public boolean runOnlyOnMaster() {
+        return true;
+    }
+
+    /**
+     * called when the task was rejected because the local node is no longer master
+     */
+    public void onNoLongerMaster(String source) {
+        onFailure(source, new EsRejectedExecutionException("no longer master. source: [" + source + "]"));
+    }
 }

@@ -23,11 +23,11 @@ package org.elasticsearch.cluster;
  * An extension interface to {@link ClusterStateUpdateTask} that allows to be notified when
  * the cluster state update has been processed.
  */
-public interface ProcessedClusterStateUpdateTask extends ClusterStateUpdateTask {
+public abstract class ProcessedClusterStateUpdateTask extends ClusterStateUpdateTask {
 
     /**
      * Called when the result of the {@link #execute(ClusterState)} have been processed
      * properly by all listeners.
      */
-    void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState);
+    public abstract void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState);
 }

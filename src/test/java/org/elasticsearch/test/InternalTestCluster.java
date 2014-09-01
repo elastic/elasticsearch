@@ -76,6 +76,7 @@ import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.cache.recycler.MockBigArraysModule;
 import org.elasticsearch.test.cache.recycler.MockPageCacheRecyclerModule;
+import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.engine.MockEngineModule;
 import org.elasticsearch.test.store.MockFSIndexStoreModule;
 import org.elasticsearch.test.transport.AssertingLocalTransport;
@@ -106,6 +107,7 @@ import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 import static org.elasticsearch.test.ElasticsearchTestCase.assertBusy;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.hamcrest.Matchers.equalTo;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 
 /**
@@ -150,7 +152,7 @@ public final class InternalTestCluster extends TestCluster {
 
     static final boolean DEFAULT_ENABLE_RANDOM_BENCH_NODES = true;
 
-    static final String NODE_MODE = nodeMode();
+    public static final String NODE_MODE = nodeMode();
 
     /* sorted map to make traverse order reproducible, concurrent since we do checks on it not within a sync block */
     private final NavigableMap<String, NodeAndClient> nodes = new TreeMap<>();
@@ -187,6 +189,7 @@ public final class InternalTestCluster extends TestCluster {
      */
     private final String nodePrefix;
 
+    private ServiceDisruptionScheme activeDisruptionScheme;
 
     public InternalTestCluster(long clusterSeed, int minNumDataNodes, int maxNumDataNodes, String clusterName, int numClientNodes, boolean enableRandomBenchNodes,
                                int jvmOrdinal, String nodePrefix) {
@@ -222,7 +225,7 @@ public final class InternalTestCluster extends TestCluster {
                 this.numSharedClientNodes = numClientNodes;
             }
         }
-        assert this.numSharedClientNodes >=0;
+        assert this.numSharedClientNodes >= 0;
 
         this.enableRandomBenchNodes = enableRandomBenchNodes;
 
@@ -251,7 +254,7 @@ public final class InternalTestCluster extends TestCluster {
             if (numOfDataPaths > 0) {
                 StringBuilder dataPath = new StringBuilder();
                 for (int i = 0; i < numOfDataPaths; i++) {
-                    dataPath.append(new File("data/d"+i).getAbsolutePath()).append(',');
+                    dataPath.append(new File("data/d" + i).getAbsolutePath()).append(',');
                 }
                 builder.put("path.data", dataPath.toString());
             }
@@ -275,7 +278,7 @@ public final class InternalTestCluster extends TestCluster {
 
     public static String nodeMode() {
         Builder builder = ImmutableSettings.builder();
-        if (Strings.isEmpty(System.getProperty("es.node.mode"))&& Strings.isEmpty(System.getProperty("es.node.local"))) {
+        if (Strings.isEmpty(System.getProperty("es.node.mode")) && Strings.isEmpty(System.getProperty("es.node.local"))) {
             return "local"; // default if nothing is specified
         }
         if (Strings.hasLength(System.getProperty("es.node.mode"))) {
@@ -294,6 +297,10 @@ public final class InternalTestCluster extends TestCluster {
     @Override
     public String getClusterName() {
         return clusterName;
+    }
+
+    public String[] getNodeNames() {
+        return nodes.keySet().toArray(Strings.EMPTY_ARRAY);
     }
 
     private static boolean isLocalTransportConfigured() {
@@ -328,7 +335,7 @@ public final class InternalTestCluster extends TestCluster {
                 //.put("index.store.type", random.nextInt(10) == 0 ? MockRamIndexStoreModule.class.getName() : MockFSIndexStoreModule.class.getName())
                 // decrease the routing schedule so new nodes will be added quickly - some random value between 30 and 80 ms
                 .put("cluster.routing.schedule", (30 + random.nextInt(50)) + "ms")
-                // default to non gateway
+                        // default to non gateway
                 .put("gateway.type", "none")
                 .put(SETTING_CLUSTER_NODE_SEED, seed);
         if (ENABLE_MOCK_MODULES && usually(random)) {
@@ -352,7 +359,7 @@ public final class InternalTestCluster extends TestCluster {
             builder.put(SearchService.KEEPALIVE_INTERVAL_KEY, TimeValue.timeValueSeconds(10 + random.nextInt(5 * 60)));
         }
         if (random.nextBoolean()) { // sometimes set a
-            builder.put(SearchService.DEFAUTL_KEEPALIVE_KEY, TimeValue.timeValueSeconds(100 + random.nextInt(5*60)));
+            builder.put(SearchService.DEFAUTL_KEEPALIVE_KEY, TimeValue.timeValueSeconds(100 + random.nextInt(5 * 60)));
         }
         if (random.nextBoolean()) {
             // change threadpool types to make sure we don't have components that rely on the type of thread pools
@@ -493,6 +500,7 @@ public final class InternalTestCluster extends TestCluster {
         while (limit.hasNext()) {
             NodeAndClient next = limit.next();
             nodesToRemove.add(next);
+            removeDistruptionSchemeFromNode(next);
             next.close();
         }
         for (NodeAndClient toRemove : nodesToRemove) {
@@ -667,6 +675,10 @@ public final class InternalTestCluster extends TestCluster {
     @Override
     public void close() {
         if (this.open.compareAndSet(true, false)) {
+            if (activeDisruptionScheme != null) {
+                activeDisruptionScheme.testClusterClosed();
+                activeDisruptionScheme = null;
+            }
             IOUtils.closeWhileHandlingException(nodes.values());
             nodes.clear();
             executor.shutdownNow();
@@ -777,7 +789,6 @@ public final class InternalTestCluster extends TestCluster {
 
     public static final String TRANSPORT_CLIENT_PREFIX = "transport_client_";
     static class TransportClientFactory {
-
         private static TransportClientFactory NO_SNIFF_CLIENT_FACTORY = new TransportClientFactory(false, ImmutableSettings.EMPTY);
         private static TransportClientFactory SNIFF_CLIENT_FACTORY = new TransportClientFactory(true, ImmutableSettings.EMPTY);
 
@@ -831,16 +842,16 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     private synchronized void reset(boolean wipeData) throws IOException {
-        randomlyResetClients();
-        if (wipeData) {
-            wipeDataDirectories();
-        }
         // clear all rules for mock transport services
         for (NodeAndClient nodeAndClient : nodes.values()) {
             TransportService transportService = nodeAndClient.node.injector().getInstance(TransportService.class);
             if (transportService instanceof MockTransportService) {
                 ((MockTransportService) transportService).clearAllRules();
             }
+        }
+        randomlyResetClients();
+        if (wipeData) {
+            wipeDataDirectories();
         }
         if (nextNodeId.get() == sharedNodesSeeds.length && nodes.size() == sharedNodesSeeds.length) {
             logger.debug("Cluster hasn't changed - moving out - nodes: [{}] nextNodeId: [{}] numSharedNodes: [{}]", nodes.keySet(), nextNodeId.get(), sharedNodesSeeds.length);
@@ -1030,6 +1041,7 @@ public final class InternalTestCluster extends TestCluster {
         NodeAndClient nodeAndClient = getRandomNodeAndClient(new DataNodePredicate());
         if (nodeAndClient != null) {
             logger.info("Closing random node [{}] ", nodeAndClient.name);
+            removeDistruptionSchemeFromNode(nodeAndClient);
             nodes.remove(nodeAndClient.name);
             nodeAndClient.close();
         }
@@ -1049,6 +1061,7 @@ public final class InternalTestCluster extends TestCluster {
         });
         if (nodeAndClient != null) {
             logger.info("Closing filtered random node [{}] ", nodeAndClient.name);
+            removeDistruptionSchemeFromNode(nodeAndClient);
             nodes.remove(nodeAndClient.name);
             nodeAndClient.close();
         }
@@ -1063,6 +1076,7 @@ public final class InternalTestCluster extends TestCluster {
         String masterNodeName = getMasterName();
         assert nodes.containsKey(masterNodeName);
         logger.info("Closing master node [{}] ", masterNodeName);
+        removeDistruptionSchemeFromNode(nodes.get(masterNodeName));
         NodeAndClient remove = nodes.remove(masterNodeName);
         remove.close();
     }
@@ -1074,6 +1088,7 @@ public final class InternalTestCluster extends TestCluster {
         NodeAndClient nodeAndClient = getRandomNodeAndClient(Predicates.not(new MasterNodePredicate(getMasterName())));
         if (nodeAndClient != null) {
             logger.info("Closing random non master node [{}] current master [{}] ", nodeAndClient.name, getMasterName());
+            removeDistruptionSchemeFromNode(nodeAndClient);
             nodes.remove(nodeAndClient.name);
             nodeAndClient.close();
         }
@@ -1127,6 +1142,9 @@ public final class InternalTestCluster extends TestCluster {
                 if (!callback.doRestart(nodeAndClient.name)) {
                     logger.info("Closing node [{}] during restart", nodeAndClient.name);
                     toRemove.add(nodeAndClient);
+                    if (activeDisruptionScheme != null) {
+                        activeDisruptionScheme.removeFromNode(nodeAndClient.name, this);
+                    }
                     nodeAndClient.close();
                 }
             }
@@ -1141,18 +1159,33 @@ public final class InternalTestCluster extends TestCluster {
             for (NodeAndClient nodeAndClient : nodes.values()) {
                 callback.doAfterNodes(numNodesRestarted++, nodeAndClient.nodeClient());
                 logger.info("Restarting node [{}] ", nodeAndClient.name);
+                if (activeDisruptionScheme != null) {
+                    activeDisruptionScheme.removeFromNode(nodeAndClient.name, this);
+                }
                 nodeAndClient.restart(callback);
+                if (activeDisruptionScheme != null) {
+                    activeDisruptionScheme.applyToNode(nodeAndClient.name, this);
+                }
             }
         } else {
             int numNodesRestarted = 0;
             for (NodeAndClient nodeAndClient : nodes.values()) {
                 callback.doAfterNodes(numNodesRestarted++, nodeAndClient.nodeClient());
                 logger.info("Stopping node [{}] ", nodeAndClient.name);
+                if (activeDisruptionScheme != null) {
+                    activeDisruptionScheme.removeFromNode(nodeAndClient.name, this);
+                }
                 nodeAndClient.node.close();
             }
             for (NodeAndClient nodeAndClient : nodes.values()) {
                 logger.info("Starting node [{}] ", nodeAndClient.name);
+                if (activeDisruptionScheme != null) {
+                    activeDisruptionScheme.removeFromNode(nodeAndClient.name, this);
+                }
                 nodeAndClient.restart(callback);
+                if (activeDisruptionScheme != null) {
+                    activeDisruptionScheme.applyToNode(nodeAndClient.name, this);
+                }
             }
         }
     }
@@ -1193,7 +1226,10 @@ public final class InternalTestCluster extends TestCluster {
     }
 
 
-    private String getMasterName() {
+    /**
+     * get the name of the current master node
+     */
+    public String getMasterName() {
         try {
             ClusterState state = client().admin().cluster().prepareState().execute().actionGet().getState();
             return state.nodes().masterNode().name();
@@ -1350,6 +1386,7 @@ public final class InternalTestCluster extends TestCluster {
             dataDirToClean.addAll(Arrays.asList(nodeEnv.nodeDataLocations()));
         }
         nodes.put(nodeAndClient.name, nodeAndClient);
+        applyDisruptionSchemeToNode(nodeAndClient);
     }
 
     public void closeNonSharedNodes(boolean wipeData) throws IOException {
@@ -1369,6 +1406,48 @@ public final class InternalTestCluster extends TestCluster {
     @Override
     public boolean hasFilterCache() {
         return hasFilterCache;
+    }
+
+    public void setDisruptionScheme(ServiceDisruptionScheme scheme) {
+        clearDisruptionScheme();
+        scheme.applyToCluster(this);
+        activeDisruptionScheme = scheme;
+    }
+
+    public void clearDisruptionScheme() {
+        if (activeDisruptionScheme != null) {
+            TimeValue expectedHealingTime = activeDisruptionScheme.expectedTimeToHeal();
+            logger.info("Clearing active scheme {}, expected healing time {}", activeDisruptionScheme, expectedHealingTime);
+            activeDisruptionScheme.removeFromCluster(this);
+            // We don't what scheme is picked, certain schemes don't partition the cluster, but process slow, so we need
+            // to to sleep, cluster health alone doesn't verify if these schemes have been cleared.
+            if (expectedHealingTime != null && expectedHealingTime.millis() > 0) {
+                try {
+                    Thread.sleep(expectedHealingTime.millis());
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+            assertFalse("cluster failed to form after disruption was healed", client().admin().cluster().prepareHealth()
+                    .setWaitForNodes("" + nodes.size())
+                    .setWaitForRelocatingShards(0)
+                    .get().isTimedOut());
+        }
+        activeDisruptionScheme = null;
+    }
+
+    private void applyDisruptionSchemeToNode(NodeAndClient nodeAndClient) {
+        if (activeDisruptionScheme != null) {
+            assert nodes.containsKey(nodeAndClient.name);
+            activeDisruptionScheme.applyToNode(nodeAndClient.name, this);
+        }
+    }
+
+    private void removeDistruptionSchemeFromNode(NodeAndClient nodeAndClient) {
+        if (activeDisruptionScheme != null) {
+            assert nodes.containsKey(nodeAndClient.name);
+            activeDisruptionScheme.removeFromNode(nodeAndClient.name, this);
+        }
     }
 
     private synchronized Collection<NodeAndClient> dataNodeAndClients() {

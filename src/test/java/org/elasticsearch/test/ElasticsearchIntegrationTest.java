@@ -97,6 +97,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.client.RandomizingClient;
+import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.hamcrest.Matchers;
 import org.junit.*;
 
@@ -581,6 +582,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         boolean success = false;
         try {
             logger.info("[{}#{}]: cleaning up after test", getTestClass().getSimpleName(), getTestName());
+            clearDisruptionScheme();
             final Scope currentClusterScope = getCurrentClusterScope();
             try {
                 if (currentClusterScope != Scope.TEST) {
@@ -644,6 +646,13 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     }
 
     public static Client client() {
+        return client(null);
+    }
+
+    public static Client client(@Nullable String node) {
+        if (node != null) {
+            return internalCluster().client(node);
+        }
         Client client = cluster().client();
         if (frequently()) {
             client = new RandomizingClient(client, getRandom());
@@ -687,6 +696,15 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
 
     protected int numberOfReplicas() {
         return between(minimumNumberOfReplicas(), maximumNumberOfReplicas());
+    }
+
+
+    public void setDisruptionScheme(ServiceDisruptionScheme scheme) {
+        internalCluster().setDisruptionScheme(scheme);
+    }
+
+    public void clearDisruptionScheme() {
+        internalCluster().clearDisruptionScheme();
     }
 
     /**
@@ -889,7 +907,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      * It is useful to ensure that all action on the cluster have finished and all shards that were currently relocating
      * are now allocated and started.
      */
-    public ClusterHealthStatus ensureGreen(String... indices) {
+    public ClusterHealthStatus  ensureGreen(String... indices) {
         ClusterHealthResponse actionGet = client().admin().cluster()
                 .health(Requests.clusterHealthRequest(indices).waitForGreenStatus().waitForEvents(Priority.LANGUID).waitForRelocatingShards(0)).actionGet();
         if (actionGet.isTimedOut()) {

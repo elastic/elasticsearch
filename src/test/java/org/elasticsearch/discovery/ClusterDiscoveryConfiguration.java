@@ -108,7 +108,8 @@ public class ClusterDiscoveryConfiguration extends SettingsSource {
         }
 
         private final static int calcBasePort() {
-            return 10000 +
+            // note that this has properly co-exist with the port logic at InternalTestCluster's constructor
+            return 30000 +
                     1000 * (ElasticsearchIntegrationTest.CHILD_JVM_ID % 60) + // up to 60 jvms
                     100 * portRangeCounter.incrementAndGet(); // up to 100 nodes
         }

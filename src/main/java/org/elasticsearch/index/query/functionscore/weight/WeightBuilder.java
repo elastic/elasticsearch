@@ -33,7 +33,7 @@ public class WeightBuilder extends ScoreFunctionBuilder {
 
     @Override
     public String getName() {
-        throw new UnsupportedOperationException("weight factor is never supposed to be parsed");
+        return "weight";
     }
 
     @Override

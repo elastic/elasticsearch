@@ -59,9 +59,6 @@ public class FunctionScoreBackwardCompatibilityTests extends ElasticsearchBackwa
                         .startObject("loc")
                         .field("type", "geo_point")
                         .endObject()
-                        .startObject("popularity")
-                        .field("type", "float")
-                        .endObject()
                         .endObject()
                         .endObject()
                         .endObject()));
@@ -76,12 +73,11 @@ public class FunctionScoreBackwardCompatibilityTests extends ElasticsearchBackwa
                     .setType("type1").setId(id).setIndex("test")
                     .setSource(
                             jsonBuilder().startObject()
-                                    .field("text", "value")
+                                    .field("text", "value " + (i < 5 ? "boosted" : ""))
                                     .startObject("loc")
                                     .field("lat", 10 + i)
                                     .field("lon", 20)
                                     .endObject()
-                                    .field("popularity", 2.71828)
                                     .endObject()));
             ids[i] = id;
         }
@@ -106,8 +102,8 @@ public class FunctionScoreBackwardCompatibilityTests extends ElasticsearchBackwa
                         searchSource().query(
                                 functionScoreQuery(termFilter("text", "value"))
                                         .add(gaussDecayFunction("loc", new GeoPoint(10, 20), "1000km"))
-                                        .add(fieldValueFactorFunction("popularity").modifier(FieldValueFactorFunction.Modifier.LN))
                                         .add(scriptFunction("_index['text']['value'].tf()"))
+                                        .add(termFilter("text", "boosted"), factorFunction(5))
                         ))).actionGet();
         assertSearchResponse(response);
         assertOrderedSearchHits(response, ids);

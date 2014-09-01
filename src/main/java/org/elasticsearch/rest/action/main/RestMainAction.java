@@ -48,9 +48,9 @@ public class RestMainAction extends BaseRestHandler {
     public RestMainAction(Settings settings, Version version, Client client, RestController controller, ClusterName clusterName) {
         super(settings, client);
         this.version = version;
+        this.clusterName = clusterName;
         controller.registerHandler(GET, "/", this);
         controller.registerHandler(HEAD, "/", this);
-        this.clusterName = clusterName;
     }
 
     @Override

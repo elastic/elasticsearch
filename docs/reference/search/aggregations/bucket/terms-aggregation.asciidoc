@@ -418,7 +418,7 @@ Generating the terms using a script:
 ==== Filtering Values
 
 It is possible to filter the values for which buckets will be created. This can be done using the `include` and
-`exclude` parameters which are based on regular expressions.
+`exclude` parameters which are based on regular expression strings or arrays of exact values.
 
 [source,js]
 --------------------------------------------------
@@ -476,6 +476,29 @@ http://docs.oracle.com/javase/7/docs/api/java/util/regex/Pattern.html#MULTILINE[
 http://docs.oracle.com/javase/7/docs/api/java/util/regex/Pattern.html#UNICODE_CASE[`UNICODE_CASE`],
 http://docs.oracle.com/javase/7/docs/api/java/util/regex/Pattern.html#UNICODE_CHARACTER_CLASS[`UNICODE_CHARACTER_CLASS`] and
 http://docs.oracle.com/javase/7/docs/api/java/util/regex/Pattern.html#UNIX_LINES[`UNIX_LINES`]
+
+For matching based on exact values the `include` and `exclude` parameters can simply take an array of
+strings that represent the terms as they are found in the index:
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs" : {
+        "JapaneseCars" : {
+             "terms" : {
+                 "field" : "make",
+                 "include" : ["mazda", "honda"]
+             }
+         },
+        "ActiveCarManufacturers" : {
+             "terms" : {
+                 "field" : "make",
+                 "exclude" : ["rover", "jensen"]
+             }
+         }
+    }
+}
+-------------------------------------------------- 
 
 ==== Multi-field terms aggregation
 

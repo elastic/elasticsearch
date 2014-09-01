@@ -38,9 +38,11 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
+import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -51,6 +53,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSear
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsNull.notNullValue;
+import static org.hamcrest.core.IsNull.nullValue;
 
 /**
  *
@@ -336,6 +339,94 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
             assertThat(bucket.getDocCount(), equalTo(1l));
         }
     }
+    
+    
+    @Test
+    public void singleValueField_WithExactTermFiltering() throws Exception {
+        // include without exclude
+        String incVals[] = { "val000", "val001", "val002", "val003", "val004", "val005", "val006", "val007", "val008", "val009" };
+        SearchResponse response = client().prepareSearch("idx").setTypes("high_card_type")
+                .addAggregation(terms("terms")
+                        .executionHint(randomExecutionHint())
+                        .field(SINGLE_VALUED_FIELD_NAME)
+                        .collectMode(randomFrom(SubAggCollectionMode.values()))
+                        .include(incVals))
+                .execute().actionGet();
+
+        assertSearchResponse(response);
+
+        Terms terms = response.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        assertThat(terms.getName(), equalTo("terms"));
+        assertThat(terms.getBuckets().size(), equalTo(incVals.length));
+
+        for (String incVal : incVals) {
+            Terms.Bucket bucket = terms.getBucketByKey(incVal);
+            assertThat(bucket, notNullValue());
+            assertThat(key(bucket), equalTo(incVal));
+            assertThat(bucket.getDocCount(), equalTo(1l));            
+        }
+
+        // include and exclude
+        // Slightly illogical example with exact terms below as include and exclude sets
+        // are made to overlap but the exclude set should have priority over matches.
+        // we should be left with: val002, val003, val004, val005, val006, val007, val008, val009
+        String excVals[] = { "val000", "val001" };
+
+        response = client().prepareSearch("idx").setTypes("high_card_type")
+                .addAggregation(terms("terms")
+                        .executionHint(randomExecutionHint())
+                        .field(SINGLE_VALUED_FIELD_NAME)
+                        .collectMode(randomFrom(SubAggCollectionMode.values()))
+                        .include(incVals)
+                        .exclude(excVals))
+                .execute().actionGet();
+
+        assertSearchResponse(response);
+
+        terms = response.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        assertThat(terms.getName(), equalTo("terms"));
+        assertThat(terms.getBuckets().size(), equalTo(8));
+
+        for (int i = 2; i < 10; i++) {
+            Terms.Bucket bucket = terms.getBucketByKey("val00" + i);
+            assertThat(bucket, notNullValue());
+            assertThat(key(bucket), equalTo("val00" + i));
+            assertThat(bucket.getDocCount(), equalTo(1l));
+        }
+        
+        // Check case with only exact term exclude clauses 
+        response = client().prepareSearch("idx").setTypes("high_card_type")
+                .addAggregation(terms("terms")
+                        .executionHint(randomExecutionHint())
+                        .field(SINGLE_VALUED_FIELD_NAME)
+                        .collectMode(randomFrom(SubAggCollectionMode.values()))
+                        .exclude(excVals))
+                .execute().actionGet();
+
+        assertSearchResponse(response);
+
+        terms = response.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        assertThat(terms.getName(), equalTo("terms"));
+        assertThat(terms.getBuckets().size(), equalTo(10));
+        for (String key : excVals) {
+            Terms.Bucket bucket = terms.getBucketByKey(key);
+            assertThat(bucket, nullValue());
+        }
+        NumberFormat nf=NumberFormat.getIntegerInstance(Locale.ENGLISH);
+        nf.setMinimumIntegerDigits(3);
+        for (int i = 2; i < 12; i++) {
+            Terms.Bucket bucket = terms.getBucketByKey("val" + nf.format(i));
+            assertThat(bucket, notNullValue());
+            assertThat(key(bucket), equalTo("val" + nf.format(i)));
+            assertThat(bucket.getDocCount(), equalTo(1l));
+        }
+        
+        
+    }
+    
 
 
     @Test

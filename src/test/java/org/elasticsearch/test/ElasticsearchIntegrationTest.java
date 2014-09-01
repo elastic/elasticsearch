@@ -638,8 +638,12 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         return currentCluster;
     }
 
+    public static boolean isInternalCluster() {
+        return (currentCluster instanceof InternalTestCluster);
+    }
+
     public static InternalTestCluster internalCluster() {
-        if (!(currentCluster instanceof InternalTestCluster)) {
+        if (!isInternalCluster()) {
             throw new UnsupportedOperationException("current test cluster is immutable");
         }
         return (InternalTestCluster) currentCluster;
@@ -708,7 +712,9 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     }
 
     public void clearDisruptionScheme() {
-        internalCluster().clearDisruptionScheme();
+        if (isInternalCluster()) {
+            internalCluster().clearDisruptionScheme();
+        }
     }
 
     /**

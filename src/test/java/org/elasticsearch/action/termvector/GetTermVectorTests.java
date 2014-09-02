@@ -789,7 +789,7 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
     }
 
     @Test
-    public void testExistingVsArtificial() throws ElasticsearchException, IOException, ExecutionException, InterruptedException {
+    public void testArtificialVsExisting() throws ElasticsearchException, ExecutionException, InterruptedException, IOException {
         // setup indices
         ImmutableSettings.Builder settings = settingsBuilder()
                 .put(indexSettings())
@@ -813,8 +813,7 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
         TermVectorResponse respExisting = client().prepareTermVector("test", "type1", "existing")
                 .setOffsets(true)
                 .setPositions(true)
-                .setSelectedFields("field1")
-                .setFieldStatistics(false) // field statistics will be slightly different so ignore
+                .setFieldStatistics(true)
                 .get();
         assertThat("doc with index: test, type1 and id: existing", respExisting.isExists(), equalTo(true));
 
@@ -828,13 +827,40 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
                         .endObject())
                 .setOffsets(true)
                 .setPositions(true)
-                .setSelectedFields("field1")
-                .setFieldStatistics(false) // field statistics will be slightly different so ignore
+                .setFieldStatistics(true)
                 .get();
         assertThat("doc with index: test, type1 and id: existing", respArtificial.isExists(), equalTo(true));
 
         // compare existing tvs with artificial
         compareTermVectors("field1", respExisting.getFields(), respArtificial.getFields());
+    }
+
+    @Test
+    public void testArtificialNoDoc() throws IOException {
+        // setup indices
+        ImmutableSettings.Builder settings = settingsBuilder()
+                .put(indexSettings())
+                .put("index.analysis.analyzer", "standard");
+        assertAcked(prepareCreate("test")
+                .setSettings(settings)
+                .addMapping("type1", "field1", "type=string"));
+        ensureGreen();
+
+        // request tvs from artificial document
+        String text = "the quick brown fox jumps over the lazy dog";
+        TermVectorResponse respArtificial = client().prepareTermVector()
+                .setIndex("test")
+                .setType("type1")
+                .setDoc(jsonBuilder()
+                        .startObject()
+                        .field("field1", text)
+                        .endObject())
+                .setOffsets(true)
+                .setPositions(true)
+                .setFieldStatistics(true)
+                .get();
+        assertThat("doc with index: test, type1 and id: existing", respArtificial.isExists(), equalTo(true));
+        checkBrownFoxTermVector(respArtificial.getFields(), "field1", false);
     }
 
     private static String indexOrAlias() {

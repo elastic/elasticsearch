@@ -71,22 +71,26 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
         IndexReader topLevelReader = searcher.reader();
         final TermVectorResponse termVectorResponse = new TermVectorResponse(concreteIndex, request.type(), request.id());
 
-        // handle potential wildcards in fields
+        /* handle potential wildcards in fields */
         if (request.selectedFields() != null) {
             handleFieldWildcards(request);
         }
 
         try {
             Fields topLevelFields = MultiFields.getFields(topLevelReader);
-            // from an artificial document
+            //* from an artificial document */
             if (request.doc() != null) {
-                Fields termVectorsByField = generateTermVectorsFromDoc(request, topLevelFields);
+                Fields termVectorsByField = generateTermVectorsFromDoc(request);
+                // if no document indexed in shard, take the queried document itself for stats
+                if (topLevelFields == null) {
+                    topLevelFields = termVectorsByField;
+                }
                 termVectorResponse.setFields(termVectorsByField, request.selectedFields(), request.getFlags(), topLevelFields);
                 termVectorResponse.setExists(true);
                 termVectorResponse.setArtificial(true);
                 return termVectorResponse;
             }
-            // or from an existing document
+            /* or from an existing document */
             final Term uidTerm = new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(request.type(), request.id()));
             Versions.DocIdAndVersion docIdAndVersion = Versions.loadDocIdAndVersion(topLevelReader, uidTerm);
             if (docIdAndVersion != null) {
@@ -172,7 +176,7 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
     }
 
     private Fields generateTermVectors(Collection<GetField> getFields, boolean withOffsets) throws IOException {
-        // store document in memory index
+        /* store document in memory index */
         MemoryIndex index = new MemoryIndex(withOffsets);
         for (GetField getField : getFields) {
             String field = getField.getName();
@@ -184,11 +188,11 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
                 index.addField(field, text.toString(), analyzer);
             }
         }
-        // and read vectors from it
+        /* and read vectors from it */
         return MultiFields.getFields(index.createSearcher().getIndexReader());
     }
 
-    private Fields generateTermVectorsFromDoc(TermVectorRequest request, Fields topLevelFields) throws IOException {
+    private Fields generateTermVectorsFromDoc(TermVectorRequest request) throws IOException {
         DocumentMapper docMapper = indexShard.mapperService().documentMapper(request.type());
         ParseContext.Document doc = docMapper.parse(source(request.doc()).type(request.type()).flyweight(true)).rootDoc();
 
@@ -201,9 +205,6 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
             }
             else {
                 seenFields.add(field.name());
-            }
-            if (topLevelFields.terms(field.name()) == null) {
-                continue;
             }
             if (!isValidField(fieldMapper)) {
                 continue;

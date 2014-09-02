@@ -46,6 +46,7 @@ import org.apache.lucene.analysis.hu.HungarianAnalyzer;
 import org.apache.lucene.analysis.hy.ArmenianAnalyzer;
 import org.apache.lucene.analysis.id.IndonesianAnalyzer;
 import org.apache.lucene.analysis.it.ItalianAnalyzer;
+import org.apache.lucene.analysis.lv.LatvianAnalyzer;
 import org.apache.lucene.analysis.nl.DutchAnalyzer;
 import org.apache.lucene.analysis.no.NorwegianAnalyzer;
 import org.apache.lucene.analysis.pt.PortugueseAnalyzer;
@@ -139,6 +140,7 @@ public class Analysis {
             .put("_indonesian_", IndonesianAnalyzer.getDefaultStopSet())
             .put("_irish_", IrishAnalyzer.getDefaultStopSet())
             .put("_italian_", ItalianAnalyzer.getDefaultStopSet())
+            .put("_latvian_", LatvianAnalyzer.getDefaultStopSet())
             .put("_norwegian_", NorwegianAnalyzer.getDefaultStopSet())
             .put("_persian_", PersianAnalyzer.getDefaultStopSet())
             .put("_portuguese_", PortugueseAnalyzer.getDefaultStopSet())

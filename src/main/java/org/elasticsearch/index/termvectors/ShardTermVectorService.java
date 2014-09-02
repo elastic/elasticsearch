@@ -80,7 +80,7 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
             Fields topLevelFields = MultiFields.getFields(topLevelReader);
             //* from an artificial document */
             if (request.doc() != null) {
-                Fields termVectorsByField = generateTermVectorsFromDoc(request);
+                Fields termVectorsByField = generateTermVectorsFromDoc(request, topLevelFields);
                 // if no document indexed in shard, take the queried document itself for stats
                 if (topLevelFields == null) {
                     topLevelFields = termVectorsByField;
@@ -192,7 +192,7 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
         return MultiFields.getFields(index.createSearcher().getIndexReader());
     }
 
-    private Fields generateTermVectorsFromDoc(TermVectorRequest request) throws IOException {
+    private Fields generateTermVectorsFromDoc(TermVectorRequest request, Fields topLevelFields) throws IOException {
         DocumentMapper docMapper = indexShard.mapperService().documentMapper(request.type());
         ParseContext.Document doc = docMapper.parse(source(request.doc()).type(request.type()).flyweight(true)).rootDoc();
 
@@ -205,6 +205,10 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
             }
             else {
                 seenFields.add(field.name());
+            }
+            // skip fields not in the mapping
+            if (topLevelFields != null && topLevelFields.terms(field.name()) == null) {
+                continue;
             }
             if (!isValidField(fieldMapper)) {
                 continue;

@@ -840,7 +840,7 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
                     .setFieldStatistics(true)
                     .setTermStatistics(true)
                     .get();
-            assertThat("doc with index: test, type1 and id: existing", respArtificial.isExists(), equalTo(true));
+            assertThat("doc with index: test, type1 and id: " + String.valueOf(i), respArtificial.isExists(), equalTo(true));
 
             // compare existing tvs with artificial
             compareTermVectors("field1", respExisting.getFields(), respArtificial.getFields());
@@ -860,7 +860,7 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
 
         // request tvs from artificial document
         String text = "the quick brown fox jumps over the lazy dog";
-        TermVectorResponse respArtificial = client().prepareTermVector()
+        TermVectorResponse resp = client().prepareTermVector()
                 .setIndex("test")
                 .setType("type1")
                 .setDoc(jsonBuilder()
@@ -872,8 +872,55 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
                 .setFieldStatistics(true)
                 .setTermStatistics(true)
                 .get();
-        assertThat("doc with index: test, type1 and id: existing", respArtificial.isExists(), equalTo(true));
-        checkBrownFoxTermVector(respArtificial.getFields(), "field1", false);
+        assertThat(resp.isExists(), equalTo(true));
+        checkBrownFoxTermVector(resp.getFields(), "field1", false);
+    }
+
+    @Test
+    public void testArtificialNonExistingField() throws IOException, ExecutionException, InterruptedException {
+        // setup indices
+        ImmutableSettings.Builder settings = settingsBuilder()
+                .put(indexSettings())
+                .put("index.analysis.analyzer", "standard");
+        assertAcked(prepareCreate("test")
+                .setSettings(settings)
+                .addMapping("type1", "field1", "type=string"));
+        ensureGreen();
+
+        // index just one doc
+        List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
+            indexBuilders.add(client().prepareIndex()
+                    .setIndex("test")
+                    .setType("type1")
+                    .setId("1")
+                    .setRouting("1")
+                    .setSource("field1", "some text"));
+        indexRandom(true, indexBuilders);
+
+        // request tvs from artificial document (without a doc in a shard and with)
+        String text = "the quick brown fox jumps over the lazy dog";
+        for (int i = 0; i < 2; i++) {
+            TermVectorResponse resp = client().prepareTermVector()
+                    .setIndex("test")
+                    .setType("type1")
+                    .setDoc(jsonBuilder()
+                            .startObject()
+                                .field("field1", text)
+                            .endObject()
+                            .startObject()
+                                .field("non_existing", "some text that should not be retrieved")
+                            .endObject())
+                    .setRouting(String.valueOf(i))
+                    .setOffsets(true)
+                    .setPositions(true)
+                    .setFieldStatistics(true)
+                    .setTermStatistics(true)
+                    .get();
+            assertThat(resp.isExists(), equalTo(true));
+            assertNotNull(resp.getFields().terms("field1"));
+            assertNull(resp.getFields().terms("non_existing"));
+            checkBrownFoxTermVector(resp.getFields(), "field1", false);
+        }
     }
 
     private static String indexOrAlias() {

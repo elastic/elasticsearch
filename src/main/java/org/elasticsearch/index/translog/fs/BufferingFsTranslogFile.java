@@ -197,7 +197,6 @@ public class BufferingFsTranslogFile implements FsTranslogFile {
             if (!delete) {
                 try {
                     sync();
-                    translogStream.close();
                 } catch (Exception e) {
                     throw new TranslogException(shardId, "failed to sync on close", e);
                 }

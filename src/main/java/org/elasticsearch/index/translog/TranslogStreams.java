@@ -38,11 +38,11 @@ import java.io.IOException;
 public class TranslogStreams {
 
     /** V0, no header, no checksums */
-    public static TranslogStream V0 = new LegacyTranslogStream(null, false);
+    public static TranslogStream LEGACY_TRANSLOG_STREAM = new LegacyTranslogStream();
     /** V1, header, with per-op checksums */
-    public static TranslogStream V1 = new ChecksummedTranslogStream(null, false);
+    public static TranslogStream CHECKSUMMED_TRANSLOG_STREAM = new ChecksummedTranslogStream();
 
-    public static TranslogStream LATEST = V1;
+    public static TranslogStream LATEST = CHECKSUMMED_TRANSLOG_STREAM;
 
     public static final String TRANSLOG_CODEC = "translog";
     private static final byte LUCENE_CODEC_HEADER_BYTE = 0x3f;
@@ -64,14 +64,6 @@ public class TranslogStreams {
             default:
                 throw new IOException("No type for [" + type + "]");
         }
-    }
-
-    /**
-     * Read the translog operation from the given byte array, returning the
-     * {@link Translog.Source} from the operation
-     */
-    public static Translog.Source readSource(byte[] data) throws IOException {
-        return LATEST.readSource(data);
     }
 
     /**
@@ -111,7 +103,7 @@ public class TranslogStreams {
                 // if it doesn't exist or has no data, use the latest version,
                 // there aren't any backwards compatibility issues
                 success = true;
-                return new ChecksummedTranslogStream(in, false);
+                return CHECKSUMMED_TRANSLOG_STREAM;
             }
             // Lucene's CodecUtil writes a magic number of 0x3FD76C17 with the
             // header, in binary this looks like:
@@ -147,13 +139,13 @@ public class TranslogStreams {
                 switch (version) {
                     case ChecksummedTranslogStream.VERSION:
                         success = true;
-                        return new ChecksummedTranslogStream(in, true);
+                        return CHECKSUMMED_TRANSLOG_STREAM;
                     default:
                         throw new TranslogCorruptedException("No known translog stream version: " + version);
                 }
             } else if (b1 == UNVERSIONED_TRANSLOG_HEADER_BYTE) {
                 success = true;
-                return new LegacyTranslogStream(in, true);
+                return LEGACY_TRANSLOG_STREAM;
             } else {
                 throw new TranslogCorruptedException("Invalid first byte in translog file, got: " + Long.toHexString(b1) + ", expected 0x00 or 0x3f");
             }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.translog;
 
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
@@ -40,7 +41,10 @@ public class TranslogVersionTests extends ElasticsearchTestCase {
         TranslogStream stream = TranslogStreams.translogStreamFor(translogFile);
         assertThat("a version0 stream is returned", stream instanceof LegacyTranslogStream, equalTo(true));
 
-        Translog.Operation operation = stream.read();
+        StreamInput in = stream.openInput(translogFile);
+
+        in.readInt();
+        Translog.Operation operation = stream.read(in);
 
         assertThat("operation is the correct type correctly", operation.opType() == Translog.Operation.Type.SAVE, equalTo(true));
         Translog.Index op = (Translog.Index) operation;
@@ -55,12 +59,11 @@ public class TranslogVersionTests extends ElasticsearchTestCase {
         assertThat(op.versionType(), equalTo(VersionType.INTERNAL));
 
         try {
-            stream.read();
+            in.readInt();
+            stream.read(in);
             fail("should have been the end of the file");
         } catch (EOFException e) {
             // success
-        } finally {
-            stream.close();
         }
     }
 
@@ -71,7 +74,8 @@ public class TranslogVersionTests extends ElasticsearchTestCase {
         TranslogStream stream = TranslogStreams.translogStreamFor(translogFile);
         assertThat("a version1 stream is returned", stream instanceof ChecksummedTranslogStream, equalTo(true));
 
-        Translog.Operation operation = stream.read();
+        StreamInput in = stream.openInput(translogFile);
+        Translog.Operation operation = stream.read(in);
 
         assertThat("operation is the correct type correctly", operation.opType() == Translog.Operation.Type.CREATE, equalTo(true));
         Translog.Create op = (Translog.Create) operation;
@@ -89,14 +93,13 @@ public class TranslogVersionTests extends ElasticsearchTestCase {
         int opNum = 1;
         while (true) {
             try {
-                stream.read();
+                stream.read(in);
                 opNum++;
             } catch (EOFException e) {
                 break;
             }
         }
         assertThat("there should be 5 translog operations", opNum, equalTo(5));
-        stream.close();
     }
 
     @Test
@@ -125,11 +128,13 @@ public class TranslogVersionTests extends ElasticsearchTestCase {
             File translogFile = getResource("/org/elasticsearch/index/translog/translog-v1-corrupted-body.binary");
             assertThat("test file should exist", translogFile.exists(), equalTo(true));
             TranslogStream stream = TranslogStreams.translogStreamFor(translogFile);
-            while (true) {
-                try {
-                    stream.read();
-                } catch (EOFException e) {
-                    break;
+            try (StreamInput in = stream.openInput(translogFile)) {
+                while (true) {
+                    try {
+                        stream.read(in);
+                    } catch (EOFException e) {
+                        break;
+                    }
                 }
             }
             fail("should have thrown an exception about the body being corrupted");

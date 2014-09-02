@@ -74,19 +74,24 @@ public abstract class AbstractSimpleTranslogTests extends ElasticsearchTestCase 
 
     protected abstract String translogFileDirectory();
 
+    private static Translog.Source readSource(byte[] bytes) throws IOException {
+        BytesStreamInput in = new BytesStreamInput(bytes, false);
+        return TranslogStreams.readTranslogOperation(in).getSource();
+    }
+
     @Test
     public void testRead() throws IOException {
         Translog.Location loc1 = translog.add(new Translog.Create("test", "1", new byte[]{1}));
         Translog.Location loc2 = translog.add(new Translog.Create("test", "2", new byte[]{2}));
-        assertThat(TranslogStreams.readSource(translog.read(loc1)).source.toBytesArray(), equalTo(new BytesArray(new byte[]{1})));
-        assertThat(TranslogStreams.readSource(translog.read(loc2)).source.toBytesArray(), equalTo(new BytesArray(new byte[]{2})));
+        assertThat(readSource(translog.read(loc1)).source.toBytesArray(), equalTo(new BytesArray(new byte[]{1})));
+        assertThat(readSource(translog.read(loc2)).source.toBytesArray(), equalTo(new BytesArray(new byte[]{2})));
         translog.sync();
-        assertThat(TranslogStreams.readSource(translog.read(loc1)).source.toBytesArray(), equalTo(new BytesArray(new byte[]{1})));
-        assertThat(TranslogStreams.readSource(translog.read(loc2)).source.toBytesArray(), equalTo(new BytesArray(new byte[]{2})));
+        assertThat(translog.readSource(loc1).source.toBytesArray(), equalTo(new BytesArray(new byte[]{1})));
+        assertThat(translog.readSource(loc2).source.toBytesArray(), equalTo(new BytesArray(new byte[]{2})));
         Translog.Location loc3 = translog.add(new Translog.Create("test", "2", new byte[]{3}));
-        assertThat(TranslogStreams.readSource(translog.read(loc3)).source.toBytesArray(), equalTo(new BytesArray(new byte[]{3})));
+        assertThat(readSource(translog.read(loc3)).source.toBytesArray(), equalTo(new BytesArray(new byte[]{3})));
         translog.sync();
-        assertThat(TranslogStreams.readSource(translog.read(loc3)).source.toBytesArray(), equalTo(new BytesArray(new byte[]{3})));
+        assertThat(translog.readSource(loc3).source.toBytesArray(), equalTo(new BytesArray(new byte[]{3})));
     }
 
     @Test
@@ -365,7 +370,6 @@ public abstract class AbstractSimpleTranslogTests extends ElasticsearchTestCase 
         for (LocationOperation locationOperation : writtenOperations) {
             byte[] data = translog.read(locationOperation.location);
             StreamInput streamInput = new BytesStreamInput(data, false);
-            streamInput.readInt(); // size
             Translog.Operation op = TranslogStreams.readTranslogOperation(streamInput);
             Translog.Operation expectedOp = locationOperation.operation;
             assertEquals(expectedOp.opType(), op.opType());
@@ -430,7 +434,7 @@ public abstract class AbstractSimpleTranslogTests extends ElasticsearchTestCase 
         AtomicInteger corruptionsCaught = new AtomicInteger(0);
         for (Translog.Location location : locations) {
             try {
-                TranslogStreams.readSource(translog.read(location));
+                readSource(translog.read(location));
             } catch (TranslogCorruptedException e) {
                 corruptionsCaught.incrementAndGet();
             }

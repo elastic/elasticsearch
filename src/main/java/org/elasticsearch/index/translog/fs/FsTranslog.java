@@ -24,6 +24,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.Settings;
@@ -361,7 +362,9 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
         }
         // Return the source using the current version of the stream based on
         // which translog is being read
-        return this.translogForLocation(location).getStream().readSource(data);
+        try (BytesStreamInput in = new BytesStreamInput(data, false)) {
+            return this.translogForLocation(location).getStream().read(in).getSource();
+        }
     }
 
     @Override
@@ -370,18 +373,7 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
         ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(bigArrays);
         boolean released = false;
         try {
-            out.writeInt(0); // marker for the size...
             TranslogStreams.writeTranslogOperation(out, operation);
-            out.flush();
-
-            // write size to beginning of stream
-            int size = out.size();
-            out.seek(0);
-            out.writeInt(size - 4);
-
-            // seek back to end
-            out.seek(size);
-
             ReleasableBytesReference bytes = out.bytes();
             Location location = current.add(bytes);
             if (syncOnEachOperation) {

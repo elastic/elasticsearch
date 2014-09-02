@@ -47,7 +47,7 @@ public class RecoveryBackwardsCompatibilityTests extends ElasticsearchBackwardsC
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("action.admin.cluster.node.shutdown.delay", "10ms")
                 .put("gateway.recover_after_nodes", 2)
-                .put(BalancedShardsAllocator.SETTING_THRESHOLD, 1.1f).build(); // use less aggressive settings
+                .put(BalancedShardsAllocator.SETTING_THRESHOLD, 100.0f).build(); // use less aggressive settings
     }
 
     protected int minExternalNodes() {

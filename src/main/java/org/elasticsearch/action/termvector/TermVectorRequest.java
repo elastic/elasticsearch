@@ -414,9 +414,6 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
                 } else if (currentFieldName.equals("payloads")) {
                     termVectorRequest.payloads(parser.booleanValue());
                 } else if (currentFieldName.equals("term_statistics") || currentFieldName.equals("termStatistics")) {
-                    if (parser.booleanValue() && termVectorRequest.doc != null) {
-                        throw new ElasticsearchParseException("Term statistics are not supported with artificial documents.");
-                    }
                     termVectorRequest.termStatistics(parser.booleanValue());
                 } else if (currentFieldName.equals("field_statistics") || currentFieldName.equals("fieldStatistics")) {
                     termVectorRequest.fieldStatistics(parser.booleanValue());

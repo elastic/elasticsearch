@@ -800,39 +800,51 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
         ensureGreen();
 
         // index documents existing document
-        String text = "Generating a random permutation of a sequence (such as when shuffling cards).";
+        String[] content = new String[]{
+                "Generating a random permutation of a sequence (such as when shuffling cards).",
+                "Selecting a random sample of a population (important in statistical sampling).",
+                "Allocating experimental units via random assignment to a treatment or control condition.",
+                "Generating random numbers: see Random number generation."};
+
         List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
-        indexBuilders.add(client().prepareIndex()
-                .setIndex("test")
-                .setType("type1")
-                .setId("existing")
-                .setSource("field1", text));
+        for (int i = 0; i < content.length; i++) {
+            indexBuilders.add(client().prepareIndex()
+                    .setIndex("test")
+                    .setType("type1")
+                    .setId(String.valueOf(i))
+                    .setSource("field1", content[i]));
+        }
         indexRandom(true, indexBuilders);
 
-        // request tvs from existing document
-        TermVectorResponse respExisting = client().prepareTermVector("test", "type1", "existing")
-                .setOffsets(true)
-                .setPositions(true)
-                .setFieldStatistics(true)
-                .get();
-        assertThat("doc with index: test, type1 and id: existing", respExisting.isExists(), equalTo(true));
+        for (int i = 0; i < content.length; i++) {
+            // request tvs from existing document
+            TermVectorResponse respExisting = client().prepareTermVector("test", "type1", String.valueOf(i))
+                    .setOffsets(true)
+                    .setPositions(true)
+                    .setFieldStatistics(true)
+                    .setTermStatistics(true)
+                    .get();
+            assertThat("doc with index: test, type1 and id: existing", respExisting.isExists(), equalTo(true));
 
-        // request tvs from artificial document
-        TermVectorResponse respArtificial = client().prepareTermVector()
-                .setIndex("test")
-                .setType("type1")
-                .setDoc(jsonBuilder()
-                        .startObject()
-                        .field("field1", text)
-                        .endObject())
-                .setOffsets(true)
-                .setPositions(true)
-                .setFieldStatistics(true)
-                .get();
-        assertThat("doc with index: test, type1 and id: existing", respArtificial.isExists(), equalTo(true));
+            // request tvs from artificial document
+            TermVectorResponse respArtificial = client().prepareTermVector()
+                    .setIndex("test")
+                    .setType("type1")
+                    .setRouting(String.valueOf(i)) // ensure we get the stats from the same shard as existing doc
+                    .setDoc(jsonBuilder()
+                            .startObject()
+                            .field("field1", content[i])
+                            .endObject())
+                    .setOffsets(true)
+                    .setPositions(true)
+                    .setFieldStatistics(true)
+                    .setTermStatistics(true)
+                    .get();
+            assertThat("doc with index: test, type1 and id: existing", respArtificial.isExists(), equalTo(true));
 
-        // compare existing tvs with artificial
-        compareTermVectors("field1", respExisting.getFields(), respArtificial.getFields());
+            // compare existing tvs with artificial
+            compareTermVectors("field1", respExisting.getFields(), respArtificial.getFields());
+        }
     }
 
     @Test
@@ -858,6 +870,7 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
                 .setOffsets(true)
                 .setPositions(true)
                 .setFieldStatistics(true)
+                .setTermStatistics(true)
                 .get();
         assertThat("doc with index: test, type1 and id: existing", respArtificial.isExists(), equalTo(true));
         checkBrownFoxTermVector(respArtificial.getFields(), "field1", false);

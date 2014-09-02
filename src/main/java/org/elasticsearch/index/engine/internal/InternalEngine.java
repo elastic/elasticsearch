@@ -1281,6 +1281,11 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         }
     }
 
+    LiveIndexWriterConfig currentIndexWriterConfig() {
+        ensureOpen();
+        return this.indexWriter.getConfig();
+    }
+
     class FailEngineOnMergeFailure implements MergeSchedulerProvider.FailureListener {
         @Override
         public void onFailedMerge(MergePolicy.MergeException e) {

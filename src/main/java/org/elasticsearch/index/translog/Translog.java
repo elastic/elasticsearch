@@ -238,7 +238,7 @@ public interface Translog extends IndexShardComponent, CloseableIndexComponent, 
 
         long estimateSize();
 
-        Source readSource(StreamInput in) throws IOException;
+        Source getSource();
     }
 
     static class Source {
@@ -338,8 +338,7 @@ public interface Translog extends IndexShardComponent, CloseableIndexComponent, 
         }
 
         @Override
-        public Source readSource(StreamInput in) throws IOException {
-            readFrom(in);
+        public Source getSource() {
             return new Source(source, routing, parent, timestamp, ttl);
         }
 
@@ -481,8 +480,7 @@ public interface Translog extends IndexShardComponent, CloseableIndexComponent, 
         }
 
         @Override
-        public Source readSource(StreamInput in) throws IOException {
-            readFrom(in);
+        public Source getSource() {
             return new Source(source, routing, parent, timestamp, ttl);
         }
 
@@ -596,7 +594,7 @@ public interface Translog extends IndexShardComponent, CloseableIndexComponent, 
         }
 
         @Override
-        public Source readSource(StreamInput in) throws IOException {
+        public Source getSource(){
             throw new ElasticsearchIllegalStateException("trying to read doc source from delete operation");
         }
 
@@ -668,7 +666,7 @@ public interface Translog extends IndexShardComponent, CloseableIndexComponent, 
         }
 
         @Override
-        public Source readSource(StreamInput in) throws IOException {
+        public Source getSource() {
             throw new ElasticsearchIllegalStateException("trying to read doc source from delete_by_query operation");
         }
 

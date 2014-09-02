@@ -70,9 +70,9 @@ class RecoveryTranslogOperationsRequest extends TransportRequest {
         operations = Lists.newArrayListWithExpectedSize(size);
         for (int i = 0; i < size; i++) {
             if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
-                operations.add(TranslogStreams.V1.read(in));
+                operations.add(TranslogStreams.CHECKSUMMED_TRANSLOG_STREAM.read(in));
             } else {
-                operations.add(TranslogStreams.V0.read(in));
+                operations.add(TranslogStreams.LEGACY_TRANSLOG_STREAM.read(in));
             }
 
         }
@@ -86,9 +86,9 @@ class RecoveryTranslogOperationsRequest extends TransportRequest {
         out.writeVInt(operations.size());
         for (Translog.Operation operation : operations) {
             if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
-                TranslogStreams.V1.write(out, operation);
+                TranslogStreams.CHECKSUMMED_TRANSLOG_STREAM.write(out, operation);
             } else {
-                TranslogStreams.V0.write(out, operation);
+                TranslogStreams.LEGACY_TRANSLOG_STREAM.write(out, operation);
             }
         }
     }

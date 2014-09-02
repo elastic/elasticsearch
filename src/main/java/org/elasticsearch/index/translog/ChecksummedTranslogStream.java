@@ -22,11 +22,11 @@ package org.elasticsearch.index.translog;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.InputStreamDataInput;
 import org.apache.lucene.store.OutputStreamDataOutput;
-import org.elasticsearch.common.io.stream.BytesStreamInput;
-import org.elasticsearch.common.io.stream.InputStreamStreamInput;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.*;
 
+import java.io.EOFException;
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
@@ -39,36 +39,7 @@ public class ChecksummedTranslogStream implements TranslogStream {
 
     public static final int VERSION = 1;
 
-    private final InputStreamStreamInput in;
-    private final boolean fileExists;
-
-    ChecksummedTranslogStream(InputStreamStreamInput in, boolean fileExists) {
-        this.in = in;
-        // This could be a new file, in which case we can ignore reading and
-        // verifying the header
-        this.fileExists = fileExists;
-        if (fileExists) {
-            // The header must be read to advance the input stream
-            readAndVerifyHeader();
-        }
-    }
-
-    private void readAndVerifyHeader() {
-        assert this.in != null : "headers are only for translog files read from disk, not streaming operations";
-        try {
-            CodecUtil.checkHeader(new InputStreamDataInput(this.in), TranslogStreams.TRANSLOG_CODEC, VERSION, VERSION);
-        } catch (IOException e) {
-            throw new TranslogCorruptedException("translog header corrupted", e);
-        }
-    }
-
-    public Translog.Operation read() throws IOException {
-        if (this.fileExists == false) {
-            throw new IOException("translog file does not exist");
-        }
-        assert this.fileExists : "cannot read from a stream for a file that does not exist";
-        in.readInt(); // ignored operation size
-        return this.read(in);
+    ChecksummedTranslogStream() {
     }
 
     private void verifyChecksum(BufferedChecksumStreamInput in) throws IOException {
@@ -83,6 +54,8 @@ public class ChecksummedTranslogStream implements TranslogStream {
 
     @Override
     public Translog.Operation read(StreamInput inStream) throws IOException {
+        // TODO: validate size to prevent OOME
+        int opSize = inStream.readInt();
         // This BufferedChecksumStreamInput remains unclosed on purpose,
         // because closing it closes the underlying stream, which we don't
         // want to do here.
@@ -100,34 +73,22 @@ public class ChecksummedTranslogStream implements TranslogStream {
     }
 
     @Override
-    public Translog.Source readSource(byte[] data) throws IOException {
-        StreamInput nonChecksummingIn = new BytesStreamInput(data, false);
-        BufferedChecksumStreamInput in;
-        Translog.Source source;
-        try {
-            // the size header, not used and not part of the checksum
-            // because it is computed after the operation is written
-            nonChecksummingIn.readInt();
-            // This BufferedChecksumStreamInput remains unclosed on purpose,
-            // because closing it closes the underlying stream, which we don't
-            // want to do here.
-            in = new BufferedChecksumStreamInput(nonChecksummingIn);
-            Translog.Operation.Type type = Translog.Operation.Type.fromId(in.readByte());
-            Translog.Operation operation = TranslogStreams.newOperationFromType(type);
-            source = operation.readSource(in);
-        } catch (AssertionError|Exception e) {
-            throw new TranslogCorruptedException("translog corruption while reading from byte array", e);
-        }
-        verifyChecksum(in);
-        return source;
-    }
-
-    @Override
     public void write(StreamOutput outStream, Translog.Operation op) throws IOException {
+        // We first write to a NoopStreamOutput to get the size of the
+        // operation. We could write to a byte array and then send that as an
+        // alternative, but here we choose to use CPU over allocating new
+        // byte arrays.
+        NoopStreamOutput noopOut = new NoopStreamOutput();
+        noopOut.writeByte(op.opType().id());
+        op.writeTo(noopOut);
+        noopOut.writeInt(0); // checksum holder
+        int size = noopOut.getCount();
+
         // This BufferedChecksumStreamOutput remains unclosed on purpose,
         // because closing it closes the underlying stream, which we don't
         // want to do here.
         BufferedChecksumStreamOutput out = new BufferedChecksumStreamOutput(outStream);
+        outStream.writeInt(size); // opSize is not checksummed
         out.writeByte(op.opType().id());
         op.writeTo(out);
         long checksum = out.getChecksum();
@@ -144,7 +105,15 @@ public class ChecksummedTranslogStream implements TranslogStream {
     }
 
     @Override
-    public void close() throws IOException {
-        this.in.close();
+    public StreamInput openInput(File translogFile) throws IOException {
+        try {
+            InputStreamStreamInput in = new InputStreamStreamInput(new FileInputStream(translogFile));
+            CodecUtil.checkHeader(new InputStreamDataInput(in), TranslogStreams.TRANSLOG_CODEC, VERSION, VERSION);
+            return in;
+        } catch (EOFException e) {
+            throw new TruncatedTranslogException("translog header truncated", e);
+        } catch (IOException e) {
+            throw new TranslogCorruptedException("translog header corrupted", e);
+        }
     }
 }

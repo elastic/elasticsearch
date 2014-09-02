@@ -443,15 +443,12 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                     listener.clusterChanged(clusterChangedEvent);
                 }
 
-                if (!nodesDelta.removedNodes().isEmpty()) {
-                    threadPool.generic().execute(new Runnable() {
-                        @Override
-                        public void run() {
-                            for (DiscoveryNode node : nodesDelta.removedNodes()) {
-                                transportService.disconnectFromNode(node);
-                            }
-                        }
-                    });
+                for (DiscoveryNode node : nodesDelta.removedNodes()) {
+                    try {
+                        transportService.disconnectFromNode(node);
+                    } catch (Throwable e) {
+                        logger.warn("failed to disconnect to node [" + node + "]", e);
+                    }
                 }
 
                 newClusterState.status(ClusterState.ClusterStateStatus.APPLIED);

@@ -394,6 +394,18 @@ public class UpdateSettingsTests extends ElasticsearchIntegrationTest {
         // Now verify via dedicated get settings api:
         GetSettingsResponse getSettingsResponse = client().admin().indices().prepareGetSettings("test").get();
         assertEquals("true", getSettingsResponse.getSetting("test", "index.checksum_on_merge"));
+        
+        // add garbage setting
+        try {
+            client().admin().indices().prepareUpdateSettings("test")
+            .setSettings(ImmutableSettings.settingsBuilder()
+                    .put("index.checksum_on_merge", "trash")
+            )
+            .execute().actionGet();
+            fail("should not be allowed to set this to a garbage value");
+        } catch (ElasticsearchIllegalArgumentException expected) {
+          // expected exception
+        }
 
         client().admin().indices().prepareUpdateSettings("test")
                 .setSettings(ImmutableSettings.settingsBuilder()

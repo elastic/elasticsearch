@@ -500,7 +500,7 @@ public final class InternalTestCluster extends TestCluster {
         while (limit.hasNext()) {
             NodeAndClient next = limit.next();
             nodesToRemove.add(next);
-            removeDistruptionSchemeFromNode(next);
+            removeDisruptionSchemeFromNode(next);
             next.close();
         }
         for (NodeAndClient toRemove : nodesToRemove) {
@@ -1041,7 +1041,7 @@ public final class InternalTestCluster extends TestCluster {
         NodeAndClient nodeAndClient = getRandomNodeAndClient(new DataNodePredicate());
         if (nodeAndClient != null) {
             logger.info("Closing random node [{}] ", nodeAndClient.name);
-            removeDistruptionSchemeFromNode(nodeAndClient);
+            removeDisruptionSchemeFromNode(nodeAndClient);
             nodes.remove(nodeAndClient.name);
             nodeAndClient.close();
         }
@@ -1061,7 +1061,7 @@ public final class InternalTestCluster extends TestCluster {
         });
         if (nodeAndClient != null) {
             logger.info("Closing filtered random node [{}] ", nodeAndClient.name);
-            removeDistruptionSchemeFromNode(nodeAndClient);
+            removeDisruptionSchemeFromNode(nodeAndClient);
             nodes.remove(nodeAndClient.name);
             nodeAndClient.close();
         }
@@ -1076,7 +1076,7 @@ public final class InternalTestCluster extends TestCluster {
         String masterNodeName = getMasterName();
         assert nodes.containsKey(masterNodeName);
         logger.info("Closing master node [{}] ", masterNodeName);
-        removeDistruptionSchemeFromNode(nodes.get(masterNodeName));
+        removeDisruptionSchemeFromNode(nodes.get(masterNodeName));
         NodeAndClient remove = nodes.remove(masterNodeName);
         remove.close();
     }
@@ -1088,7 +1088,7 @@ public final class InternalTestCluster extends TestCluster {
         NodeAndClient nodeAndClient = getRandomNodeAndClient(Predicates.not(new MasterNodePredicate(getMasterName())));
         if (nodeAndClient != null) {
             logger.info("Closing random non master node [{}] current master [{}] ", nodeAndClient.name, getMasterName());
-            removeDistruptionSchemeFromNode(nodeAndClient);
+            removeDisruptionSchemeFromNode(nodeAndClient);
             nodes.remove(nodeAndClient.name);
             nodeAndClient.close();
         }
@@ -1443,7 +1443,7 @@ public final class InternalTestCluster extends TestCluster {
         }
     }
 
-    private void removeDistruptionSchemeFromNode(NodeAndClient nodeAndClient) {
+    private void removeDisruptionSchemeFromNode(NodeAndClient nodeAndClient) {
         if (activeDisruptionScheme != null) {
             assert nodes.containsKey(nodeAndClient.name);
             activeDisruptionScheme.removeFromNode(nodeAndClient.name, this);

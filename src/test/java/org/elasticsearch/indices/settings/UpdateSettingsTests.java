@@ -377,4 +377,35 @@ public class UpdateSettingsTests extends ElasticsearchIntegrationTest {
             rootLogger.setLevel(savedLevel);
         }
     }
+    
+    @Test
+    public void testMergeChecksumSettings() throws Exception {
+        createIndex("test");
+        
+        client().admin().indices().prepareUpdateSettings("test")
+        .setSettings(ImmutableSettings.settingsBuilder()
+                .put("index.checksum_on_merge", true)
+        )
+        .execute().actionGet();
+
+        IndexMetaData indexMetaData = client().admin().cluster().prepareState().execute().actionGet().getState().metaData().index("test");
+        assertEquals("true", indexMetaData.settings().get("index.checksum_on_merge"));
+
+        // Now verify via dedicated get settings api:
+        GetSettingsResponse getSettingsResponse = client().admin().indices().prepareGetSettings("test").get();
+        assertEquals("true", getSettingsResponse.getSetting("test", "index.checksum_on_merge"));
+
+        client().admin().indices().prepareUpdateSettings("test")
+                .setSettings(ImmutableSettings.settingsBuilder()
+                        .put("index.checksum_on_merge", false)
+                )
+                .execute().actionGet();
+
+        indexMetaData = client().admin().cluster().prepareState().execute().actionGet().getState().metaData().index("test");
+        assertEquals("false", indexMetaData.settings().get("index.checksum_on_merge"));
+
+        // Now verify via dedicated get settings api:
+        getSettingsResponse = client().admin().indices().prepareGetSettings("test").get();
+        assertEquals("false", getSettingsResponse.getSetting("test", "index.checksum_on_merge"));
+    }
 }

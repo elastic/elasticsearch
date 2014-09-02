@@ -26,17 +26,23 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.node.internal.InternalSettingsPreparer;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.Iterator;
 
+import static junit.framework.Assert.assertFalse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertThat;
 
@@ -59,10 +65,17 @@ public final class ExternalTestCluster extends TestCluster {
     private final int numBenchNodes;
 
     public ExternalTestCluster(TransportAddress... transportAddresses) {
-        this.client = new TransportClient(ImmutableSettings.settingsBuilder()
+
+        Settings clientSettings = ImmutableSettings.settingsBuilder()
                 .put("client.transport.ignore_cluster_name", true)
-                .put("node.mode", "network")) // we require network here!
-                .addTransportAddresses(transportAddresses);
+                .put("node.mode", "network").build(); // we require network here!
+
+        // verify that the end node setting will have network enabled.
+        Tuple<Settings, Environment> finalSettings = InternalSettingsPreparer.prepareSettings(clientSettings, true);
+        assertFalse("backward compatibility tests must run in network mode. You probably have a system property overriding the test settings",
+                DiscoveryNode.localNode(finalSettings.v1()));
+
+        this.client = new TransportClient(clientSettings).addTransportAddresses(transportAddresses);
 
         NodesInfoResponse nodeInfos = this.client.admin().cluster().prepareNodesInfo().clear().setSettings(true).setHttp(true).get();
         httpAddresses = new InetSocketAddress[nodeInfos.getNodes().length];

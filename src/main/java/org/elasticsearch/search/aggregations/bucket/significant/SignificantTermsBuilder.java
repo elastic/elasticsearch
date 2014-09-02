@@ -22,6 +22,7 @@ package org.elasticsearch.search.aggregations.bucket.significant;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.AbstractTermsParametersParser;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
@@ -47,42 +48,65 @@ public class SignificantTermsBuilder extends AggregationBuilder<SignificantTerms
     private FilterBuilder filterBuilder;
     private SignificanceHeuristicBuilder significanceHeuristicBuilder;
 
-
+    /**
+     * Sole constructor.
+     */
     public SignificantTermsBuilder(String name) {
         super(name, SignificantStringTerms.TYPE.name());
     }
 
+    /**
+     * Set the field to fetch significant terms from.
+     */
     public SignificantTermsBuilder field(String field) {
         this.field = field;
         return this;
     }
 
+    /**
+     * Set the number of significant terms to retrieve.
+     */
     public SignificantTermsBuilder size(int requiredSize) {
         bucketCountThresholds.setRequiredSize(requiredSize);
         return this;
     }
 
+    /**
+     * Expert: Set the number of significant terms to retrieve on each shard.
+     */
     public SignificantTermsBuilder shardSize(int shardSize) {
         bucketCountThresholds.setShardSize(shardSize);
         return this;
     }
 
+    /**
+     * Only return significant terms that belong to at least <code>minDocCount</code> documents.
+     */
     public SignificantTermsBuilder minDocCount(int minDocCount) {
         bucketCountThresholds.setMinDocCount(minDocCount);
         return this;
     }
     
+    /**
+     * Set the background filter to compare to. Defaults to the whole index.
+     */
     public SignificantTermsBuilder backgroundFilter(FilterBuilder filter) {
         this.filterBuilder = filter;
         return this;
     }
     
-
+    /**
+     * Expert: set the minimum number of documents that a term should match to
+     * be retrieved from a shard.
+     */
     public SignificantTermsBuilder shardMinDocCount(int shardMinDocCount) {
         bucketCountThresholds.setShardMinDocCount(shardMinDocCount);
         return this;
     }
 
+    /**
+     * Expert: give an execution hint to this aggregation.
+     */
     public SignificantTermsBuilder executionHint(String executionHint) {
         this.executionHint = executionHint;
         return this;
@@ -174,6 +198,9 @@ public class SignificantTermsBuilder extends AggregationBuilder<SignificantTerms
         return builder.endObject();
     }
 
+    /**
+     * Expert: set the {@link SignificanceHeuristic} to use.
+     */
     public SignificantTermsBuilder significanceHeuristic(SignificanceHeuristicBuilder significanceHeuristicBuilder) {
         this.significanceHeuristicBuilder = significanceHeuristicBuilder;
         return this;

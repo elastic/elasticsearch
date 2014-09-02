@@ -27,7 +27,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.TransportBroadcastOperationAction;
-import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -69,20 +68,17 @@ public class TransportExistsAction extends TransportBroadcastOperationAction<Exi
 
     private final ScriptService scriptService;
 
-    private final CacheRecycler cacheRecycler;
-
     private final PageCacheRecycler pageCacheRecycler;
 
     private final BigArrays bigArrays;
 
     @Inject
     public TransportExistsAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
-                                IndicesService indicesService, ScriptService scriptService, CacheRecycler cacheRecycler,
+                                IndicesService indicesService, ScriptService scriptService,
                                 PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, ActionFilters actionFilters) {
         super(settings, ExistsAction.NAME, threadPool, clusterService, transportService, actionFilters);
         this.indicesService = indicesService;
         this.scriptService = scriptService;
-        this.cacheRecycler = cacheRecycler;
         this.pageCacheRecycler = pageCacheRecycler;
         this.bigArrays = bigArrays;
     }
@@ -175,7 +171,7 @@ public class TransportExistsAction extends TransportBroadcastOperationAction<Exi
                         .filteringAliases(request.filteringAliases())
                         .nowInMillis(request.nowInMillis()),
                 shardTarget, indexShard.acquireSearcher("exists"), indexService, indexShard,
-                scriptService, cacheRecycler, pageCacheRecycler, bigArrays);
+                scriptService, pageCacheRecycler, bigArrays);
         SearchContext.setCurrent(context);
 
         try {

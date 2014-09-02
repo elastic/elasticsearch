@@ -44,7 +44,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.search.suggest.SuggestBuilder.termSuggestion;
+import static org.elasticsearch.search.suggest.SuggestBuilders.termSuggestion;
 
 /**
  *

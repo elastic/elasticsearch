@@ -76,7 +76,7 @@ public class StringTerms extends InternalTerms {
 
         @Override
         public Number getKeyAsNumber() {
-            // this method is needed for scripted numeric faceting
+            // this method is needed for scripted numeric aggs
             return Double.parseDouble(termBytes.utf8ToString());
         }
 

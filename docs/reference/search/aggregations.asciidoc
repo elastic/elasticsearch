@@ -1,18 +1,8 @@
 [[search-aggregations]]
 == Aggregations
 
-Aggregations grew out of the <<search-facets, facets>> module and the long experience of how users use it
-(and would like to use it) for real-time data analytics purposes. As such, it serves as the next generation
-replacement for the functionality we currently refer to as "faceting".
-
-<<search-facets, Facets>> provide a great way to aggregate data within a document set context.
-This context is defined by the executed query in combination with the different levels of filters that can be defined
-(filtered queries, top-level filters, and facet level filters). While powerful, their implementation is not designed
-from the ground up to support complex aggregations and is thus limited.
-
-The aggregations module breaks the barriers the current facet implementation put in place. The new name ("Aggregations")
-also indicates the intention here - a generic yet extremely powerful framework for building aggregations - any types of
-aggregations.
+The aggregations framework helps provide aggregated data based on a search query. It is based on simple building blocks
+called aggregations, that can be composed in order to build complex summaries of the data.
 
 An aggregation can be seen as a _unit-of-work_ that builds analytic information over a set of documents. The context of
 the execution defines what this document set is (e.g. a top-level aggregation executes within the context of the executed

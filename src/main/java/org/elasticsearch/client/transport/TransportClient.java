@@ -54,8 +54,6 @@ import org.elasticsearch.action.termvector.TermVectorRequest;
 import org.elasticsearch.action.termvector.TermVectorResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
-import org.elasticsearch.cache.recycler.CacheRecycler;
-import org.elasticsearch.cache.recycler.CacheRecyclerModule;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
@@ -177,7 +175,6 @@ public class TransportClient extends AbstractClient {
 
         ModulesBuilder modules = new ModulesBuilder();
         modules.add(new Version.Module(version));
-        modules.add(new CacheRecyclerModule(settings));
         modules.add(new PluginsModule(this.settings, pluginsService));
         modules.add(new EnvironmentModule(environment));
         modules.add(new SettingsModule(this.settings));
@@ -299,7 +296,6 @@ public class TransportClient extends AbstractClient {
             // ignore
         }
 
-        injector.getInstance(CacheRecycler.class).close();
         injector.getInstance(PageCacheRecycler.class).close();
 
         CachedStreams.clear();

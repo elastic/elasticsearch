@@ -26,7 +26,6 @@ import org.apache.lucene.queryparser.classic.QueryParserSettings;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.similarities.Similarity;
-import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.lucene.search.NoCacheFilter;
@@ -37,6 +36,7 @@ import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 import org.elasticsearch.index.cache.query.parser.QueryParserCache;
 import org.elasticsearch.index.engine.IndexEngine;
+import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilter;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
@@ -132,10 +132,6 @@ public class QueryParseContext {
         return indexQueryParser.analysisService;
     }
 
-    public CacheRecycler cacheRecycler() {
-        return indexQueryParser.cacheRecycler;
-    }
-
     public ScriptService scriptService() {
         return indexQueryParser.scriptService;
     }
@@ -172,6 +168,10 @@ public class QueryParseContext {
     public MapperQueryParser queryParser(QueryParserSettings settings) {
         queryParser.reset(settings);
         return queryParser;
+    }
+
+    public FixedBitSetFilter fixedBitSetFilter(Filter filter) {
+        return indexQueryParser.fixedBitSetFilterCache.getFixedBitSetFilter(filter);
     }
 
     public Filter cacheFilter(Filter filter, @Nullable CacheKeyFilter.Key cacheKey) {

@@ -41,8 +41,9 @@ import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.rest.action.admin.indices.alias.delete.AliasesMissingException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.facet.FacetBuilders;
-import org.elasticsearch.search.facet.terms.TermsFacet;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.bucket.global.Global;
+import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
@@ -59,6 +60,7 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
 import static org.elasticsearch.index.query.FilterBuilders.termFilter;
 import static org.elasticsearch.test.hamcrest.CollectionAssertions.hasKey;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -185,21 +187,29 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
 
         logger.info("--> checking single filtering alias search with global facets");
         searchResponse = client().prepareSearch("tests").setQuery(QueryBuilders.matchQuery("name", "bar"))
-                .addFacet(FacetBuilders.termsFacet("test").field("name").global(true))
+                .addAggregation(AggregationBuilders.global("global").subAggregation(AggregationBuilders.terms("test").field("name")))
                 .get();
-        assertThat(((TermsFacet) searchResponse.getFacets().facet("test")).getEntries().size(), equalTo(4));
+        assertSearchResponse(searchResponse);
+        Global global = searchResponse.getAggregations().get("global");
+        Terms terms = global.getAggregations().get("test");
+        assertThat(terms.getBuckets().size(), equalTo(4));
 
         logger.info("--> checking single filtering alias search with global facets and sort");
         searchResponse = client().prepareSearch("tests").setQuery(QueryBuilders.matchQuery("name", "bar"))
-                .addFacet(FacetBuilders.termsFacet("test").field("name").global(true))
+                .addAggregation(AggregationBuilders.global("global").subAggregation(AggregationBuilders.terms("test").field("name")))
                 .addSort("_uid", SortOrder.ASC).get();
-        assertThat(((TermsFacet) searchResponse.getFacets().facet("test")).getEntries().size(), equalTo(4));
+        assertSearchResponse(searchResponse);
+        global = searchResponse.getAggregations().get("global");
+        terms = global.getAggregations().get("test");
+        assertThat(terms.getBuckets().size(), equalTo(4));
 
         logger.info("--> checking single filtering alias search with non-global facets");
         searchResponse = client().prepareSearch("tests").setQuery(QueryBuilders.matchQuery("name", "bar"))
-                .addFacet(FacetBuilders.termsFacet("test").field("name").global(false))
+                .addAggregation(AggregationBuilders.terms("test").field("name"))
                 .addSort("_uid", SortOrder.ASC).get();
-        assertThat(((TermsFacet) searchResponse.getFacets().facet("test")).getEntries().size(), equalTo(2));
+        assertSearchResponse(searchResponse);
+        terms = searchResponse.getAggregations().get("test");
+        assertThat(terms.getBuckets().size(), equalTo(2));
 
         searchResponse = client().prepareSearch("foos", "bars").setQuery(QueryBuilders.matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "1", "2");

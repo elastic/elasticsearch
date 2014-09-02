@@ -145,7 +145,7 @@ public class MapperService extends AbstractIndexComponent  {
         String defaultMappingLocation = componentSettings.get("default_mapping_location");
         final URL defaultMappingUrl;
         if (index.getName().equals(ScriptService.SCRIPT_INDEX)){
-            defaultMappingUrl = getMappingUrl(indexSettings, environment, defaultMappingLocation,"script-index-defaults.json","org/elasticsearch/index/mapper/script-index-defaults.json");
+            defaultMappingUrl = getMappingUrl(indexSettings, environment, defaultMappingLocation,"script-mapping.json","org/elasticsearch/index/mapper/script-mapping.json");
         } else {
             defaultMappingUrl = getMappingUrl(indexSettings, environment, defaultMappingLocation,"default-mapping.json","org/elasticsearch/index/mapper/default-mapping.json");
         }
@@ -434,13 +434,6 @@ public class MapperService extends AbstractIndexComponent  {
         }
     }
 
-    /**
-     * Just parses and returns the mapper without adding it, while still applying default mapping.
-     */
-    public DocumentMapper parse(String mappingType, CompressedString mappingSource) throws MapperParsingException {
-        return parse(mappingType, mappingSource, true);
-    }
-
     public DocumentMapper parse(String mappingType, CompressedString mappingSource, boolean applyDefault) throws MapperParsingException {
         String defaultMappingSource;
         if (PercolatorService.TYPE_NAME.equals(mappingType)) {
@@ -520,10 +513,12 @@ public class MapperService extends AbstractIndexComponent  {
         // since they have different types (starting with __)
         if (types.length == 1) {
             DocumentMapper docMapper = documentMapper(types[0]);
-            if (docMapper == null) {
-                return new TermFilter(new Term(types[0]));
+            Filter filter = docMapper != null ? docMapper.typeFilter() : new TermFilter(new Term(types[0]));
+            if (hasNested) {
+                return new AndFilter(ImmutableList.of(filter, NonNestedDocsFilter.INSTANCE));
+            } else {
+                return filter;
             }
-            return docMapper.typeFilter();
         }
         // see if we can use terms filter
         boolean useTermsFilter = true;
@@ -539,6 +534,7 @@ public class MapperService extends AbstractIndexComponent  {
             }
         }
 
+        // We only use terms filter is there is a type filter, this means we don't need to check for hasNested here
         if (useTermsFilter) {
             BytesRef[] typesBytes = new BytesRef[types.length];
             for (int i = 0; i < typesBytes.length; i++) {
@@ -563,6 +559,9 @@ public class MapperService extends AbstractIndexComponent  {
             }
             if (filterPercolateType) {
                 bool.add(excludePercolatorType, BooleanClause.Occur.MUST);
+            }
+            if (hasNested) {
+                bool.add(NonNestedDocsFilter.INSTANCE, BooleanClause.Occur.MUST);
             }
 
             return bool;

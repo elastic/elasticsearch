@@ -48,6 +48,7 @@ class ShardOptimizeRequest extends BroadcastShardOperationRequest {
         maxNumSegments = request.maxNumSegments();
         onlyExpungeDeletes = request.onlyExpungeDeletes();
         flush = request.flush();
+        force = request.force();
     }
 
     boolean waitForMerge() {

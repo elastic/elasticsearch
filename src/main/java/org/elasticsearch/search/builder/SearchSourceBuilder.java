@@ -38,7 +38,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
-import org.elasticsearch.search.facet.FacetBuilder;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.SearchContext;
@@ -106,9 +105,6 @@ public class SearchSourceBuilder implements ToXContent {
     private List<ScriptField> scriptFields;
     private List<PartialField> partialFields;
     private FetchSourceContext fetchSourceContext;
-
-    private List<FacetBuilder> facets;
-    private BytesReference facetsBinary;
 
     private List<AbstractAggregationBuilder> aggregations;
     private BytesReference aggregationsBinary;
@@ -193,7 +189,7 @@ public class SearchSourceBuilder implements ToXContent {
 
     /**
      * Sets a filter that will be executed after the query has been executed and only has affect on the search hits
-     * (not aggregations or facets). This filter is always executed as last filtering mechanism.
+     * (not aggregations). This filter is always executed as last filtering mechanism.
      */
     public SearchSourceBuilder postFilter(FilterBuilder postFilter) {
         this.postFilterBuilder = postFilter;
@@ -202,7 +198,7 @@ public class SearchSourceBuilder implements ToXContent {
 
     /**
      * Sets a filter on the query executed that only applies to the search query
-     * (and not facets for example).
+     * (and not aggs for example).
      */
     public SearchSourceBuilder postFilter(String postFilterString) {
         return postFilter(postFilterString.getBytes(Charsets.UTF_8));
@@ -210,7 +206,7 @@ public class SearchSourceBuilder implements ToXContent {
 
     /**
      * Sets a filter on the query executed that only applies to the search query
-     * (and not facets for example).
+     * (and not aggs for example).
      */
     public SearchSourceBuilder postFilter(byte[] postFilter) {
         return postFilter(postFilter, 0, postFilter.length);
@@ -218,7 +214,7 @@ public class SearchSourceBuilder implements ToXContent {
 
     /**
      * Sets a filter on the query executed that only applies to the search query
-     * (and not facets for example).
+     * (and not aggs for example).
      */
     public SearchSourceBuilder postFilter(byte[] postFilterBinary, int postFilterBinaryOffset, int postFilterBinaryLength) {
         return postFilter(new BytesArray(postFilterBinary, postFilterBinaryOffset, postFilterBinaryLength));
@@ -226,7 +222,7 @@ public class SearchSourceBuilder implements ToXContent {
 
     /**
      * Sets a filter on the query executed that only applies to the search query
-     * (and not facets for example).
+     * (and not aggs for example).
      */
     public SearchSourceBuilder postFilter(BytesReference postFilterBinary) {
         this.filterBinary = postFilterBinary;
@@ -362,59 +358,6 @@ public class SearchSourceBuilder implements ToXContent {
     }
 
     /**
-     * Add a facet to perform as part of the search.
-     */
-    public SearchSourceBuilder facet(FacetBuilder facet) {
-        if (facets == null) {
-            facets = Lists.newArrayList();
-        }
-        facets.add(facet);
-        return this;
-    }
-
-    /**
-     * Sets a raw (xcontent / json) facets.
-     */
-    public SearchSourceBuilder facets(byte[] facetsBinary) {
-        return facets(facetsBinary, 0, facetsBinary.length);
-    }
-
-    /**
-     * Sets a raw (xcontent / json) facets.
-     */
-    public SearchSourceBuilder facets(byte[] facetsBinary, int facetBinaryOffset, int facetBinaryLength) {
-        return facets(new BytesArray(facetsBinary, facetBinaryOffset, facetBinaryLength));
-    }
-
-    /**
-     * Sets a raw (xcontent / json) facets.
-     */
-    public SearchSourceBuilder facets(BytesReference facetsBinary) {
-        this.facetsBinary = facetsBinary;
-        return this;
-    }
-
-    /**
-     * Sets a raw (xcontent / json) facets.
-     */
-    public SearchSourceBuilder facets(XContentBuilder facets) {
-        return facets(facets.bytes());
-    }
-
-    /**
-     * Sets a raw (xcontent / json) facets.
-     */
-    public SearchSourceBuilder facets(Map facets) {
-        try {
-            XContentBuilder builder = XContentFactory.contentBuilder(Requests.CONTENT_TYPE);
-            builder.map(facets);
-            return facets(builder);
-        } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate [" + facets + "]", e);
-        }
-    }
-
-    /**
      * Add an get to perform as part of the search.
      */
     public SearchSourceBuilder aggregation(AbstractAggregationBuilder aggregation) {
@@ -450,8 +393,8 @@ public class SearchSourceBuilder implements ToXContent {
     /**
      * Sets a raw (xcontent / json) addAggregation.
      */
-    public SearchSourceBuilder aggregations(XContentBuilder facets) {
-        return aggregations(facets.bytes());
+    public SearchSourceBuilder aggregations(XContentBuilder aggs) {
+        return aggregations(aggs.bytes());
     }
 
     /**
@@ -890,23 +833,6 @@ public class SearchSourceBuilder implements ToXContent {
                 }
             }
             builder.endObject();
-        }
-
-        if (facets != null) {
-            builder.field("facets");
-            builder.startObject();
-            for (FacetBuilder facet : facets) {
-                facet.toXContent(builder, params);
-            }
-            builder.endObject();
-        }
-
-        if (facetsBinary != null) {
-            if (XContentFactory.xContentType(facetsBinary) == builder.contentType()) {
-                builder.rawField("facets", facetsBinary);
-            } else {
-                builder.field("facets_binary", facetsBinary);
-            }
         }
 
         if (aggregations != null) {

@@ -18,11 +18,11 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.bucket.children.Children;
-import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.tophits.TopHits;
 import org.elasticsearch.search.sort.SortOrder;
@@ -50,7 +50,7 @@ public class ChildrenTests extends ElasticsearchIntegrationTest {
         assertAcked(
                 prepareCreate("test")
                     .addMapping("article")
-                    .addMapping("comment", "_parent", "type=article")
+                    .addMapping("comment", "_parent", "type=article", "_id", "index=not_analyzed")
         );
 
         List<IndexRequestBuilder> requests = new ArrayList<>();
@@ -125,7 +125,7 @@ public class ChildrenTests extends ElasticsearchIntegrationTest {
                 ).get();
         assertSearchResponse(searchResponse);
 
-        StringTerms categoryTerms = searchResponse.getAggregations().get("category");
+        Terms categoryTerms = searchResponse.getAggregations().get("category");
         assertThat(categoryTerms.getBuckets().size(), equalTo(categoryToControl.size()));
         for (Map.Entry<String, Control> entry1 : categoryToControl.entrySet()) {
             Terms.Bucket categoryBucket = categoryTerms.getBucketByKey(entry1.getKey());
@@ -136,7 +136,7 @@ public class ChildrenTests extends ElasticsearchIntegrationTest {
             assertThat(childrenBucket.getName(), equalTo("to_comment"));
             assertThat(childrenBucket.getDocCount(), equalTo((long) entry1.getValue().commentIds.size()));
 
-            StringTerms commentersTerms = childrenBucket.getAggregations().get("commenters");
+            Terms commentersTerms = childrenBucket.getAggregations().get("commenters");
             assertThat(commentersTerms.getBuckets().size(), equalTo(entry1.getValue().commenterToCommentId.size()));
             for (Map.Entry<String, Set<String>> entry2 : entry1.getValue().commenterToCommentId.entrySet()) {
                 Terms.Bucket commentBucket = commentersTerms.getBucketByKey(entry2.getKey());
@@ -152,17 +152,18 @@ public class ChildrenTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    @LuceneTestCase.AwaitsFix(bugUrl = "Order is incorrect, c is sometimes before a...")
     public void testParentWithMultipleBuckets() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("test")
                 .setQuery(matchQuery("randomized", false))
                 .addAggregation(
                         terms("category").field("category").size(0).subAggregation(
-                                children("to_comment").childType("comment").subAggregation(topHits("top_comments").addSort("_uid", SortOrder.ASC))
+                                children("to_comment").childType("comment").subAggregation(topHits("top_comments").addSort("_id", SortOrder.ASC))
                         )
                 ).get();
         assertSearchResponse(searchResponse);
 
-        StringTerms categoryTerms = searchResponse.getAggregations().get("category");
+        Terms categoryTerms = searchResponse.getAggregations().get("category");
         assertThat(categoryTerms.getBuckets().size(), equalTo(3));
 
         Terms.Bucket categoryBucket = categoryTerms.getBucketByKey("a");
@@ -174,7 +175,9 @@ public class ChildrenTests extends ElasticsearchIntegrationTest {
         assertThat(childrenBucket.getDocCount(), equalTo(2l));
         TopHits topHits = childrenBucket.getAggregations().get("top_comments");
         assertThat(topHits.getHits().totalHits(), equalTo(2l));
+        assertThat(topHits.getHits().getAt(0).sortValues()[0].toString(), equalTo("a"));
         assertThat(topHits.getHits().getAt(0).getId(), equalTo("a"));
+        assertThat(topHits.getHits().getAt(1).sortValues()[0].toString(), equalTo("c"));
         assertThat(topHits.getHits().getAt(1).getId(), equalTo("c"));
 
         categoryBucket = categoryTerms.getBucketByKey("b");

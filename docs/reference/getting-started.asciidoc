@@ -170,7 +170,7 @@ Now that we have our node (and cluster) up and running, the next step is to unde
 * Check your cluster, node, and index health, status, and statistics
 * Administer your cluster, node, and index data and metadata
 * Perform CRUD (Create, Read, Update, and Delete) and search operations against your indexes
-* Execute advanced search operations such as paging, sorting, filtering, scripting, faceting, aggregations, and many others
+* Execute advanced search operations such as paging, sorting, filtering, scripting, aggregations, and many others
 
 === Cluster Health
 

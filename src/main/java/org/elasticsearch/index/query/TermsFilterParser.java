@@ -52,6 +52,16 @@ public class TermsFilterParser implements FilterParser {
     public static final String NAME = "terms";
     private IndicesTermsFilterCache termsFilterCache;
 
+    public static final String EXECUTION_KEY = "execution";
+    public static final String EXECUTION_VALUE_PLAIN = "plain";
+    public static final String EXECUTION_VALUE_FIELDDATA = "fielddata";
+    public static final String EXECUTION_VALUE_BOOL = "bool";
+    public static final String EXECUTION_VALUE_BOOL_NOCACHE = "bool_nocache";
+    public static final String EXECUTION_VALUE_AND = "and";
+    public static final String EXECUTION_VALUE_AND_NOCACHE = "and_nocache";
+    public static final String EXECUTION_VALUE_OR = "or";
+    public static final String EXECUTION_VALUE_OR_NOCACHE = "or_nocache";
+
     @Inject
     public TermsFilterParser() {
     }
@@ -84,7 +94,7 @@ public class TermsFilterParser implements FilterParser {
 
         CacheKeyFilter.Key cacheKey = null;
         XContentParser.Token token;
-        String execution = "plain";
+        String execution = EXECUTION_VALUE_PLAIN;
         List<Object> terms = Lists.newArrayList();
         String fieldName = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -133,7 +143,7 @@ public class TermsFilterParser implements FilterParser {
                     throw new QueryParsingException(parseContext.index(), "[terms] filter lookup element requires specifying the path");
                 }
             } else if (token.isValue()) {
-                if ("execution".equals(currentFieldName)) {
+                if (EXECUTION_KEY.equals(currentFieldName)) {
                     execution = parser.text();
                 } else if ("_name".equals(currentFieldName)) {
                     filterName = parser.text();
@@ -193,7 +203,7 @@ public class TermsFilterParser implements FilterParser {
 
         try {
             Filter filter;
-            if ("plain".equals(execution)) {
+            if (EXECUTION_VALUE_PLAIN.equals(execution)) {
                 if (fieldMapper != null) {
                     filter = fieldMapper.termsFilter(terms, parseContext);
                 } else {
@@ -207,7 +217,7 @@ public class TermsFilterParser implements FilterParser {
                 if (cache == null || cache) {
                     filter = parseContext.cacheFilter(filter, cacheKey);
                 }
-            } else if ("fielddata".equals(execution)) {
+            } else if (EXECUTION_VALUE_FIELDDATA.equals(execution)) {
                 // if there are no mappings, then nothing has been indexing yet against this shard, so we can return
                 // no match (but not cached!), since the FieldDataTermsFilter relies on a mapping...
                 if (fieldMapper == null) {
@@ -218,7 +228,7 @@ public class TermsFilterParser implements FilterParser {
                 if (cache != null && cache) {
                     filter = parseContext.cacheFilter(filter, cacheKey);
                 }
-            } else if ("bool".equals(execution)) {
+            } else if (EXECUTION_VALUE_BOOL.equals(execution)) {
                 XBooleanFilter boolFiler = new XBooleanFilter();
                 if (fieldMapper != null) {
                     for (Object term : terms) {
@@ -234,7 +244,7 @@ public class TermsFilterParser implements FilterParser {
                 if (cache != null && cache) {
                     filter = parseContext.cacheFilter(filter, cacheKey);
                 }
-            } else if ("bool_nocache".equals(execution)) {
+            } else if (EXECUTION_VALUE_BOOL_NOCACHE.equals(execution)) {
                 XBooleanFilter boolFiler = new XBooleanFilter();
                 if (fieldMapper != null) {
                     for (Object term : terms) {
@@ -250,7 +260,7 @@ public class TermsFilterParser implements FilterParser {
                 if (cache == null || cache) {
                     filter = parseContext.cacheFilter(filter, cacheKey);
                 }
-            } else if ("and".equals(execution)) {
+            } else if (EXECUTION_VALUE_AND.equals(execution)) {
                 List<Filter> filters = Lists.newArrayList();
                 if (fieldMapper != null) {
                     for (Object term : terms) {
@@ -266,7 +276,7 @@ public class TermsFilterParser implements FilterParser {
                 if (cache != null && cache) {
                     filter = parseContext.cacheFilter(filter, cacheKey);
                 }
-            } else if ("and_nocache".equals(execution)) {
+            } else if (EXECUTION_VALUE_AND_NOCACHE.equals(execution)) {
                 List<Filter> filters = Lists.newArrayList();
                 if (fieldMapper != null) {
                     for (Object term : terms) {
@@ -282,7 +292,7 @@ public class TermsFilterParser implements FilterParser {
                 if (cache == null || cache) {
                     filter = parseContext.cacheFilter(filter, cacheKey);
                 }
-            } else if ("or".equals(execution)) {
+            } else if (EXECUTION_VALUE_OR.equals(execution)) {
                 List<Filter> filters = Lists.newArrayList();
                 if (fieldMapper != null) {
                     for (Object term : terms) {
@@ -298,7 +308,7 @@ public class TermsFilterParser implements FilterParser {
                 if (cache != null && cache) {
                     filter = parseContext.cacheFilter(filter, cacheKey);
                 }
-            } else if ("or_nocache".equals(execution)) {
+            } else if (EXECUTION_VALUE_OR_NOCACHE.equals(execution)) {
                 List<Filter> filters = Lists.newArrayList();
                 if (fieldMapper != null) {
                     for (Object term : terms) {

@@ -23,7 +23,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -31,8 +30,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.BaseTransportRequestHandler;
-import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.concurrent.atomic.AtomicInteger;
@@ -61,7 +58,8 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         final AtomicInteger counter = new AtomicInteger(responses.length());
         for (int i = 0; i < responses.length(); i++) {
             final int index = i;
-            searchAction.execute(request.requests().get(i), new ActionListener<SearchResponse>() {
+            SearchRequest searchRequest = new SearchRequest(request.requests().get(i), request);
+            searchAction.execute(searchRequest, new ActionListener<SearchResponse>() {
                 @Override
                 public void onResponse(SearchResponse searchResponse) {
                     responses.set(index, new MultiSearchResponse.Item(searchResponse, null));

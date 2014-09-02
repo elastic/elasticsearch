@@ -21,6 +21,8 @@ package org.elasticsearch.test.hamcrest;
 
 import com.spatial4j.core.shape.Shape;
 import com.spatial4j.core.shape.ShapeCollection;
+import com.spatial4j.core.shape.impl.GeoCircle;
+import com.spatial4j.core.shape.impl.RectangleImpl;
 import com.spatial4j.core.shape.jts.JtsGeometry;
 import com.spatial4j.core.shape.jts.JtsPoint;
 import com.vividsolutions.jts.geom.*;
@@ -197,6 +199,10 @@ public class ElasticsearchGeoAssertions {
             Assert.assertEquals(p1, p2);
         } else if (s1 instanceof ShapeCollection && s2 instanceof ShapeCollection) {
             assertEquals((ShapeCollection)s1, (ShapeCollection)s2);
+        } else if (s1 instanceof GeoCircle && s2 instanceof GeoCircle) {
+            Assert.assertEquals((GeoCircle)s1, (GeoCircle)s2);
+        } else if (s1 instanceof RectangleImpl && s2 instanceof RectangleImpl) {
+            Assert.assertEquals((RectangleImpl)s1, (RectangleImpl)s2);
         } else {
             //We want to know the type of the shape because we test shape equality in a special way...
             //... in particular we test that one ring is equivalent to another ring even if the points are rotated or reversed.

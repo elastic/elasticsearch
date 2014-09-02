@@ -34,9 +34,7 @@ import org.junit.Test;
 import java.io.IOException;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 
 public class MergePolicySettingsTest extends ElasticsearchTestCase {
 
@@ -174,7 +172,7 @@ public class MergePolicySettingsTest extends ElasticsearchTestCase {
 
     protected Store createStore(Settings settings) throws IOException {
         DirectoryService directoryService = new RamDirectoryService(shardId, EMPTY_SETTINGS);
-        return new Store(shardId, settings, null, null, directoryService, new LeastUsedDistributor(directoryService));
+        return new Store(shardId, settings, null, directoryService, new LeastUsedDistributor(directoryService));
     }
 
 }

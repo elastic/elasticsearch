@@ -47,7 +47,6 @@ public class HistogramParser implements Aggregator.Parser {
     public AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
 
         ValuesSourceParser vsParser = ValuesSourceParser.numeric(aggregationName, InternalHistogram.TYPE, context)
-                .requiresSortedValues(true)
                 .targetValueType(ValueType.NUMERIC)
                 .formattable(true)
                 .build();

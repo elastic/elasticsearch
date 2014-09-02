@@ -66,16 +66,14 @@ import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.river.RiverIndexName;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStreamReader;
 import java.io.UnsupportedEncodingException;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
@@ -88,6 +86,7 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
 public class MetaDataCreateIndexService extends AbstractComponent {
 
     public final static int MAX_INDEX_NAME_BYTES = 100;
+    private static final DefaultIndexTemplateFilter DEFAULT_INDEX_TEMPLATE_FILTER = new DefaultIndexTemplateFilter();
 
     private final Environment environment;
     private final ThreadPool threadPool;
@@ -98,11 +97,12 @@ public class MetaDataCreateIndexService extends AbstractComponent {
     private final Version version;
     private final String riverIndexName;
     private final AliasValidator aliasValidator;
+    private final IndexTemplateFilter indexTemplateFilter;
 
     @Inject
     public MetaDataCreateIndexService(Settings settings, Environment environment, ThreadPool threadPool, ClusterService clusterService, IndicesService indicesService,
                                       AllocationService allocationService, MetaDataService metaDataService, Version version, @RiverIndexName String riverIndexName,
-                                      AliasValidator aliasValidator) {
+                                      AliasValidator aliasValidator, Set<IndexTemplateFilter> indexTemplateFilters) {
         super(settings);
         this.environment = environment;
         this.threadPool = threadPool;
@@ -113,18 +113,21 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         this.version = version;
         this.riverIndexName = riverIndexName;
         this.aliasValidator = aliasValidator;
+
+        if (indexTemplateFilters.isEmpty()) {
+            this.indexTemplateFilter = DEFAULT_INDEX_TEMPLATE_FILTER;
+        } else {
+            IndexTemplateFilter[] templateFilters = new IndexTemplateFilter[indexTemplateFilters.size() + 1];
+            templateFilters[0] = DEFAULT_INDEX_TEMPLATE_FILTER;
+            int i = 1;
+            for (IndexTemplateFilter indexTemplateFilter : indexTemplateFilters) {
+                templateFilters[i++] = indexTemplateFilter;
+            }
+            this.indexTemplateFilter = new IndexTemplateFilter.Compound(templateFilters);
+        }
     }
 
     public void createIndex(final CreateIndexClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
-        ImmutableSettings.Builder updatedSettingsBuilder = ImmutableSettings.settingsBuilder();
-        for (Map.Entry<String, String> entry : request.settings().getAsMap().entrySet()) {
-            if (!entry.getKey().startsWith("index.")) {
-                updatedSettingsBuilder.put("index." + entry.getKey(), entry.getValue());
-            } else {
-                updatedSettingsBuilder.put(entry.getKey(), entry.getValue());
-            }
-        }
-        request.settings(updatedSettingsBuilder.build());
 
         // we lock here, and not within the cluster service callback since we don't want to
         // block the whole cluster state handling
@@ -192,6 +195,17 @@ public class MetaDataCreateIndexService extends AbstractComponent {
     }
 
     private void createIndex(final CreateIndexClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener, final Semaphore mdLock) {
+
+        ImmutableSettings.Builder updatedSettingsBuilder = ImmutableSettings.settingsBuilder();
+        for (Map.Entry<String, String> entry : request.settings().getAsMap().entrySet()) {
+            if (!entry.getKey().startsWith("index.")) {
+                updatedSettingsBuilder.put("index." + entry.getKey(), entry.getValue());
+            } else {
+                updatedSettingsBuilder.put(entry.getKey(), entry.getValue());
+            }
+        }
+        request.settings(updatedSettingsBuilder.build());
+
         clusterService.submitStateUpdateTask("create-index [" + request.index() + "], cause [" + request.cause() + "]", Priority.URGENT, new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(request, listener) {
 
             @Override
@@ -230,7 +244,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
                     // we only find a template when its an API call (a new index)
                     // find templates, highest order are better matching
-                    List<IndexTemplateMetaData> templates = findTemplates(request, currentState);
+                    List<IndexTemplateMetaData> templates = findTemplates(request, currentState, indexTemplateFilter);
 
                     Map<String, Custom> customs = Maps.newHashMap();
 
@@ -315,19 +329,28 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     }
                     // now, put the request settings, so they override templates
                     indexSettingsBuilder.put(request.settings());
-
-                    if (indexSettingsBuilder.get(SETTING_NUMBER_OF_SHARDS) == null) {
-                        if (request.index().equals(riverIndexName)) {
-                            indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, settings.getAsInt(SETTING_NUMBER_OF_SHARDS, 1));
-                        } else {
-                            indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, settings.getAsInt(SETTING_NUMBER_OF_SHARDS, 5));
+                    if (request.index().equals(ScriptService.SCRIPT_INDEX)) {
+                        indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, settings.getAsInt(SETTING_NUMBER_OF_SHARDS, 1));
+                    } else {
+                        if (indexSettingsBuilder.get(SETTING_NUMBER_OF_SHARDS) == null) {
+                            if (request.index().equals(riverIndexName)) {
+                                indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, settings.getAsInt(SETTING_NUMBER_OF_SHARDS, 1));
+                            } else {
+                                indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, settings.getAsInt(SETTING_NUMBER_OF_SHARDS, 5));
+                            }
                         }
                     }
-                    if (indexSettingsBuilder.get(SETTING_NUMBER_OF_REPLICAS) == null) {
-                        if (request.index().equals(riverIndexName)) {
-                            indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, 1));
-                        } else {
-                            indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, 1));
+                    if (request.index().equals(ScriptService.SCRIPT_INDEX)) {
+                        indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, 0));
+                        indexSettingsBuilder.put(SETTING_AUTO_EXPAND_REPLICAS, "0-all");
+                    }
+                    else {
+                        if (indexSettingsBuilder.get(SETTING_NUMBER_OF_REPLICAS) == null) {
+                            if (request.index().equals(riverIndexName)) {
+                                indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, 1));
+                            } else {
+                                indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, 1));
+                            }
                         }
                     }
 
@@ -486,11 +509,11 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         }
     }
 
-    private List<IndexTemplateMetaData> findTemplates(CreateIndexClusterStateUpdateRequest request, ClusterState state) {
+    private List<IndexTemplateMetaData> findTemplates(CreateIndexClusterStateUpdateRequest request, ClusterState state, IndexTemplateFilter indexTemplateFilter) {
         List<IndexTemplateMetaData> templates = Lists.newArrayList();
         for (ObjectCursor<IndexTemplateMetaData> cursor : state.metaData().templates().values()) {
             IndexTemplateMetaData template = cursor.value;
-            if (Regex.simpleMatch(template.template(), request.index())) {
+            if (indexTemplateFilter.apply(request, template)) {
                 templates.add(template);
             }
         }
@@ -506,7 +529,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                         byte[] templatesData = Streams.copyToByteArray(templatesFile);
                         parser = XContentHelper.createParser(templatesData, 0, templatesData.length);
                         IndexTemplateMetaData template = IndexTemplateMetaData.Builder.fromXContent(parser);
-                        if (Regex.simpleMatch(template.template(), request.index())) {
+                        if (indexTemplateFilter.apply(request, template)) {
                             templates.add(template);
                         }
                     } catch (Exception e) {
@@ -529,5 +552,12 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
     private void validate(CreateIndexClusterStateUpdateRequest request, ClusterState state) throws ElasticsearchException {
         validateIndexName(request.index(), state);
+    }
+
+    private static class DefaultIndexTemplateFilter implements IndexTemplateFilter {
+        @Override
+        public boolean apply(CreateIndexClusterStateUpdateRequest request, IndexTemplateMetaData template) {
+            return Regex.simpleMatch(template.template(), request.index());
+        }
     }
 }

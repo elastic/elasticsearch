@@ -20,6 +20,7 @@
 package org.elasticsearch.index.snapshots.blobstore;
 
 import com.google.common.collect.ImmutableList;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
@@ -196,6 +197,7 @@ public class BlobStoreIndexShardSnapshot {
             static final XContentBuilderString CHECKSUM = new XContentBuilderString("checksum");
             static final XContentBuilderString PART_SIZE = new XContentBuilderString("part_size");
             static final XContentBuilderString WRITTEN_BY = new XContentBuilderString("written_by");
+            static final XContentBuilderString META_HASH = new XContentBuilderString("meta_hash");
         }
 
         /**
@@ -221,6 +223,10 @@ public class BlobStoreIndexShardSnapshot {
             if (file.metadata.writtenBy() != null) {
                 builder.field(Fields.WRITTEN_BY, file.metadata.writtenBy());
             }
+
+            if (file.metadata.hash() != null && file.metadata().hash().length > 0) {
+                builder.field(Fields.META_HASH, file.metadata.hash());
+            }
             builder.endObject();
         }
 
@@ -239,6 +245,7 @@ public class BlobStoreIndexShardSnapshot {
             String checksum = null;
             ByteSizeValue partSize = null;
             Version writtenBy = null;
+            BytesRef metaHash = new BytesRef();
             if (token == XContentParser.Token.START_OBJECT) {
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
@@ -257,6 +264,10 @@ public class BlobStoreIndexShardSnapshot {
                                 partSize = new ByteSizeValue(parser.longValue());
                             } else if ("written_by".equals(currentFieldName)) {
                                 writtenBy = Lucene.parseVersionLenient(parser.text(), null);
+                            } else if ("meta_hash".equals(currentFieldName)) {
+                                metaHash.bytes = parser.binaryValue();
+                                metaHash.offset = 0;
+                                metaHash.length = metaHash.bytes.length;
                             } else {
                                 throw new ElasticsearchParseException("unknown parameter [" + currentFieldName + "]");
                             }
@@ -269,7 +280,7 @@ public class BlobStoreIndexShardSnapshot {
                 }
             }
             // TODO: Verify???
-            return new FileInfo(name, new StoreFileMetaData(physicalName, length, checksum, writtenBy), partSize);
+            return new FileInfo(name, new StoreFileMetaData(physicalName, length, checksum, writtenBy, metaHash), partSize);
         }
 
     }

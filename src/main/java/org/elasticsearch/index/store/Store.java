@@ -23,8 +23,10 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.codecs.lucene46.Lucene46SegmentInfoFormat;
 import org.apache.lucene.index.*;
 import org.apache.lucene.store.*;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ExceptionsHelper;
@@ -81,7 +83,6 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
 
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
     private final AtomicInteger refCount = new AtomicInteger(1);
-    private final IndexStore indexStore;
     private final CodecService codecService;
     private final DirectoryService directoryService;
     private final StoreDirectory directory;
@@ -89,9 +90,8 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
     private final DistributorDirectory distributorDirectory;
 
     @Inject
-    public Store(ShardId shardId, @IndexSettings Settings indexSettings, IndexStore indexStore, CodecService codecService, DirectoryService directoryService, Distributor distributor) throws IOException {
+    public Store(ShardId shardId, @IndexSettings Settings indexSettings, CodecService codecService, DirectoryService directoryService, Distributor distributor) throws IOException {
         super(shardId, indexSettings);
-        this.indexStore = indexStore;
         this.codecService = codecService;
         this.directoryService = directoryService;
         this.sync = componentSettings.getAsBoolean("sync", true);
@@ -99,10 +99,6 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
         this.directory = new StoreDirectory(distributorDirectory);
     }
 
-    public IndexStore indexStore() {
-        ensureOpen();
-        return this.indexStore;
-    }
 
     public Directory directory() {
         ensureOpen();
@@ -114,36 +110,44 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
      * @throws IOException if the index is corrupted or the segments file is not present
      */
     public SegmentInfos readLastCommittedSegmentsInfo() throws IOException {
-        return readLastCommittedSegmentsInfo(directory());
+        return readSegmentsInfo(null, directory());
     }
 
     /**
-     * Returns the last committed segments info for the given directory
+     * Returns the segments info for the given commit or for the latest commit if the given commit is <code>null</code>
      * @throws IOException if the index is corrupted or the segments file is not present
      */
-    private static SegmentInfos readLastCommittedSegmentsInfo(Directory directory) throws IOException {
+    private static SegmentInfos readSegmentsInfo(IndexCommit commit, Directory directory) throws IOException {
         try {
-            return Lucene.readSegmentInfos(directory);
+            return commit == null ? Lucene.readSegmentInfos(directory) : Lucene.readSegmentInfos(commit, directory);
         } catch (EOFException eof) {
             // TODO this should be caught by lucene - EOF is almost certainly an index corruption
             throw new CorruptIndexException("Read past EOF while reading segment infos", eof);
         }
     }
 
-    private final void ensureOpen() {
+    final void ensureOpen() { // for testing
         if (this.refCount.get() <= 0) {
             throw new AlreadyClosedException("Store is already closed");
         }
     }
 
     /**
-     * Returns a new MetadataSnapshot.
+     * Returns a new MetadataSnapshot for the latest commit in this store.
      */
     public MetadataSnapshot getMetadata() throws IOException {
+        return getMetadata(null);
+    }
+
+    /**
+     * Returns a new MetadataSnapshot for the given commit. If the given commit is <code>null</code>
+     * the latest commit point is used.
+     */
+    public MetadataSnapshot getMetadata(IndexCommit commit) throws IOException {
         ensureOpen();
         failIfCorrupted();
         try {
-            return new MetadataSnapshot(distributorDirectory, logger);
+            return new MetadataSnapshot(commit, distributorDirectory, logger);
         } catch (CorruptIndexException ex) {
             markStoreCorrupted(ex);
             throw ex;
@@ -270,7 +274,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
             }
             DistributorDirectory dir = new DistributorDirectory(dirs);
             failIfCorrupted(dir, new ShardId("", 1));
-            return new MetadataSnapshot(dir, logger);
+            return new MetadataSnapshot(null, dir, logger);
         } finally {
             IOUtils.close(dirs);
         }
@@ -440,65 +444,63 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
      * Represents a snaphshot of the current directory build from the latest Lucene commit.
      * Only files that are part of the last commit are considered in this datastrucutre.
      * For backwards compatibility the snapshot might include legacy checksums that
-     * are derived from a dedicated checksum file written by older elastcisearch version pre 1.3
+     * are derived from a dedicated checksum file written by older elasticsearch version pre 1.3
+     *
+     * Note: This class will ignore the <tt>segments.gen</tt> file since it's optional and might
+     * change concurrently for safety reasons.
      *
      * @see StoreFileMetaData
      */
     public final static class MetadataSnapshot implements Iterable<StoreFileMetaData> {
-        private final ImmutableMap<String, StoreFileMetaData> metadata;
+        private final Map<String, StoreFileMetaData> metadata;
 
-        MetadataSnapshot(Directory directory, ESLogger logger) throws IOException {
-            metadata = buildMetadata(directory, logger);
+        public static final MetadataSnapshot EMPTY = new MetadataSnapshot();
+
+        public MetadataSnapshot(Map<String, StoreFileMetaData> metadata) {
+            this.metadata = metadata;
         }
 
-        ImmutableMap<String, StoreFileMetaData> buildMetadata(Directory directory, ESLogger logger) throws IOException {
+        MetadataSnapshot() {
+            this.metadata = Collections.emptyMap();
+        }
+
+        MetadataSnapshot(IndexCommit commit, Directory directory, ESLogger logger) throws IOException {
+            metadata = buildMetadata(commit, directory, logger);
+        }
+
+        ImmutableMap<String, StoreFileMetaData> buildMetadata(IndexCommit commit, Directory directory, ESLogger logger) throws IOException {
             ImmutableMap.Builder<String, StoreFileMetaData> builder = ImmutableMap.builder();
             Map<String, String> checksumMap = readLegacyChecksums(directory);
             try {
                 final SegmentInfos segmentCommitInfos;
                 try {
-                    segmentCommitInfos = Store.readLastCommittedSegmentsInfo(directory);
+                    segmentCommitInfos = Store.readSegmentsInfo(commit, directory);
                 } catch (FileNotFoundException | NoSuchFileException ex) {
                     // no segments file -- can't read metadata
                     logger.trace("Can't read segment infos", ex);
                     return ImmutableMap.of();
                 }
                 Version maxVersion = Version.LUCENE_3_0; // we don't know which version was used to write so we take the max version.
-                Set<String> added = new HashSet<>();
                 for (SegmentCommitInfo info : segmentCommitInfos) {
                     final Version version = Lucene.parseVersionLenient(info.info.getVersion(), Version.LUCENE_3_0);
                     if (version.onOrAfter(maxVersion)) {
                         maxVersion = version;
                     }
-                    for (String file : Iterables.concat(info.info.files(), info.files())) {
-                        if (!added.contains(file)) {
-                            String legacyChecksum = checksumMap.get(file);
-                            if (version.onOrAfter(Version.LUCENE_4_8) && legacyChecksum == null) {
-                                checksumFromLuceneFile(directory, file, builder, logger, version);
-                            } else {
-                                builder.put(file, new StoreFileMetaData(file, directory.fileLength(file), legacyChecksum, null));
-                            }
-                            added.add(file);
+                    for (String file : info.files()) {
+                        String legacyChecksum = checksumMap.get(file);
+                        if (version.onOrAfter(Version.LUCENE_4_8) && legacyChecksum == null) {
+                            checksumFromLuceneFile(directory, file, builder, logger, version, Lucene46SegmentInfoFormat.SI_EXTENSION.equals(IndexFileNames.getExtension(file)));
+                        } else {
+                            builder.put(file, new StoreFileMetaData(file, directory.fileLength(file), legacyChecksum, null));
                         }
                     }
                 }
-                for (String file : Arrays.asList(segmentCommitInfos.getSegmentsFileName(), IndexFileNames.SEGMENTS_GEN)) {
-                    if (!added.contains(file)) {
-                        try {
-                            String legacyChecksum = checksumMap.get(file);
-                            if (maxVersion.onOrAfter(Version.LUCENE_4_8) && legacyChecksum == null) {
-                                checksumFromLuceneFile(directory, file, builder, logger, maxVersion);
-                            } else {
-                                builder.put(file, new StoreFileMetaData(file, directory.fileLength(file), legacyChecksum, null));
-                            }
-                            added.add(file);
-                        } catch (FileNotFoundException | NoSuchFileException ex) {
-                            if (IndexFileNames.SEGMENTS_GEN.equals(file) == false) {
-                                // segments.gen is optional
-                                throw ex;
-                            }
-                        }
-                    }
+                final String segmentsFile = segmentCommitInfos.getSegmentsFileName();
+                String legacyChecksum = checksumMap.get(segmentsFile);
+                if (maxVersion.onOrAfter(Version.LUCENE_4_8) && legacyChecksum == null) {
+                    checksumFromLuceneFile(directory, segmentsFile, builder, logger, maxVersion, true);
+                } else {
+                    builder.put(segmentsFile, new StoreFileMetaData(segmentsFile, directory.fileLength(segmentsFile), legacyChecksum, null));
                 }
             } catch (CorruptIndexException ex) {
                 throw ex;
@@ -546,22 +548,49 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
             }
         }
 
-        private static void checksumFromLuceneFile(Directory directory, String file, ImmutableMap.Builder<String, StoreFileMetaData> builder,  ESLogger logger, Version version) throws IOException {
+        private static void checksumFromLuceneFile(Directory directory, String file, ImmutableMap.Builder<String, StoreFileMetaData> builder,  ESLogger logger, Version version, boolean readFileAsHash) throws IOException {
+            final String checksum;
+            final BytesRef fileHash = new BytesRef();
             try (IndexInput in = directory.openInput(file, IOContext.READONCE)) {
                 try {
                     if (in.length() < CodecUtil.footerLength()) {
                         // truncated files trigger IAE if we seek negative... these files are really corrupted though
                         throw new CorruptIndexException("Can't retrieve checksum from file: " + file + " file length must be >= " + CodecUtil.footerLength() + " but was: " + in.length());
                     }
-                    String checksum = digestToString(CodecUtil.retrieveChecksum(in));
-                    builder.put(file, new StoreFileMetaData(file, directory.fileLength(file), checksum, version));
+                    if (readFileAsHash) {
+                       hashFile(fileHash, in);
+                    }
+                    checksum = digestToString(CodecUtil.retrieveChecksum(in));
+
                 } catch (Throwable ex) {
                     logger.debug("Can retrieve checksum from file [{}]", ex, file);
                     throw ex;
                 }
+                builder.put(file, new StoreFileMetaData(file, directory.fileLength(file), checksum, version, fileHash));
             }
         }
 
+        /**
+         * Computes a strong hash value for small files. Note that this method should only be used for files < 1MB
+         */
+        public static void hashFile(BytesRef fileHash, IndexInput in) throws IOException {
+            final int len = (int)Math.min(1024 * 1024, in.length()); // for safety we limit this to 1MB
+            fileHash.offset = 0;
+            fileHash.grow(len);
+            fileHash.length = len;
+            in.readBytes(fileHash.bytes, 0, len);
+        }
+
+        /**
+         * Computes a strong hash value for small files. Note that this method should only be used for files < 1MB
+         */
+        public static void hashFile(BytesRef fileHash, BytesRef source) throws IOException {
+            final int len = Math.min(1024 * 1024, source.length); // for safety we limit this to 1MB
+            fileHash.offset = 0;
+            fileHash.grow(len);
+            fileHash.length = len;
+            System.arraycopy(source.bytes, source.offset, fileHash.bytes, 0, len);
+        }
 
         @Override
         public Iterator<StoreFileMetaData> iterator() {
@@ -574,6 +603,134 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
 
         public Map<String, StoreFileMetaData> asMap() {
             return metadata;
+        }
+
+        private static final String DEL_FILE_EXTENSION = "del";  // TODO think about how we can detect if this changes?
+        private static final String FIELD_INFOS_FILE_EXTENSION = "fnm";
+
+        /**
+         * Returns a diff between the two snapshots that can be used for recovery. The given snapshot is treated as the
+         * recovery target and this snapshot as the source. The returned diff will hold a list of files that are:
+         *  <ul>
+         *      <li>identical: they exist in both snapshots and they can be considered the same ie. they don't need to be recovered</li>
+         *      <li>different: they exist in both snapshots but their they are not identical</li>
+         *      <li>missing: files that exist in the source but not in the target</li>
+         *  </ul>
+         * This method groups file into per-segment files and per-commit files. A file is treated as
+         * identical if and on if all files in it's group are identical. On a per-segment level files for a segment are treated
+         * as identical iff:
+         * <ul>
+         *     <li>all files in this segment have the same checksum</li>
+         *     <li>all files in this segment have the same length</li>
+         *     <li>the segments <tt>.si</tt> files hashes are byte-identical Note: This is a using a perfect hash function, The metadata transfers the <tt>.si</tt> file content as it's hash</li>
+         * </ul>
+         *
+         * The <tt>.si</tt> file contains a lot of diagnostics including a timestamp etc. in the future there might be
+         * unique segment identifiers in there hardening this method further.
+         *
+         * The per-commit files handles very similar. A commit is composed of the <tt>segments_N</tt> files as well as generational files like
+         * deletes (<tt>_x_y.del</tt>) or field-info (<tt>_x_y.fnm</tt>) files. On a per-commit level files for a commit are treated
+         * as identical iff:
+         * <ul>
+         *     <li>all files belonging to this commit have the same checksum</li>
+         *     <li>all files belonging to this commit have the same length</li>
+         *     <li>the segments file <tt>segments_N</tt> files hashes are byte-identical Note: This is a using a perfect hash function, The metadata transfers the <tt>segments_N</tt> file content as it's hash</li>
+         * </ul>
+         *
+         * NOTE: this diff will not contain the <tt>segments.gen</tt> file. This file is omitted on recovery.
+         */
+        public RecoveryDiff recoveryDiff(MetadataSnapshot recoveryTargetSnapshot) {
+            final ImmutableList.Builder<StoreFileMetaData> identical =  ImmutableList.builder();
+            final ImmutableList.Builder<StoreFileMetaData> different =  ImmutableList.builder();
+            final ImmutableList.Builder<StoreFileMetaData> missing =  ImmutableList.builder();
+            final Map<String, List<StoreFileMetaData>> perSegment = new HashMap<>();
+            final List<StoreFileMetaData> perCommitStoreFiles = new ArrayList<>();
+
+            for (StoreFileMetaData meta : this) {
+                if (IndexFileNames.SEGMENTS_GEN.equals(meta.name())) {
+                    continue; // we don't need that file at all
+                }
+                final String segmentId = IndexFileNames.parseSegmentName(meta.name());
+                final String extension = IndexFileNames.getExtension(meta.name());
+                assert FIELD_INFOS_FILE_EXTENSION.equals(extension) == false || IndexFileNames.stripExtension(IndexFileNames.stripSegmentName(meta.name())).isEmpty() : "FieldInfos are generational but updateable DV are not supported in elasticsearch";
+                if (IndexFileNames.SEGMENTS.equals(segmentId) || DEL_FILE_EXTENSION.equals(extension)) {
+                        // only treat del files as per-commit files fnm files are generational but only for upgradable DV
+                    perCommitStoreFiles.add(meta);
+                } else {
+                    List<StoreFileMetaData> perSegStoreFiles = perSegment.get(segmentId);
+                    if (perSegStoreFiles == null) {
+                        perSegStoreFiles = new ArrayList<>();
+                        perSegment.put(segmentId, perSegStoreFiles);
+                    }
+                    perSegStoreFiles.add(meta);
+                }
+            }
+            final ArrayList<StoreFileMetaData> identicalFiles = new ArrayList<>();
+            for (List<StoreFileMetaData> segmentFiles : Iterables.concat(perSegment.values(), Collections.singleton(perCommitStoreFiles))) {
+                identicalFiles.clear();
+                boolean consistent = true;
+                for (StoreFileMetaData meta : segmentFiles) {
+                    StoreFileMetaData storeFileMetaData = recoveryTargetSnapshot.get(meta.name());
+                    if (storeFileMetaData == null) {
+                        consistent = false;
+                        missing.add(meta);
+                    } else if (storeFileMetaData.isSame(meta) == false) {
+                        consistent = false;
+                        different.add(meta);
+                    } else {
+                        identicalFiles.add(meta);
+                    }
+                }
+                if (consistent) {
+                    identical.addAll(identicalFiles);
+                } else {
+                    // make sure all files are added - this can happen if only the deletes are different
+                    different.addAll(identicalFiles);
+                }
+            }
+            RecoveryDiff recoveryDiff = new RecoveryDiff(identical.build(), different.build(), missing.build());
+            assert recoveryDiff.size() == this.metadata.size() - (metadata.containsKey(IndexFileNames.SEGMENTS_GEN) ? 1: 0)
+                    : "some files are missing recoveryDiff size: [" + recoveryDiff.size() + "] metadata size: [" + this.metadata.size()  + "] contains  segments.gen: [" + metadata.containsKey(IndexFileNames.SEGMENTS_GEN) + "]"   ;
+            return recoveryDiff;
+        }
+
+        /**
+         * Returns the number of files in this snapshot
+         */
+        public int size() {
+            return metadata.size();
+        }
+    }
+
+    /**
+     * A class representing the diff between a recovery source and recovery target
+     * @see MetadataSnapshot#recoveryDiff(org.elasticsearch.index.store.Store.MetadataSnapshot)
+     */
+    public static final class RecoveryDiff {
+        /**
+         *  Files that exist in both snapshots and they can be considered the same ie. they don't need to be recovered
+         */
+        public final List<StoreFileMetaData> identical;
+        /**
+         * Files that exist in both snapshots but their they are not identical
+         */
+        public final List<StoreFileMetaData> different;
+        /**
+         * Files that exist in the source but not in the target
+         */
+        public final List<StoreFileMetaData> missing;
+
+        RecoveryDiff(List<StoreFileMetaData> identical, List<StoreFileMetaData> different, List<StoreFileMetaData> missing) {
+            this.identical = identical;
+            this.different = different;
+            this.missing = missing;
+        }
+
+        /**
+         * Returns the sum of the files in this diff.
+         */
+        public int size() {
+            return identical.size() + different.size() + missing.size();
         }
     }
 

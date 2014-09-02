@@ -304,7 +304,7 @@ There are a few limitations relative to other script languages:
 [float]
 === Score
 
-In all scripts that can be used in facets, the current
+In all scripts that can be used in aggregations, the current
 document's score is accessible in `doc.score`.  When using a `script_score`,
 the current score is available in `_score`.
 

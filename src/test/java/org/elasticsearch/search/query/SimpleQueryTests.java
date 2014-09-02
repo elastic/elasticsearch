@@ -39,7 +39,7 @@ import org.elasticsearch.index.query.MatchQueryBuilder.Type;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.facet.FacetBuilders;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -786,7 +786,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
 
         MultiMatchQueryBuilder builder = multiMatchQuery("value1 value2 value4", "field1", "field2");
         SearchResponse searchResponse = client().prepareSearch().setQuery(builder)
-                .addFacet(FacetBuilders.termsFacet("field1").field("field1")).get();
+                .addAggregation(AggregationBuilders.terms("field1").field("field1")).get();
 
         assertHitCount(searchResponse, 2l);
         // this uses dismax so scores are equal and the order can be arbitrary
@@ -2089,6 +2089,15 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         assertFirstHit(searchResponse, hasId("5"));
         assertSearchHits(searchResponse, "5", "6");
         assertThat(searchResponse.getHits().getAt(0).getMatchedQueries()[0], equalTo("myquery"));
+
+        searchResponse = client().prepareSearch().setQuery(simpleQueryString("spaghetti").field("*body")).get();
+        assertHitCount(searchResponse, 2l);
+        assertSearchHits(searchResponse, "5", "6");
+
+        // Have to bypass the builder here because the builder always uses "fields" instead of "field"
+        searchResponse = client().prepareSearch().setQuery("{\"simple_query_string\": {\"query\": \"spaghetti\", \"field\": \"_all\"}}").get();
+        assertHitCount(searchResponse, 2l);
+        assertSearchHits(searchResponse, "5", "6");
     }
 
     @Test
@@ -2189,6 +2198,11 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
 
         SearchResponse searchResponse = client().prepareSearch().setQuery(
                 simpleQueryString("foo bar").flags(SimpleQueryStringFlag.ALL)).get();
+        assertHitCount(searchResponse, 3l);
+        assertSearchHits(searchResponse, "1", "2", "3");
+
+        // Sending a negative 'flags' value is the same as SimpleQueryStringFlag.ALL
+        searchResponse = client().prepareSearch().setQuery("{\"simple_query_string\": {\"query\": \"foo bar\", \"flags\": -1}}").get();
         assertHitCount(searchResponse, 3l);
         assertSearchHits(searchResponse, "1", "2", "3");
 
@@ -2646,6 +2660,18 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
                 assertThat(otherIds.contains(id), is(true));
             }
         }
+    }
+
+    @Test // see #7365
+    public void testFilteredQueryWithoutQuery() throws Exception {
+        createIndex("test");
+        ensureYellow("test");
+        indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("field1", "value1"));
+        SearchResponse response = client().prepareSearch()
+                .setQuery(QueryBuilders.filteredQuery(null,
+                        FilterBuilders.termFilter("field1", "value1"))).get();
+        assertSearchResponse(response);
+        assertHitCount(response, 1l);
     }
 
     @Test

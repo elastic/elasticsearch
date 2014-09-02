@@ -394,6 +394,10 @@ public class DocumentMapper implements ToXContent {
         return (T) rootMappers.get(type);
     }
 
+    public IndexFieldMapper indexMapper() {
+        return rootMapper(IndexFieldMapper.class);
+    }
+
     public TypeFieldMapper typeMapper() {
         return rootMapper(TypeFieldMapper.class);
     }
@@ -420,6 +424,10 @@ public class DocumentMapper implements ToXContent {
 
     public ParentFieldMapper parentFieldMapper() {
         return rootMapper(ParentFieldMapper.class);
+    }
+
+    public SizeFieldMapper sizeFieldMapper() {
+        return rootMapper(SizeFieldMapper.class);
     }
 
     public TimestampFieldMapper timestampFieldMapper() {

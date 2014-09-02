@@ -23,6 +23,7 @@ import org.elasticsearch.action.admin.indices.IndicesAction;
 import org.elasticsearch.client.IndicesAdminClient;
 
 /**
+ * Action for the admin/warmers/get API.
  */
 public class GetWarmersAction extends IndicesAction<GetWarmersRequest, GetWarmersResponse, GetWarmersRequestBuilder> {
 

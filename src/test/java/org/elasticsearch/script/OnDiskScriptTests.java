@@ -40,7 +40,8 @@ public class OnDiskScriptTests extends ElasticsearchIntegrationTest {
     @Override
     public Settings nodeSettings(int nodeOrdinal) {
         //Set path so ScriptService will pick up the test scripts
-        return settingsBuilder().put("path.conf", this.getResource("config").getPath()).build();
+        return settingsBuilder().put(super.nodeSettings(nodeOrdinal))
+                .put("path.conf", this.getResource("config").getPath()).build();
     }
 
 

@@ -36,6 +36,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.FloatArray;
 import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.common.util.LongHash;
+import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilter;
 import org.elasticsearch.index.fielddata.IndexParentChildFieldData;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.search.internal.SearchContext;
@@ -58,18 +59,18 @@ public class ChildrenQuery extends Query {
     protected final ParentChildIndexFieldData ifd;
     protected final String parentType;
     protected final String childType;
-    protected final Filter parentFilter;
+    protected final FixedBitSetFilter parentFilter;
     protected final ScoreType scoreType;
     protected Query originalChildQuery;
     protected final int minChildren;
     protected final int maxChildren;
     protected final int shortCircuitParentDocSet;
-    protected final Filter nonNestedDocsFilter;
+    protected final FixedBitSetFilter nonNestedDocsFilter;
 
     protected Query rewrittenChildQuery;
     protected IndexReader rewriteIndexReader;
 
-    public ChildrenQuery(ParentChildIndexFieldData ifd, String parentType, String childType, Filter parentFilter, Query childQuery, ScoreType scoreType, int minChildren, int maxChildren, int shortCircuitParentDocSet, Filter nonNestedDocsFilter) {
+    public ChildrenQuery(ParentChildIndexFieldData ifd, String parentType, String childType, FixedBitSetFilter parentFilter, Query childQuery, ScoreType scoreType, int minChildren, int maxChildren, int shortCircuitParentDocSet, FixedBitSetFilter nonNestedDocsFilter) {
         this.ifd = ifd;
         this.parentType = parentType;
         this.childType = childType;

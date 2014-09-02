@@ -28,7 +28,7 @@ import java.io.IOException;
 import java.util.Locale;
 
 /**
- * Builds a {@code terms} aggregation
+ * Builder for the {@link Terms} aggregation.
  */
 public class TermsBuilder extends ValuesSourceAggregationBuilder<TermsBuilder> {
 
@@ -44,6 +44,9 @@ public class TermsBuilder extends ValuesSourceAggregationBuilder<TermsBuilder> {
     private SubAggCollectionMode collectionMode;
     private Boolean showTermDocCountError;
 
+    /**
+     * Sole constructor.
+     */
     public TermsBuilder(String name) {
         super(name, "terms");
     }
@@ -141,16 +144,25 @@ public class TermsBuilder extends ValuesSourceAggregationBuilder<TermsBuilder> {
         return this;
     }
 
+    /**
+     * Expert: provide an execution hint to the aggregation.
+     */
     public TermsBuilder executionHint(String executionHint) {
         this.executionHint = executionHint;
         return this;
     }
-    
+
+    /**
+     * Expert: set the collection mode.
+     */
     public TermsBuilder collectMode(SubAggCollectionMode mode) {
         this.collectionMode = mode;
         return this;
     }
-    
+
+    /**
+     * Expert: return document count errors per term in the response.
+     */
     public TermsBuilder showTermDocCountError(boolean showTermDocCountError) {
         this.showTermDocCountError = showTermDocCountError;
         return this;

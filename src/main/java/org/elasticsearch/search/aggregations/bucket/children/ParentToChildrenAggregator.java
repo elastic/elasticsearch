@@ -23,7 +23,6 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.join.FixedBitSetCachingWrapperFilter;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
@@ -32,6 +31,7 @@ import org.elasticsearch.common.lucene.ReaderContextAware;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.LongObjectPagedHashMap;
+import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilter;
 import org.elasticsearch.index.search.child.ConstantScorer;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -52,8 +52,8 @@ import java.util.List;
 public class ParentToChildrenAggregator extends SingleBucketAggregator implements ReaderContextAware {
 
     private final String parentType;
-    private final Filter childFilter;
-    private final Filter parentFilter;
+    private final FixedBitSetFilter childFilter;
+    private final FixedBitSetFilter parentFilter;
     private final ValuesSource.Bytes.WithOrdinals.ParentChild valuesSource;
 
     // Maybe use PagedGrowableWriter? This will be less wasteful than LongArray, but then we don't have the reuse feature of BigArrays.
@@ -75,9 +75,8 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator implement
                                       ValuesSource.Bytes.WithOrdinals.ParentChild valuesSource, long maxOrd) {
         super(name, factories, aggregationContext, parent);
         this.parentType = parentType;
-        this.childFilter = childFilter;
-        // TODO: remove FixedBitSetCachingWrapperFilter once #7031 gets in
-        this.parentFilter = new FixedBitSetCachingWrapperFilter(parentFilter);
+        this.childFilter = aggregationContext.searchContext().fixedBitSetFilterCache().getFixedBitSetFilter(childFilter);
+        this.parentFilter = aggregationContext.searchContext().fixedBitSetFilterCache().getFixedBitSetFilter(parentFilter);
         this.parentOrdToBuckets = aggregationContext.bigArrays().newLongArray(maxOrd, false);
         this.parentOrdToBuckets.fill(0, maxOrd, -1);
         this.parentOrdToOtherBuckets = new LongObjectPagedHashMap<>(aggregationContext.bigArrays());

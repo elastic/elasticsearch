@@ -24,11 +24,12 @@ import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
+import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
@@ -53,8 +54,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.fielddata.IndexFieldDataService;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.TemplateQueryParser;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.watcher.FileChangesListener;
@@ -78,6 +77,8 @@ public class ScriptService extends AbstractComponent {
 
     public static final String DEFAULT_SCRIPTING_LANGUAGE_SETTING = "script.default_lang";
     public static final String DISABLE_DYNAMIC_SCRIPTING_SETTING = "script.disable_dynamic";
+    public static final String SCRIPT_CACHE_SIZE_SETTING = "script.cache.max_size";
+    public static final String SCRIPT_CACHE_EXPIRE_SETTING = "script.cache.expire";
     public static final String DISABLE_DYNAMIC_SCRIPTING_DEFAULT = "sandbox";
     public static final String SCRIPT_INDEX = ".scripts";
 
@@ -219,8 +220,8 @@ public class ScriptService extends AbstractComponent {
                          ResourceWatcherService resourceWatcherService) {
         super(settings);
 
-        int cacheMaxSize = componentSettings.getAsInt("cache.max_size", 500);
-        TimeValue cacheExpire = componentSettings.getAsTime("cache.expire", null);
+        int cacheMaxSize = settings.getAsInt(SCRIPT_CACHE_SIZE_SETTING, 500);
+        TimeValue cacheExpire = settings.getAsTime(SCRIPT_CACHE_EXPIRE_SETTING, null);
         logger.debug("using script cache with max_size [{}], expire [{}]", cacheMaxSize, cacheExpire);
 
         this.defaultLang = settings.get(DEFAULT_SCRIPTING_LANGUAGE_SETTING, "groovy");
@@ -347,9 +348,6 @@ public class ScriptService extends AbstractComponent {
             throw new ScriptException("dynamic scripting for [" + lang + "] disabled");
         }
 
-        if (cacheKey == null) {
-            cacheKey = new CacheKey(lang, script);
-        }
         // not the end of the world if we compile it twice...
         compiled = getCompiledScript(lang, script);
         //Since the cache key is the script content itself we don't need to
@@ -380,11 +378,13 @@ public class ScriptService extends AbstractComponent {
     }
 
     public GetResponse queryScriptIndex(Client client, String scriptLang, String id,
-                                        long version, VersionType versionType){
+                                        long version, VersionType versionType) {
         scriptLang = validateScriptLanguage(scriptLang);
         return client.prepareGet(SCRIPT_INDEX, scriptLang, id)
                 .setVersion(version)
                 .setVersionType(versionType)
+                .setPreference("_local") //Set preference for no forking
+                .setOperationThreaded(false)
                 .get();
     }
 
@@ -507,18 +507,6 @@ public class ScriptService extends AbstractComponent {
 
     public SearchScript search(SearchLookup lookup, String lang, String script, ScriptType scriptType, @Nullable Map<String, Object> vars) {
         return search(compile(lang, script, scriptType), lookup, vars);
-    }
-
-    public SearchScript search(MapperService mapperService, IndexFieldDataService fieldDataService, String lang, String script, ScriptType scriptType, @Nullable Map<String, Object> vars) {
-        return search(compile(lang, script), new SearchLookup(mapperService, fieldDataService, null), vars);
-    }
-
-    public Object execute(CompiledScript compiledScript, Map vars) {
-        return scriptEngines.get(compiledScript.lang()).execute(compiledScript.compiled(), vars);
-    }
-
-    public void clear() {
-        cache.invalidateAll();
     }
 
     private boolean dynamicScriptEnabled(String lang) {

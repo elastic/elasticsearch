@@ -20,6 +20,7 @@
 package org.elasticsearch.common.network;
 
 import com.google.common.collect.Lists;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.logging.ESLogger;
@@ -119,35 +120,8 @@ public abstract class NetworkUtils {
      * @param ip_version Constraint on IP version of address to be returned, 4 or 6
      */
     public static InetAddress getFirstNonLoopbackAddress(StackType ip_version) throws SocketException {
-        InetAddress address = null;
-
-        Enumeration intfs = NetworkInterface.getNetworkInterfaces();
-
-        List<NetworkInterface> intfsList = Lists.newArrayList();
-        while (intfs.hasMoreElements()) {
-            intfsList.add((NetworkInterface) intfs.nextElement());
-        }
-
-        // order by index, assuming first ones are more interesting
-        try {
-            final Method getIndexMethod = NetworkInterface.class.getDeclaredMethod("getIndex");
-            getIndexMethod.setAccessible(true);
-
-            CollectionUtil.timSort(intfsList, new Comparator<NetworkInterface>() {
-                @Override
-                public int compare(NetworkInterface o1, NetworkInterface o2) {
-                    try {
-                        return ((Integer) getIndexMethod.invoke(o1)).intValue() - ((Integer) getIndexMethod.invoke(o2)).intValue();
-                    } catch (Exception e) {
-                        throw new ElasticsearchIllegalStateException("failed to fetch index of network interface");
-                    }
-                }
-            });
-        } catch (Exception e) {
-            // ignore
-        }
-
-        for (NetworkInterface intf : intfsList) {
+        InetAddress address;
+        for (NetworkInterface intf : getInterfaces()) {
             try {
                 if (!intf.isUp() || intf.isLoopback())
                     continue;
@@ -162,6 +136,28 @@ public abstract class NetworkUtils {
         }
 
         return null;
+    }
+
+    private static List<NetworkInterface> getInterfaces() throws SocketException {
+        Enumeration intfs = NetworkInterface.getNetworkInterfaces();
+
+        List<NetworkInterface> intfsList = Lists.newArrayList();
+        while (intfs.hasMoreElements()) {
+            intfsList.add((NetworkInterface) intfs.nextElement());
+        }
+
+        sortInterfaces(intfsList);
+        return intfsList;
+    }
+
+    private static void sortInterfaces(List<NetworkInterface> intfsList) {
+        // order by index, assuming first ones are more interesting
+        CollectionUtil.timSort(intfsList, new Comparator<NetworkInterface>() {
+            @Override
+            public int compare(NetworkInterface o1, NetworkInterface o2) {
+                return Integer.compare (o1.getIndex(), o2.getIndex());
+            }
+        });
     }
 
 
@@ -291,19 +287,29 @@ public abstract class NetworkUtils {
                 }
             }
         }
+        sortInterfaces(allInterfaces);
         return allInterfaces;
     }
 
     public static Collection<InetAddress> getAllAvailableAddresses() {
-        Set<InetAddress> retval = new HashSet<>();
-        Enumeration en;
+        // we want consistent order here.
+        final Set<InetAddress> retval = new TreeSet<>(new Comparator<InetAddress>() {
+            BytesRef left = new BytesRef();
+            BytesRef right = new BytesRef();
+            @Override
+            public int compare(InetAddress o1, InetAddress o2) {
+                return set(left, o1).compareTo(set(right, o1));
+            }
 
+            private BytesRef set(BytesRef ref, InetAddress addr) {
+                ref.bytes = addr.getAddress();
+                ref.offset = 0;
+                ref.length = ref.bytes.length;
+                return ref;
+            }
+        });
         try {
-            en = NetworkInterface.getNetworkInterfaces();
-            if (en == null)
-                return retval;
-            while (en.hasMoreElements()) {
-                NetworkInterface intf = (NetworkInterface) en.nextElement();
+            for (NetworkInterface intf : getInterfaces()) {
                 Enumeration<InetAddress> addrs = intf.getInetAddresses();
                 while (addrs.hasMoreElements())
                     retval.add(addrs.nextElement());

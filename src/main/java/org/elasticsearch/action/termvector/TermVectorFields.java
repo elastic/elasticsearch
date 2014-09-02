@@ -170,208 +170,8 @@ public final class TermVectorFields extends Fields {
         if (!fieldMap.containsKey(field)) {
             return null; // we don't have it.
         }
-        long offset = fieldMap.lget();
-        final BytesStreamInput perFieldTermVectorInput = new BytesStreamInput(this.termVectors);
-        perFieldTermVectorInput.reset();
-        perFieldTermVectorInput.skip(offset);
-
-        // read how many terms....
-        final long numTerms = perFieldTermVectorInput.readVLong();
-        // ...if positions etc. were stored....
-        final boolean hasPositions = perFieldTermVectorInput.readBoolean();
-        final boolean hasOffsets = perFieldTermVectorInput.readBoolean();
-        final boolean hasPayloads = perFieldTermVectorInput.readBoolean();
-        // read the field statistics
-        final long sumTotalTermFreq = hasFieldStatistic ? readPotentiallyNegativeVLong(perFieldTermVectorInput) : -1;
-        final long sumDocFreq = hasFieldStatistic ? readPotentiallyNegativeVLong(perFieldTermVectorInput) : -1;
-        final int docCount = hasFieldStatistic ? readPotentiallyNegativeVInt(perFieldTermVectorInput) : -1;
-
-        return new Terms() {
-
-            @Override
-            public TermsEnum iterator(TermsEnum reuse) throws IOException {
-                // convert bytes ref for the terms to actual data
-                return new TermsEnum() {
-                    int currentTerm = 0;
-                    int freq = 0;
-                    int docFreq = -1;
-                    long totalTermFrequency = -1;
-                    int[] positions = new int[1];
-                    int[] startOffsets = new int[1];
-                    int[] endOffsets = new int[1];
-                    BytesRef[] payloads = new BytesRef[1];
-                    final BytesRef spare = new BytesRef();
-
-                    @Override
-                    public BytesRef next() throws IOException {
-                        if (currentTerm++ < numTerms) {
-                            // term string. first the size...
-                            int termVectorSize = perFieldTermVectorInput.readVInt();
-                            spare.grow(termVectorSize);
-                            // ...then the value.
-                            perFieldTermVectorInput.readBytes(spare.bytes, 0, termVectorSize);
-                            spare.length = termVectorSize;
-                            if (hasTermStatistic) {
-                                docFreq = readPotentiallyNegativeVInt(perFieldTermVectorInput);
-                                totalTermFrequency = readPotentiallyNegativeVLong(perFieldTermVectorInput);
-
-                            }
-
-                            freq = readPotentiallyNegativeVInt(perFieldTermVectorInput);
-                            // grow the arrays to read the values. this is just
-                            // for performance reasons. Re-use memory instead of
-                            // realloc.
-                            growBuffers();
-                            // finally, read the values into the arrays
-                            // curentPosition etc. so that we can just iterate
-                            // later
-                            writeInfos(perFieldTermVectorInput);
-                            return spare;
-
-                        } else {
-                            return null;
-                        }
-
-                    }
-
-                    private void writeInfos(final BytesStreamInput input) throws IOException {
-                        for (int i = 0; i < freq; i++) {
-                            if (hasPositions) {
-                                positions[i] = input.readVInt();
-                            }
-                            if (hasOffsets) {
-                                startOffsets[i] = input.readVInt();
-                                endOffsets[i] = input.readVInt();
-                            }
-                            if (hasPayloads) {
-                                int payloadLength = input.readVInt();
-                                if (payloads[i] == null) {
-                                    payloads[i] = new BytesRef(payloadLength);
-                                } else {
-                                    payloads[i].grow(payloadLength);
-                                }
-                                input.readBytes(payloads[i].bytes, 0, payloadLength);
-                                payloads[i].length = payloadLength;
-                                payloads[i].offset = 0;
-                            }
-                        }
-                    }
-
-                    private void growBuffers() {
-
-                        if (hasPositions) {
-                            positions = grow(positions, freq);
-                        }
-                        if (hasOffsets) {
-                            startOffsets = grow(startOffsets, freq);
-                            endOffsets = grow(endOffsets, freq);
-                        }
-                        if (hasPayloads) {
-                            if (payloads.length < freq) {
-                                final BytesRef[] newArray = new BytesRef[ArrayUtil.oversize(freq, RamUsageEstimator.NUM_BYTES_OBJECT_REF)];
-                                System.arraycopy(payloads, 0, newArray, 0, payloads.length);
-                                payloads = newArray;
-                            }
-                        }
-                    }
-
-                    @Override
-                    public Comparator<BytesRef> getComparator() {
-                        return BytesRef.getUTF8SortedAsUnicodeComparator();
-                    }
-
-                    @Override
-                    public SeekStatus seekCeil(BytesRef text) throws IOException {
-                        throw new UnsupportedOperationException();
-                    }
-
-                    @Override
-                    public void seekExact(long ord) throws IOException {
-                        throw new UnsupportedOperationException("Seek is not supported");
-                    }
-
-                    @Override
-                    public BytesRef term() throws IOException {
-                        return spare;
-                    }
-
-                    @Override
-                    public long ord() throws IOException {
-                        throw new UnsupportedOperationException("ordinals are not supported");
-                    }
-
-                    @Override
-                    public int docFreq() throws IOException {
-                        return docFreq;
-                    }
-
-                    @Override
-                    public long totalTermFreq() throws IOException {
-                        return totalTermFrequency;
-                    }
-
-                    @Override
-                    public DocsEnum docs(Bits liveDocs, DocsEnum reuse, int flags) throws IOException {
-                        return docsAndPositions(liveDocs, reuse instanceof DocsAndPositionsEnum ? (DocsAndPositionsEnum) reuse : null, 0);
-                    }
-
-                    @Override
-                    public DocsAndPositionsEnum docsAndPositions(Bits liveDocs, DocsAndPositionsEnum reuse, int flags) throws IOException {
-                        final TermVectorsDocsAndPosEnum retVal = (reuse instanceof TermVectorsDocsAndPosEnum ? (TermVectorsDocsAndPosEnum) reuse
-                                : new TermVectorsDocsAndPosEnum());
-                        return retVal.reset(hasPositions ? positions : null, hasOffsets ? startOffsets : null, hasOffsets ? endOffsets
-                                : null, hasPayloads ? payloads : null, freq);
-                    }
-
-                };
-            }
-
-            @Override
-            public Comparator<BytesRef> getComparator() {
-                return BytesRef.getUTF8SortedAsUnicodeComparator();
-            }
-
-            @Override
-            public long size() throws IOException {
-                return numTerms;
-            }
-
-            @Override
-            public long getSumTotalTermFreq() throws IOException {
-                return sumTotalTermFreq;
-            }
-
-            @Override
-            public long getSumDocFreq() throws IOException {
-                return sumDocFreq;
-            }
-
-            @Override
-            public int getDocCount() throws IOException {
-                return docCount;
-            }
-            
-            @Override
-            public boolean hasFreqs() {
-                return true;
-            }
-
-            @Override
-            public boolean hasOffsets() {
-                return hasOffsets;
-            }
-
-            @Override
-            public boolean hasPositions() {
-                return hasPositions;
-            }
-
-            @Override
-            public boolean hasPayloads() {
-                return hasPayloads;
-            }
-
-        };
+        long readOffset = fieldMap.lget();
+        return new TermVector(termVectors, readOffset);
     }
 
     @Override
@@ -379,7 +179,225 @@ public final class TermVectorFields extends Fields {
         return fieldMap.size();
     }
 
-    private final class TermVectorsDocsAndPosEnum extends DocsAndPositionsEnum {
+    private final class TermVector extends Terms {
+
+        private final BytesStreamInput perFieldTermVectorInput;
+        private final long readOffset;
+
+        private long numTerms;
+        private boolean hasPositions;
+        private boolean hasOffsets;
+        private boolean hasPayloads;
+        private long sumTotalTermFreq;
+        private long sumDocFreq;
+        private int docCount;
+
+        public TermVector(BytesReference termVectors, long readOffset) throws IOException {
+            this.perFieldTermVectorInput = new BytesStreamInput(termVectors);
+            this.readOffset = readOffset;
+            reset();
+        }
+
+        private void reset() throws IOException {
+            this.perFieldTermVectorInput.reset();
+            this.perFieldTermVectorInput.skip(readOffset);
+
+            // read how many terms....
+            this.numTerms = perFieldTermVectorInput.readVLong();
+            // ...if positions etc. were stored....
+            this.hasPositions = perFieldTermVectorInput.readBoolean();
+            this.hasOffsets = perFieldTermVectorInput.readBoolean();
+            this.hasPayloads = perFieldTermVectorInput.readBoolean();
+            // read the field statistics
+            this.sumTotalTermFreq = hasFieldStatistic ? readPotentiallyNegativeVLong(perFieldTermVectorInput) : -1;
+            this.sumDocFreq = hasFieldStatistic ? readPotentiallyNegativeVLong(perFieldTermVectorInput) : -1;
+            this.docCount = hasFieldStatistic ? readPotentiallyNegativeVInt(perFieldTermVectorInput) : -1;
+        }
+
+        @Override
+        public TermsEnum iterator(TermsEnum reuse) throws IOException {
+            // reset before asking for an iterator
+            reset();
+            // convert bytes ref for the terms to actual data
+            return new TermsEnum() {
+                int currentTerm = 0;
+                int freq = 0;
+                int docFreq = -1;
+                long totalTermFrequency = -1;
+                int[] positions = new int[1];
+                int[] startOffsets = new int[1];
+                int[] endOffsets = new int[1];
+                BytesRef[] payloads = new BytesRef[1];
+                final BytesRef spare = new BytesRef();
+
+                @Override
+                public BytesRef next() throws IOException {
+                    if (currentTerm++ < numTerms) {
+                        // term string. first the size...
+                        int termVectorSize = perFieldTermVectorInput.readVInt();
+                        spare.grow(termVectorSize);
+                        // ...then the value.
+                        perFieldTermVectorInput.readBytes(spare.bytes, 0, termVectorSize);
+                        spare.length = termVectorSize;
+                        if (hasTermStatistic) {
+                            docFreq = readPotentiallyNegativeVInt(perFieldTermVectorInput);
+                            totalTermFrequency = readPotentiallyNegativeVLong(perFieldTermVectorInput);
+                        }
+
+                        freq = readPotentiallyNegativeVInt(perFieldTermVectorInput);
+                        // grow the arrays to read the values. this is just
+                        // for performance reasons. Re-use memory instead of
+                        // realloc.
+                        growBuffers();
+                        // finally, read the values into the arrays
+                        // curentPosition etc. so that we can just iterate
+                        // later
+                        writeInfos(perFieldTermVectorInput);
+                        return spare;
+
+                    } else {
+                        return null;
+                    }
+                }
+
+                private void writeInfos(final BytesStreamInput input) throws IOException {
+                    for (int i = 0; i < freq; i++) {
+                        if (hasPositions) {
+                            positions[i] = input.readVInt();
+                        }
+                        if (hasOffsets) {
+                            startOffsets[i] = input.readVInt();
+                            endOffsets[i] = input.readVInt();
+                        }
+                        if (hasPayloads) {
+                            int payloadLength = input.readVInt();
+                            if (payloads[i] == null) {
+                                payloads[i] = new BytesRef(payloadLength);
+                            } else {
+                                payloads[i].grow(payloadLength);
+                            }
+                            input.readBytes(payloads[i].bytes, 0, payloadLength);
+                            payloads[i].length = payloadLength;
+                            payloads[i].offset = 0;
+                        }
+                    }
+                }
+
+                private void growBuffers() {
+                    if (hasPositions) {
+                        positions = grow(positions, freq);
+                    }
+                    if (hasOffsets) {
+                        startOffsets = grow(startOffsets, freq);
+                        endOffsets = grow(endOffsets, freq);
+                    }
+                    if (hasPayloads) {
+                        if (payloads.length < freq) {
+                            final BytesRef[] newArray = new BytesRef[ArrayUtil.oversize(freq, RamUsageEstimator.NUM_BYTES_OBJECT_REF)];
+                            System.arraycopy(payloads, 0, newArray, 0, payloads.length);
+                            payloads = newArray;
+                        }
+                    }
+                }
+
+                @Override
+                public Comparator<BytesRef> getComparator() {
+                    return BytesRef.getUTF8SortedAsUnicodeComparator();
+                }
+
+                @Override
+                public SeekStatus seekCeil(BytesRef text) throws IOException {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public void seekExact(long ord) throws IOException {
+                    throw new UnsupportedOperationException("Seek is not supported");
+                }
+
+                @Override
+                public BytesRef term() throws IOException {
+                    return spare;
+                }
+
+                @Override
+                public long ord() throws IOException {
+                    throw new UnsupportedOperationException("ordinals are not supported");
+                }
+
+                @Override
+                public int docFreq() throws IOException {
+                    return docFreq;
+                }
+
+                @Override
+                public long totalTermFreq() throws IOException {
+                    return totalTermFrequency;
+                }
+
+                @Override
+                public DocsEnum docs(Bits liveDocs, DocsEnum reuse, int flags) throws IOException {
+                    return docsAndPositions(liveDocs, reuse instanceof DocsAndPositionsEnum ? (DocsAndPositionsEnum) reuse : null, 0);
+                }
+
+                @Override
+                public DocsAndPositionsEnum docsAndPositions(Bits liveDocs, DocsAndPositionsEnum reuse, int flags) throws IOException {
+                    final TermVectorDocsAndPosEnum retVal = (reuse instanceof TermVectorDocsAndPosEnum ? (TermVectorDocsAndPosEnum) reuse
+                            : new TermVectorDocsAndPosEnum());
+                    return retVal.reset(hasPositions ? positions : null, hasOffsets ? startOffsets : null, hasOffsets ? endOffsets
+                            : null, hasPayloads ? payloads : null, freq);
+                }
+
+            };
+        }
+
+        @Override
+        public Comparator<BytesRef> getComparator() {
+            return BytesRef.getUTF8SortedAsUnicodeComparator();
+        }
+
+        @Override
+        public long size() throws IOException {
+            return numTerms;
+        }
+
+        @Override
+        public long getSumTotalTermFreq() throws IOException {
+            return sumTotalTermFreq;
+        }
+
+        @Override
+        public long getSumDocFreq() throws IOException {
+            return sumDocFreq;
+        }
+
+        @Override
+        public int getDocCount() throws IOException {
+            return docCount;
+        }
+
+        @Override
+        public boolean hasFreqs() {
+            return true;
+        }
+
+        @Override
+        public boolean hasOffsets() {
+            return hasOffsets;
+        }
+
+        @Override
+        public boolean hasPositions() {
+            return hasPositions;
+        }
+
+        @Override
+        public boolean hasPayloads() {
+            return hasPayloads;
+        }
+    }
+
+    private final class TermVectorDocsAndPosEnum extends DocsAndPositionsEnum {
         private boolean hasPositions;
         private boolean hasOffsets;
         private boolean hasPayloads;

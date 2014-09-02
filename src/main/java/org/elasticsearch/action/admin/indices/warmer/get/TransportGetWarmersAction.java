@@ -34,6 +34,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 /**
+ * Internal Actions executed on the master fetching the warmer from the cluster state metadata.
+ *
+ * Note: this is an internal API and should not be used / called by any client code.
  */
 public class TransportGetWarmersAction extends TransportClusterInfoAction<GetWarmersRequest, GetWarmersResponse> {
 

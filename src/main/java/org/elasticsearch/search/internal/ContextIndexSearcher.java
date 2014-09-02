@@ -166,7 +166,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 collector = new MultiCollector(collector, queryCollectors.toArray(new Collector[queryCollectors.size()]));
             }
 
-            // apply the minimum score after multi collector so we filter facets as well
+            // apply the minimum score after multi collector so we filter aggs as well
             if (searchContext.minimumScore() != null) {
                 collector = new MinimumScoreCollector(collector, searchContext.minimumScore());
             }

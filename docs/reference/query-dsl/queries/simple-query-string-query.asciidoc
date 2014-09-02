@@ -108,5 +108,5 @@ should be enabled. It is specified as a `|`-delimited string with the
 }
 --------------------------------------------------
 
-The available flags are: `ALL`, `NONE`, `AND`, `OR`, `PREFIX`, `PHRASE`,
+The available flags are: `ALL`, `NONE`, `AND`, `OR`, `NOT`, `PREFIX`, `PHRASE`,
 `PRECEDENCE`, `ESCAPE`, `WHITESPACE`, `FUZZY`, `NEAR`, and `SLOP`.

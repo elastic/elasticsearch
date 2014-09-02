@@ -22,6 +22,8 @@ package org.elasticsearch.index.translog.fs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.translog.TranslogStream;
+import org.elasticsearch.index.translog.TranslogStreams;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogException;
 
@@ -38,6 +40,8 @@ public class SimpleFsTranslogFile implements FsTranslogFile {
     private final RafReference raf;
     private final AtomicBoolean closed = new AtomicBoolean();
     private final ReadWriteLock rwl = new ReentrantReadWriteLock();
+    private final TranslogStream translogStream;
+    private final int headerSize;
 
     private volatile int operationCounter = 0;
 
@@ -51,6 +55,11 @@ public class SimpleFsTranslogFile implements FsTranslogFile {
         this.id = id;
         this.raf = raf;
         raf.raf().setLength(0);
+        this.translogStream = TranslogStreams.translogStreamFor(this.raf.file());
+        this.headerSize = this.translogStream.writeHeader(raf.channel());
+        this.lastPosition += headerSize;
+        this.lastWrittenPosition += headerSize;
+        this.lastSyncPosition += headerSize;
     }
 
     public long id() {
@@ -96,6 +105,7 @@ public class SimpleFsTranslogFile implements FsTranslogFile {
             if (!delete) {
                 try {
                     sync();
+                    translogStream.close();
                 } catch (Exception e) {
                     throw new TranslogException(shardId, "failed to sync on close", e);
                 }
@@ -115,6 +125,7 @@ public class SimpleFsTranslogFile implements FsTranslogFile {
                 rwl.writeLock().lock();
                 try {
                     FsChannelSnapshot snapshot = new FsChannelSnapshot(this.id, raf, lastWrittenPosition, operationCounter);
+                    snapshot.seekTo(this.headerSize);
                     success = true;
                     return snapshot;
                 } finally {
@@ -134,6 +145,11 @@ public class SimpleFsTranslogFile implements FsTranslogFile {
     @Override
     public boolean syncNeeded() {
         return lastWrittenPosition != lastSyncPosition;
+    }
+
+    @Override
+    public TranslogStream getStream() {
+        return this.translogStream;
     }
 
     public void sync() throws IOException {

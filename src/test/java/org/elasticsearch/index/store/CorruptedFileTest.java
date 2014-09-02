@@ -446,7 +446,7 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
         return corruptRandomFile(true);
     }
 
-    private ShardRouting corruptRandomFile(final boolean includeSegmentsFiles) throws IOException {
+    private ShardRouting corruptRandomFile(final boolean includePerCommitFiles) throws IOException {
         ClusterState state = client().admin().cluster().prepareState().get().getState();
         GroupShardsIterator shardIterators = state.getRoutingNodes().getRoutingTable().activePrimaryShardsGrouped(new String[]{"test"}, false);
         ShardIterator shardIterator = RandomPicks.randomFrom(getRandom(), shardIterators.iterators());
@@ -464,8 +464,10 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
             files.addAll(Arrays.asList(file.listFiles(new FileFilter() {
                 @Override
                 public boolean accept(File pathname) {
-                    return pathname.isFile() && !"write.lock".equals(pathname.getName()) &&
-                            (includeSegmentsFiles == true || pathname.getName().startsWith("segments") == false);
+                    if (pathname.isFile() && "write.lock".equals(pathname.getName()) == false) {
+                        return (includePerCommitFiles || isPerSegmentFile(pathname.getName()));
+                    }
+                    return false; // no dirs no write.locks
                 }
             })));
         }
@@ -510,6 +512,15 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
         }
         assertThat("no file corrupted", fileToCorrupt, notNullValue());
         return shardRouting;
+    }
+
+    private static final boolean isPerCommitFile(String fileName) {
+        // .del and segments_N are per commit files and might change after corruption
+        return fileName.startsWith("segments") || fileName.endsWith(".del");
+    }
+
+    private static final boolean isPerSegmentFile(String fileName) {
+        return isPerCommitFile(fileName) == false;
     }
 
     /**

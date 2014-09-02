@@ -26,10 +26,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.facet.Facets;
-import org.elasticsearch.search.facet.InternalFacets;
 import org.elasticsearch.search.suggest.Suggest;
-import org.elasticsearch.transport.TransportResponse;
 
 import java.io.IOException;
 
@@ -46,7 +43,6 @@ public class QuerySearchResult extends QuerySearchResultProvider {
     private int from;
     private int size;
     private TopDocs topDocs;
-    private InternalFacets facets;
     private InternalAggregations aggregations;
     private Suggest suggest;
     private boolean searchTimedOut;
@@ -108,14 +104,6 @@ public class QuerySearchResult extends QuerySearchResultProvider {
         this.topDocs = topDocs;
     }
 
-    public Facets facets() {
-        return facets;
-    }
-
-    public void facets(InternalFacets facets) {
-        this.facets = facets;
-    }
-
     public Aggregations aggregations() {
         return aggregations;
     }
@@ -170,9 +158,6 @@ public class QuerySearchResult extends QuerySearchResultProvider {
         size = in.readVInt();
         topDocs = readTopDocs(in);
         if (in.readBoolean()) {
-            facets = InternalFacets.readFacets(in);
-        }
-        if (in.readBoolean()) {
             aggregations = InternalAggregations.readAggregations(in);
         }
         if (in.readBoolean()) {
@@ -196,12 +181,6 @@ public class QuerySearchResult extends QuerySearchResultProvider {
         out.writeVInt(from);
         out.writeVInt(size);
         writeTopDocs(out, topDocs, 0);
-        if (facets == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            facets.writeTo(out);
-        }
         if (aggregations == null) {
             out.writeBoolean(false);
         } else {

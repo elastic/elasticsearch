@@ -20,9 +20,11 @@
 package org.elasticsearch.index.snapshots.blobstore;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.store.*;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.metadata.SnapshotId;
@@ -46,13 +48,11 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.RepositoryName;
 
+import java.io.ByteArrayOutputStream;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -424,8 +424,9 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                 long indexTotalFilesSize = 0;
                 ArrayList<FileInfo> filesToSnapshot = newArrayList();
                 final Store.MetadataSnapshot metadata;
+                // TODO apparently we don't use the MetadataSnapshot#.recoveryDiff(...) here but we should
                 try {
-                    metadata = store.getMetadata();
+                    metadata = store.getMetadata(snapshotIndexCommit);
                 } catch (IOException e) {
                     throw new IndexShardSnapshotFailedException(shardId, "Failed to get store file metadata", e);
                 }
@@ -438,7 +439,15 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                     final StoreFileMetaData md = metadata.get(fileName);
                     boolean snapshotRequired = false;
                     BlobStoreIndexShardSnapshot.FileInfo fileInfo = snapshots.findPhysicalIndexFile(fileName);
-
+                    try {
+                        // in 1.4.0 we added additional hashes for .si / segments_N files
+                        // to ensure we don't double the space in the repo since old snapshots
+                        // don't have this hash we try to read that hash from the blob store
+                        // in a bwc compatible way.
+                        maybeRecalculateMetadataHash(blobContainer, fileInfo, metadata);
+                    }  catch (Throwable e) {
+                        logger.warn("{} Can't calculate hash from blob for file [{}] [{}]", e, shardId, fileInfo.physicalName(), fileInfo.metadata());
+                    }
                     if (fileInfo == null || !fileInfo.isSame(md) || !snapshotFileExistsInBlobs(fileInfo, blobs)) {
                         // commit point file does not exists in any commit point, or has different length, or does not fully exists in the listed blobs
                         snapshotRequired = true;
@@ -680,6 +689,77 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
     }
 
     /**
+     * This is a BWC layer to ensure we update the snapshots metdata with the corresponding hashes before we compare them.
+     * The new logic for StoreFileMetaData reads the entire <tt>.si</tt> and <tt>segments.n</tt> files to strengthen the
+     * comparison of the files on a per-segment / per-commit level.
+     */
+    private static final void maybeRecalculateMetadataHash(final ImmutableBlobContainer blobContainer, final FileInfo fileInfo, Store.MetadataSnapshot snapshot) throws Throwable {
+        final StoreFileMetaData metadata;
+        if (fileInfo != null && (metadata = snapshot.get(fileInfo.physicalName())) != null) {
+            if (metadata.hash().length > 0 && fileInfo.metadata().hash().length == 0) {
+                // we have a hash - check if our repo has a hash too otherwise we have
+                // to calculate it.
+                final ByteArrayOutputStream out = new ByteArrayOutputStream();
+                final CountDownLatch latch = new CountDownLatch(1);
+                final CopyOnWriteArrayList<Throwable> failures = new CopyOnWriteArrayList<>();
+                // we might have multiple parts even though the file is small... make sure we read all of it.
+                // TODO this API should really support a stream!
+                blobContainer.readBlob(fileInfo.partName(0), new BlobContainer.ReadBlobListener() {
+                    final AtomicInteger partIndex = new AtomicInteger();
+                    @Override
+                    public synchronized void onPartial(byte[] data, int offset, int size) throws IOException {
+                        out.write(data, offset, size);
+                    }
+
+                    @Override
+                    public synchronized void onCompleted() {
+                        boolean countDown = true;
+                        try {
+                            final int part = partIndex.incrementAndGet();
+                            if (part < fileInfo.numberOfParts()) {
+                                final String partName = fileInfo.partName(part);
+                                // continue with the new part
+                                blobContainer.readBlob(partName, this);
+                                countDown = false;
+                                return;
+                            }
+                        } finally {
+                            if (countDown) {
+                                latch.countDown();
+                            }
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Throwable t) {
+                        try {
+                            failures.add(t);
+                        } finally {
+                            latch.countDown();
+                        }
+                    }
+                });
+
+                try {
+                    latch.await();
+                } catch (InterruptedException e) {
+                    Thread.interrupted();
+                }
+
+                if (!failures.isEmpty()) {
+                    ExceptionsHelper.rethrowAndSuppress(failures);
+                }
+
+                final byte[] bytes = out.toByteArray();
+                assert bytes != null;
+                assert bytes.length == fileInfo.length() : bytes.length + " != " + fileInfo.length();
+                final BytesRef spare = new BytesRef(bytes);
+                Store.MetadataSnapshot.hashFile(fileInfo.metadata().hash(), spare);
+            }
+        }
+    }
+
+    /**
      * Context for restore operations
      */
     private class RestoreContext extends Context {
@@ -716,9 +796,9 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                 long totalSize = 0;
                 int numberOfReusedFiles = 0;
                 long reusedTotalSize = 0;
-                Map<String, StoreFileMetaData> metadata = Collections.emptyMap();
+                Store.MetadataSnapshot recoveryTargetMetadata = Store.MetadataSnapshot.EMPTY;
                 try {
-                    metadata = store.getMetadata().asMap();
+                    recoveryTargetMetadata = store.getMetadata();
                 } catch (CorruptIndexException e) {
                     logger.warn("{} Can't read metadata from store", e, shardId);
                     throw new IndexShardRestoreFailedException(shardId, "Can't restore corrupted shard", e);
@@ -727,33 +807,51 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                     logger.warn("{} Can't read metadata from store", e, shardId);
                 }
 
-                List<FileInfo> filesToRecover = Lists.newArrayList();
-                for (FileInfo fileInfo : snapshot.indexFiles()) {
-                    String fileName = fileInfo.physicalName();
-                    final StoreFileMetaData md = metadata.get(fileName);
+                final List<FileInfo> filesToRecover = Lists.newArrayList();
+                final Map<String, StoreFileMetaData> snapshotMetaData = new HashMap<>();
+                final Map<String, FileInfo> fileInfos = new HashMap<>();
+                for (final FileInfo fileInfo : snapshot.indexFiles()) {
+                    try {
+                        // in 1.4.0 we added additional hashes for .si / segments_N files
+                        // to ensure we don't double the space in the repo since old snapshots
+                        // don't have this hash we try to read that hash from the blob store
+                        // in a bwc compatible way.
+                        maybeRecalculateMetadataHash(blobContainer, fileInfo, recoveryTargetMetadata);
+                    }  catch (Throwable e) {
+                        // if the index is broken we might not be able to read it
+                        logger.warn("{} Can't calculate hash from blog for file [{}] [{}]", e, shardId, fileInfo.physicalName(), fileInfo.metadata());
+                    }
+                    snapshotMetaData.put(fileInfo.metadata().name(), fileInfo.metadata());
+                    fileInfos.put(fileInfo.metadata().name(), fileInfo);
+                }
+                final Store.MetadataSnapshot sourceMetaData = new Store.MetadataSnapshot(snapshotMetaData);
+                final Store.RecoveryDiff diff = sourceMetaData.recoveryDiff(recoveryTargetMetadata);
+                for (StoreFileMetaData md : diff.identical) {
+                    FileInfo fileInfo = fileInfos.get(md.name());
                     numberOfFiles++;
-                    if (md != null && fileInfo.isSame(md)) {
-                        totalSize += md.length();
-                        numberOfReusedFiles++;
-                        reusedTotalSize += md.length();
-                        recoveryState.getIndex().addReusedFileDetail(fileInfo.name(), fileInfo.length());
-                        if (logger.isTraceEnabled()) {
-                            logger.trace("[{}] [{}] not_recovering [{}] from [{}], exists in local store and is same", shardId, snapshotId, fileInfo.physicalName(), fileInfo.name());
-                        }
-                    } else {
-                        totalSize += fileInfo.length();
-                        filesToRecover.add(fileInfo);
-                        recoveryState.getIndex().addFileDetail(fileInfo.name(), fileInfo.length());
-                        if (logger.isTraceEnabled()) {
-                            if (md == null) {
-                                logger.trace("[{}] [{}] recovering [{}] from [{}], does not exists in local store", shardId, snapshotId, fileInfo.physicalName(), fileInfo.name());
-                            } else {
-                                logger.trace("[{}] [{}] recovering [{}] from [{}], exists in local store but is different", shardId, snapshotId, fileInfo.physicalName(), fileInfo.name());
-                            }
-                        }
+                    totalSize += md.length();
+                    numberOfReusedFiles++;
+                    reusedTotalSize += md.length();
+                    recoveryState.getIndex().addReusedFileDetail(fileInfo.name(), fileInfo.length());
+                    if (logger.isTraceEnabled()) {
+                        logger.trace("[{}] [{}] not_recovering [{}] from [{}], exists in local store and is same", shardId, snapshotId, fileInfo.physicalName(), fileInfo.name());
                     }
                 }
 
+                for (StoreFileMetaData md : Iterables.concat(diff.different, diff.missing)) {
+                    FileInfo fileInfo = fileInfos.get(md.name());
+                    numberOfFiles++;
+                    totalSize += fileInfo.length();
+                    filesToRecover.add(fileInfo);
+                    recoveryState.getIndex().addFileDetail(fileInfo.name(), fileInfo.length());
+                    if (logger.isTraceEnabled()) {
+                        if (md == null) {
+                            logger.trace("[{}] [{}] recovering [{}] from [{}], does not exists in local store", shardId, snapshotId, fileInfo.physicalName(), fileInfo.name());
+                        } else {
+                            logger.trace("[{}] [{}] recovering [{}] from [{}], exists in local store but is different", shardId, snapshotId, fileInfo.physicalName(), fileInfo.name());
+                        }
+                    }
+                }
                 final RecoveryState.Index index = recoveryState.getIndex();
                 index.totalFileCount(numberOfFiles);
                 index.totalByteCount(totalSize);

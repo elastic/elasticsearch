@@ -22,10 +22,13 @@ package org.elasticsearch.search.aggregations.metrics.cardinality;
 import org.elasticsearch.search.aggregations.Aggregation;
 
 /**
- * A number of unique terms.
+ * An aggregation that computes approximate numbers of unique terms.
  */
 public interface Cardinality extends Aggregation {
 
+    /**
+     * The number of unique terms.
+     */
     public long getValue();
 
 }

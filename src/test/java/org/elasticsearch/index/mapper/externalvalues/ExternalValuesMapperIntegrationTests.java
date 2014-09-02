@@ -40,8 +40,8 @@ public class ExternalValuesMapperIntegrationTests extends ElasticsearchIntegrati
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return ImmutableSettings.settingsBuilder()
-                .put("plugin.types", ExternalMapperPlugin.class.getName())
                 .put(super.nodeSettings(nodeOrdinal))
+                .put("plugin.types", ExternalMapperPlugin.class.getName())
                 .build();
     }
 
@@ -49,6 +49,8 @@ public class ExternalValuesMapperIntegrationTests extends ElasticsearchIntegrati
     public void testExternalValues() throws Exception {
         prepareCreate("test-idx").addMapping("type",
                 XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject(ExternalRootMapper.CONTENT_TYPE)
+                .endObject()
                 .startObject("properties")
                     .startObject("field").field("type", RegisterExternalTypes.EXTERNAL).endObject()
                 .endObject()

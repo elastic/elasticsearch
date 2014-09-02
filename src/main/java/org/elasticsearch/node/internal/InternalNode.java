@@ -26,8 +26,6 @@ import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.bench.BenchmarkModule;
 import org.elasticsearch.bulk.udp.BulkUdpModule;
 import org.elasticsearch.bulk.udp.BulkUdpService;
-import org.elasticsearch.cache.recycler.CacheRecycler;
-import org.elasticsearch.cache.recycler.CacheRecyclerModule;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.cache.recycler.PageCacheRecyclerModule;
 import org.elasticsearch.client.Client;
@@ -158,7 +156,6 @@ public final class InternalNode implements Node {
         try {
             ModulesBuilder modules = new ModulesBuilder();
             modules.add(new Version.Module(version));
-            modules.add(new CacheRecyclerModule(settings));
             modules.add(new PageCacheRecyclerModule(settings));
             modules.add(new CircuitBreakerModule(settings));
             modules.add(new BigArraysModule(settings));
@@ -394,7 +391,6 @@ public final class InternalNode implements Node {
         }
 
         injector.getInstance(NodeEnvironment.class).close();
-        injector.getInstance(CacheRecycler.class).close();
         injector.getInstance(PageCacheRecycler.class).close();
         Injectors.close(injector);
 

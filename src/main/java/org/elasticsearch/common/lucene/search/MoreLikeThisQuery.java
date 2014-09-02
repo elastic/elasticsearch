@@ -20,6 +20,7 @@
 package org.elasticsearch.common.lucene.search;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -46,6 +47,7 @@ public class MoreLikeThisQuery extends Query {
     private TFIDFSimilarity similarity;
 
     private String[] likeText;
+    private Fields[] likeFields;
     private String[] moreLikeFields;
     private Analyzer analyzer;
     private float percentTermsToMatch = DEFAULT_PERCENT_TERMS_TO_MATCH;
@@ -148,12 +150,18 @@ public class MoreLikeThisQuery extends Query {
         mlt.setBoost(boostTerms);
         mlt.setBoostFactor(boostTermsFactor);
 
-        Reader[] readers = new Reader[likeText.length];
-        for (int i = 0; i < readers.length; i++) {
-            readers[i] = new FastStringReader(likeText[i]);
+        BooleanQuery bq = new BooleanQuery();
+        if (this.likeFields != null) {
+            bq.add((BooleanQuery) mlt.like(this.likeFields), BooleanClause.Occur.SHOULD);
         }
-        //LUCENE 4 UPGRADE this mapps the 3.6 behavior (only use the first field)
-        BooleanQuery bq = (BooleanQuery) mlt.like(moreLikeFields[0], readers);
+        if (this.likeText != null) {
+            Reader[] readers = new Reader[likeText.length];
+            for (int i = 0; i < readers.length; i++) {
+                readers[i] = new FastStringReader(likeText[i]);
+            }
+            //LUCENE 4 UPGRADE this mapps the 3.6 behavior (only use the first field)
+            bq.add((BooleanQuery) mlt.like(moreLikeFields[0], readers), BooleanClause.Occur.SHOULD);
+        }
 
         BooleanClause[] clauses = bq.getClauses();
         bq.setMinimumNumberShouldMatch((int) (clauses.length * percentTermsToMatch));
@@ -181,6 +189,14 @@ public class MoreLikeThisQuery extends Query {
 
     public void setLikeText(String... likeText) {
         this.likeText = likeText;
+    }
+
+    public Fields[] getLikeFields() {
+        return likeFields;
+    }
+
+    public void setLikeText(Fields... likeFields) {
+        this.likeFields = likeFields;
     }
 
     public void setLikeText(List<String> likeText) {

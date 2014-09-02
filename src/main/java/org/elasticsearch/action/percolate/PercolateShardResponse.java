@@ -26,7 +26,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.percolator.PercolateContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.facet.InternalFacets;
 import org.elasticsearch.search.highlight.HighlightField;
 import org.elasticsearch.search.query.QuerySearchResult;
 
@@ -51,7 +50,6 @@ public class PercolateShardResponse extends BroadcastShardOperationResponse {
     private byte percolatorTypeId;
     private int requestedSize;
 
-    private InternalFacets facets;
     private InternalAggregations aggregations;
 
     PercolateShardResponse() {
@@ -68,9 +66,6 @@ public class PercolateShardResponse extends BroadcastShardOperationResponse {
         this.requestedSize = context.size();
         QuerySearchResult result = context.queryResult();
         if (result != null) {
-            if (result.facets() != null) {
-                this.facets = new InternalFacets(result.facets().facets());
-            }
             if (result.aggregations() != null) {
                 this.aggregations = (InternalAggregations) result.aggregations();
             }
@@ -113,10 +108,6 @@ public class PercolateShardResponse extends BroadcastShardOperationResponse {
         return hls;
     }
 
-    public InternalFacets facets() {
-        return facets;
-    }
-
     public InternalAggregations aggregations() {
         return aggregations;
     }
@@ -152,7 +143,6 @@ public class PercolateShardResponse extends BroadcastShardOperationResponse {
             }
             hls.add(fields);
         }
-        facets = InternalFacets.readOptionalFacets(in);
         aggregations = InternalAggregations.readOptionalAggregations(in);
     }
 
@@ -178,7 +168,6 @@ public class PercolateShardResponse extends BroadcastShardOperationResponse {
                 entry.getValue().writeTo(out);
             }
         }
-        out.writeOptionalStreamable(facets);
         out.writeOptionalStreamable(aggregations);
     }
 }

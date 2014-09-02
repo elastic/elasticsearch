@@ -22,6 +22,7 @@ package org.elasticsearch.search.aggregations.bucket.children;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 
 /**
+ * An single bucket aggregation that translates parent documents to their children documents.
  */
 public interface Children extends SingleBucketAggregation {
 }

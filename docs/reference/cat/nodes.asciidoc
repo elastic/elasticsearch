@@ -180,7 +180,9 @@ operations |9
 |`segments.memory` |`sm`, `segmentsMemory` |No |Memory used by
 segments |1.4kb
 |`segments.index_writer_memory` |`siwm`, `segmentsIndexWriterMemory` |No
-|Memory used by index writer |1.2kb
+|Memory used by index writer |18mb
+|`segments.index_writer_max_memory` |`siwmx`, `segmentsIndexWriterMaxMemory` |No
+|Maximum memory index writer may use before it must write buffered documents to a new segment |32mb
 |`segments.version_map_memory` |`svmm`, `segmentsVersionMapMemory` |No
 |Memory used by version map |1.0kb
 |=======================================================================

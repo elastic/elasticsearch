@@ -21,9 +21,12 @@ package org.elasticsearch.search.aggregations.metrics.max;
 import org.elasticsearch.search.aggregations.Aggregation;
 
 /**
- *
+ * An aggregation that computes the maximum of the values in the current bucket.
  */
 public interface Max extends Aggregation {
 
+    /**
+     * The maximum.
+     */
     double getValue();
 }

@@ -25,6 +25,8 @@ import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -36,6 +38,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 
@@ -51,6 +54,9 @@ final class ExternalNode implements Closeable {
     private NodeInfo nodeInfo;
     private final String clusterName;
     private TransportClient client;
+
+    private final ESLogger logger = Loggers.getLogger(getClass());
+
 
     ExternalNode(File path, long seed, SettingsSource settingsSource) {
         this(path, null, seed, settingsSource);
@@ -68,7 +74,7 @@ final class ExternalNode implements Closeable {
 
     synchronized ExternalNode start(Client localNode, Settings defaultSettings, String nodeName, String clusterName, int nodeOrdinal) throws IOException, InterruptedException {
         ExternalNode externalNode = new ExternalNode(path, clusterName, random.nextLong(), settingsSource);
-        Settings settings = ImmutableSettings.builder().put(settingsSource.node(nodeOrdinal)).put(defaultSettings).build();
+        Settings settings = ImmutableSettings.builder().put(defaultSettings).put(settingsSource.node(nodeOrdinal)).build();
         externalNode.startInternal(localNode, settings, nodeName, clusterName);
         return externalNode;
     }
@@ -108,6 +114,7 @@ final class ExternalNode implements Closeable {
         builder.inheritIO();
         boolean success = false;
         try {
+            logger.debug("starting external node [{}] with: {}", nodeName, builder.command());
             process = builder.start();
             this.nodeInfo = null;
             if (waitForNode(client, nodeName)) {
@@ -137,7 +144,7 @@ final class ExternalNode implements Closeable {
                 }
                 return false;
             }
-        });
+        }, 30, TimeUnit.SECONDS);
     }
 
     static NodeInfo nodeInfo(final Client client, final String nodeName) {

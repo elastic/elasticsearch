@@ -23,11 +23,11 @@ import com.google.common.collect.Sets;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -42,6 +42,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.index.translog.TranslogStream;
 import org.elasticsearch.index.translog.TranslogStreams;
 import org.elasticsearch.index.translog.fs.FsTranslog;
 import org.elasticsearch.indices.recovery.RecoveryState;
@@ -50,7 +51,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.EOFException;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Set;
@@ -62,6 +62,8 @@ import java.util.concurrent.TimeUnit;
  *
  */
 public class LocalIndexShardGateway extends AbstractIndexShardComponent implements IndexShardGateway {
+
+    private static final int RECOVERY_TRANSLOG_RENAME_RETRIES = 3;
 
     private final ThreadPool threadPool;
     private final MappingUpdatedAction mappingUpdatedAction;
@@ -127,7 +129,7 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
                     } catch (Throwable e1) {
                         files += " (failure=" + ExceptionsHelper.detailedMessage(e1) + ")";
                     }
-                    if (indexShouldExists && indexShard.store().indexStore().persistent()) {
+                    if (indexShouldExists && indexShard.indexService().store().persistent()) {
                         throw new IndexShardGatewayRecoveryException(shardId(), "shard allocated for local recovery (post api), should exist, but doesn't, current files: " + files, e);
                     }
                 }
@@ -198,7 +200,7 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
                 if (!tmpRecoveringFile.exists()) {
                     File tmpTranslogFile = new File(translogLocation, translogName);
                     if (tmpTranslogFile.exists()) {
-                        for (int i = 0; i < 3; i++) {
+                        for (int i = 0; i < RECOVERY_TRANSLOG_RENAME_RETRIES; i++) {
                             if (tmpTranslogFile.renameTo(tmpRecoveringFile)) {
                                 recoveringTranslogFile = tmpRecoveringFile;
                                 break;
@@ -228,17 +230,15 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
 
             recoveryState.getTranslog().startTime(System.currentTimeMillis());
             recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
-            FileInputStream fs = null;
+            TranslogStream stream = null;
 
             final Set<String> typesToUpdate = Sets.newHashSet();
             try {
-                fs = new FileInputStream(recoveringTranslogFile);
-                InputStreamStreamInput si = new InputStreamStreamInput(fs);
+                stream = TranslogStreams.translogStreamFor(recoveringTranslogFile);
                 while (true) {
                     Translog.Operation operation;
                     try {
-                        int opSize = si.readInt();
-                        operation = TranslogStreams.readTranslogOperation(si);
+                        operation = stream.read();
                     } catch (EOFException e) {
                         // ignore, not properly written the last op
                         break;
@@ -269,7 +269,7 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
                 throw new IndexShardGatewayRecoveryException(shardId, "failed to recover shard", e);
             } finally {
                 try {
-                    fs.close();
+                    IOUtils.close(stream);
                 } catch (IOException e) {
                     // ignore
                 }

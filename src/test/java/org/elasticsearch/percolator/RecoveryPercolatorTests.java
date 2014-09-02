@@ -65,7 +65,7 @@ public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return builder().put("gateway.type", "local").build();
+        return builder().put(super.nodeSettings(nodeOrdinal)).put("gateway.type", "local").build();
     }
 
     @Test

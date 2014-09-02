@@ -477,7 +477,7 @@ default and can't be disabled).
 ==== Fielddata filters
 
 It is possible to control which field values are loaded into memory,
-which is particularly useful for faceting on string fields, using
+which is particularly useful for aggregations on string fields, using
 fielddata filters, which are explained in detail in the
 <<index-modules-fielddata,Fielddata>> section.
 

@@ -23,11 +23,13 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.xcontent.StatusToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregations;
-import org.elasticsearch.search.facet.Facets;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.suggest.Suggest;
 
@@ -91,13 +93,6 @@ public class SearchResponse extends ActionResponse implements StatusToXContent {
      */
     public SearchHits getHits() {
         return internalResponse.hits();
-    }
-
-    /**
-     * The search facets.
-     */
-    public Facets getFacets() {
-        return internalResponse.facets();
     }
 
     public Aggregations getAggregations() {

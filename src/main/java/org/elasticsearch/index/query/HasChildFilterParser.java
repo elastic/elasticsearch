@@ -24,6 +24,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilter;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
@@ -91,8 +92,6 @@ public class HasChildFilterParser implements FilterParser {
             } else if (token.isValue()) {
                 if ("type".equals(currentFieldName) || "child_type".equals(currentFieldName) || "childType".equals(currentFieldName)) {
                     childType = parser.text();
-                } else if ("_scope".equals(currentFieldName)) {
-                    throw new QueryParsingException(parseContext.index(), "the [_scope] support in [has_child] filter has been removed, use a filter as a facet_filter in the relevant global facet");
                 } else if ("_name".equals(currentFieldName)) {
                     filterName = parser.text();
                 } else if ("_cache".equals(currentFieldName)) {
@@ -150,12 +149,12 @@ public class HasChildFilterParser implements FilterParser {
             throw new QueryParsingException(parseContext.index(), "[has_child] 'max_children' is less than 'min_children'");
         }
 
-        Filter nonNestedDocsFilter = null;
+        FixedBitSetFilter nonNestedDocsFilter = null;
         if (parentDocMapper.hasNestedObjects()) {
-            nonNestedDocsFilter = parseContext.cacheFilter(NonNestedDocsFilter.INSTANCE, null);
+            nonNestedDocsFilter = parseContext.fixedBitSetFilter(NonNestedDocsFilter.INSTANCE);
         }
 
-        Filter parentFilter = parseContext.cacheFilter(parentDocMapper.typeFilter(), null);
+        FixedBitSetFilter parentFilter = parseContext.fixedBitSetFilter(parentDocMapper.typeFilter());
         ParentChildIndexFieldData parentChildIndexFieldData = parseContext.getForField(parentFieldMapper);
 
         Query childrenQuery;

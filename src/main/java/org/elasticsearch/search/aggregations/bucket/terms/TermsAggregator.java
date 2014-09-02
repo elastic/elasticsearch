@@ -139,7 +139,7 @@ public abstract class TermsAggregator extends BucketsAggregator {
         // Don't defer any child agg if we are dependent on it for pruning results
         if (order instanceof Aggregation){
             OrderPath path = ((Aggregation) order).path();
-            aggUsedForSorting = path.resolveTopmostAggregator(this, false);
+            aggUsedForSorting = path.resolveTopmostAggregator(this);
         }
     }
 

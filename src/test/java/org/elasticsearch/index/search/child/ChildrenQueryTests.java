@@ -36,6 +36,7 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.search.NotFilter;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilter;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
@@ -76,11 +77,11 @@ public class ChildrenQueryTests extends AbstractChildTests {
         ScoreType scoreType = ScoreType.values()[random().nextInt(ScoreType.values().length)];
         ParentFieldMapper parentFieldMapper = SearchContext.current().mapperService().documentMapper("child").parentFieldMapper();
         ParentChildIndexFieldData parentChildIndexFieldData = SearchContext.current().fieldData().getForField(parentFieldMapper);
-        Filter parentFilter = new TermFilter(new Term(TypeFieldMapper.NAME, "parent"));
+        FixedBitSetFilter parentFilter = wrap(new TermFilter(new Term(TypeFieldMapper.NAME, "parent")));
         int minChildren = random().nextInt(10);
         int maxChildren = scaledRandomIntBetween(minChildren, 10);
         Query query = new ChildrenQuery(parentChildIndexFieldData, "parent", "child", parentFilter, childQuery, scoreType, minChildren,
-                maxChildren, 12, NonNestedDocsFilter.INSTANCE);
+                maxChildren, 12, wrap(NonNestedDocsFilter.INSTANCE));
         QueryUtils.check(query);
     }
 
@@ -167,19 +168,10 @@ public class ChildrenQueryTests extends AbstractChildTests {
 
         ParentFieldMapper parentFieldMapper = SearchContext.current().mapperService().documentMapper("child").parentFieldMapper();
         ParentChildIndexFieldData parentChildIndexFieldData = SearchContext.current().fieldData().getForField(parentFieldMapper);
-        Filter rawParentFilter = new TermFilter(new Term(TypeFieldMapper.NAME, "parent"));
+        FixedBitSetFilter parentFilter = wrap(new TermFilter(new Term(TypeFieldMapper.NAME, "parent")));
         Filter rawFilterMe = new NotFilter(new TermFilter(new Term("filter", "me")));
         int max = numUniqueChildValues / 4;
         for (int i = 0; i < max; i++) {
-            // Randomly pick a cached version: there is specific logic inside ChildrenQuery that deals with the fact
-            // that deletes are applied at the top level when filters are cached.
-            Filter parentFilter;
-            if (random().nextBoolean()) {
-                parentFilter = SearchContext.current().filterCache().cache(rawParentFilter);
-            } else {
-                parentFilter = rawParentFilter;
-            }
-
             // Using this in FQ, will invoke / test the Scorer#advance(..) and also let the Weight#scorer not get live docs as acceptedDocs
             Filter filterMe;
             if (random().nextBoolean()) {
@@ -220,7 +212,7 @@ public class ChildrenQueryTests extends AbstractChildTests {
             Query childQuery = new ConstantScoreQuery(new TermQuery(new Term("field1", childValue)));
             int shortCircuitParentDocSet = random().nextInt(numParentDocs);
             ScoreType scoreType = ScoreType.values()[random().nextInt(ScoreType.values().length)];
-            Filter nonNestedDocsFilter = random().nextBoolean() ? NonNestedDocsFilter.INSTANCE : null;
+            FixedBitSetFilter nonNestedDocsFilter = random().nextBoolean() ? wrap(NonNestedDocsFilter.INSTANCE) : null;
 
             // leave min/max set to 0 half the time
             int minChildren = random().nextInt(2) * scaledRandomIntBetween(0, 110);

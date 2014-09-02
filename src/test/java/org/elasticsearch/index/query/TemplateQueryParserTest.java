@@ -20,7 +20,6 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.cache.recycler.CacheRecyclerModule;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Injector;
@@ -73,7 +72,6 @@ public class TemplateQueryParserTest extends ElasticsearchTestCase {
         injector = new ModulesBuilder().add(
                 new EnvironmentModule(new Environment(settings)),
                 new SettingsModule(settings),
-                new CacheRecyclerModule(settings),
                 new CodecModule(settings),
                 new ThreadPoolModule(settings),
                 new IndicesQueriesModule(),

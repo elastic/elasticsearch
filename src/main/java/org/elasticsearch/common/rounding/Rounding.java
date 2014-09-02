@@ -19,6 +19,7 @@
 package org.elasticsearch.common.rounding;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -218,15 +219,25 @@ public abstract class Rounding implements Streamable {
         @Override
         public void readFrom(StreamInput in) throws IOException {
             rounding = Rounding.Streams.read(in);
-            preOffset = in.readVLong();
-            postOffset = in.readVLong();
+            if (in.getVersion().before(Version.V_1_4_0)) {
+                preOffset = in.readVLong();
+                postOffset = in.readVLong();
+            } else {
+                preOffset = in.readLong();
+                postOffset = in.readLong();
+            }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             Rounding.Streams.write(rounding, out);
-            out.writeVLong(preOffset);
-            out.writeVLong(postOffset);
+            if (out.getVersion().before(Version.V_1_4_0)) {
+                out.writeVLong(preOffset);
+                out.writeVLong(postOffset);
+            } else {
+                out.writeLong(preOffset);
+                out.writeLong(postOffset);
+            }
         }
     }
 

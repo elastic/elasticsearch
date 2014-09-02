@@ -69,6 +69,34 @@ public class ShapeBuilderTests extends ElasticsearchTestCase {
         assertEquals(exterior.getCoordinateN(2), new Coordinate(45, -30));
         assertEquals(exterior.getCoordinateN(3), new Coordinate(-45, -30));
     }
+
+    @Test
+    public void testNewPolygon_coordinate() {
+        Polygon polygon = ShapeBuilder.newPolygon()
+                .point(new Coordinate(-45, 30))
+                .point(new Coordinate(45, 30))
+                .point(new Coordinate(45, -30))
+                .point(new Coordinate(-45, -30))
+                .point(new Coordinate(-45, 30)).toPolygon();
+
+        LineString exterior = polygon.getExteriorRing();
+        assertEquals(exterior.getCoordinateN(0), new Coordinate(-45, 30));
+        assertEquals(exterior.getCoordinateN(1), new Coordinate(45, 30));
+        assertEquals(exterior.getCoordinateN(2), new Coordinate(45, -30));
+        assertEquals(exterior.getCoordinateN(3), new Coordinate(-45, -30));
+    }
+
+    @Test
+    public void testNewPolygon_coordinates() {
+        Polygon polygon = ShapeBuilder.newPolygon()
+                .points(new Coordinate(-45, 30), new Coordinate(45, 30), new Coordinate(45, -30), new Coordinate(-45, -30), new Coordinate(-45, 30)).toPolygon();
+
+        LineString exterior = polygon.getExteriorRing();
+        assertEquals(exterior.getCoordinateN(0), new Coordinate(-45, 30));
+        assertEquals(exterior.getCoordinateN(1), new Coordinate(45, 30));
+        assertEquals(exterior.getCoordinateN(2), new Coordinate(45, -30));
+        assertEquals(exterior.getCoordinateN(3), new Coordinate(-45, -30));
+    }
     
     @Test
     public void testLineStringBuilder() {

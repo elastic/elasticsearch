@@ -19,21 +19,15 @@
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.search.lookup.IndexLookup;
-
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.search.lookup.DocLookup;
-import org.elasticsearch.search.lookup.FieldsLookup;
-import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.*;
 
-import java.io.IOException;
 import java.util.Map;
 
 /**
- * A base class for any script type that is used during the search process (custom score, facets, and so on).
+ * A base class for any script type that is used during the search process (custom score, aggs, and so on).
  * <p/>
  * <p>If the script returns a specific numeric type, consider overriding the type specific base classes
  * such as {@link AbstractDoubleSearchScript}, {@link AbstractFloatSearchScript} and {@link AbstractLongSearchScript}

@@ -26,7 +26,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.TransportBroadcastOperationAction;
-import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -69,20 +68,17 @@ public class TransportCountAction extends TransportBroadcastOperationAction<Coun
 
     private final ScriptService scriptService;
 
-    private final CacheRecycler cacheRecycler;
-
     private final PageCacheRecycler pageCacheRecycler;
 
     private final BigArrays bigArrays;
 
     @Inject
     public TransportCountAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
-                                IndicesService indicesService, ScriptService scriptService, CacheRecycler cacheRecycler,
-                                PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, ActionFilters actionFilters) {
+                                IndicesService indicesService, ScriptService scriptService, PageCacheRecycler pageCacheRecycler,
+                                BigArrays bigArrays, ActionFilters actionFilters) {
         super(settings, CountAction.NAME, threadPool, clusterService, transportService, actionFilters);
         this.indicesService = indicesService;
         this.scriptService = scriptService;
-        this.cacheRecycler = cacheRecycler;
         this.pageCacheRecycler = pageCacheRecycler;
         this.bigArrays = bigArrays;
     }
@@ -174,7 +170,7 @@ public class TransportCountAction extends TransportBroadcastOperationAction<Coun
                         .filteringAliases(request.filteringAliases())
                         .nowInMillis(request.nowInMillis()),
                 shardTarget, indexShard.acquireSearcher("count"), indexService, indexShard,
-                scriptService, cacheRecycler, pageCacheRecycler, bigArrays);
+                scriptService, pageCacheRecycler, bigArrays);
         SearchContext.setCurrent(context);
 
         try {

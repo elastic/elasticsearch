@@ -197,8 +197,6 @@ is required for this option. Defaults to `false`.
 is supported. Other sort fields will throw an exception. The `size` and `query` option are required for this setting. Like
 `track_score` the score is based on the query and represents how the query matched to the percolate query's metadata
 and *not* how the document being percolated matched to the query.
-* `facets` - Allows facet definitions to be included. The facets are based on the matching percolator queries. See facet
-documentation how to define facets.
 * `aggs` - Allows aggregation definitions to be included. The aggregations are based on the matching percolator queries,
 look at the aggregation documentation on how to define aggregations.
 * `highlight` - Allows highlight definitions to be included. The document being percolated is being highlight for each

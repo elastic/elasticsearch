@@ -66,8 +66,6 @@ public class ValuesSourceParser<VS extends ValuesSource> {
         String lang = null;
         Map<String, Object> params = null;
         ValueType valueType = null;
-        boolean assumeUnique = false;
-        boolean assumeSorted = false;
         String format = null;
     }
 
@@ -120,16 +118,6 @@ public class ValuesSourceParser<VS extends ValuesSource> {
                     return false;
                 }
                 return true;
-            } else {
-                return false;
-            }
-            return true;
-        }
-        if (scriptable && token == XContentParser.Token.VALUE_BOOLEAN) {
-            if ("script_values_unique".equals(currentFieldName) || "scriptValuesUnique".equals(currentFieldName)) {
-                input.assumeUnique = parser.booleanValue();
-            } else if ("script_values_sorted".equals(currentFieldName) || "scriptValuesSorted".equals(currentFieldName)) {
-                input.assumeSorted = parser.booleanValue();
             } else {
                 return false;
             }
@@ -249,16 +237,6 @@ public class ValuesSourceParser<VS extends ValuesSource> {
 
         public Builder<VS> targetValueType(ValueType valueType) {
             parser.targetValueType = valueType;
-            return this;
-        }
-
-        public Builder<VS> requiresSortedValues(boolean requiresSortedValues) {
-            parser.requiresSortedValues = requiresSortedValues;
-            return this;
-        }
-
-        public Builder<VS> requiresUniqueValues(boolean requiresUniqueValues) {
-            parser.requiresUniqueValues = requiresUniqueValues;
             return this;
         }
 

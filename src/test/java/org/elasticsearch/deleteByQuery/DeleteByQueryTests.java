@@ -23,6 +23,8 @@ import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.deletebyquery.DeleteByQueryRequestBuilder;
 import org.elasticsearch.action.deletebyquery.DeleteByQueryResponse;
+import org.elasticsearch.action.deletebyquery.IndexDeleteByQueryResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -31,8 +33,11 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
+import java.util.concurrent.ExecutionException;
+
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.*;
 
 public class DeleteByQueryTests extends ElasticsearchIntegrationTest {
@@ -154,6 +159,36 @@ public class DeleteByQueryTests extends ElasticsearchIntegrationTest {
         client().prepareDeleteByQuery("test").setQuery(QueryBuilders.rangeQuery("d").to("now-1h")).get();
         refresh();
         assertHitCount(client().prepareCount("test").get(), 0);
+    }
+
+    @Test
+    public void testDeleteByTermQuery() throws ExecutionException, InterruptedException {
+        createIndex("test");
+        ensureGreen();
+
+        int numDocs = iterations(10, 50);
+        IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[numDocs + 1];
+        for (int i = 0; i < numDocs; i++) {
+            indexRequestBuilders[i] = client().prepareIndex("test", "test", Integer.toString(i)).setSource("field", "value");
+        }
+        indexRequestBuilders[numDocs] = client().prepareIndex("test", "test", Integer.toString(numDocs)).setSource("field", "other_value");
+        indexRandom(true, indexRequestBuilders);
+
+        SearchResponse searchResponse = client().prepareSearch("test").get();
+        assertNoFailures(searchResponse);
+        assertThat(searchResponse.getHits().totalHits(), equalTo((long)numDocs + 1));
+
+        DeleteByQueryResponse deleteByQueryResponse = client().prepareDeleteByQuery("test").setQuery(QueryBuilders.termQuery("field", "value")).get();
+        assertThat(deleteByQueryResponse.getIndices().size(), equalTo(1));
+        for (IndexDeleteByQueryResponse indexDeleteByQueryResponse : deleteByQueryResponse) {
+            assertThat(indexDeleteByQueryResponse.getIndex(), equalTo("test"));
+            assertThat(indexDeleteByQueryResponse.getFailures().length, equalTo(0));
+        }
+
+        refresh();
+        searchResponse = client().prepareSearch("test").get();
+        assertNoFailures(searchResponse);
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
     }
 
     private static String indexOrAlias() {

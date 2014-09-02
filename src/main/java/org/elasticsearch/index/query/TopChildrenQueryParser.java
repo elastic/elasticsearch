@@ -18,12 +18,12 @@
  */
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilter;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
@@ -86,8 +86,6 @@ public class TopChildrenQueryParser implements QueryParser {
             } else if (token.isValue()) {
                 if ("type".equals(currentFieldName)) {
                     childType = parser.text();
-                } else if ("_scope".equals(currentFieldName)) {
-                    throw new QueryParsingException(parseContext.index(), "the [_scope] support in [top_children] query has been removed, use a filter as a facet_filter in the relevant global facet");
                 } else if ("score".equals(currentFieldName)) {
                     scoreType = ScoreType.fromString(parser.text());
                 } else if ("score_mode".equals(currentFieldName) || "scoreMode".equals(currentFieldName)) {
@@ -128,16 +126,16 @@ public class TopChildrenQueryParser implements QueryParser {
         }
         String parentType = childDocMapper.parentFieldMapper().type();
 
-        Filter nonNestedDocsFilter = null;
+        FixedBitSetFilter nonNestedDocsFilter = null;
         if (childDocMapper.hasNestedObjects()) {
-            nonNestedDocsFilter = parseContext.cacheFilter(NonNestedDocsFilter.INSTANCE, null);
+            nonNestedDocsFilter = parseContext.fixedBitSetFilter(NonNestedDocsFilter.INSTANCE);
         }
 
         innerQuery.setBoost(boost);
         // wrap the query with type query
         innerQuery = new XFilteredQuery(innerQuery, parseContext.cacheFilter(childDocMapper.typeFilter(), null));
         ParentChildIndexFieldData parentChildIndexFieldData = parseContext.getForField(parentFieldMapper);
-        TopChildrenQuery query = new TopChildrenQuery(parentChildIndexFieldData, innerQuery, childType, parentType, scoreType, factor, incrementalFactor, parseContext.cacheRecycler(), nonNestedDocsFilter);
+        TopChildrenQuery query = new TopChildrenQuery(parentChildIndexFieldData, innerQuery, childType, parentType, scoreType, factor, incrementalFactor, nonNestedDocsFilter);
         if (queryName != null) {
             parseContext.addNamedFilter(queryName, new CustomQueryWrappingFilter(query));
         }

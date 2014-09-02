@@ -434,6 +434,7 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
 
         IndicesStatsResponse stats = client().admin().indices().prepareStats().setSegments(true).get();
         assertThat(stats.getTotal().getSegments().getIndexWriterMemoryInBytes(), greaterThan(0l));
+        assertThat(stats.getTotal().getSegments().getIndexWriterMaxMemoryInBytes(), greaterThan(0l));
         assertThat(stats.getTotal().getSegments().getVersionMapMemoryInBytes(), greaterThan(0l));
 
         client().admin().indices().prepareFlush().get();

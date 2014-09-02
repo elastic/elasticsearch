@@ -35,6 +35,7 @@ import org.elasticsearch.common.lucene.search.NotFilter;
 import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilter;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
@@ -75,8 +76,8 @@ public class ChildrenConstantScoreQueryTests extends AbstractChildTests {
         Query childQuery = new TermQuery(new Term("field", "value"));
         ParentFieldMapper parentFieldMapper = SearchContext.current().mapperService().documentMapper("child").parentFieldMapper();
         ParentChildIndexFieldData parentChildIndexFieldData = SearchContext.current().fieldData().getForField(parentFieldMapper);
-        Filter parentFilter = new TermFilter(new Term(TypeFieldMapper.NAME, "parent"));
-        Query query = new ChildrenConstantScoreQuery(parentChildIndexFieldData, childQuery, "parent", "child", parentFilter, 12, NonNestedDocsFilter.INSTANCE);
+        FixedBitSetFilter parentFilter = wrap(new TermFilter(new Term(TypeFieldMapper.NAME, "parent")));
+        Query query = new ChildrenConstantScoreQuery(parentChildIndexFieldData, childQuery, "parent", "child", parentFilter, 12, wrap(NonNestedDocsFilter.INSTANCE));
         QueryUtils.check(query);
     }
 
@@ -108,7 +109,7 @@ public class ChildrenConstantScoreQueryTests extends AbstractChildTests {
         ));
 
         TermQuery childQuery = new TermQuery(new Term("field1", "value" + (1 + random().nextInt(3))));
-        TermFilter parentFilter = new TermFilter(new Term(TypeFieldMapper.NAME, "parent"));
+        FixedBitSetFilter parentFilter = wrap(new TermFilter(new Term(TypeFieldMapper.NAME, "parent")));
         int shortCircuitParentDocSet = random().nextInt(5);
         ParentFieldMapper parentFieldMapper = SearchContext.current().mapperService().documentMapper("child").parentFieldMapper();
         ParentChildIndexFieldData parentChildIndexFieldData = SearchContext.current().fieldData().getForField(parentFieldMapper);
@@ -203,19 +204,10 @@ public class ChildrenConstantScoreQueryTests extends AbstractChildTests {
 
         ParentFieldMapper parentFieldMapper = SearchContext.current().mapperService().documentMapper("child").parentFieldMapper();
         ParentChildIndexFieldData parentChildIndexFieldData = SearchContext.current().fieldData().getForField(parentFieldMapper);
-        Filter rawParentFilter = new TermFilter(new Term(TypeFieldMapper.NAME, "parent"));
+        FixedBitSetFilter parentFilter = wrap(new TermFilter(new Term(TypeFieldMapper.NAME, "parent")));
         Filter rawFilterMe = new NotFilter(new TermFilter(new Term("filter", "me")));
         int max = numUniqueChildValues / 4;
         for (int i = 0; i < max; i++) {
-            // Randomly pick a cached version: there is specific logic inside ChildrenQuery that deals with the fact
-            // that deletes are applied at the top level when filters are cached.
-            Filter parentFilter;
-            if (random().nextBoolean()) {
-                parentFilter = SearchContext.current().filterCache().cache(rawParentFilter);
-            } else {
-                parentFilter = rawParentFilter;
-            }
-
             // Using this in FQ, will invoke / test the Scorer#advance(..) and also let the Weight#scorer not get live docs as acceptedDocs
             Filter filterMe;
             if (random().nextBoolean()) {
@@ -255,7 +247,7 @@ public class ChildrenConstantScoreQueryTests extends AbstractChildTests {
             String childValue = childValues[random().nextInt(numUniqueChildValues)];
             TermQuery childQuery = new TermQuery(new Term("field1", childValue));
             int shortCircuitParentDocSet = random().nextInt(numParentDocs);
-            Filter nonNestedDocsFilter = random().nextBoolean() ? NonNestedDocsFilter.INSTANCE : null;
+            FixedBitSetFilter nonNestedDocsFilter = random().nextBoolean() ? wrap(NonNestedDocsFilter.INSTANCE) : null;
             Query query;
             if (random().nextBoolean()) {
                 // Usage in HasChildQueryParser

@@ -259,31 +259,38 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
         protected static void parseProperties(ObjectMapper.Builder objBuilder, Map<String, Object> propsNode, ParserContext parserContext) {
             for (Map.Entry<String, Object> entry : propsNode.entrySet()) {
                 String propName = entry.getKey();
-                Map<String, Object> propNode = (Map<String, Object>) entry.getValue();
+                //Should accept empty arrays, as a work around for when the user can't provide an empty Map. (PHP for example)
+                boolean isEmptyList = entry.getValue() instanceof List && ((List<?>) entry.getValue()).isEmpty();
 
-                String type;
-                Object typeNode = propNode.get("type");
-                if (typeNode != null) {
-                    type = typeNode.toString();
-                } else {
-                    // lets see if we can derive this...
-                    if (propNode.get("properties") != null) {
-                        type = ObjectMapper.CONTENT_TYPE;
-                    } else if (propNode.size() == 1 && propNode.get("enabled") != null) {
-                        // if there is a single property with the enabled flag on it, make it an object
-                        // (usually, setting enabled to false to not index any type, including core values, which
-                        // non enabled object type supports).
-                        type = ObjectMapper.CONTENT_TYPE;
+                if (entry.getValue() instanceof  Map) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> propNode = (Map<String, Object>) entry.getValue();
+                    String type;
+                    Object typeNode = propNode.get("type");
+                    if (typeNode != null) {
+                        type = typeNode.toString();
                     } else {
-                        throw new MapperParsingException("No type specified for property [" + propName + "]");
+                        // lets see if we can derive this...
+                        if (propNode.get("properties") != null) {
+                            type = ObjectMapper.CONTENT_TYPE;
+                        } else if (propNode.size() == 1 && propNode.get("enabled") != null) {
+                            // if there is a single property with the enabled flag on it, make it an object
+                            // (usually, setting enabled to false to not index any type, including core values, which
+                            // non enabled object type supports).
+                            type = ObjectMapper.CONTENT_TYPE;
+                        } else {
+                            throw new MapperParsingException("No type specified for property [" + propName + "]");
+                        }
                     }
-                }
 
-                Mapper.TypeParser typeParser = parserContext.typeParser(type);
-                if (typeParser == null) {
-                    throw new MapperParsingException("No handler for type [" + type + "] declared on field [" + propName + "]");
+                    Mapper.TypeParser typeParser = parserContext.typeParser(type);
+                    if (typeParser == null) {
+                        throw new MapperParsingException("No handler for type [" + type + "] declared on field [" + propName + "]");
+                    }
+                    objBuilder.add(typeParser.parse(propName, propNode, parserContext));
+                } else if (!isEmptyList) {
+                    throw new MapperParsingException("Expected map for property [fields] on field [" + propName + "] but got a " + propName.getClass());
                 }
-                objBuilder.add(typeParser.parse(propName, propNode, parserContext));
             }
         }
 
@@ -413,10 +420,6 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
 
     public String fullPath() {
         return this.fullPath;
-    }
-
-    public BytesRef nestedTypePathAsBytes() {
-        return nestedTypePathAsBytes;
     }
 
     public String nestedTypePathAsString() {
@@ -791,21 +794,6 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                             }
                         }
                     }
-                    // DON'T do automatic ip detection logic, since it messes up with docs that have hosts and ips
-                    // check if its an ip
-//                if (!resolved && text.indexOf('.') != -1) {
-//                    try {
-//                        IpFieldMapper.ipToLong(text);
-//                        XContentMapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "ip");
-//                        if (builder == null) {
-//                            builder = ipField(currentFieldName);
-//                        }
-//                        mapper = builder.build(builderContext);
-//                        resolved = true;
-//                    } catch (Exception e) {
-//                        // failure to parse, not ip...
-//                    }
-//                }
                     if (!resolved) {
                         Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "string");
                         if (builder == null) {

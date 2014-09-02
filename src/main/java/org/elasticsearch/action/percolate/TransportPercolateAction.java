@@ -160,7 +160,7 @@ public class TransportPercolateAction extends TransportBroadcastOperationAction<
             long tookInMillis = System.currentTimeMillis() - request.startTime;
             return new PercolateResponse(
                     shardsResponses.length(), successfulShards, failedShards, shardFailures,
-                    result.matches(), result.count(), tookInMillis, result.reducedFacets(), result.reducedAggregations()
+                    result.matches(), result.count(), tookInMillis, result.reducedAggregations()
             );
         }
     }

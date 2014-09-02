@@ -97,7 +97,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
     private volatile ByteSizeValue indexingBufferSize;
     private volatile int indexConcurrency;
     private volatile boolean compoundOnFlush = true;
-    private volatile boolean checksumOnMerge = false;
+    private volatile boolean checksumOnMerge = true;
 
     private long gcDeletesInMillis;
 

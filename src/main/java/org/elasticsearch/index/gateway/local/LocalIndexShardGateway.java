@@ -28,6 +28,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -41,9 +42,7 @@ import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
-import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.index.translog.TranslogStream;
-import org.elasticsearch.index.translog.TranslogStreams;
+import org.elasticsearch.index.translog.*;
 import org.elasticsearch.index.translog.fs.FsTranslog;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.rest.RestStatus;
@@ -230,15 +229,26 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
 
             recoveryState.getTranslog().startTime(System.currentTimeMillis());
             recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
-            TranslogStream stream = null;
+            StreamInput in = null;
 
             final Set<String> typesToUpdate = Sets.newHashSet();
             try {
-                stream = TranslogStreams.translogStreamFor(recoveringTranslogFile);
+                TranslogStream stream = TranslogStreams.translogStreamFor(recoveringTranslogFile);
+                try {
+                    in = stream.openInput(recoveringTranslogFile);
+                } catch (TruncatedTranslogException e) {
+                    // file is empty or header has been half-written and should be ignored
+                }
                 while (true) {
+                    if (in == null) {
+                        break;
+                    }
                     Translog.Operation operation;
                     try {
-                        operation = stream.read();
+                        if (stream instanceof LegacyTranslogStream) {
+                            in.readInt(); // ignored opSize
+                        }
+                        operation = stream.read(in);
                     } catch (EOFException e) {
                         // ignore, not properly written the last op
                         break;
@@ -268,11 +278,7 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
                 indexShard.translog().closeWithDelete();
                 throw new IndexShardGatewayRecoveryException(shardId, "failed to recover shard", e);
             } finally {
-                try {
-                    IOUtils.close(stream);
-                } catch (IOException e) {
-                    // ignore
-                }
+                IOUtils.closeWhileHandlingException(in);
             }
             indexShard.performRecoveryFinalization(true);
 

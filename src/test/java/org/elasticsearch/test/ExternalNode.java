@@ -25,11 +25,15 @@ import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.node.internal.InternalSettingsPreparer;
 
 import java.io.Closeable;
 import java.io.File;
@@ -40,6 +44,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
+import static junit.framework.Assert.assertFalse;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 
 /**
@@ -171,9 +176,17 @@ final class ExternalNode implements Closeable {
         }
         if (client == null) {
             TransportAddress addr = nodeInfo.getTransport().getAddress().publishAddress();
-            TransportClient client = new TransportClient(settingsBuilder().put("client.transport.nodes_sampler_interval", "1s")
+            // verify that the end node setting will have network enabled.
+
+            Settings clientSettings = settingsBuilder().put("client.transport.nodes_sampler_interval", "1s")
                     .put("name", "transport_client_" + nodeInfo.getNode().name())
-                    .put(ClusterName.SETTING, clusterName).put("client.transport.sniff", false).build());
+                    .put(ClusterName.SETTING, clusterName).put("client.transport.sniff", false).build();
+
+            Tuple<Settings, Environment> finalSettings = InternalSettingsPreparer.prepareSettings(clientSettings, true);
+            assertFalse("backward compatibility tests must run in network mode. You probably have a system property overriding the test settings.",
+                    DiscoveryNode.localNode(finalSettings.v1()));
+
+            TransportClient client = new TransportClient(clientSettings);
             client.addTransportAddress(addr);
             this.client = client;
         }

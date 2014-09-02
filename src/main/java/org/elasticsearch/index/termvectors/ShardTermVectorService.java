@@ -190,7 +190,7 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
 
     private Fields generateTermVectorsFromDoc(TermVectorRequest request, Fields topLevelFields) throws IOException {
         DocumentMapper docMapper = indexShard.mapperService().documentMapper(request.type());
-        ParseContext.Document doc = docMapper.parse(source(request.doc()).type(request.type()).id(request.id())).rootDoc();
+        ParseContext.Document doc = docMapper.parse(source(request.doc()).type(request.type()).flyweight(true)).rootDoc();
 
         Collection<String> seenFields = new HashSet<>();
         Collection<GetField> getFields = new HashSet<>();

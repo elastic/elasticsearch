@@ -30,8 +30,6 @@ import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.util.CollectionUtils;
 
 import java.io.BufferedReader;
-import java.io.IOException;
-import java.security.SecureRandom;
 import java.util.*;
 
 /**
@@ -48,6 +46,9 @@ public class Strings {
     private static final String TOP_PATH = "src/test";
 
     private static final String CURRENT_PATH = ".";
+
+    private static final RandomBasedUUIDGenerator RANDOM_UUID_GENERATOR = new RandomBasedUUIDGenerator();
+    private static final UUIDGenerator TIME_UUID_GENERATOR = new TimeBasedUUIDGenerator();
 
     public static void spaceify(int spaces, String from, StringBuilder to) throws Exception {
         try (BufferedReader reader = new BufferedReader(new FastStringReader(from))) {
@@ -1023,51 +1024,6 @@ public class Strings {
         return bytes;
     }
 
-    private static class SecureRandomHolder {
-        // class loading is atomic - this is a lazy & safe singleton
-        private static final SecureRandom INSTANCE = new SecureRandom();
-    }
-
-    /**
-     * Returns a Base64 encoded version of a Version 4.0 compatible UUID
-     * as defined here: http://www.ietf.org/rfc/rfc4122.txt
-     */
-    public static String randomBase64UUID() {
-        return randomBase64UUID(SecureRandomHolder.INSTANCE);
-    }
-    
-    /**
-     * Returns a Base64 encoded version of a Version 4.0 compatible UUID
-     * randomly initialized by the given {@link Random} instance
-     * as defined here: http://www.ietf.org/rfc/rfc4122.txt
-     */
-    public static String randomBase64UUID(Random random) {
-        final byte[] randomBytes = new byte[16];
-        random.nextBytes(randomBytes);
-        
-        /* Set the version to version 4 (see http://www.ietf.org/rfc/rfc4122.txt)
-         * The randomly or pseudo-randomly generated version.
-         * The version number is in the most significant 4 bits of the time
-         * stamp (bits 4 through 7 of the time_hi_and_version field).*/
-        randomBytes[6] &= 0x0f;  /* clear the 4 most significant bits for the version  */
-        randomBytes[6] |= 0x40;  /* set the version to 0100 / 0x40 */
-        
-        /* Set the variant: 
-         * The high field of th clock sequence multiplexed with the variant.
-         * We set only the MSB of the variant*/
-        randomBytes[8] &= 0x3f;  /* clear the 2 most significant bits */
-        randomBytes[8] |= 0x80;  /* set the variant (MSB is set)*/
-        try {
-            byte[] encoded = Base64.encodeBytesToBytes(randomBytes, 0, randomBytes.length, Base64.URL_SAFE);
-            // we know the bytes are 16, and not a multi of 3, so remove the 2 padding chars that are added
-            assert encoded[encoded.length - 1] == '=';
-            assert encoded[encoded.length - 2] == '=';
-            // we always have padding of two at the end, encode it differently
-            return new String(encoded, 0, encoded.length - 2, Base64.PREFERRED_ENCODING);
-        } catch (IOException e) {
-            throw new ElasticsearchIllegalStateException("should not be thrown");
-        }
-    }
 
     /**
      * Return substring(beginIndex, endIndex) that is impervious to string length.
@@ -1093,5 +1049,23 @@ public class Strings {
     public static boolean isAllOrWildcard(String[] data) {
         return CollectionUtils.isEmpty(data) ||
                data.length == 1 && ("_all".equals(data[0]) || "*".equals(data[0]));
+    }
+
+    /** Returns a Base64 encoded version of a Version 4.0 compatible UUID as defined here: http://www.ietf.org/rfc/rfc4122.txt, using a
+     *  private {@code SecureRandom} instance */
+    public static String randomBase64UUID() {
+        return RANDOM_UUID_GENERATOR.getBase64UUID();
+    }
+
+    /** Returns a Base64 encoded version of a Version 4.0 compatible UUID as defined here: http://www.ietf.org/rfc/rfc4122.txt, using the
+     *  provided {@code Random} instance */
+    public static String randomBase64UUID(Random random) {
+        return RANDOM_UUID_GENERATOR.getBase64UUID(random);
+    }
+
+    /** Generates a time-based UUID (similar to Flake IDs), which is preferred when generating an ID to be indexed into a Lucene index as
+     *  primary key.  The id is opaque and the implementation is free to change at any time! */
+    public static String base64UUID() {
+        return TIME_UUID_GENERATOR.getBase64UUID();
     }
 }

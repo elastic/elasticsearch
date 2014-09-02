@@ -36,7 +36,7 @@ class TimeBasedUUIDGenerator implements UUIDGenerator {
     private final AtomicInteger sequenceNumber = new AtomicInteger(SecureRandomHolder.INSTANCE.nextInt());
 
     // Used to ensure clock moves forward:
-    private final AtomicLong lastTimestamp = new AtomicLong();
+    private long lastTimestamp;
 
     private static final byte[] secureMungedAddress = MacAddressProvider.getSecureMungedAddress();
 
@@ -47,31 +47,27 @@ class TimeBasedUUIDGenerator implements UUIDGenerator {
     /** Puts the lower numberOfLongBytes from l into the array, starting index pos. */
     private static void putLong(byte[] array, long l, int pos, int numberOfLongBytes) {
         for (int i=0; i<numberOfLongBytes; ++i) {
-            array[pos+numberOfLongBytes-i-1] = (byte)( l >> (i*8) & 0xff);
+            array[pos+numberOfLongBytes-i-1] = (byte) (l >>> (i*8));
         }
     }
 
     @Override
     public String getBase64UUID()  {
         final int sequenceId = sequenceNumber.incrementAndGet() & 0xffffff;
+        long timestamp = System.currentTimeMillis();
 
-        // Deal with clock moving backwards "on our watch" by recording the last timestamp only if it increased:
-        long timestamp;
-        while (true) {
-            final long last = lastTimestamp.get();
-            timestamp = System.currentTimeMillis();
-            if ((sequenceId & 0xffff) == 0) {
-                // If we have a long time-slip backwards, force the clock to increment whenever lower 4 bytes of sequence number wraps
-                // around to 0.  This is only best-effort (not perfectly thread safe):
+        synchronized (this) {
+            // Don't let timestamp go backwards, at least "on our watch" (while this JVM is running).  We are still vulnerable if we are
+            // shut down, clock goes backwards, and we restart... for this we randomize the sequenceNumber on init to decrease chance of
+            // collision:
+            timestamp = Math.max(lastTimestamp, timestamp);
+
+            if (sequenceId == 0) {
+                // If we have a long time-slip backwards, force the clock to increment whenever sequence number is 0:
                 timestamp++;
             }
-            if (timestamp <= last) {
-                // Clock slipped backwards:
-                timestamp = last;
-                break;
-            } else if (lastTimestamp.compareAndSet(last, timestamp)) {
-                break;
-            }
+
+            lastTimestamp = timestamp;
         }
 
         final byte[] uuidBytes = new byte[15];

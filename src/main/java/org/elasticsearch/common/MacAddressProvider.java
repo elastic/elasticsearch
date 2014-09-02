@@ -29,21 +29,24 @@ import java.util.Enumeration;
 
 public class MacAddressProvider {
 
-    private static final ESLogger logger = Loggers.getLogger("MacAddressProvider");
+    private static final ESLogger logger = Loggers.getLogger(MacAddressProvider.class);
 
-    public static byte[] getMacAddress() throws SocketException {
+    private static byte[] getMacAddress() throws SocketException {
         Enumeration<NetworkInterface> en = NetworkInterface.getNetworkInterfaces();
-        while (en.hasMoreElements()) {
-            NetworkInterface nint = en.nextElement();
-            if (!nint.isLoopback()) {
-                //Pick the first non loopback address we find
-                byte[] address = nint.getHardwareAddress();
-                if (address != null && address.length == 6) {
-                    return address;
+        if (en != null) {
+            while (en.hasMoreElements()) {
+                NetworkInterface nint = en.nextElement();
+                if (!nint.isLoopback()) {
+                    // Pick the first valid non loopback address we find
+                    byte[] address = nint.getHardwareAddress();
+                    if (isValidAddress(address)) {
+                        return address;
+                    }
                 }
             }
         }
-        return null; //Could not find a mac address
+        // Could not find a mac address
+        return null;
     }
 
     private static boolean isValidAddress(byte[] address){
@@ -52,7 +55,7 @@ public class MacAddressProvider {
         }
         for (byte b : address){
             if (b != 0x00){
-                return true; //If any of the bytes are non zero assume a good address
+                return true; // If any of the bytes are non zero assume a good address
             }
         }
         return false;
@@ -75,7 +78,7 @@ public class MacAddressProvider {
         byte[] mungedBytes = new byte[6];
         SecureRandomHolder.INSTANCE.nextBytes(mungedBytes);
         for (int i = 0; i < 6; ++i) {
-            mungedBytes[i] = (byte) (0xff & (mungedBytes[i] ^ address[i]));
+            mungedBytes[i] ^= address[i];
         }
 
         return mungedBytes;

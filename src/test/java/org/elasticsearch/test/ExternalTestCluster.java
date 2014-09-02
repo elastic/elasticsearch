@@ -72,7 +72,7 @@ public final class ExternalTestCluster extends TestCluster {
 
         // verify that the end node setting will have network enabled.
         Tuple<Settings, Environment> finalSettings = InternalSettingsPreparer.prepareSettings(clientSettings, true);
-        assertFalse("backward compatibility tests must run in network mode. You probably have a system property overriding the test settings",
+        assertFalse("testing against an external cluster must run in network mode. You probably have a system property overriding the test settings.",
                 DiscoveryNode.localNode(finalSettings.v1()));
 
         this.client = new TransportClient(clientSettings).addTransportAddresses(transportAddresses);

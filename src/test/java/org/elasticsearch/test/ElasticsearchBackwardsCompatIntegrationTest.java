@@ -152,7 +152,7 @@ public abstract class ElasticsearchBackwardsCompatIntegrationTest extends Elasti
 
         // verify that the end node setting will have network enabled.
         Tuple<Settings, Environment> finalSettings = InternalSettingsPreparer.prepareSettings(settings, true);
-        assertFalse("backward compatibility tests must run in network mode. You probably have a system property overriding the test settings",
+        assertFalse("backward compatibility tests must run in network mode. You probably have a system property overriding the test settings.",
                 DiscoveryNode.localNode(finalSettings.v1()));
         return settings;
     }

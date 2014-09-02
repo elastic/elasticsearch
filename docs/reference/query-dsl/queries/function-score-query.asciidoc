@@ -192,7 +192,7 @@ doing so would look like:
 }
 --------------------------------------------------
 
-Which will translate into the following forumla for scoring:
+Which will translate into the following formula for scoring:
 
 `sqrt(1.2 * doc['popularity'].value)`
 

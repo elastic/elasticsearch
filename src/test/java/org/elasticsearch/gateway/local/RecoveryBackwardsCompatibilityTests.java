@@ -32,14 +32,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.*;
 
 @ElasticsearchIntegrationTest.ClusterScope(numDataNodes = 0, scope = ElasticsearchIntegrationTest.Scope.TEST, numClientNodes = 0, transportClientRatio = 0.0)
 public class RecoveryBackwardsCompatibilityTests extends ElasticsearchBackwardsCompatIntegrationTest {
@@ -49,8 +46,8 @@ public class RecoveryBackwardsCompatibilityTests extends ElasticsearchBackwardsC
         return ImmutableSettings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("action.admin.cluster.node.shutdown.delay", "10ms")
-                .put("gateway.recover_after_nodes", 3)
-                .put(BalancedShardsAllocator.SETTING_THRESHOLD, 1.1f).build(); // use less agressive settings
+                .put("gateway.recover_after_nodes", 2)
+                .put(BalancedShardsAllocator.SETTING_THRESHOLD, 1.1f).build(); // use less aggressive settings
     }
 
     protected int minExternalNodes() {

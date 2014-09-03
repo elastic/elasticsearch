@@ -23,7 +23,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.ScriptService;
@@ -36,14 +35,12 @@ import org.elasticsearch.transport.TransportService;
 public class TransportGetIndexedScriptAction extends HandledTransportAction<GetIndexedScriptRequest, GetIndexedScriptResponse> {
 
     private final ScriptService scriptService;
-    private final Client client;
 
     @Inject
     public TransportGetIndexedScriptAction(Settings settings, ThreadPool threadPool, ScriptService scriptService,
-                                           TransportService transportService, Client client, ActionFilters actionFilters) {
+                                           TransportService transportService, ActionFilters actionFilters) {
         super(settings, GetIndexedScriptAction.NAME, threadPool,transportService,  actionFilters);
         this.scriptService = scriptService;
-        this.client = client;
     }
 
     @Override
@@ -53,7 +50,7 @@ public class TransportGetIndexedScriptAction extends HandledTransportAction<GetI
 
     @Override
     public void doExecute(GetIndexedScriptRequest request, ActionListener<GetIndexedScriptResponse> listener){
-        GetResponse scriptResponse = scriptService.queryScriptIndex(client, request.scriptLang(), request.id(), request.version(), request.versionType());
+        GetResponse scriptResponse = scriptService.queryScriptIndex(request);
         listener.onResponse(new GetIndexedScriptResponse(scriptResponse));
     }
 }

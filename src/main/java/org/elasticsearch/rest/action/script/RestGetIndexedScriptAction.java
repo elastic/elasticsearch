@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestResponseListener;
 
@@ -47,11 +48,24 @@ public class RestGetIndexedScriptAction extends BaseRestHandler {
         controller.registerHandler(GET, "/_scripts/{lang}/{id}", this);
     }
 
+    protected RestGetIndexedScriptAction(Settings settings, Client client) {
+        super(settings, client);
+    }
+
+    protected String getScriptLang(RestRequest request) {
+        return request.param("lang");
+    }
+
+    protected String getScriptFieldName() {
+        return "script";
+    }
+
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, Client client) {
-
-        final GetIndexedScriptRequest getRequest = new GetIndexedScriptRequest(request.param("lang"), request.param("id"));
-        RestResponseListener<GetIndexedScriptResponse> responseListener = new RestResponseListener<GetIndexedScriptResponse>(channel) {
+        final GetIndexedScriptRequest getRequest = new GetIndexedScriptRequest(getScriptLang(request), request.param("id"));
+        getRequest.version(request.paramAsLong("version", getRequest.version()));
+        getRequest.versionType(VersionType.fromString(request.param("version_type"), getRequest.versionType()));
+        client.getIndexedScript(getRequest, new RestResponseListener<GetIndexedScriptResponse>(channel) {
             @Override
             public RestResponse buildResponse(GetIndexedScriptResponse response) throws Exception {
                 XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -61,7 +75,7 @@ public class RestGetIndexedScriptAction extends BaseRestHandler {
                     try{
                         String script = response.getScript();
                         builder.startObject();
-                        builder.field("script",script);
+                        builder.field(getScriptFieldName(), script);
                         builder.endObject();
                         return new BytesRestResponse(OK, builder);
                     } catch( IOException|ClassCastException e ){
@@ -69,7 +83,6 @@ public class RestGetIndexedScriptAction extends BaseRestHandler {
                     }
                 }
             }
-        };
-        client.getIndexedScript(getRequest, responseListener);
+        });
     }
 }

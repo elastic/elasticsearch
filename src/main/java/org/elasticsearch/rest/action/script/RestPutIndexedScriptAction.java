@@ -27,6 +27,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 
@@ -52,6 +53,10 @@ public class RestPutIndexedScriptAction extends BaseRestHandler {
         controller.registerHandler(POST, "/_scripts/{lang}/{id}/_create", new CreateHandler(settings, client));
     }
 
+    protected RestPutIndexedScriptAction(Settings settings, Client client) {
+        super(settings, client);
+    }
+
     final class CreateHandler extends BaseRestHandler {
         protected CreateHandler(Settings settings, final Client client) {
             super(settings, client);
@@ -64,12 +69,15 @@ public class RestPutIndexedScriptAction extends BaseRestHandler {
         }
     }
 
+    protected String getScriptLang(RestRequest request) {
+        return request.param("lang");
+    }
+
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, Client client) {
-
-        PutIndexedScriptRequest putRequest = new PutIndexedScriptRequest(request.param("lang"), request.param("id"));
-        putRequest.listenerThreaded(false);
-
+        PutIndexedScriptRequest putRequest = new PutIndexedScriptRequest(getScriptLang(request), request.param("id")).listenerThreaded(false);
+        putRequest.version(request.paramAsLong("version", putRequest.version()));
+        putRequest.versionType(VersionType.fromString(request.param("version_type"), putRequest.versionType()));
         putRequest.source(request.content(), request.contentUnsafe());
         String sOpType = request.param("op_type");
         if (sOpType != null) {
@@ -109,5 +117,4 @@ public class RestPutIndexedScriptAction extends BaseRestHandler {
         static final XContentBuilderString _ID = new XContentBuilderString("_id");
         static final XContentBuilderString CREATED = new XContentBuilderString("created");
     }
-
 }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.delete;
 
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.replication.ShardReplicationOperationRequest;
 import org.elasticsearch.common.Nullable;
@@ -84,6 +85,14 @@ public class DeleteRequest extends ShardReplicationOperationRequest<DeleteReques
     }
 
     public DeleteRequest() {
+    }
+
+    /**
+     * Creates a delete request caused by some other request, which is provided as an
+     * argument so that its headers and context can be copied to the new request
+     */
+    public DeleteRequest(ActionRequest request) {
+        super(request);
     }
 
     @Override

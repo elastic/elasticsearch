@@ -232,12 +232,8 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
         }
 
         /** If forced is true, which happens when dynamic memory settings are updating, we recalculate even if active/inactive shards didn't change. */
-        public void run(boolean forced) {
+        public synchronized void run(boolean forced) {
 
-            // NOTE: be careful about adding any sync'd here, else it can cause tricky cross-node deadlock:
-            // https://github.com/elasticsearch/elasticsearch/pull/6892
-
-            // nocommit how/whether to protect this...?  BG thread and "refreshSettings" can call it at once...
             EnumSet<ShardStatusChangeType> changes = EnumSet.noneOf(ShardStatusChangeType.class);
 
             changes.addAll(purgeDeletedAndClosedShards());

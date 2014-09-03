@@ -103,28 +103,29 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+
 /**
  *
  */
 public final class InternalNode implements Node {
 
+    private static final String CLIENT_TYPE = "node";
+
     private final Lifecycle lifecycle = new Lifecycle();
-
     private final Injector injector;
-
     private final Settings settings;
-
     private final Environment environment;
-
     private final PluginsService pluginsService;
-
     private final Client client;
 
     public InternalNode() throws ElasticsearchException {
         this(ImmutableSettings.Builder.EMPTY_SETTINGS, true);
     }
 
-    public InternalNode(Settings pSettings, boolean loadConfigSettings) throws ElasticsearchException {
+    public InternalNode(Settings preparedSettings, boolean loadConfigSettings) throws ElasticsearchException {
+        final Settings pSettings = settingsBuilder().put(preparedSettings)
+                .put(Client.CLIENT_TYPE_SETTING, CLIENT_TYPE).build();
         Tuple<Settings, Environment> tuple = InternalSettingsPreparer.prepareSettings(pSettings, loadConfigSettings);
         tuple = new Tuple<>(TribeService.processSettings(tuple.v1()), tuple.v2());
 

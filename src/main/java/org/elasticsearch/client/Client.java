@@ -82,6 +82,8 @@ import org.elasticsearch.common.settings.Settings;
  */
 public interface Client extends ElasticsearchClient<Client>, Releasable {
 
+    String CLIENT_TYPE_SETTING = "client.type";
+
     /**
      * The admin client that can be used to perform administrative operations.
      */

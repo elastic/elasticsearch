@@ -19,9 +19,12 @@
 
 package org.elasticsearch.action.indexedscripts.get;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.ValidateActions;
-import org.elasticsearch.action.support.single.shard.SingleShardOperationRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -33,15 +36,12 @@ import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import java.io.IOException;
 
 /**
- * A request to get a document (its source) from an index based on its type/language (optional) and id. Best created using
- * {@link org.elasticsearch.client.Requests#getRequest(String)}.
- * <p/>
- * <p>The operation requires the {@link #index()}, {@link #scriptLang(String)} and {@link #id(String)}
- * to be set.
+ * A request to get an indexed script (its source) based on its language (optional) and id.
+ * The operation requires the {@link #scriptLang(String)} and {@link #id(String)} to be set.
  *
  * @see GetIndexedScriptResponse
  */
-public class GetIndexedScriptRequest extends SingleShardOperationRequest<GetIndexedScriptRequest> {
+public class GetIndexedScriptRequest extends ActionRequest<GetIndexedScriptRequest> implements IndicesRequest {
 
     protected String scriptLang;
     protected String id;
@@ -56,32 +56,28 @@ public class GetIndexedScriptRequest extends SingleShardOperationRequest<GetInde
     private VersionType versionType = VersionType.INTERNAL;
     private long version = Versions.MATCH_ANY;
 
-
-
     /**
      * Constructs a new get request against the script index. The {@link #scriptLang(String)} and {@link #id(String)}
      * must be set.
      */
     public GetIndexedScriptRequest() {
-        super(ScriptService.SCRIPT_INDEX);
+
     }
 
     /**
      * Constructs a new get request against the script index with the type and id.
      *
-     * @param index The index to get the document from
-     * @param scriptLang  The type of the document
-     * @param id    The id of the document
+     * @param scriptLang  The language of the script
+     * @param id    The id of the script
      */
-    public GetIndexedScriptRequest(String index, String scriptLang, String id) {
-        super(index);
+    public GetIndexedScriptRequest(String scriptLang, String id) {
         this.scriptLang = scriptLang;
         this.id = id;
     }
 
     @Override
     public ActionRequestValidationException validate() {
-        ActionRequestValidationException validationException = super.validate();
+        ActionRequestValidationException validationException = null;
         if (scriptLang == null) {
             validationException = ValidateActions.addValidationError("type is missing", validationException);
         }
@@ -100,8 +96,14 @@ public class GetIndexedScriptRequest extends SingleShardOperationRequest<GetInde
         return new String[]{ScriptService.SCRIPT_INDEX};
     }
 
+
+    @Override
+    public IndicesOptions indicesOptions() {
+        return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
+    }
+
     /**
-     * Sets the type of the document to fetch.
+     * Sets the language of the script to fetch.
      */
     public GetIndexedScriptRequest scriptLang(@Nullable String type) {
         this.scriptLang = type;
@@ -109,7 +111,7 @@ public class GetIndexedScriptRequest extends SingleShardOperationRequest<GetInde
     }
 
     /**
-     * Sets the id of the document to fetch.
+     * Sets the id of the script to fetch.
      */
     public GetIndexedScriptRequest id(String id) {
         this.id = id;
@@ -125,17 +127,8 @@ public class GetIndexedScriptRequest extends SingleShardOperationRequest<GetInde
         return this;
     }
 
-
     /**
-     * Explicitly specify the fields that will be returned. By default, the <tt>_source</tt>
-     * field will be returned.
-     */
-    public String[] fields() {
-        return null;
-    }
-
-    /**
-     * Sets the preference to execute the search. Defaults to randomize across shards. Can be set to
+     * Sets the preference to execute the get. Defaults to randomize across shards. Can be set to
      * <tt>_local</tt> to prefer local shards, <tt>_primary</tt> to execute only on primary shards, or
      * a custom value, which guarantees that the same order will be used across different requests.
      */
@@ -211,6 +204,10 @@ public class GetIndexedScriptRequest extends SingleShardOperationRequest<GetInde
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
+        if (in.getVersion().before(Version.V_1_4_0)) {
+            //the index was previously serialized although not needed
+            in.readString();
+        }
         scriptLang = in.readString();
         id = in.readString();
         preference = in.readOptionalString();
@@ -231,13 +228,17 @@ public class GetIndexedScriptRequest extends SingleShardOperationRequest<GetInde
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        if (out.getVersion().before(Version.V_1_4_0)) {
+            //the index was previously serialized although not needed
+            out.writeString(ScriptService.SCRIPT_INDEX);
+        }
         out.writeString(scriptLang);
         out.writeString(id);
         out.writeOptionalString(preference);
         out.writeBoolean(refresh);
         if (realtime == null) {
             out.writeByte((byte) -1);
-        } else if (realtime == false) {
+        } else if (!realtime) {
             out.writeByte((byte) 0);
         } else {
             out.writeByte((byte) 1);
@@ -251,7 +252,6 @@ public class GetIndexedScriptRequest extends SingleShardOperationRequest<GetInde
 
     @Override
     public String toString() {
-        return "[" + index + "][" + scriptLang + "][" + id + "]: routing [" + routing + "]";
-
+        return "[" + ScriptService.SCRIPT_INDEX + "][" + scriptLang + "][" + id + "]: routing [" + routing + "]";
     }
 }

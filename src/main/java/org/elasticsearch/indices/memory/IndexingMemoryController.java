@@ -19,7 +19,9 @@
 
 package org.elasticsearch.indices.memory;
 
-import com.google.common.collect.Lists;
+import java.util.*;
+import java.util.concurrent.ScheduledFuture;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -31,6 +33,8 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineClosedException;
 import org.elasticsearch.index.engine.FlushNotAllowedEngineException;
 import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
@@ -38,61 +42,70 @@ import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.threadpool.ThreadPool;
-
-import java.util.*;
-import java.util.concurrent.ScheduledFuture;
+import com.google.common.collect.Lists;
 
 /**
  *
  */
 public class IndexingMemoryController extends AbstractLifecycleComponent<IndexingMemoryController> {
 
+    private static final String INDEX_BUFFER_SIZE_KEY = "index_buffer_size";
+    private static final String MIN_INDEX_BUFFER_SIZE_KEY = "min_index_buffer_size";
+    private static final String MAX_INDEX_BUFFER_SIZE_KEY = "max_index_buffer_size";
+    private static final String MIN_SHARD_INDEX_BUFFER_SIZE_KEY = "min_shard_index_buffer_size";
+    private static final String MAX_SHARD_INDEX_BUFFER_SIZE_KEY = "max_shard_index_buffer_size";
+
+    public static final String INDEX_BUFFER_SIZE = "indices.memory." + INDEX_BUFFER_SIZE_KEY;
+    public static final String MIN_INDEX_BUFFER_SIZE = "indices.memory." + MIN_INDEX_BUFFER_SIZE_KEY;
+    public static final String MAX_INDEX_BUFFER_SIZE = "indices.memory." + MAX_INDEX_BUFFER_SIZE_KEY;
+    public static final String MIN_SHARD_INDEX_BUFFER_SIZE = "indices.memory." + MIN_SHARD_INDEX_BUFFER_SIZE_KEY;
+    public static final String MAX_SHARD_INDEX_BUFFER_SIZE = "indices.memory." + MAX_SHARD_INDEX_BUFFER_SIZE_KEY;
+
+    /** Default value for min_index_buffer_size, which is applied when index_buffer_size is a %tg. */
+    private static final ByteSizeValue DEFAULT_MIN_INDEX_BUFFER_SIZE = new ByteSizeValue(48, ByteSizeUnit.MB);
+
+    /** Default min_shard_index_buffer_size, which is applied after dividing up index_buffer_size across all active shards. */
+    private static final ByteSizeValue DEFAULT_MIN_SHARD_INDEX_BUFFER_SIZE = new ByteSizeValue(4, ByteSizeUnit.MB);
+    
+    /** Default max_shard_index_buffer_size, which is applied after dividing up index_buffer_size across all active shards. */
+    // LUCENE MONITOR: Based on this thread, currently (based on Mike), having a large buffer does not make a lot of sense: https://issues.apache.org/jira/browse/LUCENE-2324?focusedCommentId=13005155&page=com.atlassian.jira.plugin.system.issuetabpanels:comment-tabpanel#comment-13005155
+    private static final ByteSizeValue DEFAULT_MAX_SHARD_INDEX_BUFFER_SIZE = new ByteSizeValue(512, ByteSizeUnit.MB);
+
     private final ThreadPool threadPool;
     private final IndicesService indicesService;
 
-    private final ByteSizeValue indexingBuffer;
-    private final ByteSizeValue minShardIndexBufferSize;
-    private final ByteSizeValue maxShardIndexBufferSize;
+    private volatile ByteSizeValue indexingBuffer;
+    private volatile ByteSizeValue minShardIndexBufferSize;
+    private volatile ByteSizeValue maxShardIndexBufferSize;
 
     private final ByteSizeValue translogBuffer;
     private final ByteSizeValue minShardTranslogBufferSize;
     private final ByteSizeValue maxShardTranslogBufferSize;
+    private final NodeSettingsService nodeSettingsService;
 
     private final TimeValue inactiveTime;
     private final TimeValue interval;
 
     private volatile ScheduledFuture scheduler;
 
+    private final ShardsIndicesStatusChecker statusChecker = new ShardsIndicesStatusChecker();
+    private final ApplySettings applySettings = new ApplySettings();
+
     private static final EnumSet<IndexShardState> CAN_UPDATE_INDEX_BUFFER_STATES = EnumSet.of(IndexShardState.POST_RECOVERY, IndexShardState.STARTED, IndexShardState.RELOCATED);
 
     @Inject
-    public IndexingMemoryController(Settings settings, ThreadPool threadPool, IndicesService indicesService) {
+    public IndexingMemoryController(Settings settings, ThreadPool threadPool, IndicesService indicesService, NodeSettingsService nodeSettingsService) {
         super(settings);
         this.threadPool = threadPool;
         this.indicesService = indicesService;
+        this.nodeSettingsService = nodeSettingsService;
 
-        ByteSizeValue indexingBuffer;
-        String indexingBufferSetting = componentSettings.get("index_buffer_size", "10%");
-        if (indexingBufferSetting.endsWith("%")) {
-            double percent = Double.parseDouble(indexingBufferSetting.substring(0, indexingBufferSetting.length() - 1));
-            indexingBuffer = new ByteSizeValue((long) (((double) JvmInfo.jvmInfo().mem().heapMax().bytes()) * (percent / 100)));
-            ByteSizeValue minIndexingBuffer = componentSettings.getAsBytesSize("min_index_buffer_size", new ByteSizeValue(48, ByteSizeUnit.MB));
-            ByteSizeValue maxIndexingBuffer = componentSettings.getAsBytesSize("max_index_buffer_size", null);
+        this.indexingBuffer = parseIndexingBuffer(settings);
 
-            if (indexingBuffer.bytes() < minIndexingBuffer.bytes()) {
-                indexingBuffer = minIndexingBuffer;
-            }
-            if (maxIndexingBuffer != null && indexingBuffer.bytes() > maxIndexingBuffer.bytes()) {
-                indexingBuffer = maxIndexingBuffer;
-            }
-        } else {
-            indexingBuffer = ByteSizeValue.parseBytesSizeValue(indexingBufferSetting, null);
-        }
-        this.indexingBuffer = indexingBuffer;
-        this.minShardIndexBufferSize = componentSettings.getAsBytesSize("min_shard_index_buffer_size", new ByteSizeValue(4, ByteSizeUnit.MB));
-        // LUCENE MONITOR: Based on this thread, currently (based on Mike), having a large buffer does not make a lot of sense: https://issues.apache.org/jira/browse/LUCENE-2324?focusedCommentId=13005155&page=com.atlassian.jira.plugin.system.issuetabpanels:comment-tabpanel#comment-13005155
-        this.maxShardIndexBufferSize = componentSettings.getAsBytesSize("max_shard_index_buffer_size", new ByteSizeValue(512, ByteSizeUnit.MB));
+        this.minShardIndexBufferSize = componentSettings.getAsBytesSize(MIN_SHARD_INDEX_BUFFER_SIZE_KEY, DEFAULT_MIN_SHARD_INDEX_BUFFER_SIZE);
+        this.maxShardIndexBufferSize = componentSettings.getAsBytesSize(MAX_SHARD_INDEX_BUFFER_SIZE_KEY, DEFAULT_MAX_SHARD_INDEX_BUFFER_SIZE);
 
         ByteSizeValue translogBuffer;
         String translogBufferSetting = componentSettings.get("translog_buffer_size", "1%");
@@ -119,14 +132,41 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
         // we need to have this relatively small to move a shard from inactive to active fast (enough)
         this.interval = componentSettings.getAsTime("interval", TimeValue.timeValueSeconds(30));
 
-        logger.debug("using index_buffer_size [{}], with min_shard_index_buffer_size [{}], max_shard_index_buffer_size [{}], shard_inactive_time [{}]", this.indexingBuffer, this.minShardIndexBufferSize, this.maxShardIndexBufferSize, this.inactiveTime);
+        logger.debug("using {} [{}], with {} [{}], {} [{}], shard_inactive_time [{}]",
+                     INDEX_BUFFER_SIZE_KEY, this.indexingBuffer,
+                     MIN_SHARD_INDEX_BUFFER_SIZE_KEY,
+                     this.minShardIndexBufferSize,
+                     MAX_SHARD_INDEX_BUFFER_SIZE_KEY,
+                     this.maxShardIndexBufferSize, this.inactiveTime);
+        nodeSettingsService.addListener(applySettings);
+    }
 
+    private ByteSizeValue parseIndexingBuffer(Settings settings) {
+        ByteSizeValue indexingBuffer;
+        String indexingBufferSetting = settings.get(INDEX_BUFFER_SIZE, "10%");
+        if (indexingBufferSetting.endsWith("%")) {
+            double percent = Double.parseDouble(indexingBufferSetting.substring(0, indexingBufferSetting.length() - 1));
+            indexingBuffer = new ByteSizeValue((long) (((double) JvmInfo.jvmInfo().mem().heapMax().bytes()) * (percent / 100)));
+
+            ByteSizeValue minIndexingBuffer = settings.getAsBytesSize(MIN_INDEX_BUFFER_SIZE, DEFAULT_MIN_INDEX_BUFFER_SIZE);
+            if (indexingBuffer.bytes() < minIndexingBuffer.bytes()) {
+                indexingBuffer = minIndexingBuffer;
+            }
+
+            ByteSizeValue maxIndexingBuffer = settings.getAsBytesSize(MAX_INDEX_BUFFER_SIZE, null);
+            if (maxIndexingBuffer != null && indexingBuffer.bytes() > maxIndexingBuffer.bytes()) {
+                indexingBuffer = maxIndexingBuffer;
+            }
+        } else {
+            indexingBuffer = ByteSizeValue.parseBytesSizeValue(indexingBufferSetting, null);
+        }
+        return indexingBuffer;
     }
 
     @Override
     protected void doStart() throws ElasticsearchException {
         // its fine to run it on the scheduler thread, no busy work
-        this.scheduler = threadPool.scheduleWithFixedDelay(new ShardsIndicesStatusChecker(), interval);
+        this.scheduler = threadPool.scheduleWithFixedDelay(statusChecker, interval);
     }
 
     @Override
@@ -139,6 +179,45 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
 
     @Override
     protected void doClose() throws ElasticsearchException {
+        nodeSettingsService.removeListener(applySettings);
+    }
+
+    class ApplySettings implements NodeSettingsService.Listener {
+        @Override
+        public void onRefreshSettings(Settings settings) {
+            boolean changed = false;
+            ByteSizeValue minShardIndexBufferSize = settings.getAsBytesSize(MIN_SHARD_INDEX_BUFFER_SIZE, DEFAULT_MIN_SHARD_INDEX_BUFFER_SIZE);
+            if (minShardIndexBufferSize.equals(IndexingMemoryController.this.minShardIndexBufferSize) == false) {
+                logger.info("updating [{}] from [{}] to [{}]", MIN_SHARD_INDEX_BUFFER_SIZE, IndexingMemoryController.this.minShardIndexBufferSize, minShardIndexBufferSize);
+                IndexingMemoryController.this.minShardIndexBufferSize = minShardIndexBufferSize;
+                changed = true;
+            }
+
+            ByteSizeValue maxShardIndexBufferSize = settings.getAsBytesSize(MAX_SHARD_INDEX_BUFFER_SIZE, DEFAULT_MAX_SHARD_INDEX_BUFFER_SIZE);
+            if (maxShardIndexBufferSize.equals(IndexingMemoryController.this.maxShardIndexBufferSize) == false) {
+                logger.info("updating [{}] from [{}] to [{}]", MAX_SHARD_INDEX_BUFFER_SIZE, IndexingMemoryController.this.maxShardIndexBufferSize, maxShardIndexBufferSize);
+                IndexingMemoryController.this.maxShardIndexBufferSize = maxShardIndexBufferSize;
+                changed = true;
+            }
+
+            ByteSizeValue indexingBuffer = parseIndexingBuffer(settings);
+            if (indexingBuffer.equals(IndexingMemoryController.this.indexingBuffer) == false) {
+                logger.info("updating [{}] from [{}] to [{}]", INDEX_BUFFER_SIZE, IndexingMemoryController.this.indexingBuffer, indexingBuffer);
+                IndexingMemoryController.this.indexingBuffer = indexingBuffer;
+                changed = true;
+            }
+
+            if (changed) {
+                // Recalculate RAM buffer for all active shards:
+                logger.debug("using {} [{}], with {} [{}], {} [{}]",
+                             INDEX_BUFFER_SIZE_KEY, indexingBuffer,
+                             MIN_SHARD_INDEX_BUFFER_SIZE_KEY,
+                             minShardIndexBufferSize,
+                             MAX_SHARD_INDEX_BUFFER_SIZE_KEY,
+                             maxShardIndexBufferSize);
+                statusChecker.run(true);
+            }
+        }
     }
 
     /**
@@ -153,9 +232,14 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
 
         private final Map<ShardId, ShardIndexingStatus> shardsIndicesStatus = new HashMap<>();
 
-
         @Override
         public void run() {
+            run(false);
+        }
+
+        /** If forced is true, which happens when dynamic memory settings are updating, we recalculate even if active/inactive shards didn't change. */
+        public void run(boolean forced) {
+            // nocommit is this thread safe?  BG thread and "refreshSettings" can call it at once...
             EnumSet<ShardStatusChangeType> changes = EnumSet.noneOf(ShardStatusChangeType.class);
 
             changes.addAll(purgeDeletedAndClosedShards());
@@ -173,8 +257,8 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
                     // ignore
                 }
             }
-            if (!changes.isEmpty()) {
-                calcAndSetShardBuffers(activeShards, "[" + changes + "]");
+            if (forced || !changes.isEmpty()) {
+                calcAndSetShardBuffers(activeShards, "[" + changes + " forced=" + forced + "]");
             }
         }
 

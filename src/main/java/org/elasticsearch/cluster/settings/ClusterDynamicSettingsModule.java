@@ -30,6 +30,7 @@ import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.cache.filter.IndicesFilterCache;
+import org.elasticsearch.indices.memory.IndexingMemoryController;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.indices.ttl.IndicesTTLService;
@@ -90,6 +91,11 @@ public class ClusterDynamicSettingsModule extends AbstractModule {
         clusterDynamicSettings.addDynamicSetting(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING, Validator.NON_NEGATIVE_DOUBLE);
         clusterDynamicSettings.addDynamicSetting(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING, Validator.MEMORY_SIZE);
         clusterDynamicSettings.addDynamicSetting(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_OVERHEAD_SETTING, Validator.NON_NEGATIVE_DOUBLE);
+        clusterDynamicSettings.addDynamicSetting(IndexingMemoryController.INDEX_BUFFER_SIZE, Validator.MEMORY_SIZE);
+        clusterDynamicSettings.addDynamicSetting(IndexingMemoryController.MIN_INDEX_BUFFER_SIZE, Validator.MEMORY_SIZE);
+        clusterDynamicSettings.addDynamicSetting(IndexingMemoryController.MAX_INDEX_BUFFER_SIZE, Validator.MEMORY_SIZE);
+        clusterDynamicSettings.addDynamicSetting(IndexingMemoryController.MIN_SHARD_INDEX_BUFFER_SIZE, Validator.MEMORY_SIZE);
+        clusterDynamicSettings.addDynamicSetting(IndexingMemoryController.MAX_SHARD_INDEX_BUFFER_SIZE, Validator.MEMORY_SIZE);
     }
 
     public void addDynamicSettings(String... settings) {

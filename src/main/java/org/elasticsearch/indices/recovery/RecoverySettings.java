@@ -95,6 +95,7 @@ public class RecoverySettings extends AbstractComponent {
     }
 
     public void close() {
+        // TODO: shouldn't we nodeSettingsService.removeListener here?
         concurrentStreamPool.shutdown();
         try {
             concurrentStreamPool.awaitTermination(1, TimeUnit.SECONDS);

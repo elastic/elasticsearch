@@ -113,6 +113,9 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
             try {
                 TransportAddress[] addresses = transportService.addressesFromString(host);
                 // we only limit to 1 addresses, makes no sense to ping 100 ports
+                if (addresses.length > LIMIT_PORTS_COUNT) {
+                    logger.warn("Using deprecated port range syntax for [{}], please specify concrete host:port pairs", host);
+                }
                 for (int i = 0; (i < addresses.length && i < LIMIT_PORTS_COUNT); i++) {
                     configuredTargetNodes.add(new DiscoveryNode("#zen_unicast_" + (++idCounter) + "#", addresses[i], version.minimumCompatibilityVersion()));
                 }

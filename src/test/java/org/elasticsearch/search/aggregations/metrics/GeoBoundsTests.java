@@ -330,7 +330,7 @@ public class GeoBoundsTests extends ElasticsearchIntegrationTest {
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
-        List<Bucket> buckets = terms.getBuckets();
+        List<Bucket> buckets = (List<Bucket>) terms.getBuckets();
         assertThat(buckets.size(), equalTo(10));
         for (int i = 0; i < 10; i++) {
             Bucket bucket = buckets.get(i);

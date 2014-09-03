@@ -21,27 +21,26 @@ package org.elasticsearch.common.blobstore.fs;
 
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.io.FileSystemUtils;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.IOException;
+import java.io.*;
 
 /**
  *
  */
-public abstract class AbstractFsBlobContainer extends AbstractBlobContainer {
+public class FsBlobContainer extends AbstractBlobContainer {
 
     protected final FsBlobStore blobStore;
 
     protected final File path;
 
-    public AbstractFsBlobContainer(FsBlobStore blobStore, BlobPath blobPath, File path) {
+    public FsBlobContainer(FsBlobStore blobStore, BlobPath blobPath, File path) {
         super(blobPath);
         this.blobStore = blobStore;
         this.path = path;
@@ -76,30 +75,20 @@ public abstract class AbstractFsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void readBlob(final String blobName, final ReadBlobListener listener) {
-        blobStore.executor().execute(new Runnable() {
+    public InputStream openInput(String name) throws IOException {
+        return new BufferedInputStream(new FileInputStream(new File(path, name)), blobStore.bufferSizeInBytes());
+    }
+
+    @Override
+    public OutputStream createOutput(String blobName) throws IOException {
+        final File file = new File(path, blobName);
+        return new BufferedOutputStream(new FilterOutputStream(new FileOutputStream(file)) {
             @Override
-            public void run() {
-                byte[] buffer = new byte[blobStore.bufferSizeInBytes()];
-                FileInputStream is = null;
-                try {
-                    is = new FileInputStream(new File(path, blobName));
-                    int bytesRead;
-                    while ((bytesRead = is.read(buffer)) != -1) {
-                        listener.onPartial(buffer, 0, bytesRead);
-                    }
-                } catch (Throwable t) {
-                    IOUtils.closeWhileHandlingException(is);
-                    listener.onFailure(t);
-                    return;
-                }
-                try {
-                    IOUtils.closeWhileHandlingException(is);
-                    listener.onCompleted();
-                } catch (Throwable t) {
-                    listener.onFailure(t);
-                }
+            public void close() throws IOException {
+                super.close();
+                IOUtils.fsync(file, false);
+                IOUtils.fsync(path, true);
             }
-        });
+        }, blobStore.bufferSizeInBytes());
     }
 }

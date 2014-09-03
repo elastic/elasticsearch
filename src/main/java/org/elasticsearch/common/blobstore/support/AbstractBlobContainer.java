@@ -24,11 +24,7 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InterruptedIOException;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicReference;
+import java.io.*;
 
 /**
  *
@@ -44,46 +40,6 @@ public abstract class AbstractBlobContainer implements BlobContainer {
     @Override
     public BlobPath path() {
         return this.path;
-    }
-
-    @Override
-    public byte[] readBlobFully(String blobName) throws IOException {
-        final CountDownLatch latch = new CountDownLatch(1);
-        final AtomicReference<Throwable> failure = new AtomicReference<>();
-        final ByteArrayOutputStream bos = new ByteArrayOutputStream();
-
-        readBlob(blobName, new ReadBlobListener() {
-            @Override
-            public void onPartial(byte[] data, int offset, int size) {
-                bos.write(data, offset, size);
-            }
-
-            @Override
-            public void onCompleted() {
-                latch.countDown();
-            }
-
-            @Override
-            public void onFailure(Throwable t) {
-                failure.set(t);
-                latch.countDown();
-            }
-        });
-
-        try {
-            latch.await();
-        } catch (InterruptedException e) {
-            throw new InterruptedIOException("Interrupted while waiting to read [" + blobName + "]");
-        }
-
-        if (failure.get() != null) {
-            if (failure.get() instanceof IOException) {
-                throw (IOException) failure.get();
-            } else {
-                throw new IOException("Failed to get [" + blobName + "]", failure.get());
-            }
-        }
-        return bos.toByteArray();
     }
 
     @Override
@@ -117,4 +73,5 @@ public abstract class AbstractBlobContainer implements BlobContainer {
             }
         }
     }
+
 }

@@ -20,32 +20,33 @@
 package org.elasticsearch.common.blobstore.url;
 
 import com.google.common.collect.ImmutableMap;
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 
+import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.URL;
 
 /**
  * URL blob implementation of {@link org.elasticsearch.common.blobstore.BlobContainer}
  */
-public abstract class AbstractURLBlobContainer extends AbstractBlobContainer {
+public class URLBlobContainer extends AbstractBlobContainer {
 
     protected final URLBlobStore blobStore;
 
     protected final URL path;
 
     /**
-     * Constructs new AbstractURLBlobContainer
+     * Constructs new URLBlobContainer
      *
      * @param blobStore blob store
      * @param blobPath  blob path for this container
      * @param path      URL for this container
      */
-    public AbstractURLBlobContainer(URLBlobStore blobStore, BlobPath blobPath, URL path) {
+    public URLBlobContainer(URLBlobStore blobStore, BlobPath blobPath, URL path) {
         super(blobPath);
         this.blobStore = blobStore;
         this.path = path;
@@ -61,7 +62,7 @@ public abstract class AbstractURLBlobContainer extends AbstractBlobContainer {
     }
 
     /**
-     * This operation is not supported by AbstractURLBlobContainer
+     * This operation is not supported by URLBlobContainer
      */
     @Override
     public ImmutableMap<String, BlobMetaData> listBlobs() throws IOException {
@@ -69,7 +70,7 @@ public abstract class AbstractURLBlobContainer extends AbstractBlobContainer {
     }
 
     /**
-     * This operation is not supported by AbstractURLBlobContainer
+     * This operation is not supported by URLBlobContainer
      */
     @Override
     public boolean deleteBlob(String blobName) throws IOException {
@@ -77,41 +78,20 @@ public abstract class AbstractURLBlobContainer extends AbstractBlobContainer {
     }
 
     /**
-     * This operation is not supported by AbstractURLBlobContainer
+     * This operation is not supported by URLBlobContainer
      */
     @Override
     public boolean blobExists(String blobName) {
         throw new UnsupportedOperationException("URL repository doesn't support this operation");
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
-    public void readBlob(final String blobName, final ReadBlobListener listener) {
-        blobStore.executor().execute(new Runnable() {
-            @Override
-            public void run() {
-                byte[] buffer = new byte[blobStore.bufferSizeInBytes()];
-                InputStream is = null;
-                try {
-                    is = new URL(path, blobName).openStream();
-                    int bytesRead;
-                    while ((bytesRead = is.read(buffer)) != -1) {
-                        listener.onPartial(buffer, 0, bytesRead);
-                    }
-                } catch (Throwable t) {
-                    IOUtils.closeWhileHandlingException(is);
-                    listener.onFailure(t);
-                    return;
-                }
-                try {
-                    IOUtils.closeWhileHandlingException(is);
-                    listener.onCompleted();
-                } catch (Throwable t) {
-                    listener.onFailure(t);
-                }
-            }
-        });
+    public InputStream openInput(String name) throws IOException {
+        return new BufferedInputStream(new URL(path, name).openStream(), blobStore.bufferSizeInBytes());
+    }
+
+    @Override
+    public OutputStream createOutput(String blobName) throws IOException {
+        throw new UnsupportedOperationException("URL repository doesn't support this operation");
     }
 }

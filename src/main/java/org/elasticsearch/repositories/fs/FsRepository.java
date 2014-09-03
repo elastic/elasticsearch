@@ -66,7 +66,7 @@ public class FsRepository extends BlobStoreRepository {
      * @throws IOException
      */
     @Inject
-    public FsRepository(RepositoryName name, RepositorySettings repositorySettings, ThreadPool threadPool, IndexShardRepository indexShardRepository) throws IOException {
+    public FsRepository(RepositoryName name, RepositorySettings repositorySettings, IndexShardRepository indexShardRepository) throws IOException {
         super(name.getName(), repositorySettings, indexShardRepository);
         File locationFile;
         String location = repositorySettings.settings().get("location", componentSettings.get("location"));
@@ -76,7 +76,7 @@ public class FsRepository extends BlobStoreRepository {
         } else {
             locationFile = new File(location);
         }
-        blobStore = new FsBlobStore(componentSettings, threadPool, locationFile);
+        blobStore = new FsBlobStore(componentSettings, locationFile);
         this.chunkSize = repositorySettings.settings().getAsBytesSize("chunk_size", componentSettings.getAsBytesSize("chunk_size", null));
         this.compress = repositorySettings.settings().getAsBoolean("compress", componentSettings.getAsBoolean("compress", false));
         this.basePath = BlobPath.cleanPath();

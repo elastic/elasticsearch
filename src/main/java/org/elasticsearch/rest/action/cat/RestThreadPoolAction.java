@@ -65,7 +65,6 @@ public class RestThreadPoolAction extends AbstractCatAction {
             ThreadPool.Names.REFRESH,
             ThreadPool.Names.SEARCH,
             ThreadPool.Names.SNAPSHOT,
-            ThreadPool.Names.SNAPSHOT_DATA,
             ThreadPool.Names.SUGGEST,
             ThreadPool.Names.WARMER
     };

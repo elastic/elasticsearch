@@ -95,6 +95,28 @@ The following are a list of settings (prefixed with `discovery.ec2`) that can fu
 * `any_group`: If set to `false`, will require all security groups to be present for the instance to be used for the discovery. Defaults to `true`.
 * `ping_timeout`: How long to wait for existing EC2 nodes to reply during discovery. Defaults to `3s`. If no unit like `ms`, `s` or `m` is specified, milliseconds are used.
 
+### Recommended EC2 Permissions
+
+EC2 discovery requires making a call to the EC2 service. You'll want to setup an IAM policy to allow this. You can create a custom policy via the IAM Management Console. It should look similar to this.
+
+```js
+{
+    "Statement": [
+        {
+            "Action": [
+                "ec2:DescribeInstances"
+            ],
+            "Effect": "Allow",
+            "Resource": [
+                "*"
+            ]
+        }
+    ],
+    "Version": "2014-09-03"
+}
+```
+
+
 ### Filtering by Tags
 
 The ec2 discovery can also filter machines to include in the cluster based on tags (and not just groups). The settings to use include the `discovery.ec2.tag.` prefix. For example, setting `discovery.ec2.tag.stage` to `dev` will only filter instances with a tag key set to `stage`, and a value of `dev`. Several tags set will require all of those tags to be set for the instance to be included.

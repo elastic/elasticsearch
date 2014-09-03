@@ -13,7 +13,6 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.http.netty.NettyHttpServerTransport;
-import org.elasticsearch.shield.n2n.N2NNettyUpstreamHandler;
 import org.elasticsearch.shield.transport.ssl.SSLConfig;
 
 import javax.net.ssl.SSLEngine;
@@ -57,7 +56,7 @@ public class NettySecuredHttpServerTransport extends NettyHttpServerTransport {
         @Override
         public ChannelPipeline getPipeline() throws Exception {
             ChannelPipeline pipeline = super.getPipeline();
-            if (settings.getAsBoolean("shield.n2n.enabled", true)) {
+            if (settings.getAsBoolean("shield.transport.n2n.ip_filter.enabled", true)) {
                 pipeline.addFirst("ipfilter", shieldUpstreamHandler);
             }
             if (ssl) {

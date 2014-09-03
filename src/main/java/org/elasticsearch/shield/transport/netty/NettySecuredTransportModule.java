@@ -19,7 +19,7 @@ public class NettySecuredTransportModule extends AbstractModule implements PrePr
     @Override
     public void processModule(Module module) {
         if (module instanceof TransportModule) {
-            ((TransportModule)module).setTransport(NettySecuredTransport.class, SecurityPlugin.NAME);
+            ((TransportModule) module).setTransport(NettySecuredTransport.class, SecurityPlugin.NAME);
         }
     }
 

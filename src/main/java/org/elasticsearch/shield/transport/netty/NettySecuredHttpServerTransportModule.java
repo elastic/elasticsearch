@@ -19,7 +19,7 @@ public class NettySecuredHttpServerTransportModule extends AbstractModule implem
     @Override
     public void processModule(Module module) {
         if (module instanceof HttpServerModule) {
-            ((HttpServerModule)module).setHttpServerTransport(NettySecuredHttpServerTransport.class, SecurityPlugin.NAME);
+            ((HttpServerModule) module).setHttpServerTransport(NettySecuredHttpServerTransport.class, SecurityPlugin.NAME);
         }
     }
 

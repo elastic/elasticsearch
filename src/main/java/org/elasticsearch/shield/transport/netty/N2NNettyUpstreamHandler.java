@@ -3,13 +3,14 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.shield.n2n;
+package org.elasticsearch.shield.transport.netty;
 
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.netty.channel.ChannelEvent;
 import org.elasticsearch.common.netty.channel.ChannelHandler;
 import org.elasticsearch.common.netty.channel.ChannelHandlerContext;
 import org.elasticsearch.common.netty.handler.ipfilter.IpFilteringHandlerImpl;
+import org.elasticsearch.shield.transport.n2n.IPFilteringN2NAuthenticator;
 
 import java.net.InetSocketAddress;
 

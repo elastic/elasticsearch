@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.shield.n2n;
+package org.elasticsearch.shield.transport.n2n;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
@@ -44,7 +44,6 @@ public class IPFilteringN2NAuthenticator extends AbstractComponent implements N2
     private static final IpFilterRule[] NO_RULES = new IpFilterRule[0];
 
     private final Path file;
-    private final FileWatcher watcher;
 
     private volatile IpFilterRule[] rules = NO_RULES;
 
@@ -53,13 +52,13 @@ public class IPFilteringN2NAuthenticator extends AbstractComponent implements N2
         super(settings);
         file = resolveFile(componentSettings, env);
         rules = parseFile(file, logger);
-        watcher = new FileWatcher(file.getParent().toFile());
+        FileWatcher watcher = new FileWatcher(file.getParent().toFile());
         watcher.addListener(new FileListener());
         watcherService.add(watcher);
     }
 
     private Path resolveFile(Settings settings, Environment env) {
-        String location = settings.get("file");
+        String location = settings.get("ip_filter.file");
         if (location == null) {
             File shieldDirectory = new File(env.configFile(), SecurityPlugin.NAME);
             return shieldDirectory.toPath().resolve(DEFAULT_FILE);
@@ -75,40 +74,35 @@ public class IPFilteringN2NAuthenticator extends AbstractComponent implements N2
 
         List<IpFilterRule> rules = new ArrayList<>();
 
-        byte[] content;
-        try {
-            content = Files.readAllBytes(path);
-            try (XContentParser parser = YamlXContent.yamlXContent.createParser(content)) {
-                XContentParser.Token token;
-                String currentFieldName = null;
-                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT && token != null) {
-                    if (token == XContentParser.Token.FIELD_NAME) {
-                        currentFieldName = parser.currentName();
-                        if (!"allow".equals(currentFieldName) && !"deny".equals(currentFieldName)) {
-                            throw new ElasticsearchParseException("Field name [" + currentFieldName + "] not valid. Must be [allow] or [deny]");
-                        }
-                    } else if (token == XContentParser.Token.VALUE_STRING && currentFieldName != null) {
-                        String value = parser.text();
-                        if (!Strings.hasLength(value)) {
-                            throw new ElasticsearchParseException("Field value for fieldname [" + currentFieldName + "] must not be empty");
-                        }
-
-                        boolean isAllowRule = currentFieldName.equals("allow");
-
-                        if (value.contains(",")) {
-                            for (String rule : COMMA_DELIM.split(parser.text().trim())) {
-                                rules.add(getRule(isAllowRule, rule));
-                            }
-                        } else {
-                            rules.add(getRule(isAllowRule, value));
-                        }
-
+        try (XContentParser parser = YamlXContent.yamlXContent.createParser(Files.newInputStream(path))) {
+            XContentParser.Token token;
+            String currentFieldName = null;
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT && token != null) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    currentFieldName = parser.currentName();
+                    if (!"allow".equals(currentFieldName) && !"deny".equals(currentFieldName)) {
+                        throw new ElasticsearchParseException("Field name [" + currentFieldName + "] not valid. Must be [allow] or [deny]");
                     }
+                } else if (token == XContentParser.Token.VALUE_STRING && currentFieldName != null) {
+                    String value = parser.text();
+                    if (!Strings.hasLength(value)) {
+                        throw new ElasticsearchParseException("Field value for fieldname [" + currentFieldName + "] must not be empty");
+                    }
+
+                    boolean isAllowRule = currentFieldName.equals("allow");
+
+                    if (value.contains(",")) {
+                        for (String rule : COMMA_DELIM.split(parser.text().trim())) {
+                            rules.add(getRule(isAllowRule, rule));
+                        }
+                    } else {
+                        rules.add(getRule(isAllowRule, value));
+                    }
+
                 }
             }
-
-        } catch (YAMLException|IOException ioe) {
-            throw new ElasticsearchParseException("Failed to read & parse host access file [" + path.toAbsolutePath() + "]", ioe);
+        } catch (IOException | YAMLException e) {
+            throw new ElasticsearchParseException("Failed to read & parse host access file [" + path.toAbsolutePath() + "]", e);
         }
 
         if (rules.size() == 0) {
@@ -134,9 +128,9 @@ public class IPFilteringN2NAuthenticator extends AbstractComponent implements N2
 
     @Override
     public boolean authenticate(@Nullable Principal peerPrincipal, InetAddress peerAddress, int peerPort) {
-        for (int i = 0; i < rules.length; i++) {
-            if (rules[i].contains(peerAddress)) {
-                boolean isAllowed =  rules[i].isAllowRule();
+        for (IpFilterRule rule : rules) {
+            if (rule.contains(peerAddress)) {
+                boolean isAllowed =  rule.isAllowRule();
                 logger.trace("Authentication rule matched for host [{}]: {}", peerAddress, isAllowed);
                 return isAllowed;
             }

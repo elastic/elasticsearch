@@ -117,7 +117,7 @@ public class SslIntegrationTests extends ShieldIntegrationTest {
                 .put("request.headers.Authorization", basicAuthHeaderValue(getClientUsername(), getClientPassword().toCharArray()))
                 .put(TransportModule.TRANSPORT_TYPE_KEY, NettySecuredTransport.class.getName())
                 .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false)
-                .put("shield.n2n.file", writeFile(newFolder(), "ip_filter.yml", ShieldIntegrationTest.CONFIG_IPFILTER_ALLOW_ALL))
+                .put("shield.transport.n2n.ip_filter.file", writeFile(newFolder(), "ip_filter.yml", ShieldIntegrationTest.CONFIG_IPFILTER_ALLOW_ALL))
 
                 .put(getSSLSettingsForStore("certs/simple/testclient.jks", "testclient"))
                 .build();

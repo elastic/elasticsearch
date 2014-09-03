@@ -108,7 +108,7 @@ public final class GeoBoundsAggregator extends MetricsAggregator {
             bottoms.fill(from, bottoms.size(), Double.NEGATIVE_INFINITY);
             posLefts = bigArrays.resize(posLefts, tops.size());
             posLefts.fill(from, posLefts.size(), Double.NEGATIVE_INFINITY);
-            posLefts = bigArrays.resize(posLefts, tops.size());
+            posRights = bigArrays.resize(posRights, tops.size());
             posRights.fill(from, posRights.size(), Double.NEGATIVE_INFINITY);
             negLefts = bigArrays.resize(negLefts, tops.size());
             negLefts.fill(from, negLefts.size(), Double.NEGATIVE_INFINITY);

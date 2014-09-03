@@ -34,8 +34,6 @@ import java.util.List;
 
 public class NoopClusterService implements ClusterService {
 
-    ClusterState state = null;
-
     @Override
     public DiscoveryNode localNode() {
         return null;
@@ -43,12 +41,7 @@ public class NoopClusterService implements ClusterService {
 
     @Override
     public ClusterState state() {
-        return state;
-    }
-
-    public NoopClusterService state(ClusterState state) {
-        this.state = state;
-        return this;
+        return null;
     }
 
     @Override

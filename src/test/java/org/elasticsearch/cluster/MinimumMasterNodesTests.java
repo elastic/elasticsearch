@@ -201,8 +201,7 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
         assertThat(state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID), equalTo(true));
 
         logger.info("--> start two more nodes");
-        internalCluster().startNode(settings);
-        internalCluster().startNode(settings);
+        internalCluster().startNodesAsync(2, settings).get();
 
         ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("4").execute().actionGet();
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));

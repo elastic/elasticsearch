@@ -28,7 +28,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
 
 import java.io.IOException;
 
@@ -40,7 +39,7 @@ import static org.elasticsearch.cluster.node.DiscoveryNode.readNode;
  */
 public interface ZenPing extends LifecycleComponent<ZenPing> {
 
-    void setNodesProvider(DiscoveryNodesProvider nodesProvider);
+    void setPingContextProvider(PingContextProvider contextProvider);
 
     void ping(PingListener listener, TimeValue timeout) throws ElasticsearchException;
 
@@ -50,7 +49,7 @@ public interface ZenPing extends LifecycleComponent<ZenPing> {
     }
 
     public static class PingResponse implements Streamable {
-        
+
         public static final PingResponse[] EMPTY = new PingResponse[0];
 
         private ClusterName clusterName;

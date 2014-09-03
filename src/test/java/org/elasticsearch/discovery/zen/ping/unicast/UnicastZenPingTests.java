@@ -21,7 +21,6 @@ package org.elasticsearch.discovery.zen.ping.unicast;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.network.NetworkService;
@@ -30,12 +29,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
+import org.elasticsearch.discovery.zen.ping.PingContextProvider;
 import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.test.ElasticsearchTestCase;
-import org.elasticsearch.test.cluster.NoopClusterService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty.NettyTransport;
@@ -56,8 +54,7 @@ public class UnicastZenPingTests extends ElasticsearchTestCase {
         settings = ImmutableSettings.builder().put(settings).put("transport.tcp.port", startPort + "-" + endPort).build();
 
         ThreadPool threadPool = new ThreadPool(getClass().getName());
-        ClusterState initialJoinState = ClusterState.builder(new ClusterName("test")).build();
-        ClusterState alreadyJoinedState = ClusterState.builder(initialJoinState).version(initialJoinState.version() + 1).build();
+        ClusterName clusterName = new ClusterName("test");
         NetworkService networkService = new NetworkService(settings);
         ElectMasterService electMasterService = new ElectMasterService(settings);
 
@@ -78,9 +75,8 @@ public class UnicastZenPingTests extends ElasticsearchTestCase {
                 addressB.address().getAddress().getHostAddress() + ":" + addressB.address().getPort())
                 .build();
 
-        UnicastZenPing zenPingA = new UnicastZenPing(hostsSettings, threadPool, transportServiceA,
-                new NoopClusterService().state(initialJoinState), Version.CURRENT, electMasterService, null);
-        zenPingA.setNodesProvider(new DiscoveryNodesProvider() {
+        UnicastZenPing zenPingA = new UnicastZenPing(hostsSettings, threadPool, transportServiceA, clusterName, Version.CURRENT, electMasterService, null);
+        zenPingA.setPingContextProvider(new PingContextProvider() {
             @Override
             public DiscoveryNodes nodes() {
                 return DiscoveryNodes.builder().put(nodeA).localNodeId("UZP_A").build();
@@ -90,12 +86,16 @@ public class UnicastZenPingTests extends ElasticsearchTestCase {
             public NodeService nodeService() {
                 return null;
             }
+
+            @Override
+            public boolean isFirstClusterJoin() {
+                return true;
+            }
         });
         zenPingA.start();
 
-        UnicastZenPing zenPingB = new UnicastZenPing(hostsSettings, threadPool,
-                transportServiceB, new NoopClusterService().state(alreadyJoinedState), Version.CURRENT, electMasterService, null);
-        zenPingB.setNodesProvider(new DiscoveryNodesProvider() {
+        UnicastZenPing zenPingB = new UnicastZenPing(hostsSettings, threadPool, transportServiceB, clusterName, Version.CURRENT, electMasterService, null);
+        zenPingB.setPingContextProvider(new PingContextProvider() {
             @Override
             public DiscoveryNodes nodes() {
                 return DiscoveryNodes.builder().put(nodeB).localNodeId("UZP_B").build();
@@ -104,6 +104,11 @@ public class UnicastZenPingTests extends ElasticsearchTestCase {
             @Override
             public NodeService nodeService() {
                 return null;
+            }
+
+            @Override
+            public boolean isFirstClusterJoin() {
+                return false;
             }
         });
         zenPingB.start();

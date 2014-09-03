@@ -25,8 +25,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Nullable;
@@ -39,8 +38,8 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
+import org.elasticsearch.discovery.zen.ping.PingContextProvider;
 import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
@@ -67,14 +66,14 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
 
     private final ThreadPool threadPool;
     private final TransportService transportService;
-    private final ClusterService clusterService;
+    private final ClusterName clusterName;
     private final ElectMasterService electMasterService;
 
     private final int concurrentConnects;
 
     private final DiscoveryNode[] configuredTargetNodes;
 
-    private volatile DiscoveryNodesProvider nodesProvider;
+    private volatile PingContextProvider contextProvider;
 
     private final AtomicInteger pingIdGenerator = new AtomicInteger();
 
@@ -85,12 +84,12 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
 
     private final CopyOnWriteArrayList<UnicastHostsProvider> hostsProviders = new CopyOnWriteArrayList<>();
 
-    public UnicastZenPing(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterService clusterService,
+    public UnicastZenPing(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterName clusterName,
                           Version version, ElectMasterService electMasterService, @Nullable Set<UnicastHostsProvider> unicastHostsProviders) {
         super(settings);
         this.threadPool = threadPool;
         this.transportService = transportService;
-        this.clusterService = clusterService;
+        this.clusterName = clusterName;
         this.electMasterService = electMasterService;
 
         if (unicastHostsProviders != null) {
@@ -148,8 +147,8 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
     }
 
     @Override
-    public void setNodesProvider(DiscoveryNodesProvider nodesProvider) {
-        this.nodesProvider = nodesProvider;
+    public void setPingContextProvider(PingContextProvider contextProvider) {
+        this.contextProvider = contextProvider;
     }
 
     /**
@@ -251,15 +250,14 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
         final UnicastPingRequest pingRequest = new UnicastPingRequest();
         pingRequest.id = sendPingsHandler.id();
         pingRequest.timeout = timeout;
-        DiscoveryNodes discoNodes = nodesProvider.nodes();
-        ClusterState state = clusterService.state();
+        DiscoveryNodes discoNodes = contextProvider.nodes();
 
         pingRequest.pingResponse = createPingResponse(discoNodes);
 
         HashSet<DiscoveryNode> nodesToPingSet = new HashSet<>();
         for (PingResponse temporalResponse : temporalResponses) {
             // Only send pings to nodes that have the same cluster name.
-            if (state.getClusterName().equals(temporalResponse.clusterName())) {
+            if (clusterName.equals(temporalResponse.clusterName())) {
                 nodesToPingSet.add(temporalResponse.target());
             }
         }
@@ -374,13 +372,13 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
             public void handleResponse(UnicastPingResponse response) {
                 logger.trace("[{}] received response from {}: {}", id, nodeToSend, Arrays.toString(response.pingResponses));
                 try {
-                    DiscoveryNodes discoveryNodes = nodesProvider.nodes();
+                    DiscoveryNodes discoveryNodes = contextProvider.nodes();
                     for (PingResponse pingResponse : response.pingResponses) {
                         if (pingResponse.target().id().equals(discoveryNodes.localNodeId())) {
                             // that's us, ignore
                             continue;
                         }
-                        if (!pingResponse.clusterName().equals(clusterService.state().getClusterName())) {
+                        if (!pingResponse.clusterName().equals(clusterName)) {
                             // not part of the cluster
                             logger.debug("[{}] filtering out response from {}, not same cluster_name [{}]", id, pingResponse.target(), pingResponse.clusterName().value());
                             continue;
@@ -433,7 +431,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
         });
 
         List<PingResponse> pingResponses = newArrayList(temporalResponses);
-        pingResponses.add(createPingResponse(nodesProvider.nodes()));
+        pingResponses.add(createPingResponse(contextProvider.nodes()));
 
 
         UnicastPingResponse unicastPingResponse = new UnicastPingResponse();
@@ -490,8 +488,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
     }
 
     private PingResponse createPingResponse(DiscoveryNodes discoNodes) {
-        ClusterState state = clusterService.state();
-        return new PingResponse(discoNodes.localNode(), discoNodes.masterNode(), state.getClusterName(), state.version() <= 0);
+        return new PingResponse(discoNodes.localNode(), discoNodes.masterNode(), clusterName, contextProvider.isFirstClusterJoin());
     }
 
     static class UnicastPingResponse extends TransportResponse {

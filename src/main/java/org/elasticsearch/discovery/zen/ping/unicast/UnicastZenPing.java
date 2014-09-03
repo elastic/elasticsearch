@@ -62,8 +62,6 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
 
     public static final String ACTION_NAME = "internal:discovery/zen/unicast";
 
-    public static final int LIMIT_PORTS_COUNT = 1;
-
     private final ThreadPool threadPool;
     private final TransportService transportService;
     private final ClusterName clusterName;
@@ -111,11 +109,8 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
         int idCounter = 0;
         for (String host : hosts) {
             try {
-                TransportAddress[] addresses = transportService.addressesFromString(host);
-                // we only limit to 1 addresses, makes no sense to ping 100 ports
-                for (int i = 0; (i < addresses.length && i < LIMIT_PORTS_COUNT); i++) {
-                    configuredTargetNodes.add(new DiscoveryNode("#zen_unicast_" + (++idCounter) + "#", addresses[i], version.minimumCompatibilityVersion()));
-                }
+                TransportAddress address = transportService.addressFromString(host);
+                configuredTargetNodes.add(new DiscoveryNode("#zen_unicast_" + (++idCounter) + "#", address, version.minimumCompatibilityVersion()));
             } catch (Exception e) {
                 throw new ElasticsearchIllegalArgumentException("Failed to resolve address for [" + host + "]", e);
             }

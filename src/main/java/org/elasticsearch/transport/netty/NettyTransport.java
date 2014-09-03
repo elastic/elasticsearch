@@ -427,34 +427,12 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     }
 
     @Override
-    public TransportAddress[] addressesFromString(String address) throws Exception {
-        int index = address.indexOf('[');
-        if (index != -1) {
-            String host = address.substring(0, index);
-            Set<String> ports = Strings.commaDelimitedListToSet(address.substring(index + 1, address.indexOf(']')));
-            List<TransportAddress> addresses = Lists.newArrayList();
-            for (String port : ports) {
-                int[] iPorts = new PortsRange(port).ports();
-                for (int iPort : iPorts) {
-                    addresses.add(new InetSocketTransportAddress(host, iPort));
-                }
-            }
-            return addresses.toArray(new TransportAddress[addresses.size()]);
-        } else {
-            index = address.lastIndexOf(':');
-            if (index == -1) {
-                List<TransportAddress> addresses = Lists.newArrayList();
-                int[] iPorts = new PortsRange(this.port).ports();
-                for (int iPort : iPorts) {
-                    addresses.add(new InetSocketTransportAddress(address, iPort));
-                }
-                return addresses.toArray(new TransportAddress[addresses.size()]);
-            } else {
-                String host = address.substring(0, index);
-                int port = Integer.parseInt(address.substring(index + 1));
-                return new TransportAddress[]{new InetSocketTransportAddress(host, port)};
-            }
+    public TransportAddress addressFromString(String address) throws Exception {
+        int index = address.lastIndexOf(':');
+        if (index == -1) {
+            return new InetSocketTransportAddress(address, Integer.parseInt(this.port));
         }
+        return new InetSocketTransportAddress(address.substring(0, index), Integer.parseInt(address.substring(index + 1)));
     }
 
     @Override

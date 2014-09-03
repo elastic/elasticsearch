@@ -45,7 +45,7 @@ public interface Transport extends LifecycleComponent<Transport> {
     /**
      * Returns an address from its string representation.
      */
-    TransportAddress[] addressesFromString(String address) throws Exception;
+    TransportAddress addressFromString(String address) throws Exception;
 
     /**
      * Is the address type supported.

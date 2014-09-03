@@ -332,8 +332,8 @@ public class MockTransportService extends TransportService {
         }
 
         @Override
-        public TransportAddress[] addressesFromString(String address) throws Exception {
-            return transport.addressesFromString(address);
+        public TransportAddress addressFromString(String address) throws Exception {
+            return transport.addressFromString(address);
         }
 
         @Override

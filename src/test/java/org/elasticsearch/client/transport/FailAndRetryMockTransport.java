@@ -126,7 +126,7 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
     }
 
     @Override
-    public TransportAddress[] addressesFromString(String address) throws Exception {
+    public TransportAddress addressFromString(String address) throws Exception {
         throw new UnsupportedOperationException();
     }
 

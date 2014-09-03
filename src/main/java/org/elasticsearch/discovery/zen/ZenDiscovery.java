@@ -981,16 +981,22 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
         if (pingMasters.isEmpty()) {
             // if we don't have enough master nodes, we bail, because there are not enough master to elect from
-            if (!electMaster.hasEnoughMasterNodes(possibleMasterNodes)) {
-                logger.trace("not enough master nodes [{}]", possibleMasterNodes);
-                return null;
-            } else if (alreadyJoinedPossibleMasterNodes.size() > 0) {
+            if (electMaster.hasEnoughMasterNodes(possibleMasterNodes)) {
                 // we give preference to nodes who have previously already joined the cluster. Those will
                 // have a cluster state in memory, including an up to date routing table (which is not persistent to disk
                 // by the gateway)
-                return electMaster.electMaster(alreadyJoinedPossibleMasterNodes);
-            } else {
+
+                // nocommit
+                // TODO: this list may contain data and client nodes due to  masterElectionFilter* settings. Should we remove that?
+                DiscoveryNode master = electMaster.electMaster(alreadyJoinedPossibleMasterNodes);
+                if (master != null) {
+                    return master;
+                }
                 return electMaster.electMaster(possibleMasterNodes);
+            } else {
+                // if we don't have enough master nodes, we bail, because there are not enough master to elect from
+                logger.trace("not enough master nodes [{}]", possibleMasterNodes);
+                return null;
             }
         } else {
 

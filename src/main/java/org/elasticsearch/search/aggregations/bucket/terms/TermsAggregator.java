@@ -127,11 +127,11 @@ public abstract class TermsAggregator extends BucketsAggregator {
     }
 
     protected final BucketCountThresholds bucketCountThresholds;
-    protected InternalOrder order;
+    protected Terms.Order order;
     protected Aggregator aggUsedForSorting;
     protected SubAggCollectionMode subAggCollectMode;
 
-    public TermsAggregator(String name, BucketAggregationMode bucketAggregationMode, AggregatorFactories factories, long estimatedBucketsCount, AggregationContext context, Aggregator parent, BucketCountThresholds bucketCountThresholds, InternalOrder order, SubAggCollectionMode subAggCollectMode) {
+    public TermsAggregator(String name, BucketAggregationMode bucketAggregationMode, AggregatorFactories factories, long estimatedBucketsCount, AggregationContext context, Aggregator parent, BucketCountThresholds bucketCountThresholds, Terms.Order order, SubAggCollectionMode subAggCollectMode) {
         super(name, bucketAggregationMode, factories, estimatedBucketsCount, context, parent);
         this.bucketCountThresholds = bucketCountThresholds;
         this.order = InternalOrder.validate(order, this);

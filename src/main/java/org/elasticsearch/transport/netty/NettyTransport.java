@@ -947,8 +947,25 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             closeChannelsAndWait(reg, futures);
             closeChannelsAndWait(state, futures);
             closeChannelsAndWait(ping, futures);
+
+            final CountDownLatch channelLatch = new CountDownLatch(futures.size());
+            final ChannelFutureListener latchCountDownListener = new ChannelFutureListener() {
+                @Override
+                public void operationComplete(ChannelFuture future) throws Exception {
+                    if (future.isSuccess()) {
+                        channelLatch.countDown();
+                    }
+                }
+            };
+
             for (ChannelFuture future : futures) {
-                future.awaitUninterruptibly();
+                future.addListener(latchCountDownListener);
+            }
+
+            try {
+                channelLatch.await(5, TimeUnit.MINUTES);
+            } catch(InterruptedException e) {
+                throw new ElasticsearchException("Interrupted while waiting closing of all channels", e);
             }
         }
 

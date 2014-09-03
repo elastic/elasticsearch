@@ -38,8 +38,8 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
+import org.elasticsearch.discovery.zen.ping.PingContextProvider;
 import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
@@ -73,7 +73,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
 
     private final DiscoveryNode[] configuredTargetNodes;
 
-    private volatile DiscoveryNodesProvider nodesProvider;
+    private volatile PingContextProvider contextProvider;
 
     private final AtomicInteger pingIdGenerator = new AtomicInteger();
 
@@ -152,14 +152,14 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
     }
 
     @Override
-    public void setNodesProvider(DiscoveryNodesProvider nodesProvider) {
-        this.nodesProvider = nodesProvider;
+    public void setPingContextProvider(PingContextProvider contextProvider) {
+        this.contextProvider = contextProvider;
     }
 
     /**
      * Clears the list of cached ping responses.
      */
-    public void clearTemporalReponses() {
+    public void clearTemporalResponses() {
         temporalResponses.clear();
     }
 
@@ -250,18 +250,20 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
         }
     }
 
+
     void sendPings(final TimeValue timeout, @Nullable TimeValue waitTime, final SendPingsHandler sendPingsHandler) {
         final UnicastPingRequest pingRequest = new UnicastPingRequest();
         pingRequest.id = sendPingsHandler.id();
         pingRequest.timeout = timeout;
-        DiscoveryNodes discoNodes = nodesProvider.nodes();
-        pingRequest.pingResponse = new PingResponse(discoNodes.localNode(), discoNodes.masterNode(), clusterName);
+        DiscoveryNodes discoNodes = contextProvider.nodes();
+
+        pingRequest.pingResponse = createPingResponse(discoNodes);
 
         HashSet<DiscoveryNode> nodesToPingSet = new HashSet<>();
         for (PingResponse temporalResponse : temporalResponses) {
             // Only send pings to nodes that have the same cluster name.
             if (clusterName.equals(temporalResponse.clusterName())) {
-                nodesToPingSet.add(temporalResponse.target());
+                nodesToPingSet.add(temporalResponse.node());
             }
         }
 
@@ -382,31 +384,31 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
             public void handleResponse(UnicastPingResponse response) {
                 logger.trace("[{}] received response from {}: {}", id, nodeToSend, Arrays.toString(response.pingResponses));
                 try {
-                    DiscoveryNodes discoveryNodes = nodesProvider.nodes();
+                    DiscoveryNodes discoveryNodes = contextProvider.nodes();
                     for (PingResponse pingResponse : response.pingResponses) {
-                        if (pingResponse.target().id().equals(discoveryNodes.localNodeId())) {
+                        if (pingResponse.node().id().equals(discoveryNodes.localNodeId())) {
                             // that's us, ignore
                             continue;
                         }
                         if (!pingResponse.clusterName().equals(clusterName)) {
                             // not part of the cluster
-                            logger.debug("[{}] filtering out response from {}, not same cluster_name [{}]", id, pingResponse.target(), pingResponse.clusterName().value());
+                            logger.debug("[{}] filtering out response from {}, not same cluster_name [{}]", id, pingResponse.node(), pingResponse.clusterName().value());
                             continue;
                         }
                         ConcurrentMap<DiscoveryNode, PingResponse> responses = receivedResponses.get(response.id);
                         if (responses == null) {
                             logger.warn("received ping response {} with no matching id [{}]", pingResponse, response.id);
                         } else {
-                            PingResponse existingResponse = responses.get(pingResponse.target());
+                            PingResponse existingResponse = responses.get(pingResponse.node());
                             if (existingResponse == null) {
-                                responses.put(pingResponse.target(), pingResponse);
+                                responses.put(pingResponse.node(), pingResponse);
                             } else {
                                 // try and merge the best ping response for it, i.e. if the new one
                                 // doesn't have the master node set, and the existing one does, then
                                 // the existing one is better, so we keep it
                                 // if both have a master or both have none, we prefer the latest ping
                                 if (existingResponse.master() == null || pingResponse.master() != null) {
-                                    responses.put(pingResponse.target(), pingResponse);
+                                    responses.put(pingResponse.node(), pingResponse);
                                 }
                             }
                         }
@@ -442,8 +444,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
         });
 
         List<PingResponse> pingResponses = newArrayList(temporalResponses);
-        DiscoveryNodes discoNodes = nodesProvider.nodes();
-        pingResponses.add(new PingResponse(discoNodes.localNode(), discoNodes.masterNode(), clusterName));
+        pingResponses.add(createPingResponse(contextProvider.nodes()));
 
 
         UnicastPingResponse unicastPingResponse = new UnicastPingResponse();
@@ -497,6 +498,10 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
             timeout.writeTo(out);
             pingResponse.writeTo(out);
         }
+    }
+
+    private PingResponse createPingResponse(DiscoveryNodes discoNodes) {
+        return new PingResponse(discoNodes.localNode(), discoNodes.masterNode(), clusterName, contextProvider.nodeHasJoinedClusterOnce());
     }
 
     static class UnicastPingResponse extends TransportResponse {

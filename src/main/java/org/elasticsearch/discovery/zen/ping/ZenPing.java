@@ -20,6 +20,7 @@
 package org.elasticsearch.discovery.zen.ping;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.LifecycleComponent;
@@ -27,7 +28,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
 
 import java.io.IOException;
 
@@ -39,7 +39,7 @@ import static org.elasticsearch.cluster.node.DiscoveryNode.readNode;
  */
 public interface ZenPing extends LifecycleComponent<ZenPing> {
 
-    void setNodesProvider(DiscoveryNodesProvider nodesProvider);
+    void setPingContextProvider(PingContextProvider contextProvider);
 
     void ping(PingListener listener, TimeValue timeout) throws ElasticsearchException;
 
@@ -49,34 +49,50 @@ public interface ZenPing extends LifecycleComponent<ZenPing> {
     }
 
     public static class PingResponse implements Streamable {
-        
+
         public static final PingResponse[] EMPTY = new PingResponse[0];
 
         private ClusterName clusterName;
 
-        private DiscoveryNode target;
+        private DiscoveryNode node;
 
         private DiscoveryNode master;
+
+        private boolean hasJoinedOnce;
 
         private PingResponse() {
         }
 
-        public PingResponse(DiscoveryNode target, DiscoveryNode master, ClusterName clusterName) {
-            this.target = target;
+        /**
+         * @param node          the node which this ping describes
+         * @param master        the current master of the node
+         * @param clusterName   the cluster name of the node
+         * @param hasJoinedOnce true if the joined has successfully joined the cluster before
+         */
+        public PingResponse(DiscoveryNode node, DiscoveryNode master, ClusterName clusterName, boolean hasJoinedOnce) {
+            this.node = node;
             this.master = master;
             this.clusterName = clusterName;
+            this.hasJoinedOnce = hasJoinedOnce;
         }
 
         public ClusterName clusterName() {
             return this.clusterName;
         }
 
-        public DiscoveryNode target() {
-            return target;
+        /** the node which this ping describes */
+        public DiscoveryNode node() {
+            return node;
         }
 
+        /** the current master of the node */
         public DiscoveryNode master() {
             return master;
+        }
+
+        /** true if the joined has successfully joined the cluster before */
+        public boolean hasJoinedOnce() {
+            return hasJoinedOnce;
         }
 
         public static PingResponse readPingResponse(StreamInput in) throws IOException {
@@ -88,27 +104,40 @@ public interface ZenPing extends LifecycleComponent<ZenPing> {
         @Override
         public void readFrom(StreamInput in) throws IOException {
             clusterName = readClusterName(in);
-            target = readNode(in);
+            node = readNode(in);
             if (in.readBoolean()) {
                 master = readNode(in);
             }
+            if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
+                this.hasJoinedOnce = in.readBoolean();
+            } else {
+                // As of 1.4.0 we prefer to elect nodes which have previously successfully joined the cluster.
+                // Nodes before 1.4.0 do not take this into consideration. If pre<1.4.0 node elects it self as master
+                // based on the pings, we need to make sure we do the same. We therefore can not demote it
+                // and thus mark it as if it has previously joined.
+                this.hasJoinedOnce = true;
+            }
+
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             clusterName.writeTo(out);
-            target.writeTo(out);
+            node.writeTo(out);
             if (master == null) {
                 out.writeBoolean(false);
             } else {
                 out.writeBoolean(true);
                 master.writeTo(out);
             }
+            if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
+                out.writeBoolean(hasJoinedOnce);
+            }
         }
 
         @Override
         public String toString() {
-            return "ping_response{target [" + target + "], master [" + master + "], cluster_name[" + clusterName.value() + "]}";
+            return "ping_response{node [" + node + "], master [" + master + "], hasJoinedOnce [" + hasJoinedOnce + "], cluster_name[" + clusterName.value() + "]}";
         }
     }
 }

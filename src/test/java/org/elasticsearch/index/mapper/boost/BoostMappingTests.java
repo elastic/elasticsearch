@@ -25,15 +25,15 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperTestUtils;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.internal.BoostFieldMapper;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class BoostMappingTests extends ElasticsearchTestCase {
+public class BoostMappingTests extends ElasticsearchSingleNodeTest {
 
     @Test
     public void testDefaultMapping() throws Exception {
@@ -89,7 +89,12 @@ public class BoostMappingTests extends ElasticsearchTestCase {
                 .field("store", "yes").field("index", "not_analyzed")
                 .endObject()
                 .endObject().endObject().string();
-        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
+        IndexService indexServices = createIndex("test");
+        DocumentMapper docMapper = indexServices.mapperService().documentMapperParser().parse("type", mapping);
+        assertThat(docMapper.boostFieldMapper().fieldType().stored(), equalTo(true));
+        assertThat(docMapper.boostFieldMapper().fieldType().indexed(), equalTo(true));
+        docMapper.refreshSource();
+        docMapper = indexServices.mapperService().documentMapperParser().parse("type", docMapper.mappingSource().string());
         assertThat(docMapper.boostFieldMapper().fieldType().stored(), equalTo(true));
         assertThat(docMapper.boostFieldMapper().fieldType().indexed(), equalTo(true));
     }

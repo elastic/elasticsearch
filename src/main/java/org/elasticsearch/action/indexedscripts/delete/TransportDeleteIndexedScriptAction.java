@@ -36,8 +36,8 @@ import org.elasticsearch.transport.TransportService;
  */
 public class TransportDeleteIndexedScriptAction extends HandledTransportAction<DeleteIndexedScriptRequest,  DeleteIndexedScriptResponse> {
 
-    private ScriptService scriptService;
-    private Client client;
+    private final ScriptService scriptService;
+    private final Client client;
 
     @Inject
     public TransportDeleteIndexedScriptAction(Settings settings, ThreadPool threadPool, ScriptService scriptService,

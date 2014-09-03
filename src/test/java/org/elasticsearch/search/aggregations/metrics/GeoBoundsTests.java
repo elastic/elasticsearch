@@ -22,7 +22,12 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.util.BigArray;
+import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.elasticsearch.search.aggregations.bucket.terms.Terms.Bucket;
 import org.elasticsearch.search.aggregations.metrics.geobounds.GeoBounds;
+import org.elasticsearch.search.aggregations.metrics.geobounds.GeoBoundsAggregator;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
@@ -32,6 +37,7 @@ import java.util.List;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.geoBounds;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
@@ -116,6 +122,22 @@ public class GeoBoundsTests extends ElasticsearchIntegrationTest {
             builders.add(client().prepareIndex("idx_dateline", "type").setSource(jsonBuilder()
                     .startObject()
                     .array(SINGLE_VALUED_FIELD_NAME, geoValues[i].lon(), geoValues[i].lat())
+                    .field(NUMBER_FIELD_NAME, i)
+                    .field("tag", "tag" + i)
+                    .endObject()));
+        }
+        assertAcked(prepareCreate("high_card_idx").setSettings(ImmutableSettings.builder().put("number_of_shards", 2))
+                .addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=geo_point", MULTI_VALUED_FIELD_NAME, "type=geo_point", NUMBER_FIELD_NAME, "type=long", "tag", "type=string,index=not_analyzed"));
+
+
+        for (int i = 0; i < 2000; i++) {
+            builders.add(client().prepareIndex("high_card_idx", "type").setSource(jsonBuilder()
+                    .startObject()
+                    .array(SINGLE_VALUED_FIELD_NAME, singleValues[i % numUniqueGeoPoints].lon(), singleValues[i % numUniqueGeoPoints].lat())
+                    .startArray(MULTI_VALUED_FIELD_NAME)
+                        .startArray().value(multiValues[i % numUniqueGeoPoints].lon()).value(multiValues[i % numUniqueGeoPoints].lat()).endArray()   
+                        .startArray().value(multiValues[(i+1) % numUniqueGeoPoints].lon()).value(multiValues[(i+1) % numUniqueGeoPoints].lat()).endArray()
+                     .endArray()
                     .field(NUMBER_FIELD_NAME, i)
                     .field("tag", "tag" + i)
                     .endObject()));
@@ -291,6 +313,33 @@ public class GeoBoundsTests extends ElasticsearchIntegrationTest {
         assertThat(topLeft.lon(), equalTo(geoValuesTopLeft.lon()));
         assertThat(bottomRight.lat(), equalTo(geoValuesBottomRight.lat()));
         assertThat(bottomRight.lon(), equalTo(geoValuesBottomRight.lon()));
+    }
+
+    /**
+     * This test forces the {@link GeoBoundsAggregator} to resize the {@link BigArray}s it uses to ensure they are resized correctly
+     */
+    @Test
+    public void singleValuedFieldAsSubAggToHighCardTermsAgg() {
+        SearchResponse response = client().prepareSearch("high_card_idx")
+                .addAggregation(terms("terms").field(NUMBER_FIELD_NAME).subAggregation(geoBounds("geoBounds").field(SINGLE_VALUED_FIELD_NAME)
+                        .wrapLongitude(false)))
+                .execute().actionGet();
+
+        assertSearchResponse(response);
+
+        Terms terms = response.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        assertThat(terms.getName(), equalTo("terms"));
+        List<Bucket> buckets = terms.getBuckets();
+        assertThat(buckets.size(), equalTo(10));
+        for (int i = 0; i < 10; i++) {
+            Bucket bucket = buckets.get(i);
+            assertThat(bucket, notNullValue());
+            assertThat(bucket.getDocCount(), equalTo(1l));
+            GeoBounds geoBounds = bucket.getAggregations().get("geoBounds");
+            assertThat(geoBounds, notNullValue());
+            assertThat(geoBounds.getName(), equalTo("geoBounds"));
+        }
     }
 
 }

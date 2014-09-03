@@ -167,7 +167,7 @@ public class DiscoveryWithServiceDisruptions extends ElasticsearchIntegrationTes
         for (ZenPingService pingService : internalCluster().getInstances(ZenPingService.class)) {
             for (ZenPing zenPing : pingService.zenPings()) {
                 if (zenPing instanceof UnicastZenPing) {
-                    ((UnicastZenPing) zenPing).clearTemporalReponses();
+                    ((UnicastZenPing) zenPing).clearTemporalResponses();
                 }
             }
         }
@@ -629,7 +629,7 @@ public class DiscoveryWithServiceDisruptions extends ElasticsearchIntegrationTes
         // includes all the other nodes that have pinged it and the issue doesn't manifest
         for (ZenPingService pingService : internalCluster().getInstances(ZenPingService.class)) {
             for (ZenPing zenPing : pingService.zenPings()) {
-                ((UnicastZenPing) zenPing).clearTemporalReponses();
+                ((UnicastZenPing) zenPing).clearTemporalResponses();
             }
         }
 
@@ -668,7 +668,7 @@ public class DiscoveryWithServiceDisruptions extends ElasticsearchIntegrationTes
         // includes all the other nodes that have pinged it and the issue doesn't manifest
         for (ZenPingService pingService : internalCluster().getInstances(ZenPingService.class)) {
             for (ZenPing zenPing : pingService.zenPings()) {
-                ((UnicastZenPing) zenPing).clearTemporalReponses();
+                ((UnicastZenPing) zenPing).clearTemporalResponses();
             }
         }
 

@@ -52,6 +52,7 @@ import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.discovery.zen.fd.MasterFaultDetection;
 import org.elasticsearch.discovery.zen.fd.NodesFaultDetection;
 import org.elasticsearch.discovery.zen.membership.MembershipAction;
+import org.elasticsearch.discovery.zen.ping.PingContextProvider;
 import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.discovery.zen.ping.ZenPingService;
 import org.elasticsearch.discovery.zen.publish.PublishClusterStateAction;
@@ -69,6 +70,7 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
@@ -76,7 +78,7 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 /**
  *
  */
-public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implements Discovery, DiscoveryNodesProvider {
+public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implements Discovery, PingContextProvider {
 
     public final static String SETTING_REJOIN_ON_MASTER_GONE = "discovery.zen.rejoin_on_master_gone";
     public final static String SETTING_PING_TIMEOUT = "discovery.zen.ping.timeout";
@@ -139,6 +141,9 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
     private volatile boolean rejoinOnMasterGone;
 
+    /** counts the time this node has joined the cluster or have elected it self as master */
+    private final AtomicLong clusterJoinsCounter = new AtomicLong();
+
     @Nullable
     private NodeService nodeService;
 
@@ -194,7 +199,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         this.nodesFD.addListener(new NodeFaultDetectionListener());
 
         this.publishClusterState = new PublishClusterStateAction(settings, transportService, this, new NewClusterStateListener(), discoverySettings, clusterName);
-        this.pingService.setNodesProvider(this);
+        this.pingService.setPingContextProvider(this);
         this.membership = new MembershipAction(settings, clusterService, transportService, this, new MembershipListener());
 
         transportService.registerHandler(DISCOVERY_REJOIN_ACTION_NAME, new RejoinClusterRequestHandler());
@@ -290,6 +295,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         return clusterName.value() + "/" + localNode.id();
     }
 
+    /** start of {@link org.elasticsearch.discovery.zen.ping.PingContextProvider } implementation */
     @Override
     public DiscoveryNodes nodes() {
         DiscoveryNodes latestNodes = this.latestDiscoNodes;
@@ -304,6 +310,14 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     public NodeService nodeService() {
         return this.nodeService;
     }
+
+    @Override
+    public boolean nodeHasJoinedClusterOnce() {
+        return clusterJoinsCounter.get() > 0;
+    }
+
+    /** end of {@link org.elasticsearch.discovery.zen.ping.PingContextProvider } implementation */
+
 
     @Override
     public void publish(ClusterState clusterState, AckListener ackListener) {
@@ -387,6 +401,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                     @Override
                     public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                         sendInitialStateEventIfNeeded();
+                        long count = clusterJoinsCounter.incrementAndGet();
+                        logger.trace("cluster joins counter set to [{}] (elected as master)", count);
                     }
                 });
             } else {
@@ -404,8 +420,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 }
 
                 masterFD.start(masterNode, "initial_join");
-                // no need to submit the received cluster state, we will get it from the master when it publishes
-                // the fact that we joined
+                long count = clusterJoinsCounter.incrementAndGet();
+                logger.trace("cluster joins counter set to [{}] (joined master)", count);
             }
         }
     }
@@ -922,7 +938,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 sb.append(" {none}");
             } else {
                 for (ZenPing.PingResponse pingResponse : fullPingResponses) {
-                    sb.append("\n\t--> ").append("target [").append(pingResponse.target()).append("], master [").append(pingResponse.master()).append("]");
+                    sb.append("\n\t--> ").append(pingResponse);
                 }
             }
             logger.trace(sb.toString());
@@ -931,7 +947,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         // filter responses
         List<ZenPing.PingResponse> pingResponses = Lists.newArrayList();
         for (ZenPing.PingResponse pingResponse : fullPingResponses) {
-            DiscoveryNode node = pingResponse.target();
+            DiscoveryNode node = pingResponse.node();
             if (masterElectionFilterClientNodes && (node.clientNode() || (!node.masterNode() && !node.dataNode()))) {
                 // filter out the client node, which is a client node, or also one that is not data and not master (effectively, client)
             } else if (masterElectionFilterDataNodes && (!node.masterNode() && node.dataNode())) {
@@ -947,7 +963,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 sb.append(" {none}");
             } else {
                 for (ZenPing.PingResponse pingResponse : pingResponses) {
-                    sb.append("\n\t--> ").append("target [").append(pingResponse.target()).append("], master [").append(pingResponse.master()).append("]");
+                    sb.append("\n\t--> ").append(pingResponse);
                 }
             }
             logger.debug(sb.toString());
@@ -963,20 +979,38 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             }
         }
 
-        Set<DiscoveryNode> possibleMasterNodes = Sets.newHashSet();
+        // nodes discovered during pinging
+        Set<DiscoveryNode> activeNodes = Sets.newHashSet();
+        // nodes discovered who has previously been part of the cluster and do not ping for the very first time
+        Set<DiscoveryNode> joinedOnceActiveNodes = Sets.newHashSet();
         if (localNode.masterNode()) {
-            possibleMasterNodes.add(localNode);
+            activeNodes.add(localNode);
+            long joinsCounter = clusterJoinsCounter.get();
+            if (joinsCounter > 0) {
+                logger.trace("adding local node to the list of active nodes who has previously joined the cluster (joins counter is [{}})", joinsCounter);
+                joinedOnceActiveNodes.add(localNode);
+            }
         }
         for (ZenPing.PingResponse pingResponse : pingResponses) {
-            possibleMasterNodes.add(pingResponse.target());
+            activeNodes.add(pingResponse.node());
+            if (pingResponse.hasJoinedOnce()) {
+                joinedOnceActiveNodes.add(pingResponse.node());
+            }
         }
 
         if (pingMasters.isEmpty()) {
-            // if we don't have enough master nodes, we bail, because there are not enough master to elect from
-            if (electMaster.hasEnoughMasterNodes(possibleMasterNodes)) {
-                return electMaster.electMaster(possibleMasterNodes);
+            if (electMaster.hasEnoughMasterNodes(activeNodes)) {
+                // we give preference to nodes who have previously already joined the cluster. Those will
+                // have a cluster state in memory, including an up to date routing table (which is not persistent to disk
+                // by the gateway)
+                DiscoveryNode master = electMaster.electMaster(joinedOnceActiveNodes);
+                if (master != null) {
+                    return master;
+                }
+                return electMaster.electMaster(activeNodes);
             } else {
-                logger.trace("not enough master nodes [{}]", possibleMasterNodes);
+                // if we don't have enough master nodes, we bail, because there are not enough master to elect from
+                logger.trace("not enough master nodes [{}]", activeNodes);
                 return null;
             }
         } else {

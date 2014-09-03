@@ -19,35 +19,30 @@
 
 package org.elasticsearch.common.blobstore.fs;
 
+import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.BlobStoreException;
-import org.elasticsearch.common.blobstore.ImmutableBlobContainer;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.File;
-import java.util.concurrent.Executor;
 
 /**
  *
  */
 public class FsBlobStore extends AbstractComponent implements BlobStore {
 
-    private final ThreadPool threadPool;
-
     private final File path;
 
     private final int bufferSizeInBytes;
 
-    public FsBlobStore(Settings settings, ThreadPool threadPool, File path) {
+    public FsBlobStore(Settings settings, File path) {
         super(settings);
         this.path = path;
-        this.threadPool = threadPool;
         if (!path.exists()) {
             boolean b = FileSystemUtils.mkdirs(path);
             if (!b) {
@@ -73,13 +68,9 @@ public class FsBlobStore extends AbstractComponent implements BlobStore {
         return this.bufferSizeInBytes;
     }
 
-    public Executor executor() {
-        return threadPool.executor(ThreadPool.Names.SNAPSHOT_DATA);
-    }
-
     @Override
-    public ImmutableBlobContainer immutableBlobContainer(BlobPath path) {
-        return new FsImmutableBlobContainer(this, path, buildAndCreate(path));
+    public BlobContainer blobContainer(BlobPath path) {
+        return new FsBlobContainer(this, path, buildAndCreate(path));
     }
 
     @Override

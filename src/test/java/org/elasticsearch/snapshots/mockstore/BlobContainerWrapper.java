@@ -21,29 +21,20 @@ package org.elasticsearch.snapshots.mockstore;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.blobstore.ImmutableBlobContainer;
+import org.elasticsearch.common.blobstore.BlobContainer;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 
 /**
  *
  */
-public class ImmutableBlobContainerWrapper implements ImmutableBlobContainer {
-    private ImmutableBlobContainer delegate;
+public class BlobContainerWrapper implements BlobContainer {
+    private BlobContainer delegate;
 
-    public ImmutableBlobContainerWrapper(ImmutableBlobContainer delegate) {
+    public BlobContainerWrapper(BlobContainer delegate) {
         this.delegate = delegate;
-    }
-
-    @Override
-    public void writeBlob(String blobName, InputStream is, long sizeInBytes, WriterListener listener) {
-        delegate.writeBlob(blobName, is, sizeInBytes, listener);
-    }
-
-    @Override
-    public void writeBlob(String blobName, InputStream is, long sizeInBytes) throws IOException {
-        delegate.writeBlob(blobName, is, sizeInBytes);
     }
 
     @Override
@@ -57,13 +48,13 @@ public class ImmutableBlobContainerWrapper implements ImmutableBlobContainer {
     }
 
     @Override
-    public void readBlob(String blobName, ReadBlobListener listener) {
-        delegate.readBlob(blobName, listener);
+    public InputStream openInput(String name) throws IOException {
+        return delegate.openInput(name);
     }
 
     @Override
-    public byte[] readBlobFully(String blobName) throws IOException {
-        return delegate.readBlobFully(blobName);
+    public OutputStream createOutput(String blobName) throws IOException {
+        return delegate.createOutput(blobName);
     }
 
     @Override

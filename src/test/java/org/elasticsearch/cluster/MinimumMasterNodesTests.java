@@ -24,6 +24,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
@@ -39,7 +40,7 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.client.Requests.clusterHealthRequest;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.*;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes =0)
 public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
@@ -200,8 +201,7 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
         assertThat(state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID), equalTo(true));
 
         logger.info("--> start two more nodes");
-        internalCluster().startNode(settings);
-        internalCluster().startNode(settings);
+        internalCluster().startNodesAsync(2, settings).get();
 
         ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("4").execute().actionGet();
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
@@ -234,8 +234,7 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
         assertNoMasterBlockOnAllNodes();
 
         logger.info("--> start back the 2 nodes ");
-        internalCluster().startNode(settings);
-        internalCluster().startNode(settings);
+        String[] newNodes = internalCluster().startNodesAsync(2, settings).get().toArray(Strings.EMPTY_ARRAY);
 
         clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("4").execute().actionGet();
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
@@ -248,6 +247,8 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
 
         state = client().admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(state.nodes().size(), equalTo(4));
+        // we prefer to elect up and running nodes
+        assertThat(state.nodes().masterNodeId(), not(isOneOf(newNodes)));
 
         logger.info("--> verify we the data back");
         for (int i = 0; i < 10; i++) {

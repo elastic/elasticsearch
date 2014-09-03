@@ -33,7 +33,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.discovery.zen.ping.multicast.MulticastZenPing;
 import org.elasticsearch.discovery.zen.ping.unicast.UnicastHostsProvider;
@@ -92,12 +91,12 @@ public class ZenPingService extends AbstractLifecycleComponent<ZenPing> implemen
     }
 
     @Override
-    public void setNodesProvider(DiscoveryNodesProvider nodesProvider) {
+    public void setPingContextProvider(PingContextProvider contextProvider) {
         if (lifecycle.started()) {
             throw new ElasticsearchIllegalStateException("Can't set nodes provider when started");
         }
         for (ZenPing zenPing : zenPings) {
-            zenPing.setNodesProvider(nodesProvider);
+            zenPing.setPingContextProvider(contextProvider);
         }
     }
 
@@ -172,7 +171,7 @@ public class ZenPingService extends AbstractLifecycleComponent<ZenPing> implemen
         public void onPing(PingResponse[] pings) {
             if (pings != null) {
                 for (PingResponse pingResponse : pings) {
-                    responses.put(pingResponse.target(), pingResponse);
+                    responses.put(pingResponse.node(), pingResponse);
                 }
             }
             if (counter.decrementAndGet() == 0) {

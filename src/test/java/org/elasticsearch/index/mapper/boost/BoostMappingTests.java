@@ -20,10 +20,13 @@
 package org.elasticsearch.index.mapper.boost;
 
 import org.apache.lucene.index.IndexableField;
+import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.internal.BoostFieldMapper;
+import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
 
@@ -87,7 +90,12 @@ public class BoostMappingTests extends ElasticsearchSingleNodeTest {
                 .field("store", "yes").field("index", "not_analyzed")
                 .endObject()
                 .endObject().endObject().string();
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        IndexService indexServices = createIndex("test");
+        DocumentMapper docMapper = indexServices.mapperService().documentMapperParser().parse("type", mapping);
+        assertThat(docMapper.boostFieldMapper().fieldType().stored(), equalTo(true));
+        assertThat(docMapper.boostFieldMapper().fieldType().indexed(), equalTo(true));
+        docMapper.refreshSource();
+        docMapper = indexServices.mapperService().documentMapperParser().parse("type", docMapper.mappingSource().string());
         assertThat(docMapper.boostFieldMapper().fieldType().stored(), equalTo(true));
         assertThat(docMapper.boostFieldMapper().fieldType().indexed(), equalTo(true));
     }

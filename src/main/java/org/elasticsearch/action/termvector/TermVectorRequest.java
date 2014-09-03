@@ -329,8 +329,11 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
         }
         type = in.readString();
         id = in.readString();
-        if (in.readBoolean()) {
-            doc = in.readBytesReference();
+
+        if (in.getVersion().after(Version.V_1_4_0)) {
+            if (in.readBoolean()) {
+                doc = in.readBytesReference();
+            }
         }
         routing = in.readOptionalString();
         preference = in.readOptionalString();
@@ -360,9 +363,12 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
         }
         out.writeString(type);
         out.writeString(id);
-        out.writeBoolean(doc != null);
-        if (doc != null) {
-            out.writeBytesReference(doc);
+
+        if (out.getVersion().after(Version.V_1_4_0)) {
+            out.writeBoolean(doc != null);
+            if (doc != null) {
+                out.writeBytesReference(doc);
+            }
         }
         out.writeOptionalString(routing);
         out.writeOptionalString(preference);

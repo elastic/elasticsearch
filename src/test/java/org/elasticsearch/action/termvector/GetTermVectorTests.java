@@ -897,30 +897,27 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
                     .setSource("field1", "some text"));
         indexRandom(true, indexBuilders);
 
-        // request tvs from artificial document (without a doc in a shard and with)
-        String text = "the quick brown fox jumps over the lazy dog";
-        for (int i = 0; i < 2; i++) {
-            TermVectorResponse resp = client().prepareTermVector()
+        // request tvs from artificial document
+        XContentBuilder doc = jsonBuilder()
+                .startObject()
+                    .field("field1", "the quick brown fox jumps over the lazy dog")
+                    .field("non_existing", "some text that should not be retrieved")
+                .endObject();
+
+        TermVectorResponse resp = client().prepareTermVector()
                     .setIndex("test")
                     .setType("type1")
-                    .setDoc(jsonBuilder()
-                            .startObject()
-                                .field("field1", text)
-                            .endObject()
-                            .startObject()
-                                .field("non_existing", "some text that should not be retrieved")
-                            .endObject())
-                    .setRouting(String.valueOf(i))
+                    .setDoc(doc)
+                    .setRouting(String.valueOf("1"))
                     .setOffsets(true)
                     .setPositions(true)
                     .setFieldStatistics(true)
                     .setTermStatistics(true)
                     .get();
-            assertThat(resp.isExists(), equalTo(true));
-            assertNotNull(resp.getFields().terms("field1"));
-            assertNull(resp.getFields().terms("non_existing"));
-            checkBrownFoxTermVector(resp.getFields(), "field1", false);
-        }
+        assertThat(resp.isExists(), equalTo(true));
+        assertNotNull(resp.getFields().terms("field1"));
+        assertNull(resp.getFields().terms("non_existing"));
+        checkBrownFoxTermVector(resp.getFields(), "field1", false);
     }
 
     private static String indexOrAlias() {

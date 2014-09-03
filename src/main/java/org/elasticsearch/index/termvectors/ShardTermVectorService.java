@@ -32,16 +32,15 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.get.GetField;
 import org.elasticsearch.index.get.GetResult;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
+import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
+import org.elasticsearch.indices.IndicesService;
 
 import java.io.IOException;
 import java.util.*;
@@ -54,6 +53,7 @@ import static org.elasticsearch.index.mapper.SourceToParse.source;
 public class ShardTermVectorService extends AbstractIndexShardComponent {
 
     private IndexShard indexShard;
+
 
     @Inject
     public ShardTermVectorService(ShardId shardId, @IndexSettings Settings indexSettings) {
@@ -78,7 +78,7 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
 
         try {
             Fields topLevelFields = MultiFields.getFields(topLevelReader);
-            //* from an artificial document */
+            /* from an artificial document */
             if (request.doc() != null) {
                 Fields termVectorsByField = generateTermVectorsFromDoc(request, topLevelFields);
                 // if no document indexed in shard, take the queried document itself for stats

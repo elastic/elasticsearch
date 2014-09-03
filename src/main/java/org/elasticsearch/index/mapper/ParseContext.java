@@ -138,17 +138,11 @@ public abstract class ParseContext {
          */
         public final String[] getValues(String name) {
             List<String> result = new ArrayList<>();
-
             for (IndexableField field : fields) {
                 if (field.name().equals(name) && field.stringValue() != null) {
                     result.add(field.stringValue());
                 }
             }
-
-            if (result.size() == 0) {
-                return new String[0];
-            }
-
             return result.toArray(new String[result.size()]);
         }
 

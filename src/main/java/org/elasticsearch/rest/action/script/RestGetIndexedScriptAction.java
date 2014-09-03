@@ -19,8 +19,6 @@
 package org.elasticsearch.rest.action.script;
 
 import org.elasticsearch.ElasticsearchIllegalStateException;
-import org.elasticsearch.action.get.GetRequest;
-import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.indexedscripts.get.GetIndexedScriptRequest;
 import org.elasticsearch.action.indexedscripts.get.GetIndexedScriptResponse;
 import org.elasticsearch.client.Client;
@@ -28,14 +26,11 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestResponseListener;
-import org.elasticsearch.script.ScriptService;
 
 import java.io.IOException;
-import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
@@ -47,8 +42,7 @@ import static org.elasticsearch.rest.RestStatus.OK;
 public class RestGetIndexedScriptAction extends BaseRestHandler {
 
     @Inject
-    public RestGetIndexedScriptAction(Settings settings, Client client,
-                                      ScriptService scriptService, RestController controller) {
+    public RestGetIndexedScriptAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
         controller.registerHandler(GET, "/_scripts/{lang}/{id}", this);
     }
@@ -56,7 +50,7 @@ public class RestGetIndexedScriptAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, Client client) {
 
-        final GetIndexedScriptRequest getRequest = new GetIndexedScriptRequest(ScriptService.SCRIPT_INDEX, request.param("lang"), request.param("id"));
+        final GetIndexedScriptRequest getRequest = new GetIndexedScriptRequest(request.param("lang"), request.param("id"));
         RestResponseListener<GetIndexedScriptResponse> responseListener = new RestResponseListener<GetIndexedScriptResponse>(channel) {
             @Override
             public RestResponse buildResponse(GetIndexedScriptResponse response) throws Exception {

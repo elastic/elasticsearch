@@ -101,7 +101,7 @@ public class XBooleanFilter extends Filter implements Iterable<FilterClause> {
                 }
             }
             Bits bits = null;
-            if (!DocIdSets.isFastIterator(set)) {
+            if (!DocIdSets.hasFasterIteratorThanRandomAccess(set)) {
                 bits = set.bits();
             }
             results.add(new ResultClause(set, bits, clause));

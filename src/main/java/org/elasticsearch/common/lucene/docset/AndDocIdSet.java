@@ -77,7 +77,7 @@ public class AndDocIdSet extends DocIdSet {
         List<DocIdSet> iterators = new ArrayList<>(sets.length);
         List<Bits> bits = new ArrayList<>(sets.length);
         for (DocIdSet set : sets) {
-            if (DocIdSets.isFastIterator(set)) {
+            if (DocIdSets.hasFasterIteratorThanRandomAccess(set)) {
                 iterators.add(set);
             } else {
                 Bits bit = set.bits();

@@ -45,11 +45,6 @@ public class NoneFilterCache extends AbstractIndexComponent implements FilterCac
     }
 
     @Override
-    public String type() {
-        return "none";
-    }
-
-    @Override
     public void close() {
         // nothing to do here
     }

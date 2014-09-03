@@ -107,7 +107,7 @@ public class ApplyAcceptedDocsFilter extends Filter {
 
         @Override
         public DocIdSetIterator iterator() throws IOException {
-            if (!DocIdSets.isFastIterator(innerSet) && liveDocs instanceof FixedBitSet) {
+            if (!DocIdSets.hasFasterIteratorThanRandomAccess(innerSet) && liveDocs instanceof FixedBitSet) {
                 // might as well iterate over the live docs..., since the iterator is not fast enough
                 // but we can only do that if we have Bits..., in short, we reverse the order...
                 Bits bits = innerSet.bits();

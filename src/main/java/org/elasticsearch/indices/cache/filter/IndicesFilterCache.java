@@ -91,7 +91,7 @@ public class IndicesFilterCache extends AbstractComponent implements RemovalList
     public IndicesFilterCache(Settings settings, ThreadPool threadPool, NodeSettingsService nodeSettingsService) {
         super(settings);
         this.threadPool = threadPool;
-        this.size = componentSettings.get("size", "10%");
+        this.size = componentSettings.get("size", "5%");
         this.expire = componentSettings.getAsTime("expire", null);
         this.cleanInterval = componentSettings.getAsTime("clean_interval", TimeValue.timeValueSeconds(60));
         computeSizeInBytes();

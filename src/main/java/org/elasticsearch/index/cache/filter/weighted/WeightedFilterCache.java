@@ -22,6 +22,7 @@ package org.elasticsearch.index.cache.filter.weighted;
 import com.google.common.cache.Cache;
 import com.google.common.cache.RemovalListener;
 import com.google.common.cache.Weigher;
+import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.SegmentReader;
@@ -29,7 +30,9 @@ import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.WAH8DocIdSet;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -53,6 +56,11 @@ import org.elasticsearch.indices.cache.filter.IndicesFilterCache;
 import java.io.IOException;
 import java.util.concurrent.ConcurrentMap;
 
+/**
+ * Default implementation for a filter cache. Evictions are weighted based on
+ * the amount of memory that cache entries require. Filters are cached using
+ * {@link WAH8DocIdSet}.
+ */
 public class WeightedFilterCache extends AbstractIndexComponent implements FilterCache, SegmentReader.CoreClosedListener, IndexReader.ReaderClosedListener {
 
     final IndicesFilterCache indicesFilterCache;
@@ -69,11 +77,6 @@ public class WeightedFilterCache extends AbstractIndexComponent implements Filte
     @Override
     public void setIndexService(IndexService indexService) {
         this.indexService = indexService;
-    }
-
-    @Override
-    public String type() {
-        return "weighted";
     }
 
     @Override
@@ -141,6 +144,13 @@ public class WeightedFilterCache extends AbstractIndexComponent implements Filte
         return new FilterCacheFilterWrapper(filterToCache, this);
     }
 
+    /**
+     * Given a {@link DocIdSet}, return a cacheable {@link DocIdSet}.
+     */
+    protected DocIdSet doCache(AtomicReader reader, DocIdSet set) throws IOException {
+        return DocIdSets.toCacheable(reader, set);
+    }
+
     static class FilterCacheFilterWrapper extends CachedFilter {
 
         private final Filter filter;
@@ -174,7 +184,10 @@ public class WeightedFilterCache extends AbstractIndexComponent implements Filte
                 // we can't pass down acceptedDocs provided, because we are caching the result, and acceptedDocs
                 // might be specific to a query. We don't pass the live docs either because a cache built for a specific
                 // generation of a segment might be reused by an older generation which has fewer deleted documents
-                cacheValue = DocIdSets.toCacheable(context.reader(), filter.getDocIdSet(context, null));
+                cacheValue = cache.doCache(context.reader(), filter.getDocIdSet(context, null));
+                if (!cacheValue.isCacheable()) {
+                    throw new ElasticsearchIllegalStateException("doCache must return cacheable filters, got " + cacheValue);
+                }
                 // we might put the same one concurrently, that's fine, it will be replaced and the removal
                 // will be called
                 ShardId shardId = ShardUtils.extractShardId(context.reader());

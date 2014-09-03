@@ -42,8 +42,6 @@ public interface FilterCache extends IndexComponent, CloseableComponent {
     // we need to "inject" the index service to not create cyclic dep
     void setIndexService(IndexService indexService);
 
-    String type();
-
     Filter cache(Filter filterToCache);
 
     void clear(Object reader);

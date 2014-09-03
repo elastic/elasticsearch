@@ -444,7 +444,11 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                 }
 
                 for (DiscoveryNode node : nodesDelta.removedNodes()) {
-                    transportService.disconnectFromNode(node);
+                    try {
+                        transportService.disconnectFromNode(node);
+                    } catch (Throwable e) {
+                        logger.warn("failed to disconnect to node [" + node + "]", e);
+                    }
                 }
 
                 newClusterState.status(ClusterState.ClusterStateStatus.APPLIED);

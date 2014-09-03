@@ -18,28 +18,19 @@
  */
 package org.elasticsearch.rest.action.template;
 
-import org.elasticsearch.ElasticsearchIllegalStateException;
-import org.elasticsearch.action.indexedscripts.get.GetIndexedScriptRequest;
-import org.elasticsearch.action.indexedscripts.get.GetIndexedScriptResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.rest.*;
-import org.elasticsearch.rest.action.support.RestResponseListener;
-
-import java.io.IOException;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.action.script.RestGetIndexedScriptAction;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
-import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
-import static org.elasticsearch.rest.RestStatus.OK;
 
 /**
  *
  */
-public class RestGetSearchTemplateAction extends BaseRestHandler {
+public class RestGetSearchTemplateAction extends RestGetIndexedScriptAction {
 
     @Inject
     public RestGetSearchTemplateAction(Settings settings, Client client, RestController controller) {
@@ -48,27 +39,12 @@ public class RestGetSearchTemplateAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, Client client) {
-        final GetIndexedScriptRequest getRequest = new GetIndexedScriptRequest("mustache", request.param("id"));
-        RestResponseListener<GetIndexedScriptResponse> responseListener = new RestResponseListener<GetIndexedScriptResponse>(channel) {
-            @Override
-            public RestResponse buildResponse(GetIndexedScriptResponse response) throws Exception {
-                XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-                if (!response.isExists()) {
-                    return new BytesRestResponse(NOT_FOUND, builder);
-                } else {
-                    try{
-                        String templateString = response.getScript();
-                        builder.startObject();
-                        builder.field("template",templateString);
-                        builder.endObject();
-                        return new BytesRestResponse(OK, builder);
-                    } catch( IOException|ClassCastException e ){
-                        throw new ElasticsearchIllegalStateException("Unable to parse "  + response.getScript() + " as json",e);
-                    }
-                }
-            }
-        };
-        client.getIndexedScript(getRequest, responseListener);
+    protected String getScriptLang(RestRequest request) {
+        return "mustache";
+    }
+
+    @Override
+    protected String getScriptFieldName() {
+        return "template";
     }
 }

@@ -18,30 +18,22 @@
  */
 package org.elasticsearch.rest.action.template;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptRequest;
-import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
-import org.elasticsearch.rest.*;
-import org.elasticsearch.rest.action.support.RestBuilderListener;
-
-import java.io.IOException;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.action.script.RestPutIndexedScriptAction;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
-import static org.elasticsearch.rest.RestStatus.CREATED;
-import static org.elasticsearch.rest.RestStatus.OK;
-import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 
 /**
  *
  */
-public class RestPutSearchTemplateAction extends BaseRestHandler {
+public class RestPutSearchTemplateAction extends RestPutIndexedScriptAction {
 
     @Inject
     public RestPutSearchTemplateAction(Settings settings, Client client, RestController controller) {
@@ -67,51 +59,8 @@ public class RestPutSearchTemplateAction extends BaseRestHandler {
         }
     }
 
-
-
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, Client client) {
-        PutIndexedScriptRequest putRequest = new PutIndexedScriptRequest("mustache", request.param("id"));
-        putRequest.listenerThreaded(false);
-
-        putRequest.source(request.content(), request.contentUnsafe());
-        String sOpType = request.param("op_type");
-        if (sOpType != null) {
-            try {
-                putRequest.opType(IndexRequest.OpType.fromString(sOpType));
-            } catch (ElasticsearchIllegalArgumentException eia){
-                try {
-                    XContentBuilder builder = channel.newBuilder();
-                    channel.sendResponse(new BytesRestResponse(BAD_REQUEST, builder.startObject().field("error", eia.getMessage()).endObject()));
-                    return;
-                } catch (IOException e1) {
-                    logger.warn("Failed to send response", e1);
-                    return;
-                }
-            }
-        }
-
-        client.putIndexedScript(putRequest, new RestBuilderListener<PutIndexedScriptResponse>(channel) {
-            @Override
-            public RestResponse buildResponse(PutIndexedScriptResponse response, XContentBuilder builder) throws Exception {
-                builder.startObject()
-                        .field(Fields._ID, response.getId())
-                        .field(Fields._VERSION, response.getVersion())
-                        .field(Fields.CREATED, response.isCreated());
-                builder.endObject();
-                RestStatus status = OK;
-                if (response.isCreated()) {
-                    status = CREATED;
-                }
-                return new BytesRestResponse(status, builder);
-            }
-        });
+    protected String getScriptLang(RestRequest request) {
+        return "mustache";
     }
-
-    static final class Fields {
-        static final XContentBuilderString _VERSION = new XContentBuilderString("_version");
-        static final XContentBuilderString _ID = new XContentBuilderString("_id");
-        static final XContentBuilderString CREATED = new XContentBuilderString("created");
-    }
-
 }

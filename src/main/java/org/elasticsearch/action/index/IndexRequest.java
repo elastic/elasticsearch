@@ -21,6 +21,7 @@ package org.elasticsearch.action.index;
 
 import com.google.common.base.Charsets;
 import org.elasticsearch.*;
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.TimestampParsingException;
@@ -149,6 +150,14 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
     private XContentType contentType = Requests.INDEX_CONTENT_TYPE;
 
     public IndexRequest() {
+    }
+
+    /**
+     * Creates an index request caused by some other request, which is provided as an
+     * argument so that its headers and context can be copied to the new request
+     */
+    public IndexRequest(ActionRequest request) {
+        super(request);
     }
 
     /**

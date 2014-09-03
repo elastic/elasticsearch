@@ -20,9 +20,9 @@
 package org.elasticsearch.action.indexedscripts.put;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DelegatingActionListener;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
@@ -36,8 +36,8 @@ import org.elasticsearch.transport.TransportService;
  */
 public class TransportPutIndexedScriptAction extends HandledTransportAction<PutIndexedScriptRequest, PutIndexedScriptResponse> {
 
-    private ScriptService scriptService;
-    private Client client;
+    private final ScriptService scriptService;
+    private final Client client;
 
     @Inject
     public TransportPutIndexedScriptAction(Settings settings, ThreadPool threadPool,
@@ -57,7 +57,7 @@ public class TransportPutIndexedScriptAction extends HandledTransportAction<PutI
     protected void doExecute(final PutIndexedScriptRequest request, final ActionListener<PutIndexedScriptResponse> listener) {
         scriptService.putScriptToIndex(client, request.safeSource(), request.scriptLang(), request.id(), null, request.opType().toString(), request.version(), request.versionType(), new DelegatingActionListener<IndexResponse,PutIndexedScriptResponse>(listener) {
             @Override
-                public PutIndexedScriptResponse getDelegatedFromInstigator(IndexResponse indexResponse){
+            public PutIndexedScriptResponse getDelegatedFromInstigator(IndexResponse indexResponse){
                 return new PutIndexedScriptResponse(indexResponse.getType(),indexResponse.getId(),indexResponse.getVersion(),indexResponse.isCreated());
             }
         });

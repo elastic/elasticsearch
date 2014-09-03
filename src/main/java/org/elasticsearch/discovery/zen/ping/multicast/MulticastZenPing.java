@@ -25,6 +25,8 @@ import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -74,7 +76,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
 
     private final ThreadPool threadPool;
     private final TransportService transportService;
-    private final ClusterName clusterName;
+    private final ClusterService clusterService;
     private final NetworkService networkService;
     private final Version version;
     private volatile DiscoveryNodesProvider nodesProvider;
@@ -86,15 +88,15 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
     private final AtomicInteger pingIdGenerator = new AtomicInteger();
     private final Map<Integer, ConcurrentMap<DiscoveryNode, PingResponse>> receivedResponses = newConcurrentMap();
 
-    public MulticastZenPing(ThreadPool threadPool, TransportService transportService, ClusterName clusterName, Version version) {
-        this(EMPTY_SETTINGS, threadPool, transportService, clusterName, new NetworkService(EMPTY_SETTINGS), version);
+    public MulticastZenPing(ThreadPool threadPool, TransportService transportService, ClusterService clusterService, Version version) {
+        this(EMPTY_SETTINGS, threadPool, transportService, clusterService, new NetworkService(EMPTY_SETTINGS), version);
     }
 
-    public MulticastZenPing(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterName clusterName, NetworkService networkService, Version version) {
+    public MulticastZenPing(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterService clusterService, NetworkService networkService, Version version) {
         super(settings);
         this.threadPool = threadPool;
         this.transportService = transportService;
-        this.clusterName = clusterName;
+        this.clusterService = clusterService;
         this.networkService = networkService;
         this.version = version;
 
@@ -215,7 +217,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
             out.writeBytes(INTERNAL_HEADER);
             Version.writeVersion(version, out);
             out.writeInt(id);
-            clusterName.writeTo(out);
+            clusterService.state().getClusterName().writeTo(out);
             nodesProvider.nodes().localNode().writeTo(out);
             out.close();
             multicastChannel.send(bStream.bytes());
@@ -361,14 +363,16 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
                 return;
             }
 
-            String clusterName = request.containsKey("cluster_name") ? request.get("cluster_name").toString() : request.containsKey("clusterName") ? request.get("clusterName").toString() : null;
+            final String clusterName = request.containsKey("cluster_name") ? request.get("cluster_name").toString() : request.containsKey("clusterName") ? request.get("clusterName").toString() : null;
+            final ClusterState state = clusterService.state();
             if (clusterName == null) {
                 logger.warn("malformed external ping request, missing 'cluster_name' element within request, from {}, content {}", remoteAddress, externalPingData);
                 return;
             }
 
-            if (!clusterName.equals(MulticastZenPing.this.clusterName.value())) {
-                logger.trace("got request for cluster_name {}, but our cluster_name is {}, from {}, content {}", clusterName, MulticastZenPing.this.clusterName.value(), remoteAddress, externalPingData);
+            if (!clusterName.equals(state.getClusterName().value())) {
+                logger.trace("got request for cluster_name {}, but our cluster_name is {}, from {}, content {}",
+                        clusterName, state.getClusterName().value(), remoteAddress, externalPingData);
                 return;
             }
             if (logger.isTraceEnabled()) {
@@ -380,7 +384,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
 
                 XContentBuilder builder = XContentFactory.contentBuilder(contentType);
                 builder.startObject().startObject("response");
-                builder.field("cluster_name", MulticastZenPing.this.clusterName.value());
+                builder.field("cluster_name", state.getClusterName().value());
                 builder.startObject("version").field("number", version.number()).field("snapshot_build", version.snapshot).endObject();
                 builder.field("transport_address", localNode.address().toString());
 
@@ -410,15 +414,16 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
             if (!pingEnabled) {
                 return;
             }
-            DiscoveryNodes discoveryNodes = nodesProvider.nodes();
+            final DiscoveryNodes discoveryNodes = nodesProvider.nodes();
+            final ClusterState state = clusterService.state();
             final DiscoveryNode requestingNode = requestingNodeX;
             if (requestingNode.id().equals(discoveryNodes.localNodeId())) {
                 // that's me, ignore
                 return;
             }
-            if (!clusterName.equals(MulticastZenPing.this.clusterName)) {
+            if (!clusterName.equals(state.getClusterName())) {
                 if (logger.isTraceEnabled()) {
-                    logger.trace("[{}] received ping_request from [{}], but wrong cluster_name [{}], expected [{}], ignoring", id, requestingNode, clusterName, MulticastZenPing.this.clusterName);
+                    logger.trace("[{}] received ping_request from [{}], but wrong cluster_name [{}], expected [{}], ignoring", id, requestingNode, clusterName, state.getClusterName());
                 }
                 return;
             }
@@ -431,7 +436,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
             }
             final MulticastPingResponse multicastPingResponse = new MulticastPingResponse();
             multicastPingResponse.id = id;
-            multicastPingResponse.pingResponse = new PingResponse(discoveryNodes.localNode(), discoveryNodes.masterNode(), clusterName);
+            multicastPingResponse.pingResponse = new PingResponse(discoveryNodes.localNode(), discoveryNodes.masterNode(), state.getClusterName(), state.version() <= 0);
 
             if (logger.isTraceEnabled()) {
                 logger.trace("[{}] received ping_request from [{}], sending {}", id, requestingNode, multicastPingResponse.pingResponse);

@@ -20,6 +20,7 @@
 package org.elasticsearch.discovery.zen.ping;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.LifecycleComponent;
@@ -58,13 +59,16 @@ public interface ZenPing extends LifecycleComponent<ZenPing> {
 
         private DiscoveryNode master;
 
+        private boolean initialJoin;
+
         private PingResponse() {
         }
 
-        public PingResponse(DiscoveryNode target, DiscoveryNode master, ClusterName clusterName) {
+        public PingResponse(DiscoveryNode target, DiscoveryNode master, ClusterName clusterName, boolean initialJoin) {
             this.target = target;
             this.master = master;
             this.clusterName = clusterName;
+            this.initialJoin = initialJoin;
         }
 
         public ClusterName clusterName() {
@@ -77,6 +81,10 @@ public interface ZenPing extends LifecycleComponent<ZenPing> {
 
         public DiscoveryNode master() {
             return master;
+        }
+
+        public boolean initialJoin() {
+            return initialJoin;
         }
 
         public static PingResponse readPingResponse(StreamInput in) throws IOException {
@@ -92,6 +100,14 @@ public interface ZenPing extends LifecycleComponent<ZenPing> {
             if (in.readBoolean()) {
                 master = readNode(in);
             }
+            if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
+                this.initialJoin = in.readBoolean();
+            } else {
+                // we prefer to elect nodes who do not ping due to the first time they join the cluster
+                // false is the safe choice here.
+                this.initialJoin = false;
+            }
+
         }
 
         @Override
@@ -104,11 +120,14 @@ public interface ZenPing extends LifecycleComponent<ZenPing> {
                 out.writeBoolean(true);
                 master.writeTo(out);
             }
+            if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
+                out.writeBoolean(initialJoin);
+            }
         }
 
         @Override
         public String toString() {
-            return "ping_response{target [" + target + "], master [" + master + "], cluster_name[" + clusterName.value() + "]}";
+            return "ping_response{target [" + target + "], master [" + master + "], initialJoin [" + initialJoin + "], cluster_name[" + clusterName.value() + "]}";
         }
     }
 }

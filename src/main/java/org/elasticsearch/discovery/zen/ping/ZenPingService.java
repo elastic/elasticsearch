@@ -23,7 +23,7 @@ import com.google.common.collect.ImmutableList;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -55,21 +55,21 @@ public class ZenPingService extends AbstractLifecycleComponent<ZenPing> implemen
     private volatile ImmutableList<? extends ZenPing> zenPings = ImmutableList.of();
 
     // here for backward comp. with discovery plugins
-    public ZenPingService(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterName clusterName, NetworkService networkService,
+    public ZenPingService(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterService clusterService, NetworkService networkService,
                           ElectMasterService electMasterService, @Nullable Set<UnicastHostsProvider> unicastHostsProviders) {
-        this(settings, threadPool, transportService, clusterName, networkService, Version.CURRENT, electMasterService, unicastHostsProviders);
+        this(settings, threadPool, transportService, clusterService, networkService, Version.CURRENT, electMasterService, unicastHostsProviders);
     }
 
     @Inject
-    public ZenPingService(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterName clusterName, NetworkService networkService,
+    public ZenPingService(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterService clusterService, NetworkService networkService,
                           Version version, ElectMasterService electMasterService, @Nullable Set<UnicastHostsProvider> unicastHostsProviders) {
         super(settings);
         ImmutableList.Builder<ZenPing> zenPingsBuilder = ImmutableList.builder();
         if (componentSettings.getAsBoolean("multicast.enabled", true)) {
-            zenPingsBuilder.add(new MulticastZenPing(settings, threadPool, transportService, clusterName, networkService, version));
+            zenPingsBuilder.add(new MulticastZenPing(settings, threadPool, transportService, clusterService, networkService, version));
         }
         // always add the unicast hosts, so it will be able to receive unicast requests even when working in multicast
-        zenPingsBuilder.add(new UnicastZenPing(settings, threadPool, transportService, clusterName, version, electMasterService, unicastHostsProviders));
+        zenPingsBuilder.add(new UnicastZenPing(settings, threadPool, transportService, clusterService, version, electMasterService, unicastHostsProviders));
 
         this.zenPings = zenPingsBuilder.build();
     }

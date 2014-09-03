@@ -21,6 +21,7 @@ package org.elasticsearch.discovery.zen.ping.multicast;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.logging.Loggers;
@@ -33,6 +34,7 @@ import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
 import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.cluster.NoopClusterService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.local.LocalTransport;
@@ -65,14 +67,15 @@ public class MulticastZenPingTests extends ElasticsearchTestCase {
         settings = buildRandomMulticast(settings);
 
         ThreadPool threadPool = new ThreadPool("testSimplePings");
-        ClusterName clusterName = new ClusterName("test");
+        final ClusterState initialJoinState = ClusterState.builder(new ClusterName("test")).build();
+        final ClusterState alreadyJoinedState = ClusterState.builder(initialJoinState).version(initialJoinState.version() + 1).build();
         final TransportService transportServiceA = new TransportService(new LocalTransport(settings, threadPool, Version.CURRENT), threadPool).start();
         final DiscoveryNode nodeA = new DiscoveryNode("A", transportServiceA.boundAddress().publishAddress(), Version.CURRENT);
 
         final TransportService transportServiceB = new TransportService(new LocalTransport(settings, threadPool, Version.CURRENT), threadPool).start();
-        final DiscoveryNode nodeB = new DiscoveryNode("B", transportServiceA.boundAddress().publishAddress(), Version.CURRENT);
+        final DiscoveryNode nodeB = new DiscoveryNode("B", transportServiceB.boundAddress().publishAddress(), Version.CURRENT);
 
-        MulticastZenPing zenPingA = new MulticastZenPing(threadPool, transportServiceA, clusterName, Version.CURRENT);
+        MulticastZenPing zenPingA = new MulticastZenPing(threadPool, transportServiceA, new NoopClusterService().state(initialJoinState), Version.CURRENT);
         zenPingA.setNodesProvider(new DiscoveryNodesProvider() {
             @Override
             public DiscoveryNodes nodes() {
@@ -86,7 +89,7 @@ public class MulticastZenPingTests extends ElasticsearchTestCase {
         });
         zenPingA.start();
 
-        MulticastZenPing zenPingB = new MulticastZenPing(threadPool, transportServiceB, clusterName, Version.CURRENT);
+        MulticastZenPing zenPingB = new MulticastZenPing(threadPool, transportServiceB, new NoopClusterService().state(alreadyJoinedState), Version.CURRENT);
         zenPingB.setNodesProvider(new DiscoveryNodesProvider() {
             @Override
             public DiscoveryNodes nodes() {
@@ -101,9 +104,18 @@ public class MulticastZenPingTests extends ElasticsearchTestCase {
         zenPingB.start();
 
         try {
+            logger.info("ping from A");
             ZenPing.PingResponse[] pingResponses = zenPingA.pingAndWait(TimeValue.timeValueSeconds(1));
             assertThat(pingResponses.length, equalTo(1));
             assertThat(pingResponses[0].target().id(), equalTo("B"));
+            assertFalse(pingResponses[0].initialJoin());
+
+            logger.info("ping from B");
+            pingResponses = zenPingB.pingAndWait(TimeValue.timeValueSeconds(1));
+            assertThat(pingResponses.length, equalTo(1));
+            assertThat(pingResponses[0].target().id(), equalTo("A"));
+            assertTrue(pingResponses[0].initialJoin());
+
         } finally {
             zenPingA.close();
             zenPingB.close();
@@ -118,12 +130,12 @@ public class MulticastZenPingTests extends ElasticsearchTestCase {
         Settings settings = ImmutableSettings.EMPTY;
         settings = buildRandomMulticast(settings);
 
-        ThreadPool threadPool = new ThreadPool("testExternalPing");
-        ClusterName clusterName = new ClusterName("test");
+        final ThreadPool threadPool = new ThreadPool("testExternalPing");
+        final ClusterState clusterState = ClusterState.builder(new ClusterName("test")).build();
         final TransportService transportServiceA = new TransportService(new LocalTransport(settings, threadPool, Version.CURRENT), threadPool).start();
         final DiscoveryNode nodeA = new DiscoveryNode("A", transportServiceA.boundAddress().publishAddress(), Version.CURRENT);
 
-        MulticastZenPing zenPingA = new MulticastZenPing(threadPool, transportServiceA, clusterName, Version.CURRENT);
+        MulticastZenPing zenPingA = new MulticastZenPing(threadPool, transportServiceA, new NoopClusterService().state(clusterState), Version.CURRENT);
         zenPingA.setNodesProvider(new DiscoveryNodesProvider() {
             @Override
             public DiscoveryNodes nodes() {

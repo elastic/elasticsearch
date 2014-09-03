@@ -922,7 +922,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 sb.append(" {none}");
             } else {
                 for (ZenPing.PingResponse pingResponse : fullPingResponses) {
-                    sb.append("\n\t--> ").append("target [").append(pingResponse.target()).append("], master [").append(pingResponse.master()).append("]");
+                    sb.append("\n\t--> ").append(pingResponse);
                 }
             }
             logger.trace(sb.toString());
@@ -964,20 +964,33 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         }
 
         Set<DiscoveryNode> possibleMasterNodes = Sets.newHashSet();
+        // master nodes who has previously been part of the cluster and do not ping for the very first time
+        Set<DiscoveryNode> alreadyJoinedPossibleMasterNodes = Sets.newHashSet();
         if (localNode.masterNode()) {
             possibleMasterNodes.add(localNode);
+            if (clusterService.state().version() > 0) {
+                alreadyJoinedPossibleMasterNodes.add(localNode);
+            }
         }
         for (ZenPing.PingResponse pingResponse : pingResponses) {
             possibleMasterNodes.add(pingResponse.target());
+            if (!pingResponse.initialJoin()) {
+                alreadyJoinedPossibleMasterNodes.add(pingResponse.target());
+            }
         }
 
         if (pingMasters.isEmpty()) {
             // if we don't have enough master nodes, we bail, because there are not enough master to elect from
-            if (electMaster.hasEnoughMasterNodes(possibleMasterNodes)) {
-                return electMaster.electMaster(possibleMasterNodes);
-            } else {
+            if (!electMaster.hasEnoughMasterNodes(possibleMasterNodes)) {
                 logger.trace("not enough master nodes [{}]", possibleMasterNodes);
                 return null;
+            } else if (alreadyJoinedPossibleMasterNodes.size() > 0) {
+                // we give preference to nodes who have previously already joined the cluster. Those will
+                // have a cluster state in memory, including an up to date routing table (which is not persistent to disk
+                // by the gateway)
+                return electMaster.electMaster(alreadyJoinedPossibleMasterNodes);
+            } else {
+                return electMaster.electMaster(possibleMasterNodes);
             }
         } else {
 

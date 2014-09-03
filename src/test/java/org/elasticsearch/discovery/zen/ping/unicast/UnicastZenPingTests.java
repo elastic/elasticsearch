@@ -21,6 +21,7 @@ package org.elasticsearch.discovery.zen.ping.unicast;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.network.NetworkService;
@@ -34,6 +35,7 @@ import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.cluster.NoopClusterService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty.NettyTransport;
@@ -54,7 +56,8 @@ public class UnicastZenPingTests extends ElasticsearchTestCase {
         settings = ImmutableSettings.builder().put(settings).put("transport.tcp.port", startPort + "-" + endPort).build();
 
         ThreadPool threadPool = new ThreadPool(getClass().getName());
-        ClusterName clusterName = new ClusterName("test");
+        ClusterState initialJoinState = ClusterState.builder(new ClusterName("test")).build();
+        ClusterState alreadyJoinedState = ClusterState.builder(initialJoinState).version(initialJoinState.version() + 1).build();
         NetworkService networkService = new NetworkService(settings);
         ElectMasterService electMasterService = new ElectMasterService(settings);
 
@@ -75,7 +78,8 @@ public class UnicastZenPingTests extends ElasticsearchTestCase {
                 addressB.address().getAddress().getHostAddress() + ":" + addressB.address().getPort())
                 .build();
 
-        UnicastZenPing zenPingA = new UnicastZenPing(hostsSettings, threadPool, transportServiceA, clusterName, Version.CURRENT, electMasterService, null);
+        UnicastZenPing zenPingA = new UnicastZenPing(hostsSettings, threadPool, transportServiceA,
+                new NoopClusterService().state(initialJoinState), Version.CURRENT, electMasterService, null);
         zenPingA.setNodesProvider(new DiscoveryNodesProvider() {
             @Override
             public DiscoveryNodes nodes() {
@@ -89,7 +93,8 @@ public class UnicastZenPingTests extends ElasticsearchTestCase {
         });
         zenPingA.start();
 
-        UnicastZenPing zenPingB = new UnicastZenPing(hostsSettings, threadPool, transportServiceB, clusterName, Version.CURRENT, electMasterService, null);
+        UnicastZenPing zenPingB = new UnicastZenPing(hostsSettings, threadPool,
+                transportServiceB, new NoopClusterService().state(alreadyJoinedState), Version.CURRENT, electMasterService, null);
         zenPingB.setNodesProvider(new DiscoveryNodesProvider() {
             @Override
             public DiscoveryNodes nodes() {
@@ -104,9 +109,19 @@ public class UnicastZenPingTests extends ElasticsearchTestCase {
         zenPingB.start();
 
         try {
+            logger.info("ping from UZP_A");
             ZenPing.PingResponse[] pingResponses = zenPingA.pingAndWait(TimeValue.timeValueSeconds(1));
             assertThat(pingResponses.length, equalTo(1));
             assertThat(pingResponses[0].target().id(), equalTo("UZP_B"));
+            assertFalse(pingResponses[0].initialJoin());
+
+            // ping again, this time from B,
+            logger.info("ping from UZP_B");
+            pingResponses = zenPingB.pingAndWait(TimeValue.timeValueSeconds(1));
+            assertThat(pingResponses.length, equalTo(1));
+            assertThat(pingResponses[0].target().id(), equalTo("UZP_A"));
+            assertTrue(pingResponses[0].initialJoin());
+
         } finally {
             zenPingA.close();
             zenPingB.close();

@@ -1067,7 +1067,7 @@ The `latvian` analyzer could be reimplemented as a `custom` analyzer as follows:
           "type":       "keyword_marker",
           "keywords":   [] <2>
         },
-        "italian_stemmer": {
+        "latvian_stemmer": {
           "type":       "stemmer",
           "language":   "latvian"
         }

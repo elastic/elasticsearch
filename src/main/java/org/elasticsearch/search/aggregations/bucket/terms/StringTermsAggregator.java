@@ -48,7 +48,7 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
     private final BytesRefBuilder previous;
 
     public StringTermsAggregator(String name, AggregatorFactories factories, ValuesSource valuesSource, long estimatedBucketCount,
-                                 InternalOrder order, BucketCountThresholds bucketCountThresholds,
+            Terms.Order order, BucketCountThresholds bucketCountThresholds,
                                  IncludeExclude includeExclude, AggregationContext aggregationContext, Aggregator parent, SubAggCollectionMode collectionMode, boolean showTermDocCountError) {
 
         super(name, factories, estimatedBucketCount, aggregationContext, parent, order, bucketCountThresholds, collectionMode, showTermDocCountError);

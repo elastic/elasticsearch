@@ -173,7 +173,7 @@ public class IndexingMemoryControllerTests extends ElasticsearchIntegrationTest 
         protected void append(LoggingEvent event) {
             String message = event.getMessage().toString();
             if (event.getLoggerName().equals("indices.memory")) {
-                if (message.contains("using index_buffer_size")) {
+                if (message.contains("using indices.memory.index_buffer_size")) {
                     sawUsing = true;
                 }
                 if (message.contains("recalculating shard indexing buffer")) {

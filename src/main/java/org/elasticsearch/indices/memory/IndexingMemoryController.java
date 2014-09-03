@@ -51,17 +51,11 @@ import com.google.common.collect.Lists;
  */
 public class IndexingMemoryController extends AbstractLifecycleComponent<IndexingMemoryController> {
 
-    private static final String INDEX_BUFFER_SIZE_KEY = "index_buffer_size";
-    private static final String MIN_INDEX_BUFFER_SIZE_KEY = "min_index_buffer_size";
-    private static final String MAX_INDEX_BUFFER_SIZE_KEY = "max_index_buffer_size";
-    private static final String MIN_SHARD_INDEX_BUFFER_SIZE_KEY = "min_shard_index_buffer_size";
-    private static final String MAX_SHARD_INDEX_BUFFER_SIZE_KEY = "max_shard_index_buffer_size";
-
-    public static final String INDEX_BUFFER_SIZE = "indices.memory." + INDEX_BUFFER_SIZE_KEY;
-    public static final String MIN_INDEX_BUFFER_SIZE = "indices.memory." + MIN_INDEX_BUFFER_SIZE_KEY;
-    public static final String MAX_INDEX_BUFFER_SIZE = "indices.memory." + MAX_INDEX_BUFFER_SIZE_KEY;
-    public static final String MIN_SHARD_INDEX_BUFFER_SIZE = "indices.memory." + MIN_SHARD_INDEX_BUFFER_SIZE_KEY;
-    public static final String MAX_SHARD_INDEX_BUFFER_SIZE = "indices.memory." + MAX_SHARD_INDEX_BUFFER_SIZE_KEY;
+    public static final String INDEX_BUFFER_SIZE = "indices.memory.index_buffer_size";
+    public static final String MIN_INDEX_BUFFER_SIZE = "indices.memory.min_index_buffer_size";
+    public static final String MAX_INDEX_BUFFER_SIZE = "indices.memory.max_index_buffer_size";
+    public static final String MIN_SHARD_INDEX_BUFFER_SIZE = "indices.memory.min_shard_index_buffer_size";
+    public static final String MAX_SHARD_INDEX_BUFFER_SIZE = "indices.memory.max_shard_index_buffer_size";
 
     /** Default value for min_index_buffer_size, which is applied when index_buffer_size is a %tg. */
     private static final ByteSizeValue DEFAULT_MIN_INDEX_BUFFER_SIZE = new ByteSizeValue(48, ByteSizeUnit.MB);
@@ -104,8 +98,8 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
 
         this.indexingBuffer = parseIndexingBuffer(settings);
 
-        this.minShardIndexBufferSize = componentSettings.getAsBytesSize(MIN_SHARD_INDEX_BUFFER_SIZE_KEY, DEFAULT_MIN_SHARD_INDEX_BUFFER_SIZE);
-        this.maxShardIndexBufferSize = componentSettings.getAsBytesSize(MAX_SHARD_INDEX_BUFFER_SIZE_KEY, DEFAULT_MAX_SHARD_INDEX_BUFFER_SIZE);
+        this.minShardIndexBufferSize = settings.getAsBytesSize(MIN_SHARD_INDEX_BUFFER_SIZE, DEFAULT_MIN_SHARD_INDEX_BUFFER_SIZE);
+        this.maxShardIndexBufferSize = settings.getAsBytesSize(MAX_SHARD_INDEX_BUFFER_SIZE, DEFAULT_MAX_SHARD_INDEX_BUFFER_SIZE);
 
         ByteSizeValue translogBuffer;
         String translogBufferSetting = componentSettings.get("translog_buffer_size", "1%");
@@ -133,10 +127,10 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
         this.interval = componentSettings.getAsTime("interval", TimeValue.timeValueSeconds(30));
 
         logger.debug("using {} [{}], with {} [{}], {} [{}], shard_inactive_time [{}]",
-                     INDEX_BUFFER_SIZE_KEY, this.indexingBuffer,
-                     MIN_SHARD_INDEX_BUFFER_SIZE_KEY,
+                     INDEX_BUFFER_SIZE, this.indexingBuffer,
+                     MIN_SHARD_INDEX_BUFFER_SIZE,
                      this.minShardIndexBufferSize,
-                     MAX_SHARD_INDEX_BUFFER_SIZE_KEY,
+                     MAX_SHARD_INDEX_BUFFER_SIZE,
                      this.maxShardIndexBufferSize, this.inactiveTime);
         nodeSettingsService.addListener(applySettings);
     }
@@ -210,10 +204,10 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
             if (changed) {
                 // Recalculate RAM buffer for all active shards:
                 logger.debug("using {} [{}], with {} [{}], {} [{}]",
-                             INDEX_BUFFER_SIZE_KEY, indexingBuffer,
-                             MIN_SHARD_INDEX_BUFFER_SIZE_KEY,
+                             INDEX_BUFFER_SIZE, indexingBuffer,
+                             MIN_SHARD_INDEX_BUFFER_SIZE,
                              minShardIndexBufferSize,
-                             MAX_SHARD_INDEX_BUFFER_SIZE_KEY,
+                             MAX_SHARD_INDEX_BUFFER_SIZE,
                              maxShardIndexBufferSize);
                 statusChecker.run(true);
             }
@@ -239,7 +233,11 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
 
         /** If forced is true, which happens when dynamic memory settings are updating, we recalculate even if active/inactive shards didn't change. */
         public void run(boolean forced) {
-            // nocommit is this thread safe?  BG thread and "refreshSettings" can call it at once...
+
+            // NOTE: be careful about adding any sync'd here, else it can cause tricky cross-node deadlock:
+            // https://github.com/elasticsearch/elasticsearch/pull/6892
+
+            // nocommit how/whether to protect this...?  BG thread and "refreshSettings" can call it at once...
             EnumSet<ShardStatusChangeType> changes = EnumSet.noneOf(ShardStatusChangeType.class);
 
             changes.addAll(purgeDeletedAndClosedShards());

@@ -103,7 +103,7 @@ public interface ZenPing extends LifecycleComponent<ZenPing> {
             if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
                 this.initialJoin = in.readBoolean();
             } else {
-                // we prefer to elect nodes who do not ping due to the first time they join the cluster
+                // we prefer to elect nodes which are not in the process of joining the cluster for the first time.
                 // false is the safe choice here.
                 this.initialJoin = false;
             }

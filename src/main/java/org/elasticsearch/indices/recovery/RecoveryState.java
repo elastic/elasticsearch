@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.routing.RestoreSource;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.Locale;
@@ -489,7 +490,7 @@ public class RecoveryState implements ToXContent, Streamable {
     public static class File implements ToXContent, Streamable {
         String name;
         long length;
-        long recovered;
+        AtomicLong recovered = new AtomicLong();
 
         public File() { }
 
@@ -499,7 +500,7 @@ public class RecoveryState implements ToXContent, Streamable {
         }
 
         public void updateRecovered(long length) {
-            recovered += length;
+            recovered.addAndGet(length);
         }
 
         public static File readFile(StreamInput in) throws IOException {
@@ -512,14 +513,14 @@ public class RecoveryState implements ToXContent, Streamable {
         public void readFrom(StreamInput in) throws IOException {
             name = in.readString();
             length = in.readVLong();
-            recovered = in.readVLong();
+            recovered = new AtomicLong(in.readVLong());
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(name);
             out.writeVLong(length);
-            out.writeVLong(recovered);
+            out.writeVLong(recovered.get());
         }
 
         @Override
@@ -538,19 +539,18 @@ public class RecoveryState implements ToXContent, Streamable {
         private long startTime = 0;
         private long time = 0;
 
-        private List<File> fileDetails = new ArrayList<>();
-        private List<File> reusedFileDetails = new ArrayList<>();
+        private List<File> fileDetails = new CopyOnWriteArrayList<>();
+        private List<File> reusedFileDetails = new CopyOnWriteArrayList<>();
 
-        private long version = -1;
-
+        private volatile long version = -1;
         private boolean detailed = false;
 
-        private int totalFileCount = 0;
-        private int reusedFileCount = 0;
+        private volatile int totalFileCount = 0;
+        private volatile int reusedFileCount = 0;
         private AtomicInteger recoveredFileCount = new AtomicInteger();
 
-        private long totalByteCount = 0;
-        private long reusedByteCount = 0;
+        private volatile long totalByteCount = 0;
+        private volatile long reusedByteCount = 0;
         private AtomicLong recoveredByteCount = new AtomicLong();
 
         public List<File> fileDetails() {
@@ -567,7 +567,7 @@ public class RecoveryState implements ToXContent, Streamable {
 
         public void addFileDetail(String name, long length, long recovered) {
             File file = new File(name, length);
-            file.recovered = recovered;
+            file.recovered.set(recovered);
             fileDetails.add(file);
         }
 
@@ -739,15 +739,17 @@ public class RecoveryState implements ToXContent, Streamable {
             recoveredFileCount = new AtomicInteger(in.readVInt());
             recoveredByteCount = new AtomicLong(in.readVLong());
             int size = in.readVInt();
-            fileDetails = new ArrayList<>(size);
+            final List<File> fileDetailsCopy = new ArrayList<>();
             for (int i = 0; i < size; i++) {
-                fileDetails.add(File.readFile(in));
+                fileDetailsCopy.add(File.readFile(in));
             }
+            fileDetails = new CopyOnWriteArrayList<>(fileDetailsCopy);
             size = in.readVInt();
-            reusedFileDetails = new ArrayList<>(size);
+            final List<File> reusedFileDetailsCopy = new ArrayList<>();
             for (int i = 0; i < size; i++) {
-                reusedFileDetails.add(File.readFile(in));
+                reusedFileDetailsCopy.add(File.readFile(in));
             }
+            reusedFileDetails = new CopyOnWriteArrayList<>(reusedFileDetailsCopy);
         }
 
         @Override
@@ -760,12 +762,14 @@ public class RecoveryState implements ToXContent, Streamable {
             out.writeVLong(reusedByteCount);
             out.writeVInt(recoveredFileCount.get());
             out.writeVLong(recoveredByteCount.get());
-            out.writeVInt(fileDetails.size());
-            for (File file : fileDetails) {
+            final File[] fileDetailsCopy = fileDetails.toArray(new File[fileDetails.size()]);
+            out.writeVInt(fileDetailsCopy.length);
+            for (File file : fileDetailsCopy) {
                 file.writeTo(out);
             }
-            out.writeVInt(reusedFileDetails.size());
-            for (File file : reusedFileDetails) {
+            final File[] reusedFileDetailsCopy = reusedFileDetails.toArray(new File[reusedFileDetails.size()]);
+            out.writeVInt(reusedFileDetailsCopy.length);
+            for (File file : reusedFileDetailsCopy) {
                 file.writeTo(out);
             }
         }

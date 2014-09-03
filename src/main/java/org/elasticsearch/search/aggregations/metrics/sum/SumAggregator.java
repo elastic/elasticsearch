@@ -64,7 +64,6 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
     @Override
     public void collect(int doc, long owningBucketOrdinal) throws IOException {
         sums = bigArrays.grow(sums, owningBucketOrdinal + 1);
-
         values.setDocument(doc);
         final int valuesCount = values.count();
         double sum = 0;

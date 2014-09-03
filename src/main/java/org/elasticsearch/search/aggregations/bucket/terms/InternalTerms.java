@@ -96,7 +96,7 @@ public abstract class InternalTerms extends InternalAggregation implements Terms
         }
     }
 
-    protected InternalOrder order;
+    protected Terms.Order order;
     protected int requiredSize;
     protected int shardSize;
     protected long minDocCount;
@@ -107,7 +107,7 @@ public abstract class InternalTerms extends InternalAggregation implements Terms
 
     protected InternalTerms() {} // for serialization
 
-    protected InternalTerms(String name, InternalOrder order, int requiredSize, int shardSize, long minDocCount, List<Bucket> buckets, boolean showTermDocCountError, long docCountError) {
+    protected InternalTerms(String name, Terms.Order order, int requiredSize, int shardSize, long minDocCount, List<Bucket> buckets, boolean showTermDocCountError, long docCountError) {
         super(name);
         this.order = order;
         this.requiredSize = requiredSize;
@@ -150,7 +150,7 @@ public abstract class InternalTerms extends InternalAggregation implements Terms
             final long thisAggDocCountError;
             if (terms.buckets.size() < this.shardSize || this.order == InternalOrder.TERM_ASC || this.order == InternalOrder.TERM_DESC) {
                 thisAggDocCountError = 0;
-            } else if (this.order == InternalOrder.COUNT_DESC) {
+            } else if (InternalOrder.isCountDesc(this.order)) {
                 thisAggDocCountError = terms.buckets.get(terms.buckets.size() - 1).docCount;
             } else {
                 thisAggDocCountError = -1;

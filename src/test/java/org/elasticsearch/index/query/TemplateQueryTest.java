@@ -113,7 +113,6 @@ public class TemplateQueryTest extends ElasticsearchIntegrationTest {
                 .execute().actionGet();
         assertNoFailures(sr);
         assertThat(sr.getHits().hits().length, equalTo(0));
-
     }
 
     @Test
@@ -137,7 +136,6 @@ public class TemplateQueryTest extends ElasticsearchIntegrationTest {
         SearchResponse sr = client().prepareSearch().setQuery(builder)
                 .execute().actionGet();
         assertHitCount(sr, 2);
-
     }
 
     @Test
@@ -222,7 +220,7 @@ public class TemplateQueryTest extends ElasticsearchIntegrationTest {
         assertHitCount(searchResponse, 1);
     }
 
-    @Test
+    @Test(expected = SearchPhaseExecutionException.class)
     public void testIndexedTemplateClient() throws Exception {
         createIndex(ScriptService.SCRIPT_INDEX);
         ensureGreen(ScriptService.SCRIPT_INDEX);
@@ -262,7 +260,6 @@ public class TemplateQueryTest extends ElasticsearchIntegrationTest {
 
         indexRandom(true,builders);
 
-
         Map<String, String> templateParams = Maps.newHashMap();
         templateParams.put("fieldParam", "foo");
 
@@ -270,30 +267,21 @@ public class TemplateQueryTest extends ElasticsearchIntegrationTest {
                 setTemplateName("testTemplate").setTemplateType(ScriptService.ScriptType.INDEXED).setTemplateType(ScriptService.ScriptType.INDEXED).setTemplateParams(templateParams).get();
         assertHitCount(searchResponse, 4);
 
-
         DeleteIndexedScriptResponse deleteResponse = client().prepareDeleteIndexedScript("mustache","testTemplate").get();
-        assertTrue(deleteResponse.isFound() == true);
+        assertTrue(deleteResponse.isFound());
 
         getResponse = client().prepareGetIndexedScript("mustache", "testTemplate").get();
         assertFalse(getResponse.isExists());
 
-        Exception e = null;
-        try {
-            client().prepareSearch("test").setTypes("type").
-                    setTemplateName("/template_index/mustache/1000").setTemplateType(ScriptService.ScriptType.INDEXED).setTemplateParams(templateParams).get();
-        } catch (SearchPhaseExecutionException spee) {
-            e = spee;
-        }
-        assert e != null;
-        e = null;
-
+        client().prepareSearch("test").setTypes("type").
+                setTemplateName("/template_index/mustache/1000").setTemplateType(ScriptService.ScriptType.INDEXED).setTemplateParams(templateParams).get();
     }
 
     @Test
     public void testIndexedTemplate() throws Exception {
         createIndex(ScriptService.SCRIPT_INDEX);
         ensureGreen(ScriptService.SCRIPT_INDEX);
-        List<IndexRequestBuilder> builders = new ArrayList<IndexRequestBuilder>();
+        List<IndexRequestBuilder> builders = new ArrayList<>();
         builders.add(client().prepareIndex(ScriptService.SCRIPT_INDEX, "mustache", "1a").setSource("{" +
                 "\"template\":{"+
                 "                \"query\":{" +
@@ -338,24 +326,21 @@ public class TemplateQueryTest extends ElasticsearchIntegrationTest {
                 setTemplateName("/mustache/1a").setTemplateType(ScriptService.ScriptType.INDEXED).setTemplateParams(templateParams).get();
         assertHitCount(searchResponse, 4);
 
-        Exception e = null;
         try {
-            searchResponse = client().prepareSearch("test").setTypes("type").
+            client().prepareSearch("test").setTypes("type").
                     setTemplateName("/template_index/mustache/1000").setTemplateType(ScriptService.ScriptType.INDEXED).setTemplateParams(templateParams).get();
+            fail("shouldn't get here");
         } catch (SearchPhaseExecutionException spee) {
-            e = spee;
+            //all good
         }
-        assert e != null;
-        e = null;
+
         try {
             searchResponse = client().prepareSearch("test").setTypes("type").
                     setTemplateName("/myindex/mustache/1").setTemplateType(ScriptService.ScriptType.INDEXED).setTemplateParams(templateParams).get();
             assertFailures(searchResponse);
         } catch (SearchPhaseExecutionException spee) {
-            e = spee;
+            //all good
         }
-        assert e != null;
-
 
         searchResponse = client().prepareSearch("test").setTypes("type").
                 setTemplateName("1a").setTemplateType(ScriptService.ScriptType.INDEXED).setTemplateParams(templateParams).get();
@@ -383,5 +368,4 @@ public class TemplateQueryTest extends ElasticsearchIntegrationTest {
         sr = client().prepareSearch().setQuery(query).get();
         assertHitCount(sr, 4);
     }
-
 }

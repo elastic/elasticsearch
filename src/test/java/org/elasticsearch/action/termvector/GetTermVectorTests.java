@@ -32,6 +32,8 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
+import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.indices.IndicesService;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -877,7 +879,7 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
     }
 
     @Test
-    public void testArtificialNonExistingField() throws IOException, ExecutionException, InterruptedException {
+    public void testArtificialNonExistingField() throws Exception {
         // setup indices
         ImmutableSettings.Builder settings = settingsBuilder()
                 .put(indexSettings())
@@ -901,23 +903,27 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
         XContentBuilder doc = jsonBuilder()
                 .startObject()
                     .field("field1", "the quick brown fox jumps over the lazy dog")
-                    .field("non_existing", "some text that should not be retrieved")
+                    .field("non_existing", "the quick brown fox jumps over the lazy dog")
                 .endObject();
 
-        TermVectorResponse resp = client().prepareTermVector()
+        for (int i = 0; i < 2; i++) {
+            TermVectorResponse resp = client().prepareTermVector()
                     .setIndex("test")
                     .setType("type1")
                     .setDoc(doc)
-                    .setRouting(String.valueOf("1"))
+                    .setRouting("" + i)
                     .setOffsets(true)
                     .setPositions(true)
                     .setFieldStatistics(true)
                     .setTermStatistics(true)
                     .get();
-        assertThat(resp.isExists(), equalTo(true));
-        assertNotNull(resp.getFields().terms("field1"));
-        assertNull(resp.getFields().terms("non_existing"));
-        checkBrownFoxTermVector(resp.getFields(), "field1", false);
+            assertThat(resp.isExists(), equalTo(true));
+            checkBrownFoxTermVector(resp.getFields(), "field1", false);
+            // we should have created a mapping for this field
+            waitForMappingOnMaster("test", "type1", "non_existing");
+            // and return the generated term vectors
+            checkBrownFoxTermVector(resp.getFields(), "non_existing", false);
+        }
     }
 
     private static String indexOrAlias() {

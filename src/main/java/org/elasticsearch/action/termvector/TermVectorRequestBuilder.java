@@ -36,21 +36,33 @@ public class TermVectorRequestBuilder extends ActionRequestBuilder<TermVectorReq
         super(client, new TermVectorRequest(index, type, id));
     }
 
+    /**
+     * Sets the index where the document is located.
+     */
     public TermVectorRequestBuilder setIndex(String index) {
         request.index(index);
         return this;
     }
 
-    public TermVectorRequestBuilder setId(String id) {
-        request.id(id);
-        return this;
-    }
-
+    /**
+     * Sets the type of the document.
+     */
     public TermVectorRequestBuilder setType(String type) {
         request.type(type);
         return this;
     }
 
+    /**
+     * Sets the id of the document.
+     */
+    public TermVectorRequestBuilder setId(String id) {
+        request.id(id);
+        return this;
+    }
+
+    /**
+     * Sets the artificial document from which to generate term vectors.
+     */
     public TermVectorRequestBuilder setDoc(XContentBuilder xContent) {
         request.doc(xContent);
         return this;

@@ -59,6 +59,11 @@ final class TermVectorWriter {
             Terms fieldTermVector = termVectorsByField.terms(field);
             Terms topLevelTerms = topLevelFields.terms(field);
 
+            // if no terms found, take the retrieved term vector fields for stats
+            if (topLevelTerms == null) {
+                topLevelTerms = fieldTermVector;
+            }
+
             topLevelIterator = topLevelTerms.iterator(topLevelIterator);
             boolean positions = flags.contains(Flag.Positions) && fieldTermVector.hasPositions();
             boolean offsets = flags.contains(Flag.Offsets) && fieldTermVector.hasOffsets();

@@ -25,7 +25,10 @@ import org.apache.lucene.index.memory.MemoryIndex;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.termvector.TermVectorRequest;
 import org.elasticsearch.action.termvector.TermVectorResponse;
+import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
@@ -40,7 +43,6 @@ import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
-import org.elasticsearch.indices.IndicesService;
 
 import java.io.IOException;
 import java.util.*;
@@ -53,11 +55,12 @@ import static org.elasticsearch.index.mapper.SourceToParse.source;
 public class ShardTermVectorService extends AbstractIndexShardComponent {
 
     private IndexShard indexShard;
-
+    private final MappingUpdatedAction mappingUpdatedAction;
 
     @Inject
-    public ShardTermVectorService(ShardId shardId, @IndexSettings Settings indexSettings) {
+    public ShardTermVectorService(ShardId shardId, @IndexSettings Settings indexSettings, MappingUpdatedAction mappingUpdatedAction) {
         super(shardId, indexSettings);
+        this.mappingUpdatedAction = mappingUpdatedAction;
     }
 
     // sadly, to overcome cyclic dep, we need to do this and inject it ourselves...
@@ -80,7 +83,7 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
             Fields topLevelFields = MultiFields.getFields(topLevelReader);
             /* from an artificial document */
             if (request.doc() != null) {
-                Fields termVectorsByField = generateTermVectorsFromDoc(request, topLevelFields);
+                Fields termVectorsByField = generateTermVectorsFromDoc(request);
                 // if no document indexed in shard, take the queried document itself for stats
                 if (topLevelFields == null) {
                     topLevelFields = termVectorsByField;
@@ -192,10 +195,12 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
         return MultiFields.getFields(index.createSearcher().getIndexReader());
     }
 
-    private Fields generateTermVectorsFromDoc(TermVectorRequest request, Fields topLevelFields) throws IOException {
-        DocumentMapper docMapper = indexShard.mapperService().documentMapper(request.type());
-        ParseContext.Document doc = docMapper.parse(source(request.doc()).type(request.type()).flyweight(true)).rootDoc();
+    private Fields generateTermVectorsFromDoc(TermVectorRequest request) throws IOException {
+        // parse the document, at the moment we do update the mapping, just like percolate
+        ParsedDocument parsedDocument = parseDocument(indexShard.shardId().getIndex(), request.type(), request.doc());
 
+        // select the right fields and generate term vectors
+        ParseContext.Document doc = parsedDocument.rootDoc();
         Collection<String> seenFields = new HashSet<>();
         Collection<GetField> getFields = new HashSet<>();
         for (IndexableField field : doc.getFields()) {
@@ -205,10 +210,6 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
             }
             else {
                 seenFields.add(field.name());
-            }
-            // skip fields not in the mapping
-            if (topLevelFields != null && topLevelFields.terms(field.name()) == null) {
-                continue;
             }
             if (!isValidField(fieldMapper)) {
                 continue;
@@ -220,6 +221,19 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
             getFields.add(new GetField(field.name(), Arrays.asList((Object[]) values)));
         }
         return generateTermVectors(getFields, request.offsets());
+    }
+
+    private ParsedDocument parseDocument(String index, String type, BytesReference doc) {
+        MapperService mapperService = indexShard.mapperService();
+        IndexService indexService = indexShard.indexService();
+
+        // TODO: make parsing not dynamically create fields not in the original mapping
+        Tuple<DocumentMapper, Boolean> docMapper = mapperService.documentMapperWithAutoCreate(type);
+        ParsedDocument parsedDocument = docMapper.v1().parse(source(doc).type(type).flyweight(true)).setMappingsModified(docMapper);
+        if (parsedDocument.mappingsModified()) {
+            mappingUpdatedAction.updateMappingOnMaster(index, docMapper.v1(), indexService.indexUUID());
+        }
+        return parsedDocument;
     }
 
     private Fields mergeFields(String[] fieldNames, Fields... fieldsObject) throws IOException {

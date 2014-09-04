@@ -57,7 +57,7 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
 
     protected String preference;
 
-    private static AtomicInteger randomInt = new AtomicInteger(0);
+    private static final AtomicInteger randomInt = new AtomicInteger(0);
 
     // TODO: change to String[]
     private Set<String> selectedFields;

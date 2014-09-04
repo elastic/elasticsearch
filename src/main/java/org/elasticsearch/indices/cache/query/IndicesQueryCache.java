@@ -38,7 +38,6 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -118,13 +117,6 @@ public class IndicesQueryCache extends AbstractComponent implements RemovalListe
 
     private void buildCache() {
         long sizeInBytes = MemorySizeValue.parseBytesSizeValueOrHeapRatio(size).bytes();
-        if (sizeInBytes > ByteSizeValue.MAX_GUAVA_CACHE_SIZE.bytes()) {
-            logger.warn("reducing requested query cache size of [{}] to the maximum allowed size of [{}]", new ByteSizeValue(sizeInBytes), ByteSizeValue.MAX_GUAVA_CACHE_SIZE);
-            sizeInBytes = ByteSizeValue.MAX_GUAVA_CACHE_SIZE.bytes();
-            // Even though it feels wrong for size and sizeInBytes to get out of
-            // sync we don't update size here because it might cause the cache
-            // to be rebuilt every time new settings are applied.
-        }
 
         CacheBuilder<Key, BytesReference> cacheBuilder = CacheBuilder.newBuilder()
                 .maximumWeight(sizeInBytes).weigher(new QueryCacheWeigher()).removalListener(this);

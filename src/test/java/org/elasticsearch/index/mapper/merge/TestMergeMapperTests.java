@@ -129,7 +129,7 @@ public class TestMergeMapperTests extends ElasticsearchSingleNodeTest {
                 .startObject("properties").startObject("field").field("type", "string").field("search_analyzer", "whitespace").endObject().endObject()
                 .endObject().endObject().string();
         String mapping2 = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("field").field("type", "string").field("postings_format", "direct").endObject().endObject()
+                .startObject("properties").startObject("field").field("type", "string").field("postings_format", "Lucene41").endObject().endObject()
                 .endObject().endObject().string();
 
         DocumentMapper existing = parser.parse(mapping1);
@@ -140,7 +140,7 @@ public class TestMergeMapperTests extends ElasticsearchSingleNodeTest {
 
         assertThat(mergeResult.hasConflicts(), equalTo(false));
         assertThat(((NamedAnalyzer) existing.mappers().name("field").mapper().searchAnalyzer()).name(), equalTo("whitespace"));
-        assertThat((existing.mappers().name("field").mapper().postingsFormatProvider()).name(), equalTo("direct"));
+        assertThat((existing.mappers().name("field").mapper().postingsFormatProvider()).name(), equalTo("Lucene41"));
     }
 
 }

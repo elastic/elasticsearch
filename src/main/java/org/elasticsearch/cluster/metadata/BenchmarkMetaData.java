@@ -55,7 +55,7 @@ public class BenchmarkMetaData implements MetaData.Custom {
         return entries.hashCode();
     }
 
-    public static ImmutableList<Entry> delta(BenchmarkMetaData prev, BenchmarkMetaData cur) {
+    public static ImmutableList<Entry> addedOrChanged(BenchmarkMetaData prev, BenchmarkMetaData cur) {
 
         if (cur == null || cur.entries == null || cur.entries.size() == 0) {
             return ImmutableList.of();
@@ -146,6 +146,7 @@ public class BenchmarkMetaData implements MetaData.Custom {
         public int hashCode() {
             int result = benchmarkId.hashCode();
             result = 31 * result + state.hashCode();
+            result = 31 * result + nodeStateMap.hashCode();
             return result;
         }
 

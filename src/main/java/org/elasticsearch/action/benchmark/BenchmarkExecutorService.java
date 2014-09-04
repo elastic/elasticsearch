@@ -42,7 +42,7 @@ import java.util.Map;
  * See {@link org.elasticsearch.action.benchmark.BenchmarkCoordinatorService} for a description of how
  * benchmark communication works.
  */
-public class BenchmarkExecutorService extends AbstractBenchmarkService<BenchmarkExecutorService> {
+public class BenchmarkExecutorService extends AbstractBenchmarkService {
 
     protected final BenchmarkExecutor executor;
     protected final Map<String, InternalExecutorState> benchmarks = new HashMap<>();
@@ -65,13 +65,6 @@ public class BenchmarkExecutorService extends AbstractBenchmarkService<Benchmark
     }
 
     @Override
-    protected void doStart() throws ElasticsearchException { }
-    @Override
-    protected void doStop() throws ElasticsearchException { }
-    @Override
-    protected void doClose() throws ElasticsearchException { }
-
-    @Override
     public void clusterChanged(ClusterChangedEvent event) {
 
         final BenchmarkMetaData meta = event.state().metaData().custom(BenchmarkMetaData.TYPE);
@@ -81,7 +74,7 @@ public class BenchmarkExecutorService extends AbstractBenchmarkService<Benchmark
             return;
         }
 
-        for (final BenchmarkMetaData.Entry entry : BenchmarkMetaData.delta(prev, meta)) {
+        for (final BenchmarkMetaData.Entry entry : BenchmarkMetaData.addedOrChanged(prev, meta)) {
 
             if (entry.nodeStateMap().get(nodeId()) == null) {   // Benchmark not assigned to this node. Skip it.
                 continue;
@@ -239,7 +232,11 @@ public class BenchmarkExecutorService extends AbstractBenchmarkService<Benchmark
             logger.debug("benchmark [{}]: received definition", response.benchmarkId);
 
             // Update our internal bookkeeping
-            benchmarks.get(response.benchmarkId).request = response.benchmarkStartRequest;
+            final InternalExecutorState ies = benchmarks.get(response.benchmarkId);
+            if (ies == null) {
+                throw new ElasticsearchIllegalStateException("benchmark [" + response.benchmarkId + "]: missing internal state");
+            }
+            ies.request = response.benchmarkStartRequest;
 
             BenchmarkMetaData.Entry.NodeState newNodeState = BenchmarkMetaData.Entry.NodeState.READY;
 
@@ -438,6 +435,25 @@ public class BenchmarkExecutorService extends AbstractBenchmarkService<Benchmark
 
         boolean isComplete() {
             return complete;
+        }
+    }
+
+    protected BenchmarkMetaData.Entry.NodeState convertToNodeState(BenchmarkStartResponse.State state) {
+        switch (state) {
+            case INITIALIZING:
+                return BenchmarkMetaData.Entry.NodeState.INITIALIZING;
+            case RUNNING:
+                return BenchmarkMetaData.Entry.NodeState.RUNNING;
+            case PAUSED:
+                return BenchmarkMetaData.Entry.NodeState.PAUSED;
+            case COMPLETED:
+                return BenchmarkMetaData.Entry.NodeState.COMPLETED;
+            case FAILED:
+                return BenchmarkMetaData.Entry.NodeState.FAILED;
+            case ABORTED:
+                return BenchmarkMetaData.Entry.NodeState.ABORTED;
+            default:
+                throw new ElasticsearchIllegalStateException("unhandled benchmark response state: " + state);
         }
     }
 }

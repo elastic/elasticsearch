@@ -21,9 +21,7 @@ package org.elasticsearch.action.benchmark;
 
 import com.google.common.collect.ImmutableList;
 
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.benchmark.start.BenchmarkStartRequest;
-import org.elasticsearch.action.benchmark.start.BenchmarkStartResponse;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -31,7 +29,7 @@ import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.BenchmarkMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -45,7 +43,7 @@ import java.util.Map;
 /**
  * Abstract base class for benchmark coordinator and executor services.
  */
-public abstract class AbstractBenchmarkService<T> extends AbstractLifecycleComponent<T> implements ClusterStateListener {
+public abstract class AbstractBenchmarkService extends AbstractComponent implements ClusterStateListener {
 
     protected final ClusterService   clusterService;
     protected final TransportService transportService;
@@ -158,25 +156,6 @@ public abstract class AbstractBenchmarkService<T> extends AbstractLifecycleCompo
 
     protected DiscoveryNode master() {
         return clusterService.state().nodes().masterNode();
-    }
-
-    protected BenchmarkMetaData.Entry.NodeState convertToNodeState(BenchmarkStartResponse.State state) {
-        switch (state) {
-            case INITIALIZING:
-                return BenchmarkMetaData.Entry.NodeState.INITIALIZING;
-            case RUNNING:
-                return BenchmarkMetaData.Entry.NodeState.RUNNING;
-            case PAUSED:
-                return BenchmarkMetaData.Entry.NodeState.PAUSED;
-            case COMPLETED:
-                return BenchmarkMetaData.Entry.NodeState.COMPLETED;
-            case FAILED:
-                return BenchmarkMetaData.Entry.NodeState.FAILED;
-            case ABORTED:
-                return BenchmarkMetaData.Entry.NodeState.ABORTED;
-            default:
-                throw new ElasticsearchIllegalStateException("unhandled benchmark response state: " + state);
-        }
     }
 
     public class NodeStateUpdateRequestHandler extends BaseTransportRequestHandler<NodeStateUpdateTransportRequest> {

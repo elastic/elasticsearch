@@ -65,7 +65,7 @@ public class MockBenchmarkCoordinatorService extends BenchmarkCoordinatorService
 
         logger.info("--> Observing event: [{}]", event.source());
 
-        for (final BenchmarkMetaData.Entry entry : BenchmarkMetaData.delta(prev, meta)) {
+        for (final BenchmarkMetaData.Entry entry : BenchmarkMetaData.addedOrChanged(prev, meta)) {
 
             if (lifecycles.get(entry.benchmarkId()) == null) {
                 lifecycles.put(entry.benchmarkId(), new Lifecycle());

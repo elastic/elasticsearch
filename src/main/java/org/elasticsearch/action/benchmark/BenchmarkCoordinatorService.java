@@ -77,7 +77,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * 9. On receipt of the COMPLETE state, the coordinator removes the benchmark from the cluster metadata and
  *    returns the results back to the client.
  */
-public class BenchmarkCoordinatorService extends AbstractBenchmarkService<BenchmarkCoordinatorService> {
+public class BenchmarkCoordinatorService extends AbstractBenchmarkService {
 
     protected final BenchmarkStateManager manager;
     protected final Map<String, InternalCoordinatorState> benchmarks = new ConcurrentHashMap<>();
@@ -94,13 +94,6 @@ public class BenchmarkCoordinatorService extends AbstractBenchmarkService<Benchm
         transportService.registerHandler(NodeStateUpdateRequestHandler.ACTION, new NodeStateUpdateRequestHandler());
         transportService.registerHandler(BenchmarkDefinitionRequestHandler.ACTION, new BenchmarkDefinitionRequestHandler());
     }
-
-    @Override
-    protected void doStart() throws ElasticsearchException { }
-    @Override
-    protected void doStop() throws ElasticsearchException { }
-    @Override
-    protected void doClose() throws ElasticsearchException { }
 
     /**
      * Listens for and responds to state transitions.
@@ -121,7 +114,7 @@ public class BenchmarkCoordinatorService extends AbstractBenchmarkService<Benchm
             return;
         }
 
-        for (final BenchmarkMetaData.Entry entry : BenchmarkMetaData.delta(prev, meta)) {
+        for (final BenchmarkMetaData.Entry entry : BenchmarkMetaData.addedOrChanged(prev, meta)) {
 
             log(entry);
             final InternalCoordinatorState ics = benchmarks.get(entry.benchmarkId());

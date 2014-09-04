@@ -24,6 +24,7 @@ import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.benchmark.start.*;
 import org.elasticsearch.action.benchmark.status.*;
 import org.elasticsearch.action.benchmark.competition.*;
@@ -184,7 +185,8 @@ public class BenchmarkExecutor {
                 competitionResult.addCompetitionNodeResult(competitionNodeResult);
                 benchmarkStartResponse.competitionResults().put(competitor.name(), competitionResult);
 
-                final List<SearchRequest> searchRequests = competitor.settings().searchRequests();
+                // Make sure security credentials are passed through to all searches
+                final List<SearchRequest> searchRequests = bindOriginalRequest(competitor.settings().searchRequests(), request);
 
                 // Perform warmup if requested
                 if (settings.warmup()) {
@@ -441,5 +443,22 @@ public class BenchmarkExecutor {
             assert buckets[i] >= 0 : "Bucket value was negative: " + buckets[i] + " bucket id: " + i;
         }
         return true;
+    }
+
+    /**
+     * Bind the originating request to the benchmark's search requests so that the security credentials are passed through.
+     *
+     * @param searchRequests    Benchmark search requests
+     * @param originalRequest   Originating action request
+     * @return                  Benchmark search requests re-constructed to use credentials of originating request
+     */
+    private List<SearchRequest> bindOriginalRequest(final List<SearchRequest> searchRequests, final ActionRequest originalRequest) {
+        final List<SearchRequest> newSearchRequests = new ArrayList<>(searchRequests.size());
+
+        for (final SearchRequest searchRequest : searchRequests) {
+            newSearchRequests.add(new SearchRequest(searchRequest, originalRequest));
+        }
+
+        return newSearchRequests;
     }
 }

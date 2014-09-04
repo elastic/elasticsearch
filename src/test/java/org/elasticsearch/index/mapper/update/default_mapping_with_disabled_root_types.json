@@ -1,0 +1,1 @@
+{"type":{"_timestamp":{"enabled":false,"fielddata":{"format":"doc_values"}},"_index":{"store":true,"enabled":false,"fielddata":{"format":"fst"}},"_size":{"enabled":false},"properties":{}}}

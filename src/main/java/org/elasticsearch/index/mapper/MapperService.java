@@ -145,7 +145,7 @@ public class MapperService extends AbstractIndexComponent  {
         String defaultMappingLocation = componentSettings.get("default_mapping_location");
         final URL defaultMappingUrl;
         if (index.getName().equals(ScriptService.SCRIPT_INDEX)){
-            defaultMappingUrl = getMappingUrl(indexSettings, environment, defaultMappingLocation,"script-index-defaults.json","org/elasticsearch/index/mapper/script-index-defaults.json");
+            defaultMappingUrl = getMappingUrl(indexSettings, environment, defaultMappingLocation,"script-mapping.json","org/elasticsearch/index/mapper/script-mapping.json");
         } else {
             defaultMappingUrl = getMappingUrl(indexSettings, environment, defaultMappingLocation,"default-mapping.json","org/elasticsearch/index/mapper/default-mapping.json");
         }
@@ -432,13 +432,6 @@ public class MapperService extends AbstractIndexComponent  {
 
             this.fullPathObjectMappers = fullPathObjectMappers.build();
         }
-    }
-
-    /**
-     * Just parses and returns the mapper without adding it, while still applying default mapping.
-     */
-    public DocumentMapper parse(String mappingType, CompressedString mappingSource) throws MapperParsingException {
-        return parse(mappingType, mappingSource, true);
     }
 
     public DocumentMapper parse(String mappingType, CompressedString mappingSource, boolean applyDefault) throws MapperParsingException {

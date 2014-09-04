@@ -24,7 +24,10 @@ import org.elasticsearch.search.suggest.SuggestBuilder;
 import java.io.IOException;
 
 /**
- *
+ * Defines a suggest command based on a prefix, typically to provide "auto-complete" functionality
+ * for users as they type search terms. The implementation of the completion service uses FSTs that
+ * are created at index-time and so must be defined in the mapping with the type "completion" before 
+ * indexing.  
  */
 public class CompletionSuggestionBuilder extends SuggestBuilder.SuggestionBuilder<CompletionSuggestionBuilder> {
 

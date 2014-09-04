@@ -102,7 +102,7 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
         client().admin().indices().prepareRefresh(INDEX).get();
         
         String suggestionName = randomAsciiOfLength(10);
-        CompletionSuggestionBuilder context = new CompletionSuggestionBuilder(suggestionName).field(FIELD).text("h").size(10)
+        CompletionSuggestionBuilder context = SuggestBuilders.completionSuggestion(suggestionName).field(FIELD).text("h").size(10)
                 .addGeoLocation("st", 52.52, 13.4);
         
         SuggestRequestBuilder suggestionRequest = client().prepareSuggest(INDEX).addSuggestion(context);
@@ -111,6 +111,49 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
         assertEquals(suggestResponse.getSuggest().size(), 1);
         assertEquals("Hotel Amsterdam in Berlin", suggestResponse.getSuggest().getSuggestion(suggestionName).iterator().next().getOptions().iterator().next().getText().string());
     }
+    
+    @Test
+    public void testMultiLevelGeo() throws Exception {
+        assertAcked(prepareCreate(INDEX).addMapping(TYPE, createMapping(TYPE, ContextBuilder.location("st")
+                .precision(1)
+                .precision(2)
+                .precision(3)
+                .precision(4)
+                .precision(5)
+                .precision(6)
+                .precision(7)
+                .precision(8)
+                .precision(9)
+                .precision(10)
+                .precision(11)
+                .precision(12)
+                .neighbors(true))));
+        ensureYellow();
+
+        XContentBuilder source1 = jsonBuilder()
+                .startObject()
+                    .startObject(FIELD)
+                        .array("input", "Hotel Amsterdam", "Amsterdam")
+                        .field("output", "Hotel Amsterdam in Berlin")
+                        .startObject("context").latlon("st", 52.529172, 13.407333).endObject()
+                    .endObject()
+                .endObject();
+        client().prepareIndex(INDEX, TYPE, "1").setSource(source1).execute().actionGet();
+
+        client().admin().indices().prepareRefresh(INDEX).get();
+        
+        for (int precision = 1; precision <= 12; precision++) {
+            String suggestionName = randomAsciiOfLength(10);
+            CompletionSuggestionBuilder context = new CompletionSuggestionBuilder(suggestionName).field(FIELD).text("h").size(10)
+                    .addGeoLocation("st", 52.529172, 13.407333, precision);
+
+            SuggestRequestBuilder suggestionRequest = client().prepareSuggest(INDEX).addSuggestion(context);
+            SuggestResponse suggestResponse = suggestionRequest.execute().actionGet();
+            assertEquals(suggestResponse.getSuggest().size(), 1);
+            assertEquals("Hotel Amsterdam in Berlin", suggestResponse.getSuggest().getSuggestion(suggestionName).iterator().next()
+                    .getOptions().iterator().next().getText().string()); 
+        }
+    }    
 
     @Test
     public void testGeoField() throws Exception {
@@ -164,7 +207,7 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
         refresh();
         
         String suggestionName = randomAsciiOfLength(10);
-        CompletionSuggestionBuilder context = new CompletionSuggestionBuilder(suggestionName).field(FIELD).text("h").size(10)
+        CompletionSuggestionBuilder context = SuggestBuilders.completionSuggestion(suggestionName).field(FIELD).text("h").size(10)
                 .addGeoLocation("st", 52.52, 13.4);
         SuggestRequestBuilder suggestionRequest = client().prepareSuggest(INDEX).addSuggestion(context);
         SuggestResponse suggestResponse = suggestionRequest.execute().actionGet();
@@ -292,7 +335,7 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
 
     private void getBackpackSuggestionAndCompare(String contextValue, String... expectedText) {
         Set<String> expected = Sets.newHashSet(expectedText);
-        CompletionSuggestionBuilder context = new CompletionSuggestionBuilder("suggestion").field("suggest_field").text("back").size(10).addContextField("color", contextValue);
+        CompletionSuggestionBuilder context = SuggestBuilders.completionSuggestion("suggestion").field("suggest_field").text("back").size(10).addContextField("color", contextValue);
         SuggestRequestBuilder suggestionRequest = client().prepareSuggest(INDEX).addSuggestion(context);
         SuggestResponse suggestResponse = suggestionRequest.execute().actionGet();
         Suggest suggest = suggestResponse.getSuggest();
@@ -492,7 +535,7 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
         index(INDEX, "poi", "1", jsonBuilder().startObject().startObject("suggest").field("input", "Berlin Alexanderplatz").endObject().endObject());
         refresh();
 
-        CompletionSuggestionBuilder suggestionBuilder = new CompletionSuggestionBuilder("suggestion").field("suggest").text("b").size(10).addGeoLocation("location", berlinAlexanderplatz.lat(), berlinAlexanderplatz.lon());
+        CompletionSuggestionBuilder suggestionBuilder = SuggestBuilders.completionSuggestion("suggestion").field("suggest").text("b").size(10).addGeoLocation("location", berlinAlexanderplatz.lat(), berlinAlexanderplatz.lon());
         SuggestResponse suggestResponse = client().prepareSuggest(INDEX).addSuggestion(suggestionBuilder).get();
         assertSuggestion(suggestResponse.getSuggest(), 0, "suggestion", "Berlin Alexanderplatz");
     }
@@ -573,7 +616,7 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
         index(INDEX, "item", "2", jsonBuilder().startObject().startObject("suggest").field("input", "Hoodie blue").startObject("context").field("color", "blue").endObject().endObject().endObject());
         refresh();
 
-        CompletionSuggestionBuilder suggestionBuilder = new CompletionSuggestionBuilder("suggestion").field("suggest").text("h").size(10).addContextField("color", "red");
+        CompletionSuggestionBuilder suggestionBuilder = SuggestBuilders.completionSuggestion("suggestion").field("suggest").text("h").size(10).addContextField("color", "red");
         SuggestResponse suggestResponse = client().prepareSuggest(INDEX).addSuggestion(suggestionBuilder).get();
         assertSuggestion(suggestResponse.getSuggest(), 0, "suggestion", "Hoodie red");
     }
@@ -598,7 +641,7 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
         index(INDEX, "item", "2", jsonBuilder().startObject().startObject("suggest").field("input", "Hoodie blue").endObject().field("color", "blue").endObject());
         refresh();
 
-        CompletionSuggestionBuilder suggestionBuilder = new CompletionSuggestionBuilder("suggestion").field("suggest").text("h").size(10).addContextField("color", "red");
+        CompletionSuggestionBuilder suggestionBuilder = SuggestBuilders.completionSuggestion("suggestion").field("suggest").text("h").size(10).addContextField("color", "red");
         SuggestResponse suggestResponse = client().prepareSuggest(INDEX).addSuggestion(suggestionBuilder).get();
         assertSuggestion(suggestResponse.getSuggest(), 0, "suggestion", "Hoodie red");
     }
@@ -631,7 +674,7 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
         index(INDEX, "item", "4", jsonBuilder().startObject().startObject("suggest").field("input", "Berlin Dahlem").field("weight", 1).startObject("context").startObject("location").field("lat", dahlem.lat()).field("lon", dahlem.lon()).endObject().endObject().endObject().endObject());
         refresh();
 
-        CompletionSuggestionBuilder suggestionBuilder = new CompletionSuggestionBuilder("suggestion").field("suggest").text("b").size(10).addGeoLocation("location", alexanderplatz.lat(), alexanderplatz.lon());
+        CompletionSuggestionBuilder suggestionBuilder = SuggestBuilders.completionSuggestion("suggestion").field("suggest").text("b").size(10).addGeoLocation("location", alexanderplatz.lat(), alexanderplatz.lon());
         SuggestResponse suggestResponse = client().prepareSuggest(INDEX).addSuggestion(suggestionBuilder).get();
         assertSuggestion(suggestResponse.getSuggest(), 0, "suggestion", "Berlin Alexanderplatz", "Berlin Poelchaustr.", "Berlin Dahlem");
     }
@@ -661,7 +704,7 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
         index(INDEX, "item", "2", jsonBuilder().startObject().startObject("suggest").field("input", "Berlin Hackescher Markt").field("weight", 2).startObject("context").startObject("location").field("lat", cellNeighbourOfAlexanderplatz.lat()).field("lon", cellNeighbourOfAlexanderplatz.lon()).endObject().endObject().endObject().endObject());
         refresh();
 
-        CompletionSuggestionBuilder suggestionBuilder = new CompletionSuggestionBuilder("suggestion").field("suggest").text("b").size(10).addGeoLocation("location", alexanderplatz.lat(), alexanderplatz.lon());
+        CompletionSuggestionBuilder suggestionBuilder = SuggestBuilders.completionSuggestion("suggestion").field("suggest").text("b").size(10).addGeoLocation("location", alexanderplatz.lat(), alexanderplatz.lon());
         SuggestResponse suggestResponse = client().prepareSuggest(INDEX).addSuggestion(suggestionBuilder).get();
         assertSuggestion(suggestResponse.getSuggest(), 0, "suggestion", "Berlin Alexanderplatz");
     }
@@ -686,7 +729,7 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
         index(INDEX, "item", "1", jsonBuilder().startObject().startObject("suggest").field("input", "Berlin Alexanderplatz").endObject().startObject("loc").field("lat", alexanderplatz.lat()).field("lon", alexanderplatz.lon()).endObject().endObject());
         refresh();
 
-        CompletionSuggestionBuilder suggestionBuilder = new CompletionSuggestionBuilder("suggestion").field("suggest").text("b").size(10).addGeoLocation("location", alexanderplatz.lat(), alexanderplatz.lon());
+        CompletionSuggestionBuilder suggestionBuilder = SuggestBuilders.completionSuggestion("suggestion").field("suggest").text("b").size(10).addGeoLocation("location", alexanderplatz.lat(), alexanderplatz.lon());
         SuggestResponse suggestResponse = client().prepareSuggest(INDEX).addSuggestion(suggestionBuilder).get();
         assertSuggestion(suggestResponse.getSuggest(), 0, "suggestion", "Berlin Alexanderplatz");
     }
@@ -744,7 +787,7 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
 
     public void assertGeoSuggestionsInRange(String location, String suggest, double precision) throws IOException {
         String suggestionName = randomAsciiOfLength(10);
-        CompletionSuggestionBuilder context = new CompletionSuggestionBuilder(suggestionName).field(FIELD).text(suggest).size(10)
+        CompletionSuggestionBuilder context = SuggestBuilders.completionSuggestion(suggestionName).field(FIELD).text(suggest).size(10)
                 .addGeoLocation("st", location);
         SuggestRequestBuilder suggestionRequest = client().prepareSuggest(INDEX).addSuggestion(context);
         SuggestResponse suggestResponse = suggestionRequest.execute().actionGet();
@@ -767,7 +810,7 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
 
     public void assertPrefixSuggestions(long prefix, String suggest, String... hits) throws IOException {
         String suggestionName = randomAsciiOfLength(10);
-        CompletionSuggestionBuilder context = new CompletionSuggestionBuilder(suggestionName).field(FIELD).text(suggest)
+        CompletionSuggestionBuilder context = SuggestBuilders.completionSuggestion(suggestionName).field(FIELD).text(suggest)
                 .size(hits.length + 1).addCategory("st", Long.toString(prefix));
         SuggestRequestBuilder suggestionRequest = client().prepareSuggest(INDEX).addSuggestion(context);
         SuggestResponse suggestResponse = suggestionRequest.execute().actionGet();
@@ -792,7 +835,7 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
 
     public void assertContextWithFuzzySuggestions(String[] prefix1, String[] prefix2, String suggest, String... hits) throws IOException {
         String suggestionName = randomAsciiOfLength(10);
-        CompletionSuggestionFuzzyBuilder context = new CompletionSuggestionFuzzyBuilder(suggestionName).field(FIELD).text(suggest)
+        CompletionSuggestionFuzzyBuilder context = SuggestBuilders.fuzzyCompletionSuggestion(suggestionName).field(FIELD).text(suggest)
                 .size(hits.length + 10).addContextField("st", prefix1).addContextField("nd", prefix2).setFuzziness(Fuzziness.TWO);
         SuggestRequestBuilder suggestionRequest = client().prepareSuggest(INDEX).addSuggestion(context);
         SuggestResponse suggestResponse = suggestionRequest.execute().actionGet();
@@ -820,7 +863,7 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
 
     public void assertFieldSuggestions(String value, String suggest, String... hits) throws IOException {
         String suggestionName = randomAsciiOfLength(10);
-        CompletionSuggestionBuilder context = new CompletionSuggestionBuilder(suggestionName).field(FIELD).text(suggest).size(10)
+        CompletionSuggestionBuilder context = SuggestBuilders.completionSuggestion(suggestionName).field(FIELD).text(suggest).size(10)
                 .addContextField("st", value);
         SuggestRequestBuilder suggestionRequest = client().prepareSuggest(INDEX).addSuggestion(context);
         SuggestResponse suggestResponse = suggestionRequest.execute().actionGet();
@@ -845,7 +888,7 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
 
     public void assertDoubleFieldSuggestions(String field1, String field2, String suggest, String... hits) throws IOException {
         String suggestionName = randomAsciiOfLength(10);
-        CompletionSuggestionBuilder context = new CompletionSuggestionBuilder(suggestionName).field(FIELD).text(suggest).size(10)
+        CompletionSuggestionBuilder context = SuggestBuilders.completionSuggestion(suggestionName).field(FIELD).text(suggest).size(10)
                 .addContextField("st", field1).addContextField("nd", field2);
         SuggestRequestBuilder suggestionRequest = client().prepareSuggest(INDEX).addSuggestion(context);
         SuggestResponse suggestResponse = suggestionRequest.execute().actionGet();
@@ -869,7 +912,7 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
 
     public void assertMultiContextSuggestions(String value1, String value2, String suggest, String... hits) throws IOException {
         String suggestionName = randomAsciiOfLength(10);
-        CompletionSuggestionBuilder context = new CompletionSuggestionBuilder(suggestionName).field(FIELD).text(suggest).size(10)
+        CompletionSuggestionBuilder context = SuggestBuilders.completionSuggestion(suggestionName).field(FIELD).text(suggest).size(10)
                 .addContextField("st", value1).addContextField("nd", value2);
 
         SuggestRequestBuilder suggestionRequest = client().prepareSuggest(INDEX).addSuggestion(context);

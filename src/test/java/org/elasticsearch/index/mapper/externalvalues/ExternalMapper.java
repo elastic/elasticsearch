@@ -131,7 +131,7 @@ public class ExternalMapper extends AbstractFieldMapper<Object> {
                 String propName = Strings.toUnderscoreCase(entry.getKey());
                 Object propNode = entry.getValue();
 
-                parseMultiField(builder, name, node, parserContext, propName, propNode);
+                parseMultiField(builder, name, parserContext, propName, propNode);
             }
 
             return builder;

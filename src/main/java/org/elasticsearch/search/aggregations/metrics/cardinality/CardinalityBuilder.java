@@ -24,20 +24,34 @@ import org.elasticsearch.search.aggregations.metrics.ValuesSourceMetricsAggregat
 
 import java.io.IOException;
 
+/**
+ * Builder for the {@link Cardinality} aggregation.
+ */
 public class CardinalityBuilder extends ValuesSourceMetricsAggregationBuilder<CardinalityBuilder> {
 
     private Long precisionThreshold;
     private Boolean rehash;
 
+    /**
+     * Sole constructor.
+     */
     public CardinalityBuilder(String name) {
         super(name, InternalCardinality.TYPE.name());
     }
 
+    /**
+     * Set a precision threshold. Higher values improve accuracy but also
+     * increase memory usage.
+     */
     public CardinalityBuilder precisionThreshold(long precisionThreshold) {
         this.precisionThreshold = precisionThreshold;
         return this;
     }
 
+    /**
+     * Expert: set to false in case values of this field can already be treated
+     * as 64-bits hash values.
+     */
     public CardinalityBuilder rehash(boolean rehash) {
         this.rehash = rehash;
         return this;

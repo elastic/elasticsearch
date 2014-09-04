@@ -47,8 +47,8 @@ public class PluggableTransportModuleTests extends ElasticsearchIntegrationTest 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return settingsBuilder()
-                .put("plugin.types", CountingSentRequestsPlugin.class.getName())
                 .put(super.nodeSettings(nodeOrdinal))
+                .put("plugin.types", CountingSentRequestsPlugin.class.getName())
                 .build();
     }
 

@@ -45,8 +45,8 @@ public class UpdateByNativeScriptTests extends ElasticsearchIntegrationTest {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return ImmutableSettings.settingsBuilder()
-                .put("script.native.custom.type", CustomNativeScriptFactory.class.getName())
                 .put(super.nodeSettings(nodeOrdinal))
+                .put("script.native.custom.type", CustomNativeScriptFactory.class.getName())
                 .build();
     }
 

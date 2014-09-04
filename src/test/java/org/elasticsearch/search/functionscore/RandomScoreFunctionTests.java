@@ -18,17 +18,17 @@
  */
 package org.elasticsearch.search.functionscore;
 
-import org.apache.lucene.search.Explanation;
+import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.query.functionscore.random.RandomScoreFunctionBuilder;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.CoreMatchers;
 import org.junit.Ignore;
 import org.junit.Test;
 
 import java.util.Arrays;
+import java.util.Comparator;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -37,7 +37,7 @@ import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.*;
-import static org.hamcrest.Matchers.arrayContaining;
+
 
 public class RandomScoreFunctionTests extends ElasticsearchIntegrationTest {
 
@@ -60,29 +60,40 @@ public class RandomScoreFunctionTests extends ElasticsearchIntegrationTest {
                 preference = randomRealisticUnicodeOfLengthBetween(1, 10);
             }
             int innerIters = scaledRandomIntBetween(2, 5);
-            SearchHits hits = null;
+            SearchHit[] hits = null;
             for (int i = 0; i < innerIters; i++) {
                 SearchResponse searchResponse = client().prepareSearch()
+                        .setSize(docCount) // get all docs otherwise we are prone to tie-breaking
                         .setPreference(preference)
                         .setQuery(functionScoreQuery(matchAllQuery(), randomFunction(seed)))
                         .execute().actionGet();
                 assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, CoreMatchers.equalTo(0));
-                int hitCount = searchResponse.getHits().getHits().length;
+                final int hitCount = searchResponse.getHits().getHits().length;
+                final SearchHit[] currentHits = searchResponse.getHits().getHits();
+                ArrayUtil.timSort(currentHits, new Comparator<SearchHit>() {
+                    @Override
+                    public int compare(SearchHit o1, SearchHit o2) {
+                        // for tie-breaking we have to resort here since if the score is
+                        // identical we rely on collection order which might change.
+                        int cmp = Float.compare(o1.getScore(), o2.getScore());
+                        return cmp == 0 ? o1.getId().compareTo(o2.getId()) : cmp;
+                    }
+                });
                 if (i == 0) {
                     assertThat(hits, nullValue());
-                    hits = searchResponse.getHits();
+                    hits = currentHits;
                 } else {
-                    assertThat(hits.getHits().length, equalTo(searchResponse.getHits().getHits().length));
+                    assertThat(hits.length, equalTo(searchResponse.getHits().getHits().length));
                     for (int j = 0; j < hitCount; j++) {
-                        assertThat(searchResponse.getHits().getAt(j).id(), equalTo(hits.getAt(j).id()));
-                        assertThat(searchResponse.getHits().getAt(j).score(), equalTo(hits.getAt(j).score()));
+                        assertThat("" + j, currentHits[j].score(), equalTo(hits[j].score()));
+                        assertThat("" + j, currentHits[j].id(), equalTo(hits[j].id()));
                     }
                 }
 
                 // randomly change some docs to get them in different segments
                 int numDocsToChange = randomIntBetween(20, 50);
                 while (numDocsToChange > 0) {
-                    int doc = randomInt(docCount);
+                    int doc = randomInt(docCount-1);// watch out this is inclusive the max values!
                     index("test", "type", "" + doc, jsonBuilder().startObject().endObject());
                     --numDocsToChange;
                 }
@@ -177,6 +188,17 @@ public class RandomScoreFunctionTests extends ElasticsearchIntegrationTest {
         assertEquals(1, resp.getHits().totalHits());
         SearchHit firstHit = resp.getHits().getAt(0);
         assertThat(firstHit.explanation().toString(), containsString("" + seed));
+    }
+
+    public void testNoDocs() throws Exception {
+        createIndex("test");
+        ensureGreen();
+
+        SearchResponse resp = client().prepareSearch("test")
+            .setQuery(functionScoreQuery(matchAllQuery(), randomFunction(1234)))
+            .get();
+        assertNoFailures(resp);
+        assertEquals(0, resp.getHits().totalHits());
     }
 
     @Test

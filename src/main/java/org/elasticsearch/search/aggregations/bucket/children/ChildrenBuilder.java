@@ -25,15 +25,22 @@ import org.elasticsearch.search.builder.SearchSourceBuilderException;
 import java.io.IOException;
 
 /**
+ * Builder for the {@link Children} aggregation.
  */
 public class ChildrenBuilder extends AggregationBuilder<ChildrenBuilder> {
 
     private String childType;
 
+    /**
+     * Sole constructor.
+     */
     public ChildrenBuilder(String name) {
         super(name, InternalChildren.TYPE.name());
     }
 
+    /**
+     * Set the type of children documents. This parameter is compulsory.
+     */
     public ChildrenBuilder childType(String childType) {
         this.childType = childType;
         return this;
@@ -43,7 +50,7 @@ public class ChildrenBuilder extends AggregationBuilder<ChildrenBuilder> {
     protected XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         if (childType == null) {
-            throw new SearchSourceBuilderException("child_type must be set on children aggregation [" + name + "]");
+            throw new SearchSourceBuilderException("child_type must be set on children aggregation [" + getName() + "]");
         }
         builder.field("type", childType);
         return builder.endObject();

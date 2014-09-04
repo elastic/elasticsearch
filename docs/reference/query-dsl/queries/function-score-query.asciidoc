@@ -9,8 +9,7 @@ the score on a filtered set of documents.
 `function_score` provides the same functionality that
 `custom_boost_factor`, `custom_score` and
 `custom_filters_score` provided
-but furthermore adds futher scoring functionality such as
-distance and recency scoring (see description below).
+but with additional capabilities such as distance and recency scoring (see description below).
 
 ==== Using function score
 
@@ -42,10 +41,15 @@ given filter:
     "functions": [
         {
             "filter": {},
-            "FUNCTION": {}
+            "FUNCTION": {},
+            "weight": number
         },
         {
             "FUNCTION": {}
+        },
+        {
+            "filter": {},
+            "weight": number
         }
     ],
     "max_boost": number,
@@ -68,6 +72,9 @@ First, each document is scored by the defined functions. The parameter
                 is applied
 `max`::         maximum score is used
 `min`::         minimum score is used
+
+Because scores can be on different scales (for example, between 0 and 1 for decay functions but arbitrary for `field_value_factor`) and also because sometimes a different impact of functions on the score is desirable, the score of each function can be adjusted with a user defined `weight` (coming[1.4.0]). The `weight` can be defined per function in the `functions` array (example above) and is multiplied with the score computed by the respective function.
+If weight is given without any other function declaration, `weight` acts as a function that simply returns the `weight`.
 
 The new score can be restricted to not exceed a certain limit by setting
 the `max_boost` parameter. The default for `max_boost` is FLT_MAX.
@@ -126,17 +133,26 @@ Note that unlike the `custom_score` query, the
 score of the query is multiplied with the result of the script scoring. If
 you wish to inhibit this, set `"boost_mode": "replace"`
 
-===== Boost factor
+===== Weight
 
-The `boost_factor` score allows you to multiply the score by the provided
-`boost_factor`. This can sometimes be desired since boost value set on
+coming[1.4.0]
+
+The `weight` score allows you to multiply the score by the provided
+`weight`. This can sometimes be desired since boost value set on
 specific queries gets normalized, while for this score function it does
 not.
 
 [source,js]
 --------------------------------------------------
-"boost_factor" : number
+"weight" : number
 --------------------------------------------------
+
+===== Boost factor
+
+deprecated[1.4.0]
+
+Same as `weight`. Use `weight` instead.
+
 
 ===== Random
 
@@ -490,7 +506,7 @@ becomes
 [source,js]
 --------------------------------------------------
 "function_score": {
-    "boost_factor": 5.2,
+    "weight": 5.2,
     "query": {...}
 }
 --------------------------------------------------
@@ -557,7 +573,7 @@ becomes:
 "function_score": {
     "functions": [
         {
-            "boost_factor": "3",
+            "weight": "3",
             "filter": {...}
         },
         {

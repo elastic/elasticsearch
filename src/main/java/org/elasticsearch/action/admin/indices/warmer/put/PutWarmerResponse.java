@@ -26,7 +26,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 
 /**
- * The response of put warmer operation.
+ * An acknowledged response of put warmer operation.
  */
 public class PutWarmerResponse extends AcknowledgedResponse {
 

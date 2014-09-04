@@ -33,7 +33,10 @@ import java.io.IOException;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
- * A request to put a search warmer.
+ * A request that associates a {@link SearchRequest} with a name in the cluster that is
+ * in-turn used to warm up indices before they are available for search.
+ *
+ * Note: neither the search request nor the name must be <code>null</code>
  */
 public class PutWarmerRequest extends AcknowledgedRequest<PutWarmerRequest> implements IndicesRequest {
 

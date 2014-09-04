@@ -38,6 +38,7 @@ import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.hamcrest.RegexMatcher;
 import org.elasticsearch.threadpool.ThreadPool.Names;
+import org.elasticsearch.tribe.TribeTests;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -62,11 +63,12 @@ public class SimpleThreadPoolTests extends ElasticsearchIntegrationTest {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.settingsBuilder().put("threadpool.search.type", "cached").put(super.nodeSettings(nodeOrdinal)).build();
+        return ImmutableSettings.settingsBuilder().put(super.nodeSettings(nodeOrdinal)).put("threadpool.search.type", "cached").build();
     }
 
     @Test
     public void verifyThreadNames() throws Exception {
+
         ThreadMXBean threadBean = ManagementFactory.getThreadMXBean();
         Set<String> preNodeStartThreadNames = Sets.newHashSet();
         for (long l : threadBean.getAllThreadIds()) {
@@ -115,7 +117,11 @@ public class SimpleThreadPoolTests extends ElasticsearchIntegrationTest {
                     || threadName.contains("Keep-Alive-Timer")) {
                 continue;
             }
-            String nodePrefix = "(" + Pattern.quote(InternalTestCluster.TRANSPORT_CLIENT_PREFIX) + ")?" + Pattern.quote(InternalTestCluster.NODE_PREFIX);
+            String nodePrefix = "(" + Pattern.quote(InternalTestCluster.TRANSPORT_CLIENT_PREFIX) + ")?(" +
+                    Pattern.quote(ElasticsearchIntegrationTest.GLOBAL_CLUSTER_NODE_PREFIX) + "|" +
+                    Pattern.quote(ElasticsearchIntegrationTest.SUITE_CLUSTER_NODE_PREFIX) + "|" +
+                    Pattern.quote(ElasticsearchIntegrationTest.TEST_CLUSTER_NODE_PREFIX) + "|" +
+                    Pattern.quote(TribeTests.SECOND_CLUSTER_NODE_PREFIX) + ")";
             assertThat(threadName, RegexMatcher.matches("\\[" + nodePrefix + "\\d+\\]"));
         }
     }

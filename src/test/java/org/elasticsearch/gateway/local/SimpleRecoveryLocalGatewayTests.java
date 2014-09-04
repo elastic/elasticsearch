@@ -26,6 +26,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.DisableAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -347,8 +348,7 @@ public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTes
         ImmutableSettings.Builder settings = settingsBuilder()
                 .put("action.admin.cluster.node.shutdown.delay", "10ms")
                 .put("gateway.recover_after_nodes", 4)
-                .put(MockDirectoryHelper.CRASH_INDEX, false)
-                .put(BalancedShardsAllocator.SETTING_THRESHOLD, 1.1f); // use less agressive settings
+                .put(MockDirectoryHelper.CRASH_INDEX, false);
 
         internalCluster().startNodesAsync(4, settings.build()).get();
 
@@ -365,8 +365,16 @@ public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTes
         ensureGreen();
 
         logger.info("--> shutting down the nodes");
+        // prevent any rebalance actions during the peer recovery
+        // if we run into a relocation the reuse count will be 0 and this fails the test. We are testing here if
+        // we reuse the files on disk after full restarts for replicas.
+        client().admin().cluster().prepareUpdateSettings()
+                .setPersistentSettings(settingsBuilder().put(BalancedShardsAllocator.SETTING_THRESHOLD, 100.0f)).get();
         // Disable allocations while we are closing nodes
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder().put(DisableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_DISABLE_ALLOCATION, true)).execute().actionGet();
+        client().admin().cluster().prepareUpdateSettings()
+                .setTransientSettings(settingsBuilder()
+                        .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, EnableAllocationDecider.Allocation.NONE))
+                .get();
         internalCluster().fullRestart();
 
         logger.info("Running Cluster Health");
@@ -374,7 +382,10 @@ public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTes
 
         logger.info("--> shutting down the nodes");
         // Disable allocations while we are closing nodes
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder().put(DisableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_DISABLE_ALLOCATION, true)).execute().actionGet();
+        client().admin().cluster().prepareUpdateSettings()
+                .setTransientSettings(settingsBuilder()
+                        .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, EnableAllocationDecider.Allocation.NONE))
+                .get();
         internalCluster().fullRestart();
 
 

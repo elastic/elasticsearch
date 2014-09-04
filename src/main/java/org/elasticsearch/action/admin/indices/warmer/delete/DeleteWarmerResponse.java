@@ -25,7 +25,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 
 /**
- * A response for a delete warmer.
+ * An acknowledged response of delete warmer operation.
  */
 public class DeleteWarmerResponse  extends AcknowledgedResponse {
 

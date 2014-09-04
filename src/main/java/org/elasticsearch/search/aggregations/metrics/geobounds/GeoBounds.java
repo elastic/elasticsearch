@@ -22,9 +22,18 @@ package org.elasticsearch.search.aggregations.metrics.geobounds;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.search.aggregations.Aggregation;
 
+/**
+ * An aggregation that computes a bounding box in which all documents of the current bucket are.
+ */
 public interface GeoBounds extends Aggregation {
-    
+
+    /**
+     * Get the top-left location of the bounding box.
+     */
     GeoPoint topLeft();
-    
+
+    /**
+     * Get the bottom-right location of the bounding box.
+     */
     GeoPoint bottomRight();
 }

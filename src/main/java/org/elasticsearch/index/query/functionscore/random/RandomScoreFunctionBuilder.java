@@ -26,7 +26,7 @@ import java.io.IOException;
 /**
  * A function that computes a random score for the matched documents
  */
-public class RandomScoreFunctionBuilder implements ScoreFunctionBuilder {
+public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder {
 
     private Integer seed = null;
 
@@ -50,12 +50,12 @@ public class RandomScoreFunctionBuilder implements ScoreFunctionBuilder {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(getName());
         if (seed != null) {
             builder.field("seed", seed.intValue());
         }
-        return builder.endObject();
+        builder.endObject();
     }
 
 }

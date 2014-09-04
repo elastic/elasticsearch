@@ -2662,6 +2662,18 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         }
     }
 
+    @Test // see #7365
+    public void testFilteredQueryWithoutQuery() throws Exception {
+        createIndex("test");
+        ensureYellow("test");
+        indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("field1", "value1"));
+        SearchResponse response = client().prepareSearch()
+                .setQuery(QueryBuilders.filteredQuery(null,
+                        FilterBuilders.termFilter("field1", "value1"))).get();
+        assertSearchResponse(response);
+        assertHitCount(response, 1l);
+    }
+
     @Test
     public void testQueryStringParserCache() throws Exception {
         createIndex("test");

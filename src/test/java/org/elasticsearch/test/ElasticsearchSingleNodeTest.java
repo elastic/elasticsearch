@@ -34,7 +34,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.engine.internal.InternalEngine;
 import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
@@ -170,6 +172,10 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
         assertThat("Cluster must be a single node cluster", health.getNumberOfDataNodes(), equalTo(1));
         IndicesService instanceFromNode = getInstanceFromNode(IndicesService.class);
         return instanceFromNode.indexServiceSafe(index);
+    }
+
+    protected static InternalEngine engine(IndexService service) {
+       return ((InternalEngine)((InternalIndexShard)service.shard(0)).engine());
     }
 
     /**

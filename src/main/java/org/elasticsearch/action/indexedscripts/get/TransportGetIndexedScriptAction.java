@@ -35,9 +35,8 @@ import org.elasticsearch.transport.TransportService;
  */
 public class TransportGetIndexedScriptAction extends HandledTransportAction<GetIndexedScriptRequest, GetIndexedScriptResponse> {
 
-    public static final boolean REFRESH_FORCE = false;
-    ScriptService scriptService;
-    Client client;
+    private final ScriptService scriptService;
+    private final Client client;
 
     @Inject
     public TransportGetIndexedScriptAction(Settings settings, ThreadPool threadPool, ScriptService scriptService,
@@ -54,11 +53,7 @@ public class TransportGetIndexedScriptAction extends HandledTransportAction<GetI
 
     @Override
     public void doExecute(GetIndexedScriptRequest request, ActionListener<GetIndexedScriptResponse> listener){
-        try {
-            GetResponse scriptResponse = scriptService.queryScriptIndex(client, request.scriptLang(), request.id(), request.version(), request.versionType());
-            listener.onResponse(new GetIndexedScriptResponse(scriptResponse));
-        } catch(Throwable e){
-            listener.onFailure(e);
-        }
+        GetResponse scriptResponse = scriptService.queryScriptIndex(client, request.scriptLang(), request.id(), request.version(), request.versionType());
+        listener.onResponse(new GetIndexedScriptResponse(scriptResponse));
     }
 }

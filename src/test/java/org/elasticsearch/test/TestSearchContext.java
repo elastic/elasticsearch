@@ -27,7 +27,6 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.analysis.AnalysisService;
-import org.elasticsearch.index.cache.docset.DocSetCache;
 import org.elasticsearch.index.cache.filter.FilterCache;
 import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
@@ -328,11 +327,6 @@ public class TestSearchContext extends SearchContext {
     @Override
     public FixedBitSetFilterCache fixedBitSetFilterCache() {
         return fixedBitSetFilterCache;
-    }
-
-    @Override
-    public DocSetCache docSetCache() {
-        return null;
     }
 
     @Override

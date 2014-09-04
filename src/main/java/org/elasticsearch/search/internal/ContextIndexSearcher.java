@@ -22,7 +22,6 @@ package org.elasticsearch.search.internal;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.*;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.MinimumScoreCollector;
 import org.elasticsearch.common.lucene.MultiCollector;
@@ -60,9 +59,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     private Stage currentState = Stage.NA;
 
-    private boolean enableMainDocIdSetCollector;
-    private DocIdSetCollector mainDocIdSetCollector;
-
     public ContextIndexSearcher(SearchContext searchContext, Engine.Searcher searcher) {
         super(searcher.reader());
         in = searcher.searcher();
@@ -72,7 +68,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     public void close() {
-        Releasables.close(mainDocIdSetCollector);
     }
 
     public void dfSource(CachedDfSource dfSource) {
@@ -89,14 +84,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             queryCollectors = new ArrayList<>();
         }
         queryCollectors.add(collector);
-    }
-
-    public DocIdSetCollector mainDocIdSetCollector() {
-        return this.mainDocIdSetCollector;
-    }
-
-    public void enableMainDocIdSetCollector() {
-        this.enableMainDocIdSetCollector = true;
     }
 
     public void inStage(Stage stage) {
@@ -152,10 +139,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             collector = Lucene.wrapCountBasedEarlyTerminatingCollector(collector, searchContext.terminateAfter());
         }
         if (currentState == Stage.MAIN_QUERY) {
-            if (enableMainDocIdSetCollector) {
-                // TODO should we create a cache of segment->docIdSets so we won't create one each time?
-                collector = this.mainDocIdSetCollector = new DocIdSetCollector(searchContext.docSetCache(), collector);
-            }
             if (searchContext.parsedPostFilter() != null) {
                 // this will only get applied to the actual search collector and not
                 // to any scoped collectors, also, it will only be applied to the main collector
@@ -192,10 +175,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             }
 
             if (currentState == Stage.MAIN_QUERY) {
-                if (enableMainDocIdSetCollector) {
-                    enableMainDocIdSetCollector = false;
-                    mainDocIdSetCollector.postCollection();
-                }
                 if (queryCollectors != null && !queryCollectors.isEmpty()) {
                     for (Collector queryCollector : queryCollectors) {
                         if (queryCollector instanceof XCollector) {

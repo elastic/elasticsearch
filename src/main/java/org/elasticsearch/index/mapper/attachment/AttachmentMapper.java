@@ -269,7 +269,7 @@ public class AttachmentMapper extends AbstractFieldMapper<Object> {
                         Map<String, Object> propNode = (Map<String, Object>) entry1.getValue();
 
                         Mapper.Builder<?, ?> mapperBuilder = findMapperBuilder(propNode, propName, parserContext);
-                        parseMultiField((AbstractFieldMapper.Builder) mapperBuilder, fieldName, (Map<String, Object>) fieldNode, parserContext, propName, propNode);
+                        parseMultiField((AbstractFieldMapper.Builder) mapperBuilder, fieldName, parserContext, propName, propNode);
 
                         if (propName.equals(name)) {
                             builder.content(mapperBuilder);

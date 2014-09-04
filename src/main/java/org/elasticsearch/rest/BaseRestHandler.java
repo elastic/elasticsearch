@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest;
 
+import com.google.common.collect.Sets;
 import org.elasticsearch.action.*;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ClusterAdminClient;
@@ -27,13 +28,15 @@ import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 
+import java.util.Collections;
+import java.util.Set;
+
 /**
  * Base handler for REST requests
  */
 public abstract class BaseRestHandler extends AbstractComponent implements RestHandler {
 
-    // non volatile since the assumption is that useful headers are registered on startup
-    private static String[] usefulHeaders = new String[0];
+    private static Set<String> usefulHeaders = Sets.newCopyOnWriteArraySet();
 
     /**
      * Controls which REST headers get copied over from a {@link org.elasticsearch.rest.RestRequest} to
@@ -41,17 +44,12 @@ public abstract class BaseRestHandler extends AbstractComponent implements RestH
      *
      * By default no headers get copied but it is possible to extend this behaviour via plugins by calling this method.
      */
-    public static synchronized void addUsefulHeaders(String... headers) {
-        String[] copy = new String[usefulHeaders.length + headers.length];
-        System.arraycopy(usefulHeaders, 0, copy, 0 , usefulHeaders.length);
-        System.arraycopy(headers, 0, copy, usefulHeaders.length, headers.length);
-        usefulHeaders = copy;
+    public static void addUsefulHeaders(String... headers) {
+        Collections.addAll(usefulHeaders, headers);
     }
 
-    static String[] usefulHeaders() {
-        String[] copy = new String[usefulHeaders.length];
-        System.arraycopy(usefulHeaders, 0, copy, 0 , usefulHeaders.length);
-        return copy;
+    static Set<String> usefulHeaders() {
+        return usefulHeaders;
     }
 
     private final Client client;
@@ -63,7 +61,7 @@ public abstract class BaseRestHandler extends AbstractComponent implements RestH
 
     @Override
     public final void handleRequest(RestRequest request, RestChannel channel) throws Exception {
-        handleRequest(request, channel, usefulHeaders.length == 0 ? client : new HeadersCopyClient(client, request, usefulHeaders));
+        handleRequest(request, channel, usefulHeaders.size() == 0 ? client : new HeadersCopyClient(client, request, usefulHeaders));
     }
 
     protected abstract void handleRequest(RestRequest request, RestChannel channel, Client client) throws Exception;
@@ -71,11 +69,11 @@ public abstract class BaseRestHandler extends AbstractComponent implements RestH
     static final class HeadersCopyClient extends FilterClient {
 
         private final RestRequest restRequest;
-        private final String[] usefulHeaders;
+        private final Set<String> usefulHeaders;
         private final IndicesAdmin indicesAdmin;
         private final ClusterAdmin clusterAdmin;
 
-        HeadersCopyClient(Client in, RestRequest restRequest, String[] usefulHeaders) {
+        HeadersCopyClient(Client in, RestRequest restRequest, Set<String> usefulHeaders) {
             super(in);
             this.restRequest = restRequest;
             this.usefulHeaders = usefulHeaders;

@@ -24,8 +24,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.bench.BenchmarkModule;
-import org.elasticsearch.bulk.udp.BulkUdpModule;
-import org.elasticsearch.bulk.udp.BulkUdpService;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.cache.recycler.PageCacheRecyclerModule;
 import org.elasticsearch.client.Client;
@@ -183,7 +181,6 @@ public final class InternalNode implements Node {
             modules.add(new MonitorModule(settings));
             modules.add(new GatewayModule(settings));
             modules.add(new NodeClientModule());
-            modules.add(new BulkUdpModule());
             modules.add(new ShapeModule());
             modules.add(new PercolatorModule());
             modules.add(new ResourceWatcherModule());
@@ -251,7 +248,6 @@ public final class InternalNode implements Node {
         if (settings.getAsBoolean("http.enabled", true)) {
             injector.getInstance(HttpServer.class).start();
         }
-        injector.getInstance(BulkUdpService.class).start();
         injector.getInstance(ResourceWatcherService.class).start();
         injector.getInstance(TribeService.class).start();
 
@@ -269,7 +265,6 @@ public final class InternalNode implements Node {
         logger.info("stopping ...");
 
         injector.getInstance(TribeService.class).stop();
-        injector.getInstance(BulkUdpService.class).stop();
         injector.getInstance(ResourceWatcherService.class).stop();
         if (settings.getAsBoolean("http.enabled", true)) {
             injector.getInstance(HttpServer.class).stop();
@@ -323,8 +318,6 @@ public final class InternalNode implements Node {
         StopWatch stopWatch = new StopWatch("node_close");
         stopWatch.start("tribe");
         injector.getInstance(TribeService.class).close();
-        stopWatch.stop().start("bulk.udp");
-        injector.getInstance(BulkUdpService.class).close();
         stopWatch.stop().start("http");
         if (settings.getAsBoolean("http.enabled", true)) {
             injector.getInstance(HttpServer.class).close();

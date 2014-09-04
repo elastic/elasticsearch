@@ -20,6 +20,7 @@
 package org.elasticsearch.indices.mapping;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -28,6 +29,7 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
@@ -141,6 +143,31 @@ public class SimpleGetMappingsTests extends ElasticsearchIntegrationTest {
         assertThat(response.mappings().get("indexb").size(), equalTo(2));
         assertThat(response.mappings().get("indexb").get("Atype"), notNullValue());
         assertThat(response.mappings().get("indexb").get("Btype"), notNullValue());
+    }
+
+    // related to https://github.com/elasticsearch/elasticsearch/issues/7237
+    // test that _boost and _analyzer still appear with default name in mapping, not as given name
+    @Test
+    public void testGet_boostAnd_analyzer() throws IOException {
+        XContentBuilder mappings = jsonBuilder();
+        mappings.startObject()
+                .startObject("doc")
+                .startObject("_analyzer").field("index", "analyzed").field("path", "name").endObject()
+                .startObject("_boost").field("name", "boost").field("null_value", "1.0").endObject()
+                .endObject()
+                .endObject();
+        prepareCreate("index").addMapping("doc", mappings).get();
+
+        ensureYellow();
+        GetMappingsResponse response = client().admin().indices().prepareGetMappings().addIndices("index").addTypes("doc").get();
+        assertThat(response.mappings().size(), equalTo(1));
+        assertTrue(response.mappings().get("index").containsKey("doc"));
+        Map<String, Object> mappingAsMap = response.mappings().get("index").get("doc").getSourceAsMap();
+        assertTrue(mappingAsMap.containsKey("_analyzer"));
+        assertTrue(mappingAsMap.containsKey("_boost"));
+        assertTrue(mappingAsMap.containsKey("properties"));
+        assertThat(mappingAsMap.size(), equalTo(3));
+
     }
 
 }

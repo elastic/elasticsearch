@@ -1021,6 +1021,51 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    public void testBoostFieldDefaultPath() throws IOException {
+        boolean stored = randomBoolean();
+        boolean sourceEnabled = true;
+        if (stored) {
+            sourceEnabled = randomBoolean();
+        }
+        indexSingleDocumentBoost(stored, sourceEnabled);
+        String[] fieldsList = {"_boost"};
+        // before refresh - document is only in translog
+         assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", fieldsList);
+        refresh();
+        //after refresh - document is in translog and also indexed
+        assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", fieldsList);
+        flush();
+        //after flush - document is in not anymore translog - only indexed
+        assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", fieldsList);
+    }
+
+    void indexSingleDocumentBoost(boolean stored, boolean sourceEnabled) {
+        String storedString = stored ? "yes" : "no";
+        String createIndexSource = "{\n" +
+                "  \"settings\": {\n" +
+                "    \"index.translog.disable_flush\": true,\n" +
+                "    \"refresh_interval\": \"-1\"\n" +
+                "  },\n" +
+                "  \"mappings\": {\n" +
+                "    \"doc\": {\n" +
+                "      \"_boost\": {\n" +
+                "        \"null_value\": 1,\n" +
+                "        \"store\": \"" + storedString + "\"\n" +
+                "      }\n" +
+                "    }\n" +
+                "  }\n" +
+                "}";
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setSource(createIndexSource));
+        ensureGreen();
+        String doc = "{\n" +
+                "  \"_boost\": 5.0\n" +
+                "}\n";
+
+        client().prepareIndex("test", "doc").setId("1").setSource(doc).get();
+    }
+
+
+    @Test
     public void testUngeneratedFieldsPartOfSourceEitherStoredOrSourceEnabled() throws IOException {
         boolean stored = randomBoolean();
         boolean sourceEnabled = true;

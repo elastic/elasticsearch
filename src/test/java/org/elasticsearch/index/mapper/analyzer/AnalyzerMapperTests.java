@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper.analyzer;
 
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.analysis.FieldNameAnalyzer;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -75,47 +76,17 @@ public class AnalyzerMapperTests extends ElasticsearchSingleNodeTest {
         assertThat(((NamedAnalyzer) analyzer.defaultAnalyzer()).name(), equalTo("whitespace"));
         assertThat(((NamedAnalyzer) analyzer.analyzers().get("field1")), nullValue());
         assertThat(((NamedAnalyzer) analyzer.analyzers().get("field2")).name(), equalTo("simple"));
-    }
 
-
-    @Test
-    public void testAnalyzerMappingExplicit() throws Exception {
-        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
-
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("_analyzer").field("path", "field_analyzer").endObject()
-                .startObject("properties")
-                .startObject("field_analyzer").field("type", "string").endObject()
-                .startObject("field1").field("type", "string").endObject()
-                .startObject("field2").field("type", "string").field("analyzer", "simple").endObject()
-                .endObject()
-                .endObject().endObject().string();
-
-        DocumentMapper documentMapper = parser.parse(mapping);
-
-        ParsedDocument doc = documentMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
-                .field("field_analyzer", "whitespace")
-                .field("field1", "value1")
-                .field("field2", "value2")
-                .endObject().bytes());
-
-        FieldNameAnalyzer analyzer = (FieldNameAnalyzer) doc.analyzer();
-        assertThat(((NamedAnalyzer) analyzer.defaultAnalyzer()).name(), equalTo("whitespace"));
-        assertThat(((NamedAnalyzer) analyzer.analyzers().get("field1")), nullValue());
-        assertThat(((NamedAnalyzer) analyzer.analyzers().get("field2")).name(), equalTo("simple"));
-
-        // check that it serializes and de-serializes correctly
-
-        DocumentMapper reparsedMapper = parser.parse(documentMapper.mappingSource().string());
 
         doc = reparsedMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
-                .field("field_analyzer", "whitespace")
+                .field("_analyzer", "whitespace")
                 .field("field1", "value1")
                 .field("field2", "value2")
                 .endObject().bytes());
-
         analyzer = (FieldNameAnalyzer) doc.analyzer();
-        assertThat(((NamedAnalyzer) analyzer.defaultAnalyzer()).name(), equalTo("whitespace"));
+        // test that _analyzer is ignored because we set the path
+        assertThat(((NamedAnalyzer) analyzer.defaultAnalyzer()).name(), equalTo("default"));
+        assertNull(doc.docs().get(0).getField("field_analyzer"));
         assertThat(((NamedAnalyzer) analyzer.analyzers().get("field1")), nullValue());
         assertThat(((NamedAnalyzer) analyzer.analyzers().get("field2")).name(), equalTo("simple"));
     }
@@ -125,9 +96,8 @@ public class AnalyzerMapperTests extends ElasticsearchSingleNodeTest {
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
 
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("_analyzer").field("path", "field_analyzer").endObject()
+                .startObject("_analyzer").field("path", "field_analyzer").field("index", "no").endObject()
                 .startObject("properties")
-                .startObject("field_analyzer").field("type", "string").field("index", "no").field("store", "no").endObject()
                 .startObject("field1").field("type", "string").endObject()
                 .startObject("field2").field("type", "string").field("analyzer", "simple").endObject()
                 .endObject()
@@ -145,6 +115,7 @@ public class AnalyzerMapperTests extends ElasticsearchSingleNodeTest {
         assertThat(((NamedAnalyzer) analyzer.defaultAnalyzer()).name(), equalTo("whitespace"));
         assertThat(((NamedAnalyzer) analyzer.analyzers().get("field1")), nullValue());
         assertThat(((NamedAnalyzer) analyzer.analyzers().get("field2")).name(), equalTo("simple"));
+        assertNull(doc.docs().get(0).getField("field_analyzer"));
 
         // check that it serializes and de-serializes correctly
 
@@ -160,5 +131,31 @@ public class AnalyzerMapperTests extends ElasticsearchSingleNodeTest {
         assertThat(((NamedAnalyzer) analyzer.defaultAnalyzer()).name(), equalTo("whitespace"));
         assertThat(((NamedAnalyzer) analyzer.analyzers().get("field1")), nullValue());
         assertThat(((NamedAnalyzer) analyzer.analyzers().get("field2")).name(), equalTo("simple"));
+        assertNull(doc.docs().get(0).getField("field_analyzer"));
     }
+
+    // test that _analyzer settings can not be overwritten when path is separately defined in properties
+    @Test
+    public void testPropertiesDefinitionDoesNotOverwriteDefault() throws Exception {
+        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("_analyzer").field("path", "field_analyzer").field("index", "no").endObject()
+                .startObject("properties")
+                .startObject("field_analyzer").field("type", "string").field("index", "analyzed").field("store", true).endObject()
+                .endObject()
+                .endObject().endObject().string();
+        DocumentMapper documentMapper = parser.parse(mapping);
+
+        ParsedDocument doc = documentMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
+                .field("field_analyzer", "whitespace")
+                .endObject().bytes());
+
+        FieldNameAnalyzer analyzer = (FieldNameAnalyzer) doc.analyzer();
+
+        assertThat(((NamedAnalyzer) analyzer.defaultAnalyzer()).name(), equalTo("whitespace"));
+        assertNull(doc.docs().get(0).getField("field_analyzer"));
+    }
+
 }
+

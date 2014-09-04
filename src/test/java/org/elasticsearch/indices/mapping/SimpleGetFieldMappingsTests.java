@@ -20,6 +20,7 @@
 package org.elasticsearch.indices.mapping;
 
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.Matchers;
@@ -146,4 +147,37 @@ public class SimpleGetFieldMappingsTests extends ElasticsearchIntegrationTest {
 
 
     }
+
+    // https://github.com/elasticsearch/elasticsearch/issues/7237
+    @Test
+    public void testGet_boostAnd_analyzer() throws IOException {
+        XContentBuilder mappings = jsonBuilder();
+        mappings.startObject()
+                .startObject("doc")
+                .startObject("_analyzer").field("index", "analyzed").field("path", "name").endObject()
+                .startObject("_boost").field("name", "boost").field("null_value", "1.0").endObject()
+                .endObject()
+                .endObject();
+        prepareCreate("index").addMapping("doc", mappings).get();
+
+        ensureYellow();
+
+        // set if we can get the field mappings by default name
+        GetFieldMappingsResponse response = client().admin().indices().prepareGetFieldMappings().addIndices("index").addTypes("doc").setFields("_boost", "_analyzer").get();
+        assertThat(response.mappings().size(), equalTo(1));
+        assertTrue(response.mappings().get("index").containsKey("doc"));
+        assertTrue(response.mappings().get("index").get("doc").containsKey("_analyzer"));
+        assertTrue(response.mappings().get("index").get("doc").containsKey("_boost"));
+        assertThat(response.mappings().get("index").get("doc").size(), equalTo(2));
+
+        //see if we can get the field mappings by given name
+        response = client().admin().indices().prepareGetFieldMappings().addIndices("index").addTypes("doc").setFields("boost", "name").get();
+        assertThat(response.mappings().size(), equalTo(1));
+        assertTrue(response.mappings().get("index").containsKey("doc"));
+        assertTrue(response.mappings().get("index").get("doc").containsKey("name"));
+        assertTrue(response.mappings().get("index").get("doc").containsKey("boost"));
+        assertThat(response.mappings().get("index").get("doc").size(), equalTo(2));
+
+    }
+
 }

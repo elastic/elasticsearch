@@ -19,8 +19,11 @@
 
 package org.elasticsearch.index.mapper.internal;
 
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.NumericRangeFilter;
 import org.apache.lucene.search.NumericRangeQuery;
@@ -43,6 +46,8 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.FloatFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
+import org.elasticsearch.index.mapper.core.StringFieldMapper;
+import org.elasticsearch.index.query.GeoShapeFilterParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.search.NumericRangeFieldDataFilter;
 
@@ -89,7 +94,7 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
 
         @Override
         public BoostFieldMapper build(BuilderContext context) {
-            return new BoostFieldMapper(name, buildIndexName(context),
+            return new BoostFieldMapper(name,
                     fieldType.numericPrecisionStep(), boost, fieldType, docValues, nullValue, postingsProvider, docValuesProvider, fieldDataSettings, context.indexSettings());
         }
     }
@@ -113,20 +118,19 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
 
     private final Float nullValue;
 
-    public BoostFieldMapper() {
-        this(Defaults.NAME, Defaults.NAME);
-    }
+    private String name;
 
-    protected BoostFieldMapper(String name, String indexName) {
-        this(name, indexName, Defaults.PRECISION_STEP_32_BIT, Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE), null,
+    public BoostFieldMapper() {
+        this(Defaults.NAME, Defaults.PRECISION_STEP_32_BIT, Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE), null,
                 Defaults.NULL_VALUE, null, null, null, ImmutableSettings.EMPTY);
     }
 
-    protected BoostFieldMapper(String name, String indexName, int precisionStep, float boost, FieldType fieldType, Boolean docValues, Float nullValue,
+    protected BoostFieldMapper(String name, int precisionStep, float boost, FieldType fieldType, Boolean docValues, Float nullValue,
                                PostingsFormatProvider postingsProvider, DocValuesFormatProvider docValuesProvider, @Nullable Settings fieldDataSettings, Settings indexSettings) {
-        super(new Names(name, indexName, indexName, name), precisionStep, boost, fieldType, docValues, Defaults.IGNORE_MALFORMED, Defaults.COERCE,
+        super(new Names(name, name, Defaults.NAME, Defaults.NAME), precisionStep, boost, fieldType, docValues, Defaults.IGNORE_MALFORMED, Defaults.COERCE,
                 NumericFloatAnalyzer.buildNamedAnalyzer(precisionStep), NumericFloatAnalyzer.buildNamedAnalyzer(Integer.MAX_VALUE),
                 postingsProvider, docValuesProvider, null, null, fieldDataSettings, indexSettings, MultiFields.empty(), null);
+        this.name = name;
         this.nullValue = nullValue;
     }
 
@@ -233,6 +237,26 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
 
     @Override
     public void postParse(ParseContext context) throws IOException {
+        Float value = null;
+        List<IndexableField> fields = context.doc().getFields();
+        for (int i = 0, fieldsSize = fields.size(); i < fieldsSize; i++) {
+            IndexableField field = fields.get(i);
+            if (field.name().equals(name)) {
+                value = field.numericValue().floatValue();
+                break;
+            }
+        }
+        if (value == null) {
+            String previouslyIgnoredValue = context.ignoredValue(name);
+            if (previouslyIgnoredValue != null) {
+                value = Float.parseFloat(context.ignoredValue(name));
+            }
+        }
+        if (value != null) {
+            if (!Float.isNaN(value)) {
+                context.docBoost(value);
+            }
+        }
     }
 
     @Override
@@ -241,23 +265,16 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
     }
 
     @Override
-    public void parse(ParseContext context) throws IOException {
-        // we override parse since we want to handle cases where it is not indexed and not stored (the default)
-        float value = parseFloatValue(context);
-        if (!Float.isNaN(value)) {
-            context.docBoost(value);
-        }
-        super.parse(context);
-    }
-
-    @Override
     protected void innerParseCreateField(ParseContext context, List<Field> fields) throws IOException {
         final float value = parseFloatValue(context);
         if (Float.isNaN(value)) {
             return;
         }
-        context.docBoost(value);
-        fields.add(new FloatFieldMapper.CustomFloatNumericField(this, value, fieldType));
+        if (fieldType().indexed() || fieldType().stored()) {
+            fields.add(new FloatFieldMapper.CustomFloatNumericField(this, value, fieldType));
+        } else {
+            context.ignoredValue(context.parser().currentName(), context.parser().textOrNull());
+        }
     }
 
     private float parseFloatValue(ParseContext context) throws IOException {

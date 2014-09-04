@@ -35,8 +35,8 @@ import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 public class RestCloseIndexAction extends BaseRestHandler {
 
     @Inject
-    public RestCloseIndexAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestCloseIndexAction(Settings settings, RestController controller, ClientFactory clientFactory) {
+        super(settings, clientFactory);
         controller.registerHandler(RestRequest.Method.POST, "/_close", this);
         controller.registerHandler(RestRequest.Method.POST, "/{index}/_close", this);
     }

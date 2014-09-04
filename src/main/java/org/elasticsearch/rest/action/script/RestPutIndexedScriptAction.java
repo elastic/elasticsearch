@@ -43,23 +43,23 @@ import static org.elasticsearch.rest.RestStatus.*;
 public class RestPutIndexedScriptAction extends BaseRestHandler {
 
     @Inject
-    public RestPutIndexedScriptAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestPutIndexedScriptAction(Settings settings, RestController controller, ClientFactory clientFactory) {
+        super(settings, clientFactory);
 
         controller.registerHandler(POST, "/_scripts/{lang}/{id}", this);
         controller.registerHandler(PUT, "/_scripts/{lang}/{id}", this);
 
-        controller.registerHandler(PUT, "/_scripts/{lang}/{id}/_create", new CreateHandler(settings, client));
-        controller.registerHandler(POST, "/_scripts/{lang}/{id}/_create", new CreateHandler(settings, client));
+        controller.registerHandler(PUT, "/_scripts/{lang}/{id}/_create", new CreateHandler(settings, clientFactory));
+        controller.registerHandler(POST, "/_scripts/{lang}/{id}/_create", new CreateHandler(settings, clientFactory));
     }
 
-    protected RestPutIndexedScriptAction(Settings settings, Client client) {
-        super(settings, client);
+    protected RestPutIndexedScriptAction(Settings settings, ClientFactory clientFactory) {
+        super(settings, clientFactory);
     }
 
     final class CreateHandler extends BaseRestHandler {
-        protected CreateHandler(Settings settings, final Client client) {
-            super(settings, client);
+        protected CreateHandler(Settings settings, ClientFactory clientFactory) {
+            super(settings, clientFactory);
         }
 
         @Override

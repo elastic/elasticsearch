@@ -54,11 +54,11 @@ public class HeadersAndContextCopyClientTests extends ElasticsearchTestCase {
 
     @Test
     public void testAddUsefulHeaders() throws InterruptedException {
-        //take the existing headers into account to make sure this test runs with tests.iters>1 as the list is static
-        final Set<String> headers = new HashSet<>();
-        headers.addAll(BaseRestHandler.usefulHeaders());
+
+        final ClientFactory clientFactory = new ClientFactory(null);
         int iterations = randomIntBetween(1, 5);
 
+        Set<String> headers = new HashSet<>();
         ExecutorService executorService = Executors.newFixedThreadPool(iterations);
         for (int i = 0; i < iterations; i++) {
             int headersCount = randomInt(10);
@@ -66,20 +66,20 @@ public class HeadersAndContextCopyClientTests extends ElasticsearchTestCase {
             for (int j = 0; j < headersCount; j++) {
                 String usefulHeader = randomRealisticUnicodeOfLengthBetween(1, 30);
                 newHeaders.add(usefulHeader);
-                headers.add(usefulHeader);
             }
+            headers.addAll(newHeaders);
 
             executorService.submit(new Runnable() {
                 @Override
                 public void run() {
-                    BaseRestHandler.addUsefulHeaders(newHeaders.toArray(new String[newHeaders.size()]));
+                    clientFactory.addUsefulHeaders(newHeaders.toArray(new String[newHeaders.size()]));
                 }
             });
         }
 
         executorService.shutdown();
         assertThat(executorService.awaitTermination(1, TimeUnit.SECONDS), equalTo(true));
-        String[] usefulHeaders = BaseRestHandler.usefulHeaders().toArray(new String[BaseRestHandler.usefulHeaders().size()]);
+        String[] usefulHeaders = clientFactory.usefulHeaders().toArray(new String[clientFactory.usefulHeaders().size()]);
         assertThat(usefulHeaders.length, equalTo(headers.size()));
 
         Arrays.sort(usefulHeaders);
@@ -375,7 +375,7 @@ public class HeadersAndContextCopyClientTests extends ElasticsearchTestCase {
     }
 
     private static Client client(Client noOpClient, RestRequest restRequest, Set<String> usefulRestHeaders) {
-        return new BaseRestHandler.HeadersAndContextCopyClient(noOpClient, restRequest, usefulRestHeaders);
+        return new ClientFactory.HeadersAndContextCopyClient(noOpClient, restRequest, usefulRestHeaders);
     }
 
     private static void putHeaders(ActionRequest<?> request, Map<String, String> headers) {

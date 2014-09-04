@@ -38,8 +38,8 @@ import static org.elasticsearch.rest.RestStatus.OK;
 public class RestGetSettingsAction extends BaseRestHandler {
 
     @Inject
-    public RestGetSettingsAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestGetSettingsAction(Settings settings, RestController controller, ClientFactory clientFactory) {
+        super(settings, clientFactory);
         controller.registerHandler(GET, "/_settings", this);
         controller.registerHandler(GET, "/{index}/_settings", this);
         controller.registerHandler(GET, "/{index}/_settings/{name}", this);

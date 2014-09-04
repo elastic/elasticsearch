@@ -40,9 +40,9 @@ public class RestClusterRerouteAction extends BaseRestHandler {
     private final SettingsFilter settingsFilter;
 
     @Inject
-    public RestClusterRerouteAction(Settings settings, Client client, RestController controller,
-                                    SettingsFilter settingsFilter) {
-        super(settings, client);
+    public RestClusterRerouteAction(Settings settings, RestController controller,
+                                    SettingsFilter settingsFilter, ClientFactory clientFactory) {
+        super(settings, clientFactory);
         this.settingsFilter = settingsFilter;
         controller.registerHandler(RestRequest.Method.POST, "/_cluster/reroute", this);
     }

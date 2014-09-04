@@ -55,8 +55,8 @@ public class RestBulkAction extends BaseRestHandler {
     private final boolean allowExplicitIndex;
 
     @Inject
-    public RestBulkAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestBulkAction(Settings settings, RestController controller, ClientFactory clientFactory) {
+        super(settings, clientFactory);
 
         controller.registerHandler(POST, "/_bulk", this);
         controller.registerHandler(PUT, "/_bulk", this);

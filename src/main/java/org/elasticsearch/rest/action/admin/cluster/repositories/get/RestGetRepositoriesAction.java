@@ -41,8 +41,8 @@ import static org.elasticsearch.rest.RestStatus.OK;
 public class RestGetRepositoriesAction extends BaseRestHandler {
 
     @Inject
-    public RestGetRepositoriesAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestGetRepositoriesAction(Settings settings, RestController controller, ClientFactory clientFactory) {
+        super(settings, clientFactory);
         controller.registerHandler(GET, "/_snapshot", this);
         controller.registerHandler(GET, "/_snapshot/{repository}", this);
     }

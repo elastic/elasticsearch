@@ -26,8 +26,8 @@ import org.elasticsearch.rest.*;
 public class TestResponseHeaderRestAction extends BaseRestHandler {
 
     @Inject
-    public TestResponseHeaderRestAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public TestResponseHeaderRestAction(Settings settings, RestController controller, ClientFactory clientFactory) {
+        super(settings, clientFactory);
         controller.registerHandler(RestRequest.Method.GET, "/_protected", this);
     }
 

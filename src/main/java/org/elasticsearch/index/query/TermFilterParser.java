@@ -52,7 +52,7 @@ public class TermFilterParser implements FilterParser {
     public Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        boolean cache = true; // since usually term filter is on repeating terms, cache it by default
+        boolean cache = false; // term filters are already very fast, don't cache by default
         CacheKeyFilter.Key cacheKey = null;
         String fieldName = null;
         Object value = null;

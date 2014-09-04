@@ -27,13 +27,13 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.FilterBuilders;
+import org.elasticsearch.index.query.TermFilterBuilder;
 import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -56,6 +56,10 @@ import static org.hamcrest.Matchers.*;
 @ClusterScope(scope = Scope.SUITE, numDataNodes = 2, numClientNodes = 0, randomDynamicTemplates = false)
 public class IndexStatsTests extends ElasticsearchIntegrationTest {
 
+    private static TermFilterBuilder termFilter(String field, String value) {
+        return FilterBuilders.termFilter(field, value).cache(true); // so that it fills the filter cache
+    }
+
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         //Filter/Query cache is cleaned periodically, default is 60s, so make sure it runs often. Thread.sleep for 60s is bad
@@ -76,7 +80,7 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
         IndicesStatsResponse indicesStats = client().admin().indices().prepareStats("test").clear().setFilterCache(true).execute().actionGet();
         assertThat(indicesStats.getTotal().getFilterCache().getMemorySizeInBytes(), equalTo(0l));
 
-        SearchResponse searchResponse = client().prepareSearch().setQuery(filteredQuery(matchAllQuery(), FilterBuilders.termFilter("field", "value").cacheKey("test_key"))).execute().actionGet();
+        SearchResponse searchResponse = client().prepareSearch().setQuery(filteredQuery(matchAllQuery(), termFilter("field", "value").cacheKey("test_key"))).execute().actionGet();
         assertThat(searchResponse.getHits().getHits().length, equalTo(1));
         nodesStats = client().admin().cluster().prepareNodesStats().setIndices(true).execute().actionGet();
         assertThat(nodesStats.getNodes()[0].getIndices().getFilterCache().getMemorySizeInBytes() + nodesStats.getNodes()[1].getIndices().getFilterCache().getMemorySizeInBytes(), internalCluster().hasFilterCache() ? greaterThan(0l) : is(0L));
@@ -157,11 +161,11 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
 
         // sort to load it to field data and filter to load filter cache
         client().prepareSearch()
-                .setPostFilter(FilterBuilders.termFilter("field", "value1"))
+                .setPostFilter(termFilter("field", "value1"))
                 .addSort("field", SortOrder.ASC)
                 .execute().actionGet();
         client().prepareSearch()
-                .setPostFilter(FilterBuilders.termFilter("field", "value2"))
+                .setPostFilter(termFilter("field", "value2"))
                 .addSort("field", SortOrder.ASC)
                 .execute().actionGet();
 

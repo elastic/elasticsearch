@@ -132,14 +132,14 @@ public class SimpleValidateQueryTests extends ElasticsearchIntegrationTest {
                         FilterBuilders.termFilter("bar", "2"),
                         FilterBuilders.termFilter("baz", "3")
                 )
-        ), equalTo("filtered(filtered(foo:1)->" + filter("bar:[2 TO 2]") + " " + filter("baz:3") + ")->" + typeFilter));
+        ), equalTo("filtered(filtered(foo:1)->bar:[2 TO 2] baz:3)->" + typeFilter));
 
         assertExplanation(QueryBuilders.filteredQuery(
                 QueryBuilders.termQuery("foo", "1"),
                 FilterBuilders.orFilter(
                         FilterBuilders.termFilter("bar", "2")
                 )
-        ), equalTo("filtered(filtered(foo:1)->" + filter("bar:[2 TO 2]") + ")->" + typeFilter));
+        ), equalTo("filtered(filtered(foo:1)->bar:[2 TO 2])->" + typeFilter));
 
         assertExplanation(QueryBuilders.filteredQuery(
                 QueryBuilders.matchAllQuery(),
@@ -177,13 +177,13 @@ public class SimpleValidateQueryTests extends ElasticsearchIntegrationTest {
                         FilterBuilders.termFilter("bar", "2"),
                         FilterBuilders.termFilter("baz", "3")
                 )
-        ), equalTo("filtered(filtered(foo:1)->+" + filter("bar:[2 TO 2]") + " +" + filter("baz:3") + ")->" + typeFilter));
+        ), equalTo("filtered(filtered(foo:1)->+bar:[2 TO 2] +baz:3)->" + typeFilter));
 
         assertExplanation(QueryBuilders.constantScoreQuery(FilterBuilders.termsFilter("foo", "1", "2", "3")),
                 equalTo("filtered(ConstantScore(" + filter("foo:1 foo:2 foo:3") + "))->" + typeFilter));
 
         assertExplanation(QueryBuilders.constantScoreQuery(FilterBuilders.notFilter(FilterBuilders.termFilter("foo", "bar"))),
-                equalTo("filtered(ConstantScore(NotFilter(" + filter("foo:bar") + ")))->" + typeFilter));
+                equalTo("filtered(ConstantScore(NotFilter(foo:bar)))->" + typeFilter));
 
         assertExplanation(QueryBuilders.filteredQuery(
                 QueryBuilders.termQuery("foo", "1"),

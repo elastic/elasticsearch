@@ -53,12 +53,12 @@ import static org.hamcrest.Matchers.*;
 public class HeadersAndContextCopyClientTests extends ElasticsearchTestCase {
 
     @Test
-    public void testAddUsefulHeaders() throws InterruptedException {
-        //take the existing headers into account to make sure this test runs with tests.iters>1 as the list is static
-        final Set<String> headers = new HashSet<>();
-        headers.addAll(BaseRestHandler.usefulHeaders());
+    public void testAddRelevantHeaders() throws InterruptedException {
+
+        final RestClientFactory restClientFactory = new RestClientFactory(null);
         int iterations = randomIntBetween(1, 5);
 
+        Set<String> headers = new HashSet<>();
         ExecutorService executorService = Executors.newFixedThreadPool(iterations);
         for (int i = 0; i < iterations; i++) {
             int headersCount = randomInt(10);
@@ -66,27 +66,27 @@ public class HeadersAndContextCopyClientTests extends ElasticsearchTestCase {
             for (int j = 0; j < headersCount; j++) {
                 String usefulHeader = randomRealisticUnicodeOfLengthBetween(1, 30);
                 newHeaders.add(usefulHeader);
-                headers.add(usefulHeader);
             }
+            headers.addAll(newHeaders);
 
             executorService.submit(new Runnable() {
                 @Override
                 public void run() {
-                    BaseRestHandler.addUsefulHeaders(newHeaders.toArray(new String[newHeaders.size()]));
+                    restClientFactory.addRelevantHeaders(newHeaders.toArray(new String[newHeaders.size()]));
                 }
             });
         }
 
         executorService.shutdown();
         assertThat(executorService.awaitTermination(1, TimeUnit.SECONDS), equalTo(true));
-        String[] usefulHeaders = BaseRestHandler.usefulHeaders().toArray(new String[BaseRestHandler.usefulHeaders().size()]);
-        assertThat(usefulHeaders.length, equalTo(headers.size()));
+        String[] relevantHeaders = restClientFactory.relevantHeaders().toArray(new String[restClientFactory.relevantHeaders().size()]);
+        assertThat(relevantHeaders.length, equalTo(headers.size()));
 
-        Arrays.sort(usefulHeaders);
+        Arrays.sort(relevantHeaders);
         String[] headersArray = new String[headers.size()];
         headersArray = headers.toArray(headersArray);
         Arrays.sort(headersArray);
-        assertThat(usefulHeaders, equalTo(headersArray));
+        assertThat(relevantHeaders, equalTo(headersArray));
     }
 
     @Test
@@ -375,7 +375,7 @@ public class HeadersAndContextCopyClientTests extends ElasticsearchTestCase {
     }
 
     private static Client client(Client noOpClient, RestRequest restRequest, Set<String> usefulRestHeaders) {
-        return new BaseRestHandler.HeadersAndContextCopyClient(noOpClient, restRequest, usefulRestHeaders);
+        return new RestClientFactory.HeadersAndContextCopyClient(noOpClient, restRequest, usefulRestHeaders);
     }
 
     private static void putHeaders(ActionRequest<?> request, Map<String, String> headers) {

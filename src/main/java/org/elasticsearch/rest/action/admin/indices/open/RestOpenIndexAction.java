@@ -35,8 +35,8 @@ import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 public class RestOpenIndexAction extends BaseRestHandler {
 
     @Inject
-    public RestOpenIndexAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestOpenIndexAction(Settings settings, RestController controller, RestClientFactory restClientFactory) {
+        super(settings, restClientFactory);
         controller.registerHandler(RestRequest.Method.POST, "/_open", this);
         controller.registerHandler(RestRequest.Method.POST, "/{index}/_open", this);
     }

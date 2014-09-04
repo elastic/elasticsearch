@@ -52,7 +52,7 @@ public class InternalAuthenticationService extends AbstractComponent implements 
     @Override
     @SuppressWarnings("unchecked")
     public AuthenticationToken token(String action, TransportMessage<?> message, AuthenticationToken defaultToken) {
-        AuthenticationToken token = (AuthenticationToken) message.getContext().get(TOKEN_CTX_KEY);
+        AuthenticationToken token = message.getFromContext(TOKEN_CTX_KEY);
         if (token != null) {
             return token;
         }

@@ -49,17 +49,8 @@ public class UsernamePasswordToken implements AuthenticationToken {
     }
 
     public static UsernamePasswordToken extractToken(TransportMessage<?> message, UsernamePasswordToken defaultToken) {
-        UsernamePasswordToken token = (UsernamePasswordToken) message.getContext().get(TOKEN_KEY);
-        if (token != null) {
-            return token;
-        }
-
         String authStr = message.getHeader(BASIC_AUTH_HEADER);
         if (authStr == null) {
-            if (defaultToken == null) {
-                return null;
-            }
-            message.putInContext(TOKEN_KEY, defaultToken);
             return defaultToken;
         }
 
@@ -73,9 +64,7 @@ public class UsernamePasswordToken implements AuthenticationToken {
         if (i < 0) {
             throw new AuthenticationException("Invalid basic authentication header value");
         }
-        token = new UsernamePasswordToken(userpasswd.substring(0, i), userpasswd.substring(i+1).toCharArray());
-        message.putInContext(TOKEN_KEY, token);
-        return token;
+        return new UsernamePasswordToken(userpasswd.substring(0, i), userpasswd.substring(i+1).toCharArray());
     }
 
     public static void putTokenHeader(TransportRequest request, UsernamePasswordToken token) {

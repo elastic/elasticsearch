@@ -37,7 +37,7 @@ public class LogDocMergePolicyProvider extends AbstractMergePolicyProvider<LogDo
 
     private final IndexSettingsService indexSettingsService;
     private final ApplySettings applySettings = new ApplySettings();
-    private LogDocMergePolicy mergePolicy = new LogDocMergePolicy();
+    private final LogDocMergePolicy mergePolicy = new LogDocMergePolicy();
 
 
     public static final String MAX_MERGE_DOCS_KEY = "index.merge.policy.max_merge_docs";

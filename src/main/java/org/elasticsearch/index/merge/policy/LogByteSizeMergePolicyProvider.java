@@ -39,7 +39,7 @@ public class LogByteSizeMergePolicyProvider extends AbstractMergePolicyProvider<
 
     private final IndexSettingsService indexSettingsService;
     private final ApplySettings applySettings = new ApplySettings();
-    private LogByteSizeMergePolicy mergePolicy = new LogByteSizeMergePolicy();
+    private final LogByteSizeMergePolicy mergePolicy = new LogByteSizeMergePolicy();
 
     private static final ByteSizeValue DEFAULT_MIN_MERGE_SIZE = new ByteSizeValue((long) (LogByteSizeMergePolicy.DEFAULT_MIN_MERGE_MB * 1024 * 1024), ByteSizeUnit.BYTES);
     private static final ByteSizeValue DEFAULT_MAX_MERGE_SIZE = new ByteSizeValue((long) LogByteSizeMergePolicy.DEFAULT_MAX_MERGE_MB, ByteSizeUnit.MB);

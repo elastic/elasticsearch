@@ -32,7 +32,7 @@ public class TieredMergePolicyProvider extends AbstractMergePolicyProvider<Tiere
 
     private final IndexSettingsService indexSettingsService;
     private final ApplySettings applySettings = new ApplySettings();
-    private TieredMergePolicy mergePolicy = new TieredMergePolicy();
+    private final TieredMergePolicy mergePolicy = new TieredMergePolicy();
 
     public static final double          DEFAULT_EXPUNGE_DELETES_ALLOWED     = 10d;
     public static final ByteSizeValue   DEFAULT_FLOOR_SEGMENT               = new ByteSizeValue(2, ByteSizeUnit.MB);
@@ -95,13 +95,13 @@ public class TieredMergePolicyProvider extends AbstractMergePolicyProvider<Tiere
         indexSettingsService.removeListener(applySettings);
     }
 
-    public static final String INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED = "index.merge.mergePolicy.expunge_deletes_allowed";
-    public static final String INDEX_MERGE_POLICY_FLOOR_SEGMENT = "index.merge.mergePolicy.floor_segment";
-    public static final String INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE = "index.merge.mergePolicy.max_merge_at_once";
-    public static final String INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_EXPLICIT = "index.merge.mergePolicy.max_merge_at_once_explicit";
-    public static final String INDEX_MERGE_POLICY_MAX_MERGED_SEGMENT = "index.merge.mergePolicy.max_merged_segment";
-    public static final String INDEX_MERGE_POLICY_SEGMENTS_PER_TIER = "index.merge.mergePolicy.segments_per_tier";
-    public static final String INDEX_MERGE_POLICY_RECLAIM_DELETES_WEIGHT = "index.merge.mergePolicy.reclaim_deletes_weight";
+    public static final String INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED = "index.merge.policy.expunge_deletes_allowed";
+    public static final String INDEX_MERGE_POLICY_FLOOR_SEGMENT = "index.merge.policy.floor_segment";
+    public static final String INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE = "index.merge.policy.max_merge_at_once";
+    public static final String INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_EXPLICIT = "index.merge.policy.max_merge_at_once_explicit";
+    public static final String INDEX_MERGE_POLICY_MAX_MERGED_SEGMENT = "index.merge.policy.max_merged_segment";
+    public static final String INDEX_MERGE_POLICY_SEGMENTS_PER_TIER = "index.merge.policy.segments_per_tier";
+    public static final String INDEX_MERGE_POLICY_RECLAIM_DELETES_WEIGHT = "index.merge.policy.reclaim_deletes_weight";
 
     class ApplySettings implements IndexSettingsService.Listener {
         @Override

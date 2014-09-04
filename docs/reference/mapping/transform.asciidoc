@@ -56,6 +56,13 @@ The transform is performed before any source filtering but it is mostly
 designed to make it easy to see what was passed to the index for debugging.
 
 === Immutable Transformation
-Once configured the transform script cannot be modified.  This is not
+
+Transform script cannot be added to an existing mapping for an index type 
+(regardless of whether the mapping currently uses transform or have any data at all).  
+In other words, transform script has to be added at mapping creation time for an index type.
+
+Also, once configured the transform script cannot be modified.  This is not
 because that is technically impossible but instead because madness lies
 down that road.
+
+

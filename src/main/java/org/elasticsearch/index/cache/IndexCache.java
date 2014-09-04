@@ -72,6 +72,13 @@ public class IndexCache extends AbstractIndexComponent implements CloseableCompo
         return this.docSetCache;
     }
 
+    /**
+     * Return the {@link FixedBitSetFilterCache} for this index.
+     */
+    public FixedBitSetFilterCache fixedBitSetFilterCache() {
+        return fixedBitSetFilterCache;
+    }
+
     public QueryParserCache queryParserCache() {
         return this.queryParserCache;
     }

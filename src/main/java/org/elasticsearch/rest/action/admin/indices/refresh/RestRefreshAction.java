@@ -41,8 +41,8 @@ import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastSh
 public class RestRefreshAction extends BaseRestHandler {
 
     @Inject
-    public RestRefreshAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestRefreshAction(Settings settings, RestController controller, RestClientFactory restClientFactory) {
+        super(settings, restClientFactory);
         controller.registerHandler(POST, "/_refresh", this);
         controller.registerHandler(POST, "/{index}/_refresh", this);
 

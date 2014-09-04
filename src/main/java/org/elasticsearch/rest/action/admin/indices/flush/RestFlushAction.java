@@ -41,8 +41,8 @@ import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastSh
 public class RestFlushAction extends BaseRestHandler {
 
     @Inject
-    public RestFlushAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestFlushAction(Settings settings, RestController controller, RestClientFactory restClientFactory) {
+        super(settings, restClientFactory);
         controller.registerHandler(POST, "/_flush", this);
         controller.registerHandler(POST, "/{index}/_flush", this);
 

@@ -27,10 +27,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
-import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestToXContentListener;
 
 import java.util.HashSet;
@@ -46,8 +43,8 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestTermVectorAction extends BaseRestHandler {
 
     @Inject
-    public RestTermVectorAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestTermVectorAction(Settings settings, RestController controller, RestClientFactory restClientFactory) {
+        super(settings, restClientFactory);
         controller.registerHandler(GET, "/{index}/{type}/_termvector", this);
         controller.registerHandler(POST, "/{index}/{type}/_termvector", this);
         controller.registerHandler(GET, "/{index}/{type}/{id}/_termvector", this);

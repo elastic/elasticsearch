@@ -41,8 +41,8 @@ import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastSh
 public class RestIndicesStatsAction extends BaseRestHandler {
 
     @Inject
-    public RestIndicesStatsAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestIndicesStatsAction(Settings settings, RestController controller, RestClientFactory restClientFactory) {
+        super(settings, restClientFactory);
         controller.registerHandler(GET, "/_stats", this);
         controller.registerHandler(GET, "/_stats/{metric}", this);
         controller.registerHandler(GET, "/_stats/{metric}/{indexMetric}", this);

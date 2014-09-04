@@ -41,8 +41,8 @@ import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastSh
 public class RestOptimizeAction extends BaseRestHandler {
 
     @Inject
-    public RestOptimizeAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestOptimizeAction(Settings settings, RestController controller, RestClientFactory restClientFactory) {
+        super(settings, restClientFactory);
         controller.registerHandler(POST, "/_optimize", this);
         controller.registerHandler(POST, "/{index}/_optimize", this);
 

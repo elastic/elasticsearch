@@ -41,8 +41,8 @@ import static org.elasticsearch.rest.RestStatus.OK;
 public class RestGetWarmerAction extends BaseRestHandler {
 
     @Inject
-    public RestGetWarmerAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestGetWarmerAction(Settings settings, RestController controller, RestClientFactory restClientFactory) {
+        super(settings, restClientFactory);
         controller.registerHandler(GET, "/_warmer", this);
         controller.registerHandler(GET, "/_warmer/{name}", this);
         controller.registerHandler(GET, "/{index}/_warmer", this);

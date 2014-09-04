@@ -39,8 +39,8 @@ import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastSh
 public class RestIndicesSegmentsAction extends BaseRestHandler {
 
     @Inject
-    public RestIndicesSegmentsAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestIndicesSegmentsAction(Settings settings, RestController controller, RestClientFactory restClientFactory) {
+        super(settings, restClientFactory);
         controller.registerHandler(GET, "/_segments", this);
         controller.registerHandler(GET, "/{index}/_segments", this);
     }

@@ -46,8 +46,8 @@ import static org.elasticsearch.rest.RestStatus.OK;
 public class RestGetMappingAction extends BaseRestHandler {
 
     @Inject
-    public RestGetMappingAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestGetMappingAction(Settings settings, RestController controller, RestClientFactory restClientFactory) {
+        super(settings, restClientFactory);
         controller.registerHandler(GET, "/_mapping", this);
         controller.registerHandler(GET, "/{index}/_mapping", this);
         controller.registerHandler(GET, "/{index}/{type}/_mapping", this);

@@ -43,8 +43,8 @@ import static org.elasticsearch.rest.RestStatus.OK;
 public class RestGetSourceAction extends BaseRestHandler {
 
     @Inject
-    public RestGetSourceAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestGetSourceAction(Settings settings, RestController controller, RestClientFactory restClientFactory) {
+        super(settings, restClientFactory);
         controller.registerHandler(GET, "/{index}/{type}/{id}/_source", this);
     }
 

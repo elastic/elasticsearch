@@ -44,8 +44,8 @@ import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastSh
 public class RestValidateQueryAction extends BaseRestHandler {
 
     @Inject
-    public RestValidateQueryAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestValidateQueryAction(Settings settings, RestController controller, RestClientFactory restClientFactory) {
+        super(settings, restClientFactory);
         controller.registerHandler(GET, "/_validate/query", this);
         controller.registerHandler(POST, "/_validate/query", this);
         controller.registerHandler(GET, "/{index}/_validate/query", this);

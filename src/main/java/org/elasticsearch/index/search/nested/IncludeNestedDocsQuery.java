@@ -25,7 +25,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
-import org.elasticsearch.common.lucene.docset.DocIdSets;
+import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilter;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -39,7 +39,7 @@ import java.util.Set;
  */
 public class IncludeNestedDocsQuery extends Query {
 
-    private final Filter parentFilter;
+    private final FixedBitSetFilter parentFilter;
     private final Query parentQuery;
 
     // If we are rewritten, this is the original childQuery we
@@ -50,7 +50,7 @@ public class IncludeNestedDocsQuery extends Query {
     private final Query origParentQuery;
 
 
-    public IncludeNestedDocsQuery(Query parentQuery, Filter parentFilter) {
+    public IncludeNestedDocsQuery(Query parentQuery, FixedBitSetFilter parentFilter) {
         this.origParentQuery = parentQuery;
         this.parentQuery = parentQuery;
         this.parentFilter = parentFilter;
@@ -80,9 +80,9 @@ public class IncludeNestedDocsQuery extends Query {
 
         private final Query parentQuery;
         private final Weight parentWeight;
-        private final Filter parentsFilter;
+        private final FixedBitSetFilter parentsFilter;
 
-        IncludeNestedDocsWeight(Query parentQuery, Weight parentWeight, Filter parentsFilter) {
+        IncludeNestedDocsWeight(Query parentQuery, Weight parentWeight, FixedBitSetFilter parentsFilter) {
             this.parentQuery = parentQuery;
             this.parentWeight = parentWeight;
             this.parentsFilter = parentsFilter;
@@ -112,19 +112,10 @@ public class IncludeNestedDocsQuery extends Query {
                 return null;
             }
 
-            DocIdSet parents = parentsFilter.getDocIdSet(context, acceptDocs);
+            FixedBitSet parents = parentsFilter.getDocIdSet(context, acceptDocs);
             if (parents == null) {
                 // No matches
                 return null;
-            }
-            if (!(parents instanceof FixedBitSet)) {
-                if (parents.isCacheable()) {
-                    // the filter is cached, yet not with the right type
-                    throw new IllegalStateException("parentFilter must return FixedBitSet; got " + parents);
-                } else {
-                    // may happen if the filter cache type is none
-                    parents = DocIdSets.toFixedBitSet(parents.iterator(), context.reader().maxDoc());
-                }
             }
 
             int firstParentDoc = parentScorer.nextDoc();

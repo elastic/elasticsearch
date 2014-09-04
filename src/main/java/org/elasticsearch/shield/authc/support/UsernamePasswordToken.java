@@ -21,9 +21,8 @@ import java.util.regex.Pattern;
  */
 public class UsernamePasswordToken implements AuthenticationToken {
 
+    public static final String BASIC_AUTH_HEADER = "Authorization";
     private static final String TOKEN_KEY = "X-ES-UsernamePasswordToken";
-
-    static final String BASIC_AUTH_HEADER = "Authorization";
     private static final Pattern BASIC_AUTH_PATTERN = Pattern.compile("Basic\\s(.+)");
 
     private final String username;

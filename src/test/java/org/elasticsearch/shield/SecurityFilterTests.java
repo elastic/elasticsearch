@@ -5,17 +5,21 @@
  */
 package org.elasticsearch.shield;
 
+import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.ActionFilterChain;
+import org.elasticsearch.client.AdminClient;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.client.ClusterAdminClient;
+import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
-import org.elasticsearch.rest.RestFilterChain;
-import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.*;
 import org.elasticsearch.shield.authc.AuthenticationException;
 import org.elasticsearch.shield.authc.AuthenticationService;
 import org.elasticsearch.shield.authc.AuthenticationToken;
+import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.shield.authc.system.SystemRealm;
 import org.elasticsearch.shield.authz.AuthorizationException;
 import org.elasticsearch.shield.authz.AuthorizationService;
@@ -26,6 +30,10 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.*;
 
 
@@ -161,6 +169,36 @@ public class SecurityFilterTests extends ElasticsearchTestCase {
         RestFilterChain chain = mock(RestFilterChain.class);
         doThrow(exception).when(authcService).verifyToken(request);
         rest.process(request, channel, chain);
+    }
+
+
+    @Test
+    public void testRestHeadersAreCopied() throws Exception {
+        SecurityFilter.Rest.class.getName(); // just to make sure Rest class is loaded
+        Client client = mock(Client.class);
+        AdminClient adminClient = mock(AdminClient.class);
+        when(client.admin()).thenReturn(adminClient);
+        when(adminClient.cluster()).thenReturn(mock(ClusterAdminClient.class));
+        when(adminClient.indices()).thenReturn(mock(IndicesAdminClient.class));
+        final ActionRequest request = new ActionRequest() {
+            @Override
+            public ActionRequestValidationException validate() {
+                return null;
+            }
+        };
+        final Action action = mock(Action.class);
+        final ActionListener listener = mock(ActionListener.class);
+        BaseRestHandler handler = new BaseRestHandler(ImmutableSettings.EMPTY, client) {
+            @Override
+            protected void handleRequest(RestRequest restRequest, RestChannel channel, Client client) throws Exception {
+                client.execute(action, request, listener);
+            }
+        };
+        RestRequest restRequest = mock(RestRequest.class);
+        when(restRequest.header(UsernamePasswordToken.BASIC_AUTH_HEADER)).thenReturn("foobar");
+        RestChannel channel = mock(RestChannel.class);
+        handler.handleRequest(restRequest, channel);
+        assertThat((String) request.getHeader(UsernamePasswordToken.BASIC_AUTH_HEADER), equalTo("foobar"));
     }
 
     private static class InternalRequest extends TransportRequest {

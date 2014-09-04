@@ -65,14 +65,8 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
         super(settings);
         this.threadPool = threadPool;
         this.indicesFieldDataCacheListener = indicesFieldDataCacheListener;
-        String size = componentSettings.get("size", "-1");
-        long sizeInBytes = componentSettings.getAsMemory("size", "-1").bytes();
-        if (sizeInBytes > ByteSizeValue.MAX_GUAVA_CACHE_SIZE.bytes()) {
-            logger.warn("reducing requested field data cache size of [{}] to the maximum allowed size of [{}]", new ByteSizeValue(sizeInBytes),
-                    ByteSizeValue.MAX_GUAVA_CACHE_SIZE);
-            sizeInBytes = ByteSizeValue.MAX_GUAVA_CACHE_SIZE.bytes();
-            size = ByteSizeValue.MAX_GUAVA_CACHE_SIZE.toString();
-        }
+        final String size = componentSettings.get("size", "-1");
+        final long sizeInBytes = componentSettings.getAsMemory("size", "-1").bytes();
         final TimeValue expire = componentSettings.getAsTime("expire", null);
         CacheBuilder<Key, Accountable> cacheBuilder = CacheBuilder.newBuilder()
                 .removalListener(this);

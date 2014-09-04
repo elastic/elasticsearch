@@ -120,22 +120,13 @@ public class VersionTests extends ElasticsearchTestCase {
 
     @Test
     public void parseLenient() {
-        /*
-        nocommit: this needs to be rewritten or removed
-        int numIters = randomIntBetween(10, 100);
-        for (int i = 0; i < numIters; i++) {
-            Version version = randomVersion(getRandom());
+        // note this is just a silly sanity check, we test it in lucene
+        for (Version version : allVersions()) {
             org.apache.lucene.util.Version luceneVersion = version.luceneVersion;
             String string = luceneVersion.toString().toUpperCase(Locale.ROOT)
                     .replaceFirst("^LUCENE_(\\d+)_(\\d+)$", "$1.$2");
-            if (randomBoolean()) {
-                string = string + "." + randomIntBetween(0, 100);
-                if (randomBoolean()) {
-                    string = string + "." + randomIntBetween(0, 100);
-                }
-            }
             assertThat(luceneVersion, Matchers.equalTo(Lucene.parseVersionLenient(string, null)));
-        }*/
+        }
     }
 
 }

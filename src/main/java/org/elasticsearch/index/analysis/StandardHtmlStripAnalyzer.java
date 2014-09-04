@@ -44,7 +44,7 @@ public class StandardHtmlStripAnalyzer extends StopwordAnalyzerBase {
         super(version, StopAnalyzer.ENGLISH_STOP_WORDS_SET);
     }
 
-    // nocommit: add non Version based ctors?
+    // TODO: add non Version based ctors?
 
     public StandardHtmlStripAnalyzer(Version version, CharArraySet stopwords) {
         super(version, stopwords);

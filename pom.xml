@@ -48,10 +48,6 @@
             <id>Codehaus Snapshots</id>
             <url>http://repository.codehaus.org/</url>
         </repository>
-        <repository>
-            <id>Lucene Snapshot</id>
-	    <url>http://people.apache.org/~rjernst/staging_area/lucene-solr-4.10.0-RC2-rev1620776/lucene/maven</url>
-        </repository>
     </repositories>
 
     <dependencies>

@@ -124,9 +124,8 @@ public class TokenCountFieldMapper extends IntegerFieldMapper {
     }
 
     @Override
-    protected ValueAndBoost parseCreateField(ParseContext context, List<Field> fields) throws IOException {
+    protected ValueAndBoost parseField(ParseContext context) throws IOException {
         StringFieldMapper.ValueAndBoost valueAndBoost = StringFieldMapper.parseValueAndBoost(context, null /* Out null value is an int so we convert*/, boost);
-        createField(context, fields, new ValueAndBoost(valueAndBoost.value, valueAndBoost.boost));
         return valueAndBoost;
     }
 

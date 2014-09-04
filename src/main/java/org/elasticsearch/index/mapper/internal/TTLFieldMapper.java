@@ -35,6 +35,7 @@ import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
+import org.elasticsearch.index.mapper.core.TypeParsers;
 import org.elasticsearch.index.query.GeoShapeFilterParser;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -98,7 +99,7 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             TTLFieldMapper.Builder builder = ttl();
-            parseField(builder, builder.name, node, parserContext);
+            TypeParsers.parseField(builder, builder.name, node, parserContext);
             for (Map.Entry<String, Object> entry : node.entrySet()) {
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
                 Object fieldNode = entry.getValue();
@@ -196,26 +197,37 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
     }
 
     @Override
-    protected ValueAndBoost innerParseCreateField(ParseContext context, List<Field> fields) throws IOException, AlreadyExpiredException {
-        if (enabledState.enabled && !context.sourceToParse().flyweight()) {
-            long ttl = context.sourceToParse().ttl();
-            if (ttl <= 0 && defaultTTL > 0) { // no ttl provided so we use the default value
-                ttl = defaultTTL;
-                context.sourceToParse().ttl(ttl);
-            }
-            if (ttl > 0) { // a ttl has been provided either externally or in the _source
-                long timestamp = context.sourceToParse().timestamp();
-                long expire = new Date(timestamp + ttl).getTime();
-                long now = System.currentTimeMillis();
-                // there is not point indexing already expired doc
-                if (context.sourceToParse().origin() == SourceToParse.Origin.PRIMARY && now >= expire) {
-                    throw new AlreadyExpiredException(context.index(), context.type(), context.id(), timestamp, ttl, now);
-                }
-                // the expiration timestamp (timestamp + ttl) is set as field
-                fields.add(new CustomLongNumericField(this, expire, fieldType));
+    protected ValueAndBoost parseField(ParseContext context) throws IOException, AlreadyExpiredException {
+        Long expire = null;
+        if (!enabledState.enabled || context.sourceToParse().flyweight()) {
+            return null;
+        }
+        long ttl = context.sourceToParse().ttl();
+        if (ttl <= 0 && defaultTTL > 0) { // no ttl provided so we use the default value
+            ttl = defaultTTL;
+            context.sourceToParse().ttl(ttl);
+        }
+        if (ttl > 0) { // a ttl has been provided either externally or in the _source
+            long timestamp = context.sourceToParse().timestamp();
+            expire = new Date(timestamp + ttl).getTime();
+            long now = System.currentTimeMillis();
+            // there is not point indexing already expired doc
+            if (context.sourceToParse().origin() == SourceToParse.Origin.PRIMARY && now >= expire) {
+                throw new AlreadyExpiredException(context.index(), context.type(), context.id(), timestamp, ttl, now);
             }
         }
-        return null;
+        if (expire == null) {
+            return null;
+        }
+        return new ValueAndBoost(expire, 1.0f);
+    }
+
+    @Override
+    protected void createField(ParseContext context, List<Field> fields, ValueAndBoost valueAndBoost) throws IOException, AlreadyExpiredException {
+        if (valueAndBoost != null) {
+            // the expiration timestamp (timestamp + ttl) is set as field
+            fields.add(new CustomLongNumericField(this, ((Number)valueAndBoost.value).longValue(), fieldType));
+        }
     }
 
     @Override

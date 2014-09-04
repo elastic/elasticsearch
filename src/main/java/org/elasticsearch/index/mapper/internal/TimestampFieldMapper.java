@@ -36,6 +36,7 @@ import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
+import org.elasticsearch.index.mapper.core.TypeParsers;
 
 import java.io.IOException;
 import java.util.List;
@@ -120,7 +121,7 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             TimestampFieldMapper.Builder builder = timestamp();
-            parseField(builder, builder.name, node, parserContext);
+            TypeParsers.parseField(builder, builder.name, node, parserContext);
             for (Map.Entry<String, Object> entry : node.entrySet()) {
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
                 Object fieldNode = entry.getValue();
@@ -214,20 +215,26 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
     }
 
     @Override
-    protected ValueAndBoost innerParseCreateField(ParseContext context, List<Field> fields) throws IOException {
-        if (enabledState.enabled) {
-            long timestamp = context.sourceToParse().timestamp();
-            if (!fieldType.indexed() && !fieldType.stored() && !hasDocValues()) {
-                context.ignoredValue(names.indexName(), String.valueOf(timestamp));
-            }
-            if (fieldType.indexed() || fieldType.stored()) {
-                fields.add(new LongFieldMapper.CustomLongNumericField(this, timestamp, fieldType));
-            }
-            if (hasDocValues()) {
-                fields.add(new NumericDocValuesField(names.indexName(), timestamp));
-            }
+    protected ValueAndBoost parseField(ParseContext context) throws IOException {
+        long timestamp = context.sourceToParse().timestamp();
+        if ((!fieldType.indexed() && !fieldType.stored() && !hasDocValues()) || !enabledState.enabled) {
+            context.ignoredValue(names.indexName(), String.valueOf(timestamp));
+            return null;
         }
-        return null;
+        return new ValueAndBoost(timestamp, 1.0f);
+    }
+
+    @Override
+    protected void createField(ParseContext context, List<Field> fields, ValueAndBoost valueAndBoost) throws IOException {
+        if (valueAndBoost == null) {
+            return;
+        }
+        if (fieldType.indexed() || fieldType.stored()) {
+            fields.add(new LongFieldMapper.CustomLongNumericField(this, ((Number) valueAndBoost.value).longValue(), fieldType));
+        }
+        if (hasDocValues()) {
+            fields.add(new NumericDocValuesField(names.indexName(), ((Number) valueAndBoost.value).longValue()));
+        }
     }
 
     @Override

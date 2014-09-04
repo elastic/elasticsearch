@@ -45,6 +45,7 @@ import org.elasticsearch.index.codec.postingsformat.PostingsFormatService;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
+import org.elasticsearch.index.mapper.core.TypeParsers;
 import org.elasticsearch.index.query.QueryParseContext;
 
 import java.io.IOException;
@@ -105,7 +106,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             IdFieldMapper.Builder builder = id();
-            parseField(builder, builder.name, node, parserContext);
+            TypeParsers.parseField(builder, builder.name, node, parserContext);
             for (Map.Entry<String, Object> entry : node.entrySet()) {
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
                 Object fieldNode = entry.getValue();
@@ -297,7 +298,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
     }
 
     @Override
-    protected ValueAndBoost parseCreateField(ParseContext context, List<Field> fields) throws IOException {
+    protected ValueAndBoost parseField(ParseContext context) throws IOException {
         XContentParser parser = context.parser();
         if (parser.currentName() != null && parser.currentName().equals(Defaults.NAME) && parser.currentToken().isValue()) {
             // we are in the parse Phase
@@ -308,13 +309,18 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
             context.id(id);
         } // else we are in the pre/post parse phase
 
+        return null;
+    }
+
+    @Override
+    protected void createField(ParseContext context, List<Field> fields, ValueAndBoost valueAndBoost) throws IOException {
+
         if (fieldType.indexed() || fieldType.stored()) {
             fields.add(new Field(names.indexName(), context.id(), fieldType));
         }
         if (hasDocValues()) {
             fields.add(new BinaryDocValuesField(names.indexName(), new BytesRef(context.id())));
         }
-        return null;
     }
 
     @Override

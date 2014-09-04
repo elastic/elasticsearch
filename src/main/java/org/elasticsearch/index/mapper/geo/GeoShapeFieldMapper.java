@@ -226,18 +226,20 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
     }
 
     @Override
-    protected ValueAndBoost parseCreateField(ParseContext context, List<Field> fields) throws IOException {
+    protected ValueAndBoost parseField(ParseContext context) throws IOException {
         ShapeBuilder shapeBuilder = ShapeBuilder.parse(context.parser());
         if (shapeBuilder == null) {
             return null;
         }
         Shape shape = shapeBuilder.build();
         ValueAndBoost valueAndBoost = new ValueAndBoost(shape, 1.0f);
-        createField(context, fields, valueAndBoost);
         return valueAndBoost;
     }
 
     protected void createField(ParseContext context, List<Field> fields, ValueAndBoost valueAndBoost) throws IOException {
+        if (valueAndBoost == null) {
+            return;
+        }
         Field[] fieldsL = defaultStrategy.createIndexableFields((Shape)valueAndBoost.value);
         if (fields == null || fieldsL.length == 0) {
             return;

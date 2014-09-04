@@ -445,7 +445,7 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
     }
 
     @Override
-    protected ValueAndBoost parseCreateField(ParseContext context, List<Field> fields) throws IOException {
+    protected ValueAndBoost parseField(ParseContext context) throws IOException {
         return null;
     }
 

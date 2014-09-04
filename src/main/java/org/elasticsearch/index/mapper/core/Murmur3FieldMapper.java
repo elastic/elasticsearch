@@ -92,19 +92,21 @@ public class Murmur3FieldMapper extends LongFieldMapper {
     }
 
     @Override
-    protected ValueAndBoost innerParseCreateField(ParseContext context, List<Field> fields) throws IOException {
+    protected ValueAndBoost parseField(ParseContext context) throws IOException {
         final Object value;
         value = context.parser().textOrNull();
         ValueAndBoost valueAndBoost = null;
         if (value != null) {
             valueAndBoost = new ValueAndBoost(value, 1.0f);
-            createField(context, fields, valueAndBoost);
         }
         return valueAndBoost;
     }
 
     @Override
     public void createField(ParseContext context, List<Field> fields, ValueAndBoost valueAndBoost) throws IOException {
+        if (valueAndBoost == null) {
+            return;
+        }
         final BytesRef bytes = new BytesRef(valueAndBoost.value.toString());
         final long hash = MurmurHash3.hash128(bytes.bytes, bytes.offset, bytes.length, 0, new MurmurHash3.Hash128()).h1;
         super.createField(context, fields, new ValueAndBoost(hash, 1.0f));

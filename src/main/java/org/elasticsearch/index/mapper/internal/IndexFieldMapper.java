@@ -34,6 +34,7 @@ import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
+import org.elasticsearch.index.mapper.core.TypeParsers;
 
 import java.io.IOException;
 import java.util.List;
@@ -93,7 +94,7 @@ public class IndexFieldMapper extends AbstractFieldMapper<String> implements Int
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             IndexFieldMapper.Builder builder = MapperBuilders.index();
-            parseField(builder, builder.name, node, parserContext);
+            TypeParsers.parseField(builder, builder.name, node, parserContext);
 
             for (Map.Entry<String, Object> entry : node.entrySet()) {
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
@@ -177,12 +178,16 @@ public class IndexFieldMapper extends AbstractFieldMapper<String> implements Int
     }
 
     @Override
-    protected ValueAndBoost parseCreateField(ParseContext context, List<Field> fields) throws IOException {
+    protected ValueAndBoost parseField(ParseContext context) throws IOException {
+        return null;
+    }
+
+    @Override
+    protected void createField(ParseContext context, List<Field> fields, ValueAndBoost valueAndBoost) throws IOException {
         if (!enabledState.enabled) {
-            return null;
+            return;
         }
         fields.add(new Field(names.indexName(), context.index(), fieldType));
-        return null;
     }
 
     @Override

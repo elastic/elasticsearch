@@ -413,7 +413,8 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         assert fields.isEmpty();
         ValueAndBoost valueAndBoost = null;
         try {
-            valueAndBoost = parseCreateField(context, fields);
+            valueAndBoost = parseField(context);
+            createField(context, fields, valueAndBoost);
             addFields(context, fields);
         } catch (Exception e) {
             throw new MapperParsingException("failed to parse [" + names.fullName() + "]", e);
@@ -471,9 +472,11 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
     }
 
     /**
-     * Parse the field value and populate <code>fields</code>.
+     * Parse the field value to ValueAndBoost.
      */
-    protected abstract ValueAndBoost parseCreateField(ParseContext context, List<Field> fields) throws IOException;
+    protected ValueAndBoost parseField(ParseContext context) throws IOException {
+        throw new UnsupportedOperationException(this.getClass().getName() + " cannot be set externally.");
+    }
 
     /**
      * Derived classes can override it to specify that boost value is set by derived classes.

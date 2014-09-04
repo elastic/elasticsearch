@@ -129,7 +129,7 @@ public class ExternalMapper extends AbstractFieldMapper<Object> {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             ExternalMapper.Builder builder = new ExternalMapper.Builder(name, generatedValue, mapperName);
-            parseField(builder, name, node, parserContext);
+            TypeParsers.parseField(builder, name, node, parserContext);
             for (Map.Entry<String, Object> entry : node.entrySet()) {
                 String propName = Strings.toUnderscoreCase(entry.getKey());
                 Object propNode = entry.getValue();
@@ -209,7 +209,7 @@ public class ExternalMapper extends AbstractFieldMapper<Object> {
     }
 
     @Override
-    protected ValueAndBoost parseCreateField(ParseContext context, List<Field> fields) throws IOException {
+    protected ValueAndBoost parseField(ParseContext context) throws IOException {
         throw new UnsupportedOperationException();
     }
 

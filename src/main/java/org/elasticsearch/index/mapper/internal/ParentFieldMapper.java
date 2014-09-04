@@ -189,34 +189,45 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
     }
 
     @Override
-    protected ValueAndBoost parseCreateField(ParseContext context, List<Field> fields) throws IOException {
+    protected ValueAndBoost parseField(ParseContext context) throws IOException {
         if (!active()) {
             return null;
         }
-
+        String parentId = null;
         if (context.parser().currentName() != null && context.parser().currentName().equals(Defaults.NAME)) {
             // we are in the parsing of _parent phase
-            String parentId = context.parser().text();
+            parentId = context.parser().text();
             context.sourceToParse().parent(parentId);
-            fields.add(new Field(names.indexName(), Uid.createUid(context.stringBuilder(), type, parentId), fieldType));
         } else {
             // otherwise, we are running it post processing of the xcontent
             String parsedParentId = context.doc().get(Defaults.NAME);
             if (context.sourceToParse().parent() != null) {
-                String parentId = context.sourceToParse().parent();
+                String tempParentId = context.sourceToParse().parent();
                 if (parsedParentId == null) {
-                    if (parentId == null) {
+                    if (tempParentId == null) {
                         throw new MapperParsingException("No parent id provided, not within the document, and not externally");
                     }
                     // we did not add it in the parsing phase, add it now
-                    fields.add(new Field(names.indexName(), Uid.createUid(context.stringBuilder(), type, parentId), fieldType));
-                } else if (parentId != null && !parsedParentId.equals(Uid.createUid(context.stringBuilder(), type, parentId))) {
-                    throw new MapperParsingException("Parent id mismatch, document value is [" + Uid.createUid(parsedParentId).id() + "], while external value is [" + parentId + "]");
+                    parentId = tempParentId;
+                } else if (tempParentId != null && !parsedParentId.equals(Uid.createUid(context.stringBuilder(), type, tempParentId))) {
+                    throw new MapperParsingException("Parent id mismatch, document value is [" + Uid.createUid(parsedParentId).id() + "], while external value is [" + tempParentId + "]");
                 }
             }
         }
         // we have parent mapping, yet no value was set, ignore it...
-        return null;
+        return new ValueAndBoost(parentId, 1.0f);
+    }
+
+    @Override
+    protected void createField(ParseContext context, List<Field> fields, ValueAndBoost valueAndBoost) throws IOException {
+        if (!active()) {
+            return;
+        }
+        if (valueAndBoost.value == null) {
+            // we are running in post processing of the xcontent, we added the field already
+            return;
+        }
+        fields.add(new Field(names.indexName(), Uid.createUid(context.stringBuilder(), type, (String)valueAndBoost.value), fieldType));
     }
 
     @Override

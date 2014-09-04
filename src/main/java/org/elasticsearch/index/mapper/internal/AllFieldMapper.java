@@ -41,6 +41,7 @@ import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
+import org.elasticsearch.index.mapper.core.TypeParsers;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.similarity.SimilarityLookupService;
@@ -52,7 +53,6 @@ import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 import static org.elasticsearch.index.mapper.MapperBuilders.all;
-import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
 
 /**
  *
@@ -118,7 +118,7 @@ public class AllFieldMapper extends AbstractFieldMapper<String> implements Inter
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             AllFieldMapper.Builder builder = all();
-            parseField(builder, builder.name, node, parserContext);
+            TypeParsers.parseField(builder, builder.name, node, parserContext);
             for (Map.Entry<String, Object> entry : node.entrySet()) {
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
                 Object fieldNode = entry.getValue();
@@ -209,7 +209,7 @@ public class AllFieldMapper extends AbstractFieldMapper<String> implements Inter
     }
 
     @Override
-    protected ValueAndBoost parseCreateField(ParseContext context, List<Field> fields) throws IOException {
+    protected ValueAndBoost parseField(ParseContext context) throws IOException {
         if (!enabled) {
             return null;
         }
@@ -224,8 +224,13 @@ public class AllFieldMapper extends AbstractFieldMapper<String> implements Inter
         }
 
         Analyzer analyzer = findAnalyzer(context);
-        fields.add(new AllField(names.indexName(), context.allEntries(), analyzer, fieldType));
-        return null;
+        return new ValueAndBoost(new AllField(names.indexName(), context.allEntries(), analyzer, fieldType), 1.0f);
+
+    }
+
+    @Override
+    protected void createField(ParseContext context, List<Field> fields, ValueAndBoost valueAndBoost) throws IOException {
+        fields.add((Field)valueAndBoost.value);
     }
 
     private Analyzer findAnalyzer(ParseContext context) {

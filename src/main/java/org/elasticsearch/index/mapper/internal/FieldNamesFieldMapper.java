@@ -38,6 +38,7 @@ import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
+import org.elasticsearch.index.mapper.core.TypeParsers;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -109,7 +110,7 @@ public class FieldNamesFieldMapper extends AbstractFieldMapper<String> implement
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             if (parserContext.indexVersionCreated().onOrAfter(Version.V_1_3_0)) {
                 FieldNamesFieldMapper.Builder builder = fieldNames();
-                parseField(builder, builder.name, node, parserContext);
+                TypeParsers.parseField(builder, builder.name, node, parserContext);
                 return builder;
             } else {
               throw new ElasticsearchIllegalArgumentException("type="+CONTENT_TYPE+" is not supported on indices created before version 1.3.0 is your cluster running multiple datanode versions?");
@@ -213,9 +214,14 @@ public class FieldNamesFieldMapper extends AbstractFieldMapper<String> implement
     }
 
     @Override
-    protected ValueAndBoost parseCreateField(ParseContext context, List<Field> fields) throws IOException {
+    protected ValueAndBoost parseField(ParseContext context) throws IOException {
+        return null;
+    }
+
+    @Override
+    protected void createField(ParseContext context, List<Field> fields, ValueAndBoost valueAndBoost) throws IOException {
         if (!fieldType.indexed() && !fieldType.stored() && !hasDocValues()) {
-            return null;
+            return;
         }
         for (ParseContext.Document document : context.docs()) {
             final List<String> paths = new ArrayList<>();
@@ -233,7 +239,6 @@ public class FieldNamesFieldMapper extends AbstractFieldMapper<String> implement
                 }
             }
         }
-        return null;
     }
 
     @Override

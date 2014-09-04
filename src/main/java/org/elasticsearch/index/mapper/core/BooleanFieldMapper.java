@@ -106,7 +106,7 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             BooleanFieldMapper.Builder builder = booleanField(name);
-            parseField(builder, name, node, parserContext);
+            TypeParsers.parseField(builder, name, node, parserContext);
             for (Map.Entry<String, Object> entry : node.entrySet()) {
                 String propName = Strings.toUnderscoreCase(entry.getKey());
                 Object propNode = entry.getValue();
@@ -201,7 +201,7 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
     }
 
     @Override
-    protected ValueAndBoost parseCreateField(ParseContext context, List<Field> fields) throws IOException {
+    protected ValueAndBoost parseField(ParseContext context) throws IOException {
         if (!fieldType().indexed() && !fieldType().stored()) {
             return null;
         }
@@ -220,7 +220,6 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
             return null;
         }
         ValueAndBoost valueAndBoost = new ValueAndBoost(value, 1.0f);
-        createField(context, fields, valueAndBoost);
         return valueAndBoost;
     }
 

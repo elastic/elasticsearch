@@ -41,6 +41,7 @@ import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
+import org.elasticsearch.index.mapper.core.TypeParsers;
 import org.elasticsearch.index.query.QueryParseContext;
 
 import java.io.IOException;
@@ -92,7 +93,7 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements Inte
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             TypeFieldMapper.Builder builder = type();
-            parseField(builder, builder.name, node, parserContext);
+            TypeParsers.parseField(builder, builder.name, node, parserContext);
             return builder;
         }
     }
@@ -173,15 +174,22 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements Inte
     }
 
     @Override
-    protected ValueAndBoost parseCreateField(ParseContext context, List<Field> fields) throws IOException {
+    protected ValueAndBoost parseField(ParseContext context) throws IOException {
         if (!fieldType.indexed() && !fieldType.stored()) {
             return null;
         }
-        fields.add(new Field(names.indexName(), context.type(), fieldType));
+        return new ValueAndBoost(context.type(), 1.0f);
+    }
+
+    @Override
+    protected void createField(ParseContext context, List<Field> fields, ValueAndBoost valueAndBoost) throws IOException {
+        if (valueAndBoost == null) {
+            return;
+        }
+        fields.add(new Field(names.indexName(), (String) valueAndBoost.value, fieldType));
         if (hasDocValues()) {
             fields.add(new SortedSetDocValuesField(names.indexName(), new BytesRef(context.type())));
         }
-        return null;
     }
 
     @Override

@@ -228,7 +228,7 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
         @Override
         public Mapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             Builder builder = geoPointField(name);
-            parseField(builder, name, node, parserContext);
+            TypeParsers.parseField(builder, name, node, parserContext);
             for (Map.Entry<String, Object> entry : node.entrySet()) {
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
                 Object fieldNode = entry.getValue();
@@ -498,7 +498,7 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
     }
 
     @Override
-    protected ValueAndBoost parseCreateField(ParseContext context, List<Field> fields) throws IOException {
+    protected ValueAndBoost parseField(ParseContext context) throws IOException {
         throw new UnsupportedOperationException("Parsing is implemented in parse(), this method should NEVER be called");
     }
 

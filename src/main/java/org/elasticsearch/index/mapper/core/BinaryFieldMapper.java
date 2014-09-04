@@ -51,7 +51,6 @@ import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 import static org.elasticsearch.index.mapper.MapperBuilders.binaryField;
-import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
 
 /**
  *
@@ -102,7 +101,7 @@ public class BinaryFieldMapper extends AbstractFieldMapper<BytesReference> {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             BinaryFieldMapper.Builder builder = binaryField(name);
-            parseField(builder, name, node, parserContext);
+            TypeParsers.parseField(builder, name, node, parserContext);
             for (Map.Entry<String, Object> entry : node.entrySet()) {
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
                 Object fieldNode = entry.getValue();
@@ -177,7 +176,7 @@ public class BinaryFieldMapper extends AbstractFieldMapper<BytesReference> {
     }
 
     @Override
-    protected ValueAndBoost parseCreateField(ParseContext context, List<Field> fields) throws IOException {
+    protected ValueAndBoost parseField(ParseContext context) throws IOException {
         if (!fieldType().stored() && !hasDocValues()) {
             return null;
         }
@@ -188,9 +187,7 @@ public class BinaryFieldMapper extends AbstractFieldMapper<BytesReference> {
             value = context.parser().binaryValue();
         }
         ValueAndBoost valueAndBoost = new ValueAndBoost(value, 1.0f);
-        createField(context, fields, valueAndBoost);
         return valueAndBoost;
-
     }
 
     @Override

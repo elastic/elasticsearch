@@ -34,6 +34,7 @@ import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
+import org.elasticsearch.index.mapper.core.TypeParsers;
 
 import java.io.IOException;
 import java.util.List;
@@ -99,7 +100,7 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements I
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             RoutingFieldMapper.Builder builder = routing();
-            parseField(builder, builder.name, node, parserContext);
+            TypeParsers.parseField(builder, builder.name, node, parserContext);
             for (Map.Entry<String, Object> entry : node.entrySet()) {
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
                 Object fieldNode = entry.getValue();
@@ -192,7 +193,8 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements I
     }
 
     @Override
-    protected ValueAndBoost parseCreateField(ParseContext context, List<Field> fields) throws IOException {
+    protected ValueAndBoost parseField(ParseContext context) throws IOException {
+        String routingValue = null;
         if (context.sourceToParse().routing() != null) {
             String routing = context.sourceToParse().routing();
             if (routing != null) {
@@ -200,10 +202,17 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements I
                     context.ignoredValue(names.indexName(), routing);
                     return null;
                 }
-                fields.add(new Field(names.indexName(), routing, fieldType));
+                routingValue = routing;
             }
         }
-        return null;
+        return new ValueAndBoost(routingValue, 1.0f);
+    }
+
+    @Override
+    protected void createField(ParseContext context, List<Field> fields, ValueAndBoost valueAndBoost) throws IOException {
+        if (valueAndBoost.value != null) {
+            fields.add(new Field(names.indexName(), (String) valueAndBoost.value, fieldType));
+        }
     }
 
     @Override

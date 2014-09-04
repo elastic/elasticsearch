@@ -151,7 +151,7 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             StringFieldMapper.Builder builder = stringField(name);
-            parseField(builder, name, node, parserContext);
+            TypeParsers.parseField(builder, name, node, parserContext);
             for (Map.Entry<String, Object> entry : node.entrySet()) {
                 String propName = Strings.toUnderscoreCase(entry.getKey());
                 Object propNode = entry.getValue();
@@ -271,9 +271,8 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
     }
 
     @Override
-    protected ValueAndBoost parseCreateField(ParseContext context, List<Field> fields) throws IOException {
+    protected ValueAndBoost parseField(ParseContext context) throws IOException {
         ValueAndBoost valueAndBoost = parseValueAndBoost(context, nullValue, boost);
-        createField(context, fields, valueAndBoost);
         return valueAndBoost;
     }
 

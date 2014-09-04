@@ -220,8 +220,8 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
             return null;
         }
         return NumericRangeFilter.newFloatRange(names.indexName(), precisionStep,
-                (Float)nullValue,
-                (Float)nullValue,
+                (Float) nullValue,
+                (Float) nullValue,
                 true, true);
     }
 
@@ -249,14 +249,18 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
     }
 
     @Override
-    protected ValueAndBoost innerParseCreateField(ParseContext context, List<Field> fields) throws IOException {
+    protected ValueAndBoost parseField(ParseContext context) throws IOException {
         final float value = parseFloatValue(context);
+        return new ValueAndBoost(value, 1.0f);
+    }
+    @Override
+    protected void createField(ParseContext context, List<Field> fields, ValueAndBoost valueAndBoost) throws IOException {
+        final float value = ((Number)valueAndBoost.value).floatValue();
         if (Float.isNaN(value)) {
-            return null;
+            return ;
         }
         context.docBoost(value);
         fields.add(new FloatFieldMapper.CustomFloatNumericField(this, value, fieldType));
-        return null;
     }
 
     private float parseFloatValue(ParseContext context) throws IOException {

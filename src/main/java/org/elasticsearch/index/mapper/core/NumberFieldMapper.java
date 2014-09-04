@@ -234,11 +234,12 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
     }
 
     @Override
-    protected ValueAndBoost parseCreateField(ParseContext context, List<Field> fields) throws IOException {
+    protected ValueAndBoost parseField(ParseContext context) throws IOException {
         RuntimeException e = null;
         ValueAndBoost valueAndBoost = null;
         try {
-            valueAndBoost = innerParseCreateField(context, fields);
+            XContentParser parser = context.parser();
+            valueAndBoost = parseValueAndBoost(parser);
         } catch (IllegalArgumentException e1) {
             e = e1;
         } catch (MapperParsingException e2) {
@@ -543,15 +544,6 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
         return true;
     }
 
-    protected ValueAndBoost innerParseCreateField(ParseContext context, List<Field> fields) throws IOException {
-        XContentParser parser = context.parser();
-        ValueAndBoost valueAndBoost = parseValueAndBoost(parser);
-        if (valueAndBoost.value == null) {
-            return null;
-        }
-        createField(context, fields, valueAndBoost);
-        return valueAndBoost;
-    }
 
     private ValueAndBoost parseValueAndBoost(XContentParser parser) throws IOException {
         float boost = this.boost;
@@ -590,25 +582,44 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
         return new ValueAndBoost(value, boost);
     }
 
+    Number getNumber(ValueAndBoost valueAndBoost) {
+        RuntimeException e = null;
+        Number numberValue = null;
+        try {
+            Object value = null;
+            if (valueAndBoost!= null ){
+                value = valueAndBoost.value;
+            }
+            if (value == null) {
+                numberValue = (Number)nullValue;
+            } else if (value instanceof String) {
+                String sValue = (String) value;
+                if (sValue.length() == 0) {
+                    numberValue = (Number)nullValue;
+                } else {
+                    numberValue = parseNumber(sValue);
+                }
+            } else if (value instanceof Number) {
+                numberValue = (Number) value;
+            }
+        } catch (MapperParsingException e1) {
+            e = e1;
+        }
+
+        if (e != null && !ignoreMalformed.value()) {
+            throw e;
+        }
+        return numberValue;
+    }
+
     @Override
     protected void createField(ParseContext context, List<Field> fields, ValueAndBoost valueAndBoost) throws IOException {
-        Object value = valueAndBoost.value;
+
+        Number value = getNumber(valueAndBoost);
         if (value == null) {
-            if (nullValue == null) {
-                return;
-            }
-            value = nullValue;
-        } else if (value instanceof String) {
-            String sValue = (String) value;
-            if (sValue.length() == 0) {
-                if (nullValue == null) {
-                    return;
-                }
-                value = nullValue;
-            } else {
-                value = parseNumber(sValue);
-            }
+            return;
         }
+
         if (context.includeInAll(includeInAll, this)) {
             context.allEntries().addText(names.fullName(), value.toString(), valueAndBoost.boost);
         }

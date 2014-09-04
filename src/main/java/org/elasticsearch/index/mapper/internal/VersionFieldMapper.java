@@ -108,12 +108,18 @@ public class VersionFieldMapper extends AbstractFieldMapper<Long> implements Int
     }
 
     @Override
-    protected ValueAndBoost parseCreateField(ParseContext context, List<Field> fields) throws IOException {
-        // see UidFieldMapper.parseCreateField
+    protected ValueAndBoost parseField(ParseContext context) throws IOException {
+        // see UidFieldMapper.parse/createField
         final Field version = fieldCache.get();
         context.version(version);
-        fields.add(version);
         return null;
+    }
+
+    @Override
+    protected void createField(ParseContext context, List<Field> fields, ValueAndBoost valueAndBoost) throws IOException {
+        // see UidFieldMapper.parse/createField
+        final Field version = fieldCache.get();
+        fields.add(version);
     }
 
     @Override

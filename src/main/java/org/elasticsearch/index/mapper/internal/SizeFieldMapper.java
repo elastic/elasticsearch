@@ -142,15 +142,22 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
     }
 
     @Override
-    protected ValueAndBoost innerParseCreateField(ParseContext context, List<Field> fields) throws IOException {
+    protected ValueAndBoost parseField(ParseContext context) throws IOException {
         if (!enabledState.enabled) {
             return null;
         }
         if (context.flyweight()) {
             return null;
         }
+        return new ValueAndBoost(context.source().length(), 1.0f);
+    }
+
+    @Override
+    protected void createField(ParseContext context, List<Field> fields, ValueAndBoost valueAndBoost) throws IOException {
+        if (valueAndBoost == null) {
+            return;
+        }
         fields.add(new CustomIntegerNumericField(this, context.source().length(), fieldType));
-        return null;
     }
 
     @Override

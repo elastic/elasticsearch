@@ -39,6 +39,7 @@ import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
+import org.elasticsearch.index.mapper.core.TypeParsers;
 
 import java.io.IOException;
 import java.util.List;
@@ -94,7 +95,7 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
         @Override
         public Mapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             Builder builder = uid();
-            parseField(builder, builder.name, node, parserContext);
+            TypeParsers.parseField(builder, builder.name, node, parserContext);
             return builder;
         }
     }
@@ -170,14 +171,18 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
     }
 
     @Override
-    protected ValueAndBoost parseCreateField(ParseContext context, List<Field> fields) throws IOException {
-        Field uid = new Field(NAME, Uid.createUid(context.stringBuilder(), context.type(), context.id()), Defaults.FIELD_TYPE);
+    protected ValueAndBoost parseField(ParseContext context) throws IOException {
+        return new ValueAndBoost(Uid.createUid(context.stringBuilder(), context.type(), context.id()),1.0f);
+    }
+
+    @Override
+    protected void createField(ParseContext context, List<Field> fields, ValueAndBoost valueAndBoost) throws IOException {
+        Field uid = new Field(NAME, (String)valueAndBoost.value, Defaults.FIELD_TYPE);
         context.uid(uid);
         fields.add(uid);
         if (hasDocValues()) {
             fields.add(new BinaryDocValuesField(NAME, new BytesRef(uid.stringValue())));
         }
-        return null;
     }
 
     @Override

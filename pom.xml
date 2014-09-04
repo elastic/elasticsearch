@@ -979,6 +979,10 @@
                     <defaultDirmode>755</defaultDirmode>
                     <defaultUsername>root</defaultUsername>
                     <defaultGroupname>root</defaultGroupname>
+                    <requires>
+                        <require>jre &gt;= 1.6.0</require>
+                        <require>/usr/bin/which</require>
+                    </requires>
                     <mappings>
                         <mapping>
                             <directory>/etc/elasticsearch/</directory>

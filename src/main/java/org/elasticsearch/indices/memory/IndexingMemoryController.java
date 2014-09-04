@@ -33,8 +33,6 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineClosedException;
 import org.elasticsearch.index.engine.FlushNotAllowedEngineException;
 import org.elasticsearch.index.service.IndexService;
-import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
@@ -57,6 +55,9 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
     public static final String MIN_SHARD_INDEX_BUFFER_SIZE = "indices.memory.min_shard_index_buffer_size";
     public static final String MAX_SHARD_INDEX_BUFFER_SIZE = "indices.memory.max_shard_index_buffer_size";
 
+    /** Default value for index_buffer_size. */
+    private static final String DEFAULT_INDEX_BUFFER = "10%";
+
     /** Default value for min_index_buffer_size, which is applied when index_buffer_size is a %tg. */
     private static final ByteSizeValue DEFAULT_MIN_INDEX_BUFFER_SIZE = new ByteSizeValue(48, ByteSizeUnit.MB);
 
@@ -70,9 +71,12 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
     private final ThreadPool threadPool;
     private final IndicesService indicesService;
 
+    private volatile String indexingBufferString;
     private volatile ByteSizeValue indexingBuffer;
-    private volatile ByteSizeValue minShardIndexBufferSize;
-    private volatile ByteSizeValue maxShardIndexBufferSize;
+    private volatile ByteSizeValue minShardIndexingBufferSize;
+    private volatile ByteSizeValue maxShardIndexingBufferSize;
+    private volatile ByteSizeValue minIndexingBufferSize;
+    private volatile ByteSizeValue maxIndexingBufferSize;
 
     private final ByteSizeValue translogBuffer;
     private final ByteSizeValue minShardTranslogBufferSize;
@@ -95,11 +99,16 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
         this.threadPool = threadPool;
         this.indicesService = indicesService;
         this.nodeSettingsService = nodeSettingsService;
+        this.indexingBufferString = settings.get(INDEX_BUFFER_SIZE, DEFAULT_INDEX_BUFFER);
 
-        this.indexingBuffer = parseIndexingBuffer(settings);
+        // TODO: should we validate min/max here?  somewhat dangerous because on upgrade this means existing configs may fail, since we are
+        // now lenient... but this would be a "favor" to such users since they don't realize their config is messed up now:
+        this.minIndexingBufferSize = settings.getAsBytesSize(MIN_INDEX_BUFFER_SIZE, DEFAULT_MIN_INDEX_BUFFER_SIZE);
+        this.maxIndexingBufferSize = settings.getAsBytesSize(MAX_INDEX_BUFFER_SIZE, null);
+        this.minShardIndexingBufferSize = settings.getAsBytesSize(MIN_SHARD_INDEX_BUFFER_SIZE, DEFAULT_MIN_SHARD_INDEX_BUFFER_SIZE);
+        this.maxShardIndexingBufferSize = settings.getAsBytesSize(MAX_SHARD_INDEX_BUFFER_SIZE, DEFAULT_MAX_SHARD_INDEX_BUFFER_SIZE);
 
-        this.minShardIndexBufferSize = settings.getAsBytesSize(MIN_SHARD_INDEX_BUFFER_SIZE, DEFAULT_MIN_SHARD_INDEX_BUFFER_SIZE);
-        this.maxShardIndexBufferSize = settings.getAsBytesSize(MAX_SHARD_INDEX_BUFFER_SIZE, DEFAULT_MAX_SHARD_INDEX_BUFFER_SIZE);
+        this.indexingBuffer = computeIndexingBuffer(this.indexingBufferString);
 
         ByteSizeValue translogBuffer;
         String translogBufferSetting = componentSettings.get("translog_buffer_size", "1%");
@@ -126,33 +135,30 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
         // we need to have this relatively small to move a shard from inactive to active fast (enough)
         this.interval = componentSettings.getAsTime("interval", TimeValue.timeValueSeconds(30));
 
-        logger.debug("using {} [{}], with {} [{}], {} [{}], shard_inactive_time [{}]",
-                     INDEX_BUFFER_SIZE, this.indexingBuffer,
+        logger.debug("using {} [{}, actual value: {}], with {} [{}], {} [{}], shard_inactive_time [{}]",
+                     INDEX_BUFFER_SIZE, this.indexingBufferString, this.indexingBuffer,
                      MIN_SHARD_INDEX_BUFFER_SIZE,
-                     this.minShardIndexBufferSize,
+                     this.minShardIndexingBufferSize,
                      MAX_SHARD_INDEX_BUFFER_SIZE,
-                     this.maxShardIndexBufferSize, this.inactiveTime);
+                     this.maxShardIndexingBufferSize, this.inactiveTime);
         nodeSettingsService.addListener(applySettings);
     }
 
-    private ByteSizeValue parseIndexingBuffer(Settings settings) {
+    private ByteSizeValue computeIndexingBuffer(String setting) {
         ByteSizeValue indexingBuffer;
-        String indexingBufferSetting = settings.get(INDEX_BUFFER_SIZE, "10%");
-        if (indexingBufferSetting.endsWith("%")) {
-            double percent = Double.parseDouble(indexingBufferSetting.substring(0, indexingBufferSetting.length() - 1));
+        if (setting.endsWith("%")) {
+            double percent = Double.parseDouble(setting.substring(0, setting.length() - 1));
             indexingBuffer = new ByteSizeValue((long) (((double) JvmInfo.jvmInfo().mem().heapMax().bytes()) * (percent / 100)));
 
-            ByteSizeValue minIndexingBuffer = settings.getAsBytesSize(MIN_INDEX_BUFFER_SIZE, DEFAULT_MIN_INDEX_BUFFER_SIZE);
-            if (indexingBuffer.bytes() < minIndexingBuffer.bytes()) {
-                indexingBuffer = minIndexingBuffer;
+            if (indexingBuffer.bytes() < minIndexingBufferSize.bytes()) {
+                indexingBuffer = minIndexingBufferSize;
             }
 
-            ByteSizeValue maxIndexingBuffer = settings.getAsBytesSize(MAX_INDEX_BUFFER_SIZE, null);
-            if (maxIndexingBuffer != null && indexingBuffer.bytes() > maxIndexingBuffer.bytes()) {
-                indexingBuffer = maxIndexingBuffer;
+            if (maxIndexingBufferSize != null && indexingBuffer.bytes() > maxIndexingBufferSize.bytes()) {
+                indexingBuffer = maxIndexingBufferSize;
             }
         } else {
-            indexingBuffer = ByteSizeValue.parseBytesSizeValue(indexingBufferSetting, null);
+            indexingBuffer = ByteSizeValue.parseBytesSizeValue(setting, null);
         }
         return indexingBuffer;
     }
@@ -179,24 +185,70 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
     class ApplySettings implements NodeSettingsService.Listener {
         @Override
         public void onRefreshSettings(Settings settings) {
+            String indexingBufferString = settings.get(INDEX_BUFFER_SIZE,
+                                                       IndexingMemoryController.this.indexingBufferString);
+
+            ByteSizeValue minIndexingBufferSize = settings.getAsBytesSize(MIN_INDEX_BUFFER_SIZE,
+                                                                          IndexingMemoryController.this.minIndexingBufferSize);
+            ByteSizeValue maxIndexingBufferSize = settings.getAsBytesSize(MAX_INDEX_BUFFER_SIZE,
+                                                                          IndexingMemoryController.this.maxIndexingBufferSize);
+            if (maxIndexingBufferSize != null && minIndexingBufferSize.bytes() > maxIndexingBufferSize.bytes()) {
+                throw new IllegalArgumentException("minIndexingBufferSize=" + minIndexingBufferSize + " maxIndexingBufferSize=" + maxIndexingBufferSize);
+            }
+
+            ByteSizeValue minShardIndexingBufferSize = settings.getAsBytesSize(MIN_SHARD_INDEX_BUFFER_SIZE,
+                                                                               IndexingMemoryController.this.minShardIndexingBufferSize);
+            ByteSizeValue maxShardIndexingBufferSize = settings.getAsBytesSize(MAX_SHARD_INDEX_BUFFER_SIZE,
+                                                                               IndexingMemoryController.this.maxShardIndexingBufferSize);
+            if (minShardIndexingBufferSize.bytes() > maxShardIndexingBufferSize.bytes()) {
+                throw new IllegalArgumentException("minShardIndexingBufferSize=" + minShardIndexingBufferSize + " maxShardIndexingBufferSize=" + maxShardIndexingBufferSize);
+            }
+
             boolean changed = false;
-            ByteSizeValue minShardIndexBufferSize = settings.getAsBytesSize(MIN_SHARD_INDEX_BUFFER_SIZE, DEFAULT_MIN_SHARD_INDEX_BUFFER_SIZE);
-            if (minShardIndexBufferSize.equals(IndexingMemoryController.this.minShardIndexBufferSize) == false) {
-                logger.info("updating [{}] from [{}] to [{}]", MIN_SHARD_INDEX_BUFFER_SIZE, IndexingMemoryController.this.minShardIndexBufferSize, minShardIndexBufferSize);
-                IndexingMemoryController.this.minShardIndexBufferSize = minShardIndexBufferSize;
+
+            if (minIndexingBufferSize.equals(IndexingMemoryController.this.minIndexingBufferSize) == false) {
+                logger.info("updating [{}] from [{}] to [{}]", MIN_INDEX_BUFFER_SIZE,
+                            IndexingMemoryController.this.minIndexingBufferSize, minIndexingBufferSize);
+                IndexingMemoryController.this.minIndexingBufferSize = minIndexingBufferSize;
                 changed = true;
             }
 
-            ByteSizeValue maxShardIndexBufferSize = settings.getAsBytesSize(MAX_SHARD_INDEX_BUFFER_SIZE, DEFAULT_MAX_SHARD_INDEX_BUFFER_SIZE);
-            if (maxShardIndexBufferSize.equals(IndexingMemoryController.this.maxShardIndexBufferSize) == false) {
-                logger.info("updating [{}] from [{}] to [{}]", MAX_SHARD_INDEX_BUFFER_SIZE, IndexingMemoryController.this.maxShardIndexBufferSize, maxShardIndexBufferSize);
-                IndexingMemoryController.this.maxShardIndexBufferSize = maxShardIndexBufferSize;
+            if (maxIndexingBufferSize != null &&
+                (IndexingMemoryController.this.maxIndexingBufferSize == null ||
+                 (maxIndexingBufferSize.equals(IndexingMemoryController.this.maxIndexingBufferSize) == false))) {
+                logger.info("updating [{}] from [{}] to [{}]", MAX_INDEX_BUFFER_SIZE,
+                            IndexingMemoryController.this.maxIndexingBufferSize, maxIndexingBufferSize);
+                IndexingMemoryController.this.maxIndexingBufferSize = maxIndexingBufferSize;
                 changed = true;
             }
 
-            ByteSizeValue indexingBuffer = parseIndexingBuffer(settings);
-            if (indexingBuffer.equals(IndexingMemoryController.this.indexingBuffer) == false) {
-                logger.info("updating [{}] from [{}] to [{}]", INDEX_BUFFER_SIZE, IndexingMemoryController.this.indexingBuffer, indexingBuffer);
+            if (minShardIndexingBufferSize.equals(IndexingMemoryController.this.minShardIndexingBufferSize) == false) {
+                logger.info("updating [{}] from [{}] to [{}]", MIN_SHARD_INDEX_BUFFER_SIZE,
+                            IndexingMemoryController.this.minShardIndexingBufferSize, minShardIndexingBufferSize);
+                IndexingMemoryController.this.minShardIndexingBufferSize = minShardIndexingBufferSize;
+                changed = true;
+            }
+
+            if (maxShardIndexingBufferSize.equals(IndexingMemoryController.this.maxShardIndexingBufferSize) == false) {
+                logger.info("updating [{}] from [{}] to [{}]", MAX_SHARD_INDEX_BUFFER_SIZE,
+                            IndexingMemoryController.this.maxShardIndexingBufferSize, maxShardIndexingBufferSize);
+                IndexingMemoryController.this.maxShardIndexingBufferSize = maxShardIndexingBufferSize;
+                changed = true;
+            }
+
+            // Must parse this after incorporating the min/max changes above:
+            ByteSizeValue indexingBuffer = computeIndexingBuffer(indexingBufferString);
+
+            // Only set this.indexingBuffer/String after computeIndexingBuffer succeeds in parsing it:
+            if (indexingBufferString.equals(IndexingMemoryController.this.indexingBufferString) == false ||
+                indexingBuffer.equals(IndexingMemoryController.this.indexingBuffer) == false) {
+                logger.info("updating [{}] from [{}, actual value: {}] to [{}, actual value: {}]",
+                            INDEX_BUFFER_SIZE,
+                            IndexingMemoryController.this.indexingBufferString,
+                            IndexingMemoryController.this.indexingBuffer,
+                            indexingBufferString,
+                            indexingBuffer);
+                IndexingMemoryController.this.indexingBufferString = indexingBufferString;
                 IndexingMemoryController.this.indexingBuffer = indexingBuffer;
                 changed = true;
             }
@@ -206,9 +258,9 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
                 logger.debug("using {} [{}], with {} [{}], {} [{}]",
                              INDEX_BUFFER_SIZE, indexingBuffer,
                              MIN_SHARD_INDEX_BUFFER_SIZE,
-                             minShardIndexBufferSize,
+                             minShardIndexingBufferSize,
                              MAX_SHARD_INDEX_BUFFER_SIZE,
-                             maxShardIndexBufferSize);
+                             maxShardIndexingBufferSize);
                 statusChecker.run(true);
             }
         }
@@ -218,8 +270,36 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
      * returns the current budget for the total amount of indexing buffers of
      * active shards on this node
      */
-    public ByteSizeValue indexingBufferSize() {
+    public ByteSizeValue getIndexingBufferSize() {
         return indexingBuffer;
+    }
+
+    /** 
+     * returns the current minimum per-shard index buffer size
+     */
+    public ByteSizeValue getMinShardIndexingBufferSize() {
+        return minShardIndexingBufferSize;
+    }
+
+    /** 
+     * returns the current maximum per-shard index buffer size
+     */
+    public ByteSizeValue getMaxShardIndexingBufferSize() {
+        return maxShardIndexingBufferSize;
+    }
+
+    /** 
+     * returns the current minimum index buffer size
+     */
+    public ByteSizeValue getMinIndexingBufferSize() {
+        return minIndexingBufferSize;
+    }
+
+    /** 
+     * returns the current maximum index buffer size (can be null)
+     */
+    public ByteSizeValue getMaxIndexingBufferSize() {
+        return maxIndexingBufferSize;
     }
 
     class ShardsIndicesStatusChecker implements Runnable {
@@ -355,11 +435,11 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
                 return;
             }
             ByteSizeValue shardIndexingBufferSize = new ByteSizeValue(indexingBuffer.bytes() / activeShards);
-            if (shardIndexingBufferSize.bytes() < minShardIndexBufferSize.bytes()) {
-                shardIndexingBufferSize = minShardIndexBufferSize;
+            if (shardIndexingBufferSize.bytes() < minShardIndexingBufferSize.bytes()) {
+                shardIndexingBufferSize = minShardIndexingBufferSize;
             }
-            if (shardIndexingBufferSize.bytes() > maxShardIndexBufferSize.bytes()) {
-                shardIndexingBufferSize = maxShardIndexBufferSize;
+            if (shardIndexingBufferSize.bytes() > maxShardIndexingBufferSize.bytes()) {
+                shardIndexingBufferSize = maxShardIndexingBufferSize;
             }
 
             ByteSizeValue shardTranslogBufferSize = new ByteSizeValue(translogBuffer.bytes() / activeShards);

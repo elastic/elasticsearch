@@ -19,15 +19,6 @@
 
 package org.elasticsearch.indices.memory;
 
-import org.apache.log4j.AppenderSkeleton;
-import org.apache.log4j.Level;
-import org.apache.log4j.Logger;
-import org.apache.log4j.spi.LoggingEvent;
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
-import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
-import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -61,7 +52,7 @@ public class IndexingMemoryControllerTests extends ElasticsearchIntegrationTest 
         ensureGreen();
 
         final InternalIndexShard shard2 = (InternalIndexShard) internalCluster().getInstance(IndicesService.class).indexService("test2").shard(0);
-        final long expected1ShardSize = internalCluster().getInstance(IndexingMemoryController.class).indexingBufferSize().bytes();
+        final long expected1ShardSize = internalCluster().getInstance(IndexingMemoryController.class).getIndexingBufferSize().bytes();
         final long expected2ShardsSize = expected1ShardSize / 2;
 
         boolean success = awaitBusy(new Predicate<Object>() {
@@ -160,120 +151,5 @@ public class IndexingMemoryControllerTests extends ElasticsearchIntegrationTest 
                         .put("indices.memory.interval", "100ms")
                         .put(settings)
         );
-    }
-
-    private static class MockAppender extends AppenderSkeleton {
-        boolean sawUsing;
-        boolean sawRecalculating;
-        boolean sawUpdatingIndexBuffer;
-        boolean sawUpdatingIndexMinShardBuffer;
-        boolean sawUpdatingIndexMaxShardBuffer;
-
-        @Override
-        protected void append(LoggingEvent event) {
-            String message = event.getMessage().toString();
-            if (event.getLoggerName().equals("indices.memory")) {
-                if (message.contains("using indices.memory.index_buffer_size")) {
-                    sawUsing = true;
-                }
-                if (message.contains("recalculating shard indexing buffer")) {
-                    sawRecalculating = true;
-                }
-                if (message.contains("updating [" + IndexingMemoryController.INDEX_BUFFER_SIZE + "]") && message.contains(" to [52mb]")) {
-                    sawUpdatingIndexBuffer = true;
-                }
-                if (message.contains("updating [" + IndexingMemoryController.MIN_SHARD_INDEX_BUFFER_SIZE + "]") && message.contains(" to [1mb]")) {
-                    sawUpdatingIndexMinShardBuffer = true;
-                }
-                if (message.contains("updating [" + IndexingMemoryController.MAX_SHARD_INDEX_BUFFER_SIZE + "]") && message.contains("128mb")) {
-                    sawUpdatingIndexMaxShardBuffer = true;
-                }
-            }
-        }
-
-        @Override
-        public boolean requiresLayout() {
-            return false;
-        }
-
-        @Override
-        public void close() {
-        }
-    }
-
-    // #7045
-    public void testDynamicSettings() throws Exception {
-        MockAppender mockAppender = new MockAppender();
-
-        Logger rootLogger = Logger.getRootLogger();
-        Level savedLevel = rootLogger.getLevel();
-        rootLogger.addAppender(mockAppender);
-        rootLogger.setLevel(Level.DEBUG);
-
-        try {
-            createNode(ImmutableSettings.EMPTY);
-
-            //prepareCreate("test").setSettings(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1, IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0).get();
-            prepareCreate("test").get();
-
-            ensureGreen();
-
-            // Should have seen "using index.buffer.size [...]:
-            assertTrue(mockAppender.sawUsing);
-
-            // Change indices.memory.index_buffer_size
-            assertFalse(mockAppender.sawUpdatingIndexBuffer);
-            mockAppender.sawRecalculating = false;
-            Settings settings = ImmutableSettings.builder()
-                .put(IndexingMemoryController.INDEX_BUFFER_SIZE, "52mb")
-                .build();
-
-            ClusterUpdateSettingsResponse response = client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get();
-            assertEquals("52mb", response.getPersistentSettings().get(IndexingMemoryController.INDEX_BUFFER_SIZE));
-
-            // Confirm we logged the change:
-            assertTrue(mockAppender.sawUpdatingIndexBuffer);
-            assertTrue(mockAppender.sawRecalculating);
-
-            // Change indices.memory.min_shard_index_buffer_size
-            assertFalse(mockAppender.sawUpdatingIndexMinShardBuffer);
-            mockAppender.sawRecalculating = false;
-            settings = ImmutableSettings.builder()
-                .put(IndexingMemoryController.MIN_SHARD_INDEX_BUFFER_SIZE, "1mb")
-                .build();
-            response = client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get();
-            assertEquals("1mb", response.getPersistentSettings().get(IndexingMemoryController.MIN_SHARD_INDEX_BUFFER_SIZE));
-
-            // Confirm we logged the change:
-            assertTrue(mockAppender.sawUpdatingIndexMinShardBuffer);
-            assertTrue(mockAppender.sawRecalculating);
-
-            // Change indices.memory.max_shard_index_buffer_size
-            assertFalse(mockAppender.sawUpdatingIndexMaxShardBuffer);
-            mockAppender.sawRecalculating = false;
-            settings = ImmutableSettings.builder()
-                .put(IndexingMemoryController.MAX_SHARD_INDEX_BUFFER_SIZE, "128mb")
-                .build();
-            response = client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get();
-            assertEquals("128mb", response.getPersistentSettings().get(IndexingMemoryController.MAX_SHARD_INDEX_BUFFER_SIZE));
-            assertTrue(mockAppender.sawRecalculating);
-            
-            // Confirm we logged the change:
-            assertTrue(mockAppender.sawUpdatingIndexMaxShardBuffer);
-
-            IndicesStatsResponse stats = client().admin().indices().prepareStats("test").get();
-
-            // The total was divided between N shards and then summed up again so it may not match precisely:
-            assertEquals(52.0, stats.getIndex("test").getTotal().getSegments().getIndexWriterMaxMemoryInBytes()/1024/1024., .001);
-
-            // TODO: make sure settings survive cluster restart; this doesn't work for some reason (IndexMissingException "test"):
-            //internalCluster().fullRestart();
-            //ensureGreen();
-            //RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries("test").execute().actionGet();
-
-        } finally {
-            rootLogger.removeAppender(mockAppender);
-            rootLogger.setLevel(savedLevel);
-        }
     }
 }

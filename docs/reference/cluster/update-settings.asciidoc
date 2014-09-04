@@ -2,7 +2,7 @@
 == Cluster Update Settings
 
 Allows to update cluster wide specific settings. Settings updated can
-either be persistent (applied cross restarts) or transient (will not
+either be persistent (applied across restarts) or transient (will not
 survive a full cluster restart). Here is an example:
 
 [source,js]
@@ -168,6 +168,20 @@ All the disable allocation settings have been deprecated in favour for
 [float]
 [[cluster-index-settings]]
 === Index settings
+`indices.memory.index_buffer_size`
+     See <<modules-indices>>
+
+`indices.memory.min_index_buffer_size`
+     See <<modules-indices>>
+
+`indices.memory.max_index_buffer_size`
+     See <<modules-indices>>
+
+`indices.memory.min_shard_index_buffer_size`
+     See <<modules-indices>>
+
+`indices.memory.max_shard_index_buffer_size`
+     See <<modules-indices>>
 
 [float]
 ==== Index filter cache

@@ -46,7 +46,7 @@ public class NamedAnalyzer extends DelegatingAnalyzerWrapper {
     }
 
     public NamedAnalyzer(String name, AnalyzerScope scope, Analyzer analyzer, int positionOffsetGap) {
-        super(Analyzer.PER_FIELD_REUSE_STRATEGY);
+        super(ERROR_STRATEGY);
         this.name = name;
         this.scope = scope;
         this.analyzer = analyzer;
@@ -91,4 +91,17 @@ public class NamedAnalyzer extends DelegatingAnalyzerWrapper {
     public String toString() {
         return "analyzer name[" + name + "], analyzer [" + analyzer + "]";
     }
+    
+    /** It is an error if this is ever used, it means we screwed up! */
+    static final ReuseStrategy ERROR_STRATEGY = new Analyzer.ReuseStrategy() {
+        @Override
+        public TokenStreamComponents getReusableComponents(Analyzer a, String f) {
+            throw new IllegalStateException("NamedAnalyzer reuse logic is broken!");
+        }
+
+        @Override
+        public void setReusableComponents(Analyzer a, String f, TokenStreamComponents c) {
+            throw new IllegalStateException("NamedAnalyzer reuse logic is broken!");
+        }
+    };
 }

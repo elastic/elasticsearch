@@ -96,12 +96,12 @@ public class NamedAnalyzer extends DelegatingAnalyzerWrapper {
     static final ReuseStrategy ERROR_STRATEGY = new Analyzer.ReuseStrategy() {
         @Override
         public TokenStreamComponents getReusableComponents(Analyzer a, String f) {
-            throw new IllegalStateException("NamedAnalyzer reuse logic is broken!");
+            throw new IllegalStateException("NamedAnalyzer cannot be wrapped with a wrapper, only a delegator");
         }
 
         @Override
         public void setReusableComponents(Analyzer a, String f, TokenStreamComponents c) {
-            throw new IllegalStateException("NamedAnalyzer reuse logic is broken!");
+            throw new IllegalStateException("NamedAnalyzer cannot be wrapped with a wrapper, only a delegator");
         }
     };
 }

@@ -52,14 +52,14 @@ public class InternalAuthenticationService extends AbstractComponent implements 
     @Override
     @SuppressWarnings("unchecked")
     public AuthenticationToken token(String action, TransportMessage<?> message, AuthenticationToken defaultToken) {
-        AuthenticationToken token = message.getHeader(TOKEN_CTX_KEY);
+        AuthenticationToken token = (AuthenticationToken) message.getContext().get(TOKEN_CTX_KEY);
         if (token != null) {
             return token;
         }
         for (Realm realm : realms) {
             token = realm.token(message);
             if (token != null) {
-                message.putHeader(TOKEN_CTX_KEY, token);
+                message.putInContext(TOKEN_CTX_KEY, token);
                 return token;
             }
         }
@@ -71,7 +71,7 @@ public class InternalAuthenticationService extends AbstractComponent implements 
             throw new AuthenticationException("Missing authentication token for request [" + action + "]");
         }
 
-        message.putHeader(TOKEN_CTX_KEY, defaultToken);
+        message.putInContext(TOKEN_CTX_KEY, defaultToken);
         return defaultToken;
     }
 
@@ -95,7 +95,7 @@ public class InternalAuthenticationService extends AbstractComponent implements 
     @SuppressWarnings("unchecked")
     public User authenticate(String action, TransportMessage<?> message, AuthenticationToken token) throws AuthenticationException {
         assert token != null : "cannot authenticate null tokens";
-        User user = message.getHeader(USER_CTX_KEY);
+        User user = (User) message.getContext().get(USER_CTX_KEY);
         if (user != null) {
             return user;
         }
@@ -103,7 +103,7 @@ public class InternalAuthenticationService extends AbstractComponent implements 
             if (realm.supports(token)) {
                 user = realm.authenticate(token);
                 if (user != null) {
-                    message.putHeader(USER_CTX_KEY, user);
+                    message.putInContext(USER_CTX_KEY, user);
                     return user;
                 } else if (auditTrail != null) {
                     auditTrail.authenticationFailed(realm.type(), token, action, message);

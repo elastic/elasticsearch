@@ -20,7 +20,7 @@
 package org.elasticsearch.transport;
 
 import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.ContextHolder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -33,12 +33,10 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- *
+ * The transport message is also a {@link ContextHolder context holder} that holds <b>transient</b> context, that is,
+ * the context is not serialized with message.
  */
-public abstract class TransportMessage<TM extends TransportMessage<TM>> implements Streamable {
-
-    // a transient (not serialized with the request) key/value registry
-    private ObjectObjectOpenHashMap<Object, Object> context;
+public abstract class TransportMessage<TM extends TransportMessage<TM>> extends ContextHolder implements Streamable {
 
     private Map<String, Object> headers;
 
@@ -54,9 +52,7 @@ public abstract class TransportMessage<TM extends TransportMessage<TM>> implemen
         if (((TransportMessage<?>) message).headers != null) {
             this.headers = new HashMap<>(((TransportMessage<?>) message).headers);
         }
-        if (((TransportMessage<?>) message).context != null) {
-            this.context = new ObjectObjectOpenHashMap<>(((TransportMessage<?>) message).context);
-        }
+        copyContextFrom(message);
     }
 
     public void remoteAddress(TransportAddress remoteAddress) {
@@ -87,76 +83,6 @@ public abstract class TransportMessage<TM extends TransportMessage<TM>> implemen
 
     public Set<String> getHeaders() {
         return headers != null ? headers.keySet() : Collections.<String>emptySet();
-    }
-
-    /**
-     * Attaches the given transient value to the request - this value will not be serialized
-     * along with the request.
-     *
-     * There are many use cases such data is required, for example, when processing the
-     * request headers and building other constructs from them, one could "cache" the
-     * already built construct to avoid reprocessing the header over and over again.
-     *
-     * @return  The previous value that was associated with the given key in the context, or
-     *          {@code null} if there was none.
-     */
-    @SuppressWarnings("unchecked")
-    public final synchronized <V> V putInContext(Object key, Object value) {
-        if (context == null) {
-            context = new ObjectObjectOpenHashMap<>(2);
-        }
-        return (V) context.put(key, value);
-    }
-
-    /**
-     * @return  The transient value that is associated with the given key in the request context
-     * @see #putInContext(Object, Object)
-     */
-    @SuppressWarnings("unchecked")
-    public final synchronized <V> V getFromContext(Object key) {
-        return context != null ? (V) context.get(key) : null;
-    }
-
-    /**
-     * @param defaultValue  The default value that should be returned for the given key, if no
-     *                      value is currently associated with it.
-     *
-     * @return  The transient value that is associated with the given key in the request context
-     *
-     * @see #putInContext(Object, Object)
-     */
-    @SuppressWarnings("unchecked")
-    public final synchronized <V> V getFromContext(Object key, V defaultValue) {
-        V value = getFromContext(key);
-        return value == null ? defaultValue : value;
-    }
-
-    /**
-     * Checks if the request context contains an entry with the given key
-     */
-    public final synchronized boolean hasInContext(Object key) {
-        return context != null && context.containsKey(key);
-    }
-
-    /**
-     * @return  The number of transient values attached in the request context.
-     */
-    public final synchronized int contextSize() {
-        return context != null ? context.size() : 0;
-    }
-
-    /**
-     * Checks if the request context is empty.
-     */
-    public final synchronized boolean isContextEmpty() {
-        return context == null || context.isEmpty();
-    }
-
-    /**
-     * @return  A safe immutable copy of the current context of this request.
-     */
-    public synchronized ImmutableOpenMap<Object, Object> getContext() {
-        return context != null ? ImmutableOpenMap.copyOf(context) : ImmutableOpenMap.of();
     }
 
     @Override

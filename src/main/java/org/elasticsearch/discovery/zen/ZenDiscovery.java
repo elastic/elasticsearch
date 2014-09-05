@@ -960,7 +960,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 sb.append(" {none}");
             } else {
                 for (ZenPing.PingResponse pingResponse : pingResponses) {
-                    sb.append("\n\t--> ").append("target [").append(pingResponse.target()).append("], master [").append(pingResponse.master()).append("]");
+                    sb.append("\n\t--> ").append(pingResponse);
                 }
             }
             logger.debug(sb.toString());
@@ -983,6 +983,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         if (localNode.masterNode()) {
             activeNodes.add(localNode);
             if (hasJoinedClusterOnce.get()) {
+                logger.trace("adding local node to the list of active nodes who has previously joined the cluster");
                 joinedOnceActiveNodes.add(localNode);
             }
         }

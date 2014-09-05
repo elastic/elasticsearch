@@ -28,8 +28,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-/**
- */
 public class LZFCompressedStreamOutput extends CompressedStreamOutput<LZFCompressorContext> {
 
     private final BufferRecycler recycler;
@@ -40,7 +38,7 @@ public class LZFCompressedStreamOutput extends CompressedStreamOutput<LZFCompres
         this.recycler = BufferRecycler.instance();
         this.uncompressed = this.recycler.allocOutputBuffer(LZFChunk.MAX_CHUNK_LEN);
         this.uncompressedLength = LZFChunk.MAX_CHUNK_LEN;
-        this.encoder = ChunkEncoderFactory.safeInstance();
+        this.encoder = ChunkEncoderFactory.safeInstance(recycler);
     }
 
     @Override

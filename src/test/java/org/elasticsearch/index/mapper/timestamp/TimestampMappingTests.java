@@ -33,15 +33,17 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.DocumentMapperParser;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.Locale;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.*;
@@ -89,7 +91,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
         assertThat(docMapper.timestampFieldMapper().enabled(), equalTo(TimestampFieldMapper.Defaults.ENABLED.enabled));
         assertThat(docMapper.timestampFieldMapper().fieldType().stored(), equalTo(TimestampFieldMapper.Defaults.FIELD_TYPE.stored()));
         assertThat(docMapper.timestampFieldMapper().fieldType().indexed(), equalTo(TimestampFieldMapper.Defaults.FIELD_TYPE.indexed()));
-        assertThat(docMapper.timestampFieldMapper().path(), equalTo(null));
+        assertThat(docMapper.timestampFieldMapper().path(), equalTo(TimestampFieldMapper.Defaults.PATH));
         assertThat(docMapper.timestampFieldMapper().dateTimeFormatter().format(), equalTo(TimestampFieldMapper.DEFAULT_DATE_TIME_FORMAT));
     }
 
@@ -388,6 +390,174 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
             MappingMetaData metaData = MappingMetaData.readFrom(new BytesStreamInput(bytes));
 
             assertThat(metaData, is(expected));
+        }
+    }
+
+    @Test
+    public void testMergingFielddataLoadingWorks() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("_timestamp").field("enabled", randomBoolean()).startObject("fielddata").field("loading", "lazy").field("format", "doc_values").endObject().field("store", "yes").endObject()
+                .endObject().endObject().string();
+        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+
+        DocumentMapper docMapper = parser.parse(mapping);
+        assertThat(docMapper.timestampFieldMapper().fieldDataType().getLoading(), equalTo(FieldMapper.Loading.LAZY));
+        assertThat(docMapper.timestampFieldMapper().fieldDataType().getFormat(docMapper.timestampFieldMapper().fieldDataType().getSettings()), equalTo("doc_values"));
+        mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("_timestamp").field("enabled", randomBoolean()).startObject("fielddata").field("loading", "eager").field("format", "array").endObject().field("store", "yes").endObject()
+                .endObject().endObject().string();
+
+        DocumentMapper.MergeResult mergeResult = docMapper.merge(parser.parse(mapping), DocumentMapper.MergeFlags.mergeFlags().simulate(false));
+        assertThat(mergeResult.conflicts().length, equalTo(0));
+        assertThat(docMapper.timestampFieldMapper().fieldDataType().getLoading(), equalTo(FieldMapper.Loading.EAGER));
+        assertThat(docMapper.timestampFieldMapper().fieldDataType().getFormat(docMapper.timestampFieldMapper().fieldDataType().getSettings()), equalTo("array"));
+    }
+
+    @Test
+    public void testParsingNotDefaultTwiceDoesNotChangeMapping() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("_timestamp").field("enabled", true)
+                .field("index", randomBoolean() ? "no" : "analyzed") // default is "not_analyzed" which will be omitted when building the source again
+                .field("store", true)
+                .field("path", "foo")
+                .field("default", "1970-01-01")
+                .startObject("fielddata").field("format", "doc_values").endObject()
+                .endObject()
+                .startObject("properties")
+                .endObject()
+                .endObject().endObject().string();
+        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+
+        DocumentMapper docMapper = parser.parse(mapping);
+        docMapper.refreshSource();
+        docMapper = parser.parse(docMapper.mappingSource().string());
+        assertThat(docMapper.mappingSource().string(), equalTo(mapping));
+    }
+
+    @Test
+    public void testParsingTwiceDoesNotChangeTokenizeValue() throws Exception {
+        String[] index_options = {"no", "analyzed", "not_analyzed"};
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("_timestamp").field("enabled", true)
+                .field("index", index_options[randomInt(2)])
+                .field("store", true)
+                .field("path", "foo")
+                .field("default", "1970-01-01")
+                .startObject("fielddata").field("format", "doc_values").endObject()
+                .endObject()
+                .startObject("properties")
+                .endObject()
+                .endObject().endObject().string();
+        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+
+        DocumentMapper docMapper = parser.parse(mapping);
+        boolean tokenized = docMapper.timestampFieldMapper().fieldType().tokenized();
+        docMapper.refreshSource();
+        docMapper = parser.parse(docMapper.mappingSource().string());
+        assertThat(tokenized, equalTo(docMapper.timestampFieldMapper().fieldType().tokenized()));
+    }
+
+    @Test
+    public void testMergingConflicts() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("_timestamp").field("enabled", true)
+                .startObject("fielddata").field("format", "doc_values").endObject()
+                .field("store", "yes")
+                .field("index", "analyzed")
+                .field("path", "foo")
+                .field("default", "1970-01-01")
+                .endObject()
+                .endObject().endObject().string();
+        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+
+        DocumentMapper docMapper = parser.parse(mapping);
+        assertThat(docMapper.timestampFieldMapper().fieldDataType().getLoading(), equalTo(FieldMapper.Loading.LAZY));
+        mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("_timestamp").field("enabled", false)
+                .startObject("fielddata").field("format", "array").endObject()
+                .field("store", "no")
+                .field("index", "no")
+                .field("path", "bar")
+                .field("default", "1970-01-02")
+                .endObject()
+                .endObject().endObject().string();
+
+        DocumentMapper.MergeResult mergeResult = docMapper.merge(parser.parse(mapping), DocumentMapper.MergeFlags.mergeFlags().simulate(true));
+        String[] expectedConflicts = {"mapper [_timestamp] has different index values", "mapper [_timestamp] has different store values", "Cannot update default in _timestamp value. Value is 1970-01-01 now encountering 1970-01-02", "Cannot update path in _timestamp value. Value is foo path in merged mapping is bar", "mapper [_timestamp] has different tokenize values"};
+
+        for (String conflict : mergeResult.conflicts()) {
+            assertThat(conflict, isIn(expectedConflicts));
+        }
+        assertThat(mergeResult.conflicts().length, equalTo(expectedConflicts.length));
+        assertThat(docMapper.timestampFieldMapper().fieldDataType().getLoading(), equalTo(FieldMapper.Loading.LAZY));
+        assertTrue(docMapper.timestampFieldMapper().enabled());
+        assertThat(docMapper.timestampFieldMapper().fieldDataType().getFormat(docMapper.timestampFieldMapper().fieldDataType().getSettings()), equalTo("doc_values"));
+    }
+
+    @Test
+    public void testMergingConflictsForIndexValues() throws Exception {
+        List<String> indexValues = new ArrayList<>();
+        indexValues.add("analyzed");
+        indexValues.add("no");
+        indexValues.add("not_analyzed");
+        String mapping = XContentFactory.jsonBuilder().startObject()
+                .startObject("type")
+                .startObject("_timestamp")
+                .field("index", indexValues.remove(randomInt(2)))
+                .endObject()
+                .endObject().endObject().string();
+        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+
+        DocumentMapper docMapper = parser.parse(mapping);
+        mapping = XContentFactory.jsonBuilder().startObject()
+                .startObject("type")
+                .startObject("_timestamp")
+                .field("index", indexValues.remove(randomInt(1)))
+                .endObject()
+                .endObject().endObject().string();
+
+        DocumentMapper.MergeResult mergeResult = docMapper.merge(parser.parse(mapping), DocumentMapper.MergeFlags.mergeFlags().simulate(true));
+        String[] expectedConflicts = {"mapper [_timestamp] has different index values", "mapper [_timestamp] has different tokenize values"};
+
+        for (String conflict : mergeResult.conflicts()) {
+            assertThat(conflict, isIn(expectedConflicts));
+        }
+    }
+
+    @Test
+    public void testMergePaths() throws Exception {
+        String[] possiblePathValues = {"some_path", "anotherPath", null};
+        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+        XContentBuilder mapping1 = XContentFactory.jsonBuilder().startObject()
+                .startObject("type")
+                .startObject("_timestamp");
+        String path1 = possiblePathValues[randomInt(2)];
+        if (path1!=null) {
+            mapping1.field("path", path1);
+        }
+        mapping1.endObject()
+                .endObject().endObject();
+        XContentBuilder mapping2 = XContentFactory.jsonBuilder().startObject()
+                .startObject("type")
+                .startObject("_timestamp");
+        String path2 = possiblePathValues[randomInt(2)];
+        if (path2!=null) {
+            mapping2.field("path", path2);
+        }
+        mapping2.endObject()
+                .endObject().endObject();
+
+        testConflict(mapping1.string(), mapping2.string(), parser, (path1 == path2 ? null : "Cannot update path in _timestamp value"));
+    }
+
+    void testConflict(String mapping1, String mapping2, DocumentMapperParser parser, String conflict) throws IOException {
+        DocumentMapper docMapper = parser.parse(mapping1);
+        docMapper.refreshSource();
+        docMapper = parser.parse(docMapper.mappingSource().string());
+        DocumentMapper.MergeResult mergeResult = docMapper.merge(parser.parse(mapping2), DocumentMapper.MergeFlags.mergeFlags().simulate(true));
+        assertThat(mergeResult.conflicts().length, equalTo(conflict == null ? 0:1));
+        if (conflict != null) {
+            assertThat(mergeResult.conflicts()[0], containsString(conflict));
         }
     }
 }

@@ -249,7 +249,7 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
         if (includeDefaults || enabledState != Defaults.ENABLED) {
             builder.field("enabled", enabledState.enabled);
         }
-        if (includeDefaults || fieldType.indexed() != Defaults.FIELD_TYPE.indexed()) {
+        if (includeDefaults || (fieldType.indexed() != Defaults.FIELD_TYPE.indexed()) || (fieldType.tokenized() != Defaults.FIELD_TYPE.tokenized())) {
             builder.field("index", indexTokenizeOptionToString(fieldType.indexed(), fieldType.tokenized()));
         }
         if (includeDefaults || fieldType.stored() != Defaults.FIELD_TYPE.stored()) {
@@ -277,9 +277,21 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
     @Override
     public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
         TimestampFieldMapper timestampFieldMapperMergeWith = (TimestampFieldMapper) mergeWith;
+        super.merge(mergeWith, mergeContext);
         if (!mergeContext.mergeFlags().simulate()) {
             if (timestampFieldMapperMergeWith.enabledState != enabledState && !timestampFieldMapperMergeWith.enabledState.unset()) {
                 this.enabledState = timestampFieldMapperMergeWith.enabledState;
+            }
+        } else {
+            if (!timestampFieldMapperMergeWith.defaultTimestamp().equals(defaultTimestamp)) {
+                mergeContext.addConflict("Cannot update default in _timestamp value. Value is " + defaultTimestamp.toString() + " now encountering " + timestampFieldMapperMergeWith.defaultTimestamp());
+            }
+            if (this.path != null) {
+                if (path.equals(timestampFieldMapperMergeWith.path()) == false) {
+                    mergeContext.addConflict("Cannot update path in _timestamp value. Value is " + path + " path in merged mapping is " + (timestampFieldMapperMergeWith.path() == null ? "missing" : timestampFieldMapperMergeWith.path()));
+                }
+            } else if (timestampFieldMapperMergeWith.path() != null) {
+                mergeContext.addConflict("Cannot update path in _timestamp value. Value is " + path + " path in merged mapping is missing");
             }
         }
     }

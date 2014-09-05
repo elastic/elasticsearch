@@ -122,7 +122,7 @@ public class SimpleTimestampTests  extends ElasticsearchIntegrationTest {
         assertTimestampMappingEnabled(index, type, true);
 
         // update some field in the mapping
-        XContentBuilder updateMappingBuilder = jsonBuilder().startObject().startObject("_timestamp").field("enabled", false).endObject().endObject();
+        XContentBuilder updateMappingBuilder = jsonBuilder().startObject().startObject("_timestamp").field("enabled", false).field("store", true).endObject().endObject();
         PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping(index).setType(type).setSource(updateMappingBuilder).get();
         assertAcked(putMappingResponse);
 

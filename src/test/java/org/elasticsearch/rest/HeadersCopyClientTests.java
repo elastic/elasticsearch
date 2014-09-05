@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest;
 
+import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.*;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
@@ -34,6 +35,7 @@ import org.elasticsearch.client.*;
 import org.elasticsearch.client.support.AbstractClient;
 import org.elasticsearch.client.support.AbstractClusterAdminClient;
 import org.elasticsearch.client.support.AbstractIndicesAdminClient;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -44,9 +46,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.rest.BaseRestHandler.HeadersCopyClient;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
+import static org.hamcrest.Matchers.*;
 
 public class HeadersCopyClientTests extends ElasticsearchTestCase {
 
@@ -89,116 +91,158 @@ public class HeadersCopyClientTests extends ElasticsearchTestCase {
 
     @Test
     public void testCopyHeadersRequest() {
-        Map<String, String> existingTransportHeaders = randomHeaders(randomIntBetween(0, 10));
+        Map<String, String> transportHeaders = randomHeaders(randomIntBetween(0, 10));
         Map<String, String> restHeaders = randomHeaders(randomIntBetween(0, 10));
-        Map<String, String> leftRestHeaders = randomHeadersFrom(restHeaders);
-        Set<String> usefulRestHeaders = new HashSet<>(leftRestHeaders.keySet());
-        usefulRestHeaders.addAll(randomHeaders(randomIntBetween(0, 10), "useful-").keySet());
+        Map<String, String> copiedHeaders = randomHeadersFrom(restHeaders);
+        Set<String> usefulRestHeaders = new HashSet<>(copiedHeaders.keySet());
+        usefulRestHeaders.addAll(randomMap(randomIntBetween(0, 10), "useful-").keySet());
+        Map<String, String> restContext = randomContext(randomIntBetween(0, 10));
+        Map<String, String> transportContext = Maps.difference(randomContext(randomIntBetween(0, 10)), restContext).entriesOnlyOnLeft();
 
-        HashMap<String, String> expectedHeaders = new HashMap<>();
-        expectedHeaders.putAll(existingTransportHeaders);
-        expectedHeaders.putAll(leftRestHeaders);
+        Map<String, String> expectedHeaders = new HashMap<>();
+        expectedHeaders.putAll(transportHeaders);
+        expectedHeaders.putAll(copiedHeaders);
 
-        Client client = client(new NoOpClient(), new FakeRestRequest(restHeaders), usefulRestHeaders);
+        Map<String, String> expectedContext = new HashMap<>();
+        expectedContext.putAll(transportContext);
+        expectedContext.putAll(restContext);
+
+        Client client = client(new NoOpClient(), new FakeRestRequest(restHeaders, restContext), usefulRestHeaders);
 
         SearchRequest searchRequest = Requests.searchRequest();
-        putHeaders(searchRequest, existingTransportHeaders);
-        assertHeaders(searchRequest, existingTransportHeaders);
+        putHeaders(searchRequest, transportHeaders);
+        putContext(searchRequest, transportContext);
+        assertHeaders(searchRequest, transportHeaders);
         client.search(searchRequest);
         assertHeaders(searchRequest, expectedHeaders);
+        assertContext(searchRequest, expectedContext);
 
         GetRequest getRequest = Requests.getRequest("index");
-        putHeaders(getRequest, existingTransportHeaders);
-        assertHeaders(getRequest, existingTransportHeaders);
+        putHeaders(getRequest, transportHeaders);
+        putContext(getRequest, transportContext);
+        assertHeaders(getRequest, transportHeaders);
         client.get(getRequest);
         assertHeaders(getRequest, expectedHeaders);
+        assertContext(getRequest, expectedContext);
 
         IndexRequest indexRequest = Requests.indexRequest();
-        putHeaders(indexRequest, existingTransportHeaders);
-        assertHeaders(indexRequest, existingTransportHeaders);
+        putHeaders(indexRequest, transportHeaders);
+        putContext(indexRequest, transportContext);
+        assertHeaders(indexRequest, transportHeaders);
         client.index(indexRequest);
         assertHeaders(indexRequest, expectedHeaders);
+        assertContext(indexRequest, expectedContext);
     }
 
     @Test
     public void testCopyHeadersClusterAdminRequest() {
-        Map<String, String> existingTransportHeaders = randomHeaders(randomIntBetween(0, 10));
+        Map<String, String> transportHeaders = randomHeaders(randomIntBetween(0, 10));
         Map<String, String> restHeaders = randomHeaders(randomIntBetween(0, 10));
-        Map<String, String> leftRestHeaders = randomHeadersFrom(restHeaders);
-        Set<String> usefulRestHeaders = new HashSet<>(leftRestHeaders.keySet());
-        usefulRestHeaders.addAll(randomHeaders(randomIntBetween(0, 10), "useful-").keySet());
+        Map<String, String> copiedHeaders = randomHeadersFrom(restHeaders);
+        Set<String> usefulRestHeaders = new HashSet<>(copiedHeaders.keySet());
+        usefulRestHeaders.addAll(randomMap(randomIntBetween(0, 10), "useful-").keySet());
+        Map<String, String> restContext = randomContext(randomIntBetween(0, 10));
+        Map<String, String> transportContext = Maps.difference(randomContext(randomIntBetween(0, 10)), restContext).entriesOnlyOnLeft();
 
         HashMap<String, String> expectedHeaders = new HashMap<>();
-        expectedHeaders.putAll(existingTransportHeaders);
-        expectedHeaders.putAll(leftRestHeaders);
+        expectedHeaders.putAll(transportHeaders);
+        expectedHeaders.putAll(copiedHeaders);
 
-        Client client = client(new NoOpClient(), new FakeRestRequest(restHeaders), usefulRestHeaders);
+        Map<String, String> expectedContext = new HashMap<>();
+        expectedContext.putAll(transportContext);
+        expectedContext.putAll(restContext);
+
+        Client client = client(new NoOpClient(), new FakeRestRequest(restHeaders, expectedContext), usefulRestHeaders);
 
         ClusterHealthRequest clusterHealthRequest = Requests.clusterHealthRequest();
-        putHeaders(clusterHealthRequest, existingTransportHeaders);
-        assertHeaders(clusterHealthRequest, existingTransportHeaders);
+        putHeaders(clusterHealthRequest, transportHeaders);
+        putContext(clusterHealthRequest, transportContext);
+        assertHeaders(clusterHealthRequest, transportHeaders);
         client.admin().cluster().health(clusterHealthRequest);
         assertHeaders(clusterHealthRequest, expectedHeaders);
+        assertContext(clusterHealthRequest, expectedContext);
 
         ClusterStateRequest clusterStateRequest = Requests.clusterStateRequest();
-        putHeaders(clusterStateRequest, existingTransportHeaders);
-        assertHeaders(clusterStateRequest, existingTransportHeaders);
+        putHeaders(clusterStateRequest, transportHeaders);
+        putContext(clusterStateRequest, transportContext);
+        assertHeaders(clusterStateRequest, transportHeaders);
         client.admin().cluster().state(clusterStateRequest);
         assertHeaders(clusterStateRequest, expectedHeaders);
+        assertContext(clusterStateRequest, expectedContext);
 
         ClusterStatsRequest clusterStatsRequest = Requests.clusterStatsRequest();
-        putHeaders(clusterStatsRequest, existingTransportHeaders);
-        assertHeaders(clusterStatsRequest, existingTransportHeaders);
+        putHeaders(clusterStatsRequest, transportHeaders);
+        putContext(clusterStatsRequest, transportContext);
+        assertHeaders(clusterStatsRequest, transportHeaders);
         client.admin().cluster().clusterStats(clusterStatsRequest);
         assertHeaders(clusterStatsRequest, expectedHeaders);
+        assertContext(clusterStatsRequest, expectedContext);
     }
 
     @Test
     public void testCopyHeadersIndicesAdminRequest() {
-        Map<String, String> existingTransportHeaders = randomHeaders(randomIntBetween(0, 10));
+        Map<String, String> transportHeaders = randomHeaders(randomIntBetween(0, 10));
         Map<String, String> restHeaders = randomHeaders(randomIntBetween(0, 10));
-        Map<String, String> leftRestHeaders = randomHeadersFrom(restHeaders);
-        Set<String> usefulRestHeaders = new HashSet<>(leftRestHeaders.keySet());
-        usefulRestHeaders.addAll(randomHeaders(randomIntBetween(0, 10), "useful-").keySet());
+        Map<String, String> copiedHeaders = randomHeadersFrom(restHeaders);
+        Set<String> usefulRestHeaders = new HashSet<>(copiedHeaders.keySet());
+        usefulRestHeaders.addAll(randomMap(randomIntBetween(0, 10), "useful-").keySet());
+        Map<String, String> restContext = randomContext(randomIntBetween(0, 10));
+        Map<String, String> transportContext = Maps.difference(randomContext(randomIntBetween(0, 10)), restContext).entriesOnlyOnLeft();
 
         HashMap<String, String> expectedHeaders = new HashMap<>();
-        expectedHeaders.putAll(existingTransportHeaders);
-        expectedHeaders.putAll(leftRestHeaders);
+        expectedHeaders.putAll(transportHeaders);
+        expectedHeaders.putAll(copiedHeaders);
 
-        Client client = client(new NoOpClient(), new FakeRestRequest(restHeaders), usefulRestHeaders);
+        Map<String, String> expectedContext = new HashMap<>();
+        expectedContext.putAll(transportContext);
+        expectedContext.putAll(restContext);
+
+        Client client = client(new NoOpClient(), new FakeRestRequest(restHeaders, restContext), usefulRestHeaders);
 
         CreateIndexRequest createIndexRequest = Requests.createIndexRequest("test");
-        putHeaders(createIndexRequest, existingTransportHeaders);
-        assertHeaders(createIndexRequest, existingTransportHeaders);
+        putHeaders(createIndexRequest, transportHeaders);
+        putContext(createIndexRequest, transportContext);
+        assertHeaders(createIndexRequest, transportHeaders);
         client.admin().indices().create(createIndexRequest);
         assertHeaders(createIndexRequest, expectedHeaders);
+        assertContext(createIndexRequest, expectedContext);
 
         CloseIndexRequest closeIndexRequest = Requests.closeIndexRequest("test");
-        putHeaders(closeIndexRequest, existingTransportHeaders);
-        assertHeaders(closeIndexRequest, existingTransportHeaders);
+        putHeaders(closeIndexRequest, transportHeaders);
+        putContext(closeIndexRequest, transportContext);
+        assertHeaders(closeIndexRequest, transportHeaders);
         client.admin().indices().close(closeIndexRequest);
         assertHeaders(closeIndexRequest, expectedHeaders);
+        assertContext(closeIndexRequest, expectedContext);
 
         FlushRequest flushRequest = Requests.flushRequest();
-        putHeaders(flushRequest, existingTransportHeaders);
-        assertHeaders(flushRequest, existingTransportHeaders);
+        putHeaders(flushRequest, transportHeaders);
+        putContext(flushRequest, transportContext);
+        assertHeaders(flushRequest, transportHeaders);
         client.admin().indices().flush(flushRequest);
         assertHeaders(flushRequest, expectedHeaders);
+        assertContext(flushRequest, expectedContext);
     }
 
     @Test
     public void testCopyHeadersRequestBuilder() {
-        Map<String, String> existingTransportHeaders = randomHeaders(randomIntBetween(0, 10));
+        Map<String, String> transportHeaders = randomHeaders(randomIntBetween(0, 10));
         Map<String, String> restHeaders = randomHeaders(randomIntBetween(0, 10));
-        Map<String, String> leftRestHeaders = randomHeadersFrom(restHeaders);
-        Set<String> usefulRestHeaders = new HashSet<>(leftRestHeaders.keySet());
-        usefulRestHeaders.addAll(randomHeaders(randomIntBetween(0, 10), "useful-").keySet());
+        Map<String, String> copiedHeaders = randomHeadersFrom(restHeaders);
+        Set<String> usefulRestHeaders = new HashSet<>(copiedHeaders.keySet());
+        usefulRestHeaders.addAll(randomMap(randomIntBetween(0, 10), "useful-").keySet());
+        Map<String, String> restContext = randomContext(randomIntBetween(0, 10));
+        Map<String, String> transportContext = Maps.difference(randomContext(randomIntBetween(0, 10)), restContext).entriesOnlyOnLeft();
 
         HashMap<String, String> expectedHeaders = new HashMap<>();
-        expectedHeaders.putAll(existingTransportHeaders);
-        expectedHeaders.putAll(leftRestHeaders);
+        expectedHeaders.putAll(transportHeaders);
+        expectedHeaders.putAll(copiedHeaders);
 
-        Client client = client(new NoOpClient(), new FakeRestRequest(restHeaders), usefulRestHeaders);
+        Map<String, String> expectedContext = new HashMap<>();
+        expectedContext.putAll(transportContext);
+        expectedContext.putAll(restContext);
+
+        Client client = client(new NoOpClient(), new FakeRestRequest(restHeaders, restContext), usefulRestHeaders);
 
         ActionRequestBuilder requestBuilders [] = new ActionRequestBuilder[] {
                 client.prepareIndex("index", "type"),
@@ -212,26 +256,34 @@ public class HeadersCopyClientTests extends ElasticsearchTestCase {
         };
 
         for (ActionRequestBuilder requestBuilder : requestBuilders) {
-            putHeaders(requestBuilder.request(), existingTransportHeaders);
-            assertHeaders(requestBuilder.request(), existingTransportHeaders);
+            putHeaders(requestBuilder.request(), transportHeaders);
+            putContext(requestBuilder.request(), transportContext);
+            assertHeaders(requestBuilder.request(), transportHeaders);
             requestBuilder.get();
             assertHeaders(requestBuilder.request(), expectedHeaders);
+            assertContext(requestBuilder.request(), expectedContext);
         }
     }
 
     @Test
     public void testCopyHeadersClusterAdminRequestBuilder() {
-        Map<String, String> existingTransportHeaders = randomHeaders(randomIntBetween(0, 10));
+        Map<String, String> transportHeaders = randomHeaders(randomIntBetween(0, 10));
         Map<String, String> restHeaders = randomHeaders(randomIntBetween(0, 10));
-        Map<String, String> leftRestHeaders = randomHeadersFrom(restHeaders);
-        Set<String> usefulRestHeaders = new HashSet<>(leftRestHeaders.keySet());
-        usefulRestHeaders.addAll(randomHeaders(randomIntBetween(0, 10), "useful-").keySet());
+        Map<String, String> copiedHeaders = randomHeadersFrom(restHeaders);
+        Set<String> usefulRestHeaders = new HashSet<>(copiedHeaders.keySet());
+        usefulRestHeaders.addAll(randomMap(randomIntBetween(0, 10), "useful-").keySet());
+        Map<String, String> restContext = randomContext(randomIntBetween(0, 10));
+        Map<String, String> transportContext = Maps.difference(randomContext(randomIntBetween(0, 10)), restContext).entriesOnlyOnLeft();
 
         HashMap<String, String> expectedHeaders = new HashMap<>();
-        expectedHeaders.putAll(existingTransportHeaders);
-        expectedHeaders.putAll(leftRestHeaders);
+        expectedHeaders.putAll(transportHeaders);
+        expectedHeaders.putAll(copiedHeaders);
 
-        Client client = client(new NoOpClient(), new FakeRestRequest(restHeaders), usefulRestHeaders);
+        Map<String, String> expectedContext = new HashMap<>();
+        expectedContext.putAll(transportContext);
+        expectedContext.putAll(restContext);
+
+        Client client = client(new NoOpClient(), new FakeRestRequest(restHeaders, restContext), usefulRestHeaders);
 
         ActionRequestBuilder requestBuilders [] = new ActionRequestBuilder[] {
                 client.admin().cluster().prepareNodesInfo(),
@@ -243,26 +295,34 @@ public class HeadersCopyClientTests extends ElasticsearchTestCase {
         };
 
         for (ActionRequestBuilder requestBuilder : requestBuilders) {
-            putHeaders(requestBuilder.request(), existingTransportHeaders);
-            assertHeaders(requestBuilder.request(), existingTransportHeaders);
+            putHeaders(requestBuilder.request(), transportHeaders);
+            putContext(requestBuilder.request(), transportContext);
+            assertHeaders(requestBuilder.request(), transportHeaders);
             requestBuilder.get();
             assertHeaders(requestBuilder.request(), expectedHeaders);
+            assertContext(requestBuilder.request(), expectedContext);
         }
     }
 
     @Test
     public void testCopyHeadersIndicesAdminRequestBuilder() {
-        Map<String, String> existingTransportHeaders = randomHeaders(randomIntBetween(0, 10));
+        Map<String, String> transportHeaders = randomHeaders(randomIntBetween(0, 10));
         Map<String, String> restHeaders = randomHeaders(randomIntBetween(0, 10));
-        Map<String, String> leftRestHeaders = randomHeadersFrom(restHeaders);
-        Set<String> usefulRestHeaders = new HashSet<>(leftRestHeaders.keySet());
-        usefulRestHeaders.addAll(randomHeaders(randomIntBetween(0, 10), "useful-").keySet());
+        Map<String, String> copiedHeaders = randomHeadersFrom(restHeaders);
+        Set<String> usefulRestHeaders = new HashSet<>(copiedHeaders.keySet());
+        usefulRestHeaders.addAll(randomMap(randomIntBetween(0, 10), "useful-").keySet());
+        Map<String, String> restContext = randomContext(randomIntBetween(0, 10));
+        Map<String, String> transportContext = Maps.difference(randomContext(randomIntBetween(0, 10)), restContext).entriesOnlyOnLeft();
 
         HashMap<String, String> expectedHeaders = new HashMap<>();
-        expectedHeaders.putAll(existingTransportHeaders);
-        expectedHeaders.putAll(leftRestHeaders);
+        expectedHeaders.putAll(transportHeaders);
+        expectedHeaders.putAll(copiedHeaders);
 
-        Client client = client(new NoOpClient(), new FakeRestRequest(restHeaders), usefulRestHeaders);
+        Map<String, String> expectedContext = new HashMap<>();
+        expectedContext.putAll(transportContext);
+        expectedContext.putAll(restContext);
+
+        Client client = client(new NoOpClient(), new FakeRestRequest(restHeaders, restContext), usefulRestHeaders);
 
         ActionRequestBuilder requestBuilders [] = new ActionRequestBuilder[] {
                 client.admin().indices().prepareValidateQuery(),
@@ -275,18 +335,32 @@ public class HeadersCopyClientTests extends ElasticsearchTestCase {
         };
 
         for (ActionRequestBuilder requestBuilder : requestBuilders) {
-            putHeaders(requestBuilder.request(), existingTransportHeaders);
-            assertHeaders(requestBuilder.request(), existingTransportHeaders);
+            putHeaders(requestBuilder.request(), transportHeaders);
+            putContext(requestBuilder.request(), transportContext);
+            assertHeaders(requestBuilder.request(), transportHeaders);
             requestBuilder.get();
             assertHeaders(requestBuilder.request(), expectedHeaders);
+            assertContext(requestBuilder.request(), expectedContext);
         }
     }
 
     private static Map<String, String> randomHeaders(int count) {
-        return randomHeaders(count, "header-");
+        return randomMap(count, "header-");
     }
 
-    private static Map<String, String> randomHeaders(int count, String prefix) {
+    private static Map<String, String> randomContext(int count) {
+        return randomMap(count, "context-");
+    }
+
+    private static Map<String, String> randomMap(int count, String prefix) {
+        Map<String, String> headers = new HashMap<>();
+        for (int i = 0; i < count; i++) {
+            headers.put(prefix + randomInt(30), randomAsciiOfLength(10));
+        }
+        return headers;
+    }
+
+    private static Map<String, String> randomContext(int count, String prefix) {
         Map<String, String> headers = new HashMap<>();
         for (int i = 0; i < count; i++) {
             headers.put(prefix + randomInt(30), randomRealisticUnicodeOfLengthBetween(1, 20));
@@ -312,12 +386,18 @@ public class HeadersCopyClientTests extends ElasticsearchTestCase {
         if (usefulRestHeaders.isEmpty() && randomBoolean()) {
             return noOpClient;
         }
-        return new HeadersCopyClient(noOpClient, restRequest, usefulRestHeaders);
+        return new BaseRestHandler.HeadersAndContextCopyClient(noOpClient, restRequest, usefulRestHeaders);
     }
 
     private static void putHeaders(ActionRequest<?> request, Map<String, String> headers) {
         for (Map.Entry<String, String> header : headers.entrySet()) {
             request.putHeader(header.getKey(), header.getValue());
+        }
+    }
+
+    private static void putContext(ActionRequest<?> request, Map<String, String> context) {
+        for (Map.Entry<String, String> header : context.entrySet()) {
+            request.putInContext(header.getKey(), header.getValue());
         }
     }
 
@@ -329,6 +409,19 @@ public class HeadersCopyClientTests extends ElasticsearchTestCase {
             assertThat(request.getHeaders().size(), equalTo(headers.size()));
             for (String key : request.getHeaders()) {
                 assertThat(headers.get(key), equalTo(request.getHeader(key)));
+            }
+        }
+    }
+
+    private static void assertContext(ActionRequest<?> request, Map<String, String> context) {
+        if (context.size() == 0) {
+            assertThat(request.isContextEmpty(), is(true));
+        } else {
+            ImmutableOpenMap map = request.getContext();
+            assertThat(map, notNullValue());
+            assertThat(map.size(), equalTo(context.size()));
+            for (Object key : map.keys()) {
+                assertThat(context.get(key), equalTo(request.getFromContext(key)));
             }
         }
     }

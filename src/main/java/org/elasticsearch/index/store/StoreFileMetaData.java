@@ -137,7 +137,7 @@ public class StoreFileMetaData implements Streamable {
         out.writeVLong(length);
         out.writeOptionalString(checksum);
         if (out.getVersion().onOrAfter(org.elasticsearch.Version.V_1_3_0)) {
-            out.writeOptionalString(writtenBy == null ? null : writtenBy.name());
+            out.writeOptionalString(writtenBy == null ? null : writtenBy.toString());
         }
         if (out.getVersion().onOrAfter(org.elasticsearch.Version.V_1_4_0)) {
             out.writeBytesRef(hash);

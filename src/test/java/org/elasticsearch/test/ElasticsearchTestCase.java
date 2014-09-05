@@ -320,6 +320,13 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
     public static Version randomVersion(Random random) {
         return SORTED_VERSIONS.get(random.nextInt(SORTED_VERSIONS.size()));
     }
+    
+    /**
+     * Returns immutable list of all known versions.
+     */
+    public static List<Version> allVersions() {
+        return Collections.unmodifiableList(SORTED_VERSIONS);
+    }
 
     /**
      * A random {@link Version} from <code>minVersion</code> to

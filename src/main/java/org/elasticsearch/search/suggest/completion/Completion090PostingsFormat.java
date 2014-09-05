@@ -25,10 +25,7 @@ import org.apache.lucene.index.*;
 import org.apache.lucene.index.FilterAtomicReader.FilterTerms;
 import org.apache.lucene.search.suggest.Lookup;
 import org.apache.lucene.store.IOContext.Context;
-import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.store.InputStreamDataInput;
-import org.apache.lucene.store.OutputStreamDataOutput;
+import org.apache.lucene.store.*;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchIllegalStateException;
@@ -342,12 +339,12 @@ public class Completion090PostingsFormat extends PostingsFormat {
             ref.weight = input.readVLong() - 1;
             int len = input.readVInt();
             ref.surfaceForm.grow(len);
-            ref.surfaceForm.length = len;
-            input.readBytes(ref.surfaceForm.bytes, ref.surfaceForm.offset, ref.surfaceForm.length);
+            ref.surfaceForm.setLength(len);
+            input.readBytes(ref.surfaceForm.bytes(), 0, ref.surfaceForm.length());
             len = input.readVInt();
             ref.payload.grow(len);
-            ref.payload.length = len;
-            input.readBytes(ref.payload.bytes, ref.payload.offset, ref.payload.length);
+            ref.payload.setLength(len);
+            input.readBytes(ref.payload.bytes(), 0, ref.payload.length());
             input.close();
         }
     }

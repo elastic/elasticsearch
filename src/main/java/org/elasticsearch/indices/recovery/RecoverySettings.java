@@ -63,6 +63,8 @@ public class RecoverySettings extends AbstractComponent {
     private volatile int concurrentSmallFileStreams;
     private final ThreadPoolExecutor concurrentStreamPool;
     private final ThreadPoolExecutor concurrentSmallFileStreamPool;
+    private final ApplySettings applySettings = new ApplySettings();
+    private final NodeSettingsService nodeSettingsService;
 
     private volatile ByteSizeValue maxBytesPerSec;
     private volatile SimpleRateLimiter rateLimiter;
@@ -91,11 +93,12 @@ public class RecoverySettings extends AbstractComponent {
         logger.debug("using max_bytes_per_sec[{}], concurrent_streams [{}], file_chunk_size [{}], translog_size [{}], translog_ops [{}], and compress [{}]",
                 maxBytesPerSec, concurrentStreams, fileChunkSize, translogSize, translogOps, compress);
 
-        nodeSettingsService.addListener(new ApplySettings());
+        this.nodeSettingsService = nodeSettingsService;
+        nodeSettingsService.addListener(applySettings);
     }
 
     public void close() {
-        // TODO: shouldn't we nodeSettingsService.removeListener here?
+        nodeSettingsService.removeListener(applySettings);
         concurrentStreamPool.shutdown();
         try {
             concurrentStreamPool.awaitTermination(1, TimeUnit.SECONDS);

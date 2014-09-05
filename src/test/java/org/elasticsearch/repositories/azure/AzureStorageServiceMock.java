@@ -21,7 +21,6 @@ package org.elasticsearch.repositories.azure;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cloud.azure.AzureStorageService;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.common.collect.ImmutableMap;
@@ -33,6 +32,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -85,7 +85,7 @@ public class AzureStorageServiceMock extends AbstractLifecycleComponent<AzureSto
     public ImmutableMap<String, BlobMetaData> listBlobsByPrefix(String container, String keyPath, String prefix) {
         ImmutableMap.Builder<String, BlobMetaData> blobsBuilder = ImmutableMap.builder();
         for (String blobName : blobs.keySet()) {
-            if (Strings.startsWithIgnoreCase(blobName, prefix)) {
+            if (startsWithIgnoreCase(blobName, prefix)) {
                 blobsBuilder.put(blobName, new PlainBlobMetaData(blobName, blobs.get(blobName).length));
             }
         }
@@ -122,5 +122,28 @@ public class AzureStorageServiceMock extends AbstractLifecycleComponent<AzureSto
 
     @Override
     protected void doClose() throws ElasticsearchException {
+    }
+
+    /**
+     * Test if the given String starts with the specified prefix,
+     * ignoring upper/lower case.
+     *
+     * @param str    the String to check
+     * @param prefix the prefix to look for
+     * @see java.lang.String#startsWith
+     */
+    public static boolean startsWithIgnoreCase(String str, String prefix) {
+        if (str == null || prefix == null) {
+            return false;
+        }
+        if (str.startsWith(prefix)) {
+            return true;
+        }
+        if (str.length() < prefix.length()) {
+            return false;
+        }
+        String lcStr = str.substring(0, prefix.length()).toLowerCase(Locale.ROOT);
+        String lcPrefix = prefix.toLowerCase(Locale.ROOT);
+        return lcStr.equals(lcPrefix);
     }
 }

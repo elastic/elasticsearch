@@ -21,10 +21,10 @@ package org.elasticsearch.common.collect;
 
 import com.google.common.collect.Maps;
 import com.google.common.collect.UnmodifiableIterator;
+import org.apache.commons.lang3.ArrayUtils;
 import org.apache.lucene.util.mutable.MutableValueInt;
 import org.elasticsearch.common.Preconditions;
 
-import java.lang.reflect.Array;
 import java.util.*;
 
 /**
@@ -60,29 +60,6 @@ public final class CopyOnWriteHashMap<K, V> extends AbstractMap<K, V> {
         } else {
             return new CopyOnWriteHashMap<K, V>().copyAndPutAll(map);
         }
-    }
-
-    /**
-     * Insert <code>o</code> into <code>array</code> at <code>pos</code>.
-     */
-    private static <T> T[] insertAt(T[] array, int pos, T o) {
-        @SuppressWarnings("unchecked")
-        final T[] result = (T[]) Array.newInstance(array.getClass().getComponentType(), array.length + 1);
-        System.arraycopy(array, 0, result, 0, pos);
-        result[pos] = o;
-        System.arraycopy(array, pos, result, pos + 1, array.length - pos);
-        return result;
-    }
-
-    /**
-     * Remove the entry at position <code>pos</code> from <code>array</code>.
-     */
-    private static <T> T[] removeAt(T[] array, int pos) {
-        @SuppressWarnings("unchecked")
-        final T[] result = (T[]) Array.newInstance(array.getClass().getComponentType(), array.length - 1);
-        System.arraycopy(array, 0, result, 0, pos);
-        System.arraycopy(array, pos + 1, result, pos, result.length - pos);
-        return result;
     }
 
     /**
@@ -152,18 +129,9 @@ public final class CopyOnWriteHashMap<K, V> extends AbstractMap<K, V> {
             }
         }
 
-        private int slot(Object key) {
-            for (int i = 0; i < keys.length; ++i) {
-                if (keys[i].equals(key)) {
-                    return i;
-                }
-            }
-            return -1;
-        }
-
         @Override
         V get(Object key, int hash) {
-            final int slot = slot(key);
+            final int slot = ArrayUtils.indexOf(keys, key);
             if (slot < 0) {
                 return null;
             } else {
@@ -171,39 +139,40 @@ public final class CopyOnWriteHashMap<K, V> extends AbstractMap<K, V> {
             }
         }
 
+        private static <T> T[] replace(T[] array, int index, T value) {
+            final T[] copy = Arrays.copyOf(array, array.length);
+            copy[index] = value;
+            return copy;
+        }
+
         @Override
         Leaf<K, V> put(K key, int hash, int hashBits, V value, MutableValueInt newValue) {
             assert hashBits <= 0 : hashBits;
-            final int slot = slot(key);
+            final int slot = ArrayUtils.indexOf(keys, key);
 
             final K[] keys2;
             final V[] values2;
-            final int index, newLength;
+
             if (slot < 0) {
-                // append
-                newLength = keys.length + 1;
-                index = newLength - 1;
+                keys2 = ArrayUtils.add(keys, key);
+                values2 = ArrayUtils.add(values, value);
                 newValue.value = 1;
             } else {
-                // replace
-                newLength = keys.length;
-                index = slot;
+                keys2 = replace(keys, slot, key);
+                values2 = replace(values, slot, value);
             }
-            keys2 = Arrays.copyOf(keys, newLength);
-            values2 = Arrays.copyOf(values, newLength);
-            keys2[index] = key;
-            values2[index] = value;
+
             return new Leaf<>(keys2, values2);
         }
 
         @Override
         Leaf<K, V> remove(Object key, int hash) {
-            final int slot = slot(key);
+            final int slot = ArrayUtils.indexOf(keys, key);
             if (slot < 0) {
                 return this;
             }
-            final K[] keys2 = removeAt(keys, slot);
-            final V[] values2 = removeAt(values, slot);
+            final K[] keys2 = ArrayUtils.remove(keys, slot);
+            final V[] values2 = ArrayUtils.remove(values, slot);
             return new Leaf<>(keys2, values2);
         }
     }
@@ -348,8 +317,8 @@ public final class CopyOnWriteHashMap<K, V> extends AbstractMap<K, V> {
 
         private InnerNode<K, V> putNew(K key, int hash6, int slot, V value) {
             final long mask2 = mask | (1L << hash6);
-            final K[] keys2 = insertAt(keys, slot, key);
-            final Object[] subNodes2 = insertAt(subNodes, slot, value);
+            final K[] keys2 = ArrayUtils.add(keys, slot, key);
+            final Object[] subNodes2 = ArrayUtils.add(subNodes, slot, value);
             return new InnerNode<>(mask2, keys2, subNodes2);
         }
 
@@ -370,8 +339,8 @@ public final class CopyOnWriteHashMap<K, V> extends AbstractMap<K, V> {
 
         private InnerNode<K, V> removeSlot(int hash6, int slot) {
             final long mask2 = mask  & ~(1L << hash6);
-            final K[] keys2 = removeAt(keys, slot);
-            final Object[] subNodes2 = removeAt(subNodes, slot);
+            final K[] keys2 = ArrayUtils.remove(keys, slot);
+            final Object[] subNodes2 = ArrayUtils.remove(subNodes, slot);
             return new InnerNode<>(mask2, keys2, subNodes2);
         }
 

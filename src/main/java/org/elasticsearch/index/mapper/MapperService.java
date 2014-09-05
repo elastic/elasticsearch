@@ -24,7 +24,7 @@ import com.google.common.base.Charsets;
 import com.google.common.base.Predicate;
 import com.google.common.collect.*;
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.SimpleAnalyzerWrapper;
+import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.FilterClause;
 import org.apache.lucene.queries.TermFilter;
@@ -1064,11 +1064,12 @@ public class MapperService extends AbstractIndexComponent  {
         }
     }
 
-    final class SmartIndexNameSearchAnalyzer extends SimpleAnalyzerWrapper {
+    final class SmartIndexNameSearchAnalyzer extends DelegatingAnalyzerWrapper {
 
         private final Analyzer defaultAnalyzer;
 
         SmartIndexNameSearchAnalyzer(Analyzer defaultAnalyzer) {
+            super(Analyzer.PER_FIELD_REUSE_STRATEGY);
             this.defaultAnalyzer = defaultAnalyzer;
         }
 
@@ -1095,11 +1096,12 @@ public class MapperService extends AbstractIndexComponent  {
         }
     }
 
-    final class SmartIndexNameSearchQuoteAnalyzer extends SimpleAnalyzerWrapper {
+    final class SmartIndexNameSearchQuoteAnalyzer extends DelegatingAnalyzerWrapper {
 
         private final Analyzer defaultAnalyzer;
 
         SmartIndexNameSearchQuoteAnalyzer(Analyzer defaultAnalyzer) {
+            super(Analyzer.PER_FIELD_REUSE_STRATEGY);
             this.defaultAnalyzer = defaultAnalyzer;
         }
 

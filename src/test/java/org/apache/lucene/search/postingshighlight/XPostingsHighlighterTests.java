@@ -51,7 +51,7 @@ public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
     @Test
     public void testDiscreteHighlightingPerValue() throws Exception {
         Directory dir = newDirectory();
-        IndexWriterConfig iwc = newIndexWriterConfig(TEST_VERSION_CURRENT, new MockAnalyzer(random()));
+        IndexWriterConfig iwc = newIndexWriterConfig(new MockAnalyzer(random()));
         iwc.setMergePolicy(newLogMergePolicy());
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
@@ -148,7 +148,7 @@ public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
     @Test
     public void testDiscreteHighlightingPerValue_secondValueWithoutMatches() throws Exception {
         Directory dir = newDirectory();
-        IndexWriterConfig iwc = newIndexWriterConfig(TEST_VERSION_CURRENT, new MockAnalyzer(random()));
+        IndexWriterConfig iwc = newIndexWriterConfig(new MockAnalyzer(random()));
         iwc.setMergePolicy(newLogMergePolicy());
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
@@ -254,7 +254,7 @@ public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
     @Test
     public void testDiscreteHighlightingPerValue_MultipleMatches() throws Exception {
         Directory dir = newDirectory();
-        IndexWriterConfig iwc = newIndexWriterConfig(TEST_VERSION_CURRENT, new MockAnalyzer(random()));
+        IndexWriterConfig iwc = newIndexWriterConfig(new MockAnalyzer(random()));
         iwc.setMergePolicy(newLogMergePolicy());
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
@@ -327,7 +327,7 @@ public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
     @Test
     public void testDiscreteHighlightingPerValue_MultipleQueryTerms() throws Exception {
         Directory dir = newDirectory();
-        IndexWriterConfig iwc = newIndexWriterConfig(TEST_VERSION_CURRENT, new MockAnalyzer(random()));
+        IndexWriterConfig iwc = newIndexWriterConfig(new MockAnalyzer(random()));
         iwc.setMergePolicy(newLogMergePolicy());
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
@@ -424,7 +424,7 @@ public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
     @Test
     public void testCustomPassageFormatterMultipleFragments() throws Exception {
         Directory dir = newDirectory();
-        IndexWriterConfig iwc = newIndexWriterConfig(TEST_VERSION_CURRENT, new MockAnalyzer(random()));
+        IndexWriterConfig iwc = newIndexWriterConfig(new MockAnalyzer(random()));
         iwc.setMergePolicy(newLogMergePolicy());
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
@@ -490,7 +490,7 @@ public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
     @Test
     public void testHighlightWithNoMatches() throws Exception {
         Directory dir = newDirectory();
-        IndexWriterConfig iwc = newIndexWriterConfig(TEST_VERSION_CURRENT, new MockAnalyzer(random()));
+        IndexWriterConfig iwc = newIndexWriterConfig(new MockAnalyzer(random()));
         iwc.setMergePolicy(newLogMergePolicy());
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
@@ -547,7 +547,7 @@ public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
     @Test
     public void testCustomMultiValuedSeparator() throws Exception {
         Directory dir = newDirectory();
-        IndexWriterConfig iwc = newIndexWriterConfig(TEST_VERSION_CURRENT, new MockAnalyzer(random()));
+        IndexWriterConfig iwc = newIndexWriterConfig(new MockAnalyzer(random()));
         iwc.setMergePolicy(newLogMergePolicy());
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
@@ -605,7 +605,7 @@ public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
     @Test
     public void testBasics() throws Exception {
         Directory dir = newDirectory();
-        IndexWriterConfig iwc = newIndexWriterConfig(TEST_VERSION_CURRENT, new MockAnalyzer(random()));
+        IndexWriterConfig iwc = newIndexWriterConfig(new MockAnalyzer(random()));
         iwc.setMergePolicy(newLogMergePolicy());
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
@@ -675,7 +675,7 @@ public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
         final Analyzer analyzer = new MockAnalyzer(random());
 
         Directory dir = newDirectory();
-        IndexWriterConfig iwc = newIndexWriterConfig(TEST_VERSION_CURRENT, analyzer);
+        IndexWriterConfig iwc = newIndexWriterConfig(analyzer);
         iwc.setMergePolicy(newLogMergePolicy());
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
@@ -710,7 +710,7 @@ public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
     // simple test highlighting last word.
     public void testHighlightLastWord() throws Exception {
         Directory dir = newDirectory();
-        IndexWriterConfig iwc = newIndexWriterConfig(TEST_VERSION_CURRENT, new MockAnalyzer(random()));
+        IndexWriterConfig iwc = newIndexWriterConfig(new MockAnalyzer(random()));
         iwc.setMergePolicy(newLogMergePolicy());
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
@@ -744,7 +744,7 @@ public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
     public void testOneSentence() throws Exception {
         Directory dir = newDirectory();
         // use simpleanalyzer for more natural tokenization (else "test." is a token)
-        IndexWriterConfig iwc = newIndexWriterConfig(TEST_VERSION_CURRENT, new MockAnalyzer(random(), MockTokenizer.SIMPLE, true));
+        IndexWriterConfig iwc = newIndexWriterConfig(new MockAnalyzer(random(), MockTokenizer.SIMPLE, true));
         iwc.setMergePolicy(newLogMergePolicy());
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
@@ -781,7 +781,7 @@ public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
     public void testMaxLengthWithMultivalue() throws Exception {
         Directory dir = newDirectory();
         // use simpleanalyzer for more natural tokenization (else "test." is a token)
-        IndexWriterConfig iwc = newIndexWriterConfig(TEST_VERSION_CURRENT, new MockAnalyzer(random(), MockTokenizer.SIMPLE, true));
+        IndexWriterConfig iwc = newIndexWriterConfig(new MockAnalyzer(random(), MockTokenizer.SIMPLE, true));
         iwc.setMergePolicy(newLogMergePolicy());
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
@@ -817,7 +817,7 @@ public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
     @Test
     public void testMultipleFields() throws Exception {
         Directory dir = newDirectory();
-        IndexWriterConfig iwc = newIndexWriterConfig(TEST_VERSION_CURRENT, new MockAnalyzer(random(), MockTokenizer.SIMPLE, true));
+        IndexWriterConfig iwc = newIndexWriterConfig(new MockAnalyzer(random(), MockTokenizer.SIMPLE, true));
         iwc.setMergePolicy(newLogMergePolicy());
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
@@ -859,7 +859,7 @@ public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
     @Test
     public void testMultipleTerms() throws Exception {
         Directory dir = newDirectory();
-        IndexWriterConfig iwc = newIndexWriterConfig(TEST_VERSION_CURRENT, new MockAnalyzer(random()));
+        IndexWriterConfig iwc = newIndexWriterConfig(new MockAnalyzer(random()));
         iwc.setMergePolicy(newLogMergePolicy());
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
@@ -897,7 +897,7 @@ public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
     @Test
     public void testMultiplePassages() throws Exception {
         Directory dir = newDirectory();
-        IndexWriterConfig iwc = newIndexWriterConfig(TEST_VERSION_CURRENT, new MockAnalyzer(random(), MockTokenizer.SIMPLE, true));
+        IndexWriterConfig iwc = newIndexWriterConfig(new MockAnalyzer(random(), MockTokenizer.SIMPLE, true));
         iwc.setMergePolicy(newLogMergePolicy());
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
@@ -932,7 +932,7 @@ public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
     @Test
     public void testUserFailedToIndexOffsets() throws Exception {
         Directory dir = newDirectory();
-        IndexWriterConfig iwc = newIndexWriterConfig(TEST_VERSION_CURRENT, new MockAnalyzer(random(), MockTokenizer.SIMPLE, true));
+        IndexWriterConfig iwc = newIndexWriterConfig(new MockAnalyzer(random(), MockTokenizer.SIMPLE, true));
         iwc.setMergePolicy(newLogMergePolicy());
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
@@ -1080,7 +1080,7 @@ public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
     @Test
     public void testPassageRanking() throws Exception {
         Directory dir = newDirectory();
-        IndexWriterConfig iwc = newIndexWriterConfig(TEST_VERSION_CURRENT, new MockAnalyzer(random(), MockTokenizer.SIMPLE, true));
+        IndexWriterConfig iwc = newIndexWriterConfig(new MockAnalyzer(random(), MockTokenizer.SIMPLE, true));
         iwc.setMergePolicy(newLogMergePolicy());
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
@@ -1141,7 +1141,7 @@ public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
     @Test
     public void testHighlightAllText() throws Exception {
         Directory dir = newDirectory();
-        IndexWriterConfig iwc = newIndexWriterConfig(TEST_VERSION_CURRENT, new MockAnalyzer(random(), MockTokenizer.SIMPLE, true));
+        IndexWriterConfig iwc = newIndexWriterConfig(new MockAnalyzer(random(), MockTokenizer.SIMPLE, true));
         iwc.setMergePolicy(newLogMergePolicy());
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
@@ -1178,7 +1178,7 @@ public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
     @Test
     public void testSpecificDocIDs() throws Exception {
         Directory dir = newDirectory();
-        IndexWriterConfig iwc = newIndexWriterConfig(TEST_VERSION_CURRENT, new MockAnalyzer(random()));
+        IndexWriterConfig iwc = newIndexWriterConfig(new MockAnalyzer(random()));
         iwc.setMergePolicy(newLogMergePolicy());
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
@@ -1217,7 +1217,7 @@ public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
     @Test
     public void testCustomFieldValueSource() throws Exception {
         Directory dir = newDirectory();
-        IndexWriterConfig iwc = newIndexWriterConfig(TEST_VERSION_CURRENT, new MockAnalyzer(random(), MockTokenizer.SIMPLE, true));
+        IndexWriterConfig iwc = newIndexWriterConfig(new MockAnalyzer(random(), MockTokenizer.SIMPLE, true));
         iwc.setMergePolicy(newLogMergePolicy());
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
@@ -1267,7 +1267,7 @@ public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
     @Test
     public void testEmptyHighlights() throws Exception {
         Directory dir = newDirectory();
-        IndexWriterConfig iwc = newIndexWriterConfig(TEST_VERSION_CURRENT, new MockAnalyzer(random()));
+        IndexWriterConfig iwc = newIndexWriterConfig(new MockAnalyzer(random()));
         iwc.setMergePolicy(newLogMergePolicy());
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
@@ -1299,7 +1299,7 @@ public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
     @Test
     public void testCustomEmptyHighlights() throws Exception {
         Directory dir = newDirectory();
-        IndexWriterConfig iwc = newIndexWriterConfig(TEST_VERSION_CURRENT, new MockAnalyzer(random()));
+        IndexWriterConfig iwc = newIndexWriterConfig(new MockAnalyzer(random()));
         iwc.setMergePolicy(newLogMergePolicy());
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
@@ -1336,7 +1336,7 @@ public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
     @Test
     public void testEmptyHighlightsWhole() throws Exception {
         Directory dir = newDirectory();
-        IndexWriterConfig iwc = newIndexWriterConfig(TEST_VERSION_CURRENT, new MockAnalyzer(random()));
+        IndexWriterConfig iwc = newIndexWriterConfig(new MockAnalyzer(random()));
         iwc.setMergePolicy(newLogMergePolicy());
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
@@ -1373,7 +1373,7 @@ public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
     @Test
     public void testFieldIsMissing() throws Exception {
         Directory dir = newDirectory();
-        IndexWriterConfig iwc = newIndexWriterConfig(TEST_VERSION_CURRENT, new MockAnalyzer(random()));
+        IndexWriterConfig iwc = newIndexWriterConfig(new MockAnalyzer(random()));
         iwc.setMergePolicy(newLogMergePolicy());
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
@@ -1403,7 +1403,7 @@ public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
     @Test
     public void testFieldIsJustSpace() throws Exception {
         Directory dir = newDirectory();
-        IndexWriterConfig iwc = newIndexWriterConfig(TEST_VERSION_CURRENT, new MockAnalyzer(random()));
+        IndexWriterConfig iwc = newIndexWriterConfig(new MockAnalyzer(random()));
         iwc.setMergePolicy(newLogMergePolicy());
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
@@ -1440,7 +1440,7 @@ public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
     @Test
     public void testFieldIsEmptyString() throws Exception {
         Directory dir = newDirectory();
-        IndexWriterConfig iwc = newIndexWriterConfig(TEST_VERSION_CURRENT, new MockAnalyzer(random()));
+        IndexWriterConfig iwc = newIndexWriterConfig(new MockAnalyzer(random()));
         iwc.setMergePolicy(newLogMergePolicy());
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
@@ -1477,7 +1477,7 @@ public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
     @Test
     public void testMultipleDocs() throws Exception {
         Directory dir = newDirectory();
-        IndexWriterConfig iwc = newIndexWriterConfig(TEST_VERSION_CURRENT, new MockAnalyzer(random()));
+        IndexWriterConfig iwc = newIndexWriterConfig(new MockAnalyzer(random()));
         iwc.setMergePolicy(newLogMergePolicy());
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
@@ -1528,7 +1528,7 @@ public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
     @Test
     public void testMultipleSnippetSizes() throws Exception {
         Directory dir = newDirectory();
-        IndexWriterConfig iwc = newIndexWriterConfig(TEST_VERSION_CURRENT, new MockAnalyzer(random(), MockTokenizer.SIMPLE, true));
+        IndexWriterConfig iwc = newIndexWriterConfig(new MockAnalyzer(random(), MockTokenizer.SIMPLE, true));
         iwc.setMergePolicy(newLogMergePolicy());
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
@@ -1563,7 +1563,7 @@ public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
 
     public void testEncode() throws Exception {
         Directory dir = newDirectory();
-        IndexWriterConfig iwc = newIndexWriterConfig(TEST_VERSION_CURRENT, new MockAnalyzer(random()));
+        IndexWriterConfig iwc = newIndexWriterConfig(new MockAnalyzer(random()));
         iwc.setMergePolicy(newLogMergePolicy());
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
@@ -1601,7 +1601,7 @@ public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
     public void testGapSeparator() throws Exception {
         Directory dir = newDirectory();
         // use simpleanalyzer for more natural tokenization (else "test." is a token)
-        IndexWriterConfig iwc = newIndexWriterConfig(TEST_VERSION_CURRENT, new MockAnalyzer(random(), MockTokenizer.SIMPLE, true));
+        IndexWriterConfig iwc = newIndexWriterConfig(new MockAnalyzer(random(), MockTokenizer.SIMPLE, true));
         iwc.setMergePolicy(newLogMergePolicy());
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
@@ -1644,7 +1644,7 @@ public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
     // LUCENE-4906
     public void testObjectFormatter() throws Exception {
         Directory dir = newDirectory();
-        IndexWriterConfig iwc = newIndexWriterConfig(TEST_VERSION_CURRENT, new MockAnalyzer(random()));
+        IndexWriterConfig iwc = newIndexWriterConfig(new MockAnalyzer(random()));
         iwc.setMergePolicy(newLogMergePolicy());
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 

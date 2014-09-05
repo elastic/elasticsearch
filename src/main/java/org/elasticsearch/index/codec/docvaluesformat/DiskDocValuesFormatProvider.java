@@ -20,7 +20,7 @@
 package org.elasticsearch.index.codec.docvaluesformat;
 
 import org.apache.lucene.codecs.DocValuesFormat;
-import org.apache.lucene.codecs.lucene49.Lucene49DocValuesFormat;
+import org.apache.lucene.codecs.lucene410.Lucene410DocValuesFormat;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
@@ -36,7 +36,7 @@ public class DiskDocValuesFormatProvider extends AbstractDocValuesFormatProvider
     public DiskDocValuesFormatProvider(@Assisted String name, @Assisted Settings docValuesFormatSettings) {
         super(name);
         // TODO: log a warning if someone chooses this? just remove this together and map it to the 4.9 provider?
-        this.docValuesFormat = new Lucene49DocValuesFormat();
+        this.docValuesFormat = new Lucene410DocValuesFormat();
     }
 
     @Override

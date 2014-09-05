@@ -20,18 +20,19 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.SimpleAnalyzerWrapper;
+import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
 import org.elasticsearch.common.collect.UpdateInPlaceMap;
 
 /**
  *
  */
-public final class FieldNameAnalyzer extends SimpleAnalyzerWrapper {
+public final class FieldNameAnalyzer extends DelegatingAnalyzerWrapper {
 
     private final UpdateInPlaceMap<String, Analyzer> analyzers;
     private final Analyzer defaultAnalyzer;
 
     public FieldNameAnalyzer(UpdateInPlaceMap<String, Analyzer> analyzers, Analyzer defaultAnalyzer) {
+        super(Analyzer.PER_FIELD_REUSE_STRATEGY);
         this.analyzers = analyzers;
         this.defaultAnalyzer = defaultAnalyzer;
     }

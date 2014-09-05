@@ -20,9 +20,9 @@
 package org.elasticsearch.script.expression;
 
 import org.apache.lucene.expressions.Expression;
-import org.apache.lucene.expressions.XSimpleBindings;
-import org.apache.lucene.expressions.js.XJavascriptCompiler;
-import org.apache.lucene.expressions.js.XVariableContext;
+import org.apache.lucene.expressions.SimpleBindings;
+import org.apache.lucene.expressions.js.JavascriptCompiler;
+import org.apache.lucene.expressions.js.VariableContext;
 import org.apache.lucene.queries.function.valuesource.DoubleConstValueSource;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.Nullable;
@@ -71,7 +71,7 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
     public Object compile(String script) {
         try {
             // NOTE: validation is delayed to allow runtime vars, and we don't have access to per index stuff here
-            return XJavascriptCompiler.compile(script);
+            return JavascriptCompiler.compile(script);
         } catch (ParseException e) {
             throw new ExpressionScriptCompilationException("Failed to parse expression: " + script, e);
         }
@@ -83,7 +83,7 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
         MapperService mapper = lookup.doc().mapperService();
         // NOTE: if we need to do anything complicated with bindings in the future, we can just extend Bindings,
         // instead of complicating SimpleBindings (which should stay simple)
-        XSimpleBindings bindings = new XSimpleBindings();
+        SimpleBindings bindings = new SimpleBindings();
         ReplaceableConstValueSource specialValue = null;
 
         for (String variable : expr.variables) {
@@ -109,14 +109,14 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
                 }
 
             } else {
-                XVariableContext[] parts = XVariableContext.parse(variable);
+                VariableContext[] parts = VariableContext.parse(variable);
                 if (parts[0].text.equals("doc") == false) {
                     throw new ExpressionScriptCompilationException("Unknown variable [" + parts[0].text + "] in expression");
                 }
-                if (parts.length < 2 || parts[1].type != XVariableContext.Type.STR_INDEX) {
+                if (parts.length < 2 || parts[1].type != VariableContext.Type.STR_INDEX) {
                     throw new ExpressionScriptCompilationException("Variable 'doc' in expression must be used with a specific field like: doc['myfield'].value");
                 }
-                if (parts.length < 3 || parts[2].type != XVariableContext.Type.MEMBER || parts[2].text.equals("value") == false) {
+                if (parts.length < 3 || parts[2].type != VariableContext.Type.MEMBER || parts[2].text.equals("value") == false) {
                     throw new ExpressionScriptCompilationException("Invalid member for field data in expression.  Only '.value' is currently supported.");
                 }
                 String fieldname = parts[1].text;

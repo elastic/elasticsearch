@@ -27,6 +27,13 @@ import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import static org.hamcrest.Matchers.*;
 
 public class IndexingMemoryControllerUpdateSettingsTest extends ElasticsearchSingleNodeTest {
+
+    /** We change persistent cluster settings so we need to clear the node after */
+    @Override
+    protected boolean resetNodeAfterTest() {
+        return true;
+    }
+
     public void testDynamicSettings() {
         IndexingMemoryController controller = getInstanceFromNode(IndexingMemoryController.class);
         Settings settings = ImmutableSettings.builder()

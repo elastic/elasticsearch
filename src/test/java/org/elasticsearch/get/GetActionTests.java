@@ -32,6 +32,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -1021,14 +1022,10 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testBoostFieldDefaultPath() throws IOException {
+    public void testBoostAnalyzerFieldDefaultPath() throws IOException {
         boolean stored = randomBoolean();
-        boolean sourceEnabled = true;
-        if (stored) {
-            sourceEnabled = randomBoolean();
-        }
-        indexSingleDocumentBoost(stored, sourceEnabled);
-        String[] fieldsList = {"_boost"};
+        indexSingleDocumentWithBoostAndAnalyzer(stored);
+        String[] fieldsList = {"_boost", "_analyzer"};
         // before refresh - document is only in translog
          assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", fieldsList);
         refresh();
@@ -1039,31 +1036,25 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
         assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", fieldsList);
     }
 
-    void indexSingleDocumentBoost(boolean stored, boolean sourceEnabled) {
-        String storedString = stored ? "yes" : "no";
-        String createIndexSource = "{\n" +
-                "  \"settings\": {\n" +
-                "    \"index.translog.disable_flush\": true,\n" +
-                "    \"refresh_interval\": \"-1\"\n" +
-                "  },\n" +
-                "  \"mappings\": {\n" +
-                "    \"doc\": {\n" +
-                "      \"_boost\": {\n" +
-                "        \"null_value\": 1,\n" +
-                "        \"store\": \"" + storedString + "\"\n" +
-                "      }\n" +
-                "    }\n" +
-                "  }\n" +
-                "}";
+    void indexSingleDocumentWithBoostAndAnalyzer(boolean stored) throws IOException {
+        XContentBuilder createIndexSource = jsonBuilder().startObject()
+                .startObject("settings")
+                .field("index.translog.disable_flush", true)
+                .field("refresh_interval", -1)
+                .endObject()
+                .startObject("mappings")
+                .startObject("doc")
+                .startObject("_boost")
+                .field("null_nalue",1).field("store", stored)
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject();
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setSource(createIndexSource));
         ensureGreen();
-        String doc = "{\n" +
-                "  \"_boost\": 5.0\n" +
-                "}\n";
-
+        XContentBuilder doc = jsonBuilder().startObject().field("_boost", 5.0).field("_analyzer", "whitespace").endObject();
         client().prepareIndex("test", "doc").setId("1").setSource(doc).get();
     }
-
 
     @Test
     public void testUngeneratedFieldsPartOfSourceEitherStoredOrSourceEnabled() throws IOException {

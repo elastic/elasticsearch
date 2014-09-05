@@ -19,11 +19,8 @@
 
 package org.elasticsearch.index.mapper.internal;
 
-import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.NumericRangeFilter;
 import org.apache.lucene.search.NumericRangeQuery;
@@ -46,8 +43,6 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.FloatFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
-import org.elasticsearch.index.mapper.core.StringFieldMapper;
-import org.elasticsearch.index.query.GeoShapeFilterParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.search.NumericRangeFieldDataFilter;
 
@@ -118,8 +113,6 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
 
     private final Float nullValue;
 
-    private String name;
-
     public BoostFieldMapper() {
         this(Defaults.NAME, Defaults.PRECISION_STEP_32_BIT, Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE), null,
                 Defaults.NULL_VALUE, null, null, null, ImmutableSettings.EMPTY);
@@ -130,7 +123,6 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
         super(new Names(name, name, Defaults.NAME, Defaults.NAME), precisionStep, boost, fieldType, docValues, Defaults.IGNORE_MALFORMED, Defaults.COERCE,
                 NumericFloatAnalyzer.buildNamedAnalyzer(precisionStep), NumericFloatAnalyzer.buildNamedAnalyzer(Integer.MAX_VALUE),
                 postingsProvider, docValuesProvider, null, null, fieldDataSettings, indexSettings, MultiFields.empty(), null);
-        this.name = name;
         this.nullValue = nullValue;
     }
 

@@ -19,13 +19,10 @@
 
 package org.elasticsearch.index.mapper.internal;
 
-import com.google.common.base.Predicates;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.StringField;
-import org.apache.lucene.index.FieldInfo;
-import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
@@ -36,7 +33,6 @@ import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
-import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.search.highlight.HighlighterContext;
 
 import java.io.IOException;

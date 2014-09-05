@@ -98,19 +98,15 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
  */
 public class TransportClient extends AbstractClient {
 
+    private static final String CLIENT_TYPE = "transport";
+
     final Injector injector;
 
     private final Settings settings;
-
     private final Environment environment;
-
-
     private final PluginsService pluginsService;
-
     private final TransportClientNodesService nodesService;
-
     private final InternalTransportClient internalClient;
-
 
     /**
      * Constructs a new transport client with settings loaded either from the classpath or the file system (the
@@ -163,6 +159,7 @@ public class TransportClient extends AbstractClient {
         Settings settings = settingsBuilder().put(tuple.v1())
                 .put("network.server", false)
                 .put("node.client", true)
+                .put(CLIENT_TYPE_SETTING, CLIENT_TYPE)
                 .build();
         this.environment = tuple.v2();
 

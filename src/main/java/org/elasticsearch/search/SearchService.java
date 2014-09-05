@@ -27,6 +27,7 @@ import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.SearchType;
@@ -69,11 +70,8 @@ import org.elasticsearch.search.dfs.CachedDfSource;
 import org.elasticsearch.search.dfs.DfsPhase;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.*;
-import org.elasticsearch.search.internal.DefaultSearchContext;
-import org.elasticsearch.search.internal.InternalScrollSearchRequest;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.*;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
-import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.*;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -206,10 +204,14 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
     public QuerySearchResult executeScan(ShardSearchRequest request) throws ElasticsearchException {
         SearchContext context = createAndPutContext(request);
-        assert context.searchType() == SearchType.SCAN;
-        context.searchType(SearchType.COUNT); // move to COUNT, and then, when scrolling, move to SCAN
-        assert context.searchType() == SearchType.COUNT;
         try {
+            if (context.aggregations() != null) {
+                throw new ElasticsearchIllegalArgumentException("aggregations are not supported with search_type=scan");
+            }
+            assert context.searchType() == SearchType.SCAN;
+            context.searchType(SearchType.COUNT); // move to COUNT, and then, when scrolling, move to SCAN
+            assert context.searchType() == SearchType.COUNT;
+
             if (context.scroll() == null) {
                 throw new ElasticsearchException("Scroll must be provided when scanning...");
             }

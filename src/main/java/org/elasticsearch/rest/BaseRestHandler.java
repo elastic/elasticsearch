@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest;
 
+import com.google.common.collect.Sets;
 import org.elasticsearch.action.*;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ClusterAdminClient;
@@ -27,13 +28,20 @@ import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 
+import java.util.Collections;
+import java.util.Set;
+
 /**
- * Base handler for REST requests
+ * Base handler for REST requests.
+ *
+ * This handler makes sure that the headers & context of the handled {@link RestRequest requests} are copied over to
+ * the transport requests executed by the associated client. While the context is fully copied over, not all the headers
+ * are copied, but a selected few. It is possible to control what header are copied over by registering them using
+ * {@link #addUsefulHeaders(String...)}
  */
 public abstract class BaseRestHandler extends AbstractComponent implements RestHandler {
 
-    // non volatile since the assumption is that useful headers are registered on startup
-    private static String[] usefulHeaders = new String[0];
+    private static Set<String> usefulHeaders = Sets.newCopyOnWriteArraySet();
 
     /**
      * Controls which REST headers get copied over from a {@link org.elasticsearch.rest.RestRequest} to
@@ -41,17 +49,12 @@ public abstract class BaseRestHandler extends AbstractComponent implements RestH
      *
      * By default no headers get copied but it is possible to extend this behaviour via plugins by calling this method.
      */
-    public static synchronized void addUsefulHeaders(String... headers) {
-        String[] copy = new String[usefulHeaders.length + headers.length];
-        System.arraycopy(usefulHeaders, 0, copy, 0 , usefulHeaders.length);
-        System.arraycopy(headers, 0, copy, usefulHeaders.length, headers.length);
-        usefulHeaders = copy;
+    public static void addUsefulHeaders(String... headers) {
+        Collections.addAll(usefulHeaders, headers);
     }
 
-    static String[] usefulHeaders() {
-        String[] copy = new String[usefulHeaders.length];
-        System.arraycopy(usefulHeaders, 0, copy, 0 , usefulHeaders.length);
-        return copy;
+    static Set<String> usefulHeaders() {
+        return usefulHeaders;
     }
 
     private final Client client;
@@ -63,44 +66,45 @@ public abstract class BaseRestHandler extends AbstractComponent implements RestH
 
     @Override
     public final void handleRequest(RestRequest request, RestChannel channel) throws Exception {
-        handleRequest(request, channel, usefulHeaders.length == 0 ? client : new HeadersCopyClient(client, request, usefulHeaders));
+        handleRequest(request, channel, usefulHeaders.size() == 0 ? client : new HeadersAndContextCopyClient(client, request, usefulHeaders));
     }
 
     protected abstract void handleRequest(RestRequest request, RestChannel channel, Client client) throws Exception;
 
-    static final class HeadersCopyClient extends FilterClient {
+    static final class HeadersAndContextCopyClient extends FilterClient {
 
         private final RestRequest restRequest;
-        private final String[] usefulHeaders;
         private final IndicesAdmin indicesAdmin;
         private final ClusterAdmin clusterAdmin;
+        private final Set<String> headers;
 
-        HeadersCopyClient(Client in, RestRequest restRequest, String[] usefulHeaders) {
+        HeadersAndContextCopyClient(Client in, RestRequest restRequest, Set<String> headers) {
             super(in);
             this.restRequest = restRequest;
-            this.usefulHeaders = usefulHeaders;
-            this.indicesAdmin = new IndicesAdmin(in.admin().indices());
-            this.clusterAdmin = new ClusterAdmin(in.admin().cluster());
+            this.indicesAdmin = new IndicesAdmin(in.admin().indices(), restRequest, headers);
+            this.clusterAdmin = new ClusterAdmin(in.admin().cluster(), restRequest, headers);
+            this.headers = headers;
         }
 
-        private void copyHeaders(ActionRequest request) {
-            for (String usefulHeader : usefulHeaders) {
+        private static void copyHeadersAndContext(ActionRequest actionRequest, RestRequest restRequest, Set<String> headers) {
+            for (String usefulHeader : headers) {
                 String headerValue = restRequest.header(usefulHeader);
                 if (headerValue != null) {
-                    request.putHeader(usefulHeader, headerValue);
+                    actionRequest.putHeader(usefulHeader, headerValue);
                 }
             }
+            actionRequest.copyContextFrom(restRequest);
         }
 
         @Override
         public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, Client>> ActionFuture<Response> execute(Action<Request, Response, RequestBuilder, Client> action, Request request) {
-            copyHeaders(request);
+            copyHeadersAndContext(request, restRequest, headers);
             return super.execute(action, request);
         }
 
         @Override
         public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, Client>> void execute(Action<Request, Response, RequestBuilder, Client> action, Request request, ActionListener<Response> listener) {
-            copyHeaders(request);
+            copyHeadersAndContext(request, restRequest, headers);
             super.execute(action, request, listener);
         }
 
@@ -114,38 +118,50 @@ public abstract class BaseRestHandler extends AbstractComponent implements RestH
             return indicesAdmin;
         }
 
-        private final class ClusterAdmin extends FilterClient.ClusterAdmin {
-            private ClusterAdmin(ClusterAdminClient in) {
+        private static final class ClusterAdmin extends FilterClient.ClusterAdmin {
+
+            private final RestRequest restRequest;
+            private final Set<String> headers;
+
+            private ClusterAdmin(ClusterAdminClient in, RestRequest restRequest, Set<String> headers) {
                 super(in);
+                this.restRequest = restRequest;
+                this.headers = headers;
             }
 
             @Override
             public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, ClusterAdminClient>> ActionFuture<Response> execute(Action<Request, Response, RequestBuilder, ClusterAdminClient> action, Request request) {
-                copyHeaders(request);
+                copyHeadersAndContext(request, restRequest, headers);
                 return super.execute(action, request);
             }
 
             @Override
             public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, ClusterAdminClient>> void execute(Action<Request, Response, RequestBuilder, ClusterAdminClient> action, Request request, ActionListener<Response> listener) {
-                copyHeaders(request);
+                copyHeadersAndContext(request, restRequest, headers);
                 super.execute(action, request, listener);
             }
         }
 
         private final class IndicesAdmin extends FilterClient.IndicesAdmin {
-            private IndicesAdmin(IndicesAdminClient in) {
+
+            private final RestRequest restRequest;
+            private final Set<String> headers;
+
+            private IndicesAdmin(IndicesAdminClient in, RestRequest restRequest, Set<String> headers) {
                 super(in);
+                this.restRequest = restRequest;
+                this.headers = headers;
             }
 
             @Override
             public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, IndicesAdminClient>> ActionFuture<Response> execute(Action<Request, Response, RequestBuilder, IndicesAdminClient> action, Request request) {
-                copyHeaders(request);
+                copyHeadersAndContext(request, restRequest, headers);
                 return super.execute(action, request);
             }
 
             @Override
             public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, IndicesAdminClient>> void execute(Action<Request, Response, RequestBuilder, IndicesAdminClient> action, Request request, ActionListener<Response> listener) {
-                copyHeaders(request);
+                copyHeadersAndContext(request, restRequest, headers);
                 super.execute(action, request, listener);
             }
         }

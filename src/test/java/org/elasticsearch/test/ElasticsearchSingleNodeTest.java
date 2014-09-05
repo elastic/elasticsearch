@@ -34,7 +34,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.engine.internal.InternalEngine;
 import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
@@ -56,11 +58,20 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
 
     private static class Holder {
         // lazy init on first access
-        private static final Node NODE = newNode();
+        private static Node NODE = newNode();
+
+        private static void reset() {
+            assert NODE != null;
+            node().stop();
+            Holder.NODE = newNode();
+        }
     }
 
-    static void cleanup() {
+    static void cleanup(boolean resetNode) {
         assertAcked(client().admin().indices().prepareDelete("*").get());
+        if (resetNode) {
+            Holder.reset();
+        }
         MetaData metaData = client().admin().cluster().prepareState().get().getState().getMetaData();
         assertThat("test leaves persistent cluster metadata behind: " + metaData.persistentSettings().getAsMap(),
                 metaData.persistentSettings().getAsMap().size(), equalTo(0));
@@ -70,7 +81,16 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
 
     @After
     public void after() {
-        cleanup();
+        cleanup(resetNodeAfterTest());
+    }
+
+    /**
+     * This method returns <code>true</code> if the node that is used in the background should be reset
+     * after each test. This is useful if the test changes the cluster state metadata etc. The default is
+     * <code>false</code>.
+     */
+    protected boolean resetNodeAfterTest() {
+        return false;
     }
 
     private static Node newNode() {
@@ -170,6 +190,10 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
         assertThat("Cluster must be a single node cluster", health.getNumberOfDataNodes(), equalTo(1));
         IndicesService instanceFromNode = getInstanceFromNode(IndicesService.class);
         return instanceFromNode.indexServiceSafe(index);
+    }
+
+    protected static InternalEngine engine(IndexService service) {
+       return ((InternalEngine)((InternalIndexShard)service.shard(0)).engine());
     }
 
     /**

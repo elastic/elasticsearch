@@ -17,22 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.index.cache.docset;
-
-import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.index.IndexReader;
-import org.elasticsearch.common.lucene.docset.ContextDocIdSet;
-import org.elasticsearch.index.IndexComponent;
+package org.elasticsearch.common;
 
 /**
+ * Generates opaque unique strings.
  */
-public interface DocSetCache extends IndexComponent {
-
-    void clear(String reason);
-
-    void clear(IndexReader reader);
-
-    ContextDocIdSet obtain(AtomicReaderContext context);
-
-    void release(ContextDocIdSet docSet);
+interface UUIDGenerator {
+    public String getBase64UUID();
 }

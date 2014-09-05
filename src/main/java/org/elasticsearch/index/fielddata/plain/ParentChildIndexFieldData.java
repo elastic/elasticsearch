@@ -23,12 +23,13 @@ import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.collect.ImmutableSortedSet;
 import org.apache.lucene.index.*;
+import org.apache.lucene.index.MultiDocValues.OrdinalMap;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongValues;
 import org.apache.lucene.util.PagedBytes;
-import org.apache.lucene.util.packed.MonotonicAppendingLongBuffer;
 import org.apache.lucene.util.packed.PackedInts;
+import org.apache.lucene.util.packed.PackedLongValues;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.Nullable;
@@ -136,7 +137,7 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
 
                     typeToAtomicFieldData.put(
                             cursor.key,
-                            new PagedBytesAtomicFieldData(bytesReader, cursor.value.termOrdToBytesOffset, ordinals)
+                            new PagedBytesAtomicFieldData(bytesReader, cursor.value.termOrdToBytesOffset.build(), ordinals)
                     );
                 }
                 data = new ParentChildAtomicFieldData(typeToAtomicFieldData.build());
@@ -183,12 +184,12 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
     class TypeBuilder {
 
         final PagedBytes bytes;
-        final MonotonicAppendingLongBuffer termOrdToBytesOffset;
+        final PackedLongValues.Builder termOrdToBytesOffset;
         final OrdinalsBuilder builder;
 
         TypeBuilder(float acceptableTransientOverheadRatio, AtomicReader reader) throws IOException {
             bytes = new PagedBytes(15);
-            termOrdToBytesOffset = new MonotonicAppendingLongBuffer();
+            termOrdToBytesOffset = PackedLongValues.monotonicBuilder(PackedInts.COMPACT);
             builder = new OrdinalsBuilder(-1, reader.maxDoc(), acceptableTransientOverheadRatio);
         }
     }
@@ -299,7 +300,7 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
         for (Map.Entry<String, SortedDocValues[]> entry : types.entrySet()) {
             final String parentType = entry.getKey();
             final SortedDocValues[] values = entry.getValue();
-            final XOrdinalMap ordinalMap = XOrdinalMap.build(null, entry.getValue(), PackedInts.DEFAULT);
+            final OrdinalMap ordinalMap = OrdinalMap.build(null, entry.getValue(), PackedInts.DEFAULT);
             ramBytesUsed += ordinalMap.ramBytesUsed();
             for (int i = 0; i < values.length; ++i) {
                 final SortedDocValues segmentValues = values[i];

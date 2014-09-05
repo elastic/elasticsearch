@@ -46,9 +46,8 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.similarities.DefaultSimilarity;
 import org.apache.lucene.search.similarities.TFIDFSimilarity;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.CharsRef;
+import org.apache.lucene.util.CharsRefBuilder;
 import org.apache.lucene.util.PriorityQueue;
-import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.io.FastStringReader;
 
 import java.io.IOException;
@@ -804,10 +803,10 @@ public final class XMoreLikeThis {
      */
     private void addTermFrequencies(Map<String, Int> termFreqMap, Terms vector) throws IOException {
         final TermsEnum termsEnum = vector.iterator(null);
-        final CharsRef spare = new CharsRef();
+        final CharsRefBuilder spare = new CharsRefBuilder();
         BytesRef text;
         while((text = termsEnum.next()) != null) {
-            UnicodeUtil.UTF8toUTF16(text, spare);
+            spare.copyUTF8Bytes(text);
             final String term = spare.toString();
             if (isNoiseWord(term)) {
                 continue;

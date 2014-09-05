@@ -45,7 +45,7 @@ public class CustomPostingsHighlighterTests extends ElasticsearchLuceneTestCase 
     @Test
     public void testDiscreteHighlightingPerValue() throws Exception {
         Directory dir = newDirectory();
-        IndexWriterConfig iwc = newIndexWriterConfig(TEST_VERSION_CURRENT, new MockAnalyzer(random()));
+        IndexWriterConfig iwc = newIndexWriterConfig(new MockAnalyzer(random()));
         iwc.setMergePolicy(newLogMergePolicy());
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
@@ -130,7 +130,7 @@ public class CustomPostingsHighlighterTests extends ElasticsearchLuceneTestCase 
     public void testDiscreteHighlightingScoring() throws Exception {
 
         Directory dir = newDirectory();
-        IndexWriterConfig iwc = newIndexWriterConfig(TEST_VERSION_CURRENT, new MockAnalyzer(random()));
+        IndexWriterConfig iwc = newIndexWriterConfig(new MockAnalyzer(random()));
         iwc.setMergePolicy(newLogMergePolicy());
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
@@ -245,7 +245,7 @@ public class CustomPostingsHighlighterTests extends ElasticsearchLuceneTestCase 
     public void testMergeValuesScoring() throws Exception {
 
         Directory dir = newDirectory();
-        IndexWriterConfig iwc = newIndexWriterConfig(TEST_VERSION_CURRENT, new MockAnalyzer(random()));
+        IndexWriterConfig iwc = newIndexWriterConfig(new MockAnalyzer(random()));
         iwc.setMergePolicy(newLogMergePolicy());
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
@@ -357,7 +357,7 @@ public class CustomPostingsHighlighterTests extends ElasticsearchLuceneTestCase 
     @Test
     public void testRequireFieldMatch() throws Exception {
         Directory dir = newDirectory();
-        IndexWriterConfig iwc = newIndexWriterConfig(TEST_VERSION_CURRENT, new MockAnalyzer(random()));
+        IndexWriterConfig iwc = newIndexWriterConfig(new MockAnalyzer(random()));
         iwc.setMergePolicy(newLogMergePolicy());
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
@@ -413,7 +413,7 @@ public class CustomPostingsHighlighterTests extends ElasticsearchLuceneTestCase 
     @Test
     public void testNoMatchSize() throws Exception {
         Directory dir = newDirectory();
-        IndexWriterConfig iwc = newIndexWriterConfig(TEST_VERSION_CURRENT, new MockAnalyzer(random()));
+        IndexWriterConfig iwc = newIndexWriterConfig(new MockAnalyzer(random()));
         iwc.setMergePolicy(newLogMergePolicy());
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 

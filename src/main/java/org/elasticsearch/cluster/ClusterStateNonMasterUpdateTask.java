@@ -17,28 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.index.cache.docset;
-
-import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.Scopes;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.cache.docset.simple.SimpleDocSetCache;
+package org.elasticsearch.cluster;
 
 /**
- *
+ * This is a marker interface to indicate that the task should be executed
+ * even if the current node is not a master.
  */
-public class DocSetCacheModule extends AbstractModule {
-
-    private final Settings settings;
-
-    public DocSetCacheModule(Settings settings) {
-        this.settings = settings;
-    }
+public abstract class ClusterStateNonMasterUpdateTask extends ClusterStateUpdateTask {
 
     @Override
-    protected void configure() {
-        bind(DocSetCache.class)
-                .to(settings.getAsClass("index.cache.docset.type", SimpleDocSetCache.class, "org.elasticsearch.index.cache.docset.", "DocSetCache"))
-                .in(Scopes.SINGLETON);
+    public boolean runOnlyOnMaster() {
+        return false;
     }
 }

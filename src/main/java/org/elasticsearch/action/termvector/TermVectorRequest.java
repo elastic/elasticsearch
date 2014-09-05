@@ -26,12 +26,17 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.support.single.shard.SingleShardOperationRequest;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 /**
  * Request returning the term vector (doc frequency, positions, offsets) for a
@@ -46,9 +51,13 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
 
     private String id;
 
+    private BytesReference doc;
+
     private String routing;
 
     protected String preference;
+
+    private static final AtomicInteger randomInt = new AtomicInteger(0);
 
     // TODO: change to String[]
     private Set<String> selectedFields;
@@ -126,6 +135,23 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
      */
     public TermVectorRequest id(String id) {
         this.id = id;
+        return this;
+    }
+
+    /**
+     * Returns the artificial document from which term vectors are requested for.
+     */
+    public BytesReference doc() {
+        return doc;
+    }
+
+    /**
+     * Sets an artificial document from which term vectors are requested for.
+     */
+    public TermVectorRequest doc(XContentBuilder documentBuilder) {
+        // assign a random id to this artificial document, for routing
+        this.id(String.valueOf(randomInt.getAndAdd(1)));
+        this.doc = documentBuilder.bytes();
         return this;
     }
 
@@ -281,8 +307,8 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
         if (type == null) {
             validationException = ValidateActions.addValidationError("type is missing", validationException);
         }
-        if (id == null) {
-            validationException = ValidateActions.addValidationError("id is missing", validationException);
+        if (id == null && doc == null) {
+            validationException = ValidateActions.addValidationError("id or doc is missing", validationException);
         }
         return validationException;
     }
@@ -303,6 +329,12 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
         }
         type = in.readString();
         id = in.readString();
+
+        if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
+            if (in.readBoolean()) {
+                doc = in.readBytesReference();
+            }
+        }
         routing = in.readOptionalString();
         preference = in.readOptionalString();
         long flags = in.readVLong();
@@ -331,6 +363,13 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
         }
         out.writeString(type);
         out.writeString(id);
+
+        if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
+            out.writeBoolean(doc != null);
+            if (doc != null) {
+                out.writeBytesReference(doc);
+            }
+        }
         out.writeOptionalString(routing);
         out.writeOptionalString(preference);
         long longFlags = 0;
@@ -389,7 +428,15 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
                 } else if ("_type".equals(currentFieldName)) {
                     termVectorRequest.type = parser.text();
                 } else if ("_id".equals(currentFieldName)) {
+                    if (termVectorRequest.doc != null) {
+                        throw new ElasticsearchParseException("Either \"id\" or \"doc\" can be specified, but not both!");
+                    }
                     termVectorRequest.id = parser.text();
+                } else if ("doc".equals(currentFieldName)) {
+                    if (termVectorRequest.id != null) {
+                        throw new ElasticsearchParseException("Either \"id\" or \"doc\" can be specified, but not both!");
+                    }
+                    termVectorRequest.doc(jsonBuilder().copyCurrentStructure(parser));
                 } else if ("_routing".equals(currentFieldName) || "routing".equals(currentFieldName)) {
                     termVectorRequest.routing = parser.text();
                 } else {
@@ -398,7 +445,6 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
                 }
             }
         }
-
         if (fields.size() > 0) {
             String[] fieldsAsArray = new String[fields.size()];
             termVectorRequest.selectedFields(fields.toArray(fieldsAsArray));

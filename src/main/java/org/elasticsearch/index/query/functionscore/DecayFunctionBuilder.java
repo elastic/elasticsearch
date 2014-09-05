@@ -26,7 +26,7 @@ import org.elasticsearch.search.MultiValueMode;
 import java.io.IOException;
 import java.util.Locale;
 
-public abstract class DecayFunctionBuilder implements ScoreFunctionBuilder {
+public abstract class DecayFunctionBuilder extends ScoreFunctionBuilder {
 
     protected static final String ORIGIN = "origin";
     protected static final String SCALE = "scale";
@@ -60,7 +60,7 @@ public abstract class DecayFunctionBuilder implements ScoreFunctionBuilder {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(getName());
         builder.startObject(fieldName);
         if (origin != null) {
@@ -78,7 +78,6 @@ public abstract class DecayFunctionBuilder implements ScoreFunctionBuilder {
             builder.field(DecayFunctionParser.MULTI_VALUE_MODE.getPreferredName(), multiValueMode.name());
         }
         builder.endObject();
-        return builder;
     }
 
     public ScoreFunctionBuilder setMultiValueMode(MultiValueMode multiValueMode) {

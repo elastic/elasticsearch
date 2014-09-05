@@ -78,7 +78,7 @@ Contributing to the Elasticsearch codebase
 
 Make sure you have [Maven](http://maven.apache.org) installed, as Elasticsearch uses it as its build system. Integration with IntelliJ and Eclipse should work out of the box. Eclipse users can automatically configure their IDE by running `mvn eclipse:eclipse` and then importing the project into their workspace: `File > Import > Existing project into workspace`.
 
-Elasticsearch also works perfectly with Eclipse's [http://www.eclipse.org/m2e/](m2e).  Once you've installed m2e you can import Elasticsearch as an `Existing Maven Project`.
+Elasticsearch also works perfectly with Eclipse's [m2e](http://www.eclipse.org/m2e/).  Once you've installed m2e you can import Elasticsearch as an `Existing Maven Project`.
 
 Please follow these formatting guidelines:
 

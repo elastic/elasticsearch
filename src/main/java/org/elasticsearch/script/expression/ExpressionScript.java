@@ -21,7 +21,7 @@ package org.elasticsearch.script.expression;
 
 import org.apache.lucene.expressions.Bindings;
 import org.apache.lucene.expressions.Expression;
-import org.apache.lucene.expressions.XSimpleBindings;
+import org.apache.lucene.expressions.SimpleBindings;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.queries.function.FunctionValues;
 import org.apache.lucene.queries.function.ValueSource;
@@ -39,7 +39,7 @@ import java.util.Map;
 class ExpressionScript implements SearchScript {
 
     final Expression expression;
-    final XSimpleBindings bindings;
+    final SimpleBindings bindings;
     final ValueSource source;
     final ReplaceableConstValueSource specialValue; // _value
     Map<String, Scorer> context;
@@ -47,7 +47,7 @@ class ExpressionScript implements SearchScript {
     FunctionValues values;
     int docid;
 
-    ExpressionScript(Expression e, XSimpleBindings b, ReplaceableConstValueSource v) {
+    ExpressionScript(Expression e, SimpleBindings b, ReplaceableConstValueSource v) {
         expression = e;
         bindings = b;
         context = Collections.EMPTY_MAP;

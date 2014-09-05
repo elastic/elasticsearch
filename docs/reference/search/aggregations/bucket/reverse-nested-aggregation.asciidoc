@@ -45,34 +45,37 @@ tags that issues have the commenter has commented to:
 [source,js]
 --------------------------------------------------
 {
-    "query" : {
-        "match" : { "name" : "led tv" }
+  "query": {
+    "match": {
+      "name": "led tv"
     }
-    "aggs" : {
-        "comments" : {
-            "nested" : {
-                "path" : "comments"
-            },
-            "aggs" : {
-                "top_usernames" : {
-                    "terms" : {
-                        "field" : "comments.username"
-                    }
-                },
-                "aggs" : {
-                    "comment_to_issue" : {
-                        "reverse_nested" : { <1>
-                        },
-                        "aggs" : {
-                            "top_tags_per_comment" : {
-                                "terms" : { "field" : "tags" }
-                            }
-                        }
-                    }
+  },
+  "aggs": {
+    "comments": {
+      "nested": {
+        "path": "comments"
+      },
+      "aggs": {
+        "top_usernames": {
+          "terms": {
+            "field": "comments.username"
+          },
+          "aggs": {
+            "comment_to_issue": {
+              "reverse_nested": {}, <1>
+              "aggs": {
+                "top_tags_per_comment": {
+                  "terms": {
+                    "field": "tags"
+                  }
                 }
+              }
             }
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -89,29 +92,29 @@ Possible response snippet:
 [source,js]
 --------------------------------------------------
 {
-    "aggregations": {
-        "comments": {
-            "top_usernames": {
-                "buckets" : [
-                    {
-                        "key" : "username_1",
-                        "doc_count" : 12,
-                        "comment_to_issue" : {
-                            "top_tags_per_comment" : {
-                                "buckets" : [
-                                    {
-                                        "key" : "tag1",
-                                        "doc_count" : 9
-                                    },
-                                    ...
-                                ]
-                            }
-                        },
-                        ...
-                    }
+  "aggregations": {
+    "comments": {
+      "top_usernames": {
+        "buckets": [
+          {
+            "key": "username_1",
+            "doc_count": 12,
+            "comment_to_issue": {
+              "top_tags_per_comment": {
+                "buckets": [
+                  {
+                    "key": "tag1",
+                    "doc_count": 9
+                  },
+                  ...
                 ]
+              }
             }
-        }
+          },
+          ...
+        ]
+      }
     }
+  }
 }
 --------------------------------------------------

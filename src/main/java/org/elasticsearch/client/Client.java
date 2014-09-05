@@ -82,6 +82,8 @@ import org.elasticsearch.common.settings.Settings;
  */
 public interface Client extends ElasticsearchClient<Client>, Releasable {
 
+    String CLIENT_TYPE_SETTING = "client.type";
+
     /**
      * The admin client that can be used to perform administrative operations.
      */
@@ -533,7 +535,6 @@ public interface Client extends ElasticsearchClient<Client>, Releasable {
      */
     MoreLikeThisRequestBuilder prepareMoreLikeThis(String index, String type, String id);
 
-
     /**
      * An action that returns the term vectors for a specific document.
      *
@@ -550,6 +551,10 @@ public interface Client extends ElasticsearchClient<Client>, Releasable {
      */
     void termVector(TermVectorRequest request, ActionListener<TermVectorResponse> listener);
 
+    /**
+     * Builder for the term vector request.
+     */
+    TermVectorRequestBuilder prepareTermVector();
 
     /**
      * Builder for the term vector request.
@@ -559,7 +564,6 @@ public interface Client extends ElasticsearchClient<Client>, Releasable {
      * @param id    The id of the document
      */
     TermVectorRequestBuilder prepareTermVector(String index, String type, String id);
-
 
     /**
      * Multi get term vectors.
@@ -575,7 +579,6 @@ public interface Client extends ElasticsearchClient<Client>, Releasable {
      * Multi get term vectors.
      */
     MultiTermVectorsRequestBuilder prepareMultiTermVectors();
-
 
     /**
      * Percolates a request returning the matches documents.

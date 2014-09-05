@@ -50,6 +50,9 @@ public class DeleteIndexedScriptRequest extends ActionRequest<DeleteIndexedScrip
     private VersionType versionType = VersionType.INTERNAL;
 
 
+    public DeleteIndexedScriptRequest() {
+    }
+
     /**
      * Constructs a new delete request against the specified index with the scriptLang and id.
      *
@@ -59,17 +62,6 @@ public class DeleteIndexedScriptRequest extends ActionRequest<DeleteIndexedScrip
     public DeleteIndexedScriptRequest(String scriptLang, String id) {
         this.scriptLang = scriptLang;
         this.id = id;
-    }
-
-    public DeleteIndexedScriptRequest(DeleteIndexedScriptRequest request) {
-        super(request);
-        this.scriptLang = request.scriptLang();
-        this.id = request.id();
-        this.version = request.version();
-        this.versionType = request.versionType();
-    }
-
-    public DeleteIndexedScriptRequest() {
     }
 
     @Override

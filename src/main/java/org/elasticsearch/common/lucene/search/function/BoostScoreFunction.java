@@ -21,11 +21,15 @@ package org.elasticsearch.common.lucene.search.function;
 
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Explanation;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 
 /**
  *
  */
+@Deprecated
 public class BoostScoreFunction extends ScoreFunction {
+
+    public static final String BOOST_WEIGHT_ERROR_MESSAGE = "'boost_factor' and 'weight' cannot be used together. Use 'weight'.";
 
     private final float boost;
 
@@ -56,27 +60,8 @@ public class BoostScoreFunction extends ScoreFunction {
     }
 
     @Override
-    public boolean equals(Object o) {
-        if (this == o)
-            return true;
-        if (o == null || getClass() != o.getClass())
-            return false;
-
-        BoostScoreFunction that = (BoostScoreFunction) o;
-
-        if (Float.compare(that.boost, boost) != 0)
-            return false;
-
-        return true;
-    }
-
-    @Override
-    public int hashCode() {
-        return (boost != +0.0f ? Float.floatToIntBits(boost) : 0);
-    }
-
-    @Override
     public String toString() {
         return "boost[" + boost + "]";
     }
+
 }

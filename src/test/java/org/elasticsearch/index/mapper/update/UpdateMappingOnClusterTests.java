@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 
-public class UpdateMappingOnCusterTests extends ElasticsearchIntegrationTest {
+public class UpdateMappingOnClusterTests extends ElasticsearchIntegrationTest {
 
     private static final String INDEX = "index";
     private static final String TYPE = "type";

@@ -1,3 +1,5 @@
+:backslash: \
+
 [[setup-service-win]]
 == Running as a Service on Windows
 
@@ -8,7 +10,7 @@ remove, manage or configure the service and potentially start and stop the servi
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-c:\elasticsearch-{version}\bin>service
+c:\elasticsearch-{version}{backslash}bin>service
 
 Usage: service.bat install|remove|start|stop|manager [SERVICE_ID]
 --------------------------------------------------

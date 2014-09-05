@@ -1042,7 +1042,11 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         }
         // wait for the merges outside of the read lock
         if (optimize.waitForMerge()) {
-            currentIndexWriter().waitForMerges();
+            try {
+                currentIndexWriter().waitForMerges();
+            } catch (IOException e) {
+                throw new OptimizeFailedEngineException(shardId, e);
+            }
         }
         if (optimize.flush()) {
             flush(new Flush().force(true).waitIfOngoing(true));
@@ -1383,7 +1387,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             config.setIndexDeletionPolicy(deletionPolicy);
             config.setInfoStream(new LoggerInfoStream(indexSettings, shardId));
             config.setMergeScheduler(mergeScheduler.newMergeScheduler());
-            MergePolicy mergePolicy = mergePolicyProvider.newMergePolicy();
+            MergePolicy mergePolicy = mergePolicyProvider.getMergePolicy();
             // Give us the opportunity to upgrade old segments while performing
             // background merges
             mergePolicy = new ElasticsearchMergePolicy(mergePolicy);

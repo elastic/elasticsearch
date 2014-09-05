@@ -19,18 +19,16 @@
 
 package org.elasticsearch.index.store;
 
-import org.apache.lucene.store.*;
-import org.elasticsearch.Version;
+import org.apache.lucene.store.CompoundFileDirectory;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FileSwitchDirectory;
+import org.apache.lucene.store.FilterDirectory;
 import org.elasticsearch.common.Nullable;
 
 /**
  * Utils for working with {@link Directory} classes.
  */
 public final class DirectoryUtils {
-
-    static {
-        assert Version.CURRENT.luceneVersion == org.apache.lucene.util.Version.LUCENE_4_9 : "Remove the special case for NRTCachingDirectory - it implements FilterDirectory in 4.10";
-    }
 
     private DirectoryUtils() {} // no instance
 
@@ -60,8 +58,6 @@ public final class DirectoryUtils {
         while (true) {
             if ((current instanceof FilterDirectory)) {
                 current = ((FilterDirectory) current).getDelegate();
-            } else if (current instanceof NRTCachingDirectory) { // remove this when we upgrade to Lucene 4.10
-                current = ((NRTCachingDirectory) current).getDelegate();
             } else {
                 break;
             }

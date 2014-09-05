@@ -58,8 +58,13 @@ public class StopTokenFilterTests extends ElasticsearchTokenStreamTestCase {
         if (random().nextBoolean()) {
             builder.put("index.analysis.filter.my_stop.enable_position_increments", true);
         }
-        if (random().nextBoolean()) {
-            builder.put("index.analysis.filter.my_stop.version", Version.values()[random().nextInt(Version.values().length)]);
+        int thingToDo = random().nextInt(3);
+        if (thingToDo == 0) {
+            builder.put("index.analysis.filter.my_stop.version", Version.LATEST);
+        } else if (thingToDo == 1) {
+            builder.put("index.analysis.filter.my_stop.version", Version.LUCENE_30);
+        } else {
+            // don't specify
         }
         AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(builder.build());
         TokenFilterFactory tokenFilter = analysisService.tokenFilter("my_stop");

@@ -20,8 +20,7 @@
 package org.elasticsearch.common.bytes;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.CharsRef;
-import org.apache.lucene.util.UnicodeUtil;
+import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -274,8 +273,8 @@ public class PagedBytesReference implements BytesReference {
         }
 
         byte[] bytes = toBytes();
-        final CharsRef ref = new CharsRef(length);
-        UnicodeUtil.UTF8toUTF16(bytes, offset, length, ref);
+        final CharsRefBuilder ref = new CharsRefBuilder();
+        ref.copyUTF8Bytes(bytes, offset, length);
         return ref.toString();
     }
 

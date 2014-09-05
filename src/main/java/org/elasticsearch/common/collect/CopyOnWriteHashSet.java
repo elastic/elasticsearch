@@ -19,9 +19,14 @@
 
 package org.elasticsearch.common.collect;
 
+import com.google.common.base.Function;
+import com.google.common.collect.Collections2;
 import com.google.common.collect.ForwardingSet;
+import com.google.common.collect.Maps;
 
 import java.util.Collection;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 
 /**
@@ -73,10 +78,13 @@ public class CopyOnWriteHashSet<T> extends ForwardingSet<T> {
      * case of equality.
      */
     public CopyOnWriteHashSet<T> copyAndAddAll(Collection<? extends T> entries) {
-        CopyOnWriteHashMap<T, Boolean> updated = this.map;
-        for (T entry : entries) {
-            updated = updated.copyAndPut(entry, true);
-        }
+        final Collection<Entry<T, Boolean>> asMapEntries = Collections2.transform(entries,new Function<T, Map.Entry<T, Boolean>>() {
+            @Override
+            public Entry<T, Boolean> apply(T input) {
+                return Maps.immutableEntry(input, true);
+            }
+        });
+        CopyOnWriteHashMap<T, Boolean> updated = this.map.copyAndPutAll(asMapEntries);
         return new CopyOnWriteHashSet<>(updated);
     }
 

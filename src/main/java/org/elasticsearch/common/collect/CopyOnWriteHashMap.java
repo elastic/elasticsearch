@@ -38,6 +38,9 @@ import java.util.*;
  * Reads and writes both perform in logarithmic time. Null keys and values are
  * not supported.
  *
+ * This structure might need to perform several object creations per write so
+ * it is better suited for work-loads that are not too write-intensive.
+ *
  * @see <a href="http://en.wikipedia.org/wiki/Hash_array_mapped_trie">the wikipedia page</a>
  */
 public final class CopyOnWriteHashMap<K, V> extends AbstractMap<K, V> {
@@ -250,7 +253,7 @@ public final class CopyOnWriteHashMap<K, V> extends AbstractMap<K, V> {
 
         /**
          * For a given hash on 6 bits, the slot number is the number of one
-         * bits on the right of <code>hash6</code>.
+         * bits on the right of the <code>hash6</code>-th bit.
          */
         private int slot(int hash6) {
             return Long.bitCount(mask & ((1L << hash6) - 1));
@@ -431,21 +434,14 @@ public final class CopyOnWriteHashMap<K, V> extends AbstractMap<K, V> {
 
     @Override
     public V get(Object key) {
-        if (key == null) {
-            return null; // null keys are not supported
-        }
+        Preconditions.checkArgument(key != null, "Null keys are not supported");
         final int hash = key.hashCode();
         return root.get(key, hash);
     }
 
     @Override
-    public boolean isEmpty() {
-        assert root.isEmpty() == (size == 0);
-        return super.isEmpty();
-    }
-
-    @Override
     public int size() {
+        assert size != 0 || root.isEmpty();
         return size;
     }
 
@@ -467,8 +463,12 @@ public final class CopyOnWriteHashMap<K, V> extends AbstractMap<K, V> {
      * Same as {@link #copyAndPut(Object, Object)} but for an arbitrary number of entries.
      */
     public CopyOnWriteHashMap<K, V> copyAndPutAll(Map<? extends K, ? extends V> other) {
+        return copyAndPutAll(other.entrySet());
+    }
+
+    <K1 extends K, V1 extends V> CopyOnWriteHashMap<K, V> copyAndPutAll(Collection<Map.Entry<K1, V1>> entries) {
         CopyOnWriteHashMap<K, V> result = this;
-        for (Map.Entry<? extends K, ? extends V> entry : other.entrySet()) {
+        for (Map.Entry<K1, V1> entry : entries) {
             result = result.copyAndPut(entry.getKey(), entry.getValue());
         }
         return result;
@@ -478,9 +478,7 @@ public final class CopyOnWriteHashMap<K, V> extends AbstractMap<K, V> {
      * Remove the given key from this map. The current hash table is not modified.
      */
     public CopyOnWriteHashMap<K, V> copyAndRemove(Object key) {
-        if (key == null) {
-            return this; // null keys are not supported
-        }
+        Preconditions.checkArgument(key != null, "Null keys are not supported");
         final int hash = key.hashCode();
         final InnerNode<K, V> newRoot = root.remove(key, hash);
         if (root == newRoot) {

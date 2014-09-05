@@ -329,9 +329,10 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
         this.nested = nested;
         this.dynamic = dynamic;
         this.pathType = pathType;
-        this.mappers = new CopyOnWriteHashMap<>();
-        if (mappers != null) {
-            this.mappers = this.mappers.copyAndPutAll(mappers);
+        if (mappers == null) {
+            this.mappers = new CopyOnWriteHashMap<>();
+        } else {
+            this.mappers = CopyOnWriteHashMap.copyOf(mappers);
         }
         this.nestedTypePathAsString = "__" + fullPath;
         this.nestedTypePathAsBytes = new BytesRef(nestedTypePathAsString);

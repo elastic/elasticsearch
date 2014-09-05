@@ -26,7 +26,7 @@ import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
  */
 public interface PingContextProvider extends DiscoveryNodesProvider {
 
-    /** return true if this node is joining the cluster for the first time */
-    boolean isFirstClusterJoin();
+    /** return true if this node has previously joined the cluster at least once. False if this is first join */
+    boolean nodeHasJoinedClusterOnce();
 
 }

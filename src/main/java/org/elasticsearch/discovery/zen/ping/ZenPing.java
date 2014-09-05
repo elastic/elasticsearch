@@ -54,36 +54,45 @@ public interface ZenPing extends LifecycleComponent<ZenPing> {
 
         private ClusterName clusterName;
 
-        private DiscoveryNode target;
+        private DiscoveryNode node;
 
         private DiscoveryNode master;
 
-        private boolean initialJoin;
+        private boolean hasJoinedOnce;
 
         private PingResponse() {
         }
 
-        public PingResponse(DiscoveryNode target, DiscoveryNode master, ClusterName clusterName, boolean initialJoin) {
-            this.target = target;
+        /**
+         * @param node          the node which this ping describes
+         * @param master        the current master of the node
+         * @param clusterName   the cluster name of the node
+         * @param hasJoinedOnce true if the joined has successfully joined the cluster before
+         */
+        public PingResponse(DiscoveryNode node, DiscoveryNode master, ClusterName clusterName, boolean hasJoinedOnce) {
+            this.node = node;
             this.master = master;
             this.clusterName = clusterName;
-            this.initialJoin = initialJoin;
+            this.hasJoinedOnce = hasJoinedOnce;
         }
 
         public ClusterName clusterName() {
             return this.clusterName;
         }
 
-        public DiscoveryNode target() {
-            return target;
+        /** the node which this ping describes */
+        public DiscoveryNode node() {
+            return node;
         }
 
+        /** the current master of the node */
         public DiscoveryNode master() {
             return master;
         }
 
-        public boolean initialJoin() {
-            return initialJoin;
+        /** true if the joined has successfully joined the cluster before */
+        public boolean hasJoinedOnce() {
+            return hasJoinedOnce;
         }
 
         public static PingResponse readPingResponse(StreamInput in) throws IOException {
@@ -95,16 +104,18 @@ public interface ZenPing extends LifecycleComponent<ZenPing> {
         @Override
         public void readFrom(StreamInput in) throws IOException {
             clusterName = readClusterName(in);
-            target = readNode(in);
+            node = readNode(in);
             if (in.readBoolean()) {
                 master = readNode(in);
             }
             if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
-                this.initialJoin = in.readBoolean();
+                this.hasJoinedOnce = in.readBoolean();
             } else {
-                // we prefer to elect nodes which are not in the process of joining the cluster for the first time.
-                // false is the safe choice here.
-                this.initialJoin = false;
+                // As of 1.4.0 we prefer to elect nodes which have previously successfully joined the cluster.
+                // Nodes before 1.4.0 do not take this into consideration. If pre<1.4.0 node elects it self as master
+                // based on the pings, we need to make sure we do the same. We therefore can not demote it
+                // and thus mark it as if it has previously joined.
+                this.hasJoinedOnce = true;
             }
 
         }
@@ -112,7 +123,7 @@ public interface ZenPing extends LifecycleComponent<ZenPing> {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             clusterName.writeTo(out);
-            target.writeTo(out);
+            node.writeTo(out);
             if (master == null) {
                 out.writeBoolean(false);
             } else {
@@ -120,13 +131,13 @@ public interface ZenPing extends LifecycleComponent<ZenPing> {
                 master.writeTo(out);
             }
             if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
-                out.writeBoolean(initialJoin);
+                out.writeBoolean(hasJoinedOnce);
             }
         }
 
         @Override
         public String toString() {
-            return "ping_response{target [" + target + "], master [" + master + "], initialJoin [" + initialJoin + "], cluster_name[" + clusterName.value() + "]}";
+            return "ping_response{node [" + node + "], master [" + master + "], hasJoinedOnce [" + hasJoinedOnce + "], cluster_name[" + clusterName.value() + "]}";
         }
     }
 }

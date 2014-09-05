@@ -171,7 +171,7 @@ public class ZenPingService extends AbstractLifecycleComponent<ZenPing> implemen
         public void onPing(PingResponse[] pings) {
             if (pings != null) {
                 for (PingResponse pingResponse : pings) {
-                    responses.put(pingResponse.target(), pingResponse);
+                    responses.put(pingResponse.node(), pingResponse);
                 }
             }
             if (counter.decrementAndGet() == 0) {

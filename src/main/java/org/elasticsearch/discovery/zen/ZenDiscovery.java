@@ -70,6 +70,7 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
@@ -140,8 +141,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
     private volatile boolean rejoinOnMasterGone;
 
-    // will be set to true upon the first successful cluster join
-    private final AtomicBoolean hasJoinedClusterOnce = new AtomicBoolean();
+    /** counts the time this node has joined the cluster or have elected it self as master */
+    private final AtomicLong clusterJoinsCounter = new AtomicLong();
 
     @Nullable
     private NodeService nodeService;
@@ -311,8 +312,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     }
 
     @Override
-    public boolean isFirstClusterJoin() {
-        return !hasJoinedClusterOnce.get();
+    public boolean nodeHasJoinedClusterOnce() {
+        return clusterJoinsCounter.get() > 0;
     }
 
     /** end of {@link org.elasticsearch.discovery.zen.ping.PingContextProvider } implementation */
@@ -400,7 +401,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                     @Override
                     public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                         sendInitialStateEventIfNeeded();
-                        hasJoinedClusterOnce.set(true);
+                        long count = clusterJoinsCounter.incrementAndGet();
+                        logger.trace("cluster joins counter set to [{}] (elected as master)", count);
                     }
                 });
             } else {
@@ -418,7 +420,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 }
 
                 masterFD.start(masterNode, "initial_join");
-                hasJoinedClusterOnce.set(true);
+                long count = clusterJoinsCounter.incrementAndGet();
+                logger.trace("cluster joins counter set to [{}] (joined master)", count);
             }
         }
     }
@@ -944,7 +947,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         // filter responses
         List<ZenPing.PingResponse> pingResponses = Lists.newArrayList();
         for (ZenPing.PingResponse pingResponse : fullPingResponses) {
-            DiscoveryNode node = pingResponse.target();
+            DiscoveryNode node = pingResponse.node();
             if (masterElectionFilterClientNodes && (node.clientNode() || (!node.masterNode() && !node.dataNode()))) {
                 // filter out the client node, which is a client node, or also one that is not data and not master (effectively, client)
             } else if (masterElectionFilterDataNodes && (!node.masterNode() && node.dataNode())) {
@@ -982,15 +985,16 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         Set<DiscoveryNode> joinedOnceActiveNodes = Sets.newHashSet();
         if (localNode.masterNode()) {
             activeNodes.add(localNode);
-            if (hasJoinedClusterOnce.get()) {
-                logger.trace("adding local node to the list of active nodes who has previously joined the cluster");
+            long joinsCounter = clusterJoinsCounter.get();
+            if (joinsCounter > 0) {
+                logger.trace("adding local node to the list of active nodes who has previously joined the cluster (joins counter is [{}})", joinsCounter);
                 joinedOnceActiveNodes.add(localNode);
             }
         }
         for (ZenPing.PingResponse pingResponse : pingResponses) {
-            activeNodes.add(pingResponse.target());
-            if (!pingResponse.initialJoin()) {
-                joinedOnceActiveNodes.add(pingResponse.target());
+            activeNodes.add(pingResponse.node());
+            if (pingResponse.hasJoinedOnce()) {
+                joinedOnceActiveNodes.add(pingResponse.node());
             }
         }
 

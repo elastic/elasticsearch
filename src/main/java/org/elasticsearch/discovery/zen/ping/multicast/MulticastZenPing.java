@@ -213,6 +213,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
             BytesStreamOutput bStream = new BytesStreamOutput();
             StreamOutput out = new HandlesStreamOutput(bStream);
             out.writeBytes(INTERNAL_HEADER);
+            // TODO: change to min_required version!
             Version.writeVersion(version, out);
             out.writeInt(id);
             clusterName.writeTo(out);
@@ -250,7 +251,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
             if (responses == null) {
                 logger.warn("received ping response {} with no matching id [{}]", request.pingResponse, request.id);
             } else {
-                responses.put(request.pingResponse.target(), request.pingResponse);
+                responses.put(request.pingResponse.node(), request.pingResponse);
             }
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
@@ -433,7 +434,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
             }
             final MulticastPingResponse multicastPingResponse = new MulticastPingResponse();
             multicastPingResponse.id = id;
-            multicastPingResponse.pingResponse = new PingResponse(discoveryNodes.localNode(), discoveryNodes.masterNode(), clusterName, contextProvider.isFirstClusterJoin());
+            multicastPingResponse.pingResponse = new PingResponse(discoveryNodes.localNode(), discoveryNodes.masterNode(), clusterName, contextProvider.nodeHasJoinedClusterOnce());
 
             if (logger.isTraceEnabled()) {
                 logger.trace("[{}] received ping_request from [{}], sending {}", id, requestingNode, multicastPingResponse.pingResponse);

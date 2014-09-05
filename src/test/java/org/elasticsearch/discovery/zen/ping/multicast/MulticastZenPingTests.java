@@ -85,8 +85,8 @@ public class MulticastZenPingTests extends ElasticsearchTestCase {
             }
 
             @Override
-            public boolean isFirstClusterJoin() {
-                return true;
+            public boolean nodeHasJoinedClusterOnce() {
+                return false;
             }
         });
         zenPingA.start();
@@ -104,8 +104,8 @@ public class MulticastZenPingTests extends ElasticsearchTestCase {
             }
 
             @Override
-            public boolean isFirstClusterJoin() {
-                return false;
+            public boolean nodeHasJoinedClusterOnce() {
+                return true;
             }
         });
         zenPingB.start();
@@ -114,14 +114,14 @@ public class MulticastZenPingTests extends ElasticsearchTestCase {
             logger.info("ping from A");
             ZenPing.PingResponse[] pingResponses = zenPingA.pingAndWait(TimeValue.timeValueSeconds(1));
             assertThat(pingResponses.length, equalTo(1));
-            assertThat(pingResponses[0].target().id(), equalTo("B"));
-            assertFalse(pingResponses[0].initialJoin());
+            assertThat(pingResponses[0].node().id(), equalTo("B"));
+            assertTrue(pingResponses[0].hasJoinedOnce());
 
             logger.info("ping from B");
             pingResponses = zenPingB.pingAndWait(TimeValue.timeValueSeconds(1));
             assertThat(pingResponses.length, equalTo(1));
-            assertThat(pingResponses[0].target().id(), equalTo("A"));
-            assertTrue(pingResponses[0].initialJoin());
+            assertThat(pingResponses[0].node().id(), equalTo("A"));
+            assertFalse(pingResponses[0].hasJoinedOnce());
 
         } finally {
             zenPingA.close();
@@ -155,7 +155,7 @@ public class MulticastZenPingTests extends ElasticsearchTestCase {
             }
 
             @Override
-            public boolean isFirstClusterJoin() {
+            public boolean nodeHasJoinedClusterOnce() {
                 return false;
             }
         });

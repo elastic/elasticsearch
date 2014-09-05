@@ -277,9 +277,21 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
     @Override
     public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
         TimestampFieldMapper timestampFieldMapperMergeWith = (TimestampFieldMapper) mergeWith;
+        super.merge(mergeWith, mergeContext);
         if (!mergeContext.mergeFlags().simulate()) {
             if (timestampFieldMapperMergeWith.enabledState != enabledState && !timestampFieldMapperMergeWith.enabledState.unset()) {
                 this.enabledState = timestampFieldMapperMergeWith.enabledState;
+            }
+        } else {
+            if (!timestampFieldMapperMergeWith.defaultTimestamp().equals(defaultTimestamp)) {
+                mergeContext.addConflict("Cannot update default in _timestamp value. Value is " + defaultTimestamp.toString() + " now encountering " + timestampFieldMapperMergeWith.defaultTimestamp());
+            }
+            if (this.path != null) {
+                if (!path.equals(timestampFieldMapperMergeWith.path())) {
+                    mergeContext.addConflict("Cannot update path in _timestamp value. Value is " + path + " now encountering " + timestampFieldMapperMergeWith.path());
+                }
+            } else if (timestampFieldMapperMergeWith.path() != null) {
+                mergeContext.addConflict("Cannot update path in _timestamp value. Value is " + path + " now encountering null");
             }
         }
     }

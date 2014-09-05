@@ -237,26 +237,6 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
 
     @Override
     public void postParse(ParseContext context) throws IOException {
-        Float value = null;
-        List<IndexableField> fields = context.doc().getFields();
-        for (int i = 0, fieldsSize = fields.size(); i < fieldsSize; i++) {
-            IndexableField field = fields.get(i);
-            if (field.name().equals(name)) {
-                value = field.numericValue().floatValue();
-                break;
-            }
-        }
-        if (value == null) {
-            String previouslyIgnoredValue = context.ignoredValue(name);
-            if (previouslyIgnoredValue != null) {
-                value = Float.parseFloat(context.ignoredValue(name));
-            }
-        }
-        if (value != null) {
-            if (!Float.isNaN(value)) {
-                context.docBoost(value);
-            }
-        }
     }
 
     @Override
@@ -275,6 +255,7 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
         } else {
             context.ignoredValue(context.parser().currentName(), context.parser().textOrNull());
         }
+        context.docBoost(value);
     }
 
     private float parseFloatValue(ParseContext context) throws IOException {

@@ -133,29 +133,10 @@ public class AnalyzerMapper extends AbstractFieldMapper<String> implements Inter
 
     @Override
     public void postParse(ParseContext context) throws IOException {
-        Analyzer analyzer = context.docMapper().mappers().indexAnalyzer();
-        if (path != null) {
-            String value = null;
-            List<IndexableField> fields = context.doc().getFields();
-            for (int i = 0, fieldsSize = fields.size(); i < fieldsSize; i++) {
-                IndexableField field = fields.get(i);
-                if (field.name().equals(path)) {
-                    value = field.stringValue();
-                    break;
-                }
-            }
-            if (value == null) {
-                value = context.ignoredValue(path);
-            }
-            if (value != null) {
-                analyzer = context.analysisService().analyzer(value);
-                if (analyzer == null) {
-                    throw new MapperParsingException("No analyzer found for [" + value + "] from path [" + path + "]");
-                }
-                analyzer = context.docMapper().mappers().indexAnalyzer(analyzer);
-            }
+        if (context.analyzer() == null) {
+            Analyzer analyzer = context.docMapper().mappers().indexAnalyzer();
+            context.analyzer(analyzer);
         }
-        context.analyzer(analyzer);
     }
 
     @Override
@@ -185,11 +166,21 @@ public class AnalyzerMapper extends AbstractFieldMapper<String> implements Inter
 
     @Override
     protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
+        String value = context.parser().textOrNull();
         if (fieldType().indexed()) {
-            fields.add(new StringField(context.parser().currentName(), context.parser().textOrNull(), Field.Store.NO));
+            fields.add(new StringField(context.parser().currentName(), value, Field.Store.NO));
         } else {
-            context.ignoredValue(context.parser().currentName(), context.parser().textOrNull());
+            context.ignoredValue(context.parser().currentName(), value);
         }
+        Analyzer analyzer = context.docMapper().mappers().indexAnalyzer();
+        if (value != null) {
+            analyzer = context.analysisService().analyzer(value);
+            if (analyzer == null) {
+                throw new MapperParsingException("No analyzer found for [" + value + "] from path [" + path + "]");
+            }
+            analyzer = context.docMapper().mappers().indexAnalyzer(analyzer);
+        }
+        context.analyzer(analyzer);
     }
 
     @Override

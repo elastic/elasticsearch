@@ -49,7 +49,7 @@ public class AuthenticationModule extends AbstractModule implements SpawnModules
 
     @Override
     protected void configure() {
-        bind(AuthenticationService.class).to(InternalAuthenticationService.class);
+        bind(AuthenticationService.class).to(InternalAuthenticationService.class).asEagerSingleton();
         if (!esusersEnabled) {
             bind(ESUsersRealm.class).toProvider(Providers.of((ESUsersRealm) null));
         }

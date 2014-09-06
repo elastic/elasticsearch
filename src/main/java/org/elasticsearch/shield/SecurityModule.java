@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.audit.AuditTrailModule;
 import org.elasticsearch.shield.authc.AuthenticationModule;
 import org.elasticsearch.shield.authz.AuthorizationModule;
+import org.elasticsearch.shield.transport.SecuredRestModule;
 import org.elasticsearch.shield.transport.SecuredTransportModule;
 
 /**
@@ -48,14 +49,16 @@ public class SecurityModule extends AbstractModule implements SpawnModules, PreP
 
         // spawn needed parts in client mode
         if (isClient) {
-            return ImmutableList.of(new SecuredTransportModule());
+            return ImmutableList.of(new SecuredTransportModule(), new SecurityFilterModule());
         }
 
         return ImmutableList.of(
                 new AuthenticationModule(settings),
                 new AuthorizationModule(),
                 new AuditTrailModule(settings),
-                new SecuredTransportModule());
+                new SecuredTransportModule(),
+                new SecuredRestModule(),
+                new SecurityFilterModule());
     }
 
     @Override

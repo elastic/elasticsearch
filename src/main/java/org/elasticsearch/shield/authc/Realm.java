@@ -21,23 +21,29 @@ public interface Realm<T extends AuthenticationToken> {
      */
     String type();
 
-    boolean hasToken(RestRequest request);
-
-    /**
-     * Attempts to extract a authentication token from the request. If an appropriate token is found
-     * {@link #authenticate(AuthenticationToken)} will be called for an authentication attempt. If no
-     * appropriate token is found, {@code null} is returned.
-     *
-     * @param message   The request
-     * @return          The authentication token this realm can authenticate, {@code null} if no such
-     *                  token is found
-     */
-    T token(TransportMessage<?> message);
 
     /**
      * @return  {@code true} if this realm supports the given authentication token, {@code false} otherwise.
      */
     boolean supports(AuthenticationToken token);
+
+    /**
+     * Attempts to extract an authentication token from the given rest request. If an appropriate token
+     * is found it's returned, otherwise {@code null} is returned.
+     *
+     * @param request   The rest request
+     * @return          The authentication token or {@code null} if not found
+     */
+    T token(RestRequest request);
+
+    /**
+     * Attempts to extract an authentication token from the given transport message. If an appropriate token
+     * is found it's returned, otherwise {@code null} is returned.
+     *
+     * @param message   The transport message
+     * @return          The authentication token or {@code null} if not found
+     */
+    T token(TransportMessage<?> message);
 
     /**
      * Authenticates the given token. A successful authentication will return the User associated

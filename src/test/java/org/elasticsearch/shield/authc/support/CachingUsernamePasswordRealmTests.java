@@ -6,13 +6,12 @@
 package org.elasticsearch.shield.authc.support;
 
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.shield.User;
 import org.junit.Test;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertThat;
 
 public class CachingUsernamePasswordRealmTests {
@@ -27,11 +26,6 @@ public class CachingUsernamePasswordRealmTests {
         }
 
         @Override public String type() { return "test"; }
-
-        @Override
-        public boolean hasToken(RestRequest request) {
-            return true;
-        }
     }
 
 

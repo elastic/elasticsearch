@@ -17,6 +17,6 @@ public class AuthorizationModule extends AbstractModule {
     @Override
     protected void configure() {
         bind(RolesStore.class).to(FileRolesStore.class);
-        bind(AuthorizationService.class).to(InternalAuthorizationService.class);
+        bind(AuthorizationService.class).to(InternalAuthorizationService.class).asEagerSingleton();
     }
 }

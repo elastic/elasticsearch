@@ -44,8 +44,8 @@ public abstract class CachingUsernamePasswordRealm extends AbstractComponent imp
     }
 
     @Override
-    public boolean hasToken(RestRequest request) {
-        return UsernamePasswordToken.hasToken(request);
+    public UsernamePasswordToken token(RestRequest request) {
+        return UsernamePasswordToken.extractToken(request, null);
     }
 
     @Override

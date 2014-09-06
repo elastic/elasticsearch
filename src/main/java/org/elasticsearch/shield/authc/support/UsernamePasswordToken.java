@@ -13,6 +13,8 @@ import org.elasticsearch.shield.authc.AuthenticationToken;
 import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.transport.TransportRequest;
 
+import java.util.Arrays;
+import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -22,7 +24,6 @@ import java.util.regex.Pattern;
 public class UsernamePasswordToken implements AuthenticationToken {
 
     public static final String BASIC_AUTH_HEADER = "Authorization";
-    private static final String TOKEN_KEY = "X-ES-UsernamePasswordToken";
     private static final Pattern BASIC_AUTH_PATTERN = Pattern.compile("Basic\\s(.+)");
 
     private final String username;
@@ -43,13 +44,43 @@ public class UsernamePasswordToken implements AuthenticationToken {
         return password;
     }
 
-    public static boolean hasToken(RestRequest request) {
-        String header = request.header(BASIC_AUTH_HEADER);
-        return header != null && BASIC_AUTH_PATTERN.matcher(header).matches();
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        UsernamePasswordToken that = (UsernamePasswordToken) o;
+
+        return Arrays.equals(password, that.password) &&
+                Objects.equals(username, that.username);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(username, Arrays.hashCode(password));
     }
 
     public static UsernamePasswordToken extractToken(TransportMessage<?> message, UsernamePasswordToken defaultToken) {
         String authStr = message.getHeader(BASIC_AUTH_HEADER);
+        if (authStr == null) {
+            return defaultToken;
+        }
+
+        Matcher matcher = BASIC_AUTH_PATTERN.matcher(authStr.trim());
+        if (!matcher.matches()) {
+            throw new AuthenticationException("Invalid basic authentication header value");
+        }
+
+        String userpasswd = new String(Base64.decodeBase64(matcher.group(1)), Charsets.UTF_8);
+        int i = userpasswd.indexOf(':');
+        if (i < 0) {
+            throw new AuthenticationException("Invalid basic authentication header value");
+        }
+        return new UsernamePasswordToken(userpasswd.substring(0, i), userpasswd.substring(i+1).toCharArray());
+    }
+
+    public static UsernamePasswordToken extractToken(RestRequest request, UsernamePasswordToken defaultToken) {
+        String authStr = request.header(BASIC_AUTH_HEADER);
         if (authStr == null) {
             return defaultToken;
         }

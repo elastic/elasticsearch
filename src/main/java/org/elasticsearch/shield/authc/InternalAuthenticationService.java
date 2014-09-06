@@ -35,9 +35,11 @@ public class InternalAuthenticationService extends AbstractComponent implements 
     }
 
     @Override
-    public void verifyToken(RestRequest request) throws AuthenticationException {
+    public void extractAndRegisterToken(RestRequest request) throws AuthenticationException {
         for (Realm realm : realms) {
-            if (realm.hasToken(request)) {
+            AuthenticationToken token = realm.token(request);
+            if (token != null) {
+                request.putInContext(TOKEN_CTX_KEY, token);
                 return;
             }
         }

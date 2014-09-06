@@ -36,7 +36,7 @@ public class AuditTrailModule extends AbstractModule {
             bind(AuditTrail.class).toInstance(AuditTrail.NOOP);
             return;
         }
-        bind(AuditTrail.class).to(AuditTrailService.class);
+        bind(AuditTrail.class).to(AuditTrailService.class).asEagerSingleton();
         Multibinder<AuditTrail> binder = Multibinder.newSetBinder(binder(), AuditTrail.class);
 
         Set<String> uniqueOutputs = Sets.newHashSet(outputs);

@@ -7,6 +7,7 @@ package org.elasticsearch.shield.authc.ldap;
 
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.AuthenticationToken;
 import org.elasticsearch.shield.SecurityException;
@@ -23,6 +24,10 @@ import java.util.Set;
  * Authenticates username/password tokens against ldap, locates groups and maps them to roles.
  */
 public class LdapRealm extends CachingUsernamePasswordRealm implements Realm<UsernamePasswordToken> {
+
+    static {
+        BaseRestHandler.addUsefulHeaders(UsernamePasswordToken.BASIC_AUTH_HEADER);
+    }
 
     public static final String TYPE = "ldap";
 

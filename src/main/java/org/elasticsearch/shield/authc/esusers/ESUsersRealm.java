@@ -10,6 +10,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.name.Named;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.AuthenticationToken;
@@ -23,6 +24,10 @@ import org.elasticsearch.transport.TransportMessage;
  *
  */
 public class ESUsersRealm extends AbstractComponent implements Realm<UsernamePasswordToken> {
+
+    static {
+        BaseRestHandler.addUsefulHeaders(UsernamePasswordToken.BASIC_AUTH_HEADER);
+    }
 
     public static final String TYPE = "esusers";
 
@@ -42,8 +47,8 @@ public class ESUsersRealm extends AbstractComponent implements Realm<UsernamePas
     }
 
     @Override
-    public boolean hasToken(RestRequest request) {
-        return UsernamePasswordToken.hasToken(request);
+    public UsernamePasswordToken token(RestRequest request) {
+        return UsernamePasswordToken.extractToken(request, null);
     }
 
     @Override

@@ -35,8 +35,8 @@ public class SystemRealm implements Realm<AuthenticationToken> {
     }
 
     @Override
-    public boolean hasToken(RestRequest request) {
-        return false; // system calls never come from rest interface
+    public AuthenticationToken token(RestRequest request) {
+        return null; // system token can never come from the rest API
     }
 
     @Override

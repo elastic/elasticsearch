@@ -15,10 +15,10 @@ import org.elasticsearch.transport.TransportMessage;
 public interface AuthenticationService {
 
     /**
-     * Inspects the given rest request and verifies it carries an authentication token, if it doesn't
-     * an {@link AuthenticationException} is thrown
+     * Extracts an authentication token from the given rest request and if found registers it on
+     * the request. If not found, an {@link AuthenticationException} is thrown.
      */
-    void verifyToken(RestRequest request) throws AuthenticationException;
+    void extractAndRegisterToken(RestRequest request) throws AuthenticationException;
 
     /**
      * Extracts the authenticate token from the given message. If no recognized auth token is associated

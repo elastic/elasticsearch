@@ -11,7 +11,9 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.shield.authc.AuthenticationException;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.transport.TransportRequest;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 
 import static org.elasticsearch.shield.test.ShieldAssertions.assertContainsWWWAuthenticateHeader;
 import static org.hamcrest.Matchers.*;
@@ -22,6 +24,9 @@ import static org.mockito.Mockito.when;
  *
  */
 public class UsernamePasswordTokenTests extends ElasticsearchTestCase {
+
+    @Rule
+    public ExpectedException thrown = ExpectedException.none();
 
     @Test
     public void testPutToken() throws Exception {
@@ -80,25 +85,33 @@ public class UsernamePasswordTokenTests extends ElasticsearchTestCase {
     }
 
     @Test
-    public void testHasToken() throws Exception {
+    public void testExtractTokenRest() throws Exception {
         RestRequest request = mock(RestRequest.class);
-        when(request.header(UsernamePasswordToken.BASIC_AUTH_HEADER)).thenReturn("Basic foobar");
-        assertThat(UsernamePasswordToken.hasToken(request), is(true));
+        UsernamePasswordToken token = new UsernamePasswordToken("username", "changeme".toCharArray());
+        when(request.header(UsernamePasswordToken.BASIC_AUTH_HEADER)).thenReturn(UsernamePasswordToken.basicAuthHeaderValue("username", "changeme".toCharArray()));
+        assertThat(UsernamePasswordToken.extractToken(request, null), equalTo(token));
     }
 
     @Test
-    public void testHasToken_Missing() throws Exception {
+    public void testExtractTokenRest_Missing() throws Exception {
         RestRequest request = mock(RestRequest.class);
         when(request.header(UsernamePasswordToken.BASIC_AUTH_HEADER)).thenReturn(null);
-        assertThat(UsernamePasswordToken.hasToken(request), is(false));
+        assertThat(UsernamePasswordToken.extractToken(request, null), nullValue());
     }
 
     @Test
-    public void testHasToken_WithInvalidToken() throws Exception {
+    public void testExtractTokenRest_WithInvalidToken1() throws Exception {
+        thrown.expect(AuthenticationException.class);
         RestRequest request = mock(RestRequest.class);
         when(request.header(UsernamePasswordToken.BASIC_AUTH_HEADER)).thenReturn("invalid");
-        assertThat(UsernamePasswordToken.hasToken(request), is(false));
+        UsernamePasswordToken.extractToken(request, null);
+    }
+
+    @Test
+    public void testExtractTokenRest_WithInvalidToken2() throws Exception {
+        thrown.expect(AuthenticationException.class);
+        RestRequest request = mock(RestRequest.class);
         when(request.header(UsernamePasswordToken.BASIC_AUTH_HEADER)).thenReturn("Basic");
-        assertThat(UsernamePasswordToken.hasToken(request), is(false));
+        UsernamePasswordToken.extractToken(request, null);
     }
 }

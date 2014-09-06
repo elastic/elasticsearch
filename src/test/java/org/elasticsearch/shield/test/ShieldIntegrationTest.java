@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.is;
 
 @Ignore
 @AbstractRandomizedTest.Integration
-@ClusterScope(scope = Scope.SUITE, numDataNodes = 1, numClientNodes = 0)
+@ClusterScope(scope = Scope.SUITE, numDataNodes = 1, numClientNodes = 0, maxNumDataNodes = 1)
 public abstract class ShieldIntegrationTest extends ElasticsearchIntegrationTest {
 
     protected static final String DEFAULT_USER_NAME = "test_user";

@@ -16,9 +16,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.shield.authc.AuthenticationService;
 import org.elasticsearch.shield.authc.AuthenticationToken;
-import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.shield.authc.system.SystemRealm;
 import org.elasticsearch.shield.authz.AuthorizationService;
+import org.elasticsearch.shield.authz.SystemRole;
 import org.elasticsearch.shield.transport.TransportFilter;
 import org.elasticsearch.transport.TransportRequest;
 
@@ -31,29 +31,31 @@ public class SecurityFilter extends AbstractComponent {
     private final AuthorizationService authzService;
 
     @Inject
-    public SecurityFilter(Settings settings, AuthenticationService authcService, AuthorizationService authzService, RestController restController) {
+    public SecurityFilter(Settings settings, AuthenticationService authcService, AuthorizationService authzService) {
         super(settings);
         this.authcService = authcService;
         this.authzService = authzService;
-        restController.registerFilter(new Rest(this));
     }
 
     void process(String action, TransportRequest request) {
-        AuthenticationToken token = authcService.token(action, request, SystemRealm.TOKEN);
+
+        // if the action is a system action, we'll fall back on the system user, otherwise we
+        // won't fallback on any user and an authentication exception will be thrown
+        AuthenticationToken defaultToken = SystemRole.INSTANCE.check(action) ? SystemRealm.TOKEN : null;
+
+        AuthenticationToken token = authcService.token(action, request, defaultToken);
         User user = authcService.authenticate(action, request, token);
         authzService.authorize(user, action, request);
     }
 
     public static class Rest extends RestFilter {
 
-        static {
-            BaseRestHandler.addUsefulHeaders(UsernamePasswordToken.BASIC_AUTH_HEADER);
-        }
-
         private final SecurityFilter filter;
 
-        public Rest(SecurityFilter filter) {
+        @Inject
+        public Rest(SecurityFilter filter, RestController controller) {
             this.filter = filter;
+            controller.registerFilter(this);
         }
 
         @Override
@@ -63,7 +65,7 @@ public class SecurityFilter extends AbstractComponent {
 
         @Override
         public void process(RestRequest request, RestChannel channel, RestFilterChain filterChain) throws Exception {
-            filter.authcService.verifyToken(request);
+            filter.authcService.extractAndRegisterToken(request);
             filterChain.continueProcessing(request, channel);
         }
     }

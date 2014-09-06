@@ -111,5 +111,3 @@ com.ning.compress.lzf.LZFOutputStream#<init>(java.io.OutputStream)
 com.ning.compress.lzf.LZFOutputStream#<init>(java.io.OutputStream, com.ning.compress.BufferRecycler)
 com.ning.compress.lzf.LZFUncompressor#<init>(com.ning.compress.DataHandler)
 com.ning.compress.lzf.LZFUncompressor#<init>(com.ning.compress.DataHandler, com.ning.compress.BufferRecycler)
-
-java.io.File#delete() @ use Files.delete for real exception, IOUtils.deleteFilesIgnoringExceptions if you dont care

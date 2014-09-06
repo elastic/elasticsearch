@@ -1,3 +1,5 @@
 @defaultMessage Convert to URI
 java.net.URL#getPath()
 java.net.URL#getFile()
+
+java.io.File#delete() @ use Files.delete for real exception, IOUtils.deleteFilesIgnoringExceptions if you dont care

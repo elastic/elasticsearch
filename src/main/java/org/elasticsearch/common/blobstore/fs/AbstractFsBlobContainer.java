@@ -29,8 +29,8 @@ import org.elasticsearch.common.collect.MapBuilder;
 
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.file.Files;
 
 /**
  *
@@ -67,7 +67,13 @@ public abstract class AbstractFsBlobContainer extends AbstractBlobContainer {
     }
 
     public boolean deleteBlob(String blobName) throws IOException {
-        return new File(path, blobName).delete();
+        // TODO: change this API to return void and just throw exception if it cannot delete?
+        try {
+            Files.delete(new File(path, blobName).toPath());
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     @Override

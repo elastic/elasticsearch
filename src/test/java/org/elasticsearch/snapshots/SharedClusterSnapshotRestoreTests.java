@@ -22,8 +22,8 @@ package org.elasticsearch.snapshots;
 import com.carrotsearch.randomizedtesting.LifecycleScope;
 import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableList;
-import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.LuceneTestCase.Slow;
+import org.apache.lucene.util.XIOUtils;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
@@ -41,6 +41,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetaData.State;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.SnapshotMetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
@@ -62,7 +63,8 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import static com.google.common.collect.Lists.newArrayList;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
@@ -731,8 +733,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         File testIndex1 = new File(indices, "test-idx-1");
         File testIndex2 = new File(indices, "test-idx-2");
         File testIndex2Shard0 = new File(testIndex2, "0");
-        new File(testIndex1, "snapshot-test-snap-1").delete();
-        new File(testIndex2Shard0, "snapshot-test-snap-1").delete();
+        XIOUtils.deleteFilesIfExist(new File(testIndex1, "snapshot-test-snap-1"), new File(testIndex2Shard0, "snapshot-test-snap-1"));
 
         logger.info("--> delete snapshot");
         client.admin().cluster().prepareDeleteSnapshot("test-repo", "test-snap-1").get();

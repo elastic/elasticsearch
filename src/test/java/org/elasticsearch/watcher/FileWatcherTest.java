@@ -26,6 +26,7 @@ import org.junit.Test;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.Charset;
+import java.nio.file.Files;
 import java.util.List;
 
 import static com.google.common.collect.Lists.newArrayList;
@@ -115,7 +116,7 @@ public class FileWatcherTest extends ElasticsearchTestCase {
         fileWatcher.checkAndNotify();
         assertThat(changes.notifications(), hasSize(0));
 
-        testFile.delete();
+        Files.delete(testFile.toPath());
         fileWatcher.checkAndNotify();
         assertThat(changes.notifications(), contains(equalTo("onFileDeleted: test.txt")));
 
@@ -161,8 +162,8 @@ public class FileWatcherTest extends ElasticsearchTestCase {
         fileWatcher.checkAndNotify();
         assertThat(changes.notifications(), hasSize(0));
 
-        new File(testDir, "test1.txt").delete();
-        new File(testDir, "test2.txt").delete();
+        Files.delete(new File(testDir, "test1.txt").toPath());
+        Files.delete(new File(testDir, "test2.txt").toPath());
 
         fileWatcher.checkAndNotify();
         assertThat(changes.notifications(), contains(
@@ -174,7 +175,7 @@ public class FileWatcherTest extends ElasticsearchTestCase {
         fileWatcher.checkAndNotify();
         assertThat(changes.notifications(), hasSize(0));
 
-        new File(testDir, "test0.txt").delete();
+        Files.delete(new File(testDir, "test0.txt").toPath());
         touch(new File(testDir, "test2.txt"));
         touch(new File(testDir, "test4.txt"));
         fileWatcher.checkAndNotify();
@@ -188,8 +189,8 @@ public class FileWatcherTest extends ElasticsearchTestCase {
 
         changes.notifications().clear();
 
-        new File(testDir, "test3.txt").delete();
-        new File(testDir, "test4.txt").delete();
+        Files.delete(new File(testDir, "test3.txt").toPath());
+        Files.delete(new File(testDir, "test4.txt").toPath());
         fileWatcher.checkAndNotify();
         assertThat(changes.notifications(), contains(
                 equalTo("onFileDeleted: test-dir/test3.txt"),
@@ -319,7 +320,7 @@ public class FileWatcherTest extends ElasticsearchTestCase {
 
         changes.notifications().clear();
 
-        subDir.delete();
+        Files.delete(subDir.toPath());
         subDir.mkdir();
 
         fileWatcher.checkAndNotify();
@@ -343,8 +344,8 @@ public class FileWatcherTest extends ElasticsearchTestCase {
         fileWatcher.init();
         changes.notifications().clear();
 
-        new File(testDir, "test0.txt").delete();
-        new File(testDir, "test1.txt").delete();
+        Files.delete(new File(testDir, "test0.txt").toPath());
+        Files.delete(new File(testDir, "test1.txt").toPath());
         fileWatcher.checkAndNotify();
         assertThat(changes.notifications(), contains(
                 equalTo("onFileDeleted: test-dir/test0.txt"),

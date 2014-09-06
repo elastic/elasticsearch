@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.translog.fs;
 
+import org.apache.lucene.util.XIOUtils;
+
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -70,11 +72,12 @@ public class RafReference {
         if (refCount.decrementAndGet() <= 0) {
             try {
                 raf.close();
-                if (delete) {
-                    file.delete();
-                }
             } catch (IOException e) {
                 // ignore
+            } finally {
+                if (delete) {
+                    XIOUtils.deleteFilesIgnoringExceptions(file);
+                }
             }
         }
     }

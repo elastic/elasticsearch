@@ -34,11 +34,15 @@ import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.translog.*;
+import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.index.translog.TranslogException;
+import org.elasticsearch.index.translog.TranslogStats;
+import org.elasticsearch.index.translog.TranslogStreams;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.channels.ClosedChannelException;
+import java.nio.file.Files;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -207,9 +211,10 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
                             continue;
                         }
                         try {
-                            file.delete();
+                            Files.delete(file.toPath());
                         } catch (Exception e) {
                             // ignore
+                            logger.trace("failed to delete files", e);
                         }
                     }
                 }

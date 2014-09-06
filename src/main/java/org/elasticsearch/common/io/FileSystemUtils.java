@@ -104,12 +104,4 @@ public class FileSystemUtils {
     }
 
     private FileSystemUtils() {}
-
-    public static void tryDeleteFile(File file) {
-        try {
-            file.delete();
-        } catch (SecurityException e1) {
-            // ignore
-        }
-    }
 }

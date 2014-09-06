@@ -43,6 +43,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
@@ -310,7 +311,11 @@ public class LocalGatewayShardsState extends AbstractComponent implements Cluste
         if (previousStateInfo != null && previousStateInfo.version != shardStateInfo.version) {
             for (File shardLocation : nodeEnv.shardLocations(shardId)) {
                 File stateFile = new File(new File(shardLocation, "_state"), "state-" + previousStateInfo.version);
-                stateFile.delete();
+                try {
+                    Files.delete(stateFile.toPath());
+                } catch (Exception e) {
+                    logger.debug("failed to delete files", e);
+                }
             }
         }
     }
@@ -384,7 +389,11 @@ public class LocalGatewayShardsState extends AbstractComponent implements Cluste
                 if (!name.startsWith("shards-")) {
                     continue;
                 }
-                stateFile.delete();
+                try {
+                    Files.delete(stateFile.toPath());
+                } catch (Exception e) {
+                    logger.debug("failed to delete files", e);
+                }
             }
         }
 

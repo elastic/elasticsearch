@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.blobstore.fs;
 
+import org.apache.lucene.util.XIOUtils;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.ImmutableBlobContainer;
@@ -71,7 +72,7 @@ public class FsImmutableBlobContainer extends AbstractFsBlobContainer implements
                 } catch (Throwable e) {
                     listener.onFailure(e);
                     // just on the safe size, try and delete it on failure
-                    FileSystemUtils.tryDeleteFile(file);
+                    XIOUtils.deleteFilesIgnoringExceptions(file);
                 } finally {
                    if (success) {
                        listener.onCompleted();

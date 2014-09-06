@@ -51,6 +51,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -401,7 +402,11 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
                     if (file.getName().equals(stateFileName)) {
                         continue;
                     }
-                    file.delete();
+                    try {
+                        Files.delete(file.toPath());
+                    } catch (Exception e) {
+                        logger.debug("failed to delete files", e);
+                    }
                 }
             }
         }
@@ -456,7 +461,11 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
                 if (file.getName().equals(globalFileName)) {
                     continue;
                 }
-                file.delete();
+                try {
+                    Files.delete(file.toPath());
+                } catch (Exception e) {
+                    logger.debug("failed to delete files", e);
+                }
             }
         }
     }
@@ -666,7 +675,11 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
                 if (!name.startsWith("metadata-")) {
                     continue;
                 }
-                stateFile.delete();
+                try {
+                    Files.delete(stateFile.toPath());
+                } catch (Exception e) {
+                    logger.debug("failed to delete files", e);
+                }
             }
         }
 

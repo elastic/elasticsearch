@@ -52,6 +52,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.EOFException;
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -276,7 +277,11 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
             }
             indexShard.performRecoveryFinalization(true);
 
-            recoveringTranslogFile.delete();
+            try {
+                Files.delete(recoveringTranslogFile.toPath());
+            } catch (Exception e) {
+                logger.trace("failed to delete files", e);
+            }
 
             for (final String type : typesToUpdate) {
                 final CountDownLatch latch = new CountDownLatch(1);

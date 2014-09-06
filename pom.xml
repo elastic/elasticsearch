@@ -30,7 +30,7 @@
     </repositories>
 
     <properties>
-        <lucene.version>4.9.0</lucene.version>
+        <lucene.version>4.10.0</lucene.version>
         <elasticsearch.version>1.4.0-SNAPSHOT</elasticsearch.version>
 
         <tests.jvms>auto</tests.jvms>

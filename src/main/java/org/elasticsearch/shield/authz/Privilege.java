@@ -5,8 +5,9 @@
  */
 package org.elasticsearch.shield.authz;
 
+import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
-import org.apache.lucene.util.automaton.BasicAutomata;
+import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.get.GetAction;
@@ -74,7 +75,7 @@ public abstract class Privilege<P extends Privilege<P>> {
 
     public static class Index extends AutomatonPrivilege<Index> {
 
-        public static final Index NONE =            new Index(Name.NONE,        BasicAutomata.makeEmpty());
+        public static final Index NONE =            new Index(Name.NONE,        Automata.makeEmpty());
         public static final Index ALL =             new Index(Name.ALL,         "indices:.*");
         public static final Index MANAGE =          new Index("manage",         "indices:monitor/.*", "indices:admin/.*");
         public static final Index CREATE_INDEX =    new Index("create_index",   "indices:admin/create");
@@ -173,7 +174,7 @@ public abstract class Privilege<P extends Privilege<P>> {
 
     public static class Cluster extends AutomatonPrivilege<Cluster> {
 
-        public static final Cluster NONE    = new Cluster(Name.NONE,    BasicAutomata.makeEmpty());
+        public static final Cluster NONE    = new Cluster(Name.NONE,    Automata.makeEmpty());
         public static final Cluster ALL     = new Cluster(Name.ALL,     "cluster:.*", "indices:admin/template/.*");
         public static final Cluster MONITOR = new Cluster("monitor",    "cluster:monitor/.*");
 
@@ -285,7 +286,7 @@ public abstract class Privilege<P extends Privilege<P>> {
             if (this.implies(other)) {
                 return (P) this;
             }
-            return create(name.add(other.name), automaton.union(other.automaton));
+            return create(name.add(other.name), Automatons.unionAndDeterminize(automaton, other.automaton));
         }
 
         protected P minus(P other) {
@@ -295,12 +296,12 @@ public abstract class Privilege<P extends Privilege<P>> {
             if (other == none() || !this.implies(other)) {
                 return (P) this;
             }
-            return create(name.remove(other.name), automaton.minus(other.automaton));
+            return create(name.remove(other.name), Automatons.minusAndDeterminize(automaton, other.automaton));
         }
 
         @Override
         public boolean implies(P other) {
-            return other.automaton.subsetOf(automaton);
+            return Operations.subsetOf(other.automaton, automaton);
         }
 
         public String toString() {

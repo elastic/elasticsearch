@@ -40,6 +40,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.file.Files;
 import java.util.*;
 
 /**
@@ -530,7 +531,7 @@ public class XAnalyzingSuggester extends Lookup {
       new OfflineSorter(new AnalyzingComparator(hasPayloads)).sort(tempInput, tempSorted);
 
       // Free disk space:
-      tempInput.delete();
+      Files.delete(tempInput.toPath());
 
       reader = new OfflineSorter.ByteSequencesReader(tempSorted);
      
@@ -625,14 +626,13 @@ public class XAnalyzingSuggester extends Lookup {
 
       success = true;
     } finally {
+      IOUtils.closeWhileHandlingException(reader, writer);
+
       if (success) {
-        IOUtils.close(reader, writer);
+        XIOUtils.deleteFilesIfExist(tempInput, tempSorted);
       } else {
-        IOUtils.closeWhileHandlingException(reader, writer);
+        XIOUtils.deleteFilesIgnoringExceptions(tempInput, tempSorted);
       }
-      
-      tempInput.delete();
-      tempSorted.delete();
     }
   }
 

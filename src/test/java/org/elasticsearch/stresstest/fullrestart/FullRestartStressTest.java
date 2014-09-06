@@ -19,13 +19,13 @@
 
 package org.elasticsearch.stresstest.fullrestart;
 
+import org.apache.lucene.util.XIOUtils;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -200,7 +200,11 @@ public class FullRestartStressTest {
                 File[] nodeDatas = ((InternalNode) node).injector().getInstance(NodeEnvironment.class).nodeDataLocations();
                 node.close();
                 if (clearNodeWork && !settings.get("gateway.type").equals("local")) {
-                    FileSystemUtils.deleteRecursively(nodeDatas);
+                    try {
+                        XIOUtils.rm(nodeDatas);
+                    } catch (Exception e) {
+                        logger.debug("failed to delete files", e);
+                    }
                 }
             }
 

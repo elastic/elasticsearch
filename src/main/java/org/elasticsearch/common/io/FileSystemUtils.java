@@ -23,7 +23,6 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.logging.ESLogger;
 
 import java.io.File;
-import java.io.FileFilter;
 import java.io.IOException;
 
 /**
@@ -66,76 +65,6 @@ public class FileSystemUtils {
     public static boolean exists(File... files) {
         for (File file : files) {
             if (file.exists()) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * Deletes the given files recursively. if <tt>deleteRoots</tt> is set to <code>true</code>
-     * the given root files will be deleted as well. Otherwise only their content is deleted.
-     */
-    public static boolean deleteRecursively(File[] roots, boolean deleteRoots) {
-
-        boolean deleted = true;
-        for (File root : roots) {
-            deleted &= deleteRecursively(root, deleteRoots);
-        }
-        return deleted;
-    }
-
-    /**
-     * Deletes all subdirectories of the given roots recursively.
-     */
-    public static boolean deleteSubDirectories(File[] roots) {
-
-        boolean deleted = true;
-        for (File root : roots) {
-            if (root.isDirectory()) {
-                File[] files = root.listFiles(new FileFilter() {
-                    @Override
-                    public boolean accept(File pathname) {
-                        return pathname.isDirectory();
-                    }
-                });
-                deleted &= deleteRecursively(files, true);
-            }
-
-        }
-        return deleted;
-    }
-
-    /**
-     * Deletes the given files recursively including the given roots.
-     */
-    public static boolean deleteRecursively(File... roots) {
-       return deleteRecursively(roots, true);
-    }
-
-    /**
-     * Delete the supplied {@link java.io.File} - for directories,
-     * recursively delete any nested directories or files as well.
-     *
-     * @param root       the root <code>File</code> to delete
-     * @param deleteRoot whether or not to delete the root itself or just the content of the root.
-     * @return <code>true</code> if the <code>File</code> was deleted,
-     *         otherwise <code>false</code>
-     */
-    public static boolean deleteRecursively(File root, boolean deleteRoot) {
-        if (root != null && root.exists()) {
-            if (root.isDirectory()) {
-                File[] children = root.listFiles();
-                if (children != null) {
-                    for (File aChildren : children) {
-                        deleteRecursively(aChildren, true);
-                    }
-                }
-            }
-
-            if (deleteRoot) {
-                return root.delete();
-            } else {
                 return true;
             }
         }

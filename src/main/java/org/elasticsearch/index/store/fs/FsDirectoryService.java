@@ -20,6 +20,7 @@
 package org.elasticsearch.index.store.fs;
 
 import org.apache.lucene.store.*;
+import org.apache.lucene.util.XIOUtils;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.metrics.CounterMetric;
@@ -35,6 +36,7 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InterruptedIOException;
+import java.nio.file.Files;
 
 /**
  */
@@ -81,9 +83,9 @@ public abstract class FsDirectoryService extends AbstractIndexShardComponent imp
         File directory = fsDirectory.getDirectory();
         File old = new File(directory, from);
         File nu = new File(directory, to);
-        if (nu.exists())
-            if (!nu.delete())
-                throw new IOException("Cannot delete " + nu);
+        if (nu.exists()) {
+            Files.delete(nu.toPath());
+        }
 
         if (!old.exists()) {
             throw new FileNotFoundException("Can't rename from [" + from + "] to [" + to + "], from does not exists");
@@ -112,11 +114,19 @@ public abstract class FsDirectoryService extends AbstractIndexShardComponent imp
         if (fsDirectory == null) {
             throw new ElasticsearchIllegalArgumentException("Can not fully delete on non-filesystem based directory");
         }
-        FileSystemUtils.deleteRecursively(fsDirectory.getDirectory());
+        try {
+            XIOUtils.rm(fsDirectory.getDirectory());
+        } catch (Exception e) {
+            logger.debug("failed to delete files", e);
+        }
         // if we are the last ones, delete also the actual index
         String[] list = fsDirectory.getDirectory().getParentFile().list();
         if (list == null || list.length == 0) {
-            FileSystemUtils.deleteRecursively(fsDirectory.getDirectory().getParentFile());
+            try {
+                XIOUtils.rm(fsDirectory.getDirectory().getParentFile());
+            } catch (Exception e) {
+                logger.debug("failed to delete files", e);
+            }
         }
     }
     

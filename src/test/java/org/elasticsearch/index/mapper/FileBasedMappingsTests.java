@@ -21,10 +21,10 @@ package org.elasticsearch.index.mapper;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.io.Files;
+import org.apache.lucene.util.XIOUtils;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
-import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -98,7 +98,11 @@ public class FileBasedMappingsTests extends ElasticsearchTestCase {
                 assertEquals(ImmutableSet.of("f", "g", "h"), properties.keySet());
             }
         } finally {
-            FileSystemUtils.deleteRecursively(configDir);
+            try {
+                XIOUtils.rm(configDir);
+            } catch (Exception e) {
+                logger.debug("failed to delete files", e);
+            }
         }
     }
 

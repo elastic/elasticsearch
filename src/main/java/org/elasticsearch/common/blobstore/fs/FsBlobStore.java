@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.blobstore.fs;
 
+import org.apache.lucene.util.XIOUtils;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.BlobStoreException;
@@ -84,7 +85,11 @@ public class FsBlobStore extends AbstractComponent implements BlobStore {
 
     @Override
     public void delete(BlobPath path) {
-        FileSystemUtils.deleteRecursively(buildPath(path));
+        try {
+            XIOUtils.rm(buildPath(path));
+        } catch (Exception e) {
+            logger.debug("failed to delete files", e);
+        }
     }
 
     @Override

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.allocation;
 
+import org.apache.lucene.util.XIOUtils;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
@@ -40,6 +41,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.junit.Test;
 
 import java.io.File;
@@ -47,7 +49,6 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -196,7 +197,7 @@ public class ClusterRerouteTests extends ElasticsearchIntegrationTest {
 
         logger.info("--> deleting the shard data [{}] ", Arrays.toString(shardLocation));
         assertThat(FileSystemUtils.exists(shardLocation), equalTo(true)); // verify again after cluster was shut down
-        assertThat(FileSystemUtils.deleteRecursively(shardLocation), equalTo(true));
+        XIOUtils.rm(shardLocation);
 
         logger.info("--> starting nodes back, will not allocate the shard since it has no data, but the index will be there");
         node_1 = internalCluster().startNode(commonSettings);

@@ -21,6 +21,7 @@ package org.elasticsearch.plugins;
 
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableSet;
+import org.apache.lucene.util.XIOUtils;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ElasticsearchTimeoutException;
@@ -34,10 +35,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 
-import javax.net.ssl.HttpsURLConnection;
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.TrustManager;
-import javax.net.ssl.X509TrustManager;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -51,6 +48,11 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.*;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
+
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509TrustManager;
 
 import static org.elasticsearch.common.Strings.hasLength;
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
@@ -226,7 +228,11 @@ public class PluginManager {
 
         if (FileSystemUtils.hasExtensions(extractLocation, ".java")) {
             debug("Plugin installation assumed to be site plugin, but contains source code, aborting installation...");
-            FileSystemUtils.deleteRecursively(extractLocation);
+            try {
+                XIOUtils.rm(extractLocation);
+            } catch (Exception e) {
+                debug("failed to delete files " + e);
+            }
             throw new IllegalArgumentException("Plugin installation assumed to be site plugin, but contains source code, aborting installation.");
         }
 
@@ -236,7 +242,9 @@ public class PluginManager {
         if (binFile.exists() && binFile.isDirectory()) {
             File toLocation = pluginHandle.binDir(environment);
             debug("Found bin, moving to " + toLocation.getAbsolutePath());
-            FileSystemUtils.deleteRecursively(toLocation);
+            if (toLocation.exists()) {
+                XIOUtils.rm(toLocation);
+            }
             if (!binFile.renameTo(toLocation)) {
                 throw new IOException("Could not move ["+ binFile.getAbsolutePath() + "] to [" + toLocation.getAbsolutePath() + "]");
             }
@@ -258,7 +266,9 @@ public class PluginManager {
         if (configFile.exists() && configFile.isDirectory()) {
             File toLocation = pluginHandle.configDir(environment);
             debug("Found config, moving to " + toLocation.getAbsolutePath());
-            FileSystemUtils.deleteRecursively(toLocation);
+            if (toLocation.exists()) {
+                XIOUtils.rm(toLocation);
+            }
             if (!configFile.renameTo(toLocation)) {
                 throw new IOException("Could not move ["+ configFile.getAbsolutePath() + "] to [" + configFile.getAbsolutePath() + "]");
             }
@@ -296,37 +306,25 @@ public class PluginManager {
         File pluginToDelete = pluginHandle.extractedDir(environment);
         if (pluginToDelete.exists()) {
             debug("Removing: " + pluginToDelete.getPath());
-            if (!FileSystemUtils.deleteRecursively(pluginToDelete, true)) {
-                throw new IOException("Unable to remove " + pluginHandle.name + ". Check file permissions on " +
-                        pluginToDelete.toString());
-            }
+            XIOUtils.rm(pluginToDelete);
             removed = true;
         }
         pluginToDelete = pluginHandle.distroFile(environment);
         if (pluginToDelete.exists()) {
             debug("Removing: " + pluginToDelete.getPath());
-            if (!pluginToDelete.delete()) {
-                throw new IOException("Unable to remove " + pluginHandle.name + ". Check file permissions on " +
-                        pluginToDelete.toString());
-            }
+            Files.delete(pluginToDelete.toPath());
             removed = true;
         }
         File binLocation = pluginHandle.binDir(environment);
         if (binLocation.exists()) {
             debug("Removing: " + binLocation.getPath());
-            if (!FileSystemUtils.deleteRecursively(binLocation)) {
-                throw new IOException("Unable to remove " + pluginHandle.name + ". Check file permissions on " +
-                        binLocation.toString());
-            }
+            XIOUtils.rm(binLocation);
             removed = true;
         }
         File configLocation = pluginHandle.configDir(environment);
         if (configLocation.exists()) {
             debug("Removing: " + configLocation.getPath());
-            if (!FileSystemUtils.deleteRecursively(configLocation)) {
-                throw new IOException("Unable to remove " + pluginHandle.name + ". Check file permissions on " +
-                        configLocation.toString());
-            }
+            XIOUtils.rm(configLocation);
             removed = true;
         }
         if (removed) {

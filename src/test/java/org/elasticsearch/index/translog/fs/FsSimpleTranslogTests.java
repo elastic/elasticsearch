@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.translog.fs;
 
-import org.elasticsearch.common.io.FileSystemUtils;
+import org.apache.lucene.util.XIOUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.translog.AbstractSimpleTranslogTests;
 import org.elasticsearch.index.translog.Translog;
@@ -46,6 +46,11 @@ public class FsSimpleTranslogTests extends AbstractSimpleTranslogTests {
 
     @AfterClass
     public static void cleanup() {
-        FileSystemUtils.deleteRecursively(new File("data/fs-simple-translog"), true);
+        try {
+            XIOUtils.rm(new File("data/fs-simple-translog"));
+        } catch (Exception e) {
+            System.err.println("failed to delete files");
+            e.printStackTrace(System.err);
+        }
     }
 }

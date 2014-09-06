@@ -315,17 +315,6 @@ public class LocalGatewayShardsState extends AbstractComponent implements Cluste
         }
     }
 
-    private void deleteShardState(ShardId shardId) {
-        logger.trace("[{}][{}] delete shard state", shardId.index().name(), shardId.id());
-        File[] shardLocations = nodeEnv.shardLocations(shardId);
-        for (File shardLocation : shardLocations) {
-            if (!shardLocation.exists()) {
-                continue;
-            }
-            FileSystemUtils.deleteRecursively(new File(shardLocation, "_state"));
-        }
-    }
-
     private void pre019Upgrade() throws Exception {
         long index = -1;
         File latest = null;

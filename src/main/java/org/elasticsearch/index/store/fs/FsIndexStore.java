@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.store.fs;
 
+import org.apache.lucene.util.XIOUtils;
 import org.elasticsearch.ElasticsearchIllegalStateException;
-import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
@@ -81,7 +81,11 @@ public abstract class FsIndexStore extends AbstractIndexStore {
         if (indexService.hasShard(shardId.id())) {
             throw new ElasticsearchIllegalStateException(shardId + " allocated, can't be deleted");
         }
-        FileSystemUtils.deleteRecursively(shardLocations(shardId));
+        try {
+            XIOUtils.rm(shardLocations(shardId));
+        } catch (Exception e) {
+            logger.debug("failed to delete files", e);
+        }
     }
 
     public File[] shardLocations(ShardId shardId) {

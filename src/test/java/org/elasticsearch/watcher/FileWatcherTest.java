@@ -19,6 +19,7 @@
 package org.elasticsearch.watcher;
 
 import com.carrotsearch.randomizedtesting.LifecycleScope;
+import org.apache.lucene.util.XIOUtils;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
@@ -28,8 +29,8 @@ import java.nio.charset.Charset;
 import java.util.List;
 
 import static com.google.common.collect.Lists.newArrayList;
-import static com.google.common.io.Files.*;
-import static org.elasticsearch.common.io.FileSystemUtils.deleteRecursively;
+import static com.google.common.io.Files.append;
+import static com.google.common.io.Files.touch;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -197,7 +198,11 @@ public class FileWatcherTest extends ElasticsearchTestCase {
 
 
         changes.notifications().clear();
-        deleteRecursively(testDir);
+        try {
+            XIOUtils.rm(testDir);
+        } catch (Exception e) {
+            logger.debug("failed to delete files", e);
+        }
         fileWatcher.checkAndNotify();
 
         assertThat(changes.notifications(), contains(
@@ -261,7 +266,11 @@ public class FileWatcherTest extends ElasticsearchTestCase {
         assertThat(changes.notifications(), hasSize(0));
 
         // Delete a directory, check notifications for
-        deleteRecursively(new File(testDir, "first-level"));
+        try {
+            XIOUtils.rm(new File(testDir, "first-level"));
+        } catch (Exception e) {
+            logger.debug("failed to delete files", e);
+        }
         fileWatcher.checkAndNotify();
         assertThat(changes.notifications(), contains(
                 equalTo("onFileDeleted: test-dir/first-level/file1.txt"),
@@ -294,7 +303,11 @@ public class FileWatcherTest extends ElasticsearchTestCase {
 
         changes.notifications().clear();
 
-        deleteRecursively(subDir);
+        try {
+            XIOUtils.rm(subDir);
+        } catch (Exception e) {
+            logger.debug("failed to delete files", e);
+        }
         touch(subDir);
         fileWatcher.checkAndNotify();
         assertThat(changes.notifications(), contains(

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.gateway.none;
 
+import org.apache.lucene.util.XIOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.action.index.NodeIndexDeletedAction;
@@ -28,7 +29,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.Gateway;
@@ -117,7 +117,11 @@ public class NoneGateway extends AbstractLifecycleComponent<Gateway> implements 
                 if (!newMetaData.hasIndex(current.index())) {
                     logger.debug("[{}] deleting index that is no longer part of the metadata (indices: [{}])", current.index(), newMetaData.indices().keys());
                     if (nodeEnv.hasNodeFile()) {
-                        FileSystemUtils.deleteRecursively(nodeEnv.indexLocations(new Index(current.index())));
+                        try {
+                            XIOUtils.rm(nodeEnv.indexLocations(new Index(current.index())));
+                        } catch (Exception e) {
+                            logger.debug("failed to delete files", e);
+                        }
                     }
                     try {
                         nodeIndexDeletedAction.nodeIndexStoreDeleted(event.state(), current.index(), event.state().nodes().localNodeId());

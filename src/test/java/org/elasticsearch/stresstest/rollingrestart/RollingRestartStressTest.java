@@ -19,13 +19,13 @@
 
 package org.elasticsearch.stresstest.rollingrestart;
 
+import org.apache.lucene.util.XIOUtils;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -170,7 +170,11 @@ public class RollingRestartStressTest {
             File[] nodeData = ((InternalNode) nodes[nodeIndex]).injector().getInstance(NodeEnvironment.class).nodeDataLocations();
             nodes[nodeIndex].close();
             if (clearNodeData) {
-                FileSystemUtils.deleteRecursively(nodeData);
+                try {
+                    XIOUtils.rm(nodeData);
+                } catch (Exception e) {
+                    logger.debug("failed to delete files", e);
+                }
             }
 
             try {

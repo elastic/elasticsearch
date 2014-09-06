@@ -29,6 +29,7 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
 import org.apache.lucene.util.AbstractRandomizedTest;
 import org.apache.lucene.util.IOUtils;
+import org.apache.lucene.util.XIOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.Version;
@@ -47,7 +48,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -772,7 +772,7 @@ public final class InternalTestCluster extends TestCluster {
             if (callback.clearData(name)) {
                 NodeEnvironment nodeEnv = getInstanceFromNode(NodeEnvironment.class, node);
                 if (nodeEnv.hasNodeFile()) {
-                    FileSystemUtils.deleteRecursively(nodeEnv.nodeDataLocations());
+                    XIOUtils.rm(nodeEnv.nodeDataLocations());
                 }
             }
             node = (InternalNode) nodeBuilder().settings(node.settings()).settings(newSettings).node();
@@ -939,7 +939,10 @@ public final class InternalTestCluster extends TestCluster {
         if (!dataDirToClean.isEmpty()) {
             boolean deleted = false;
             try {
-                deleted = FileSystemUtils.deleteSubDirectories(dataDirToClean.toArray(new File[dataDirToClean.size()]));
+                XIOUtils.rm(dataDirToClean.toArray(new File[dataDirToClean.size()]));
+                deleted = true;
+            } catch (Exception e) {
+                logger.debug("failed to delete files", e);
             } finally {
                 logger.info("Wipe data directory for all nodes locations: {} success: {}", this.dataDirToClean, deleted);
                 this.dataDirToClean.clear();

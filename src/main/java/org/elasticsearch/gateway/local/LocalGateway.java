@@ -22,6 +22,7 @@ package org.elasticsearch.gateway.local;
 import com.carrotsearch.hppc.ObjectFloatOpenHashMap;
 import com.carrotsearch.hppc.ObjectOpenHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import org.apache.lucene.util.XIOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.cluster.*;
@@ -30,7 +31,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.Gateway;
@@ -197,7 +197,11 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
 
     @Override
     public void reset() throws Exception {
-        FileSystemUtils.deleteRecursively(nodeEnv.nodeDataLocations());
+        try {
+            XIOUtils.rm(nodeEnv.nodeDataLocations());
+        } catch (Exception e) {
+            logger.debug("failed to delete files", e);
+        }
     }
 
     @Override

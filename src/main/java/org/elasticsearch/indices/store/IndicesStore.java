@@ -20,6 +20,7 @@
 package org.elasticsearch.indices.store;
 
 import org.apache.lucene.store.StoreRateLimiting;
+import org.apache.lucene.util.XIOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -322,7 +323,11 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
                             File[] shardLocations = nodeEnv.shardLocations(shardId);
                             if (FileSystemUtils.exists(shardLocations)) {
                                 logger.debug("{} deleting shard that is no longer used", shardId);
-                                FileSystemUtils.deleteRecursively(shardLocations);
+                                try {
+                                    XIOUtils.rm(shardLocations);
+                                } catch (Exception e) {
+                                    logger.debug("failed to delete files", e);
+                                }
                             }
                         }
                     } else {

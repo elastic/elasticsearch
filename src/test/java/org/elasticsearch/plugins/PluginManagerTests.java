@@ -20,6 +20,7 @@ package org.elasticsearch.plugins;
 
 import com.google.common.base.Predicate;
 import org.apache.http.impl.client.HttpClients;
+import org.apache.lucene.util.XIOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchTimeoutException;
@@ -36,6 +37,7 @@ import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
@@ -48,7 +50,6 @@ import java.io.IOException;
 import java.net.URI;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.equalTo;
@@ -121,8 +122,11 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
             assertThat(toolFile.canExecute(), is(true));
         } finally {
             // we need to clean up the copied dirs
-            FileSystemUtils.deleteRecursively(pluginBinDir);
-            FileSystemUtils.deleteRecursively(pluginConfigDir);
+            try {
+                XIOUtils.rm(pluginBinDir, pluginConfigDir);
+            } catch (Exception e) {
+                logger.debug("failed to delete files", e);
+            }
         }
     }
 
@@ -146,7 +150,11 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
             assertTrue(pluginBinDir.exists());
         } finally {
             // we need to clean up the copied dirs
-            FileSystemUtils.deleteRecursively(pluginBinDir);
+            try {
+                XIOUtils.rm(pluginBinDir);
+            } catch (Exception e) {
+                logger.debug("failed to delete files", e);
+            }
         }
     }
 
@@ -379,7 +387,12 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
     }
 
     private void deletePluginsFolder() {
-        FileSystemUtils.deleteRecursively(new File(PLUGIN_DIR));
+        // TODO: if this fails, won't it cause false test fails?
+        try {
+            XIOUtils.rm(new File(PLUGIN_DIR));
+        } catch (Exception e) {
+            logger.debug("failed to delete files", e);
+        }
     }
 
     @Test

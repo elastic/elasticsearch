@@ -7,6 +7,10 @@ package org.elasticsearch.shield.authc.ldap;
 
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.shield.authc.AuthenticationModule;
+import org.elasticsearch.shield.authc.Realm;
+
+import static org.elasticsearch.common.inject.name.Names.named;
 
 /**
  * Configures Ldap object injections
@@ -19,13 +23,17 @@ public class LdapModule extends AbstractModule {
     }
 
     public static boolean enabled(Settings settings) {
-        Settings ldapSettings = settings.getComponentSettings(LdapModule.class);
-        return ldapSettings != null && ldapSettings.getAsBoolean("enabled", true);
+        Settings authcSettings = settings.getAsSettings("shield.authc");
+        if (!authcSettings.names().contains("ldap")) {
+            return false;
+        }
+        Settings ldapSettings = authcSettings.getAsSettings("ldap");
+        return ldapSettings.getAsBoolean("enabled", true);
     }
 
     @Override
     protected void configure() {
-        bind(LdapRealm.class).asEagerSingleton();
+        bind(Realm.class).annotatedWith(named(LdapRealm.TYPE)).to(LdapRealm.class).asEagerSingleton();
         bind(LdapGroupToRoleMapper.class).asEagerSingleton();
         String mode = settings.getComponentSettings(LdapModule.class).get("mode", "ldap");
         if ("ldap".equals(mode)) {

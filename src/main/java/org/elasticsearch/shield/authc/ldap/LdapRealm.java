@@ -24,7 +24,7 @@ import java.util.Set;
  */
 public class LdapRealm extends CachingUsernamePasswordRealm implements Realm<UsernamePasswordToken> {
 
-    private static final String TYPE = "ldap";
+    public static final String TYPE = "ldap";
 
     private final LdapConnectionFactory connectionFactory;
     private final LdapGroupToRoleMapper roleMapper;

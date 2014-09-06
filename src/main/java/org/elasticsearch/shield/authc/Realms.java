@@ -23,6 +23,7 @@ public class Realms {
 
     @Inject
     public Realms(SystemRealm system, @Nullable ESUsersRealm esusers, @Nullable LdapRealm ldap) {
+
         List<Realm> realms = new ArrayList<>();
         realms.add(system);
         if (esusers != null) {

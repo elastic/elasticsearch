@@ -30,9 +30,6 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.*;
 
@@ -129,9 +126,9 @@ public class SecurityFilterTests extends ElasticsearchTestCase {
         ActionRequest request = mock(ActionRequest.class);
         ActionListener listener = mock(ActionListener.class);
         ActionFilterChain chain = mock(ActionFilterChain.class);
-        action.process("_action", request, listener, chain);
+        action.apply("_action", request, listener, chain);
         verify(filter).process("_action", request);
-        verify(chain).continueProcessing("_action", request, listener);
+        verify(chain).proceed("_action", request, listener);
     }
 
     @Test
@@ -143,7 +140,7 @@ public class SecurityFilterTests extends ElasticsearchTestCase {
         ActionFilterChain chain = mock(ActionFilterChain.class);
         RuntimeException exception = new RuntimeException("process-error");
         doThrow(exception).when(filter).process("_action", request);
-        action.process("_action", request, listener, chain);
+        action.apply("_action", request, listener, chain);
         verify(listener).onFailure(exception);
         verifyNoMoreInteractions(chain);
     }

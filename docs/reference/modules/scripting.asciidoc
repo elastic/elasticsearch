@@ -319,7 +319,9 @@ The `doc['field_name']` can be used to access specific field data within
 a document (the document in question is usually derived by the context
 the script is used). Document fields are very fast to access since they
 end up being loaded into memory (all the relevant field values/tokens
-are loaded to memory).
+are loaded to memory). Note, however, that the `doc[...]` notation only 
+allows for simple valued fields (can’t return a json object from it) 
+and makes sense only on non-analyzed or single term based fields.
 
 The following data can be extracted from a field:
 

@@ -980,7 +980,7 @@
                     <defaultUsername>root</defaultUsername>
                     <defaultGroupname>root</defaultGroupname>
                     <requires>
-                        <require>jre &gt;= 1.6.0</require>
+                        <require>jre &gt;= 1.7.0</require>
                         <require>/usr/bin/which</require>
                     </requires>
                     <mappings>

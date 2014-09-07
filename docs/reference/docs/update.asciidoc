@@ -208,9 +208,9 @@ including:
 
 `consistency`:: The write consistency of the index/delete operation.
 
-`refresh`::     Refresh the index immediately after the operation occurs,
-                so that the updated document appears in search results 
-                immediately.
+`refresh`::     Refresh the relevant primary and replica shards (not the whole
+                index) immediately after the operation occurs, so that the
+                updated document appears in search results  immediately.
 
 `fields`::      return the relevant fields from the updated document.
                 Support `_source` to return the full updated 

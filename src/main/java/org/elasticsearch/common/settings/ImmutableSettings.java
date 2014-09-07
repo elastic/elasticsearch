@@ -56,6 +56,19 @@ public class ImmutableSettings implements Settings {
 
     public static final Settings EMPTY = new Builder().build();
 
+    /** Name of the setting to use to disable required units for byte size, time settings. */
+    public static final String SETTINGS_REQUIRE_UNITS = "settings_require_units";
+
+    private static boolean settingsRequireUnits = true;
+
+    public static void setSettingsRequireUnits(boolean v) {
+        settingsRequireUnits = v;
+    }
+
+    public static boolean getSettingsRequireUnits() {
+        return settingsRequireUnits;
+    }
+
     private ImmutableMap<String, String> settings;
     private final ImmutableMap<String, String> forcedUnderscoreSettings;
     private transient ClassLoader classLoader;
@@ -372,32 +385,53 @@ public class ImmutableSettings implements Settings {
 
     @Override
     public TimeValue getAsTime(String setting, TimeValue defaultValue) {
-        return parseTimeValue(get(setting), defaultValue);
+        return parseTimeValue(get(setting), defaultValue, setting);
     }
 
     @Override
     public TimeValue getAsTime(String[] settings, TimeValue defaultValue) {
-        return parseTimeValue(get(settings), defaultValue);
+        // NOTE: duplicated from get(String[]) so we can pass which setting name was actually used to parseTimeValue:
+        for (String setting : settings) {
+            String retVal = get(setting);
+            if (retVal != null) {
+                parseTimeValue(get(settings), defaultValue, setting);
+            }
+        }
+        return defaultValue;
     }
 
     @Override
     public ByteSizeValue getAsBytesSize(String setting, ByteSizeValue defaultValue) throws SettingsException {
-        return parseBytesSizeValue(get(setting), defaultValue);
+        return parseBytesSizeValue(get(setting), defaultValue, setting);
     }
 
     @Override
     public ByteSizeValue getAsBytesSize(String[] settings, ByteSizeValue defaultValue) throws SettingsException {
-        return parseBytesSizeValue(get(settings), defaultValue);
+        // NOTE: duplicated from get(String[]) so we can pass which setting name was actually used to parseBytesSizeValue
+        for (String setting : settings) {
+            String retVal = get(setting);
+            if (retVal != null) {
+                parseBytesSizeValue(get(settings), defaultValue, setting);
+            }
+        }
+        return defaultValue;
     }
 
     @Override
     public ByteSizeValue getAsMemory(String setting, String defaultValue) throws SettingsException {
-        return MemorySizeValue.parseBytesSizeValueOrHeapRatio(get(setting, defaultValue));
+        return MemorySizeValue.parseBytesSizeValueOrHeapRatio(get(setting, defaultValue), setting);
     }
 
     @Override
     public ByteSizeValue getAsMemory(String[] settings, String defaultValue) throws SettingsException {
-        return MemorySizeValue.parseBytesSizeValueOrHeapRatio(get(settings, defaultValue));
+        // NOTE: duplicated from get(String[]) so we can pass which setting name was actually used to parseBytesSizeValueOrHeapRatio
+        for (String setting : settings) {
+            String retVal = get(setting);
+            if (retVal != null) {
+                return MemorySizeValue.parseBytesSizeValueOrHeapRatio(retVal, setting);
+            }
+        }
+        return MemorySizeValue.parseBytesSizeValueOrHeapRatio(defaultValue, null);
     }
 
     @Override
@@ -813,7 +847,7 @@ public class ImmutableSettings implements Settings {
          * @return The builder
          */
         public Builder put(String setting, long value, TimeUnit timeUnit) {
-            put(setting, timeUnit.toMillis(value));
+            put(setting, timeUnit.toMillis(value) + "ms");
             return this;
         }
 
@@ -825,7 +859,7 @@ public class ImmutableSettings implements Settings {
          * @return The builder
          */
         public Builder put(String setting, long value, ByteSizeUnit sizeUnit) {
-            put(setting, sizeUnit.toBytes(value));
+            put(setting, sizeUnit.toBytes(value) + "b");
             return this;
         }
 

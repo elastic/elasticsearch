@@ -61,7 +61,7 @@ public class RestSearchScrollAction extends BaseRestHandler {
         searchScrollRequest.listenerThreaded(false);
         String scroll = request.param("scroll");
         if (scroll != null) {
-            searchScrollRequest.scroll(new Scroll(parseTimeValue(scroll, null)));
+            searchScrollRequest.scroll(new Scroll(parseTimeValue(scroll, null, "scroll")));
         }
 
         client.searchScroll(searchScrollRequest, new RestStatusToXContentListener<SearchResponse>(channel));

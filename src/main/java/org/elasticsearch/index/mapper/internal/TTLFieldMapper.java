@@ -35,7 +35,6 @@ import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
-import org.elasticsearch.index.query.GeoShapeFilterParser;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -179,7 +178,7 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
         if (context.sourceToParse().ttl() < 0) { // no ttl has been provided externally
             long ttl;
             if (context.parser().currentToken() == XContentParser.Token.VALUE_STRING) {
-                ttl = TimeValue.parseTimeValue(context.parser().text(), null).millis();
+                ttl = TimeValue.parseTimeValue(context.parser().text(), null, "ttl").millis();
             } else {
                 ttl = context.parser().longValue(coerce.value());
             }

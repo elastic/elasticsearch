@@ -72,11 +72,11 @@ public class AckTests extends ElasticsearchIntegrationTest {
         createIndex("test");
 
         assertAcked(client().admin().indices().prepareUpdateSettings("test")
-                .setSettings(ImmutableSettings.builder().put("refresh_interval", 9999)));
+                .setSettings(ImmutableSettings.builder().put("refresh_interval", "9999ms")));
 
         for (Client client : clients()) {
             String refreshInterval = getLocalClusterState(client).metaData().index("test").settings().get("index.refresh_interval");
-            assertThat(refreshInterval, equalTo("9999"));
+            assertThat(refreshInterval, equalTo("9999ms"));
         }
     }
 
@@ -85,7 +85,7 @@ public class AckTests extends ElasticsearchIntegrationTest {
         createIndex("test");
 
         UpdateSettingsResponse updateSettingsResponse = client().admin().indices().prepareUpdateSettings("test").setTimeout("0s")
-                .setSettings(ImmutableSettings.builder().put("refresh_interval", 9999)).get();
+                .setSettings(ImmutableSettings.builder().put("refresh_interval", "9999ms")).get();
         assertThat(updateSettingsResponse.isAcknowledged(), equalTo(false));
     }
 

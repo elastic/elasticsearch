@@ -113,7 +113,7 @@ public class RestSearchAction extends BaseRestHandler {
 
         String scroll = request.param("scroll");
         if (scroll != null) {
-            searchRequest.scroll(new Scroll(parseTimeValue(scroll, null)));
+            searchRequest.scroll(new Scroll(parseTimeValue(scroll, null, "scroll")));
         }
 
         searchRequest.types(Strings.splitStringByCommaToArray(request.param("type")));

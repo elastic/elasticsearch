@@ -21,6 +21,7 @@ package org.elasticsearch.index.translog.fs;
 
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.index.translog.AbstractSimpleTranslogTests;
 import org.elasticsearch.index.translog.Translog;
 import org.junit.AfterClass;
@@ -37,7 +38,7 @@ public class FsBufferedTranslogTests extends AbstractSimpleTranslogTests {
         return new FsTranslog(shardId,
                 ImmutableSettings.settingsBuilder()
                         .put("index.translog.fs.type", FsTranslogFile.Type.BUFFERED.name())
-                        .put("index.translog.fs.buffer_size", 10 + randomInt(128 * 1024))
+                        .put("index.translog.fs.buffer_size", 10 + randomInt(128 * 1024), ByteSizeUnit.BYTES)
                         .build(),
                 new File(translogFileDirectory())
         );

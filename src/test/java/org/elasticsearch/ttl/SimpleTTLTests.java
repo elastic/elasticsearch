@@ -25,12 +25,10 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -58,7 +56,7 @@ public class SimpleTTLTests extends ElasticsearchIntegrationTest {
     protected Settings nodeSettings(int nodeOrdinal) {
         return settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put("indices.ttl.interval", PURGE_INTERVAL)
+                .put("indices.ttl.interval", PURGE_INTERVAL, TimeUnit.MILLISECONDS)
                 .put("cluster.routing.operation.use_type", false) // make sure we control the shard computation
                 .put("cluster.routing.operation.hash.type", "djb")
                 .build();

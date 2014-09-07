@@ -83,12 +83,21 @@ public class ByteSizeValueTests extends ElasticsearchTestCase {
         assertThat(ByteSizeValue.parseBytesSizeValue("1b").toString(), is("1b"));
         assertThat(ByteSizeValue.parseBytesSizeValue("23kb").toString(), is("23kb"));
         assertThat(ByteSizeValue.parseBytesSizeValue("23k").toString(), is("23kb"));
-        assertThat(ByteSizeValue.parseBytesSizeValue("23").toString(), is("23b"));
     }
 
     @Test(expected = ElasticsearchParseException.class)
     public void testFailOnEmptyParsing() {
         assertThat(ByteSizeValue.parseBytesSizeValue("").toString(), is("23kb"));
+    }
+
+    @Test(expected = ElasticsearchParseException.class)
+    public void testFailOnMissingUnits() {
+        ByteSizeValue.parseBytesSizeValue("23");
+    }
+
+    @Test(expected = ElasticsearchParseException.class)
+    public void testFailOnUnknownUnits() {
+        ByteSizeValue.parseBytesSizeValue("23jw");
     }
 
     @Test(expected = ElasticsearchParseException.class)

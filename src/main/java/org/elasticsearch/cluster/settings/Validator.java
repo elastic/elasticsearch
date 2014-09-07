@@ -45,11 +45,11 @@ public interface Validator {
         @Override
         public String validate(String setting, String value) {
             try {
-                if (TimeValue.parseTimeValue(value, null) == null) {
+                if (TimeValue.parseTimeValue(value, null, setting) == null) {
                     return "cannot parse value [" + value + "] as time";
                 }
             } catch (ElasticsearchParseException ex) {
-                return "cannot parse value [" + value + "] as time";
+                return ex.getMessage();
             }
             return null;
         }
@@ -59,7 +59,7 @@ public interface Validator {
         @Override
         public String validate(String setting, String value) {
             try {
-                TimeValue timeValue = TimeValue.parseTimeValue(value, null);
+                TimeValue timeValue = TimeValue.parseTimeValue(value, null, setting);
                 if (timeValue == null) {
                     return "cannot parse value [" + value + "] as time";
                 }
@@ -67,7 +67,7 @@ public interface Validator {
                     return "cannot parse value [" + value + "] as non negative time";
                 }
             } catch (ElasticsearchParseException ex) {
-                return "cannot parse value [" + value + "] as time";
+                return ex.getMessage();
             }
             return null;
         }
@@ -197,7 +197,7 @@ public interface Validator {
         @Override
         public String validate(String setting, String value) {
             try {
-                parseBytesSizeValue(value);
+                parseBytesSizeValue(value, setting);
             } catch (ElasticsearchParseException ex) {
                 return ex.getMessage();
             }

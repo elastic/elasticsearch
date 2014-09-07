@@ -26,6 +26,8 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.indices.breaker.CircuitBreakerStats;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.rest.RestStatus;
@@ -53,9 +55,10 @@ import static org.hamcrest.Matchers.*;
 @ClusterScope(scope = TEST, randomDynamicTemplates = false)
 public class CircuitBreakerServiceTests extends ElasticsearchIntegrationTest {
 
-    private String randomRidiculouslySmallLimit() {
-        // 3 different ways to say 100 bytes
-        return randomFrom(Arrays.asList("100b", "100"));
+    private ByteSizeValue randomRidiculouslySmallLimit() {
+        // 2 different ways to say 100 bytes
+        return randomFrom(Arrays.asList(ByteSizeValue.parseBytesSizeValue("100b"),
+                                        new ByteSizeValue(100, ByteSizeUnit.BYTES)));
          //, (10000. / JvmInfo.jvmInfo().getMem().getHeapMax().bytes()) + "%")); // this is prone to rounding errors and will fail if JVM memory changes!
     }
 

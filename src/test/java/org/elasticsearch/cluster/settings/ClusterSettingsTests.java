@@ -19,10 +19,14 @@
 
 package org.elasticsearch.cluster.settings;
 
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.DisableAllocationDecider;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.Matchers;
@@ -140,5 +144,42 @@ public class ClusterSettingsTests extends ElasticsearchIntegrationTest {
         assertAcked(response);
         assertThat(response.getTransientSettings().getAsMap().entrySet(), Matchers.emptyIterable());
         assertThat(discoverySettings.getPublishTimeout().seconds(), equalTo(1l));
+    }
+
+    @Test(expected = ElasticsearchIllegalArgumentException.class)
+    public void testMissingUnits() {
+        assertAcked(prepareCreate("test"));
+
+        // Should fail:
+        client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder().put("index.refresh_interval", "10")).execute().actionGet();
+    }
+
+    @Test
+    public void testMissingUnitsLenient() {
+        try {
+            createNode(ImmutableSettings.builder().put(ImmutableSettings.SETTINGS_REQUIRE_UNITS, "false").build());
+            assertAcked(prepareCreate("test"));
+            client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder().put("index.refresh_interval", "10")).execute().actionGet();
+        } finally {
+            // Restore the default so subsequent tests require units:
+            assertFalse(ImmutableSettings.getSettingsRequireUnits());
+            ImmutableSettings.setSettingsRequireUnits(true);
+        }
+    }
+
+    private void createNode(Settings settings) {
+        internalCluster().startNode(ImmutableSettings.builder()
+                        .put(ClusterName.SETTING, "ClusterSettingsTests")
+                        .put("node.name", "ClusterSettingsTests")
+                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put(EsExecutors.PROCESSORS, 1) // limit the number of threads created
+                        .put("http.enabled", false)
+                        .put("index.store.type", "ram")
+                        .put("config.ignore_system_properties", true) // make sure we get what we set :)
+                        .put("gateway.type", "none")
+                        .put("indices.memory.interval", "100ms")
+                        .put(settings)
+        );
     }
 }

@@ -24,6 +24,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.joda.time.Period;
 import org.joda.time.PeriodType;
 import org.joda.time.format.PeriodFormat;
@@ -33,9 +34,6 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.util.concurrent.TimeUnit;
 
-/**
- *
- */
 public class TimeValue implements Serializable, Streamable {
 
     public static TimeValue timeValueNanos(long nanos) {
@@ -226,6 +224,10 @@ public class TimeValue implements Serializable, Streamable {
     }
 
     public static TimeValue parseTimeValue(String sValue, TimeValue defaultValue) {
+        return parseTimeValue(sValue, defaultValue, null);
+    }
+
+    public static TimeValue parseTimeValue(String sValue, TimeValue defaultValue, String settingName) {
         if (sValue == null) {
             return defaultValue;
         }
@@ -245,12 +247,31 @@ public class TimeValue implements Serializable, Streamable {
                 millis = (long) (Double.parseDouble(sValue.substring(0, sValue.length() - 1)) * 24 * 60 * 60 * 1000);
             } else if (sValue.endsWith("w")) {
                 millis = (long) (Double.parseDouble(sValue.substring(0, sValue.length() - 1)) * 7 * 24 * 60 * 60 * 1000);
+            } else if (sValue.equals("-1")) {
+                // Allow this special value to be unit-less:
+                millis = -1;
+            } else if (sValue.equals("0")) {
+                // Allow this special value to be unit-less:
+                millis = 0;
             } else {
-                millis = Long.parseLong(sValue);
+                if (ImmutableSettings.getSettingsRequireUnits()) {
+                    if (settingName != null) {
+                        throw new ElasticsearchParseException("Failed to parse setting [" + settingName + "] with value [" + sValue + "] as a time value: unit is missing or unrecognized");
+                    } else {
+                        throw new ElasticsearchParseException("Failed to parse [" + sValue + "] as a time value: unit is missing or unrecognized");
+                    }
+                } else {
+                    // Leniency default to msec for bwc:
+                    millis = Long.parseLong(sValue);
+                }
             }
             return new TimeValue(millis, TimeUnit.MILLISECONDS);
         } catch (NumberFormatException e) {
-            throw new ElasticsearchParseException("Failed to parse [" + sValue + "]", e);
+            if (settingName != null) {
+                throw new ElasticsearchParseException("Failed to parse setting [" + settingName + "] with value [" + sValue + "]", e);
+            } else {
+                throw new ElasticsearchParseException("Failed to parse [" + sValue + "]", e);
+            }
         }
     }
 

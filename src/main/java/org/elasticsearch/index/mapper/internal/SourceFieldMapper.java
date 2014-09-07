@@ -151,7 +151,7 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
                         builder.compressThreshold(((Number) fieldNode).longValue());
                         builder.compress(true);
                     } else {
-                        builder.compressThreshold(ByteSizeValue.parseBytesSizeValue(fieldNode.toString()).bytes());
+                        builder.compressThreshold(ByteSizeValue.parseBytesSizeValue(fieldNode.toString(), "compress_threshold").bytes());
                         builder.compress(true);
                     }
                 } else if ("format".equals(fieldName)) {

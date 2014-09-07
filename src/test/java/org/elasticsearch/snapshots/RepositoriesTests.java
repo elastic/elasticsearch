@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.repositories.RepositoryException;
 import org.junit.After;
 import org.junit.Before;
@@ -126,7 +127,7 @@ public class RepositoriesTests extends AbstractSnapshotTests {
                 .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
                         .put("location", newTempDir(LifecycleScope.SUITE))
                         .put("compress", randomBoolean())
-                        .put("chunk_size", randomIntBetween(5, 100))
+                        .put("chunk_size", randomIntBetween(5, 100), ByteSizeUnit.BYTES)
                 )
                 .setTimeout("0s").get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(false));
@@ -136,7 +137,7 @@ public class RepositoriesTests extends AbstractSnapshotTests {
                 .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
                         .put("location", newTempDir(LifecycleScope.SUITE))
                         .put("compress", randomBoolean())
-                        .put("chunk_size", randomIntBetween(5, 100))
+                        .put("chunk_size", randomIntBetween(5, 100), ByteSizeUnit.BYTES)
                 ).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 

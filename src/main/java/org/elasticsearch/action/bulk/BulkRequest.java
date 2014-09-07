@@ -313,7 +313,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
                             timestamp = parser.text();
                         } else if ("_ttl".equals(currentFieldName) || "ttl".equals(currentFieldName)) {
                             if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
-                                ttl = TimeValue.parseTimeValue(parser.text(), null).millis();
+                                ttl = TimeValue.parseTimeValue(parser.text(), null, "ttl").millis();
                             } else {
                                 ttl = parser.longValue();
                             }

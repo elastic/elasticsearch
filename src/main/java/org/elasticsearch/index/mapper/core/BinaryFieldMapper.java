@@ -113,7 +113,7 @@ public class BinaryFieldMapper extends AbstractFieldMapper<BytesReference> {
                         builder.compressThreshold(((Number) fieldNode).longValue());
                         builder.compress(true);
                     } else {
-                        builder.compressThreshold(ByteSizeValue.parseBytesSizeValue(fieldNode.toString()).bytes());
+                        builder.compressThreshold(ByteSizeValue.parseBytesSizeValue(fieldNode.toString(), "compress_threshold").bytes());
                         builder.compress(true);
                     }
                 }

@@ -19,11 +19,12 @@
 
 package org.elasticsearch.common.unit;
 
+import java.util.concurrent.TimeUnit;
+
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.joda.time.PeriodType;
 import org.junit.Test;
-
-import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -65,5 +66,15 @@ public class TimeValueTests extends ElasticsearchTestCase {
     @Test
     public void testMinusOne() {
         assertThat(new TimeValue(-1).nanos(), lessThan(0l));
+    }
+
+    @Test(expected = ElasticsearchParseException.class)
+    public void testFailOnUnknownUnits() {
+        TimeValue.parseTimeValue("23tw", null);
+    }
+
+    @Test(expected = ElasticsearchParseException.class)
+    public void testFailOnMissingUnits() {
+        TimeValue.parseTimeValue("42", null);
     }
 }

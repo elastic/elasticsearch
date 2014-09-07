@@ -32,19 +32,31 @@ public enum MemorySizeValue {
      *  <tt>42</tt> (default assumed unit is byte) or <tt>2mb</tt>, or percentages of the heap size: if
      *  the heap is 1G, <tt>10%</tt> will be parsed as <tt>100mb</tt>.  */
     public static ByteSizeValue parseBytesSizeValueOrHeapRatio(String sValue) {
+        return parseBytesSizeValueOrHeapRatio(sValue, null);
+    }
+
+    public static ByteSizeValue parseBytesSizeValueOrHeapRatio(String sValue, String settingName) {
         if (sValue != null && sValue.endsWith("%")) {
             final String percentAsString = sValue.substring(0, sValue.length() - 1);
             try {
                 final double percent = Double.parseDouble(percentAsString);
                 if (percent < 0 || percent > 100) {
-                    throw new ElasticsearchParseException("Percentage should be in [0-100], got " + percentAsString);
+                    if (settingName != null) {
+                        throw new ElasticsearchParseException("setting [" + settingName + "]: Percentage should be in [0-100], got " + percentAsString);
+                    } else {
+                        throw new ElasticsearchParseException("Percentage should be in [0-100], got " + percentAsString);
+                    }
                 }
                 return new ByteSizeValue((long) ((percent / 100) * JvmInfo.jvmInfo().getMem().getHeapMax().bytes()), ByteSizeUnit.BYTES);
             } catch (NumberFormatException e) {
-                throw new ElasticsearchParseException("Failed to parse [" + percentAsString + "] as a double", e);
+                if (settingName != null) {
+                    throw new ElasticsearchParseException("Failed to parse setting [" + settingName + "] with value [" + percentAsString + "] as a double", e);
+                } else {
+                    throw new ElasticsearchParseException("Failed to parse [" + percentAsString + "] as a double", e);
+                }
             }
         } else {
-            return parseBytesSizeValue(sValue);
+            return parseBytesSizeValue(sValue, settingName);
         }
     }
 }

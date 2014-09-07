@@ -31,6 +31,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -57,7 +58,7 @@ public class SnapshotBackwardsCompatibilityTest extends ElasticsearchBackwardsCo
                 .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
                         .put("location", newTempDir(LifecycleScope.SUITE).getAbsolutePath())
                         .put("compress", randomBoolean())
-                        .put("chunk_size", randomIntBetween(100, 1000))));
+                        .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
         String[] indicesBefore = new String[randomIntBetween(2,5)];
         String[] indicesAfter = new String[randomIntBetween(2,5)];
         for (int i = 0; i < indicesBefore.length; i++) {
@@ -165,7 +166,7 @@ public class SnapshotBackwardsCompatibilityTest extends ElasticsearchBackwardsCo
                 .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
                         .put("location", tempDir)
                         .put("compress", randomBoolean())
-                        .put("chunk_size", randomIntBetween(100, 1000))));
+                        .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
 
         // only one shard
         assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder()

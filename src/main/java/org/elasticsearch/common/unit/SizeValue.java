@@ -25,6 +25,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.settings.ImmutableSettings;
 
 import java.io.IOException;
 import java.io.Serializable;
@@ -166,10 +167,18 @@ public class SizeValue implements Serializable, Streamable {
     }
 
     public static SizeValue parseSizeValue(String sValue) throws ElasticsearchParseException {
-        return parseSizeValue(sValue, null);
+        return parseSizeValue(sValue, null, null);
+    }
+
+    public static SizeValue parseSizeValue(String sValue, String settingName) throws ElasticsearchParseException {
+        return parseSizeValue(sValue, null, settingName);
     }
 
     public static SizeValue parseSizeValue(String sValue, SizeValue defaultValue) throws ElasticsearchParseException {
+        return parseSizeValue(sValue, defaultValue, null);
+    }
+
+    public static SizeValue parseSizeValue(String sValue, SizeValue defaultValue, String settingName) throws ElasticsearchParseException {
         if (sValue == null) {
             return defaultValue;
         }
@@ -191,7 +200,11 @@ public class SizeValue implements Serializable, Streamable {
                 singles = Long.parseLong(sValue);
             }
         } catch (NumberFormatException e) {
-            throw new ElasticsearchParseException("Failed to parse [" + sValue + "]", e);
+            if (settingName != null) {
+                throw new ElasticsearchParseException("Failed to parse setting [" + settingName + "] with value [" + sValue + "]", e);
+            } else {
+                throw new ElasticsearchParseException("Failed to parse [" + sValue + "]", e);
+            }
         }
         return new SizeValue(singles, SizeUnit.SINGLE);
     }

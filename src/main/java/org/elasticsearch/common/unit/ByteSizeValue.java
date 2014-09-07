@@ -25,14 +25,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.settings.ImmutableSettings;
 
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.Locale;
 
-/**
- *
- */
 public class ByteSizeValue implements Serializable, Streamable {
 
     private long size;
@@ -173,10 +171,14 @@ public class ByteSizeValue implements Serializable, Streamable {
     }
 
     public static ByteSizeValue parseBytesSizeValue(String sValue) throws ElasticsearchParseException {
-        return parseBytesSizeValue(sValue, null);
+        return parseBytesSizeValue(sValue, null, null);
     }
 
-    public static ByteSizeValue parseBytesSizeValue(String sValue, ByteSizeValue defaultValue) throws ElasticsearchParseException {
+    public static ByteSizeValue parseBytesSizeValue(String sValue, String settingName) throws ElasticsearchParseException {
+        return parseBytesSizeValue(sValue, null, settingName);
+    }
+
+    public static ByteSizeValue parseBytesSizeValue(String sValue, ByteSizeValue defaultValue, String settingName) throws ElasticsearchParseException {
         if (sValue == null) {
             return defaultValue;
         }
@@ -205,11 +207,31 @@ public class ByteSizeValue implements Serializable, Streamable {
                 bytes = (long) (Double.parseDouble(sValue.substring(0, sValue.length() - 2)) * ByteSizeUnit.C5);
             } else if (lastTwoChars.endsWith("b")) {
                 bytes = Long.parseLong(sValue.substring(0, sValue.length() - 1));
+            } else if (sValue.equals("-1")) {
+                // Allow this special value to be unit-less:
+                bytes = -1;
+            } else if (sValue.equals("0")) {
+                // Allow this special value to be unit-less:
+                bytes = 0;
             } else {
-                bytes = Long.parseLong(sValue);
+                // Default bytes
+                if (ImmutableSettings.getSettingsRequireUnits()) {
+                    if (settingName != null) {
+                        throw new ElasticsearchParseException("Failed to parse setting [" + settingName + "] with value [" + sValue + "] as a size in bytes: unit is missing or unrecognized");
+                    } else {
+                        throw new ElasticsearchParseException("Failed to parse [" + sValue + "] as a size in bytes: unit is missing or unrecognized");
+                    }
+                } else {
+                    // Leniency default to bytes for bwc:
+                    bytes = Long.parseLong(sValue);
+                }
             }
         } catch (NumberFormatException e) {
-            throw new ElasticsearchParseException("Failed to parse [" + sValue + "]", e);
+            if (settingName != null) {
+                throw new ElasticsearchParseException("Failed to parse setting [" + settingName + "] with value [" + sValue + "]", e);
+            } else {
+                throw new ElasticsearchParseException("Failed to parse [" + sValue + "]", e);
+            }
         }
         return new ByteSizeValue(bytes, ByteSizeUnit.BYTES);
     }

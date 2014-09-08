@@ -54,7 +54,7 @@ public class UnmappedTerms extends InternalTerms {
 
     UnmappedTerms() {} // for serialization
 
-    public UnmappedTerms(String name, Terms.Order order, int requiredSize, int shardSize, long minDocCount) {
+    public UnmappedTerms(String name, InternalOrder order, int requiredSize, int shardSize, long minDocCount) {
         super(name, order, requiredSize, shardSize, minDocCount, BUCKETS, false, 0);
     }
 

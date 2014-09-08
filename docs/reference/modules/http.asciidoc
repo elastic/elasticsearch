@@ -39,7 +39,7 @@ Defaults to `6`.
 
 |`http.cors.enabled` |Enable or disable cross-origin resource sharing,
 i.e. whether a browser on another origin can do requests to
-Elasticsearch. Defaults to `true`.
+Elasticsearch. Defaults to `false`.
 
 |`http.cors.allow-origin` |Which origins to allow. Defaults to `*`,
 i.e. any origin. If you prepend and append a `/` to the value, this will

@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import com.google.common.base.Strings;
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -1482,42 +1483,49 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    @AwaitsFix(bugUrl="http://build-us-1.elasticsearch.org/job/es_core_master_regression/324/consoleFull")
     public void singleValuedField_OrderedBySingleValueSubAggregationAscAndTermsDesc() throws Exception {
         String[] expectedKeys = new String[] { "val1", "val2", "val4", "val3", "val7", "val6", "val5" };
         assertMultiSortResponse(expectedKeys, Terms.Order.aggregation("avg_l", true), Terms.Order.term(false));
     }
 
     @Test
+    @AwaitsFix(bugUrl="http://build-us-1.elasticsearch.org/job/es_core_master_regression/324/consoleFull")
     public void singleValuedField_OrderedBySingleValueSubAggregationAscAndTermsAsc() throws Exception {
         String[] expectedKeys = new String[] { "val1", "val2", "val3", "val4", "val5", "val6", "val7" };
         assertMultiSortResponse(expectedKeys, Terms.Order.aggregation("avg_l", true), Terms.Order.term(true));
     }
 
     @Test
+    @AwaitsFix(bugUrl="http://build-us-1.elasticsearch.org/job/es_core_master_regression/324/consoleFull")
     public void singleValuedField_OrderedBySingleValueSubAggregationDescAndTermsAsc() throws Exception {
         String[] expectedKeys = new String[] { "val5", "val6", "val7", "val3", "val4", "val2", "val1" };
         assertMultiSortResponse(expectedKeys, Terms.Order.aggregation("avg_l", false), Terms.Order.term(true));
     }
 
     @Test
+    @AwaitsFix(bugUrl="http://build-us-1.elasticsearch.org/job/es_core_master_regression/324/consoleFull")
     public void singleValuedField_OrderedByCountAscAndSingleValueSubAggregationAsc() throws Exception {
         String[] expectedKeys = new String[] { "val6", "val7", "val3", "val4", "val5", "val1", "val2" };
         assertMultiSortResponse(expectedKeys, Terms.Order.count(true), Terms.Order.aggregation("avg_l", true));
     }
 
     @Test
+    @AwaitsFix(bugUrl="http://build-us-1.elasticsearch.org/job/es_core_master_regression/324/consoleFull")
     public void singleValuedField_OrderedBySingleValueSubAggregationAscSingleValueSubAggregationAsc() throws Exception {
         String[] expectedKeys = new String[] { "val6", "val7", "val3", "val5", "val4", "val1", "val2" };
         assertMultiSortResponse(expectedKeys, Terms.Order.aggregation("sum_d", true), Terms.Order.aggregation("avg_l", true));
     }
 
     @Test
+    @AwaitsFix(bugUrl="http://build-us-1.elasticsearch.org/job/es_core_master_regression/324/consoleFull")
     public void singleValuedField_OrderedByThreeCriteria() throws Exception {
         String[] expectedKeys = new String[] { "val2", "val1", "val4", "val5", "val3", "val6", "val7" };
         assertMultiSortResponse(expectedKeys, Terms.Order.count(false), Terms.Order.aggregation("sum_d", false), Terms.Order.aggregation("avg_l", false));
     }
 
     @Test
+    @AwaitsFix(bugUrl="http://build-us-1.elasticsearch.org/job/es_core_master_regression/324/consoleFull")
     public void singleValuedField_OrderedBySingleValueSubAggregationAscAsCompound() throws Exception {
         String[] expectedKeys = new String[] { "val1", "val2", "val3", "val4", "val5", "val6", "val7" };
         assertMultiSortResponse(expectedKeys, Terms.Order.aggregation("avg_l", true));

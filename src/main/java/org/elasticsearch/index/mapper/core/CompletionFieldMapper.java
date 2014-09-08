@@ -39,6 +39,7 @@ import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.search.suggest.completion.AnalyzingCompletionLookupProvider;
+import org.elasticsearch.search.suggest.completion.CompletionLookupProvider;
 import org.elasticsearch.search.suggest.completion.CompletionPostingsFormatProvider;
 import org.elasticsearch.search.suggest.completion.CompletionTokenStream;
 import org.elasticsearch.search.suggest.context.ContextBuilder;
@@ -202,10 +203,10 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
     private static final BytesRef EMPTY = new BytesRef();
 
     private final CompletionPostingsFormatProvider completionPostingsFormatProvider;
-    private final AnalyzingCompletionLookupProvider analyzingSuggestLookupProvider;
-    private final boolean payloads;
-    private final boolean preservePositionIncrements;
-    private final boolean preserveSeparators;
+    private final CompletionLookupProvider analyzingSuggestLookupProvider;
+    protected final boolean payloads;
+    protected final boolean preservePositionIncrements;
+    protected final boolean preserveSeparators;
     private int maxInputLength;
     private final SortedMap<String, ContextMapping> contextMapping;
 
@@ -216,13 +217,17 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
     public CompletionFieldMapper(Names names, NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer, PostingsFormatProvider postingsProvider, SimilarityProvider similarity, boolean payloads,
                                  boolean preserveSeparators, boolean preservePositionIncrements, int maxInputLength, MultiFields multiFields, CopyTo copyTo, SortedMap<String, ContextMapping> contextMappings) {
         super(names, 1.0f, Defaults.FIELD_TYPE, null, indexAnalyzer, searchAnalyzer, postingsProvider, null, similarity, null, null, null, multiFields, copyTo);
-        analyzingSuggestLookupProvider = new AnalyzingCompletionLookupProvider(preserveSeparators, false, preservePositionIncrements, payloads);
-        this.completionPostingsFormatProvider = new CompletionPostingsFormatProvider("completion", postingsProvider, analyzingSuggestLookupProvider);
         this.preserveSeparators = preserveSeparators;
         this.payloads = payloads;
         this.preservePositionIncrements = preservePositionIncrements;
         this.maxInputLength = maxInputLength;
         this.contextMapping = contextMappings;
+        analyzingSuggestLookupProvider = buildLookupProvider();
+        this.completionPostingsFormatProvider = new CompletionPostingsFormatProvider("completion", postingsProvider, analyzingSuggestLookupProvider);
+    }
+
+    protected CompletionLookupProvider buildLookupProvider() {
+        return new AnalyzingCompletionLookupProvider(preserveSeparators, false, preservePositionIncrements, payloads);
     }
 
     @Override

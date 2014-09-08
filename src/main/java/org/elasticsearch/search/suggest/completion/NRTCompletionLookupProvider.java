@@ -24,8 +24,8 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.codecs.*;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.search.suggest.Lookup;
-import org.apache.lucene.search.suggest.analyzing.XAnalyzingSuggester;
 import org.apache.lucene.search.suggest.analyzing.XFuzzySuggester;
+import org.apache.lucene.search.suggest.analyzing.XNRTSuggester;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
@@ -41,7 +41,15 @@ import org.elasticsearch.search.suggest.context.ContextMapping.ContextQuery;
 import java.io.IOException;
 import java.util.*;
 
-public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider {
+import static org.elasticsearch.search.suggest.completion.AnalyzingCompletionLookupProvider.AnalyzingSuggestHolder;
+
+
+/**
+ * TODO:
+ *  - remove irrelevant codec versioning stuff
+ *  - general refactoring
+ */
+public class NRTCompletionLookupProvider extends CompletionLookupProvider {
 
     // for serialization
     public static final int SERIALIZE_PRESERVE_SEPERATORS = 1;
@@ -51,35 +59,34 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
     private static final int MAX_SURFACE_FORMS_PER_ANALYZED_FORM = 256;
     private static final int MAX_GRAPH_EXPANSIONS = -1;
 
-    public static final String CODEC_NAME = "analyzing";
+    public static final String CODEC_NAME = "nrtsuggester";
     public static final int CODEC_VERSION_START = 1;
     public static final int CODEC_VERSION_SERIALIZED_LABELS = 2;
     public static final int CODEC_VERSION_CHECKSUMS = 3;
-    public static final int CODEC_REAL_TIME = 4;
-    public static final int CODEC_VERSION_LATEST = CODEC_REAL_TIME;
+    public static final int CODEC_VERSION_LATEST = CODEC_VERSION_CHECKSUMS;
 
     private boolean preserveSep;
     private boolean preservePositionIncrements;
     private int maxSurfaceFormsPerAnalyzedForm;
     private int maxGraphExpansions;
     private boolean hasPayloads;
-    private final XAnalyzingSuggester prototype;
+    private final XNRTSuggester prototype;
 
-    public AnalyzingCompletionLookupProvider(boolean preserveSep, boolean exactFirst, boolean preservePositionIncrements, boolean hasPayloads) {
+    public NRTCompletionLookupProvider(boolean preserveSep, boolean exactFirst, boolean preservePositionIncrements, boolean hasPayloads) {
         this.preserveSep = preserveSep;
         this.preservePositionIncrements = preservePositionIncrements;
         this.hasPayloads = hasPayloads;
         this.maxSurfaceFormsPerAnalyzedForm = MAX_SURFACE_FORMS_PER_ANALYZED_FORM;
         this.maxGraphExpansions = MAX_GRAPH_EXPANSIONS;
-        int options = preserveSep ? XAnalyzingSuggester.PRESERVE_SEP : 0;
+        int options = preserveSep ? XNRTSuggester.PRESERVE_SEP : 0;
         // needs to fixed in the suggester first before it can be supported
-        //options |= exactFirst ? XAnalyzingSuggester.EXACT_FIRST : 0;
-        prototype = new XAnalyzingSuggester(null, null, null, options, maxSurfaceFormsPerAnalyzedForm, maxGraphExpansions, preservePositionIncrements, null, false, 1, XAnalyzingSuggester.SEP_LABEL, XAnalyzingSuggester.PAYLOAD_SEP, XAnalyzingSuggester.END_BYTE, XAnalyzingSuggester.HOLE_CHARACTER);
+        //options |= exactFirst ? XNRTSuggester.EXACT_FIRST : 0;
+        prototype = new XNRTSuggester(null, null, null, options, maxSurfaceFormsPerAnalyzedForm, maxGraphExpansions, preservePositionIncrements, null, false, 1, XNRTSuggester.SEP_LABEL, XNRTSuggester.PAYLOAD_SEP, XNRTSuggester.END_BYTE, XNRTSuggester.HOLE_CHARACTER);
     }
 
     @Override
     public String getName() {
-        return "analyzing";
+        return "nrtsuggester";
     }
 
     @Override
@@ -112,8 +119,8 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
             public TermsConsumer addField(final FieldInfo field) throws IOException {
 
                 return new TermsConsumer() {
-                    final XAnalyzingSuggester.XBuilder builder = new XAnalyzingSuggester.XBuilder(maxSurfaceFormsPerAnalyzedForm, hasPayloads, XAnalyzingSuggester.PAYLOAD_SEP);
-                    final CompletionPostingsConsumer postingsConsumer = new CompletionPostingsConsumer(AnalyzingCompletionLookupProvider.this, builder);
+                    final XNRTSuggester.XBuilder builder = new XNRTSuggester.XBuilder(maxSurfaceFormsPerAnalyzedForm, hasPayloads, XNRTSuggester.PAYLOAD_SEP);
+                    final CompletionPostingsConsumer postingsConsumer = new CompletionPostingsConsumer(NRTCompletionLookupProvider.this, builder);
 
                     @Override
                     public PostingsConsumer startTerm(BytesRef text) throws IOException {
@@ -157,10 +164,10 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
                             options |= hasPayloads ? SERIALIZE_HAS_PAYLOADS : 0;
                             options |= preservePositionIncrements ? SERIALIZE_PRESERVE_POSITION_INCREMENTS : 0;
                             output.writeVInt(options);
-                            output.writeVInt(XAnalyzingSuggester.SEP_LABEL);
-                            output.writeVInt(XAnalyzingSuggester.END_BYTE);
-                            output.writeVInt(XAnalyzingSuggester.PAYLOAD_SEP);
-                            output.writeVInt(XAnalyzingSuggester.HOLE_CHARACTER);
+                            output.writeVInt(XNRTSuggester.SEP_LABEL);
+                            output.writeVInt(XNRTSuggester.END_BYTE);
+                            output.writeVInt(XNRTSuggester.PAYLOAD_SEP);
+                            output.writeVInt(XNRTSuggester.HOLE_CHARACTER);
                         }
                     }
                 };
@@ -170,25 +177,26 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
 
     private static final class CompletionPostingsConsumer extends PostingsConsumer {
         private final SuggestPayload spare = new SuggestPayload();
-        private AnalyzingCompletionLookupProvider analyzingSuggestLookupProvider;
-        private XAnalyzingSuggester.XBuilder builder;
+        private NRTCompletionLookupProvider analyzingSuggestLookupProvider;
+        private XNRTSuggester.XBuilder builder;
         private int maxAnalyzedPathsForOneInput = 0;
 
-        public CompletionPostingsConsumer(AnalyzingCompletionLookupProvider analyzingSuggestLookupProvider, XAnalyzingSuggester.XBuilder builder) {
+        public CompletionPostingsConsumer(NRTCompletionLookupProvider analyzingSuggestLookupProvider, XNRTSuggester.XBuilder builder) {
             this.analyzingSuggestLookupProvider = analyzingSuggestLookupProvider;
             this.builder = builder;
         }
 
         @Override
         public void startDoc(int docID, int freq) throws IOException {
+            builder.setDocID(docID);
         }
 
         @Override
         public void addPosition(int position, BytesRef payload, int startOffset, int endOffset) throws IOException {
             analyzingSuggestLookupProvider.parsePayload(payload, spare);
-            builder.addSurface(spare.surfaceForm.get(), spare.payload.get(), spare.weight);
+            int count = builder.addSurface(spare.surfaceForm.get(), spare.payload.get(), spare.weight);
             // multi fields have the same surface form so we sum up here
-            maxAnalyzedPathsForOneInput = Math.max(maxAnalyzedPathsForOneInput, position + 1);
+            maxAnalyzedPathsForOneInput = Math.max(maxAnalyzedPathsForOneInput, count);
         }
 
         @Override
@@ -263,11 +271,12 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
                 if (analyzingSuggestHolder == null) {
                     return null;
                 }
-                int flags = analyzingSuggestHolder.getPreserveSeparator() ? XAnalyzingSuggester.PRESERVE_SEP : 0;
+                int flags = analyzingSuggestHolder.getPreserveSeparator() ? XNRTSuggester.PRESERVE_SEP : 0;
 
-                final XAnalyzingSuggester suggester;
+                final XNRTSuggester suggester;
                 final Automaton queryPrefix = mapper.requiresContext() ? ContextQuery.toAutomaton(analyzingSuggestHolder.getPreserveSeparator(), suggestionContext.getContextQueries()) : null;
 
+                /*
                 if (suggestionContext.isFuzzy()) {
                     suggester = new XFuzzySuggester(mapper.indexAnalyzer(), queryPrefix, mapper.searchAnalyzer(), flags,
                             analyzingSuggestHolder.maxSurfaceFormsPerAnalyzedForm, analyzingSuggestHolder.maxGraphExpansions,
@@ -277,12 +286,13 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
                             analyzingSuggestHolder.maxAnalyzedPathsForOneInput, analyzingSuggestHolder.sepLabel, analyzingSuggestHolder.payloadSep, analyzingSuggestHolder.endByte,
                             analyzingSuggestHolder.holeCharacter);
                 } else {
-                    suggester = new XAnalyzingSuggester(mapper.indexAnalyzer(), queryPrefix, mapper.searchAnalyzer(), flags,
+                    */
+                    suggester = new XNRTSuggester(mapper.indexAnalyzer(), queryPrefix, mapper.searchAnalyzer(), flags,
                             analyzingSuggestHolder.maxSurfaceFormsPerAnalyzedForm, analyzingSuggestHolder.maxGraphExpansions,
                             analyzingSuggestHolder.preservePositionIncrements, analyzingSuggestHolder.fst, analyzingSuggestHolder.hasPayloads,
                             analyzingSuggestHolder.maxAnalyzedPathsForOneInput, analyzingSuggestHolder.sepLabel, analyzingSuggestHolder.payloadSep, analyzingSuggestHolder.endByte,
                             analyzingSuggestHolder.holeCharacter);
-                }
+                //}
                 return suggester;
             }
 
@@ -318,51 +328,6 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
                 return ramBytesUsed;
             }
         };
-    }
-
-    static class AnalyzingSuggestHolder {
-        final boolean preserveSep;
-        final boolean preservePositionIncrements;
-        final int maxSurfaceFormsPerAnalyzedForm;
-        final int maxGraphExpansions;
-        final boolean hasPayloads;
-        final int maxAnalyzedPathsForOneInput;
-        final FST<Pair<Long, BytesRef>> fst;
-        final int sepLabel;
-        final int payloadSep;
-        final int endByte;
-        final int holeCharacter;
-
-        public AnalyzingSuggestHolder(boolean preserveSep, boolean preservePositionIncrements, int maxSurfaceFormsPerAnalyzedForm, int maxGraphExpansions,
-                                      boolean hasPayloads, int maxAnalyzedPathsForOneInput, FST<Pair<Long, BytesRef>> fst) {
-            this(preserveSep, preservePositionIncrements, maxSurfaceFormsPerAnalyzedForm, maxGraphExpansions, hasPayloads, maxAnalyzedPathsForOneInput, fst, XAnalyzingSuggester.SEP_LABEL, XAnalyzingSuggester.PAYLOAD_SEP, XAnalyzingSuggester.END_BYTE, XAnalyzingSuggester.HOLE_CHARACTER);
-        }
-
-        public AnalyzingSuggestHolder(boolean preserveSep, boolean preservePositionIncrements, int maxSurfaceFormsPerAnalyzedForm, int maxGraphExpansions, boolean hasPayloads, int maxAnalyzedPathsForOneInput, FST<Pair<Long, BytesRef>> fst, int sepLabel, int payloadSep, int endByte, int holeCharacter) {
-            this.preserveSep = preserveSep;
-            this.preservePositionIncrements = preservePositionIncrements;
-            this.maxSurfaceFormsPerAnalyzedForm = maxSurfaceFormsPerAnalyzedForm;
-            this.maxGraphExpansions = maxGraphExpansions;
-            this.hasPayloads = hasPayloads;
-            this.maxAnalyzedPathsForOneInput = maxAnalyzedPathsForOneInput;
-            this.fst = fst;
-            this.sepLabel = sepLabel;
-            this.payloadSep = payloadSep;
-            this.endByte = endByte;
-            this.holeCharacter = holeCharacter;
-        }
-
-        public boolean getPreserveSeparator() {
-            return preserveSep;
-        }
-
-        public boolean getPreservePositionIncrements() {
-            return preservePositionIncrements;
-        }
-
-        public boolean hasPayloads() {
-            return hasPayloads;
-        }
     }
 
     @Override

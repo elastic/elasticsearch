@@ -37,8 +37,6 @@ import org.apache.lucene.util.fst.PairOutputs.Pair;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
 import org.elasticsearch.search.suggest.completion.AnalyzingCompletionLookupProvider.AnalyzingSuggestHolder;
-import org.elasticsearch.search.suggest.completion.Completion090PostingsFormat.CompletionLookupProvider;
-import org.elasticsearch.search.suggest.completion.Completion090PostingsFormat.LookupFactory;
 import org.elasticsearch.search.suggest.context.ContextMapping.ContextQuery;
 
 import java.io.IOException;

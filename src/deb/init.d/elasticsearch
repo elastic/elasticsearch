@@ -93,9 +93,6 @@ CONF_FILE=$CONF_DIR/elasticsearch.yml
 # Maximum number of VMA (Virtual Memory Areas) a process can own
 MAX_MAP_COUNT=262144
 
-# Timeout in seconds to wait after sending KILL signal
-#ES_KILL_TIMEOUT=
-
 # Timeout in seconds to wait after sending TERM signal
 ES_STOP_TIMEOUT=20
 
@@ -174,13 +171,9 @@ case "$1" in
 	log_daemon_msg "Stopping $DESC"
 
 	if [ -f "$PID_FILE" ]; then 
-        timeout="TERM/$ES_STOP_TIMEOUT"
-        if [ -n "$ES_KILL_TIMEOUT" ] ; then
-            timeout="$timeout/KILL/$ES_KILL_TIMEOUT"
-        fi
 		start-stop-daemon --stop --pidfile "$PID_FILE" \
 			--user "$ES_USER" \
-			--retry=$timeout >/dev/null
+			--retry=$ES_STOP_TIMEOUT >/dev/null
 		RC=$?
 		if [ $RC -eq 1 ]; then
 			log_progress_msg "$DESC is not running but pid file exists, cleaning up"

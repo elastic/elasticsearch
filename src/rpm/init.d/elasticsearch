@@ -97,21 +97,7 @@ stop() {
     pid=`pidofproc -p "$pidfile" $prog`
     # dont send kill -9 by default, but allow to configure it
     # if kill timeout is set, send -15, wait STOP_TIMEOUT, send -9, wait KILL_TIMEOUT (otherwise omit the last two steps)
-    TIMEOUT=$ES_STOP_TIMEOUT
-    if [ -n "$ES_KILL_TIMEOUT" ] ; then
-        TIMEOUT=$ES_KILL_TIMEOUT
-        killproc -p $pidfile -d $ES_STOP_TIMEOUT $prog
-        retval=$?
-    else
-        kill -15 $pid
-        retval=$?
-        if checkpid $pid; then
-            sleep $TIMEOUT
-            checkpid $pid
-            retval=$?
-        fi
-        [ "$retval" -eq 0 ] && failure $"$base shutdown" || success $"$base shutdown"
-    fi
+    killproc -p $pidfile -d $ES_STOP_TIMEOUT $prog
     [ $retval -eq 0 ] && rm -f $lockfile
     return $retval
 }

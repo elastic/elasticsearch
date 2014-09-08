@@ -64,6 +64,7 @@ import org.elasticsearch.search.suggest.SuggestionSearchContext;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  */
@@ -87,12 +88,15 @@ public abstract class SearchContext implements Releasable {
     }
 
     private Multimap<Lifetime, Releasable> clearables = null;
+    private final AtomicBoolean closed = new AtomicBoolean(false);
 
     public final void close() {
-        try {
-            clearReleasables(Lifetime.CONTEXT);
-        } finally {
-            doClose();
+        if (closed.compareAndSet(false, true)) { // prevent double release
+            try {
+                clearReleasables(Lifetime.CONTEXT);
+            } finally {
+                doClose();
+            }
         }
     }
 

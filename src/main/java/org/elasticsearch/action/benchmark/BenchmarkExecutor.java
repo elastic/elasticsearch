@@ -185,7 +185,7 @@ public class BenchmarkExecutor {
                 competitionResult.addCompetitionNodeResult(competitionNodeResult);
                 benchmarkStartResponse.competitionResults().put(competitor.name(), competitionResult);
 
-                // Make sure security credentials are passed through to all searches
+                // Make sure headers and context are passed through to all searches
                 final List<SearchRequest> searchRequests = bindOriginalRequest(competitor.settings().searchRequests(), request);
 
                 // Perform warmup if requested
@@ -358,7 +358,7 @@ public class BenchmarkExecutor {
         }
     }
 
-    private static abstract class BoundsManagingActionListener<Response> implements ActionListener<Response> {
+    private static class BoundsManagingActionListener<Response> implements ActionListener<Response> {
 
         private final StoppableSemaphore semaphore;
         private final CountDownLatch latch;
@@ -446,19 +446,17 @@ public class BenchmarkExecutor {
     }
 
     /**
-     * Bind the originating request to the benchmark's search requests so that the security credentials are passed through.
+     * Bind the originating request to the benchmark's search requests so that the headers and context are passed through.
      *
      * @param searchRequests    Benchmark search requests
      * @param originalRequest   Originating action request
-     * @return                  Benchmark search requests re-constructed to use credentials of originating request
+     * @return                  Benchmark search requests re-constructed to use headers and context of originating request
      */
     private List<SearchRequest> bindOriginalRequest(final List<SearchRequest> searchRequests, final ActionRequest originalRequest) {
         final List<SearchRequest> newSearchRequests = new ArrayList<>(searchRequests.size());
-
         for (final SearchRequest searchRequest : searchRequests) {
             newSearchRequests.add(new SearchRequest(searchRequest, originalRequest));
         }
-
         return newSearchRequests;
     }
 }

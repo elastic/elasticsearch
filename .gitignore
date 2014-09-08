@@ -6,3 +6,4 @@
 .DS_Store
 *.iml
 .local-execution-hints.log
+/plugin_tools

@@ -19,11 +19,13 @@
 package org.elasticsearch.bwcompat;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
 import org.elasticsearch.indices.analysis.PreBuiltAnalyzers;
 import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -34,8 +36,6 @@ import java.util.concurrent.ExecutionException;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- */
 @ElasticsearchIntegrationTest.ClusterScope(numDataNodes = 0, scope = ElasticsearchIntegrationTest.Scope.SUITE, numClientNodes = 0, transportClientRatio = 0.0)
 public class BasicAnalysisBackwardCompatibilityTests extends ElasticsearchBackwardsCompatIntegrationTest {
 
@@ -44,6 +44,8 @@ public class BasicAnalysisBackwardCompatibilityTests extends ElasticsearchBackwa
      * TODO we need this for random tokenizers / tokenfilters as well
      */
     @Test
+    @Ignore
+    @LuceneTestCase.AwaitsFix(bugUrl="https://github.com/elasticsearch/dev/issues/264")
     public void testAnalyzerTokensAfterUpgrade() throws IOException, ExecutionException, InterruptedException {
         int numFields = randomIntBetween(PreBuiltAnalyzers.values().length, PreBuiltAnalyzers.values().length * 10);
         StringBuilder builder = new StringBuilder();

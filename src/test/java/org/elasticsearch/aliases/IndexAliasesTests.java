@@ -153,7 +153,7 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
     @Test
     public void testSearchingFilteringAliasesSingleIndex() throws Exception {
         logger.info("--> creating index [test]");
-        createIndex("test");
+        assertAcked(prepareCreate("test").addMapping("type1", "id", "type=string", "name", "type=string"));
 
         ensureGreen();
 

@@ -96,7 +96,7 @@ public class NettyHttpChannel extends HttpChannel {
             resp = new DefaultHttpResponse(HttpVersion.HTTP_1_1, status);
         }
         if (RestUtils.isBrowser(nettyRequest.headers().get(USER_AGENT))) {
-            if (transport.settings().getAsBoolean(SETTING_CORS_ENABLED, true)) {
+            if (transport.settings().getAsBoolean(SETTING_CORS_ENABLED, false)) {
                 String originHeader = request.header(ORIGIN);
                 if (!Strings.isNullOrEmpty(originHeader)) {
                     if (corsPattern == null) {

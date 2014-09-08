@@ -25,7 +25,6 @@ import org.apache.lucene.analysis.ja.*;
 import org.apache.lucene.analysis.ja.JapaneseTokenizer.Mode;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.analysis.*;
 
@@ -44,7 +43,7 @@ public class KuromojiIndicesAnalysis extends AbstractComponent {
 
         indicesAnalysisService.analyzerProviderFactories().put("kuromoji",
                 new PreBuiltAnalyzerProviderFactory("kuromoji", AnalyzerScope.INDICES,
-                        new JapaneseAnalyzer(Lucene.ANALYZER_VERSION)));
+                        new JapaneseAnalyzer()));
 
         indicesAnalysisService.charFilterFactories().put("kuromoji_iteration_mark",
                 new KurumojiCharFilterFactoryFactory(new CharFilterFactory() {
@@ -98,8 +97,7 @@ public class KuromojiIndicesAnalysis extends AbstractComponent {
 
                     @Override
                     public TokenStream create(TokenStream tokenStream) {
-                        return new JapanesePartOfSpeechStopFilter(Lucene.ANALYZER_VERSION,
-                                tokenStream, JapaneseAnalyzer
+                        return new JapanesePartOfSpeechStopFilter(tokenStream, JapaneseAnalyzer
                                 .getDefaultStopTags());
                     }
                 }));

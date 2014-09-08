@@ -9,6 +9,7 @@ In order to install the plugin, simply run:
 bin/plugin -install elasticsearch/elasticsearch-analysis-icu/2.3.0
 ```
 
+You need to install a version matching your Elasticsearch version:
 
 | elasticsearch |  ICU Analysis Plugin  |   Docs     |  
 |---------------|-----------------------|------------|

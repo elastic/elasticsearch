@@ -21,44 +21,39 @@ package org.apache.lucene.search.suggest.analyzing;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.TokenStreamToAutomaton;
+import org.apache.lucene.document.Document;
 import org.apache.lucene.index.AtomicReader;
-import org.apache.lucene.search.suggest.InputIterator;
-import org.apache.lucene.search.suggest.Lookup;
 import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.ByteArrayDataOutput;
-import org.apache.lucene.store.DataInput;
-import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.util.*;
 import org.apache.lucene.util.PriorityQueue;
 import org.apache.lucene.util.automaton.*;
 import org.apache.lucene.util.fst.*;
-import org.apache.lucene.util.fst.FST.BytesReader;
 import org.apache.lucene.util.fst.PairOutputs.Pair;
-import org.apache.lucene.util.fst.Util.Result;
-import org.apache.lucene.util.fst.Util.TopResults;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 import java.util.*;
 
 /**
  * Currently A fork of {@link org.apache.lucene.search.suggest.analyzing.XAnalyzingSuggester}
- * with very limited NRT capabilities.
- * Only Supported NRT feature is deleted document filtering from suggestions.
- * NOTE: This is still largely a work in progress.
+ * with very limited NRT capabilities.<p>
+ * <b>Supported features:</b>
+ *  <ul>
+ *    <li>Filter out deleted documents (NRT)</li>
+ *    <li>Returning arbitrary stored fields as payload (NRT)</li>
+ *    <li>Optionally return duplicated output</li>
+ *  </ul>
+ * <b>NOTE: This is still largely a work in progress.</b>
  * <p/>
- * TODO:
- * - Support optional surface form deduplication
- * - Flexible Scoring/Weighting:
- * - allow factoring in external factors (lookup key, surface form) to weighting suggestions
- * - support context using outputs
- * - Support returning arbitrary StoredFields from documents of resulting suggestions
- * - General Refactoring
+ * <b>TODO:</b>
+ *  <ul>
+ *   <li> Flexible Scoring/Weighting: Allow factoring in external factors (lookup key, surface form) to weighting suggestions</li>
+ *   <li> General Refactoring</li>
+ *   </ul>
  *
  * @lucene.experimental
  */
-public class XNRTSuggester extends Lookup {
+public class XNRTSuggester extends XLookup {
 
     /**
      * FST<Weight,Surface>:
@@ -71,6 +66,8 @@ public class XNRTSuggester extends Lookup {
     /**
      * Analyzer that will be used for analyzing suggestions at
      * index time.
+     *
+     * TODO:: cleanup (indexAnalyzer is not used in Lookup anymore)
      */
     private final Analyzer indexAnalyzer;
 
@@ -81,23 +78,9 @@ public class XNRTSuggester extends Lookup {
     private final Analyzer queryAnalyzer;
 
     /**
-     * True if exact match suggestions should always be returned first.
-     */
-    private final boolean exactFirst;
-
-    /**
      * True if separator between tokens should be preserved.
      */
     private final boolean preserveSep;
-
-    /**
-     * Include this flag in the options parameter to {@link
-     * #XAnalyzingSuggester(Analyzer, Analyzer, int, int, int, boolean, FST, boolean, int, int, int, int, int)} to always
-     * return the exact match first, regardless of score.  This
-     * has no performance impact but could result in
-     * low-quality suggestions.
-     */
-    public static final int EXACT_FIRST = 1;
 
     /**
      * Include this flag in the options parameter to {@link
@@ -121,6 +104,8 @@ public class XNRTSuggester extends Lookup {
     /**
      * Maximum number of dup surface forms (different surface
      * forms for the same analyzed form).
+     *
+     * TODO: cleanup
      */
     private final int maxSurfaceFormsPerAnalyzedForm;
 
@@ -158,20 +143,18 @@ public class XNRTSuggester extends Lookup {
 
     /**
      * Calls {@link #XAnalyzingSuggester(Analyzer, Analyzer, int, int, int, boolean, FST, boolean, int, int, int, int, int)
-     * AnalyzingSuggester(analyzer, analyzer, EXACT_FIRST |
-     * PRESERVE_SEP, 256, -1)}
+     * AnalyzingSuggester(analyzer, analyzer, PRESERVE_SEP, 256, -1)}
      */
     public XNRTSuggester(Analyzer analyzer) {
-        this(analyzer, null, analyzer, EXACT_FIRST | PRESERVE_SEP, 256, -1, true, null, false, 0, SEP_LABEL, PAYLOAD_SEP, END_BYTE, HOLE_CHARACTER);
+        this(analyzer, null, analyzer, PRESERVE_SEP, 256, -1, true, null, false, 0, SEP_LABEL, PAYLOAD_SEP, END_BYTE, HOLE_CHARACTER);
     }
 
     /**
      * Calls {@link #XAnalyzingSuggester(Analyzer, Analyzer, int, int, int, boolean, FST, boolean, int, int, int, int, int)
-     * AnalyzingSuggester(indexAnalyzer, queryAnalyzer, EXACT_FIRST |
-     * PRESERVE_SEP, 256, -1)}
+     * AnalyzingSuggester(indexAnalyzer, queryAnalyzer, PRESERVE_SEP, 256, -1)}
      */
     public XNRTSuggester(Analyzer indexAnalyzer, Analyzer queryAnalyzer) {
-        this(indexAnalyzer, null, queryAnalyzer, EXACT_FIRST | PRESERVE_SEP, 256, -1, true, null, false, 0, SEP_LABEL, PAYLOAD_SEP, END_BYTE, HOLE_CHARACTER);
+        this(indexAnalyzer, null, queryAnalyzer, PRESERVE_SEP, 256, -1, true, null, false, 0, SEP_LABEL, PAYLOAD_SEP, END_BYTE, HOLE_CHARACTER);
     }
 
     /**
@@ -181,7 +164,7 @@ public class XNRTSuggester extends Lookup {
      *                                       analyzing suggestions while building the index.
      * @param queryAnalyzer                  Analyzer that will be used for
      *                                       analyzing query text during lookup
-     * @param options                        see {@link #EXACT_FIRST}, {@link #PRESERVE_SEP}
+     * @param options                        see {@link #PRESERVE_SEP}
      * @param maxSurfaceFormsPerAnalyzedForm Maximum number of
      *                                       surface forms to keep for a single analyzed form.
      *                                       When there are too many surface forms we discard the
@@ -198,13 +181,13 @@ public class XNRTSuggester extends Lookup {
         this.queryAnalyzer = queryAnalyzer;
         this.fst = fst;
         this.hasPayloads = hasPayloads;
-        if ((options & ~(EXACT_FIRST | PRESERVE_SEP)) != 0) {
-            throw new IllegalArgumentException("options should only contain EXACT_FIRST and PRESERVE_SEP; got " + options);
+        //TODO:: simplify (exact_first no longer used)
+        if ((options & ~(PRESERVE_SEP)) != 0) {
+            throw new IllegalArgumentException("options should only contain PRESERVE_SEP; got " + options);
         }
-        this.exactFirst = (options & EXACT_FIRST) != 0;
         this.preserveSep = (options & PRESERVE_SEP) != 0;
 
-        // FLORIAN EDIT: I added <code>queryPrefix</code> for context dependent suggestions
+        // TODO: remove query prefix support, once filter can be supported
         this.queryPrefix = queryPrefix;
 
         // NOTE: this is just an implementation limitation; if
@@ -363,78 +346,52 @@ public class XNRTSuggester extends Lookup {
         return tsta;
     }
 
-    @Override
-    public void build(InputIterator iterator) throws IOException {
-        throw new UnsupportedOperationException();
+    private XLookupResult getLookupResult(CharsRef term, Long output1, BytesRef payload, List<XLookupResult.XStoredField> storedFields) {
+        return new XLookupResult(term.toString(), decodeWeight(output1), payload, storedFields);
     }
 
-    @Override
-    public boolean store(OutputStream output) throws IOException {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public long getCount() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public boolean load(InputStream input) throws IOException {
-        throw new UnsupportedOperationException();
-    }
-
-    private LookupResult getLookupResult(Long output1, BytesRef output2, CharsRefBuilder spare) {
-        XPayLoadProcessor.PayloadMetaData metaData = XPayLoadProcessor.parse(output2, hasPayloads, payloadSep, spare);
-        return new LookupResult(spare.toString(), decodeWeight(output1), metaData.payload);
-    }
-
-    private boolean sameSurfaceForm(BytesRef key, BytesRef output2) {
-        if (hasPayloads) {
-            // output2 has at least PAYLOAD_SEP byte:
-            if (key.length >= output2.length) {
-                return false;
-            }
-            for (int i = 0; i < key.length; i++) {
-                if (key.bytes[key.offset + i] != output2.bytes[output2.offset + i]) {
-                    return false;
-                }
-            }
-            return output2.bytes[output2.offset + key.length] == payloadSep;
-        } else {
-            int docIDSepIndex = XPayLoadProcessor.getDocIDSepIndex(output2, false, payloadSep);
-            if (docIDSepIndex != -1) {
-                BytesRef spare = new BytesRef(output2.bytes, output2.offset, output2.length - 1 - docIDSepIndex);
-                return key.bytesEquals(spare);
-            }
-            return key.bytesEquals(output2);
+    private static List<XLookupResult.XStoredField> getPayloadFields(int docID, Set<String> payloadFieldNames, final AtomicReader reader) throws IOException {
+        if (payloadFieldNames != null) {
+            final Document document = reader.document(docID, payloadFieldNames);
+            return XLookupResult.getStoredFieldsFromDocument(document, payloadFieldNames);
         }
+        return null;
+    }
+
+    private static double calculateLiveDocRatio(int numDocs, int maxDocs) {
+        return (numDocs > 0) ? ((double) numDocs / maxDocs) : -1;
     }
 
     @Override
-    public List<LookupResult> lookup(final CharSequence key, Set<BytesRef> contexts, boolean onlyMorePopular, int num) {
-        return lookup(key, contexts, onlyMorePopular, num, null, 1.0d);
-    }
-
-    public List<LookupResult> lookup(final CharSequence key, final int num, final AtomicReader reader) {
-        double liveDocRatio = 1.0d;
-        if (reader.numDocs() > 0) {
-            liveDocRatio = (double) reader.numDocs() / reader.maxDoc();
-        } else {
-            return Collections.emptyList();
+    public List<XLookupResult> lookup(final XLookupOptions lookupOptions) {
+        final CharSequence key = lookupOptions.key;
+        final int num = lookupOptions.num;
+        final AtomicReader reader = lookupOptions.reader;
+        final Set<String> payloadFields = lookupOptions.payloadFields;
+        /* DEBUG
+        try {
+            PrintWriter pw = new PrintWriter("/tmp/out.dot");
+            Util.toDot(fst, pw, true, true);
+            pw.close();
+        } catch (IOException e) {
+            e.printStackTrace();
         }
-        return lookup(key, null, false, num, reader.getLiveDocs(), liveDocRatio);
-    }
-
-    private List<LookupResult> lookup(final CharSequence key, Set<BytesRef> contexts, boolean onlyMorePopular, int num, final Bits liveDocs, final double liveDocsRatio) {
+        */
         assert num > 0;
-
-        if (onlyMorePopular) {
-            throw new IllegalArgumentException("this suggester only works with onlyMorePopular=false");
-        }
         if (fst == null) {
             return Collections.emptyList();
         }
 
+        final double liveDocsRatio = (reader != null) ? calculateLiveDocRatio(reader.numDocs(), reader.maxDoc()) : 1.0d;
+        if (liveDocsRatio == -1) {
+            return Collections.emptyList();
+        }
+
+        final Bits liveDocs = (reader != null) ? reader.getLiveDocs() : null;
+
+        if (payloadFields != null && reader == null) {
+            throw new IllegalArgumentException("can't retrieve payloads if reader=null");
+        }
         //System.out.println("lookup key=" + key + " num=" + num);
         for (int i = 0; i < key.length(); i++) {
             if (key.charAt(i) == holeCharacter) {
@@ -444,14 +401,9 @@ public class XNRTSuggester extends Lookup {
                 throw new IllegalArgumentException("lookup key cannot contain unit separator character U+001F; this character is reserved");
             }
         }
-        final BytesRef utf8Key = new BytesRef(key);
         try {
 
             Automaton lookupAutomaton = toLookupAutomaton(key);
-
-            final CharsRefBuilder spare = new CharsRefBuilder();
-
-            //System.out.println("  now intersect exactFirst=" + exactFirst);
 
             // Intersect automaton w/ suggest wFST and get all
             // prefix starting nodes & their outputs:
@@ -459,93 +411,21 @@ public class XNRTSuggester extends Lookup {
 
             //System.out.println("  prefixPaths: " + prefixPaths.size());
 
-            BytesReader bytesReader = fst.getBytesReader();
+            final List<XLookupResult> results = new ArrayList<>();
 
-            FST.Arc<Pair<Long, BytesRef>> scratchArc = new FST.Arc<>();
+            List<FSTUtil.Path<Pair<Long,BytesRef>>> prefixPaths = FSTUtil.intersectPrefixPaths(convertAutomaton(lookupAutomaton), fst);
 
-            final List<LookupResult> results = new ArrayList<>();
 
-            List<FSTUtil.Path<Pair<Long, BytesRef>>> prefixPaths = FSTUtil.intersectPrefixPaths(convertAutomaton(lookupAutomaton), fst);
-
-            if (exactFirst) {
-
-                int count = 0;
-                for (FSTUtil.Path<Pair<Long, BytesRef>> path : prefixPaths) {
-                    if (fst.findTargetArc(endByte, path.fstNode, scratchArc, bytesReader) != null) {
-                        // This node has END_BYTE arc leaving, meaning it's an
-                        // "exact" match:
-                        count++;
-                    }
-                }
-
-                // Searcher just to find the single exact only
-                // match, if present:
-                Util.TopNSearcher<Pair<Long, BytesRef>> searcher;
-                searcher = new Util.TopNSearcher<Pair<Long, BytesRef>>(fst, count * maxSurfaceFormsPerAnalyzedForm, getMaxTopNSearcherQueueSize(count, liveDocsRatio), weightComparator) {
-
-                    @Override
-                    protected boolean acceptResult(IntsRef input, Pair<Long, BytesRef> output) {
-                        XPayLoadProcessor.PayloadMetaData metaData = XPayLoadProcessor.parse(output.output2, hasPayloads, payloadSep, spare);
-                        if (liveDocs != null && metaData.hasDocID()) {
-                            if (!liveDocs.get(metaData.docID)) {
-                                return false;
-                            }
-                        }
-                        return true;
-                    }
-                };
-
-                // NOTE: we could almost get away with only using
-                // the first start node.  The only catch is if
-                // maxSurfaceFormsPerAnalyzedForm had kicked in and
-                // pruned our exact match from one of these nodes
-                // ...:
-                for (FSTUtil.Path<Pair<Long, BytesRef>> path : prefixPaths) {
-                    if (fst.findTargetArc(endByte, path.fstNode, scratchArc, bytesReader) != null) {
-                        // This node has END_BYTE arc leaving, meaning it's an
-                        // "exact" match:
-                        searcher.addStartPaths(scratchArc, fst.outputs.add(path.output, scratchArc.output), false, path.input);
-                    }
-                }
-
-                Util.TopResults<Pair<Long, BytesRef>> completions = searcher.search();
-
-                // NOTE: this is rather inefficient: we enumerate
-                // every matching "exactly the same analyzed form"
-                // path, and then do linear scan to see if one of
-                // these exactly matches the input.  It should be
-                // possible (though hairy) to do something similar
-                // to getByOutput, since the surface form is encoded
-                // into the FST output, so we more efficiently hone
-                // in on the exact surface-form match.  Still, I
-                // suspect very little time is spent in this linear
-                // seach: it's bounded by how many prefix start
-                // nodes we have and the
-                // maxSurfaceFormsPerAnalyzedForm:
-                for (Result<Pair<Long, BytesRef>> completion : completions) {
-                    BytesRef output2 = completion.output.output2;
-                    if (sameSurfaceForm(utf8Key, output2)) {
-                        results.add(getLookupResult(completion.output.output1, output2, spare));
-                        break;
-                    }
-                }
-
-                if (results.size() == num) {
-                    // That was quick:
-                    return results;
-                }
-            }
-
-            Util.TopNSearcher<Pair<Long, BytesRef>> searcher;
-            searcher = new Util.TopNSearcher<Pair<Long, BytesRef>>(fst,
-                    num - results.size(),
-                    getMaxTopNSearcherQueueSize(num, liveDocsRatio),
-                    weightComparator) {
+            XUtil.TopNSearcher<Pair<Long,BytesRef>> searcher;
+            searcher = new XUtil.TopNSearcher<Pair<Long,BytesRef>>(fst,
+                                                                   num,
+                                                                   getMaxTopNSearcherQueueSize(num, liveDocsRatio),
+                                                                   weightComparator) {
                 private final Set<BytesRef> seen = new HashSet<>();
                 private CharsRefBuilder spare = new CharsRefBuilder();
 
                 @Override
-                protected boolean acceptResult(IntsRef input, Pair<Long, BytesRef> output) {
+                protected boolean acceptResult(IntsRef input, Pair<Long,BytesRef> output) {
 
                     XPayLoadProcessor.PayloadMetaData metaData = XPayLoadProcessor.parse(output.output2, hasPayloads, payloadSep, spare);
                     if (liveDocs != null && metaData.hasDocID()) {
@@ -555,57 +435,34 @@ public class XNRTSuggester extends Lookup {
                     }
                     // Dedup: when the input analyzes to a graph we
                     // can get duplicate surface forms:
-                    if (seen.contains(metaData.surfaceForm)) {
+                    if (!lookupOptions.duplicateSurfaceForm && seen.contains(metaData.surfaceForm)) {
                         return false;
                     }
                     seen.add(metaData.surfaceForm);
 
-                    if (!exactFirst) {
+                    try {
+                        XLookupResult result = getLookupResult(spare.get(), output.output1, metaData.payload,
+                                                               getPayloadFields(metaData.docID, payloadFields, reader));
+                        results.add(result);
                         return true;
-                    } else {
-                        // In exactFirst mode, don't accept any paths
-                        // matching the surface form since that will
-                        // create duplicate results:
-                        if (metaData.surfaceForm.bytesEquals(utf8Key)) {
-                            // We found exact match, which means we should
-                            // have already found it in the first search:
-                            assert results.size() == 1;
-                            return false;
-                        } else {
-                            return true;
-                        }
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
                     }
                 }
             };
 
             prefixPaths = getFullPrefixPaths(prefixPaths, lookupAutomaton, fst);
 
-            for (FSTUtil.Path<Pair<Long, BytesRef>> path : prefixPaths) {
+            for (FSTUtil.Path<Pair<Long,BytesRef>> path : prefixPaths) {
                 searcher.addStartPaths(path.fstNode, path.output, true, path.input);
             }
 
-            TopResults<Pair<Long, BytesRef>> completions = searcher.search();
+            // TODO: for fuzzy case would be nice to return
+
+            boolean isComplete = searcher.search();
             // search admissibility is not guaranteed
             // see comment on getMaxTopNSearcherQueueSize
-            //assert completions.isComplete;
-
-            for (Result<Pair<Long, BytesRef>> completion : completions) {
-
-                LookupResult result = getLookupResult(completion.output.output1, completion.output.output2, spare);
-
-                // TODO: for fuzzy case would be nice to return
-                // how many edits were required
-
-                //System.out.println("    result=" + result);
-                results.add(result);
-
-                if (results.size() == num) {
-                    // In the exactFirst=true case the search may
-                    // produce one extra path
-                    break;
-                }
-            }
-
+            //assert isComplete;
             return results;
         } catch (IOException bogus) {
             throw new RuntimeException(bogus);
@@ -625,16 +482,6 @@ public class XNRTSuggester extends Lookup {
         // liveDocRatio can be at most 1.0 (if no docs were deleted)
         assert liveDocRatio <= 1.0d;
         return Math.min(MAX_TOP_N_QUEUE_SIZE, (int) (maxQueueSize / liveDocRatio));
-    }
-
-    @Override
-    public boolean store(DataOutput output) throws IOException {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public boolean load(DataInput input) throws IOException {
-        throw new UnsupportedOperationException();
     }
 
     /**
@@ -955,6 +802,4 @@ public class XNRTSuggester extends Lookup {
             return new BytesRef(buffer, 0, output.getPosition());
         }
     }
-
-
 }

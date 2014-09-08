@@ -24,12 +24,16 @@ import org.apache.lucene.analysis.MockAnalyzer;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.codecs.PostingsFormat;
+import org.apache.lucene.codecs.lucene49.Lucene49Codec;
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.suggest.InputIterator;
 import org.apache.lucene.search.suggest.Lookup;
 import org.apache.lucene.search.suggest.analyzing.AnalyzingSuggester;
 import org.apache.lucene.search.suggest.analyzing.XAnalyzingSuggester;
+import org.apache.lucene.search.suggest.analyzing.XLookup;
 import org.apache.lucene.search.suggest.analyzing.XNRTSuggester;
 import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.BytesRef;
@@ -79,6 +83,18 @@ public class CompletionBenchmark extends ElasticsearchTestCase {
         }
     }
 
+    private static class StoredFieldInput {
+        private String name;
+        private BytesRef value;
+        private Class type;
+
+        private StoredFieldInput(String name, BytesRef value) {
+            this.name = name;
+            this.value = value;
+            this.type = BytesRef.class;
+        }
+    }
+
     private static List<Input> benchmarkInput = new ArrayList<>();
 
     private static List<Input> lookupInput = new ArrayList<>();
@@ -87,12 +103,14 @@ public class CompletionBenchmark extends ElasticsearchTestCase {
     final NamedAnalyzer namedAnalzyer = new NamedAnalyzer("foo", analyzer);
     final PostingsFormatProvider provider = new PreBuiltPostingsFormatProvider(new Elasticsearch090PostingsFormat());
 
-    final CompletionFieldMapper nrtCompletionFieldMapper = new NRTCompletionPostingsFormatTest.NRTCompletionFieldMapper(new FieldMapper.Names("foo"), namedAnalzyer, namedAnalzyer, provider, null, false,
-            false, false, Integer.MAX_VALUE, AbstractFieldMapper.MultiFields.empty(), null, ContextMapping.EMPTY_MAPPING);
+    static List<String> SUGGEST_FIELD_NAMES = new ArrayList<>(2);
+    static final String SUGGEST_FIELD_NAME = "foo";
+    static final String SUGGEST_FIELD_WITH_PAYLOAD_NAME = "foo_payload";
 
-
-    final CompletionFieldMapper analyzingCompletionFieldMapper = new CompletionFieldMapper(new FieldMapper.Names("foo"), namedAnalzyer, namedAnalzyer, provider, null, false,
-            false, false, Integer.MAX_VALUE, AbstractFieldMapper.MultiFields.empty(), null, ContextMapping.EMPTY_MAPPING);
+    static {
+        SUGGEST_FIELD_NAMES.add(SUGGEST_FIELD_NAME);
+        SUGGEST_FIELD_NAMES.add(SUGGEST_FIELD_WITH_PAYLOAD_NAME);
+    }
 
     @BeforeClass
     public static void setup() throws Exception {
@@ -144,7 +162,7 @@ public class CompletionBenchmark extends ElasticsearchTestCase {
         String line = null;
         while ((line = br.readLine()) != null) {
             int tab = line.indexOf('|');
-            assertTrue("No | separator?: " + line, tab >= 0);
+            assert tab >= 0 : "No | separator?: " + line;
             int weight = Integer.parseInt(line.substring(tab + 1));
             String key = line.substring(0, tab);
             input.add(new Input(key, weight));
@@ -193,6 +211,7 @@ public class CompletionBenchmark extends ElasticsearchTestCase {
         for(int[] prefixLength : prefixLengths) {
             final int minPrefixLen = prefixLength[0];
             final int maxPrefixLen = prefixLength[1];
+            List<String> inputs = generateInputs(minPrefixLen, maxPrefixLen);
             System.out.println(String.format(Locale.ROOT,
                     "  -- prefixes: %d-%d, num: %d",
                     minPrefixLen, maxPrefixLen, num));
@@ -202,7 +221,7 @@ public class CompletionBenchmark extends ElasticsearchTestCase {
                 final Map.Entry<Lookup, AtomicReader> nrtLookupEntry = completionProvider.getNRTLookup();
                 Lookup nrtLookup = nrtLookupEntry.getKey();
                 AtomicReader reader = nrtLookupEntry.getValue();
-                runNRTPerfTest(nrtLookup, reader, minPrefixLen, maxPrefixLen);
+                runNRTPerfTest(nrtLookup, reader, inputs);
                 reader.close();
                 completionProvider.close();
             }
@@ -215,9 +234,9 @@ public class CompletionBenchmark extends ElasticsearchTestCase {
     @Test
     public void testStorageNeeds() throws Exception {
         System.out.println("-- RAM consumption");
-        final Lookup analyzingLookup = buildAnalyzingLookup();
-        final Lookup xAnalyzingLookup = buildXAnalyzingLookup();
-        final Lookup xNRTLookup = buildXNRTLookup();
+        final Lookup analyzingLookup = buildAnalyzingLookup(null, true);
+        final Lookup xAnalyzingLookup = buildXAnalyzingLookup(null);
+        final Lookup xNRTLookup = buildXNRTLookup(null).getKey();
 
         runStorageNeeds("AnalyzingSuggester", analyzingLookup);
         runStorageNeeds("XAnalyzingSuggester", xAnalyzingLookup);
@@ -249,29 +268,75 @@ public class CompletionBenchmark extends ElasticsearchTestCase {
         }
     }
 
+    @Test
+    public void testStoredFieldRetrievalPerformance() throws Exception {
+        System.out.println("-- Stored Field Retrieval Performance");
+        int[][] prefixLengthBounds = {{2, 4}, {3, 6}, {100, 200}};
+        final String returnFieldName = "payload";
+        Lookup analyzingLookup = null;
+        Lookup xAnalyzingLookup = null;
+        Map.Entry<Lookup, AtomicReader> xNRTLookupAndReader = null;
+        Set<String> returnFieldNames = new HashSet<>(1);
+        returnFieldNames.add(returnFieldName);
+        final List<StoredFieldInput> storedFieldInputs = generateStoredFieldInputs(returnFieldName);
+        for (int[] prefixLengthBound : prefixLengthBounds) {
+            int minPrefixLength = prefixLengthBound[0];
+            int maxPrefixLength = prefixLengthBound[1];
+            final List<String> inputs = generateInputs(minPrefixLength, maxPrefixLength);
+            analyzingLookup = buildAnalyzingLookup(storedFieldInputs, true);
+            xAnalyzingLookup = buildXAnalyzingLookup(storedFieldInputs);
+            xNRTLookupAndReader = buildXNRTLookup(storedFieldInputs);
+
+            for (int num : new int[]{2, 4, 6}) {
+                System.out.println(String.format(Locale.ROOT,
+                        "  -- prefixes: %d-%d, num: %d", minPrefixLength, maxPrefixLength, num));
+
+                runPerfTest("  AnalyzingSuggester", analyzingLookup, inputs, null, null, num);
+                runPerfTest("  XAnalyzingSuggester", xAnalyzingLookup, inputs, null, null, num);
+                runPerfTest("  XNRTSuggester", xNRTLookupAndReader.getKey(), inputs, xNRTLookupAndReader.getValue(), returnFieldNames, num);
+            }
+        }
+
+        assert xNRTLookupAndReader != null;
+        System.out.println("\n - Storage benchmark");
+        runStorageNeeds("  AnalyzingSuggester (with payload)", analyzingLookup);
+        runStorageNeeds("  XAnalyzingSuggester (with payload)", xAnalyzingLookup);
+        runStorageNeeds("  XNRTSuggester", xNRTLookupAndReader.getKey());
+
+    }
+
+    private List<StoredFieldInput> generateStoredFieldInputs(String name) {
+        List<StoredFieldInput> storedFieldInputs = new ArrayList<>(benchmarkInput.size());
+        for (Input input : benchmarkInput) {
+            storedFieldInputs.add(new StoredFieldInput(name, new BytesRef(input.term)));
+        }
+        return storedFieldInputs;
+    }
+
     public void runPerformanceTest(final int minPrefixLen, final int maxPrefixLen,
                                    final int num) throws Exception {
         System.out.println(String.format(Locale.ROOT,
                 "-- Lookup performance (prefixes: %d-%d, num: %d)",
                 minPrefixLen, maxPrefixLen, num));
 
-        final Lookup analyzingLookup = buildAnalyzingLookup();
-        final Lookup xAnalyzingLookup = buildXAnalyzingLookup();
-        final Lookup xNRTLookup = buildXNRTLookup();
+        final List<String> inputs = generateInputs(minPrefixLen, maxPrefixLen);
+        final Lookup analyzingLookup = buildAnalyzingLookup(null, true);
+        final Lookup xAnalyzingLookup = buildXAnalyzingLookup(null);
+        final Lookup xNRTLookup = buildXNRTLookup(null).getKey();
 
-        runPerfTest("AnalyzingSuggester", analyzingLookup, minPrefixLen, maxPrefixLen, num);
-        runPerfTest("XAnalyzingSuggester", xAnalyzingLookup, minPrefixLen, maxPrefixLen, num);
-        runPerfTest("XNRTSuggester", xNRTLookup, minPrefixLen, maxPrefixLen, num);
+        runPerfTest("AnalyzingSuggester", analyzingLookup, inputs, null, null, num);
+        runPerfTest("XAnalyzingSuggester", xAnalyzingLookup, inputs, null, null, num);
+        runPerfTest("XNRTSuggester", xNRTLookup, inputs, null, null, num);
     }
 
-    public Lookup buildLookup(String name) throws IOException {
+    public Lookup buildLookup(String name) throws Exception {
         switch (name) {
             case "AnalyzingSuggester":
-                return buildAnalyzingLookup(false);
+                return buildAnalyzingLookup(null, false);
             case "XAnalyzingSuggester":
-                return buildXAnalyzingLookup();
+                return buildXAnalyzingLookup(null);
             default:
-                return buildXNRTLookup();
+                return buildXNRTLookup(null).getKey();
         }
     }
 
@@ -286,18 +351,13 @@ public class CompletionBenchmark extends ElasticsearchTestCase {
                         sizeInBytes));
     }
 
-    private Lookup buildAnalyzingLookup() throws IOException {
-        return buildAnalyzingLookup(true);
-    }
-
-
-    private Lookup buildAnalyzingLookup(boolean validate) throws IOException {
+    private Lookup buildAnalyzingLookup(List<StoredFieldInput> payloads, boolean validate) throws IOException {
         AnalyzingSuggester suggester = new AnalyzingSuggester(analyzer);
-        suggester.build(constructInputIterator(lookupInput, validate));
+        suggester.build(constructInputIterator(lookupInput, payloads, validate));
         return suggester;
     }
 
-    private InputIterator constructInputIterator(final List<Input> inputs , boolean validate) throws IOException {
+    private InputIterator constructInputIterator(final List<Input> inputs, final List<StoredFieldInput> payloads, boolean validate) throws IOException {
         InputIterator inputIterator = new InputIterator() {
             int index = -1;
 
@@ -308,12 +368,15 @@ public class CompletionBenchmark extends ElasticsearchTestCase {
 
             @Override
             public BytesRef payload() {
+                if (payloads != null) {
+                    return payloads.get(index).value;
+                }
                 return null;
             }
 
             @Override
             public boolean hasPayloads() {
-                return false;
+                return payloads != null;
             }
 
             @Override
@@ -354,17 +417,20 @@ public class CompletionBenchmark extends ElasticsearchTestCase {
             }
             assert count == inputs.size();
             // used up constructed input iterator; construct it again without validation
-            return constructInputIterator(inputs, false);
+            return constructInputIterator(inputs, payloads, false);
         }
 
         return inputIterator;
     }
 
-    private Lookup buildXAnalyzingLookup() throws IOException {
+    private Lookup buildXAnalyzingLookup(final List<StoredFieldInput> storedFieldInputs) throws Exception {
+        String fieldName = (storedFieldInputs==null) ? SUGGEST_FIELD_NAME : SUGGEST_FIELD_WITH_PAYLOAD_NAME;
+        final CompletionFieldMapper analyzingCompletionFieldMapper = new CompletionFieldMapper(new FieldMapper.Names(fieldName), namedAnalzyer, namedAnalzyer, provider, null, storedFieldInputs!=null,
+                false, false, Integer.MAX_VALUE, AbstractFieldMapper.MultiFields.empty(), null, ContextMapping.EMPTY_MAPPING);
         CompletionProvider completionProvider = null;
         try {
             completionProvider = new CompletionProvider(analyzingCompletionFieldMapper);
-            completionProvider.indexCompletions(lookupInput);
+            completionProvider.indexCompletions(lookupInput, storedFieldInputs);
             return completionProvider.getLookup();
         } finally {
             assert completionProvider != null;
@@ -372,12 +438,15 @@ public class CompletionBenchmark extends ElasticsearchTestCase {
         }
     }
 
-    private Lookup buildXNRTLookup() throws IOException {
+    private Map.Entry<Lookup, AtomicReader> buildXNRTLookup(final List<StoredFieldInput> storedFieldInputs) throws Exception {
+        String fieldName = (storedFieldInputs==null) ? SUGGEST_FIELD_NAME : SUGGEST_FIELD_WITH_PAYLOAD_NAME;
+        final CompletionFieldMapper nrtCompletionFieldMapper = new NRTCompletionPostingsFormatTest.NRTCompletionFieldMapper(new FieldMapper.Names(fieldName), namedAnalzyer, namedAnalzyer, provider, null, storedFieldInputs!=null,
+                false, false, Integer.MAX_VALUE, AbstractFieldMapper.MultiFields.empty(), null, ContextMapping.EMPTY_MAPPING);
         CompletionProvider completionProvider = null;
         try {
             completionProvider = new CompletionProvider(nrtCompletionFieldMapper);
-            completionProvider.indexCompletions(lookupInput);
-            return completionProvider.getLookup();
+            completionProvider.indexCompletions(lookupInput, storedFieldInputs);
+            return completionProvider.getNRTLookup();
         } finally {
             assert completionProvider != null;
             completionProvider.close();
@@ -385,6 +454,8 @@ public class CompletionBenchmark extends ElasticsearchTestCase {
     }
 
     private CompletionProvider buildNRTLookup(float deletedDocRatio) throws Exception {
+        final CompletionFieldMapper nrtCompletionFieldMapper = new NRTCompletionPostingsFormatTest.NRTCompletionFieldMapper(new FieldMapper.Names(SUGGEST_FIELD_NAME), namedAnalzyer, namedAnalzyer, provider, null, false,
+                false, false, Integer.MAX_VALUE, AbstractFieldMapper.MultiFields.empty(), null, ContextMapping.EMPTY_MAPPING);
         int deletedDocs = (int) (deletedDocRatio * lookupInput.size());
         final CompletionProvider completionProvider = new CompletionProvider(nrtCompletionFieldMapper);
         completionProvider.indexCompletions(lookupInput);
@@ -405,20 +476,46 @@ public class CompletionBenchmark extends ElasticsearchTestCase {
         return inputs;
     }
 
-    private void runPerfTest(final String name, final Lookup lookup, int minPrefixLen, final int maxPrefixLen, final int num) {
-        final List<String> inputs = generateInputs(minPrefixLen, maxPrefixLen);
-
-        BenchmarkResult result = measure(new Callable<Integer>() {
-            @Override
-            public Integer call() throws Exception {
-                int v = 0;
-                for (String term : inputs) {
-                    v += lookup.lookup(term, false, num).size();
-                }
-                return v;
+    private void runPerfTest(final String name, final Lookup lookup, final List<String> inputs, final AtomicReader reader, final Set<String> returnStoredFields, final int num) {
+        BenchmarkResult result;
+        if (lookup instanceof XLookup) {
+            final XLookup xLookup = (XLookup) lookup;
+            if (returnStoredFields != null) {
+                result = measure(new Callable<Integer>() {
+                    @Override
+                    public Integer call() throws Exception {
+                        int v = 0;
+                        for (String term : inputs) {
+                            v += xLookup.lookup(term, num, reader, returnStoredFields).size();
+                        }
+                        return v;
+                    }
+                });
+            } else {
+                result = measure(new Callable<Integer>() {
+                    @Override
+                    public Integer call() throws Exception {
+                        int v = 0;
+                        for (String term : inputs) {
+                            v += xLookup.lookup(term, num).size();
+                        }
+                        return v;
+                    }
+                });
             }
-        });
-
+        } else {
+            assert returnStoredFields == null : "returnStoredFields has to be null for non-nrt suggesters";
+            result = measure(new Callable<Integer>() {
+                @Override
+                public Integer call() throws Exception {
+                    int v = 0;
+                    for (String term : inputs) {
+                        v += lookup.lookup(term, false, num).size();
+                    }
+                    return v;
+                }
+            });
+        }
         System.out.println(
                 String.format(Locale.ROOT, "  %-15s queries: %d, time[ms]: %s, ~kQPS: %.0f",
                         name,
@@ -427,8 +524,7 @@ public class CompletionBenchmark extends ElasticsearchTestCase {
                         inputs.size() / result.average.avg));
     }
 
-    private void runNRTPerfTest(final Lookup lookup, final AtomicReader reader, int minPrefixLen, int maxPrefixLen) {
-        final List<String> inputs = generateInputs(minPrefixLen, maxPrefixLen);
+    private void runNRTPerfTest(final Lookup lookup, final AtomicReader reader, final List<String> inputs) {
         assert lookup instanceof XNRTSuggester;
         final XNRTSuggester suggester = (XNRTSuggester) lookup;
         BenchmarkResult result = measure(new Callable<Integer>() {
@@ -492,9 +588,13 @@ public class CompletionBenchmark extends ElasticsearchTestCase {
         RAMDirectory dir = new RAMDirectory();
 
         public CompletionProvider(final CompletionFieldMapper mapper) throws IOException {
-            FilterCodec filterCodec = new FilterCodec("filtered", Codec.getDefault()) {
-                public PostingsFormat postingsFormat() {
-                    return mapper.postingsFormatProvider().get();
+            Codec filterCodec = new Lucene49Codec() {
+                @Override
+                public PostingsFormat getPostingsFormatForField(String field) {
+                    if (SUGGEST_FIELD_NAMES.contains(field)) {
+                        return mapper.postingsFormatProvider().get();
+                    }
+                    return super.getPostingsFormatForField(field);
                 }
             };
             this.indexWriterConfig = new IndexWriterConfig(Version.LUCENE_4_9, mapper.indexAnalyzer());
@@ -502,12 +602,25 @@ public class CompletionBenchmark extends ElasticsearchTestCase {
             this.mapper = mapper;
         }
 
-        public void indexCompletions(List<Input> inputs) throws IOException {
+        public void indexCompletions(List<Input> inputs) throws Exception {
+            indexCompletions(inputs, null);
+        }
+
+        public void indexCompletions(List<Input> inputs, List<StoredFieldInput> storedFieldInputs) throws Exception {
             writer = new IndexWriter(dir, indexWriterConfig);
-            for (Input input : inputs) {
+            final boolean hasStoredFieldInputs = storedFieldInputs != null;
+            if (hasStoredFieldInputs) {
+                assert storedFieldInputs.size() == inputs.size();
+            }
+            for (int i = 0; i < inputs.size(); i++) {
+                Input input = inputs.get(i);
                 Document doc = new Document();
                 BytesRef payload = mapper.buildPayload(new BytesRef(input.term), input.weight, new BytesRef());
                 doc.add(mapper.getCompletionField(ContextMapping.EMPTY_CONTEXT, input.term, payload));
+                if (hasStoredFieldInputs) {
+                    StoredFieldInput storedFieldInput = storedFieldInputs.get(i);
+                    doc.add(makeField(storedFieldInput.name, storedFieldInput.value, storedFieldInput.type));
+                }
                 writer.addDocument(doc);
             }
             writer.forceMerge(1, true);
@@ -580,6 +693,24 @@ public class CompletionBenchmark extends ElasticsearchTestCase {
         public void close() throws IOException {
             writer.close();
             dir.close();
+        }
+
+
+        private Field makeField(String name, Object value, Class type) throws Exception {
+            if (type == String.class) {
+                return new StoredField(name, (String) value);
+            } else if (type == BytesRef.class) {
+                return new StoredField(name, (BytesRef) value);
+            } else if (type == Integer.class) {
+                return new StoredField(name, (int) value);
+            } else if (type == Float.class) {
+                return new StoredField(name, (float) value);
+            } else if (type == Double.class) {
+                return new StoredField(name, (double) value);
+            } else if (type == Long.class) {
+                return new StoredField(name, (long) value);
+            }
+            throw new Exception("Unsupported Type " + type);
         }
     }
     // copied from Lucene (org/apache/lucene/search/suggest/Average.java)

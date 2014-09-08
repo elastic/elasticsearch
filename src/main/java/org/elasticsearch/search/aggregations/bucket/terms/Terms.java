@@ -22,7 +22,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 
@@ -127,24 +126,6 @@ public interface Terms extends MultiBucketsAggregation {
         }
 
         /**
-         * Creates a bucket ordering strategy which sorts buckets based multiple criteria
-         *
-         * @param   orders a list of {@link Order} objects to sort on, in order of priority
-         */
-        public static Order compound(List<Order> orders) {
-            return new InternalOrder.CompoundOrder(orders);
-        }
-
-        /**
-         * Creates a bucket ordering strategy which sorts buckets based multiple criteria
-         *
-         * @param   orders a list of {@link Order} parameters to sort on, in order of priority
-         */
-        public static Order compound(Order... orders) {
-            return compound(Arrays.asList(orders));
-        }
-
-        /**
          * @return  A comparator for the bucket based on the given terms aggregator. The comparator is used in two phases:
          *
          *          - aggregation phase, where each shard builds a list of term buckets to be sent to the coordinating node.
@@ -155,8 +136,6 @@ public interface Terms extends MultiBucketsAggregation {
          *            to a final bucket list. In this case, the passed in aggregator will be {@code null}
          */
         protected abstract Comparator<Bucket> comparator(Aggregator aggregator);
-
-        abstract byte id();
 
     }
 }

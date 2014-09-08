@@ -27,59 +27,61 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
-import org.elasticsearch.search.aggregations.bucket.terms.Terms.Bucket;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.aggregations.support.OrderPath;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Comparator;
 
 /**
  *
  */
 class InternalOrder extends Terms.Order {
 
-    private static final byte COUNT_DESC_ID = 1;
-    private static final byte COUNT_ASC_ID = 2;
-    private static final byte TERM_DESC_ID = 3;
-    private static final byte TERM_ASC_ID = 4;
-
     /**
      * Order by the (higher) count of each term.
      */
-    public static final InternalOrder COUNT_DESC = new InternalOrder(COUNT_DESC_ID, "_count", false, new Comparator<Terms.Bucket>() {
+    public static final InternalOrder COUNT_DESC = new InternalOrder((byte) 1, "_count", false, new Comparator<Terms.Bucket>() {
         @Override
         public int compare(Terms.Bucket o1, Terms.Bucket o2) {
-            return  Long.compare(o2.getDocCount(), o1.getDocCount());
+            int cmp = - Long.compare(o1.getDocCount(), o2.getDocCount());
+            if (cmp == 0) {
+                cmp = o1.compareTerm(o2);
+            }
+            return cmp;
         }
     });
 
     /**
      * Order by the (lower) count of each term.
      */
-    public static final InternalOrder COUNT_ASC = new InternalOrder(COUNT_ASC_ID, "_count", true, new Comparator<Terms.Bucket>() {
+    public static final InternalOrder COUNT_ASC = new InternalOrder((byte) 2, "_count", true, new Comparator<Terms.Bucket>() {
 
         @Override
         public int compare(Terms.Bucket o1, Terms.Bucket o2) {
-            return Long.compare(o1.getDocCount(), o2.getDocCount());
+            int cmp = Long.compare(o1.getDocCount(), o2.getDocCount());
+            if (cmp == 0) {
+                cmp = o1.compareTerm(o2);
+            }
+            return cmp;
         }
     });
 
     /**
      * Order by the terms.
      */
-    public static final InternalOrder TERM_DESC = new InternalOrder(TERM_DESC_ID, "_term", false, new Comparator<Terms.Bucket>() {
+    public static final InternalOrder TERM_DESC = new InternalOrder((byte) 3, "_term", false, new Comparator<Terms.Bucket>() {
 
         @Override
         public int compare(Terms.Bucket o1, Terms.Bucket o2) {
-            return o2.compareTerm(o1);
+            return - o1.compareTerm(o2);
         }
     });
 
     /**
      * Order by the terms.
      */
-    public static final InternalOrder TERM_ASC = new InternalOrder(TERM_ASC_ID, "_term", true, new Comparator<Terms.Bucket>() {
+    public static final InternalOrder TERM_ASC = new InternalOrder((byte) 4, "_term", true, new Comparator<Terms.Bucket>() {
 
         @Override
         public int compare(Terms.Bucket o1, Terms.Bucket o2) {
@@ -87,18 +89,6 @@ class InternalOrder extends Terms.Order {
         }
     });
 
-    public static boolean isCountDesc(Terms.Order order) {
-        if (order == COUNT_DESC) {
-            return true;
-        }else if (order instanceof CompoundOrder) {
-            // check if its a compound order with count desc and the tie breaker (term asc)
-            CompoundOrder compoundOrder = (CompoundOrder) order;
-            if (compoundOrder.compoundOrder.size() == 2 && compoundOrder.compoundOrder.get(0) == COUNT_DESC && compoundOrder.compoundOrder.get(1) == TERM_ASC) {
-                return true;
-            }
-        }
-        return false;
-    }
 
     final byte id;
     final String key;
@@ -126,13 +116,8 @@ class InternalOrder extends Terms.Order {
         return builder.startObject().field(key, asc ? "asc" : "desc").endObject();
     }
 
-    public static Terms.Order validate(Terms.Order order, Aggregator termsAggregator) {
-        if (order instanceof CompoundOrder) {
-            for (Terms.Order innerOrder : ((CompoundOrder)order).compoundOrder) {
-                validate(innerOrder, termsAggregator);
-            }
-            return order;
-        } else if (!(order instanceof Aggregation)) {
+    public static InternalOrder validate(InternalOrder order, Aggregator termsAggregator) {
+        if (!(order instanceof Aggregation)) {
             return order;
         }
         OrderPath path = ((Aggregation) order).path();
@@ -214,63 +199,12 @@ class InternalOrder extends Terms.Order {
         }
     }
 
-    static class CompoundOrder extends Terms.Order{
-
-        static final byte ID = -1;
-
-        private final List<Terms.Order> compoundOrder;
-
-        public CompoundOrder(List<Terms.Order> compoundOrder) {
-            this.compoundOrder = new LinkedList<>(compoundOrder);
-        }
-
-        @Override
-        byte id() {
-            return ID;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startArray();
-            for (Terms.Order order : compoundOrder) {
-                order.toXContent(builder, params);
-            }
-            return builder.endArray();
-        }
-
-        @Override
-        protected Comparator<Bucket> comparator(Aggregator aggregator) {
-            return new CompoundOrderComparator(compoundOrder, aggregator);
-        }
-
-        public static class CompoundOrderComparator implements Comparator<Terms.Bucket> {
-
-            private List<Terms.Order> compoundOrder;
-            private Aggregator aggregator;
-
-            public CompoundOrderComparator(List<Terms.Order> compoundOrder, Aggregator aggregator) {
-                this.compoundOrder = compoundOrder;
-                this.aggregator = aggregator;
-            }
-
-            @Override
-            public int compare(Bucket o1, Bucket o2) {
-                int result = 0;
-                for (Iterator<Terms.Order> itr = compoundOrder.iterator(); itr.hasNext() && result == 0;) {
-                    result = itr.next().comparator(aggregator).compare(o1, o2);
-                }
-                return result;
-            }
-        }
-    }
-
     public static class Streams {
 
-        public static void writeOrder(Terms.Order order, StreamOutput out) throws IOException {
+        public static void writeOrder(InternalOrder order, StreamOutput out) throws IOException {
             out.writeByte(order.id());
             if (order instanceof Aggregation) {
-                Aggregation aggregationOrder = (Aggregation) order;
-                out.writeBoolean(((MultiBucketsAggregation.Bucket.SubAggregationComparator) aggregationOrder.comparator).asc());
+                out.writeBoolean(((MultiBucketsAggregation.Bucket.SubAggregationComparator) order.comparator).asc());
                 OrderPath path = ((Aggregation) order).path();
                 if (out.getVersion().onOrAfter(Version.V_1_1_0)) {
                     out.writeString(path.toString());
@@ -284,23 +218,17 @@ class InternalOrder extends Terms.Order {
                         out.writeString(token.key);
                     }
                 }
-            } else if (order instanceof CompoundOrder) {
-                CompoundOrder compoundOrder = (CompoundOrder) order;
-                out.writeVInt(compoundOrder.compoundOrder.size());
-                for (Terms.Order innerOrder : compoundOrder.compoundOrder) {
-                    Streams.writeOrder(innerOrder, out);
-                }
             }
         }
 
-        public static Terms.Order readOrder(StreamInput in) throws IOException {
+        public static InternalOrder readOrder(StreamInput in) throws IOException {
             byte id = in.readByte();
             switch (id) {
-                case COUNT_DESC_ID: return InternalOrder.COUNT_DESC;
-                case COUNT_ASC_ID: return InternalOrder.COUNT_ASC;
-                case TERM_DESC_ID: return InternalOrder.TERM_DESC;
-                case TERM_ASC_ID: return InternalOrder.TERM_ASC;
-                case Aggregation.ID:
+                case 1: return InternalOrder.COUNT_DESC;
+                case 2: return InternalOrder.COUNT_ASC;
+                case 3: return InternalOrder.TERM_DESC;
+                case 4: return InternalOrder.TERM_ASC;
+                case 0:
                     boolean asc = in.readBoolean();
                     String key = in.readString();
                     if (in.getVersion().onOrAfter(Version.V_1_1_0)) {
@@ -311,13 +239,6 @@ class InternalOrder extends Terms.Order {
                         return new InternalOrder.Aggregation(key + "." + in.readString(), asc);
                     }
                     return new InternalOrder.Aggregation(key, asc);
-                case CompoundOrder.ID:
-                    int size = in.readVInt();
-                    List<Terms.Order> compoundOrder = new ArrayList<>(size);
-                    for (int i = 0; i < size; i++) {
-                        compoundOrder.add(Streams.readOrder(in));
-                    }
-                    return new CompoundOrder(compoundOrder);
                 default:
                     throw new RuntimeException("unknown terms order");
             }

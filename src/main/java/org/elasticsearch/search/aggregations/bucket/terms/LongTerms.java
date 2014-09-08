@@ -99,7 +99,7 @@ public class LongTerms extends InternalTerms {
 
     LongTerms() {} // for serialization
 
-    public LongTerms(String name, Terms.Order order, @Nullable ValueFormatter formatter, int requiredSize, int shardSize, long minDocCount, List<InternalTerms.Bucket> buckets, boolean showTermDocCountError, long docCountError) {
+    public LongTerms(String name, InternalOrder order, @Nullable ValueFormatter formatter, int requiredSize, int shardSize, long minDocCount, List<InternalTerms.Bucket> buckets, boolean showTermDocCountError, long docCountError) {
         super(name, order, requiredSize, shardSize, minDocCount, buckets, showTermDocCountError, docCountError);
         this.formatter = formatter;
     }

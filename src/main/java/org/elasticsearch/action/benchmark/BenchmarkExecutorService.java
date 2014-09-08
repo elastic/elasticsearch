@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.benchmark;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.benchmark.start.*;

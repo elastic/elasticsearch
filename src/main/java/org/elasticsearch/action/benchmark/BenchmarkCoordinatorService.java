@@ -140,38 +140,30 @@ public class BenchmarkCoordinatorService extends AbstractBenchmarkService {
 
             switch (entry.state()) {
                 case INITIALIZING:
-                    if (allNodesReady(entry)) {
+                    if (allNodesReady(entry) && ics.canStartRunning()) {
                         // Once all executors have initialized and reported 'ready', we can update the benchmark's
                         // top-level state, thereby signalling to the executors that it's okay to begin execution.
-                        if (ics.canStartRunning()) {
-                            ics.onReady.onStateChange(entry);
-                        }
+                        ics.onReady.onStateChange(entry);
                     }
                     break;
                 case RUNNING:
-                    if (allNodesFinished(entry)) {
+                    if (allNodesFinished(entry) && ics.canStopRunning()) {
                         // Once all executors have completed, successfully or otherwise, we can fetch the benchmark's
                         // results from each executor node, merge them into a single top-level result, and update
                         // the benchmark's top-level state.
-                        if (ics.canStopRunning()) {
-                            ics.onFinished.onStateChange(entry);
-                        }
+                        ics.onFinished.onStateChange(entry);
                     }
                     break;
                 case RESUMING:
-                    if (allNodesRunning(entry)) {
-                        if (ics.canResumeRunning()) {
-                            assert ics.onResumed != null;
-                            ics.onResumed.onStateChange(entry);
-                        }
+                    if (allNodesRunning(entry) && ics.canResumeRunning()) {
+                        assert ics.onResumed != null;
+                        ics.onResumed.onStateChange(entry);
                     }
                     break;
                 case PAUSED:
-                    if (allNodesPaused(entry)) {
-                        if (ics.canPauseRunning()) {
-                            assert ics.onPaused != null;
-                            ics.onPaused.onStateChange(entry);
-                        }
+                    if (allNodesPaused(entry) && ics.canPauseRunning()) {
+                        assert ics.onPaused != null;
+                        ics.onPaused.onStateChange(entry);
                     }
                     break;
                 case COMPLETED:

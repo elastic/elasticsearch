@@ -49,8 +49,11 @@ public class BenchmarkExecutor {
 
     private final Client           client;
     protected final ClusterService clusterService;
-    private final Object           lock = new Object();
 
+    // This lock is to guard against concurrent access to the 'active' benchmark map, for example
+    // in cases where create() may be called simultaneously with the same benchmark id from different
+    // clients. Similar reasoning holds for simultaneous calls to clear() and create().
+    private final Object lock = new Object();
     private volatile ImmutableOpenMap<String, BenchmarkState> active = ImmutableOpenMap.of();
 
     public BenchmarkExecutor(Client client, ClusterService clusterService) {

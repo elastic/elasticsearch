@@ -182,7 +182,7 @@ public class UpdateMappingOnClusterTests extends ElasticsearchIntegrationTest {
             client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(mapping).get();
             fail("This should result in conflicts when merging the mapping");
         } catch (MergeMappingException e) {
-            String[] expectedConflicts = {"mapper [_timestamp] has different index values", "mapper [_timestamp] has different store values", "Cannot update default in _timestamp value. Value is 1970-01-01 now encountering 1970-01-02", "Cannot update path in _timestamp value. Value is foo now encountering bar"};
+            String[] expectedConflicts = {"mapper [_timestamp] has different index values", "mapper [_timestamp] has different store values", "Cannot update default in _timestamp value. Value is 1970-01-01 now encountering 1970-01-02", "Cannot update path in _timestamp value. Value is foo path in merged mapping is bar"};
             for (String conflict : expectedConflicts) {
                 assertThat(e.getDetailedMessage(), containsString(conflict));
             }

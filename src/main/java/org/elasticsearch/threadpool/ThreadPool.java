@@ -286,7 +286,7 @@ public class ThreadPool extends AbstractComponent {
             } else {
                 logger.debug("creating thread_pool [{}], type [{}]", name, type);
             }
-            return new ExecutorHolder(MoreExecutors.sameThreadExecutor(), new Info(name, type));
+            return new ExecutorHolder(MoreExecutors.directExecutor(), new Info(name, type));
         } else if ("cached".equals(type)) {
             TimeValue defaultKeepAlive = defaultSettings.getAsTime("keep_alive", timeValueMinutes(5));
             if (previousExecutorHolder != null) {

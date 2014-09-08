@@ -10,7 +10,7 @@ bin/plugin -install elasticsearch/elasticsearch-analysis-phonetic/2.3.0
 ```
 
 
-| elasticsearch |  ICU Analysis Plugin  |   Docs     |  
+| elasticsearch |Phonetic Analysis Plugin|   Docs     |  
 |---------------|-----------------------|------------|
 | master        |  Build from source    | See below  |
 | es-1.x        |  Build from source    | [2.4.0-SNAPSHOT](https://github.com/elasticsearch/elasticsearch-analysis-phonetic/tree/es-1.x/#version-240-snapshot-for-elasticsearch-1x)  |

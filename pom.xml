@@ -39,7 +39,7 @@
         <tests.bwc.path>${project.basedir}/backwards</tests.bwc.path>
         <es.logger.level>INFO</es.logger.level>
         <tests.heap.size>512m</tests.heap.size>
-        <tests.heapdump.path>${basedir}/logs</tests.heapdump.path>
+        <tests.heapdump.path>${basedir}/logs/</tests.heapdump.path>
         <tests.topn>5</tests.topn>
         <execution.hint.file>.local-${project.version}-execution-hints.log</execution.hint.file>
     </properties>
@@ -575,6 +575,19 @@
                                 </fail>
                             </target>
                         </configuration>
+                    </execution>
+                    <execution>
+                        <phase>generate-test-resources</phase>
+                        <id>create-heapdump-directory</id>
+                        <configuration>
+                            <tasks>
+                                <echo message="Creating heapdump directory"/>
+                                <mkdir dir="${tests.heapdump.path}"/>
+                            </tasks>
+                        </configuration>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
                     </execution>
                     <execution>
                         <id>tests</id>

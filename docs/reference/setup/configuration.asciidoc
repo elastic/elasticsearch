@@ -315,7 +315,7 @@ and the logging configuration file is `config/logging.yml` file.
 [[required units]]
 === Required units
 
-added[1.4.0]
+coming[1.4.0]
 
 As of 1.4.0, Elasticsearch now requires that all time and byte-sized
 settings contain units to prevent accidental mis-configuration.  If
@@ -331,7 +331,7 @@ setting:
 
 [source,yaml]
 --------------------------------------------------
-settings_require_units: false
+settings.require_units: false
 --------------------------------------------------
 
 in `elasticsearch.yml`.

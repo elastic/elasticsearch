@@ -57,7 +57,7 @@ public class ImmutableSettings implements Settings {
     public static final Settings EMPTY = new Builder().build();
 
     /** Name of the setting to use to disable required units for byte size, time settings. */
-    public static final String SETTINGS_REQUIRE_UNITS = "settings_require_units";
+    public static final String SETTINGS_REQUIRE_UNITS = "settings.require_units";
 
     private static boolean settingsRequireUnits = true;
 

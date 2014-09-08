@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.search.action.SearchServiceListener;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.search.controller.SearchPhaseController;
@@ -35,8 +36,6 @@ import org.elasticsearch.search.fetch.QueryFetchSearchResult;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.threadpool.ThreadPool;
-
-import java.io.IOException;
 
 import static org.elasticsearch.action.search.type.TransportSearchHelper.buildScrollId;
 
@@ -75,25 +74,30 @@ public class TransportSearchQueryAndFetchAction extends TransportSearchTypeActio
         @Override
         protected void moveToSecondPhase() throws Exception {
             try {
-                innerFinishHim();
-            } catch (Throwable e) {
-                ReduceSearchPhaseException failure = new ReduceSearchPhaseException("merge", "", e, buildShardFailures());
-                if (logger.isDebugEnabled()) {
-                    logger.debug("failed to reduce search", failure);
-                }
-                listener.onFailure(failure);
+                threadPool.executor(ThreadPool.Names.SEARCH).execute(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            boolean useScroll = !useSlowScroll && request.scroll() != null;
+                            sortedShardList = searchPhaseController.sortDocs(useScroll, firstResults);
+                            final InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, firstResults, firstResults);
+                            String scrollId = null;
+                            if (request.scroll() != null) {
+                                scrollId = buildScrollId(request.searchType(), firstResults, null);
+                            }
+                            listener.onResponse(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successfulOps.get(), buildTookInMillis(), buildShardFailures()));
+                        } catch (Throwable e) {
+                            ReduceSearchPhaseException failure = new ReduceSearchPhaseException("merge", "", e, buildShardFailures());
+                            if (logger.isDebugEnabled()) {
+                                logger.debug("failed to reduce search", failure);
+                            }
+                            listener.onFailure(failure);
+                        }
+                    }
+                });
+            } catch (EsRejectedExecutionException ex) {
+                listener.onFailure(ex);
             }
-        }
-
-        private void innerFinishHim() throws IOException {
-            boolean useScroll = !useSlowScroll && request.scroll() != null;
-            sortedShardList = searchPhaseController.sortDocs(useScroll, firstResults);
-            final InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, firstResults, firstResults);
-            String scrollId = null;
-            if (request.scroll() != null) {
-                scrollId = buildScrollId(request.searchType(), firstResults, null);
-            }
-            listener.onResponse(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successfulOps.get(), buildTookInMillis(), buildShardFailures()));
         }
     }
 }

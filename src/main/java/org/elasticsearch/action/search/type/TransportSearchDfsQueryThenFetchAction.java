@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.action.SearchServiceListener;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
@@ -191,27 +192,37 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
             }
         }
 
-        void finishHim() {
+        private void finishHim() {
             try {
-                innerFinishHim();
-            } catch (Throwable e) {
-                ReduceSearchPhaseException failure = new ReduceSearchPhaseException("merge", "", e, buildShardFailures());
-                if (logger.isDebugEnabled()) {
-                    logger.debug("failed to reduce search", failure);
+                threadPool.executor(ThreadPool.Names.SEARCH).execute(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            final InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, queryResults, fetchResults);
+                            String scrollId = null;
+                            if (request.scroll() != null) {
+                                scrollId = TransportSearchHelper.buildScrollId(request.searchType(), firstResults, null);
+                            }
+                            listener.onResponse(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successfulOps.get(), buildTookInMillis(), buildShardFailures()));
+                        } catch (Throwable e) {
+                            ReduceSearchPhaseException failure = new ReduceSearchPhaseException("merge", "", e, buildShardFailures());
+                            if (logger.isDebugEnabled()) {
+                                logger.debug("failed to reduce search", failure);
+                            }
+                            listener.onFailure(failure);
+                        } finally {
+                            releaseIrrelevantSearchContexts(queryResults, docIdsToLoad);
+                        }
+                    }
+                });
+            } catch (EsRejectedExecutionException ex) {
+                try {
+                    releaseIrrelevantSearchContexts(queryResults, docIdsToLoad);
+                } finally {
+                    listener.onFailure(ex);
                 }
-                listener.onFailure(failure);
-            } finally {
-                releaseIrrelevantSearchContexts(queryResults, docIdsToLoad);
             }
-        }
 
-        void innerFinishHim() throws Exception {
-            final InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, queryResults, fetchResults);
-            String scrollId = null;
-            if (request.scroll() != null) {
-                scrollId = TransportSearchHelper.buildScrollId(request.searchType(), firstResults, null);
-            }
-            listener.onResponse(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successfulOps.get(), buildTookInMillis(), buildShardFailures()));
         }
     }
 }

@@ -22,15 +22,11 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.BucketUtils;
-import org.elasticsearch.search.aggregations.bucket.terms.Terms.Order;
-import org.elasticsearch.search.aggregations.bucket.terms.TermsParametersParser.OrderElement;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  *
@@ -49,24 +45,7 @@ public class TermsParser implements Aggregator.Parser {
         IncludeExclude.Parser incExcParser = new IncludeExclude.Parser(aggregationName, StringTerms.TYPE, context);
         aggParser.parse(aggregationName, parser, context, vsParser, incExcParser);
 
-        List<OrderElement> orderElements = aggParser.getOrderElements();
-        List<Terms.Order> orders = new ArrayList<>(orderElements.size());
-        for (OrderElement orderElement : orderElements) {
-            orders.add(resolveOrder(orderElement.key(), orderElement.asc()));
-        }
-        Terms.Order order;
-        if (orders.size() == 1 && (orders.get(0) == InternalOrder.TERM_ASC || orders.get(0) == InternalOrder.TERM_DESC))
-        {
-            // If order is only terms order then we don't need the tie-breaker
-            order = orders.get(0);
-        }
-        else
-        {
-            // add term order ascending as a tie-breaker to avoid non-deterministic ordering
-            // if all user provided comparators return 0.
-            orders.add(Order.term(true));
-            order = Order.compound(orders);
-        }
+        InternalOrder order = resolveOrder(aggParser.getOrderKey(), aggParser.isOrderAsc());
         TermsAggregator.BucketCountThresholds bucketCountThresholds = aggParser.getBucketCountThresholds();
         if (!(order == InternalOrder.TERM_ASC || order == InternalOrder.TERM_DESC)
                 && bucketCountThresholds.getShardSize() == aggParser.getDefaultBucketCountThresholds().getShardSize()) {
@@ -78,14 +57,14 @@ public class TermsParser implements Aggregator.Parser {
         return new TermsAggregatorFactory(aggregationName, vsParser.config(), order, bucketCountThresholds, aggParser.getIncludeExclude(), aggParser.getExecutionHint(), aggParser.getCollectionMode(), aggParser.showTermDocCountError());
     }
 
-    static Terms.Order resolveOrder(String key, boolean asc) {
+    static InternalOrder resolveOrder(String key, boolean asc) {
         if ("_term".equals(key)) {
-            return Order.term(asc);
+            return asc ? InternalOrder.TERM_ASC : InternalOrder.TERM_DESC;
         }
         if ("_count".equals(key)) {
-            return Order.count(asc);
+            return asc ? InternalOrder.COUNT_ASC : InternalOrder.COUNT_DESC;
         }
-        return Order.aggregation(key, asc);
+        return new InternalOrder.Aggregation(key, asc);
     }
 
 }

@@ -36,8 +36,9 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
-import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
@@ -58,7 +59,6 @@ public class DoubleTermsTests extends ElasticsearchIntegrationTest {
     private static final int NUM_DOCS = 5; // TODO: randomize the size?
     private static final String SINGLE_VALUED_FIELD_NAME = "d_value";
     private static final String MULTI_VALUED_FIELD_NAME = "d_values";
-    private static HashMap<Double, Map<String, Object>> expectedMultiSortBuckets;
 
     public void setupSuiteScopeCluster() throws Exception {
         createIndex("idx");
@@ -88,121 +88,8 @@ public class DoubleTermsTests extends ElasticsearchIntegrationTest {
                     .field(SINGLE_VALUED_FIELD_NAME, i*2)
                     .endObject()));
         }
-
-        getMultiSortDocs(builders);
-
         indexRandom(true, builders);
         ensureSearchable();
-    }
-
-    private void getMultiSortDocs(List<IndexRequestBuilder> builders) throws IOException {
-        expectedMultiSortBuckets = new HashMap<>();
-        Map<String, Object> bucketProps = new HashMap<>();
-        bucketProps.put("_term", 1d);
-        bucketProps.put("_count", 3l);
-        bucketProps.put("avg_l", 1d);
-        bucketProps.put("sum_d", 6d);
-        expectedMultiSortBuckets.put((Double) bucketProps.get("_term"), bucketProps);
-        bucketProps = new HashMap<>();
-        bucketProps.put("_term", 2d);
-        bucketProps.put("_count", 3l);
-        bucketProps.put("avg_l", 2d);
-        bucketProps.put("sum_d", 6d);
-        expectedMultiSortBuckets.put((Double) bucketProps.get("_term"), bucketProps);
-        bucketProps = new HashMap<>();
-        bucketProps.put("_term", 3d);
-        bucketProps.put("_count", 2l);
-        bucketProps.put("avg_l", 3d);
-        bucketProps.put("sum_d", 3d);
-        expectedMultiSortBuckets.put((Double) bucketProps.get("_term"), bucketProps);
-        bucketProps = new HashMap<>();
-        bucketProps.put("_term", 4d);
-        bucketProps.put("_count", 2l);
-        bucketProps.put("avg_l", 3d);
-        bucketProps.put("sum_d", 4d);
-        expectedMultiSortBuckets.put((Double) bucketProps.get("_term"), bucketProps);
-        bucketProps = new HashMap<>();
-        bucketProps.put("_term", 5d);
-        bucketProps.put("_count", 2l);
-        bucketProps.put("avg_l", 5d);
-        bucketProps.put("sum_d", 3d);
-        expectedMultiSortBuckets.put((Double) bucketProps.get("_term"), bucketProps);
-        bucketProps = new HashMap<>();
-        bucketProps.put("_term", 6d);
-        bucketProps.put("_count", 1l);
-        bucketProps.put("avg_l", 5d);
-        bucketProps.put("sum_d", 1d);
-        expectedMultiSortBuckets.put((Double) bucketProps.get("_term"), bucketProps);
-        bucketProps = new HashMap<>();
-        bucketProps.put("_term", 7d);
-        bucketProps.put("_count", 1l);
-        bucketProps.put("avg_l", 5d);
-        bucketProps.put("sum_d", 1d);
-        expectedMultiSortBuckets.put((Double) bucketProps.get("_term"), bucketProps);
-
-        assertAcked(prepareCreate("sort_idx").addMapping("multi_sort_type", SINGLE_VALUED_FIELD_NAME, "type=double"));
-        for (int i = 1; i <= 3; i++) {
-            builders.add(client().prepareIndex("sort_idx", "multi_sort_type").setSource(jsonBuilder()
-                    .startObject()
-                    .field(SINGLE_VALUED_FIELD_NAME, 1)
-                    .field("l", 1)
-                    .field("d", i)
-                    .endObject()));
-            builders.add(client().prepareIndex("sort_idx", "multi_sort_type").setSource(jsonBuilder()
-                    .startObject()
-                    .field(SINGLE_VALUED_FIELD_NAME, 2)
-                    .field("l", 2)
-                    .field("d", i)
-                    .endObject()));
-        }
-        builders.add(client().prepareIndex("sort_idx", "multi_sort_type").setSource(jsonBuilder()
-                .startObject()
-                .field(SINGLE_VALUED_FIELD_NAME, 3)
-                .field("l", 3)
-                .field("d", 1)
-                .endObject()));
-        builders.add(client().prepareIndex("sort_idx", "multi_sort_type").setSource(jsonBuilder()
-                .startObject()
-                .field(SINGLE_VALUED_FIELD_NAME, 3)
-                .field("l", 3)
-                .field("d", 2)
-                .endObject()));
-        builders.add(client().prepareIndex("sort_idx", "multi_sort_type").setSource(jsonBuilder()
-                .startObject()
-                .field(SINGLE_VALUED_FIELD_NAME, 4)
-                .field("l", 3)
-                .field("d", 1)
-                .endObject()));
-        builders.add(client().prepareIndex("sort_idx", "multi_sort_type").setSource(jsonBuilder()
-                .startObject()
-                .field(SINGLE_VALUED_FIELD_NAME, 4)
-                .field("l", 3)
-                .field("d", 3)
-                .endObject()));
-        builders.add(client().prepareIndex("sort_idx", "multi_sort_type").setSource(jsonBuilder()
-                .startObject()
-                .field(SINGLE_VALUED_FIELD_NAME, 5)
-                .field("l", 5)
-                .field("d", 1)
-                .endObject()));
-        builders.add(client().prepareIndex("sort_idx", "multi_sort_type").setSource(jsonBuilder()
-                .startObject()
-                .field(SINGLE_VALUED_FIELD_NAME, 5)
-                .field("l", 5)
-                .field("d", 2)
-                .endObject()));
-        builders.add(client().prepareIndex("sort_idx", "multi_sort_type").setSource(jsonBuilder()
-                .startObject()
-                .field(SINGLE_VALUED_FIELD_NAME, 6)
-                .field("l", 5)
-                .field("d", 1)
-                .endObject()));
-        builders.add(client().prepareIndex("sort_idx", "multi_sort_type").setSource(jsonBuilder()
-                .startObject()
-                .field(SINGLE_VALUED_FIELD_NAME, 7)
-                .field("l", 5)
-                .field("d", 1)
-                .endObject()));
     }
 
     private String key(Terms.Bucket bucket) {
@@ -1156,80 +1043,6 @@ public class DoubleTermsTests extends ElasticsearchIntegrationTest {
             assertThat(key(bucket), equalTo("" + (double)i));
             assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i));
             assertThat(bucket.getDocCount(), equalTo(i == 1 ? 3L : 1L));
-        }
-    }
-
-    @Test
-    public void singleValuedField_OrderedBySingleValueSubAggregationAscAndTermsDesc() throws Exception {
-        double[] expectedKeys = new double[] { 1, 2, 4, 3, 7, 6, 5 };
-        assertMultiSortResponse(expectedKeys, Terms.Order.aggregation("avg_l", true), Terms.Order.term(false));
-    }
-
-    @Test
-    public void singleValuedField_OrderedBySingleValueSubAggregationAscAndTermsAsc() throws Exception {
-        double[] expectedKeys = new double[] { 1, 2, 3, 4, 5, 6, 7 };
-        assertMultiSortResponse(expectedKeys, Terms.Order.aggregation("avg_l", true), Terms.Order.term(true));
-    }
-
-    @Test
-    public void singleValuedField_OrderedBySingleValueSubAggregationDescAndTermsAsc() throws Exception {
-        double[] expectedKeys = new double[] { 5, 6, 7, 3, 4, 2, 1 };
-        assertMultiSortResponse(expectedKeys, Terms.Order.aggregation("avg_l", false), Terms.Order.term(true));
-    }
-
-    @Test
-    public void singleValuedField_OrderedByCountAscAndSingleValueSubAggregationAsc() throws Exception {
-        double[] expectedKeys = new double[] { 6, 7, 3, 4, 5, 1, 2 };
-        assertMultiSortResponse(expectedKeys, Terms.Order.count(true), Terms.Order.aggregation("avg_l", true));
-    }
-
-    @Test
-    public void singleValuedField_OrderedBySingleValueSubAggregationAscSingleValueSubAggregationAsc() throws Exception {
-        double[] expectedKeys = new double[] { 6, 7, 3, 5, 4, 1, 2 };
-        assertMultiSortResponse(expectedKeys, Terms.Order.aggregation("sum_d", true), Terms.Order.aggregation("avg_l", true));
-    }
-
-    @Test
-    public void singleValuedField_OrderedByThreeCriteria() throws Exception {
-        double[] expectedKeys = new double[] { 2, 1, 4, 5, 3, 6, 7 };
-        assertMultiSortResponse(expectedKeys, Terms.Order.count(false), Terms.Order.aggregation("sum_d", false), Terms.Order.aggregation("avg_l", false));
-    }
-
-    @Test
-    public void singleValuedField_OrderedBySingleValueSubAggregationAscAsCompound() throws Exception {
-        double[] expectedKeys = new double[] { 1, 2, 3, 4, 5, 6, 7 };
-        assertMultiSortResponse(expectedKeys, Terms.Order.aggregation("avg_l", true));
-    }
-
-    private void assertMultiSortResponse(double[] expectedKeys, Terms.Order... order) {
-        SearchResponse response = client().prepareSearch("sort_idx").setTypes("multi_sort_type")
-                .addAggregation(terms("terms")
-                        .field(SINGLE_VALUED_FIELD_NAME)
-                        .collectMode(randomFrom(SubAggCollectionMode.values()))
-                        .order(Terms.Order.compound(order))
-                        .subAggregation(avg("avg_l").field("l"))
-                        .subAggregation(sum("sum_d").field("d"))
-                ).execute().actionGet();
-
-        assertSearchResponse(response);
-
-        Terms terms = response.getAggregations().get("terms");
-        assertThat(terms, notNullValue());
-        assertThat(terms.getName(), equalTo("terms"));
-        assertThat(terms.getBuckets().size(), equalTo(expectedKeys.length));
-
-        int i = 0;
-        for (Terms.Bucket bucket : terms.getBuckets()) {
-            assertThat(bucket, notNullValue());
-            assertThat(key(bucket), equalTo(String.valueOf(expectedKeys[i])));
-            assertThat(bucket.getDocCount(), equalTo(expectedMultiSortBuckets.get(expectedKeys[i]).get("_count")));
-            Avg avg = bucket.getAggregations().get("avg_l");
-            assertThat(avg, notNullValue());
-            assertThat(avg.getValue(), equalTo(expectedMultiSortBuckets.get(expectedKeys[i]).get("avg_l")));
-            Sum sum = bucket.getAggregations().get("sum_d");
-            assertThat(sum, notNullValue());
-            assertThat(sum.getValue(), equalTo(expectedMultiSortBuckets.get(expectedKeys[i]).get("sum_d")));
-            i++;
         }
     }
 

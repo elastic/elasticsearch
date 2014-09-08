@@ -518,20 +518,16 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
         for (String conflict : mergeResult.conflicts()) {
             assertThat(conflict, isIn(expectedConflicts));
         }
-
     }
 
     @Test
     public void testMergePaths() throws Exception {
-        List<String> possiblePathValues = new ArrayList<>();
-        possiblePathValues.add("some_path");
-        possiblePathValues.add("anotherPath");
-        possiblePathValues.add(null);
+        String[] possiblePathValues = {"some_path", "anotherPath", null};
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
         XContentBuilder mapping1 = XContentFactory.jsonBuilder().startObject()
                 .startObject("type")
                 .startObject("_timestamp");
-        String path1 = possiblePathValues.get(randomInt(2));
+        String path1 = possiblePathValues[randomInt(2)];
         if (path1!=null) {
             mapping1.field("path", path1);
         }
@@ -540,16 +536,14 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
         XContentBuilder mapping2 = XContentFactory.jsonBuilder().startObject()
                 .startObject("type")
                 .startObject("_timestamp");
-        String path2 = possiblePathValues.get(randomInt(2));
+        String path2 = possiblePathValues[randomInt(2)];
         if (path2!=null) {
             mapping2.field("path", path2);
         }
         mapping2.endObject()
                 .endObject().endObject();
 
-
-        testConflict(mapping1.string(), mapping2.string(), parser, (path1==path2?null:"Cannot update path in _timestamp valuev"));
-
+        testConflict(mapping1.string(), mapping2.string(), parser, (path1 == path2 ? null : "Cannot update path in _timestamp value"));
     }
 
     void testConflict(String mapping1, String mapping2, DocumentMapperParser parser, String conflict) throws IOException {
